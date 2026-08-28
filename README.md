@@ -36,6 +36,35 @@ To install locally:
 make install
 ```
 
+### PDR support (in development)
+
+Work is under way to couple the [3D-PDR](https://github.com/itamos-ism/3D-PDR) photodissociation-region
+chemistry code into MOCASSIN. This is **not yet part of the default build** — `make` is unaffected and
+needs no extra dependencies.
+
+When the `PDR=1` build switch lands it will additionally require **SUNDIALS >= 7.0.0** (3D-PDR's link
+line uses `-lsundials_core`, which does not exist in 6.x). A verified local install lives at
+`~/software/sundials-7.8.0`; source its environment file before building with PDR support:
+
+```bash
+source ~/software/sundials-7.8.0/env.sh   # sets SUNDIALS_DIR and LD_LIBRARY_PATH
+```
+
+To build SUNDIALS elsewhere, `cmake` is required, and only the CVODE modules are needed:
+
+```bash
+git clone https://github.com/LLNL/sundials.git && cd sundials && git checkout v7.8.0
+cmake -B build -DCMAKE_INSTALL_PREFIX=<prefix> -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_CVODE=ON -DBUILD_ARKODE=OFF -DBUILD_CVODES=OFF \
+      -DBUILD_IDA=OFF -DBUILD_IDAS=OFF -DBUILD_KINSOL=OFF \
+      -DEXAMPLES_ENABLE_C=OFF -DSUNDIALS_PRECISION=DOUBLE
+cmake --build build -j && cmake --install build
+```
+
+`SUNDIALS_PRECISION=DOUBLE` is required — it must match 3D-PDR's `real(kind=dp)`.
+
+Design decisions and implementation history for this work are recorded in [DEVLOG.md](DEVLOG.md).
+
 
 ## Running the Benchmarks
 

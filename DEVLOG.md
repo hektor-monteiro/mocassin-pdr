@@ -37,6 +37,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-013 | `nbins >= 1000` for PDR runs | Accepted | 2026-08-28b |
 | D-014 | SUNDIALS >= 7.0.0, pinned at install | Accepted | 2026-08-28b |
 | D-015 | SUNDIALS pinned at 7.8.0, installed to `~/software/sundials-7.8.0` | Accepted | 2026-08-28c |
+| D-016 | Phase 6 baseline is a fresh standalone run, not the shipped reference files | Accepted | 2026-08-28d |
 
 ---
 
@@ -566,9 +567,106 @@ the venv used here is temporary.
 
 ### Open items
 
-- [ ] Add the SUNDIALS prerequisite and `env.sh` usage to the README, alongside the existing
-      MPI/gfortran instructions.
+- [x] Add the SUNDIALS prerequisite and `env.sh` usage to the README — done 2026-08-28d.
 - [ ] Install `cmake` system-wide so SUNDIALS can be rebuilt without the venv workaround.
+
+---
+
+## 2026-08-28d — 3D-PDR builds and runs; the shipped reference files are stale
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** second half of Phase 0 — build 3D-PDR standalone against the SUNDIALS from D-015
+and reproduce a 1D benchmark.
+
+### Build and run
+
+Built clean, no errors, using the stock `src/config.mk` (which already defaults to
+`DIMENSIONS=1`, `NETWORK=REDUCED`, `CHEMSTEADY=1`, `CHEMRETRY=1` — matching D-003 and D-004).
+The stock `params.dat` reproduces the shipped benchmark: G0=10, zeta=1e-16, dust-to-gas=1,
+uniform n_H=1e3 over 122 points from `ics/1Dn30.dat`.
+
+```
+build   : clean against SUNDIALS 7.8.0, zero errors
+run     : converged after 65 iterations, 0.7 s wall (8 OpenMP threads)
+```
+
+**D-015 is confirmed in practice** — the SUNDIALS install links and runs real chemistry, not
+just a synthetic test.
+
+### Comparison against `benchmarks/model.pdr.fin`
+
+| Quantity | Agreement |
+|----------|-----------|
+| x, A_V (geometry) | 5e-7 — bit-comparable |
+| T_dust | 1.5e-7 — bit-comparable |
+| UV field | 8e-6 |
+| **H/H2 front** | **0.05%** |
+| **C+/C front** | **0.83%** |
+| T_gas, whole profile | max 1.6 K absolute (0.6% at surface, 6.9% at 12 K deep) |
+| x(CO), outer PDR | **factor ~3.5 low vs reference** |
+| x(CO), A_V=10 | ~20% |
+| x(Mg) (trace) | up to 10x, deep only |
+
+The split is diagnostic: **everything that does not depend on the chemistry solver is
+bit-comparable**, and the two physically-important fronts agree to under 1%. The build, the
+radiation path and the dust treatment are all correct.
+
+---
+
+**D-016 — The Phase 6 comparison baseline is a freshly generated standalone 3D-PDR run,
+not the shipped `benchmarks/model.*.fin` files.** *Accepted*
+
+*The shipped reference outputs are stale.* Two independent lines of evidence:
+
+1. **Format.** `benchmarks/model.params` contains three values; the current code writes four
+   on the first line plus two further lines. The reference was written by an older version.
+2. **History.** `git log` dates the reference files to **2025-11-25** (initial upload), while
+   `src/calc_reac_rates.F90` was last modified **2026-07-10** — eight months later.
+
+*Attribution.* Commit `728797f`, "Added condition to treat reactions when Tgas<10K", adds:
+
+```fortran
+!     Clamp evaluation temperature to RTMIN for negative-gamma fits
+      IF(GAMMA(I).LT.0.0D0 .AND. TEMPERATURE.LT.RTMIN(I)) THEN
+         LOCTEMPERATURE=RTMIN(I)
+      ENDIF
+```
+
+Negative-gamma Arrhenius fits diverge as T falls below their validity range. This model's
+deep-cloud gas sits at 10-12 K, exactly where the clamp fires. That accounts for the
+deep-cloud T_gas shift (11.49 -> 12.28 K) and is the most likely origin of the CO difference,
+since low-temperature CO chemistry runs through such reactions.
+
+**Our run is the more correct one.** The difference is an upstream bug fix landing after the
+reference was generated, not a defect in our build.
+
+*Decision:* generate a fresh standalone baseline from the **same vendored source** that gets
+coupled (D-005), commit it under `benchmarks/`, and compare the coupled code against that.
+Treat the shipped `model.*.fin` files as historical only.
+
+*Why this matters:* had Phase 6 used the shipped files as its target, the ~3.5x CO
+discrepancy would have appeared as a regression introduced by the coupling. That is a
+phantom failure in the one quantity — CO, a coolant and a key observable — where a real
+coupling bug is most likely to hide, and it could have cost weeks.
+
+*Corollary for D-005:* pin the vendored upstream SHA in `source/pdr/UPSTREAM.md` and generate
+the baseline from that exact commit. A baseline is only meaningful against a known source
+revision.
+
+### Caveat to carry forward
+
+The CO difference is *attributed* to `728797f` by timing and mechanism, not *proven* — no
+A/B run was done with the commit reverted. If CO behaviour looks wrong during Phase 3-4
+validation, revisiting this is the first place to look. Cheap to settle later: build the
+vendored source with and without that clamp and diff the CO profile.
+
+### Open items
+
+- [ ] Install `cmake` system-wide so SUNDIALS can be rebuilt without the venv workaround.
+- [ ] Generate and commit the fresh 3D-PDR baseline once the source is vendored in Phase 1
+      (D-016).
+- [ ] Remaining Phase 0 work: the MOCASSIN chi slab test — dump per-cell chi and check it
+      against the analytic exp(-UV_fac*A_V) profile.
 
 ---
 
