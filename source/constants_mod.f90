@@ -10,6 +10,18 @@ module constants_mod
     real, parameter :: A0 = 6.30e-18               ! H0 phot x sec at the edge [cm^2]
     real, parameter :: amu = 1.66053e-24           ! [g]
     real, parameter :: c = 2.9979250e10            ! speed of light [cm/s]
+
+#ifdef PDR
+    ! --- FUV band and Draine field normalisation (DEVLOG D-001) ---------------
+    ! The far-UV band conventionally used for PDR photorates, 912-2400 Angstrom,
+    ! expressed in Rydbergs: 2400 A = 0.44066 Ryd, 912 A = 1.0 Ryd (Lyman limit).
+    real, parameter :: nuFUVlo = 0.44066            ! 2400 A [Ryd]
+    real, parameter :: nuFUVhi = 1.0                ! 912 A  [Ryd]
+    ! Integrated FUV energy density of the Draine (1978) field, chi = 1.
+    ! The Habing equivalent is 5.29e-14; their ratio, 1.69, is the 1.68 factor
+    ! that 3D-PDR's heatingfunctions.F90 uses to convert Draine -> Habing.
+    real, parameter :: uDraine = 8.94e-14           ! [erg/cm^3]
+#endif
     real, parameter :: fr1Ryd = 3.28984e15         ! frequency a 1 Ryd [Hz]
     real, parameter :: hPlanck = 6.6262e-27        ! Planck constant [erg s]
     real, parameter :: HIonPot = 0.99946           ! ionization potential of H [Ryd]

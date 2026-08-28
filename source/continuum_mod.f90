@@ -83,6 +83,20 @@ module continuum_mod
         ! find the Lyman limit
         call locate(nuArray, 1., lymanP)
 
+#ifdef PDR
+        ! Bracket the FUV band used for the PDR radiation field (DEVLOG D-001).
+        ! locate() returns j with nuArray(j) <= x < nuArray(j+1), so step the
+        ! lower pointer up by one to keep the whole range inside the band.
+        call locate(nuArray, nuFUVlo, FUVlowP)
+        FUVlowP = FUVlowP + 1
+        call locate(nuArray, nuFUVhi, FUVhighP)
+        if (taskid==0) then
+           print*, "! setContinuum: FUV band [", nuArray(FUVlowP), ",", &
+                & nuArray(FUVhighP), "] Ryd spans bins ", FUVlowP, "to", FUVhighP, &
+                & " (", FUVhighP-FUVlowP+1, "bins)"
+        end if
+#endif
+
         if (Ldiffuse >0.) then
            star1 = 0
         else

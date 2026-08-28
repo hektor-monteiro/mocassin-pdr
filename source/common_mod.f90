@@ -467,6 +467,10 @@ module common_mod
     real               :: XHILimit         ! convergence limit on X(HI)
 
     integer             :: lymanP                  ! frequency pointer to Lyman limit
+#ifdef PDR
+    integer             :: FUVlowP                 ! first nuArray bin inside the FUV band
+    integer             :: FUVhighP                ! last  nuArray bin inside the FUV band
+#endif
     ! dust parameters
     integer            :: nSizes           ! number of grain sizes
     integer, allocatable    :: nSpeciesPart(:)  ! number of grain specie

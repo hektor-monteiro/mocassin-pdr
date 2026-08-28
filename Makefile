@@ -44,6 +44,13 @@ SOURCES = source/constants_mod.o source/vector_mod.o source/common_mod.o source/
 	source/grid_mod.o source/dust_mod.o source/emission_mod.o source/photon_mod.o  \
 	source/update_mod.o source/output_mod.o source/iteration_mod.o source/readdata_mod.o
 
+# PDR support (DEVLOG D-009). Off by default: with PDR unset the build and the
+# resulting binaries must be identical to a plain build. Phase 1 will add the
+# SUNDIALS include/lib flags to this same switch when 3D-PDR is vendored in.
+ifeq ($(PDR),1)
+  FFLAGS += -DPDR
+endif
+
 ifeq ($(CO),debug) #to show all compiler warnings
   FFLAGS += -fbounds-check -Wall -Wuninitialized -g -pg #-ffpe-trap=zero,overflow,invalid,underflow,denormal -fbacktrace -fcheck=all
 else ifeq ($(CO),valgrind)

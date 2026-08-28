@@ -1168,6 +1168,9 @@ module iteration_mod
                  ! output results at this itearation stage (every 3 iterations)
 
                  call writeGrid(grid(1:nGrids))
+#ifdef PDR
+                 call writeFUVField(grid(1:nGrids))
+#endif
                  if (lgGas) call outputGas(grid(1:nGrids))
               end if
 
@@ -1181,6 +1184,9 @@ module iteration_mod
                       & maxIterateMC
 
                  call writeGrid(grid(1:nGrids))
+#ifdef PDR
+                 call writeFUVField(grid(1:nGrids))
+#endif
                  if (lgGas) call outputGas(grid(1:nGrids))
               end if
 

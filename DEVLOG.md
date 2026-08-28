@@ -38,6 +38,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-014 | SUNDIALS >= 7.0.0, pinned at install | Accepted | 2026-08-28b |
 | D-015 | SUNDIALS pinned at 7.8.0, installed to `~/software/sundials-7.8.0` | Accepted | 2026-08-28c |
 | D-016 | Phase 6 baseline is a fresh standalone run, not the shipped reference files | Accepted | 2026-08-28d |
+| D-017 | `PDR=1` build switch; chi diagnostic in `writeFUVField` | Accepted | 2026-08-28e |
+| D-018 | All bridge arithmetic in double precision | Accepted | 2026-08-28e |
+| D-019 | PDR models REQUIRE dust; gas-only does not transport the FUV field | Accepted | 2026-08-28e |
 
 ---
 
@@ -665,8 +668,154 @@ vendored source with and without that clamp and diff the CO profile.
 - [ ] Install `cmake` system-wide so SUNDIALS can be rebuilt without the venv workaround.
 - [ ] Generate and commit the fresh 3D-PDR baseline once the source is vendored in Phase 1
       (D-016).
-- [ ] Remaining Phase 0 work: the MOCASSIN chi slab test — dump per-cell chi and check it
-      against the analytic exp(-UV_fac*A_V) profile.
+- [x] Remaining Phase 0 work: the MOCASSIN chi test — done 2026-08-28e, gate passed. See
+      D-017 to D-019.
+
+---
+
+## 2026-08-28e — Phase 0 chi test: PASSED, after finding that gas-only models do not transport the FUV field
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** the remaining Phase 0 exit criterion — validate the chi formula of D-001 against
+an analytic case before anything is built on it.
+
+### Test design (refined from the original plan)
+
+The plan said "compare chi against the analytic `exp(-UV_fac*A_V)`". That is **not** the right
+test: `UV_fac=3.02` and `AV_fac=6.289e-22` are 3D-PDR's own dust parametrisation, whereas
+MOCASSIN attenuates with real grain optical constants. Comparing the two conflates the
+estimator normalisation with a dust-model calibration.
+
+The estimator normalisation is what Phase 0 must gate, so the test used instead is the
+**optically thin limit**, where the answer is exact and parameter-free:
+
+```
+chi_MC(cell)   = sum_{FUV bins} [Jste + Jdif] / (c * uDraine)
+chi_thin(cell) = L_FUV / (4 pi r^2 c uDraine)
+```
+
+`L_FUV` is taken from `inSpectrumProbDen` — the same cumulative energy PDF the packets are
+drawn from — so the comparison is internally consistent. This directly gates the three named
+suspects: the `1e-9` scaling, the `lgSymmetricXYZ` division by 8, and a spurious `widFlx`.
+
+Cross-check: the code's FUV energy fraction (0.53528) matches the analytic blackbody fraction
+for T=25 kK (0.53001) to 1%, and `deltaE * nPhotons = Lstar` exactly. The reference side is sound.
+
+---
+
+**D-017 — `PDR=1` build switch and the `writeFUVField` diagnostic.** *Accepted*
+
+Six files touched, every change behind `#ifdef PDR`:
+
+| File | Change |
+|------|--------|
+| `Makefile` | `PDR=1` adds `-DPDR`. Phase 1 will hang the SUNDIALS flags off the same switch |
+| `constants_mod.f90` | `nuFUVlo=0.44066`, `nuFUVhi=1.0` Ryd, `uDraine=8.94e-14` |
+| `common_mod.f90` | `FUVlowP`, `FUVhighP` |
+| `continuum_mod.f90` | locate the FUV pointers beside `lymanP`; report the band at startup |
+| `output_mod.f90` | `writeFUVField` -> `output/pdrFUV.out` |
+| `iteration_mod.f90` | call it from **both** convergence exit paths |
+
+*Verification that the default build is unaffected.* `make` with `PDR` unset was compared
+against the pristine tree, `VERSION` pinned to remove the git-describe confound.
+
+**Byte-identity is not achievable and must not be the acceptance criterion.** Three objects
+differ — exactly the three files with in-body `#ifdef` blocks. The differences are only
+instructions of the form `movl $0x49d -> $0x4a0` into `0x2c0(%rsp)`, which is the `line` field
+of gfortran's I/O parameter struct: the source line numbers baked into I/O statements for
+runtime error messages. The deltas (3 and 6) are exactly the number of lines inserted above
+each site. Normalising those immediates, **all 19 objects are identical**.
+
+So the D-009 criterion is **"semantically unchanged"**, verified by masking line-number
+immediates in the disassembly — not `md5sum`. Anyone wiring this into CI needs to know that;
+a naive byte-comparison will fail forever.
+
+---
+
+**D-018 — All bridge arithmetic in double precision.** *Accepted*
+
+The first version of the diagnostic returned `chi_thin = 0` in every cell. Cause: in cgs,
+`4*pi*r^2*c` is ~4e47 for r ~ 1e18 cm, which **overflows a 4-byte real** (max ~3.4e38),
+giving Inf and then a zero quotient — silently, with no warning.
+
+MOCASSIN's grid arrays are default `real`, so this will recur everywhere the bridge touches
+cgs luminosities, energy densities or radii. Every bridge computation promotes to
+`double precision` and converts explicitly at the boundary. This is the precision hazard the
+plan predicted; it appeared on the very first calculation.
+
+---
+
+**D-019 — PDR models REQUIRE dust. Gas-only models do not transport the FUV field at all.**
+*Accepted*
+
+**The most consequential finding so far.** With dust off, chi came out a factor **~3.6 low**,
+flat in radius, stable across MPI rank count (1 vs 4), grid resolution (11^3, 21^3, 41^3) and
+`R_out`. Ruled out in turn: attenuation (`tauNu.out` gives tau_FUV ~ 9e-9), packet loss
+(0 trapped, 99.985% of L escapes), path-stretching weights (disabled, `weightFactor=1`),
+cell volumes (total matches the analytic sphere), and `safeLimit` truncation.
+
+Direct instrumentation of the accumulation settled it: packets deposited over only
+**3.3e17 cm** of path where geometry demands 9.3e17, at **5.3 cell crossings per packet**
+instead of ~15. Dropping T_eff to 10 kK made it far worse — **0.04 deposits per packet**.
+
+Root cause, `source/photon_mod.f90:396`:
+
+```fortran
+if (.not.lgDust .and. enPacket%nu < ionEdge(1) .and. .not.enPacket%lgLine) then
+   ! the packet escapes without further interaction
+```
+
+In a **gas-only** model, every continuum packet below the lowest ionization edge is binned
+straight into `escapedPackets` and **never traced through the grid**, so it contributes
+nothing to `Jste`. This is a correct and sensible optimisation for a pure photoionisation
+code — below the lowest edge such photons cannot interact with the gas, and their only role
+is the emergent SED. It is fatal for PDR work, where those photons *are* the physics.
+
+It also explains the T_eff dependence exactly: the deficit scales with how much of the
+spectrum lies below `ionEdge(1)`.
+
+*Decision:* **PDR models require `lgDust = .true.`** This is not a workaround — it is
+physically mandatory anyway: A_V is a dust quantity, photoelectric heating is a dust process,
+and H2 forms on grains. With dust on, the shortcut cannot fire and packets are traced normally.
+
+*Implemented now:* `writeFUVField` warns loudly when `lgDust` is false. *Phase 2 must* turn
+this into hard input validation that refuses to start.
+
+*Second-order trap:* the threshold is `ionEdge(1)`, the lowest edge among the **elements
+actually enabled**. So in a gas-only model the FUV cutoff silently moves when the abundance
+file changes. Another reason to require dust rather than reason about the shortcut.
+
+### Result — Phase 0 gate PASSED
+
+With dust enabled (`Ndust constant 1.e-12`, optically thin):
+
+| | median ratio MC / analytic |
+|---|---|
+| **FUV chi** | **1.0024** |
+| **Bolometric control** | **1.0023** |
+
+Flat across radius (0.983-1.049; the scatter is MC noise). The chi formula of D-001 is
+validated **to 0.3%**, and with it: the `1e-9` scaling is right, there is **no** `widFlx`
+factor, `lgSymmetricXYZ` is handled correctly (sym and nosym agree to 0.3%), `uDraine =
+8.94e-14` is right, and `L_FUV` from `inSpectrumProbDen` is right.
+
+### Notes
+
+- FUV band width is **58 bins** at `nbins=1000` in this gas-only run, against the ~41
+  predicted in D-013. D-013's table was computed for a gas+dust mesh, which spends points on
+  `nuDustRyd.dat`. Since D-019 makes dust mandatory, **D-013's numbers are the ones that
+  apply** and its `nbins >= 1000` recommendation stands.
+- `output/pdrFUV.out` carries a bolometric control column (all bins vs `L_bol/4 pi r^2`)
+  alongside the FUV one. It is what separated "estimator normalisation" from "FUV band
+  selection", and is worth keeping.
+
+### Open items
+
+- [ ] Install `cmake` system-wide so SUNDIALS can be rebuilt without the venv workaround.
+- [ ] Generate and commit the fresh 3D-PDR baseline once the source is vendored (D-016).
+- [ ] Phase 2: hard input validation refusing to start a PDR run with `lgDust = .false.` (D-019).
+- [ ] Phase 2: `writeFUVField` currently writes from both `iterateMC` exit paths only; decide
+      whether `mocassinOutput` should regenerate it from the checkpoint (D-012).
 
 ---
 

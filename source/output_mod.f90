@@ -5,8 +5,153 @@ module output_mod
     use constants_mod
     use emission_mod
     use photon_mod
+#ifdef PDR
+    use continuum_mod, only : inSpectrumProbDen
+#endif
 
     contains
+
+#ifdef PDR
+      !-------------------------------------------------------------------
+      ! writeFUVField  (Phase 0 diagnostic - DEVLOG D-017)
+      !
+      ! Dumps the per-cell FUV radiation field chi in Draine units, derived
+      ! from the Monte Carlo estimators, alongside the analytic optically
+      ! thin value expected from pure geometric dilution of the sources.
+      !
+      ! In an optically thin model the two must agree. That is the whole
+      ! point: it is what validates the estimator normalisation - the 1e-9
+      ! scaling applied in iteration_mod, the lgSymmetricXYZ division by 8,
+      ! and above all the absence of a spurious widFlx factor, since Jste
+      ! and Jdif are already bin-integrated (see photon_mod, "no Hz^-1 as
+      ! they are summed over separate bins").
+      !
+      !   chi = sum_{FUV bins} [ Jste + Jdif ] / ( c * uDraine )
+      !
+      ! Jste/Jdif are [erg/s/cm^2] per bin, so the sum is an energy flux;
+      ! dividing by c gives an energy density, and by uDraine the Draine
+      ! units 3D-PDR expects. There is deliberately no widFlx here.
+      !-------------------------------------------------------------------
+      subroutine writeFUVField(grid)
+        implicit none
+
+        type(grid_type), dimension(:), intent(in) :: grid
+
+        integer      :: iG, i, j, k, ifreq, iS, cellP, ios, yTop
+        real         :: fFUV
+        real         :: dx, dy, dz
+        ! Double precision throughout the arithmetic: in cgs, 4*pi*r^2*c is
+        ! ~4e47 for r ~ 1e18 cm, which overflows a 4-byte real (max ~3.4e38)
+        ! and silently yields Inf, then chiThin = 0. MOCASSIN's grid arrays are
+        ! default real, so every bridge computation must promote (DEVLOG D-018).
+        double precision :: chi, chiThin, rr, LfuvTot, uFUV, Fbol, FbolThin, LbolTot
+
+        if (taskid /= 0) return
+
+        ! The FUV field only exists in Jste if the packets were actually traced.
+        ! In a gas-only model, photon_mod short-circuits every continuum packet
+        ! below the lowest ionization edge straight into escapedPackets without
+        ! ever propagating it through the grid:
+        !
+        !    if (.not.lgDust .and. enPacket%nu < ionEdge(1) .and. ...)
+        !
+        ! That is a sound optimisation for pure photoionisation - such photons
+        ! cannot interact with the gas - but it means chi is identically wrong
+        ! without dust. Measured: the field comes out a factor ~3.6 low at
+        ! T_eff = 25 kK and ~380x low at 10 kK, because the deficit scales with
+        ! how much of the spectrum sits below the edge (DEVLOG D-019).
+        if (.not.lgDust) then
+           print*, "! writeFUVField: [WARNING] lgDust is false, so sub-edge"
+           print*, "!   packets are not traced and the FUV field is NOT valid."
+           print*, "!   PDR models require dust. See DEVLOG D-019."
+        end if
+
+        ! FUV fraction of the emitted energy, taken from the same cumulative
+        ! energy PDF the packets are actually drawn from, so the comparison
+        ! is internally consistent rather than an independent guess.
+        LfuvTot = 0.d0
+        LbolTot = 0.d0
+        do iS = 1, nStars
+           fFUV = inSpectrumProbDen(iS, FUVhighP)
+           if (FUVlowP > 1) fFUV = fFUV - inSpectrumProbDen(iS, FUVlowP-1)
+           LfuvTot = LfuvTot + dble(Lstar(iS))*1.d36*dble(fFUV)
+           LbolTot = LbolTot + dble(Lstar(iS))*1.d36
+        end do
+
+        close(96)
+        open(unit=96, file="output/pdrFUV.out", action="write", &
+             & position="rewind", status="unknown", iostat=ios)
+        if (ios /= 0) then
+           print*, "! writeFUVField: can't open output/pdrFUV.out for writing"
+           stop
+        end if
+
+        write(96,*) "# FUV field diagnostic (DEVLOG D-017)"
+        write(96,*) "# FUV band: bins ", FUVlowP, " to ", FUVhighP, &
+             & " = [", nuArray(FUVlowP), ",", nuArray(FUVhighP), "] Ryd"
+        write(96,*) "# L_FUV [erg/s] = ", LfuvTot
+        write(96,*) "# L_bol [erg/s] = ", LbolTot
+        write(96,*) "# iG ix iy iz  x y z [cm]  r [cm]  Hden  chi_MC  chi_thin  ratio  Fbol_MC  Fbol_thin  ratio_bol  V[cm3]"
+
+        do iG = 1, nGrids
+           if (iG>1 .or. (.not.lg2D)) then
+              yTop = grid(iG)%ny
+           else
+              yTop = 1
+           end if
+           do i = 1, grid(iG)%nx
+              do j = 1, yTop
+                 do k = 1, grid(iG)%nz
+                    cellP = grid(iG)%active(i,j,k)
+                    if (cellP <= 0) cycle
+
+                    uFUV = 0.d0
+                    do ifreq = FUVlowP, FUVhighP
+                       uFUV = uFUV + dble(grid(iG)%Jste(cellP,ifreq))
+                       if (lgDebug) uFUV = uFUV + dble(grid(iG)%Jdif(cellP,ifreq))
+                    end do
+                    chi = uFUV / (dble(c) * dble(uDraine))
+
+                    ! Bolometric control: the same estimator summed over every
+                    ! bin. Compared against L_bol/(4 pi r^2) this separates an
+                    ! estimator-normalisation error from an error in the FUV
+                    ! band selection or in L_FUV.
+                    Fbol = 0.d0
+                    do ifreq = 1, nbins
+                       Fbol = Fbol + dble(grid(iG)%Jste(cellP,ifreq))
+                       if (lgDebug) Fbol = Fbol + dble(grid(iG)%Jdif(cellP,ifreq))
+                    end do
+
+                    ! distance to the first source, for the thin comparison
+                    dx = grid(iG)%xAxis(i) - starPosition(1)%x
+                    dy = grid(iG)%yAxis(j) - starPosition(1)%y
+                    dz = grid(iG)%zAxis(k) - starPosition(1)%z
+                    rr = sqrt(dble(dx)*dble(dx) + dble(dy)*dble(dy) + dble(dz)*dble(dz))
+
+                    if (rr > 0.d0) then
+                       chiThin  = LfuvTot / (dble(fourPi)*rr*rr*dble(c)*dble(uDraine))
+                       FbolThin = LbolTot / (dble(fourPi)*rr*rr)
+                    else
+                       chiThin  = 0.d0
+                       FbolThin = 0.d0
+                    end if
+
+                    write(96,'(4(1x,i5),3(1x,es13.6),1x,es13.6,8(1x,es13.6))') &
+                         & iG, i, j, k, grid(iG)%xAxis(i), grid(iG)%yAxis(j), &
+                         & grid(iG)%zAxis(k), rr, grid(iG)%Hden(cellP), chi, chiThin, &
+                         & merge(chi/chiThin, 0.d0, chiThin > 0.d0), Fbol, FbolThin, &
+                         & merge(Fbol/FbolThin, 0.d0, FbolThin > 0.d0), &
+                         & dble(getVolume(grid(iG),i,j,k))*1.d45
+                 end do
+              end do
+           end do
+        end do
+
+        close(96)
+        print*, "! writeFUVField: wrote output/pdrFUV.out"
+
+      end subroutine writeFUVField
+#endif
 
 
       subroutine outputGas(grid, extMap)
