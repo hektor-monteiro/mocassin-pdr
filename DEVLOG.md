@@ -41,6 +41,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-017 | `PDR=1` build switch; chi diagnostic in `writeFUVField` | Accepted | 2026-08-28e |
 | D-018 | All bridge arithmetic in double precision | Accepted | 2026-08-28e |
 | D-019 | PDR models REQUIRE dust; gas-only does not transport the FUV field | Accepted | 2026-08-28e |
+| D-020 | Vendored build integration and frozen preprocessor matrix | Accepted | 2026-08-28f |
+| D-021 | Import 3D-PDR modules only with explicit `only:` lists | Accepted | 2026-08-28f |
+| D-022 | Chemistry data lives in `dataPDR/`; paths must become configurable | Accepted | 2026-08-28f |
 
 ---
 
@@ -228,8 +231,12 @@ by hand.
 `source/pdr/UPSTREAM.md` at import time, so the divergence is always measurable.
 
 *Excluded from the import* (driver and I/O that MOCASSIN supplies instead):
-`3DPDR.F90`, `read_input.F90`, `readdensity.F90`, `UVfield.F90`, `writeoutputs.F90`,
+`3DPDR.F90`, ~~`read_input.F90`~~, `readdensity.F90`, `UVfield.F90`, `writeoutputs.F90`,
 `restart_io.F90`, `logo.F90`, `read_command_line.F90`.
+
+> **Correction (2026-08-28f):** `read_input.F90` is the LAMDA coolant datafile reader,
+> not the parameter reader, and is required by `read_coolants.F90`. The parameter reader
+> is `input_parameters.F90`. This list was inferred from filenames; see D-020.
 
 Retain `3DPDR.F90` as a **read-only reference** for call ordering before deleting it — it is
 the only place the intended sequence of `calc_columndens` → `chemicaliterations` →
@@ -816,6 +823,149 @@ factor, `lgSymmetricXYZ` is handled correctly (sym and nosym agree to 0.3%), `uD
 - [ ] Phase 2: hard input validation refusing to start a PDR run with `lgDust = .false.` (D-019).
 - [ ] Phase 2: `writeFUVField` currently writes from both `iterateMC` exit paths only; decide
       whether `mocassinOutput` should regenerate it from the checkpoint (D-012).
+
+---
+
+## 2026-08-28f — Phase 1: vendored, building, chemistry running
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** Phase 1 — vendor 3D-PDR into `source/pdr/`, link it against the SUNDIALS of
+D-015, and get a single cell of chemistry running inside MOCASSIN's build.
+
+**Phase 1 exit criterion met:** `make PDR=1` links all four binaries, and a hardcoded
+single-cell call to `calculate_abundances` returns sane abundances.
+
+---
+
+**D-020 — Vendored build integration and frozen preprocessor matrix.** *Accepted*
+
+Vendored at upstream `fabcdc64` (2026-08-26), recorded in `source/pdr/UPSTREAM.md`:
+44 `.F90` + 5 `.c`, 916 KB. Chemistry data goes to `dataPDR/` (see D-022).
+
+*Build wiring.* `PDR=1` now adds `-DPDR`, the frozen 3D-PDR matrix, the SUNDIALS
+include/lib flags, and the vendored objects to all four link targets:
+
+```
+-DTHERMALBALANCE -DREDUCED -DRAYTHEIA -DRAYTHEIA_MO -DH2FORM_CT02
+-DCHEMSTEADY -DCHEMRETRY -DFORCECONVERGENCE
+-DNGACCEL -DNGCYCLE -DNGRELAX -DILLINOIS -DREBRACKET -DSOBOLEV
+```
+
+Deliberately **not** set, each for a reason already decided: `ONEDIMENSIONAL` (3D grids),
+`DUST` (D-005/F-5 — MOCASSIN owns dust temperature), `OPENMP` (D-009 — MPI already
+parallelises the cell loop), `CHEMANALYSIS` (`temp_rate(nreac,ncells)` is prohibitive in
+3D), `GUESS_TEMP` (it lives inside `calc_UVfield`, which D-001 removes).
+
+*`-rpath`.* The link line embeds `-Wl,-rpath,$(SUNDIALS_DIR)/lib`, so the binaries resolve
+SUNDIALS without `LD_LIBRARY_PATH` being set at run time. Only `SUNDIALS_DIR` at build time
+is needed. Worth keeping — the alternative is a class of "works on my machine" failures.
+
+*The filename trap.* D-005's exclusion list was inferred from filenames and was wrong:
+**`read_input.F90` is the LAMDA/RADEX coolant datafile reader**, called by
+`read_coolants.F90`, not the parameter reader. Excluding it would have broken the build.
+The parameter reader is `input_parameters.F90`.
+
+Revised approach, and the safer rule generally: **vendor the whole tree, compile a subset.**
+Unused sources cost nothing, keep the mirror faithful for future merges, and remove the
+temptation to guess a file's role from its name. The compiled subset and the reason each
+file is excluded are tabulated in `UPSTREAM.md`.
+
+*Default build unaffected.* With `PDR` unset, all 19 MOCASSIN objects remain semantically
+identical to the pristine tree (per the D-017 line-number-masking method), and no
+`source/pdr/*.o` is built at all.
+
+---
+
+**D-021 — Import 3D-PDR modules only with explicit `only:` lists.** *Accepted*
+
+The first version of the smoke test used blanket `use maincode_module` /
+`use global_module` and failed immediately:
+
+```
+Error: Symbol 'i'  conflicts with symbol from module 'maincode_module'
+Error: Symbol 'nh' conflicts with symbol from module 'global_module'
+```
+
+`maincode_module` exports loop counters `i`, `j`, `k`, `p` as module variables;
+`global_module` exports species indices `NH`, `NC`, `NO`. Any blanket `use` collides with
+ordinary local names.
+
+*Decision:* every import of a 3D-PDR module carries an explicit `only:` list. This is a
+correctness rule for the Phase 2 bridge, not a style preference — the bridge will `use`
+both codebases' modules in one scope, which is exactly where these collide.
+
+*Related, and checked:* three procedure names exist in both trees — `readinput`, `spline`,
+`splint`. `nm` confirms there is **no link clash**: MOCASSIN's are module procedures
+(`__interpolation_mod_MOD_spline`), 3D-PDR's are bare externals (`spline_`). But a source
+file that `use`s `interpolation_mod` and also calls 3D-PDR's `spline` will silently bind to
+MOCASSIN's. Documented in `UPSTREAM.md`.
+
+---
+
+**D-022 — Chemistry data in `dataPDR/`; the hardcoded paths must become configurable.**
+*Accepted*
+
+`chemfiles/` is vendored to `dataPDR/` at the repository root, matching the existing
+`data/` and `dustData/` convention, and should join them in the `install` target.
+
+*Problem found:* `read_species.F90`, `read_rates.F90` and `input_parameters.F90` all open
+their data through a **hardcoded relative path**, `"chemfiles/species_"//suffix`. MOCASSIN
+resolves its data as `PREFIX//"/share/mocassin/data"`, so a PDR run would only work from a
+directory that happens to contain a `chemfiles/` link.
+
+*Phase 2 must* make these paths configurable — either a `pdrDataDir` keyword defaulting to
+`PREFIX//"/share/mocassin/dataPDR"`, or a small patch to the three vendored readers
+(recorded in `UPSTREAM.md` as a local modification if so). Until then, anything driving the
+chemistry runs from a directory with a `chemfiles` link.
+
+*The complete parameter set MOCASSIN must supply* is `readparams`
+(`source/pdr/input_parameters.F90`) — this is the definitive list for the Phase 2 keywords:
+
+| Group | Variables |
+|---|---|
+| Radiation / CR | `Gext`, `zeta` (stored as zeta/1.3e-17), `AV_fac` (x metallicity), `UV_fac` |
+| Grains | `grain_radius`, `omega` (=0.42, hardcoded), `metallicity` |
+| Thermal | `Tguess`, `Tmin` (floored at `Tcmb`), `Tmax`, `dust_temperature`, `Fcrit`, `Tdiff`, `Tlow0`=10, `Thigh0`=8000 |
+| Chemistry | `end_time`, `chemiterations`, `ITERTOT`, both CVODE tolerances |
+| Geometry | `level` (HEALPix), `theta_crit`, and under RAYTHEIA `nxc,nyc,nzc,xlx,yly,zlz` + `call Mesh` |
+| Other | `v_turb_inp`, `redshift` -> `Tcmb`, `Av_crit`, `v_alfv` (stored as v^2*40.382518), `coolfile(:)`, `coo` |
+| Derived | `nspec`, `nreac` — obtained by counting lines in the species/rates files |
+
+---
+
+### Smoke test result
+
+`make PDR=1 pdrSmokeTest` builds `source/pdrSmokeTest.f90`, which drives the whole chain
+for one cell at n_H=1e3, T_gas=50 K, T_dust=20 K, chi=10, A_V=3. The radiation field is
+supplied in exactly the D-001 form — `rad_surface(k)=chi/nrays`, `AV(k)=AVeff` on all 12
+rays — so the rate sum collapses to `alpha*chi*exp(-gamma*AVeff)`. That makes the test a
+first exercise of the Phase 3 coupling shape, not just a link check.
+
+```
+network   : reduced.d -> 33 species, 331 reactions
+rates     : nonzero 303/331
+x(H)  = 1.85e-03   x(H2) = 4.99e-01
+x(C+) = 1.69e-05   x(C)  = 1.03e-04   x(CO) = 2.03e-05
+charge imbalance = 0.0000 %
+```
+
+The physics is right, not merely non-crashing: the gas is fully molecular at A_V=3;
+C+ + C + CO = 1.4e-4, matching the input C/H exactly (elemental conservation); and charge
+balances to the printed precision. **Charge balance is the sharpest available check** — the
+solver does not impose it, so it only emerges if every rate and stoichiometry was read
+correctly and CVODE converged.
+
+The test asserts both conditions and exits non-zero on failure, so it is a regression test
+rather than a print-and-eyeball.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016) — now possible, the vendored
+      source is pinned.
+- [ ] Phase 2: hard validation refusing a PDR run with `lgDust=.false.` (D-019).
+- [ ] Phase 2: make the `chemfiles/` paths configurable (D-022).
+- [ ] Phase 2: add `dataPDR/` to the Makefile `install` target.
 
 ---
 
