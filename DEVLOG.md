@@ -36,6 +36,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-012 | `mocassinPlot` and `mocassinOutput` become PDR-aware via `resetGrid` | Accepted | 2026-08-28b |
 | D-013 | `nbins >= 1000` for PDR runs | Accepted | 2026-08-28b |
 | D-014 | SUNDIALS >= 7.0.0, pinned at install | Accepted | 2026-08-28b |
+| D-015 | SUNDIALS pinned at 7.8.0, installed to `~/software/sundials-7.8.0` | Accepted | 2026-08-28c |
 
 ---
 
@@ -478,8 +479,96 @@ difference and be extremely hard to attribute.
 
 ### Open items
 
-- [ ] Install SUNDIALS 7.x and record the exact version here and in the README (D-014).
+- [x] Install SUNDIALS 7.x and record the exact version here and in the README — resolved by
+      D-015.
 - [ ] Grep `source/` for any other `output/*.out` name before adding files (lesson from D-011).
+
+---
+
+## 2026-08-28c — SUNDIALS installed and verified
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** clearing the Phase 0 blocker identified in D-014.
+
+---
+
+**D-015 — SUNDIALS pinned at 7.8.0, installed to `~/software/sundials-7.8.0`.** *Accepted*
+*Implements D-014.*
+
+*Installed and verified.* Not a plan — this is done and tested.
+
+```
+version        7.8.0
+upstream tag   v7.8.0
+commit         aedc088437064dd55b35c000145f7f5db6ee49e3
+prefix         ~/software/sundials-7.8.0        (2.4 MB installed)
+```
+
+*Version choice.* 7.8.0 was the latest release tag at install time. Before committing to it
+one specific compatibility risk was checked: `3D-PDR/src/calculate_abundances.c` includes
+`sundials/sundials_types_deprecated.h`, a backwards-compatibility header introduced in the
+7.0.0 restructuring that supplies `realtype` and friends. A deprecated header is exactly the
+kind of thing that gets dropped in a later minor release, which would break the build. It is
+**present in every 7.x tag** (checked v7.0.0, 7.1.1, 7.2.1, 7.3.0, 7.5.0, 7.6.0, 7.7.0,
+7.8.0), so there is no reason to pin older than latest. The C file otherwise uses the modern
+`SUNContext` API (`SUNContext_Create`, `CVodeCreate(CV_BDF, sunctx)`, `SUNLinSol_Dense`),
+which is v6+ and stable across 7.x.
+
+*Configuration.* Only the modules 3D-PDR's link line needs were built, which keeps the
+install to 2.4 MB and the build under a minute:
+
+```
+-DCMAKE_BUILD_TYPE=Release
+-DBUILD_SHARED_LIBS=ON -DBUILD_STATIC_LIBS=ON
+-DBUILD_CVODE=ON
+-DBUILD_ARKODE=OFF -DBUILD_CVODES=OFF -DBUILD_IDA=OFF -DBUILD_IDAS=OFF -DBUILD_KINSOL=OFF
+-DEXAMPLES_ENABLE_C=OFF
+-DSUNDIALS_PRECISION=DOUBLE -DSUNDIALS_INDEX_SIZE=64
+-DENABLE_OPENMP=OFF
+```
+
+`SUNDIALS_PRECISION=DOUBLE` matches 3D-PDR's `real(kind=dp)` throughout and the `realtype`
+in the C layer — do not change it. `ENABLE_OPENMP=OFF` matches D-009's `OPENMP=0`; only
+`nvecserial` is on the link line, so the OpenMP vector is not needed.
+
+*Verification.* Beyond checking the six libraries exist, a C program mirroring
+`calculate_abundances.c`'s include set and CVODE call sequence was compiled, linked against
+the **exact** 3D-PDR library list, and run:
+
+```
+gcc -I$SUNDIALS_DIR/include linktest.c -L$SUNDIALS_DIR/lib \
+    -lsundials_cvode -lsundials_nvecserial -lsundials_sunmatrixdense \
+    -lsundials_sunlinsoldense -lsundials_sunnonlinsolnewton -lsundials_core -lm
+
+-> SUNDIALS 7.8.0 | CVODE integrate t=2.0 y=0.367879 (exact 0.367879)
+```
+
+Integrating `y' = -y/2` from `y(0)=1` to `t=2` returns `exp(-1)` to six digits. The toolchain
+is confirmed working, not merely present.
+
+*Environment.* `~/software/sundials-7.8.0/env.sh` sets `SUNDIALS_DIR` and prepends the lib
+directory to `LD_LIBRARY_PATH`. Source it, or copy its two lines into `~/.bashrc`. The
+shell rc was deliberately **not** modified — that is the user's file.
+
+```
+source ~/software/sundials-7.8.0/env.sh
+```
+
+*Note on `cmake`.* `cmake` is **not installed on this machine**. It was obtained for this
+build from a throwaway Python venv (`pip install cmake` -> 4.4.2), which needs no root.
+SUNDIALS declares `cmake_minimum_required(VERSION 3.18)`, so cmake 4.x is fine despite its
+removal of `<3.5` compatibility. To rebuild SUNDIALS later, either install cmake properly
+(`sudo apt install cmake`) or repeat the venv trick — it is worth installing properly, since
+the venv used here is temporary.
+
+*Consequence:* the Phase 0 blocker is cleared. D-009's `PDR=1` make switch can now pick up
+`SUNDIALS_DIR` as designed.
+
+### Open items
+
+- [ ] Add the SUNDIALS prerequisite and `env.sh` usage to the README, alongside the existing
+      MPI/gfortran instructions.
+- [ ] Install `cmake` system-wide so SUNDIALS can be rebuilt without the venv workaround.
 
 ---
 
