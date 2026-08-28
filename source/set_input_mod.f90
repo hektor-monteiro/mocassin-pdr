@@ -657,12 +657,20 @@ module set_input_mod
 
         close(10)
 
+        ! Non-fatal advisory. This deliberately sits OUTSIDE the validation chain
+        ! below. It used to be an `else if` branch inside it, and because it does
+        ! not stop, and the default nuMin (1.001e-5) satisfies it, the chain
+        ! terminated here for essentially every model - silently disabling the
+        ! checks that follow (R_out < 0, R_in < 0, R_in >= R_out, multiChemistry
+        ! without a density file, and others). See DEVLOG D-025.
+        if (nuMin > 1.4e-6) then
+            print*, "! readInput [warning]: nuMin in model parameter input &
+                 & file is too large to include 5GHz flux calculations", in_file, nuMin
+        end if
+
 #ifdef PDR
-        ! Standalone, NOT part of the else-if chain above. That chain contains a
-        ! non-fatal warning at `nuMin > 1.4e-6`, and since the default nuMin is
-        ! 1.001e-5 the warning branch is taken for essentially every model - so
-        ! every check after it in the chain is unreachable. (Pre-existing; see
-        ! the 2026-08-28g DEV log entry.) These must run unconditionally.
+        ! Standalone rather than part of the validation chain below, so they
+        ! always run and cannot be short-circuited by an earlier branch.
         if (lgPDR .and. .not.lgDust) then
             ! DEVLOG D-019: without dust, photon_mod short-circuits every
             ! continuum packet below the lowest ionization edge straight into
@@ -900,9 +908,6 @@ module set_input_mod
             print*, "! readInput: invalid nuMin  in model parameter input &
                  & file", in_file, nuMin
             stop
-        else if (nuMin > 1.4e-6) then
-            print*, "! readInput [waring]:  nuMin  in model parameter input &
-                 & file is too large to include 5GHz flux calculations", in_file,nuMin
         else if (R_out < 0.) then
             print*, "! readInput: invalid R_out  in model parameter input &
                  & file", in_file, R_out

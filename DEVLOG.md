@@ -46,6 +46,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-022 | Chemistry data lives in `dataPDR/`; paths must become configurable | Accepted | 2026-08-28f |
 | D-023 | Build-system staleness: objects depend on `.pdrflag` and the Makefile | Accepted | 2026-08-28g |
 | D-024 | PDR input validation must sit outside MOCASSIN's else-if chain | Accepted | 2026-08-28g |
+| D-025 | Fix the validation-chain short-circuit in `readInput` | Accepted | 2026-08-28h |
 
 ---
 
@@ -1071,9 +1072,94 @@ turn the warning into a plain `if` that does not consume the chain.
 
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
-- [ ] **Decide whether to fix the `else if` chain bug** (D-024) — maintainer's call.
+- [x] **Decide whether to fix the `else if` chain bug** (D-024) — fixed, see D-025.
 - [ ] Phase 3: replace `AVeff`'s single-star assumption — `mocassinToPDR` currently
       geometrically dilutes from `starPosition(1)` only.
+- [ ] Phase 4: `read_coolants`, then `coo` can be set for real.
+
+---
+
+## 2026-08-28h — Fixing the validation-chain short-circuit
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** D-024 flagged a pre-existing bug and left the fix to the maintainer. Hektor
+asked for it to be fixed.
+
+---
+
+**D-025 — `readInput`'s non-fatal `nuMin` advisory no longer consumes the validation chain.**
+*Accepted*
+
+### The bug
+
+`readInput` validates its inputs with one long `if / else if` chain in which every branch
+reports an error and calls `stop`. One branch did not:
+
+```fortran
+else if (nuMin > 1.4e-6) then
+    print*, "! readInput [waring]:  nuMin ... too large to include 5GHz flux calculations"
+else if (R_out < 0.) then          ! <-- and everything below here
+```
+
+Because it is an `else if` that returns without stopping, matching it ends the chain. The
+default `nuMin` is `1.001e-5`, comfortably greater than `1.4e-6`, so **for essentially every
+model MOCASSIN has ever run, the branch matched and every check below it was skipped.**
+
+The checks that were unreachable:
+
+| Check | What it catches |
+|---|---|
+| `R_out < 0.` | negative outer radius |
+| `R_in < 0.` | negative inner radius |
+| `R_in >= R_out` | inverted geometry |
+| `lgMultiChemistry .and. .not.lgDfile` | multi-chemistry without a density file |
+| `fillingFactor > 1.` | unphysical filling factor |
+| `lgDfile` vs `Rn{x,y,z}` consistency (x2) | conflicting density specifications |
+| `lgPlaneIonization` consistency (x2) | plane-ionization misconfiguration |
+
+None of these are exotic: they are the guards against exactly the input mistakes a new user
+makes. They have been silently inert.
+
+*How it surfaced.* The D-019 `lgDust` refusal was added into that chain and simply never
+fired. The PDR work did not create the bug; it tripped over it.
+
+### The fix
+
+The advisory is hoisted out of the chain into a standalone `if` immediately after the input
+file is closed, where it still prints for the models that warrant it but no longer terminates
+the chain. The chain itself is otherwise untouched, so every branch keeps its original
+condition and message.
+
+The PDR checks added in D-024 stay standalone as well — that remains the right pattern for
+anything that must not depend on its position in a chain.
+
+### Blast-radius check
+
+The concern in D-024 was that reviving nine dormant checks could reject models that currently
+run. Every shipped benchmark was run against the fixed binary and checked for a fatal
+`! readInput:` rejection:
+
+| Model | Result |
+|---|---|
+| `benchmarks/gas/HII20`, `HII40`, `PN75`, `PN150` | pass (nuMin advisory still shown) |
+| `benchmarks/test_Problem` | pass |
+| `benchmarks/dust/1D/tau1.000`, `2D/tau1.000` | pass |
+| the PDR test model | pass, runs end to end |
+
+**No shipped model is rejected.** The advisory still prints for all of them, as before — it
+is the same message, just no longer swallowing its successors.
+
+### Note for the maintainer
+
+Any model that *is* now rejected has a genuine input error that MOCASSIN was previously
+ignoring; the message will say which. Worth mentioning in release notes, since a user with a
+long-standing bad input file will see a new hard stop.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Phase 3: `mocassinToPDR` dilutes from `starPosition(1)` only - generalise to all sources.
 - [ ] Phase 4: `read_coolants`, then `coo` can be set for real.
 
 ---
