@@ -50,12 +50,16 @@ module pdr_mod
                               & pdrTminMod   => Tmin,       &
                               & pdrTmaxMod   => Tmax,       &
                               & pdrLevel     => level,      &
-                              & pdrChemPath  => chemPath
+                              & pdrChemPath  => chemPath,  &
+                              & pdrTdustMod  => dust_temperature
 
+    ! Species indices come from global_module. NH2/NC/NCO do not collide with
+    ! anything in common_mod, so they are imported under their own names.
     use global_module,    only : pdrMetalMod  => metallicity, &
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
-                               & pdrNelect    => NELECT
+                               & pdrNelect    => NELECT,      &
+                               & NH2, NC, NCO
 
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
@@ -419,23 +423,103 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
-      ! One cell of chemistry, level populations and thermal balance.
-      ! PHASE 4 - deliberately a stub. See DEVLOG D-008: this must take only
-      ! a few chemistry passes and let MOCASSIN's outer MC loop carry the
-      ! convergence, rather than converging the PDR inside each iteration.
+      ! One cell of PDR chemistry (DEVLOG D-027).
+      !
+      ! Takes pdrChemIter passes and returns; the outer MC loop carries the
+      ! convergence (D-008). Converging the chemistry here would multiply the
+      ! two solvers' iteration counts.
+      !
+      ! The radiation field is handed over in the D-001 effective-A_V form:
+      ! rad_surface(k) = chi/nrays and AV(k) = A_V,eff on every ray, so
+      ! 3D-PDR's own sum_k alpha*rad_surface(k)*exp(-gamma*AV(k)) collapses to
+      ! alpha*chi*exp(-gamma*A_V,eff) with A_V,eff measured from this model's
+      ! grains (D-026).
+      !
+      ! SHIELDING COLUMNS ARE SLAB-EQUIVALENT, not ray-traced. N_H is recovered
+      ! from the local extinction, N_H = A_V/AV_fac, and each shielding column
+      ! is that times the local fractional abundance. For a 1D slab - the
+      ! geometry of every published PDR benchmark - this is exact. For genuinely
+      ! 3D geometry it is an approximation, and the HEALPix trace of D-002 is
+      ! the upgrade. Flagged rather than hidden.
       !-----------------------------------------------------------------
       subroutine pdrStep(grid, xP, yP, zP)
         implicit none
+
         type(grid_type), intent(inout) :: grid
         integer, intent(in)            :: xP, yP, zP
-        integer                        :: cellP
+
+        integer, parameter :: nraysLoc = 12          ! HEALPix level 0
+        integer, parameter :: npart = 1
+        double precision   :: radSurf(0:nraysLoc-1), AVray(0:nraysLoc-1)
+        double precision   :: colH2(0:nraysLoc-1), colHD(0:nraysLoc-1)
+        double precision   :: colCO(0:nraysLoc-1), colC(0:nraysLoc-1)
+        double precision   :: colS(0:nraysLoc-1)
+        double precision   :: abun(pdrNspec)
+        double precision   :: abun0(pdrNspec)
+        double precision   :: nH, Tg, Td, chi, av, NHcol
+        integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
         if (grid%pdrZone(cellP) == 0) return
 
-        ! Phase 4: calculate_reaction_rates -> calculate_abundances ->
-        !          coolingfunctions -> changetemperature
+        nH  = dble(grid%Hden(cellP))
+        if (nH <= 0.d0) return
+
+        Tg  = dble(grid%Te(cellP))
+        Td  = dble(grid%Tdust(0,0,cellP))
+        if (Td <= 0.d0) Td = dble(pdrTdustMod)
+        chi = dble(grid%chiFUV(cellP))
+        av  = dble(grid%AVeff(cellP))
+
+        ! keep the chemistry inside the temperature range it was fitted over
+        Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
+
+        radSurf = chi/dble(nraysLoc)
+        AVray   = av
+
+        ! slab-equivalent shielding columns (see header)
+        NHcol = av/dble(pdrAVfac)
+        abun  = grid%pdrAbun(cellP, 1:pdrNspec)
+
+        colH2 = NHcol*abun(NH2)
+        colCO = NHcol*abun(NCO)
+        colC  = NHcol*abun(NC)
+        colHD = 0.d0
+        colS  = 0.d0
+
+        abun0 = abun
+
+        do it = 1, pdrChemIter
+           call CALCULATE_REACTION_RATES(Tg, Td, nraysLoc, radSurf, AVray, &
+                & colH2, colHD, colCO, colC, colS, &
+                & pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
+                & pdrGamma, pdrRate, pdrRtmin, pdrRtmax, pdrDuplicate, &
+                & pdrNspecMod, NRGR, NR2, NR3, NR4, NR5, NR6, &
+                & abun(pdrNelect)*nH, nH, pdrZetaMod)
+
+           call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
+                & pdrNspecMod, pdrNreacMod)
+
+           ! shielding columns follow the abundances between passes
+           colH2 = NHcol*abun(NH2)
+           colCO = NHcol*abun(NCO)
+           colC  = NHcol*abun(NC)
+        end do
+
+        ! Make a silent solver failure visible. calculate_abundances copies the
+        ! CVODE state vector back unconditionally, so when the integration does
+        ! not advance - which happens for the stiffest cells right at the
+        ! illuminated face, even with CHEMRETRY - the initial abundances are
+        ! written back and are indistinguishable from a converged result.
+        ! Flagging them as zone 2 keeps them out of downstream use instead of
+        ! letting seed values masquerade as chemistry (DEVLOG D-027).
+        if (all(abun == abun0)) then
+           grid%pdrZone(cellP) = 2
+           pdrNstuck = pdrNstuck + 1
+        else
+           grid%pdrAbun(cellP, 1:pdrNspec) = abun
+        end if
 
       end subroutine pdrStep
 

@@ -44,6 +44,11 @@ module iteration_mod
            real, allocatable :: dustPDFTemp(:,:)     ! temporary dust emission PDF array
            real, allocatable :: escapedPacketsTemp(:,:,:)!temporary escaped packets array
            real, allocatable :: fEscapeResPhotonsTemp(:,:) ! temporary escape res line phot
+#ifdef PDR
+           integer :: i1PdrStuck                             ! cells whose chemistry stalled
+           double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
+           double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
+#endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
            real, allocatable :: linePacketsTemp(:,:) ! temporary line packets array
@@ -731,6 +736,15 @@ module iteration_mod
               end if
               if ( allocated(JSteTemp) )           deallocate(JSteTemp)
 
+#ifdef PDR
+              ! The MC field is now final for this iteration, so reduce it to
+              ! chi / A_V,eff / zone before any cell update consumes it.
+              if (lgPDR) then
+                 if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+                 call mocassinToPDR(grid(1:nGrids))
+              end if
+#endif
+
 
               do i = 0, grid(iG)%nCells
                  grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:) * 1.e-9
@@ -867,6 +881,73 @@ module iteration_mod
               end do
               if(taskid==0) print*, 'iterateMC: updateCell out', iG
 
+#ifdef PDR
+              ! PDR chemistry, distributed exactly as updateCell is: per-cell
+              ! chemistry is embarrassingly parallel and needs no new MPI
+              ! design (DEVLOG D-027). Runs in addition to updateCell for now -
+              ! handing thermal balance over to 3D-PDR in the neutral zone
+              ! (D-007) needs the cooling functions and is the next step.
+              !
+              ! The reduction differs from Te/Ne/ionDen above. Those are built
+              ! into a zeroed temporary that only owned cells write, so SUM
+              ! reassembles them. pdrAbun instead holds a full seeded copy on
+              ! EVERY rank, so a plain SUM would multiply it by numtasks. Each
+              ! rank therefore contributes only the cells it owns, and the
+              ! owner contributes them whether or not pdrStep changed anything -
+              ! otherwise skipped cells (inactive, or outside the PDR zone)
+              ! would come back zero and lose their seeded abundances.
+              if (lgPDR) then
+                 if (taskid==0) print*, '! iterateMC: pdrStep in', iG
+                 allocate(pdrAbunTemp(0:grid(iG)%nCells,1:pdrNspec), stat=err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate pdrAbunTemp"; stop
+                 end if
+                 allocate(pdrAbunSum(0:grid(iG)%nCells,1:pdrNspec), stat=err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate pdrAbunSum"; stop
+                 end if
+                 pdrAbunTemp = 0.d0
+                 pdrAbunSum  = 0.d0
+                 pdrNstuck   = 0
+
+                 iCell = 0
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yTop
+                       do k = 1, grid(iG)%nz
+                          iCell = iCell+1
+                          if (mod(iCell-(taskid+1),numtasks)==0) then
+                             call pdrStep(grid(iG),i,j,k)
+                             if (grid(iG)%active(i,j,k) > 0) &
+                                  & pdrAbunTemp(grid(iG)%active(i,j,k),:) = &
+                                  & grid(iG)%pdrAbun(grid(iG)%active(i,j,k),:)
+                          end if
+                       end do
+                    end do
+                 end do
+
+                 size = (grid(iG)%nCells+1)*pdrNspec
+                 call mpi_allreduce(pdrAbunTemp, pdrAbunSum, size, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 ! cell 0 is the inactive dump cell: several (i,j,k) map to it,
+                 ! so it is deliberately left out of the exchange
+                 grid(iG)%pdrAbun(1:grid(iG)%nCells,:) = &
+                      & pdrAbunSum(1:grid(iG)%nCells,:)
+
+                 deallocate(pdrAbunTemp)
+                 deallocate(pdrAbunSum)
+
+                 call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
+                      & mpi_sum, mpi_comm_world, ierr)
+                 if (taskid==0) then
+                    print*, '! iterateMC: pdrStep out', iG
+                    if (i1PdrStuck > 0) then
+                       print*, "! iterateMC: [warning] chemistry did not advance in ", &
+                            & i1PdrStuck, " cells - flagged as pdrZone=2, see DEVLOG D-027"
+                    end if
+                 end if
+              end if
+#endif
+
               if (lgTraceHeating.and.taskid==0) then
                  close (57)
               end if
@@ -907,6 +988,7 @@ module iteration_mod
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
 
               end if
+
 
               if (lgDust) then
                  size =  (grid(iG)%nCells+1)*(nspeciesMax+1)*(nsizes+1)
@@ -1171,12 +1253,13 @@ module iteration_mod
                  ! output results at this itearation stage (every 3 iterations)
 
 #ifdef PDR
-                 ! Reduce the MC field to chi / A_V,eff / zone before the
-                 ! checkpoint is written, so pdrGrid.out carries real state.
-                 if (lgPDR) then
-                    if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
-                    call mocassinToPDR(grid(1:nGrids))
-                 end if
+                 ! NOT re-running mocassinToPDR here. It already ran this
+                 ! iteration, before the cell loops, on the same radiation
+                 ! field - nothing has changed since. Running it again would
+                 ! recompute pdrZone AFTER the last pdrStep, so any cell that
+                 ! had just crossed the x(H+) threshold would be written to the
+                 ! checkpoint labelled "PDR zone" while still holding its seed
+                 ! abundances, indistinguishable from a converged result.
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR
@@ -1195,12 +1278,13 @@ module iteration_mod
                       & maxIterateMC
 
 #ifdef PDR
-                 ! Reduce the MC field to chi / A_V,eff / zone before the
-                 ! checkpoint is written, so pdrGrid.out carries real state.
-                 if (lgPDR) then
-                    if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
-                    call mocassinToPDR(grid(1:nGrids))
-                 end if
+                 ! NOT re-running mocassinToPDR here. It already ran this
+                 ! iteration, before the cell loops, on the same radiation
+                 ! field - nothing has changed since. Running it again would
+                 ! recompute pdrZone AFTER the last pdrStep, so any cell that
+                 ! had just crossed the x(H+) threshold would be written to the
+                 ! checkpoint labelled "PDR zone" while still holding its seed
+                 ! abundances, indistinguishable from a converged result.
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR

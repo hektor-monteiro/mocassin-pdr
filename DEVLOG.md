@@ -48,6 +48,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-024 | PDR input validation must sit outside MOCASSIN's else-if chain | Accepted | 2026-08-28g |
 | D-025 | Fix the validation-chain short-circuit in `readInput` | Accepted | 2026-08-28h |
 | D-026 | A_V is derived from the model's own grain optics, not from `UV_fac` | Accepted | 2026-08-28i |
+| D-027 | Per-cell chemistry in the MC loop; slab-equivalent shielding for now | Accepted | 2026-08-28j |
 
 ---
 
@@ -1261,6 +1262,113 @@ recorded as passed when it has not been attempted.
 - [ ] Phase 4: the 1D benchmark gate.
 - [ ] Consider deriving `pdrAVfac` from the dust too, for consistency if `CRATTENUATION` is
       ever enabled — it is currently an unused input.
+
+---
+
+## 2026-08-28j — Phase 4a: chemistry running inside the Monte Carlo loop
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-027 — Per-cell PDR chemistry inside `iterateMC`, with slab-equivalent shielding.**
+*Accepted*
+
+`pdrStep` is implemented and wired into `iterateMC` using **the same round-robin
+decomposition as `updateCell`** (`mod(iCell-(taskid+1),numtasks)==0`) — per-cell chemistry is
+embarrassingly parallel and needed no new MPI design, exactly as F-6 predicted.
+
+It takes `pdrChemIter` passes and returns; the outer MC loop carries convergence (D-008).
+The radiation field is handed over in the D-001 effective-A_V form, so 3D-PDR's own rate sum
+collapses to `alpha*chi*exp(-gamma*A_V,eff)` with A_V measured from the model's grains (D-026).
+
+*Scope, stated honestly.* This is **4a: chemistry only.** It runs *in addition to*
+`updateCell`, not instead of it. Handing thermal balance to 3D-PDR in the neutral zone
+(D-007) needs the cooling functions and `read_coolants`, and is 4b.
+
+*Shielding columns are slab-equivalent, not ray-traced.* N_H is recovered from the local
+extinction as `A_V/AV_fac` and each shielding column is that times the local abundance. For a
+1D slab — the geometry of every published PDR benchmark — this is exact; for genuinely 3D
+geometry it is an approximation and the HEALPix trace of D-002 is the upgrade. Flagged, not
+hidden. It also finally gives `pdrAVfac` a real role; it was an unused input until now.
+
+### Three bugs found, in ascending order of subtlety
+
+**1. The MPI reduction pattern does not transfer.** `Te`/`Ne`/`ionDen` are reduced by
+building a *zeroed* temporary that only owned cells write, then SUM. `pdrAbun` cannot use
+that pattern: every rank holds a full **seeded** copy, so a plain SUM multiplies it by
+`numtasks`. The fix is that each rank contributes only the cells it owns, and contributes
+them **whether or not `pdrStep` changed anything** — otherwise cells it skipped (inactive, or
+outside the PDR zone) come back zero and lose their seeded abundances. Cell 0 is deliberately
+excluded: several `(i,j,k)` map to it, so it would be counted many times.
+
+**2. `calculate_abundances` fails silently.** When CVODE cannot advance — which happens for
+the stiffest cells right at the illuminated face, even with `CHEMRETRY` — the C routine
+copies the state vector back **unconditionally** (`calculate_abundances.c:440-450`). The
+initial abundances are written out and are indistinguishable from a converged result.
+`pdrStep` now compares the vector before and after and flags a non-advancing cell as
+`pdrZone = 2`, with a per-iteration count reported. Better a visible failure than data that
+looks real.
+
+**3. The zone flag and the abundances could disagree.** This one was genuinely subtle and is
+the reason the first two fixes were not enough. `mocassinToPDR` was being called **twice per
+iteration** — once before the cell loops, and again just before `writeGrid`. The second call
+recomputed `pdrZone` *after* the last `pdrStep`. Any cell that had just crossed the x(H+)
+threshold was therefore written to the checkpoint labelled "PDR zone" while still holding its
+**seed abundances** — a cell that had never had chemistry run on it, presented in the output
+as if it had.
+
+74 of 4150 zone cells were affected, all at the ionization front. They were not solver
+failures: the stalled-cell detector correctly reported zero. The second call was redundant
+anyway — the radiation field has not changed since the first — so it is removed.
+
+*What this cost to find, and what it says:* the seed abundances (x(H)=0.4, x(H2)=0.3) are
+plausible PDR-surface values. Had the seed been zeros the problem would have been obvious
+immediately. **A seed that looks like a physical answer hides its own failure to be
+replaced.** Worth remembering when choosing initial conditions for the thermal-balance work.
+
+### Verification
+
+Model: n_H = 2000, `MdMg constant 0.01` (standard ISM dust-to-gas), T_eff = 25 kK,
+R = 1e18 cm, MRN silicate + carbonaceous grains, 4 MPI ranks.
+
+```
+radial tau_FUV = 5.11   tau_V = 1.51   A_V = 1.64 mag
+tau_FUV/tau_V  = 3.38   vs the 3.24 measured independently by calibratePDRdust
+```
+
+That agreement is a useful cross-check: `tauNu.out` and `calibratePDRdust` compute the ratio
+by different routes and land within 4%.
+
+| Check | Result |
+|---|---|
+| Cells running chemistry | 4076 |
+| Stalled (`pdrZone=2`) | **0** |
+| Zone cells holding seed values | **0** (was 74) |
+| Carbon conservation, deepest cell | sum C-bearing = 1.4000e-4 vs input C/H 1.4e-4 |
+| Charge balance | cations 1.5964e-4, electrons 1.5964e-4 — **exact** |
+| chi vs A_V | monotonically attenuated, 424 -> 0.51 over A_V 0.08 -> 1.16 |
+| x(H2), x(C) vs A_V | both rise monotonically with shielding |
+
+The gas remains atomic, which is **correct** at these columns: at A_V ~ 1 and chi ~ 0.5,
+photodissociation (~8e-13/s) still exceeds grain formation (~6e-14/s). Molecular gas needs
+A_V >~ 3. The Phase 1 smoke test already demonstrated a fully molecular solution at A_V = 3
+through the same code path, so both branches of the chemistry are exercised.
+
+*Aside worth recording:* `Ndust constant` does **not** scale the dust column linearly — 2500x
+in `Ndust` produced 23x in tau. `MdMg constant` behaves as expected and is the right control
+for PDR work. Whatever `Ndust`'s normalisation is, it is not grain number density in the
+naive sense; not chased further, but noted.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Phase 4b: `read_coolants`, `coo`, cooling functions, and hand thermal balance over in
+      the neutral zone (D-007) with the heating-term blend band.
+- [ ] Phase 4c / D-002: HEALPix-traced shielding columns for genuinely 3D geometry.
+- [ ] The 1D benchmark gate carried from Phase 3 — now reachable once 4b lands.
+- [ ] Investigate `Ndust constant` normalisation, or document `MdMg` as the supported control.
 
 ---
 
