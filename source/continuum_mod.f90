@@ -90,6 +90,7 @@ module continuum_mod
         call locate(nuArray, nuFUVlo, FUVlowP)
         FUVlowP = FUVlowP + 1
         call locate(nuArray, nuFUVhi, FUVhighP)
+        call locate(nuArray, nuVband, VbandP)
         if (taskid==0) then
            print*, "! setContinuum: FUV band [", nuArray(FUVlowP), ",", &
                 & nuArray(FUVhighP), "] Ryd spans bins ", FUVlowP, "to", FUVhighP, &

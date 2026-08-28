@@ -481,6 +481,8 @@ module common_mod
 #ifdef PDR
     integer             :: FUVlowP                 ! first nuArray bin inside the FUV band
     integer             :: FUVhighP                ! last  nuArray bin inside the FUV band
+    integer             :: VbandP                   ! nuArray bin nearest Johnson V
+    real                :: pdrRfuv    = 0.          ! measured tau_FUV/tau_V of the dust
 
     ! --- PDR module controls (DEVLOG D-022) ------------------------------------
     ! Defaults reproduce 3D-PDR's shipped params.dat so an unspecified run is

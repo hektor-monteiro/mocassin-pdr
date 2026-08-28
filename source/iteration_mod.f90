@@ -1173,7 +1173,10 @@ module iteration_mod
 #ifdef PDR
                  ! Reduce the MC field to chi / A_V,eff / zone before the
                  ! checkpoint is written, so pdrGrid.out carries real state.
-                 if (lgPDR) call mocassinToPDR(grid(1:nGrids))
+                 if (lgPDR) then
+                    if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+                    call mocassinToPDR(grid(1:nGrids))
+                 end if
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR
@@ -1194,7 +1197,10 @@ module iteration_mod
 #ifdef PDR
                  ! Reduce the MC field to chi / A_V,eff / zone before the
                  ! checkpoint is written, so pdrGrid.out carries real state.
-                 if (lgPDR) call mocassinToPDR(grid(1:nGrids))
+                 if (lgPDR) then
+                    if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+                    call mocassinToPDR(grid(1:nGrids))
+                 end if
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR

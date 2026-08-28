@@ -63,7 +63,7 @@ module pdr_mod
     implicit none
 
     private
-    public :: initPDRnetwork, seedPDR, mocassinToPDR, pdrStep, pdrToMocassin
+    public :: initPDRnetwork, seedPDR, calibratePDRdust, mocassinToPDR, pdrStep, pdrToMocassin
 
     contains
 
@@ -213,6 +213,115 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
+      ! Measure the dust FUV-to-visual extinction ratio from MOCASSIN's own
+      ! grain optics (DEVLOG D-026).
+      !
+      ! 3D-PDR photorates are alpha*chi*exp(-gamma*A_V) with A_V a genuine
+      ! visual extinction in magnitudes: each reaction's gamma is fitted against
+      ! a standard extinction curve. So A_V,eff handed to the chemistry has to
+      ! BE a visual extinction, not a fitting constant - otherwise every gamma
+      ! in the network is being applied to the wrong abscissa.
+      !
+      ! MOCASSIN attenuates with real grain optical constants, so the conversion
+      ! from the MC-measured FUV optical depth to A_V is a property of the dust
+      ! actually in the model, not a free parameter:
+      !
+      !     R_FUV = <kappa_ext(FUV)> / kappa_ext(V)         [measured here]
+      !     A_V   = 1.0857 * tau_FUV / R_FUV                [magnitudes]
+      !
+      ! Extinction is absorption + scattering: a scattered FUV photon is removed
+      ! from the beam just as an absorbed one is.
+      !
+      ! Note that in the frozen build matrix (D-009) 3D-PDR never reads UV_fac
+      ! itself - its five uses are all inside #ifdef GRAINRECOMB, and AV_fac is
+      ! inside #ifdef CRATTENUATION. They enter only through this conversion,
+      ! which is why measuring it correctly is the whole job.
+      !-----------------------------------------------------------------
+      subroutine calibratePDRdust(grid)
+        implicit none
+
+        type(grid_type), dimension(:), intent(in) :: grid
+
+        integer          :: iG, iCell, ifreq, nUsed
+        double precision :: kFUV, kV, wsum, w
+
+        ! find any cell that actually carries dust; the ratio is independent of
+        ! the dust column, so one representative cell is enough
+        iCell = -1
+        do iG = 1, nGrids
+           do ifreq = 0, grid(iG)%nCells
+              if (grid(iG)%absOpac(ifreq,VbandP) + &
+                & grid(iG)%scaOpac(ifreq,VbandP) > 0.) then
+                 iCell = ifreq
+                 exit
+              end if
+           end do
+           if (iCell >= 0) exit
+        end do
+
+        if (iCell < 0) then
+           print*, "! calibratePDRdust: no cell carries dust opacity - cannot"
+           print*, "!   calibrate A_V. PDR runs require dust (DEVLOG D-019)."
+           stop
+        end if
+
+        kV = dble(grid(1)%absOpac(iCell,VbandP)) + dble(grid(1)%scaOpac(iCell,VbandP))
+
+        ! Band-average the FUV extinction over the same bins chi is summed over,
+        ! weighted by the ENERGY ACTUALLY EMITTED in each bin rather than by bin
+        ! width. chi is a band-integrated energy density, so the extinction it
+        ! experiences is the spectrum-weighted one; a flat or width-weighted
+        ! average on a log-nu mesh silently over-weights the 912 A end, where
+        ! the opacity is steepest, and biases R_FUV high.
+        !
+        ! inSpectrumProbDen is the cumulative emitted-energy PDF the packets are
+        ! drawn from, so its bin-to-bin increment is exactly that weight.
+        kFUV = 0.d0
+        wsum = 0.d0
+        nUsed = 0
+        do ifreq = FUVlowP, FUVhighP
+           if (ifreq > 1) then
+              w = dble(inSpectrumProbDen(1,ifreq)) - dble(inSpectrumProbDen(1,ifreq-1))
+           else
+              w = dble(inSpectrumProbDen(1,ifreq))
+           end if
+           if (w <= 0.d0) cycle
+           kFUV = kFUV + w*(dble(grid(1)%absOpac(iCell,ifreq)) + &
+                &           dble(grid(1)%scaOpac(iCell,ifreq)))
+           wsum = wsum + w
+           nUsed = nUsed + 1
+        end do
+        if (wsum > 0.d0) then
+           kFUV = kFUV/wsum
+        else
+           print*, "! calibratePDRdust: no emitted energy in the FUV band"
+           stop
+        end if
+
+        if (kV <= 0.d0 .or. kFUV <= 0.d0) then
+           print*, "! calibratePDRdust: non-positive dust opacity at V or FUV"
+           stop
+        end if
+
+        pdrRfuv = real(kFUV/kV)
+
+        if (taskid == 0) then
+           print*, "! calibratePDRdust: measured from this model's grains -"
+           print*, "!   tau_FUV/tau_V      = ", pdrRfuv, " over ", nUsed, " FUV bins"
+           print*, "!   implied UV_fac     = ", pdrRfuv/magPerTau
+           print*, "!   3D-PDR default     = ", pdrUVfac
+           if (abs(pdrRfuv/magPerTau - pdrUVfac) > 0.25*pdrUVfac) then
+              print*, "! calibratePDRdust: [warning] this model's dust differs from the"
+              print*, "!   canonical value by more than 25%. A_V is derived from the"
+              print*, "!   measured ratio, so the chemistry stays self-consistent, but"
+              print*, "!   the network's gamma values assume a standard extinction curve."
+           end if
+        end if
+
+      end subroutine calibratePDRdust
+
+
+      !-----------------------------------------------------------------
       ! Reduce the Monte Carlo radiation field to what the chemistry needs.
       !
       ! chi is the D-001 formula, validated to 0.3% in Phase 0: Jste/Jdif are
@@ -230,16 +339,23 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, ifreq, iS, cellP, yTop
-        double precision :: uFUV, chi, chi0, rr, dx, dy, dz, LfuvTot, xHII
+        double precision :: uFUV, chi, chi0, rr, dx, dy, dz, xHII, tauFUV
+        double precision :: Lfuv(nStars)
         real             :: fFUV
 
-        ! FUV luminosity of the sources, from the same cumulative energy PDF the
-        ! packets are drawn from (validated in Phase 0).
-        LfuvTot = 0.d0
+        if (pdrRfuv <= 0.) then
+           print*, "! mocassinToPDR: dust not calibrated - call calibratePDRdust first"
+           stop
+        end if
+
+        ! Per-source FUV luminosity, from the same cumulative energy PDF the
+        ! packets are drawn from (validated in Phase 0). Kept per source rather
+        ! than summed: the unattenuated field at a cell is the sum of each
+        ! source's own inverse-square dilution from its own position.
         do iS = 1, nStars
            fFUV = inSpectrumProbDen(iS, FUVhighP)
            if (FUVlowP > 1) fFUV = fFUV - inSpectrumProbDen(iS, FUVlowP-1)
-           LfuvTot = LfuvTot + dble(Lstar(iS))*1.d36*dble(fFUV)
+           Lfuv(iS) = dble(Lstar(iS))*1.d36*dble(fFUV)
         end do
 
         do iG = 1, nGrids
@@ -263,20 +379,25 @@ module pdr_mod
                     chi = uFUV / (dble(c)*dble(uDraine))
                     grid(iG)%chiFUV(cellP) = real(chi)
 
-                    ! unattenuated field at this cell, for the A_V inversion
-                    dx = dble(grid(iG)%xAxis(i)) - dble(starPosition(1)%x)
-                    dy = dble(grid(iG)%yAxis(j)) - dble(starPosition(1)%y)
-                    dz = dble(grid(iG)%zAxis(k)) - dble(starPosition(1)%z)
-                    rr = sqrt(dx*dx + dy*dy + dz*dz)
+                    ! Unattenuated field at this cell: every source diluted
+                    ! from its own position, not a single lumped luminosity.
+                    chi0 = 0.d0
+                    do iS = 1, nStars
+                       dx = dble(grid(iG)%xAxis(i)) - dble(starPosition(iS)%x)
+                       dy = dble(grid(iG)%yAxis(j)) - dble(starPosition(iS)%y)
+                       dz = dble(grid(iG)%zAxis(k)) - dble(starPosition(iS)%z)
+                       rr = sqrt(dx*dx + dy*dy + dz*dz)
+                       if (rr > 0.d0) chi0 = chi0 + &
+                            & Lfuv(iS)/(dble(fourPi)*rr*rr*dble(c)*dble(uDraine))
+                    end do
 
-                    if (rr > 0.d0 .and. chi > 0.d0) then
-                       chi0 = LfuvTot/(dble(fourPi)*rr*rr*dble(c)*dble(uDraine))
-                       if (chi0 > chi) then
-                          grid(iG)%AVeff(cellP) = &
-                               & real(-log(chi/chi0)/dble(pdrUVfac))
-                       else
-                          grid(iG)%AVeff(cellP) = 0.
-                       end if
+                    ! Invert the measured attenuation into a genuine visual
+                    ! extinction in magnitudes, using this model's own grains
+                    ! (D-026). tau_FUV -> A_V = 1.0857*tau_FUV/R_FUV.
+                    if (chi0 > chi .and. chi > 0.d0) then
+                       tauFUV = -log(chi/chi0)
+                       grid(iG)%AVeff(cellP) = &
+                            & real(dble(magPerTau)*tauFUV/dble(pdrRfuv))
                     else
                        grid(iG)%AVeff(cellP) = 0.
                     end if

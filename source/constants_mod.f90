@@ -21,6 +21,11 @@ module constants_mod
     ! The Habing equivalent is 5.29e-14; their ratio, 1.69, is the 1.68 factor
     ! that 3D-PDR's heatingfunctions.F90 uses to convert Draine -> Habing.
     real, parameter :: uDraine = 8.94e-14           ! [erg/cm^3]
+    ! Johnson V, 5500 A, for converting a measured FUV optical depth into a
+    ! genuine visual extinction using MOCASSIN's own grain optics (D-026).
+    real, parameter :: nuVband = 0.165738            ! 5500 A [Ryd]
+    ! A_V[mag] = 2.5/ln(10) * tau_V
+    real, parameter :: magPerTau = 1.0857362
 #endif
     real, parameter :: fr1Ryd = 3.28984e15         ! frequency a 1 Ryd [Hz]
     real, parameter :: hPlanck = 6.6262e-27        ! Planck constant [erg s]

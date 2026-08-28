@@ -47,6 +47,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-023 | Build-system staleness: objects depend on `.pdrflag` and the Makefile | Accepted | 2026-08-28g |
 | D-024 | PDR input validation must sit outside MOCASSIN's else-if chain | Accepted | 2026-08-28g |
 | D-025 | Fix the validation-chain short-circuit in `readInput` | Accepted | 2026-08-28h |
+| D-026 | A_V is derived from the model's own grain optics, not from `UV_fac` | Accepted | 2026-08-28i |
 
 ---
 
@@ -1159,8 +1160,107 @@ long-standing bad input file will see a new hard stop.
 
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
-- [ ] Phase 3: `mocassinToPDR` dilutes from `starPosition(1)` only - generalise to all sources.
+- [x] Phase 3: `mocassinToPDR` dilutes from `starPosition(1)` only — fixed, see D-026.
 - [ ] Phase 4: `read_coolants`, then `coo` can be set for real.
+
+---
+
+## 2026-08-28i — Phase 3: radiation coupling, with A_V measured rather than assumed
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-026 — A_V,eff is derived from the model's own grain optics.** *Accepted*
+
+### The question Phase 3 actually had to answer
+
+The plan framed Phase 3 as reconciling MOCASSIN's real grain optics with 3D-PDR's
+`AV_fac`/`UV_fac` parametrisation. Checking where those constants are actually *read* in the
+frozen build matrix (D-009) changed the framing:
+
+| Constant | Uses in the compiled subset | Status |
+|---|---|---|
+| `AV_fac` | 3, all in `CRattenuation.F90` | inside `#ifdef CRATTENUATION` — **not set** |
+| `UV_fac` | 6 in `calc_reac_rates.F90` | 1 is the `use` statement; the other 5 are inside `#ifdef GRAINRECOMB` — **not set** |
+
+**Neither constant is read by any active code path.** They enter the coupled model only
+through how *we* define `A_V,eff`. So the job is not to match 3D-PDR's constants — it is to
+make `A_V,eff` a genuine visual extinction, because every `gamma` in the reaction network is
+fitted against a standard extinction curve with A_V in magnitudes on the abscissa. Get the
+abscissa wrong and all 331 reactions are wrong together, consistently and invisibly.
+
+### What was implemented
+
+`calibratePDRdust` measures the FUV-to-visual extinction ratio from MOCASSIN's own dust
+arrays, once per run:
+
+```
+R_FUV = <kappa_abs + kappa_sca>(FUV) / (kappa_abs + kappa_sca)(V, 5500 A)
+A_V   = 1.0857 * tau_FUV / R_FUV            [magnitudes]
+```
+
+Three details that matter:
+
+- **Extinction, not absorption.** A scattered FUV photon leaves the beam exactly as an
+  absorbed one does.
+- **Weighted by emitted energy per bin, not by bin width.** `chi` is a band-integrated energy
+  density, so the extinction it experiences is the spectrum-weighted one. On a log-nu mesh
+  `widFlx` grows with nu, so a width-weighted average over-weights the 912 A end where the
+  opacity is steepest. The weight used is the bin-to-bin increment of
+  `inSpectrumProbDen` — by construction the emitted energy fraction in that bin. (Effect is
+  modest here, ~7%, but it is free and removes a known bias.)
+- **`A_V` in magnitudes**, hence the 1.0857 factor. 3D-PDR's `exp(-gamma*A_V)` takes
+  magnitudes; `tau_V` would be wrong by that factor throughout.
+
+`mocassinToPDR` was also generalised from a single source to **all** sources: the
+unattenuated field is now the sum of each source's own inverse-square dilution from its own
+position, rather than one lumped luminosity diluted from `starPosition(1)`.
+
+### Validation
+
+The routine was run against three dust models in an otherwise identical nebula:
+
+| Dust model | R_FUV | implied `UV_fac` | vs canonical 3.02 |
+|---|---|---|---|
+| 0.07-50 um, 98% silicate (the shipped `test_Problem` grains) | 1.12 | 1.03 | grey, 3x low |
+| MRN 0.005-0.25 um, 98% silicate | 5.26 | 4.85 | 61% high |
+| **MRN 0.005-0.25 um, silicate + carbonaceous + PAH** | **3.24** | **2.99** | **1% agreement** |
+
+**Standard ISM dust reproduces 3D-PDR's canonical constant to 1%.** That is the validation:
+an independent measurement through MOCASSIN's grain optics, MOCASSIN's frequency mesh and
+MOCASSIN's opacity arrays lands on the literature value, which would be a remarkable
+coincidence if any step of the chain were wrong.
+
+The other two rows are the argument for measuring instead of assuming. Both are *plausible*
+inputs — the large-grain model is what `benchmarks/test_Problem` actually ships — and both
+would have silently mis-scaled every photorate in the network by factors of 1.6 to 3. A
+warning fires when the measured value departs from canonical by more than 25%.
+
+*Caveat, stated plainly:* a single scalar `A_V,eff` cannot exactly represent band-integrated
+attenuation of a wavelength-dependent opacity — the band hardens with depth, so the effective
+ratio drifts. This is the D-001 option-1 approximation, and D-026 makes its zero point
+correct rather than assumed. Option 2 (band-resolved chi) remains the upgrade path if the
+residual matters.
+
+### Phase 3 status
+
+Delivered: `chi` (validated to 0.3% in Phase 0), `A_V,eff` on a measured footing, multi-source
+dilution, the zone flag, and the dust calibration with its warning.
+
+**Not yet delivered:** the plan's Phase 3 gate — reproducing a 3D-PDR 1D benchmark end to end
+— needs the per-cell chemistry loop, which is Phase 4 work. Phase 3 has built and validated
+every input that loop consumes; it has not yet run it. Being explicit so the gate is not
+recorded as passed when it has not been attempted.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Phase 4: `read_coolants`, then `coo` can be set for real.
+- [ ] Phase 4: the 1D benchmark gate.
+- [ ] Consider deriving `pdrAVfac` from the dust too, for consistency if `CRATTENUATION` is
+      ever enabled — it is currently an unused input.
 
 ---
 
