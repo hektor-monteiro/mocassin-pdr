@@ -1333,6 +1333,42 @@ module grid_mod
                 stop
              end if
 
+#ifdef PDR
+             ! PDR per-cell state. Allocated here, with the other grid arrays,
+             ! so both the fresh path and resetGrid get it; pdr_mod only reads
+             ! the network and seeds the abundances (DEVLOG D-006).
+             if (lgPDR) then
+                allocate(grid%pdrZone(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrZone memory"; stop
+                end if
+                allocate(grid%chiFUV(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate chiFUV memory"; stop
+                end if
+                allocate(grid%AVeff(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate AVeff memory"; stop
+                end if
+                allocate(grid%pdrCool(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrCool memory"; stop
+                end if
+                allocate(grid%pdrAbun(0:grid%nCells,1:pdrNspec), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrAbun memory - ", &
+                        & (grid%nCells+1)*pdrNspec*8/1048576, " MB requested"
+                   stop
+                end if
+                grid%pdrZone = 0
+                grid%chiFUV  = 0.
+                grid%AVeff   = 0.
+                grid%pdrCool = 0.
+                grid%pdrAbun = 0.d0
+             end if
+#endif
+
+
              grid%Hden = 0.
              grid%Ne = 0.
              grid%Te = 0.
@@ -2635,6 +2671,9 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            integer                     :: ios                 ! I/O error status
            integer                     :: i,j,k,iG,ai         ! counters
            integer                     :: yTop                ! 2D index
+#ifdef PDR
+           integer                     :: iPdrS               ! PDR species counter
+#endif
 
            print* , 'in writeGrid'
 
@@ -2668,6 +2707,19 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  stop
               end if
            end if
+#ifdef PDR
+           ! DEVLOG D-011: NOT grid4.out - mocassinPlot already writes that file
+           ! on unit 29, and reusing the name would let a plotting run silently
+           ! truncate the PDR checkpoint.
+           if (lgPDR) then
+              close(51)
+              open(unit=51, file="output/pdrGrid.out", action="write",position="rewind",status="unknown", iostat = ios)
+              if (ios /= 0 ) then
+                 print*, "! writeGrid: can't open file for writing - output/pdrGrid.out"
+                 stop
+              end if
+           end if
+#endif
 
            do iG = 1, nGrids
 
@@ -2723,6 +2775,15 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                           end if
                        end do
                     end if
+#ifdef PDR
+                    ! Written from inside this same loop so the record order
+                    ! matches resetGrid's read order exactly (DEVLOG D-006).
+                    if (lgPDR) then
+                       write(51, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
+                            & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP)
+                       write(51, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
+                    end if
+#endif
                     if (lgDust) then
 
                        if (lgMultiDustChemistry) then
@@ -2748,6 +2809,9 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            close(20)
            close(30)
         end if
+#ifdef PDR
+        if (lgPDR) close(51)
+#endif
         if (lgDust) then
            write(50,*) ' '
            write(50,*) 'Total dust mass [1.e45 g]: ', totalDustMass
@@ -2845,6 +2909,15 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
         write(40,*)  lg2D, ' 2D geometry?'
         write(40,*) lgEcho, echot1, echot2, echoTemp," Echo on/off"
         write(40,*) lgNosource," NoSourceSED"
+#ifdef PDR
+        ! Appended at the end so pre-PDR grid3.out files still read cleanly.
+        ! These let resetGrid validate a checkpoint against the current input
+        ! and refuse a mismatch rather than reading a misaligned pdrGrid.out.
+        write(40,*) lgPDR, ' lgPDR'
+        if (lgPDR) then
+           write(40,*) '"',trim(adjustl(pdrNetwork)),'"', pdrNspec, ' pdrNetwork, pdrNspec'
+        end if
+#endif
         ! close file
         close(40)
 
@@ -2937,6 +3010,12 @@ end function getVolume
 
       integer                        :: cellP ! cell pointer
       integer                        :: err,ios   ! I/O error status
+#ifdef PDR
+      integer                        :: iPdrS         ! PDR species counter
+      integer                        :: pdrNspecRead  ! species count in the checkpoint
+      logical                        :: lgPDRrestart  ! checkpoint carries PDR state?
+      character(len=20)              :: pdrNetRead    ! network name in the checkpoint
+#endif
       integer                        :: i,j,k ! counters
       integer                        :: elem,&!
 &                                       ion,i1 ! counters
@@ -3074,6 +3153,20 @@ end function getVolume
       read(77, *) lg2D
       read(77, *) lgEcho, echot1, echot2, echoTemp
       read(77,*) lgNosource
+#ifdef PDR
+      ! Optional trailing records: absent in a pre-PDR checkpoint, which is not
+      ! an error - it just means there is no PDR state to resume.
+      lgPDRrestart = .false.
+      read(77,*,iostat=ios) lgPDRrestart
+      if (ios /= 0) lgPDRrestart = .false.
+      if (lgPDRrestart) then
+         read(77,*,iostat=ios) pdrNetRead, pdrNspecRead
+         if (ios /= 0) then
+            print*, "! resetGrid: truncated PDR header in grid3.out"
+            stop
+         end if
+      end if
+#endif
 
       if (taskid == 0) then
          print*,  nGrids,'nGrids'
@@ -3138,6 +3231,34 @@ end function getVolume
          stop
       end if
 
+#ifdef PDR
+      ! Validate the checkpoint against the current input before trusting a
+      ! single record of it (DEVLOG D-006).
+      if (lgPDR) then
+         if (.not.lgPDRrestart) then
+            print*, "! resetGrid: this run has pdr enabled but output/grid3.out"
+            print*, "!   carries no PDR state - the checkpoint predates PDR support."
+            stop
+         end if
+         if (trim(adjustl(pdrNetRead)) /= trim(adjustl(pdrNetwork))) then
+            print*, "! resetGrid: checkpoint network '", trim(adjustl(pdrNetRead)), &
+                 & "' does not match requested '", trim(adjustl(pdrNetwork)), "'."
+            stop
+         end if
+         if (pdrNspecRead /= pdrNspec) then
+            print*, "! resetGrid: checkpoint has ", pdrNspecRead, " species, this run has ", &
+                 & pdrNspec, " - refusing to read a misaligned pdrGrid.out."
+            stop
+         end if
+         close(91)
+         open(unit=91, file='output/pdrGrid.out', action="read", position='rewind', &
+              &          status='old', iostat = err)
+         if (err /= 0) then
+            print*, "! resetGrid: error opening file output/pdrGrid.out"
+            stop
+         end if
+      end if
+#endif
       if (lgGas) then
          close(78)
          open(unit=78, file='output/grid1.out',  action="read",position='rewind',  &
@@ -3216,6 +3337,37 @@ end function getVolume
                print*, "! resetGrid:can't allocate grid memory"
                stop
             end if
+
+#ifdef PDR
+            ! PDR per-cell state, allocated with the other grid arrays (D-006).
+            if (lgPDR) then
+               allocate(grid(iG)%pdrZone(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrZone memory"; stop
+               end if
+               allocate(grid(iG)%chiFUV(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate chiFUV memory"; stop
+               end if
+               allocate(grid(iG)%AVeff(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate AVeff memory"; stop
+               end if
+               allocate(grid(iG)%pdrCool(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCool memory"; stop
+               end if
+               allocate(grid(iG)%pdrAbun(0:grid(iG)%nCells,1:pdrNspec), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrAbun memory"; stop
+               end if
+               grid(iG)%pdrZone = 0
+               grid(iG)%chiFUV  = 0.
+               grid(iG)%AVeff   = 0.
+               grid(iG)%pdrCool = 0.
+               grid(iG)%pdrAbun = 0.d0
+            end if
+#endif
 
             allocate(grid(iG)%ionDen(0:grid(iG)%nCells, 1:nElementsUsed, 1:nstages), stat = err)
             if (err /= 0) then
@@ -3427,6 +3579,13 @@ end function getVolume
                      end do
                   end if
 
+#ifdef PDR
+                  if (lgPDR) then
+                     read(91, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
+                          & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP)
+                     read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
+                  end if
+#endif
                   if (lgDust) then
                      if (lgMultiDustChemistry) then
                         read(88, *) p00, ind

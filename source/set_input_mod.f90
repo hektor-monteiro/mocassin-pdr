@@ -16,6 +16,9 @@ module set_input_mod
 
         integer             :: err              ! allocation error status
         integer             :: i, j             ! counters
+#ifdef PDR
+        integer             :: iPdrC            ! coolant-list counter (i is the outer loop index)
+#endif
         integer             :: ios              ! I/O error status
         integer             :: maxLim = 1000    ! max limit for reading loop
 
@@ -588,12 +591,97 @@ module set_input_mod
                 read(unit=10, fmt=*, iostat=ios) keyword
                 lgCDE = .true.
                print*, keyword, "CDE dust properties enabled..."
-               
+
+#ifdef PDR
+            ! --- photodissociation-region keywords (DEVLOG D-022) -------------
+            case ("pdr")
+                ! Accept "pdr", "pdr 1" and "pdr 0". List-directed input cannot
+                ! read an integer into a logical, so go via iPdrC.
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, iPdrC
+                if (ios /= 0) iPdrC = 1
+                lgPDR = (iPdrC /= 0)
+            case ("pdrNetwork")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrNetwork
+            case ("pdrDataDir")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrDataDir
+            case ("pdrZeta")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrZeta
+            case ("pdrHealpix")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrHealpix
+            case ("pdrChemIter")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrChemIter
+            case ("pdrEndTime")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrEndTime
+            case ("pdrAVfac")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrAVfac
+            case ("pdrUVfac")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrUVfac
+            case ("pdrGrainRadius")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrGrainRad
+            case ("pdrMetallicity")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrMetal
+            case ("pdrVturb")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrVturb
+            case ("pdrTmin")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrTmin
+            case ("pdrTmax")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrTmax
+            case ("pdrZoneLimit")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrZoneLim, pdrBlendLo
+            case ("pdrCoolants")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrNcool
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrNcool, &
+                     & (pdrCoolant(iPdrC), iPdrC = 1, pdrNcool)
+#endif
+
             end select
 
          end do
 
         close(10)
+
+#ifdef PDR
+        ! Standalone, NOT part of the else-if chain above. That chain contains a
+        ! non-fatal warning at `nuMin > 1.4e-6`, and since the default nuMin is
+        ! 1.001e-5 the warning branch is taken for essentially every model - so
+        ! every check after it in the chain is unreachable. (Pre-existing; see
+        ! the 2026-08-28g DEV log entry.) These must run unconditionally.
+        if (lgPDR .and. .not.lgDust) then
+            ! DEVLOG D-019: without dust, photon_mod short-circuits every
+            ! continuum packet below the lowest ionization edge straight into
+            ! escapedPackets without tracing it, so Jste carries no FUV field
+            ! and chi is silently wrong by orders of magnitude.
+            print*, "! readInput: PDR models require dust."
+            print*, "!   Without it the FUV field is not transported (DEVLOG D-019)."
+            print*, "!   Add a dustFile/Ndust specification, or set pdr 0."
+            stop
+        end if
+        if (lgPDR .and. lg2D) then
+            print*, "! readInput: PDR is not supported in 2D mode."
+            stop
+        end if
+        if (lgPDR .and. lg1D) then
+            print*, "! readInput: PDR is not supported in 1D mode."
+            stop
+        end if
+#endif
 
         if (nPhotonsTot .eq. 0 .and. nPhotonsDiffuse .eq. 0) then
           print*,'! readInput: no photons in model.'

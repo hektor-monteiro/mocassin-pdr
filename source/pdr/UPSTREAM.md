@@ -17,8 +17,18 @@ root, following the `data/` and `dustData/` convention.
 
 ## Local modifications
 
-None yet. The sources are byte-identical to upstream except that `3DPDR.F90`,
-the standalone driver, is not imported.
+Keep this list short and each entry justified — every one of these has to be
+re-applied by hand at the next upstream merge.
+
+| File | Change | Why |
+|------|--------|-----|
+| `modules.F90` | added `chemPath` to `maincode_module`, default `'chemfiles/'` | D-022 |
+| `read_species.F90` | opens via `chemPath` instead of the literal `"chemfiles/"` | D-022 |
+| `read_rates.F90` | same, plus `use maincode_module, only: chemPath` | D-022 |
+
+The defaults preserve upstream behaviour exactly, so the vendored code still
+builds and runs standalone. Otherwise the sources are byte-identical to upstream
+except that `3DPDR.F90`, the standalone driver, is not imported.
 
 ## Compiled subset
 

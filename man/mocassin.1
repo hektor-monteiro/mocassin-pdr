@@ -1053,6 +1053,67 @@ Pure-dust models are less computationally expensive than gas or dust and gas one
 
 \fBmocassin\fR was designed for the modelling of the photoionised region of planetary nebulae and H II regions and it does not, at present, include the high energy physical processes which are needed, for example,  for the modelling of AGNs. However the inclusion of processes such as inner shell photoionisation and Compton heating is straightforward and this is intended to be one of the developments of the near future.  Moreover, current efforts are geared toward the inclusion of a self-consistent treatment for PDR processes, this requires the incorporation of a chemical network.
 
+.SH PHOTODISSOCIATION REGIONS
+Support for coupled PDR chemistry (3D-PDR) is compiled in only when MOCASSIN is
+built with \fBPDR=1\fR. These keywords are otherwise ignored.
+.TP
+.B pdr \fI[0|1]\fR
+Enable the PDR module. Requires dust: without it the FUV field is not
+transported and the radiation field driving the chemistry would be silently
+wrong. A bare \fBpdr\fR enables it.
+.TP
+.B pdrNetwork \fI"name"\fR
+Chemical network, default \fIreduced\fR (33 species, 331 reactions). The ODE
+system is generated C selected at compile time, so this is validated against the
+compiled-in network rather than switching it; a mismatch is a fatal error.
+.TP
+.B pdrDataDir \fI"path"\fR
+Directory holding the species, rates and coolant datafiles. Defaults to
+\fIPREFIX/share/mocassin/dataPDR\fR.
+.TP
+.B pdrCoolants \fIn "file1" ... "filen"\fR
+Coolant datafiles in LAMDA/RADEX format, e.g. \fB4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"\fR.
+.TP
+.B pdrZeta \fIrate\fR
+Cosmic-ray ionization rate per second, default 1.0e-16.
+.TP
+.B pdrHealpix \fIlevel\fR
+HEALPix level of refinement for the ray tracing, default 0 (12 rays).
+.TP
+.B pdrChemIter \fIn\fR
+Chemistry passes per Monte Carlo iteration, default 3. The outer MC loop carries
+convergence, so this should stay small.
+.TP
+.B pdrEndTime \fIyears\fR
+Chemistry integration span, default 1.0e7. With steady-state chemistry this is
+the initial span rather than a physical age.
+.TP
+.B pdrAVfac \fIvalue\fR
+N(H) to A_V conversion, default 6.289e-22.
+.TP
+.B pdrUVfac \fIvalue\fR
+FUV dust attenuation exponent, default 3.02.
+.TP
+.B pdrGrainRadius \fIcm\fR
+Grain radius, default 1.0e-5.
+.TP
+.B pdrMetallicity \fIvalue\fR
+Metallicity, default 1.0.
+.TP
+.B pdrVturb \fIkm/s\fR
+Turbulent velocity, default 1.0.
+.TP
+.B pdrTmin \fIK\fR, .B pdrTmax \fIK\fR
+Floor and ceiling gas temperature, defaults 1.0 and 2.0e4. The floor is raised
+to the CMB temperature if lower.
+.TP
+.B pdrZoneLimit \fIxlim xblend\fR
+Ionized fraction x(H+) below which PDR chemistry runs, and the lower edge of the
+blend band over which the photoelectric and gas-grain heating prescriptions ramp
+between the two codes. Defaults 0.5 and 0.01.
+.PP
+PDR state is checkpointed to \fIoutput/pdrGrid.out\fR and resumed by
+\fBmocassinWarm\fR. Design decisions are recorded in \fIDEVLOG.md\fR.
 .SH BUGS
 No known bugs.
 .SH AUTHOR

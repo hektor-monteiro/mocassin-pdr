@@ -44,6 +44,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-020 | Vendored build integration and frozen preprocessor matrix | Accepted | 2026-08-28f |
 | D-021 | Import 3D-PDR modules only with explicit `only:` lists | Accepted | 2026-08-28f |
 | D-022 | Chemistry data lives in `dataPDR/`; paths must become configurable | Accepted | 2026-08-28f |
+| D-023 | Build-system staleness: objects depend on `.pdrflag` and the Makefile | Accepted | 2026-08-28g |
+| D-024 | PDR input validation must sit outside MOCASSIN's else-if chain | Accepted | 2026-08-28g |
 
 ---
 
@@ -963,9 +965,116 @@ rather than a print-and-eyeball.
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016) — now possible, the vendored
       source is pinned.
-- [ ] Phase 2: hard validation refusing a PDR run with `lgDust=.false.` (D-019).
-- [ ] Phase 2: make the `chemfiles/` paths configurable (D-022).
-- [ ] Phase 2: add `dataPDR/` to the Makefile `install` target.
+- [x] Phase 2: hard validation refusing a PDR run with `lgDust=.false.` (D-019) — done, see D-024.
+- [x] Phase 2: make the `chemfiles/` paths configurable (D-022) — done via `chemPath`.
+- [x] Phase 2: add `dataPDR/` to the Makefile `install` target — done.
+
+---
+
+## 2026-08-28g — Phase 2: grid fields, keywords, bridge skeleton, warm-restart persistence
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+**Phase 2 exit criterion met:** a PDR-enabled run allocates, reads the network, and writes
+`output/pdrGrid.out`; `mocassinWarm` re-reads it. The round-trip is **lossless — 9261/9261
+abundance records identical** after write -> read -> write, with chemistry still stubbed.
+
+### What landed
+
+| Area | Change |
+|---|---|
+| `common_mod.f90` | `grid_type` gains `pdrZone`, `chiFUV`, `AVeff`, `pdrCool`, `pdrAbun` (double, per D-018), plus the PDR control block |
+| `set_input_mod.f90` | 16 `pdr*` keywords; validation (D-024) |
+| `pdr_mod.f90` | new bridge: `initPDRnetwork`, `seedPDR`, `mocassinToPDR`, and `pdrStep`/`pdrToMocassin` as marked Phase 4 stubs |
+| `grid_mod.f90` | PDR array allocation with the other grid arrays; `pdrGrid.out` write and read; PDR header in `grid3.out` |
+| `iteration_mod.f90` | `mocassinToPDR` before the checkpoint write, so it carries real state |
+| all four drivers | `initPDRnetwork` before any grid allocation |
+| `man/mocassin.1` | the keywords documented |
+| `Makefile` | `dataPDR/` installed; bridge slotted into `SOURCES` |
+
+*Path handling (D-022).* `chemPath` was added to `maincode_module` and the two compiled
+readers now open through it. Recorded in `UPSTREAM.md` as the only local modification to the
+vendored tree; the default preserves upstream behaviour exactly.
+
+*Allocation lives in `grid_mod`, not the bridge.* The first cut allocated in `initPDR`, but
+`resetGrid` reads into those arrays on the warm-start path and `grid_mod` is compiled before
+`pdr_mod`. Splitting it — `grid_mod` allocates alongside every other per-cell field,
+`pdr_mod` only reads the network and seeds — removes the ordering problem entirely.
+
+*Coolants deferred.* `read_species.F90:175` indexes `coolant(1:coo)`, an array only
+`read_coolants` allocates. Setting `coo` without calling it segfaults. The coolant filenames
+are resolved now but `coo` stays 0 until Phase 4, where the level populations need them.
+Better a correct stub than a latent trap.
+
+---
+
+**D-023 — Objects depend on `.pdrflag` and on the Makefile.** *Accepted*
+
+Two stale-object failures cost real time, both the same class: **make cannot see that the
+compile flags changed.**
+
+1. Toggling `PDR` left `constants_mod.o` from the previous mode. The `.mod` file then lacked
+   the `#ifdef PDR` symbols and the build failed with a baffling `Symbol 'udraine' has no
+   IMPLICIT type` in a file that clearly declares it.
+2. Adding a compile *rule* for `pdr_mod.o` did not rebuild `pdr_mod.o`, so the binary kept a
+   version compiled without `-DREDUCED`. That one surfaced as a **runtime** error — the
+   network validator reporting "built with 'none'" — which is much worse than a build error.
+
+*Decision:* a `.pdrflag` stamp file records the current `PDR` value and every object depends
+on it, plus on `Makefile` itself. Verified: `PDR=1` -> unset -> `PDR=1` with no manual
+`make clean` now works.
+
+*Worth noting the second failure was caught only because the network validator of D-003
+exists.* Without it the run would have proceeded with a silently mismatched ODE system. That
+is the argument for validators that check what was compiled against what was asked for.
+
+---
+
+**D-024 — PDR input validation must sit outside MOCASSIN's `else if` chain.** *Accepted*
+
+The `lgDust` refusal (D-019) was added into `readInput`'s validation chain and **did not
+fire**. The reason is a **pre-existing MOCASSIN bug**, not anything introduced here:
+
+```fortran
+else if (nuMin > 1.4e-6) then
+    print*, "! readInput [waring]:  nuMin ... too large to include 5GHz ..."
+else if (R_out < 0.) then          ! <- unreachable for almost every model
+```
+
+That branch is a **non-fatal warning inside an `else if` chain**. The default `nuMin` is
+`1.001e-5`, comfortably greater than `1.4e-6`, so the warning branch is taken for
+essentially every model and the chain terminates there. **Nine subsequent checks are dead
+code**, including `R_out < 0`, `R_in < 0`, `R_in >= R_out` and
+`lgMultiChemistry .and. .not.lgDfile`.
+
+*Decision here:* the PDR validations are standalone `if` blocks after the chain, so they run
+unconditionally. Verified: a PDR run without dust is now refused, and a valid one still runs.
+
+*Not fixed, deliberately.* Restructuring the chain would make nine previously-dormant checks
+start firing, which could reject existing user models that have been running with latent
+invalid input. That is a behaviour change with real blast radius and it is the maintainer's
+call, not a side effect of PDR work. **Flagged for Hektor to decide.** The minimal fix is to
+turn the warning into a plain `if` that does not consume the chain.
+
+### Verification
+
+- Fresh PDR run: network read (33 species, 331 reactions), `pdrGrid.out` 8.5 MB / 9261
+  records x 33 abundances, `chiFUV` non-zero in all 4169 active cells (max 1.2e4 Draine),
+  `AVeff` non-zero in 1686.
+- `mocassinWarm`: re-reads and re-writes losslessly, 9261/9261 records identical.
+- `pdr` without dust: refused with the D-019 message.
+- Network mismatch: refused with the D-003 message.
+- With `PDR` unset: all 19 MOCASSIN objects semantically identical to pristine, and zero PDR
+  objects compiled.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] **Decide whether to fix the `else if` chain bug** (D-024) — maintainer's call.
+- [ ] Phase 3: replace `AVeff`'s single-star assumption — `mocassinToPDR` currently
+      geometrically dilutes from `starPosition(1)` only.
+- [ ] Phase 4: `read_coolants`, then `coo` can be set for real.
 
 ---
 

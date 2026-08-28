@@ -11,6 +11,9 @@ program MoCaSSiNplot
     use grid_mod
     use iteration_mod
     use output_mod
+#ifdef PDR
+    use pdr_mod
+#endif
     use set_input_mod
     use xSec_mod
     use readdata_mod
@@ -70,6 +73,10 @@ program MoCaSSiNplot
 
 
     ! reset the 3D cartesian grid
+#ifdef PDR
+    ! network before resetGrid: it sizes pdrAbun (D-022)
+    if (lgPDR) call initPDRnetwork()
+#endif
     call resetGrid(grid3D)
 
     call setStarPosition(grid3D(1)%xAxis,grid3D(1)%yAxis,grid3D(1)%zAxis,grid3D)

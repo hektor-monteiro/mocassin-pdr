@@ -7,6 +7,9 @@ module iteration_mod
     use emission_mod
     use ionization_mod
     use output_mod
+#ifdef PDR
+    use pdr_mod
+#endif
     use photon_mod
     use update_mod
 
@@ -1167,6 +1170,11 @@ module iteration_mod
 
                  ! output results at this itearation stage (every 3 iterations)
 
+#ifdef PDR
+                 ! Reduce the MC field to chi / A_V,eff / zone before the
+                 ! checkpoint is written, so pdrGrid.out carries real state.
+                 if (lgPDR) call mocassinToPDR(grid(1:nGrids))
+#endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR
                  call writeFUVField(grid(1:nGrids))
@@ -1183,6 +1191,11 @@ module iteration_mod
                  print*, " ! iterateMC: maximum number of iterations reached. Finishing up ... ",&
                       & maxIterateMC
 
+#ifdef PDR
+                 ! Reduce the MC field to chi / A_V,eff / zone before the
+                 ! checkpoint is written, so pdrGrid.out carries real state.
+                 if (lgPDR) call mocassinToPDR(grid(1:nGrids))
+#endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR
                  call writeFUVField(grid(1:nGrids))

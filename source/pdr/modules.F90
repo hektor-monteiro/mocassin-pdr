@@ -144,6 +144,11 @@ MODULE maincode_module
   character(len=50)::paramFile
   integer(kind=i4b) :: lmax_levels = 0
   character(len=50)::coolfile(1:30)
+  ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-022): upstream opens the species and
+  ! rate files through a hardcoded relative path, "chemfiles/...". MOCASSIN
+  ! resolves its data under PREFIX, so the directory is made settable here.
+  ! Default preserves upstream behaviour exactly.
+  character(len=200)::chemPath = 'chemfiles/'
   integer::coo,cur_nlev,cur_ntemp
   real(kind=dp),allocatable::temp_pop(:)
   type coolant_node

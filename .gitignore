@@ -42,3 +42,4 @@ mocassinPlot
 # vendored 3D-PDR object files
 source/pdr/*.o
 pdrSmokeTest
+.pdrflag

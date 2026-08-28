@@ -35,6 +35,9 @@ program MoCaSSiN
     use grid_mod
     use iteration_mod
     use output_mod
+#ifdef PDR
+    use pdr_mod
+#endif
     use set_input_mod
     use xSec_mod
     use readdata_mod
@@ -64,6 +67,12 @@ program MoCaSSiN
     ! read the input parameters of the simulation
     call readInput()
 
+#ifdef PDR
+    ! The network must be read before any grid allocation: grid_mod sizes
+    ! pdrAbun(:, 1:pdrNspec) and needs pdrNspec (DEVLOG D-022).
+    if (lgPDR) call initPDRnetwork()
+#endif
+
     print*, " "
 
     ! initialize the 3D cartesian grid
@@ -78,6 +87,10 @@ program MoCaSSiN
     call setContinuum()
 
     call fillGrid(grid3D(1:nGrids))
+
+#ifdef PDR
+    if (lgPDR) call seedPDR(grid3D(1:nGrids))
+#endif
 
     call setStarPosition(grid3D(1)%xAxis,grid3D(1)%yAxis,grid3D(1)%zAxis, grid3D(1:nGrids))
 

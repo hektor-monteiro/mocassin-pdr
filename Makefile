@@ -42,7 +42,7 @@ SOURCES = source/constants_mod.o source/vector_mod.o source/common_mod.o source/
 	source/set_input_mod.o source/hydro_mod.o source/ph_mod.o source/composition_mod.o \
 	source/continuum_mod.o source/ionization_mod.o source/pathIntegration_mod.o \
 	source/grid_mod.o source/dust_mod.o source/emission_mod.o source/photon_mod.o  \
-	source/update_mod.o source/output_mod.o source/iteration_mod.o source/readdata_mod.o
+	source/update_mod.o source/output_mod.o $(PDR_BRIDGE) source/iteration_mod.o source/readdata_mod.o
 
 # PDR support (DEVLOG D-009, D-020). Off by default: with PDR unset the build is
 # semantically identical to a plain build (verified by masking the source-line
@@ -93,6 +93,10 @@ ifeq ($(PDR),1)
   PDR_C = source/pdr/calculate_abundances.o source/pdr/odes_reduced.o
 
   PDR_OBJ = $(PDR_MODULES) $(PDR_CODE) $(PDR_C)
+  # The bridge is MOCASSIN code but uses the vendored modules, so it slots into
+  # SOURCES after output_mod and before iteration_mod (which will call it in
+  # Phase 4). Empty when PDR is off, so SOURCES is unchanged.
+  PDR_BRIDGE = source/pdr_mod.o
   LDFLAGS += $(PDR_LIB)
 endif
 
@@ -117,18 +121,36 @@ pdrSmokeTest: $(PDR_OBJ) source/pdrSmokeTest.o
 
 new: clean all
 
-%.o: %.f90
+# Every object also depends on the Makefile: changing a compile rule or a flag
+# otherwise leaves stale objects that look up to date, which shows up much later
+# as a confusing runtime mismatch rather than a build error.
+#
+# Toggling PDR changes the preprocessor flags, but the .o files look up to date
+# to make and are silently reused - which produces .mod files missing the guarded
+# symbols. Stamp the current value and make every object depend on it, so
+# switching the flag forces a rebuild instead of a confusing compile error.
+.pdrflag: FORCE
+	@[ -f $@ ] && [ "`cat $@`" = "$(PDR)" ] || echo "$(PDR)" > $@
+FORCE:
+.PHONY: FORCE
+
+%.o: %.f90 .pdrflag Makefile
 	$(FC) $(FFLAGS) $< -c -o $@
 
 # Vendored 3D-PDR sources (DEVLOG D-005). .F90 is upstream's capitalisation and
 # carries its own preprocessor matrix; the C files need the SUNDIALS headers.
-source/pdrSmokeTest.o: source/pdrSmokeTest.f90
+# The bridge tests the compiled-in network with #ifdef REDUCED etc., so it needs
+# PDRFLAGS as well as FFLAGS - the generic %.o rule carries only the latter.
+source/pdr_mod.o: source/pdr_mod.f90 .pdrflag Makefile
 	$(FC) $(FFLAGS) $(PDRFLAGS) $< -c -o $@
 
-source/pdr/%.o: source/pdr/%.F90
+source/pdrSmokeTest.o: source/pdrSmokeTest.f90 .pdrflag Makefile
 	$(FC) $(FFLAGS) $(PDRFLAGS) $< -c -o $@
 
-source/pdr/%.o: source/pdr/%.c
+source/pdr/%.o: source/pdr/%.F90 .pdrflag Makefile
+	$(FC) $(FFLAGS) $(PDRFLAGS) $< -c -o $@
+
+source/pdr/%.o: source/pdr/%.c .pdrflag Makefile
 	$(CC) -O2 $(PDRFLAGS) $(PDR_INC) $< -c -o $@
 
 mocassin: $(PDR_OBJ) $(SOURCES) source/mocassin.o
@@ -144,19 +166,16 @@ mocassinPlot: $(PDR_OBJ) $(SOURCES) source/mocassinPlot.o
 	$(LD) $(FFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:
-	/bin/rm -f source/*.o *~ source/*.mod source/pdr/*.o pdrSmokeTest mocassin mocassinWarm mocassinOutput mocassinPlot
+	/bin/rm -f source/*.o *~ source/*.mod source/pdr/*.o .pdrflag pdrSmokeTest mocassin mocassinWarm mocassinOutput mocassinPlot
 
 install: mocassin mocassinWarm mocassinOutput mocassinPlot
-
-# Phase 1 chemistry smoke test (DEVLOG D-020). PDR=1 only; needs no MOCASSIN grid.
-pdrSmokeTest: $(PDR_OBJ) source/pdrSmokeTest.o
-	$(LD) $(FFLAGS) $(PDRFLAGS) -o $@ $^ $(LDFLAGS)
 	test -e $(DESTDIR)$(PREFIX)/share/mocassin || mkdir -p $(DESTDIR)$(PREFIX)/share/mocassin
 	test -e $(DESTDIR)$(PREFIX)/share/doc/mocassin || mkdir -p $(DESTDIR)$(PREFIX)/share/doc/mocassin
 	test -e $(DESTDIR)$(PREFIX)/bin || mkdir -p $(DESTDIR)$(PREFIX)/bin
 	test -e $(MANDIR) || mkdir -p $(MANDIR)
 	cp -R data $(DESTDIR)$(PREFIX)/share/mocassin
 	cp -R dustData $(DESTDIR)$(PREFIX)/share/mocassin
+	cp -R dataPDR $(DESTDIR)$(PREFIX)/share/mocassin
 	cp -R benchmarks $(DESTDIR)$(PREFIX)/share/mocassin
 	cp -R examples $(DESTDIR)$(PREFIX)/share/doc/mocassin
 	install -m 644 man/mocassin.1 $(MANDIR)

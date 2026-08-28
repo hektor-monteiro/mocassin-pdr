@@ -302,6 +302,17 @@ module common_mod
                                                     ! hydrogen density)
         real, allocatable :: echoVol(:,:,:)  ! BEKS 2010. Contains volume of one
         ! grid cell enclosed by echo.  Only used if lgEcho=.true.
+
+#ifdef PDR
+        ! --- photodissociation-region state (DEVLOG D-006, D-018) -------------
+        ! pdrAbun is double precision deliberately: PDR abundances run below
+        ! 1e-38 and would underflow MOCASSIN's default 4-byte real.
+        integer, allocatable      :: pdrZone(:)      ! 1 where PDR chemistry runs
+        real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
+        real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
+        real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
+        double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
+#endif
     end type grid_type
 
     ! photon packet type
@@ -470,6 +481,30 @@ module common_mod
 #ifdef PDR
     integer             :: FUVlowP                 ! first nuArray bin inside the FUV band
     integer             :: FUVhighP                ! last  nuArray bin inside the FUV band
+
+    ! --- PDR module controls (DEVLOG D-022) ------------------------------------
+    ! Defaults reproduce 3D-PDR's shipped params.dat so an unspecified run is
+    ! the documented reference case rather than an arbitrary one.
+    logical             :: lgPDR      = .false.    ! master switch ('pdr' keyword)
+    character(len=20)   :: pdrNetwork = 'reduced'  ! validated against compiled-in network
+    character(len=200)  :: pdrDataDir = ''         ! '' -> PREFIX/share/mocassin/dataPDR
+    integer             :: pdrNspec   = 0          ! species in the network
+    integer             :: pdrNreac   = 0          ! reactions in the network
+    integer             :: pdrHealpix = 0          ! HEALPix level of refinement
+    integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
+    real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
+    real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]
+    real                :: pdrAVfac   = 6.289e-22  ! N_H -> A_V conversion
+    real                :: pdrUVfac   = 3.02       ! FUV dust attenuation exponent
+    real                :: pdrGrainRad= 1.0e-5     ! grain radius [cm]
+    real                :: pdrMetal   = 1.0        ! metallicity
+    real                :: pdrVturb   = 1.0        ! turbulent velocity [km/s]
+    real                :: pdrTmin    = 1.0        ! floor gas temperature [K]
+    real                :: pdrTmax    = 2.0e4      ! ceiling gas temperature [K]
+    real                :: pdrZoneLim = 0.5        ! x(H+) below which PDR chemistry runs
+    real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
+    integer             :: pdrNcool   = 0          ! number of coolants
+    character(len=50)   :: pdrCoolant(30) = ''     ! coolant datafile names
 #endif
     ! dust parameters
     integer            :: nSizes           ! number of grain sizes

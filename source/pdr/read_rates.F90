@@ -11,6 +11,7 @@
 !T.Bell
 use definitions
 use healpix_types
+use maincode_module, only: chemPath   ! LOCAL MOD: D-022
 use global_module
 
       IMPLICIT NONE
@@ -49,7 +50,8 @@ use global_module
       suffix = 'mynetwork.d'
 #endif
 
-      OPEN(RATEFILE,FILE="chemfiles/rates_"//trim(adjustl(suffix)),STATUS="OLD")
+      ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-022): path via chemPath.
+      OPEN(RATEFILE,FILE=trim(adjustl(chemPath))//"rates_"//trim(adjustl(suffix)),STATUS="OLD")
       REWIND(RATEFILE)
       DO I=1,NREAC
          READ(RATEFILE,*,END=1) N,(REAC(I,J),J=1,3),(PROD(I,J),J=1,4),&

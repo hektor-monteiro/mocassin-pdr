@@ -12,6 +12,9 @@ program MoCaSSiNwarm
     use grid_mod
     use iteration_mod
     use output_mod
+#ifdef PDR
+    use pdr_mod
+#endif
     use set_input_mod
     use xSec_mod
     use readdata_mod
@@ -51,6 +54,11 @@ program MoCaSSiNwarm
     if (taskid == 0) then
         print*, " "
     end if
+
+#ifdef PDR
+    ! network before resetGrid: it sizes pdrAbun (D-022). Once, not per grid.
+    if (lgPDR) call initPDRnetwork()
+#endif
 
     ! reset the 3D cartesian grid
      do iGrid = 1, nGrids

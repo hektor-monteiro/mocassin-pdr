@@ -18,7 +18,7 @@
 use definitions
 use healpix_types
 use global_module
-use maincode_module, only: coolant,coo
+use maincode_module, only: coolant,coo,chemPath   ! chemPath: D-022
 
       IMPLICIT NONE
       INTEGER(kind=i4b),intent(in) :: NSPEC
@@ -99,7 +99,8 @@ use maincode_module, only: coolant,coo
       suffix = 'mynetwork.d'
 #endif
 
-      OPEN(SPECIESFILE,FILE="chemfiles/species_"//trim(adjustl(suffix)),STATUS="OLD")
+      ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-022): path via chemPath.
+      OPEN(SPECIESFILE,FILE=trim(adjustl(chemPath))//"species_"//trim(adjustl(suffix)),STATUS="OLD")
       REWIND(SPECIESFILE)
       DO I=1,NSPEC
          READ(SPECIESFILE,*,END=1) INDEX,SPECIES(I),ABUNDANCE(I),MASS(I)
