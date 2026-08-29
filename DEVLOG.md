@@ -53,6 +53,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-029 | Coolants loaded and per-cell PDR heating computed | Accepted | 2026-08-28k |
 | D-030 | Line cooling via slab-equivalent escape probability | Accepted | 2026-08-28l |
 | D-031 | Thermal balance handed to 3D-PDR; inner loop; latched zone flag | Accepted | 2026-08-28m |
+| D-032 | PDR thermal balance folded into MOCASSIN's convergence test | Accepted | 2026-08-28n |
 
 ---
 
@@ -1660,11 +1661,83 @@ iteration criterion**, so the run does not stop while PDR cells are still moving
 
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
-- [ ] **Fold PDR thermal convergence into `minConvergence`** so runs do not stop early. This
-      is now the limiting factor on the whole coupling.
+- [x] **Fold PDR thermal convergence into `minConvergence`** — done, see D-032.
 - [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry.
 - [ ] The 1D benchmark gate carried from Phase 3 - reachable once the convergence criterion
       is fixed.
+- [ ] Consider checkpointing `pdrLevPop`.
+- [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
+
+---
+
+## 2026-08-28n — PDR convergence folded into MOCASSIN's iteration test
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-032 — A PDR cell is not converged until its thermal balance is.** *Accepted*
+
+`pdrStep` now clears `grid%lgConverged(cellP)` when a PDR cell's heating and cooling differ by
+more than `pdrFcrit` (new keyword, default 0.10).
+
+The implementation is a one-line hook rather than new machinery, because `lgConverged` already
+uses the owner-contributes reduction and is exchanged *after* the `pdrStep` loop. Clearing it
+there is enough; the counting logic that turns it into `totPercent` is untouched.
+
+### Why it was needed
+
+MOCASSIN's convergence test counts its own ionization and electron-temperature convergence and
+knows nothing about the PDR. The test model reported **97.8% converged after 3 MC iterations**
+and stopped — at which point cells that had only just entered the PDR zone had received a
+single thermal step. The thermal balance of D-031 was converging correctly per cell and then
+being cut off at the grid level.
+
+### Result
+
+| | D-031 | with D-032 |
+|---|---|---|
+| MC iterations used | 3 (early stop) | **8** (hit `maxIterateMC`) |
+| heating/cooling median | 1.030 | **1.004** |
+| cells within 10% of balance | - | **55.1%** |
+| runtime | 88 s | 235 s |
+
+The sampled profile is now in genuine thermal equilibrium through the bulk:
+
+```
+  A_V     chi      T_gas     heating      cooling   heat/cool
+0.463   1.34e+01  1648.4   1.1542e-21   1.1530e-21    1.00
+0.622   5.08e+00   567.4   6.2558e-22   6.1250e-22    1.02
+0.722   3.03e+00   232.1   4.8349e-22   4.9591e-22    0.97
+0.807   1.86e+00   106.1   3.3276e-22   3.2537e-22    1.02
+```
+
+Temperature falls monotonically with depth from 1648 K to 106 K as chi drops - the shape a PDR
+should have - with heating and cooling matching to 1-3% at each point.
+
+The run now stops on `maxIterateMC` rather than on convergence, which is the honest state: the
+PDR is still improving when the iteration cap is hit. Raising `maxIterateMC` is the knob;
+whether 55% within 10% is good enough is a science question for the benchmark, not an
+engineering one.
+
+### Note on a build-system false alarm
+
+The first run after this change reported `unrecognised keyword pdr`, suggesting the toggle
+mechanism of D-023 had failed again. It had not: an explicit
+`PDR=1 -> PDR unset -> PDR=1` cycle rebuilds correctly each time, verified by probing the
+binary for PDR symbols. The transient came from interleaving a `VERSION=pinned` verification
+build with a normal one in the same sequence. **Probe the artefact, not the build log** - `make`
+printing no errors is not evidence that it rebuilt what you think.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry. The slab-equivalent
+      columns are exact for the benchmark's geometry, so this is not blocking the gate.
+- [ ] **The 1D benchmark gate carried from Phase 3 is now reachable** - the chemistry, the
+      radiation field, the heating, the cooling and the thermal balance are all in place and
+      converging.
 - [ ] Consider checkpointing `pdrLevPop`.
 - [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
 

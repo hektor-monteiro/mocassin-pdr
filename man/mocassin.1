@@ -1090,6 +1090,11 @@ chemistry, thermal balance cannot be left to the outer loop: cooling is
 exponentially sensitive to temperature, so the temperature and the level
 populations must be relaxed together.
 .TP
+.B pdrFcrit \fIfraction\fR
+Relative heating/cooling imbalance a PDR cell may retain and still count as
+converged, default 0.10. PDR cells failing this clear their converged flag, so
+a run will not stop while the PDR is still settling.
+.TP
 .B pdrEndTime \fIyears\fR
 Chemistry integration span, default 1.0e7. With steady-state chemistry this is
 the initial span rather than a physical age.

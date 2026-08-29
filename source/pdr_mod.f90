@@ -735,6 +735,24 @@ module pdr_mod
         grid%pdrTlow(cellP)  = real(Tlo)
         grid%pdrThigh(cellP) = real(Thi)
 
+        ! Fold PDR thermal balance into MOCASSIN's convergence test (D-032).
+        !
+        ! Without this the run stops on MOCASSIN's own criterion - which counts
+        ! its ionization and electron-temperature convergence and knows nothing
+        ! about the PDR - while PDR cells are still moving. Measured: the test
+        ! model reported 97.8% converged after 3 MC iterations, by which point
+        ! cells that had only just entered the zone had received a single
+        ! thermal step.
+        !
+        ! lgConverged uses the same owner-contributes reduction as Te and Ne and
+        ! is exchanged after this loop, so clearing it here for an unbalanced
+        ! cell is enough; no change to the counting logic is needed.
+        if (max(abs(heat(12)), coolTot) > 0.d0) then
+           if (abs(heat(12)-coolTot)/max(abs(heat(12)), coolTot) > dble(pdrFcrit)) then
+              grid%lgConverged(cellP) = 0
+           end if
+        end if
+
       end subroutine pdrStep
 
 
