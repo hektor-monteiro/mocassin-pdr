@@ -55,6 +55,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-031 | Thermal balance handed to 3D-PDR; inner loop; latched zone flag | Accepted | 2026-08-28m |
 | D-032 | PDR thermal balance folded into MOCASSIN's convergence test | Accepted | 2026-08-28n |
 | D-033 | Dust temperature floored at T_cmb; D-009's dust ownership needs revisiting | Accepted | 2026-08-28o |
+| D-034 | Benchmark uses MOCASSIN's plane-parallel mode; geometry blocker withdrawn | Accepted | 2026-08-29 |
+| D-035 | MOCASSIN has no cosmic-ray physics; ionization state is unreconciled | Accepted | 2026-08-29 |
 
 ---
 
@@ -1854,6 +1856,103 @@ is already vendored (though not currently compiled, per D-009).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
 - [ ] Consider checkpointing `pdrLevPop`.
 - [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
+
+---
+
+## 2026-08-29 — Two corrections from Hektor: plane-parallel mode, and cosmic rays
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Context:** Hektor pointed out that MOCASSIN has a plane-parallel mode, and asked whether the
+heating and cooling sources - cosmic rays in particular - are properly incorporated. Both
+questions landed on real gaps.
+
+---
+
+**D-034 — The benchmark uses MOCASSIN's plane-parallel mode. The geometry blocker of
+2026-08-28o is withdrawn.** *Accepted*
+
+**The previous entry was wrong.** It concluded the 1D benchmark was infeasible because a
+uniform Cartesian grid centred on a point source cannot resolve a thin shell - ~326 cells per
+axis, 108 GB per rank. That analysis is correct *for a point source at the centre*, and I
+never checked whether MOCASSIN offers anything else. It does.
+
+`planeIonization` (`set_input_mod.f90`, `lgPlaneIonization`) launches stellar packets from a
+**face**: position randomised across x and z, `position%y = 0`, beaming along +y
+(`photon_mod.f90:583-640`). That is exactly slab illumination.
+
+*Consequence:* the structure is one-dimensional in y, so the grid can be thin in x and z.
+`nx = nz = 5`, `ny = 200` is **5000 cells** - `Jste` becomes ~20 MB rather than 108 GB. The
+benchmark goes from infeasible to cheap.
+
+*The lesson is about how the wrong conclusion was reached.* The arithmetic was right and the
+premise was never checked. "Can MOCASSIN do plane-parallel?" is one grep, and it was skipped
+because the spherical geometry was the one already in front of me. **Quantifying a constraint
+is not the same as establishing it exists.**
+
+---
+
+**D-035 — MOCASSIN has no cosmic-ray physics, and the two codes' ionization states are
+unreconciled.** *Accepted*
+
+*Finding, verified by grep:* MOCASSIN contains **no cosmic-ray physics whatsoever** - no CR
+heating, no CR ionization, nothing in `update_mod` (0 matches for `cosmic|zeta`). This is
+entirely correct for a photoionization code: in an H II region CR heating is negligible
+beside photoionization heating. It simply means **MOCASSIN cannot set either the temperature
+or the ionization state of shielded gas**, which is precisely the regime the coupling adds.
+
+**What the coupling does supply.** In PDR cells 3D-PDR provides both:
+
+- *Heating*, `heatingfunctions.F90:207` (active; the 20 eV variant above it is commented out):
+  ```
+  COSMICRAY_HEATING = (9.4*EV)*(1.3D-17*ZETALOCAL)*DENSITY*ABUNDANCE(NH2)
+  ```
+- *Ionization*, through `ZETALOCAL` in `CALCULATE_REACTION_RATES`, which drives the CRP and
+  CRPHOT reactions that sustain the ion-molecule chemistry deep in the cloud.
+
+So the answer to the question as asked is **yes in PDR cells, no everywhere else, and no in
+MOCASSIN itself.**
+
+**But there is a sting, and it feeds straight back into D-033.** CR heating is proportional to
+`ABUNDANCE(NH2)`. With x(H2) stuck at 8e-3 instead of 0.5:
+
+```
+n_H = 1e4, x(H2) = 0.5    ->  7.53e-24 erg/s/cm3
+n_H = 1e4, x(H2) = 8e-3   ->  1.21e-25 erg/s/cm3     62x suppressed
+```
+
+So the cold-dust bug is not merely holding the gas atomic - it is **suppressing the dominant
+heating term of shielded gas by a factor of 62**, which cools those cells further. D-033 and
+D-035 are the same failure seen twice:
+
+```
+T_dust -> 0  ->  H2 formation on grains collapses  ->  x(H2) ~ 1e-2
+             ->  CR heating (proportional to x(H2)) collapses  ->  cells colder still
+```
+
+That raises D-033 from "molecular chemistry is wrong" to "the thermal balance of shielded gas
+is wrong for the same reason", and makes fixing the dust temperature clearly the top priority.
+
+**A second, independent gap.** MOCASSIN's `ionBalance` has no CR ionization, so in a shielded
+cell it drives x(H+) toward zero, whereas the true value is CR-maintained at ~1e-4. Meanwhile
+3D-PDR's network computes its own H+, He+, C+ and electron abundances. **Nothing reconciles
+the two**: `pdrToMocassin` writes back only the temperature (`pdr_mod.f90` touches `ionDen`
+solely to *read* x(H+) for the zone test). So in PDR cells `grid%ionDen` and `grid%pdrAbun`
+hold two different, independently-computed ionization states, and the zone criterion is based
+on the one that lacks the relevant physics.
+
+This has not caused visible harm yet because the zone flag latches (D-031), but it should be
+resolved: either write the network's ionization back into `ionDen` for PDR cells, or change
+the zone criterion to something MOCASSIN can determine correctly.
+
+### Open items
+
+- [ ] **Fix the dust temperature in shielded cells (D-033).** Now doubly critical - it breaks
+      both the molecular chemistry and, through x(H2), the CR heating.
+- [ ] **Run the 1D benchmark using `planeIonization`** (D-034), with `nx = nz = 5`, `ny ~ 200`.
+- [ ] Reconcile the ionization state between `ionDen` and `pdrAbun` in PDR cells (D-035).
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Consider checkpointing `pdrLevPop`.
 
 ---
 
