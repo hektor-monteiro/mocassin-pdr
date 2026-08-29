@@ -51,6 +51,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-027 | Per-cell chemistry in the MC loop; slab-equivalent shielding for now | Accepted | 2026-08-28j |
 | D-028 | Declare Fortran module dependencies in the Makefile | Accepted | 2026-08-28k |
 | D-029 | Coolants loaded and per-cell PDR heating computed | Accepted | 2026-08-28k |
+| D-030 | Line cooling via slab-equivalent escape probability | Accepted | 2026-08-28l |
 
 ---
 
@@ -1484,6 +1485,85 @@ photoelectric heating is strongest relative to the coolers.
 - [ ] The 1D benchmark gate carried from Phase 3.
 - [ ] `Ndust constant` normalisation is not linear in the dust column; `MdMg` is the
       supported control for PDR work. Worth documenting or fixing.
+
+---
+
+## 2026-08-28l — Line cooling, and the measurement that proves the handover is needed
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-030 — Non-LTE line cooling via a slab-equivalent escape probability.** *Accepted*
+
+`pdrStep` now solves the level populations for each coolant and returns a cooling rate,
+following the same call sequence as upstream `coolingfunctions`:
+
+```
+FIND_CCOEFF -> detailed-balance rebuild -> escape_probability -> solvlevpop
+```
+
+*The ray structure is collapsed to one ray with one evaluation point*, whose path length is
+the slab depth implied by the local extinction. `escape_probability`'s `RAYTHEIA_MO` branch
+accumulates optical depth as `sum_i frac1*frac2*frac3*length(j,i)*PC`, so a single entry with
+`length = (A_V/AV_fac)/n_H/PC` reproduces the slab result exactly. Same approximation as the
+shielding columns (D-027), exact in 1D, an approximation in 3D.
+
+Level populations are stored per cell in `pdrLevPop(0:nCells, 1:pdrNlevTot)`, packed end to
+end with per-coolant offsets in `pdrLevOff`. 4 coolants, **56 levels total**. First visit to a
+cell starts from LTE, as 3D-PDR does; thereafter the populations are rescaled to the abundance
+the chemistry just produced and advanced by **one pass per MC iteration** — the outer loop
+carries level-population convergence exactly as it carries the chemistry (D-008).
+
+Cooling, and the level populations, join the owner-contributes reduction with the other
+per-cell fields.
+
+*Not checkpointed.* `pdrLevPop` is left out of `pdrGrid.out` for now; a warm restart
+re-initialises from LTE and re-converges over a few iterations. Deliberate, to avoid churning
+the checkpoint format again; worth revisiting if restarts prove expensive.
+
+### The result: cooling works, and it proves the loop is still open
+
+All 4076 PDR cells return a cooling rate. But heating and cooling are nowhere near balance,
+and cooling scatters by orders of magnitude between neighbouring cells:
+
+| A_V | T_e (K) | chi | heating | cooling |
+|---|---|---|---|---|
+| 0.185 | 295.8 | 1.02e+02 | 3.54e-21 | 3.32e-19 |
+| 0.446 | 35.5 | 1.27e+01 | 1.68e-21 | 1.83e-21 |
+| 0.582 | **2641.7** | 5.60e+00 | 6.04e-22 | **2.01e-18** |
+| 1.136 | **1238.0** | 5.35e-01 | 6.14e-23 | 1.69e-23 |
+
+**The scatter is the temperature's, not the cooling's.** Correlating against `grid1.out` shows
+the cooling tracking T_e exactly: 2642 K gives 2.0e-18, 35 K gives 1.8e-21. The line cooling
+is behaving correctly for the temperature it is handed.
+
+The temperature is the problem. Across cells flagged as PDR zone, MOCASSIN's T_e spans
+**30.5 to 3552 K, median 130.5** — in gas that a PDR calculation would put at 10-100 K. That
+is not a defect in MOCASSIN: its thermal balance solves for photoionised gas, and in
+low-ionisation cells the processes it knows about barely constrain the temperature. It is
+simply the wrong solver for this regime.
+
+*So this is the measurement that turns D-007 from an architectural assertion into a
+demonstrated requirement.* The plan asserted from the start that thermal balance must be
+handed to 3D-PDR in the neutral zone. It is now possible to say by how much it matters: until
+the handover happens, the cooling rates are computed on a temperature that is wrong by one to
+two orders of magnitude, and no amount of level-population convergence will fix that.
+
+Both halves of the thermal balance now exist per cell. What remains is to stop using
+MOCASSIN's T_e in the PDR zone and solve `heating = cooling` instead.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] **Close the thermal balance (D-007).** Both terms exist; replace T_e in the PDR zone
+      with the root of heating = cooling, and ramp the photoelectric and gas-grain terms
+      across the blend band so they are not counted twice. This is now the critical path.
+- [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry.
+- [ ] The 1D benchmark gate carried from Phase 3 - reachable once the handover lands.
+- [ ] Consider checkpointing `pdrLevPop` if restart cost matters.
+- [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
 
 ---
 

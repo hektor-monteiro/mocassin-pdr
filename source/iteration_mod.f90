@@ -47,6 +47,8 @@ module iteration_mod
 #ifdef PDR
            integer :: i1PdrStuck                             ! cells whose chemistry stalled
            real, allocatable :: pdrHeatTmp(:), pdrHeatSum(:)
+           real, allocatable :: pdrCoolTmp(:), pdrCoolSum(:)
+           double precision, allocatable :: pdrLevTmp(:,:), pdrLevSum(:,:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
@@ -917,6 +919,10 @@ module iteration_mod
                  allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
+                 allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
+                 allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
+                 allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
+                 allocate(pdrLevSum(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
                  end if
@@ -927,6 +933,10 @@ module iteration_mod
                  pdrHeatPETmp = 0.
                  pdrHeatPESum = 0.
                  pdrZoneSum   = 0
+                 pdrCoolTmp   = 0.
+                 pdrCoolSum   = 0.
+                 pdrLevTmp    = 0.d0
+                 pdrLevSum    = 0.d0
                  pdrNstuck   = 0
 
                  iCell = 0
@@ -943,6 +953,10 @@ module iteration_mod
                                      & grid(iG)%pdrHeat(grid(iG)%active(i,j,k))
                                 pdrHeatPETmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
+                                pdrCoolTmp(grid(iG)%active(i,j,k))   = &
+                                     & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
+                                pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
+                                     & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
                              end if
                           end if
                        end do
@@ -962,6 +976,14 @@ module iteration_mod
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  call mpi_allreduce(pdrHeatPETmp, pdrHeatPESum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(pdrCoolTmp, pdrCoolSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrCool(1:grid(iG)%nCells) = pdrCoolSum(1:grid(iG)%nCells)
+                 size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
+                 call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrLevPop(1:grid(iG)%nCells,:) = pdrLevSum(1:grid(iG)%nCells,:)
+                 size = grid(iG)%nCells+1
                  grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
                  grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
 
@@ -982,6 +1004,10 @@ module iteration_mod
                  deallocate(pdrHeatPETmp)
                  deallocate(pdrHeatPESum)
                  deallocate(pdrZoneSum)
+                 deallocate(pdrCoolTmp)
+                 deallocate(pdrCoolSum)
+                 deallocate(pdrLevTmp)
+                 deallocate(pdrLevSum)
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)

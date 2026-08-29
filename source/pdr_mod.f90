@@ -23,6 +23,10 @@ module pdr_mod
     use constants_mod
     use continuum_mod, only : inSpectrumProbDen
 
+    ! KB and PC are 3D-PDR's own constants; use theirs rather than MOCASSIN's
+    ! equivalents so the level-population arithmetic matches upstream exactly.
+    use healpix_types, only : KB, PC
+
     use maincode_module, only : pdrNspecMod  => nspec,      &
                               & pdrNreacMod  => nreac,      &
                               & pdrSpecies   => species,    &
@@ -51,7 +55,8 @@ module pdr_mod
                               & pdrTmaxMod   => Tmax,       &
                               & pdrLevel     => level,      &
                               & pdrChemPath  => chemPath,  &
-                              & pdrTdustMod  => dust_temperature
+                              & pdrTdustMod  => dust_temperature, &
+                              & pdrCoolant2  => coolant
 
     ! Species indices come from global_module. NH2/NC/NCO do not collide with
     ! anything in common_mod, so they are imported under their own names.
@@ -59,7 +64,7 @@ module pdr_mod
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
                                & pdrNelect    => NELECT,      &
-                               & NH2, NC, NCO
+                               & NH2, NC, NCO, NH, NPROTON, NHe
 
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
@@ -189,6 +194,15 @@ module pdr_mod
         pdrCooMod = pdrNcool
         if (pdrNcool > 0) call readcoolants
 
+        ! Pack every coolant's levels into one per-cell array. Offsets are
+        ! computed once so pdrStep can slice it without a ragged structure.
+        pdrNlevTot = 0
+        do iS = 1, pdrNcool
+           pdrLevOff(iS) = pdrNlevTot
+           pdrNlevTot = pdrNlevTot + pdrCoolant2(iS)%cnlev
+           pdrMaxLev  = max(pdrMaxLev, pdrCoolant2(iS)%cnlev)
+        end do
+
         ! ---- read the network -------------------------------------------
         call allocations
         call read_species(pdrNspecMod, pdrSpecies, pdrInitAbun, pdrMass)
@@ -205,7 +219,8 @@ module pdr_mod
            print*, "! initPDR: network '", trim(adjustl(pdrNetwork)), "' - ", &
                 & pdrNspec, " species, ", pdrNreac, " reactions"
            print*, "! initPDR: chemistry data from ", trim(adjustl(pdrChemPath))
-           print*, "! initPDR: ", pdrNcool, " coolants loaded"
+           print*, "! initPDR: ", pdrNcool, " coolants loaded, ", &
+                & pdrNlevTot, " levels in total"
         end if
 
       end subroutine initPDRnetwork
@@ -473,6 +488,13 @@ module pdr_mod
         double precision   :: colS(0:nraysLoc-1)
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
+        integer            :: ik, il, jl, nlev
+        double precision   :: coolTot, coolK, nSpec, Zpart, lsum
+        double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
+        double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
+        double precision   :: lline(pdrMaxLev,pdrMaxLev)
+        double precision   :: evpop(0:0,0:1,pdrMaxLev), plen(0:0,0:1)
+        integer            :: jjr(0:0)
         double precision   :: nH, Tg, Td, chi, av, NHcol
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
@@ -551,6 +573,81 @@ module pdr_mod
 
         grid%pdrHeat(cellP)   = real(heat(12))
         grid%pdrHeatPE(cellP) = real(heat(1) + heat(2) + heat(3))
+
+        ! ---- line cooling (DEVLOG D-030) --------------------------------
+        ! Non-LTE level populations per coolant, solved with an escape
+        ! probability. The ray structure is collapsed to ONE ray carrying ONE
+        ! evaluation point whose path length is the slab depth implied by the
+        ! local extinction - the same slab-equivalent approximation the
+        ! shielding columns use (D-027), and exact for 1D geometry.
+        !
+        ! One pass per MC iteration, not an inner convergence loop: the outer
+        ! loop carries level-population convergence exactly as it carries the
+        ! chemistry (D-008).
+        coolTot = 0.d0
+        do ik = 1, pdrNcool
+           nlev = pdrCoolant2(ik)%cnlev
+           nSpec = abun(pdrCoolant2(ik)%cspec)*nH
+           if (nSpec <= 0.d0) cycle
+
+           lpop(1:nlev) = grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
+
+           ! First visit to this cell: start from LTE, as 3D-PDR does.
+           if (all(lpop(1:nlev) <= 0.d0)) then
+              call calculate_partition_function(Zpart, nlev, &
+                   & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, Tg)
+              call calculate_lte_populations(nlev, lpop(1:nlev), &
+                   & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, &
+                   & Zpart, nSpec, Tg)
+           else
+              ! rescale to the abundance the chemistry just produced
+              lsum = sum(lpop(1:nlev))
+              if (lsum > 0.d0) lpop(1:nlev) = lpop(1:nlev)*nSpec/lsum
+           end if
+
+           call FIND_CCOEFF(pdrCoolant2(ik)%cntemp, nlev, Tg, &
+                & pdrCoolant2(ik)%temperatures, pdrCoolant2(ik)%H_COL, &
+                & pdrCoolant2(ik)%HP_COL, pdrCoolant2(ik)%EL_COL, &
+                & pdrCoolant2(ik)%HE_COL, pdrCoolant2(ik)%H2_COL, &
+                & pdrCoolant2(ik)%PH2_COL, pdrCoolant2(ik)%OH2_COL, &
+                & Ccoef(1:nlev,1:nlev), abun(NH)*nH, abun(NPROTON)*nH, &
+                & abun(pdrNelect)*nH, abun(NHe)*nH, abun(NH2)*nH)
+
+           ! Rebuild the upward rates by detailed balance at the local gas
+           ! temperature, as coolingfunctions does (avoids "supercooling").
+           do il = 2, nlev
+              do jl = 1, il-1
+                 Ccoef(jl,il) = Ccoef(il,jl) &
+                      & *pdrCoolant2(ik)%weights(il)/pdrCoolant2(ik)%weights(jl) &
+                      & *exp(-(pdrCoolant2(ik)%energies(il) &
+                      &       -pdrCoolant2(ik)%energies(jl))/(KB*Tg))
+              end do
+           end do
+
+           ! one ray, one evaluation point, slab depth in pc
+           evpop = 0.d0
+           evpop(0,0,1:nlev) = lpop(1:nlev)
+           evpop(0,1,1:nlev) = lpop(1:nlev)
+           jjr(0)  = 1
+           plen    = 0.d0
+           plen(0,1) = (NHcol/nH)/PC
+
+           trans(1:nlev,1:nlev) = 0.d0
+           call escape_probability(trans(1:nlev,1:nlev), Td, 1, nlev, &
+                & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
+                & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
+                & evpop(0:0,0:1,1:nlev), 1, Tg, dble(pdrVturb)*1.d5, jjr, &
+                & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
+                & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
+                & pdrCoolant2(ik)%molweight, plen)
+
+           call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
+
+           grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
+           coolTot = coolTot + coolK
+        end do
+
+        grid%pdrCool(cellP) = real(coolTot)
 
       end subroutine pdrStep
 

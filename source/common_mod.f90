@@ -313,6 +313,9 @@ module common_mod
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
+        ! Level populations for every coolant, packed end to end using
+        ! pdrLevOff. Double precision: these span many orders of magnitude.
+        double precision, allocatable :: pdrLevPop(:,:)
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type
@@ -486,6 +489,9 @@ module common_mod
     integer             :: VbandP                   ! nuArray bin nearest Johnson V
     real                :: pdrRfuv    = 0.          ! measured tau_FUV/tau_V of the dust
     integer             :: pdrNstuck  = 0           ! cells whose chemistry did not advance
+    integer             :: pdrNlevTot = 0           ! total coolant levels, summed over coolants
+    integer             :: pdrMaxLev  = 1           ! largest cnlev over the coolants
+    integer             :: pdrLevOff(30) = 0        ! offset of each coolant in pdrLevPop
 
     ! --- PDR module controls (DEVLOG D-022) ------------------------------------
     ! Defaults reproduce 3D-PDR's shipped params.dat so an unspecified run is

@@ -1362,6 +1362,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeatPE memory"; stop
                 end if
+                allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
+                end if
                 allocate(grid%pdrAbun(0:grid%nCells,1:pdrNspec), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrAbun memory - ", &
@@ -1374,6 +1378,7 @@ module grid_mod
                 grid%pdrCool = 0.
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
+                grid%pdrLevPop = 0.d0
                 grid%pdrAbun = 0.d0
              end if
 #endif
@@ -3376,6 +3381,10 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrHeatPE memory"; stop
                end if
+               allocate(grid(iG)%pdrLevPop(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrLevPop memory"; stop
+               end if
                allocate(grid(iG)%pdrAbun(0:grid(iG)%nCells,1:pdrNspec), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrAbun memory"; stop
@@ -3386,6 +3395,7 @@ end function getVolume
                grid(iG)%pdrCool = 0.
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
+               grid(iG)%pdrLevPop = 0.d0
                grid(iG)%pdrAbun = 0.d0
             end if
 #endif
