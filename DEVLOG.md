@@ -54,6 +54,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-030 | Line cooling via slab-equivalent escape probability | Accepted | 2026-08-28l |
 | D-031 | Thermal balance handed to 3D-PDR; inner loop; latched zone flag | Accepted | 2026-08-28m |
 | D-032 | PDR thermal balance folded into MOCASSIN's convergence test | Accepted | 2026-08-28n |
+| D-033 | Dust temperature floored at T_cmb; D-009's dust ownership needs revisiting | Accepted | 2026-08-28o |
 
 ---
 
@@ -1738,6 +1739,119 @@ printing no errors is not evidence that it rebuilt what you think.
 - [ ] **The 1D benchmark gate carried from Phase 3 is now reachable** - the chemistry, the
       radiation field, the heating, the cooling and the thermal balance are all in place and
       converging.
+- [ ] Consider checkpointing `pdrLevPop`.
+- [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
+
+---
+
+## 2026-08-28o — Benchmark attempt: a geometry blocker, and the H2 hunt
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+**Goal:** the Phase 3 benchmark gate - reproduce a 3D-PDR 1D model end to end.
+
+### The gate is blocked by geometry, not by the coupling
+
+3D-PDR's 1D benchmark is **plane-parallel**: FUV enters a slab from outside at constant flux.
+MOCASSIN's source sits *inside* the grid, so chi falls by geometric dilution as well as
+extinction. Approximating a slab needs a shell thin compared to its inner radius, resolved on
+a uniform Cartesian grid:
+
+```
+ n_H     shell thickness for A_V=4   R_in for <15% dilution   cells across 2*R_out
+1e+03    6.36e+18 cm (2.06 pc)       4.54e+19 cm                    326
+1e+04    6.36e+17 cm (0.21 pc)       4.54e+18 cm                    326
+1e+05    6.36e+16 cm (0.02 pc)       4.54e+17 cm                    326
+```
+
+The requirement is **scale-invariant at ~326 cells per axis** - it is a pure ratio, so raising
+the density does not help. That is 3.5e7 cells, and `Jste` alone is `nbins*ncells*4` bytes:
+**108 GB per rank** at `nbins=1000`, on a grid MOCASSIN replicates on every rank.
+
+*So the standard 1D benchmark cannot be run at feasible cost with a uniform Cartesian grid
+centred on the source.* Two ways forward, both outside current scope: a **spherical** PDR
+benchmark instead (physically valid, just not the published comparison), or MOCASSIN's
+**nested sub-grids** (`nGrids > 1`), which D-009 currently excludes because 3D-PDR's ray
+tracer assumes one box - a constraint that does not bind while the shielding columns are
+slab-equivalent (D-027).
+
+### What the coupled code does produce
+
+In the spherical geometry it *can* do (n_H = 1e4, A_V to 5.5), the carbon chemistry is
+correct and fully stratified:
+
+| A_V | chi | T_gas | x(C+) | x(C) | x(CO) |
+|---|---|---|---|---|---|
+| 0.07 | 6.6e+02 | 5485 | 1.40e-04 | 4.8e-10 | 1.1e-14 |
+| 1.01 | 1.6e+01 | 698 | 1.35e-04 | 4.6e-06 | 1.6e-08 |
+| 5.53 | 2.6e-06 | 4.4 | 1.2e-06 | 9.6e-05 | 4.2e-05 |
+
+C+ -> C -> CO runs to completion: carbon is essentially all neutral C and CO at depth. But
+**H stays atomic**, x(H2) ~ 8e-3 where a real PDR is fully molecular by A_V ~ 2.
+
+### Running the H2 problem to ground
+
+Three hypotheses, tested in order:
+
+1. **Not integration depth.** Raising `pdrChemIter` from 3 to 15 - five times the chemistry
+   calls - moved x(H2) from 8.6e-3 to 7.6e-3. It is a steady state, not an unconverged one.
+
+2. **Not the chemistry code.** Feeding the *identical stated conditions* (n_H=1e4, T_gas=5 K,
+   T_dust=12 K, chi=0, A_V=5) through `pdrSmokeTest` - the same vendored routines - gives
+   **x(H2) = 0.4998, x(CO) = 1.40e-4**. Fully molecular. So the chemistry is fine and the
+   coupled path was feeding it something different.
+
+3. **It was the dust temperature.** Printing what `pdrStep` actually passes:
+
+```
+DBGIN cell 400  nH= 10000.0  Tg= 15.6  Td= 0.594
+DBGIN chi= 0.0876  av= 2.123  NHcol= 3.38e21
+```
+
+`T_dust = 0.59 K`. H2 forms on grains, and the Cazaux & Tielens rate collapses as T_dust -> 0.
+
+*A correction to my own earlier reading:* I had sampled `dustGrid.out` and reported "dust is
+cold, median 12.4 K", concluding dust was not the problem. That probe filtered values to
+`1 < v < 3000` and so **excluded exactly the sub-Kelvin cells that were the problem**. The
+filter was chosen to skip non-temperature columns and silently removed the evidence. A probe
+that discards outliers cannot be used to rule out an outlier.
+
+---
+
+**D-033 — Dust temperature is floored at T_cmb; D-009's dust ownership needs revisiting.**
+*Accepted*
+
+`pdrStep` now applies `T_dust = max(T_dust, T_cmb)`.
+
+*Why MOCASSIN produces sub-Kelvin dust:* `getDustT` solves absorption = emission against the
+**local radiation field only**. In a deeply shielded cell there is almost nothing heating the
+grains, so the equilibrium tends to zero. That is entirely reasonable for an H II region,
+where such cells carry no weight, and it is unphysical for a PDR: real grains cannot fall
+below the CMB. 3D-PDR never meets this because its dust is isothermal or HTT91.
+
+*Effect:* x(H2) rose from 8e-3 to **4.5e-2** in shielded cells - a five-fold improvement, and
+still an order of magnitude short of 0.5.
+
+*So the floor is necessary but not sufficient, and the real conclusion is larger.* **F-5 and
+D-009 assigned dust temperature to MOCASSIN on the grounds that it computes it
+self-consistently.** That reasoning is sound where the grains see radiation and fails where
+they do not. The options, in increasing order of effort:
+
+- floor at a physically motivated value rather than the CMB (crude, but honest and cheap);
+- fall back to 3D-PDR's HTT91 dust model below some threshold, which parametrises T_dust from
+  the FUV field and A_V and is designed for exactly this regime;
+- add CMB and interstellar-radiation-field heating to MOCASSIN's dust equilibrium, which is a
+  change to MOCASSIN proper and would benefit it independently of the PDR work.
+
+The second looks right: it is what 3D-PDR does, it needs no change to MOCASSIN, and `dust_t.F90`
+is already vendored (though not currently compiled, per D-009).
+
+### Open items
+
+- [ ] **Resolve the dust temperature in shielded cells (D-033).** This is now the top blocker
+      on the molecular chemistry.
+- [ ] Decide the benchmark strategy: spherical comparison, or enable nested sub-grids.
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
 - [ ] Consider checkpointing `pdrLevPop`.
 - [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
 

@@ -535,7 +535,20 @@ module pdr_mod
         ! measured it at 30-3550 K where a PDR belongs at 10-100 K.
         Tg  = dble(grid%pdrTgas(cellP))
         if (Tg <= 0.d0) Tg = dble(grid%Te(cellP))
+        ! Floor the dust temperature at the CMB (DEVLOG D-033).
+        !
+        ! MOCASSIN solves dust equilibrium against the local radiation field
+        ! with no floor, so a deeply shielded cell has almost nothing heating
+        ! its grains and T_dust tends to zero - measured at 0.59 K. That is
+        ! fine for an H II region, where such cells do not matter, but it is
+        ! unphysical: real grains cannot fall below the CMB, and 3D-PDR never
+        ! encounters it because its dust is isothermal or HTT91.
+        !
+        ! It matters here because H2 forms on grains, and the Cazaux & Tielens
+        ! rate collapses as T_dust -> 0, which held the gas atomic (x(H2) ~ 8e-3)
+        ! where the same chemistry at stated conditions gives 0.4998.
         Td  = dble(grid%Tdust(0,0,cellP))
+        Td  = max(Td, dble(pdrTcmb))
         if (Td <= 0.d0) Td = dble(pdrTdustMod)
         chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
@@ -557,6 +570,7 @@ module pdr_mod
         colS  = 0.d0
 
         abun0 = abun
+
 
         do it = 1, pdrChemIter
            call CALCULATE_REACTION_RATES(Tg, Td, nraysLoc, radSurf, AVray, &
@@ -593,6 +607,7 @@ module pdr_mod
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
+
 
         ! ---- inner thermal-balance loop (DEVLOG D-031) -------------------
         ! D-008's rule - one pass, let the outer MC loop converge - holds for
