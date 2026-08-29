@@ -1084,6 +1084,12 @@ HEALPix level of refinement for the ray tracing, default 0 (12 rays).
 Chemistry passes per Monte Carlo iteration, default 3. The outer MC loop carries
 convergence, so this should stay small.
 .TP
+.B pdrThermIter \fIn\fR
+Thermal-balance steps per Monte Carlo iteration, default 12. Unlike the
+chemistry, thermal balance cannot be left to the outer loop: cooling is
+exponentially sensitive to temperature, so the temperature and the level
+populations must be relaxed together.
+.TP
 .B pdrEndTime \fIyears\fR
 Chemistry integration span, default 1.0e7. With steady-state chemistry this is
 the initial span rather than a physical age.

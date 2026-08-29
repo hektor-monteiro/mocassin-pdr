@@ -52,6 +52,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-028 | Declare Fortran module dependencies in the Makefile | Accepted | 2026-08-28k |
 | D-029 | Coolants loaded and per-cell PDR heating computed | Accepted | 2026-08-28k |
 | D-030 | Line cooling via slab-equivalent escape probability | Accepted | 2026-08-28l |
+| D-031 | Thermal balance handed to 3D-PDR; inner loop; latched zone flag | Accepted | 2026-08-28m |
 
 ---
 
@@ -1557,12 +1558,114 @@ MOCASSIN's T_e in the PDR zone and solve `heating = cooling` instead.
 
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
-- [ ] **Close the thermal balance (D-007).** Both terms exist; replace T_e in the PDR zone
-      with the root of heating = cooling, and ramp the photoelectric and gas-grain terms
-      across the blend band so they are not counted twice. This is now the critical path.
+- [x] **Close the thermal balance (D-007)** — done, see D-031.
 - [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry.
 - [ ] The 1D benchmark gate carried from Phase 3 - reachable once the handover lands.
 - [ ] Consider checkpointing `pdrLevPop` if restart cost matters.
+- [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
+
+---
+
+## 2026-08-28m — Phase 4: thermal balance closed
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-031 — Thermal balance handed to 3D-PDR in the neutral zone.** *Accepted*
+*Completes D-007.*
+
+`pdrStep` now solves `heating(T) = cooling(T)` per cell and `pdrToMocassin` writes the result
+into `grid%Te`. In the PDR zone MOCASSIN's T_e is **replaced outright** rather than blended:
+its thermal balance is the wrong solver there (D-030 measured 30-3550 K in gas belonging at
+10-100 K), so mixing it in would only dilute the right answer. Across the D-007 blend band the
+two are interpolated linearly in log x(H+) so the temperature structure has no step. Because
+this replaces rather than adds, there is no double counting - MOCASSIN's heating and cooling
+for those cells is simply discarded.
+
+### Result
+
+| | before D-031 | after |
+|---|---|---|
+| T_gas median | 671 K | **52.9 K** |
+| T_gas range | 5.4 - 3708 K | **8.9 - 465 K** |
+| heating/cooling median | 11.8 | **1.030** |
+
+The temperature structure is now physically sensible for a PDR, and the median cell sits at
+thermal balance to 3%. Deeper cells in the sample come out at 1.00, 0.93, 0.78, 1.00.
+
+### Three things this cost, each worth keeping
+
+**1. D-008 does not extend to thermal balance.** The established rule - one pass per cell, let
+the outer MC loop converge it - works for the chemistry and fails here. Cooling is
+*exponential* in temperature: a single bisection step can move it two orders of magnitude, so
+the level populations never catch up with a temperature that moves once per iteration.
+Measured: after 8 MC iterations, mid-range cells reached heat/cool = 1.0 while the extremes
+sat at 0.15 and 9.4. The temperature and the populations are now relaxed **together** in an
+inner loop, `pdrThermIter` (default 12).
+
+**2. An assumed bracket is worthless when the function is this stiff.** The first version
+assumed a bracket of `[T/5, 5T]` and bisected. If F does not change sign across it, bisection
+just walks to whichever bound it started nearest - which pinned cells at 5 K and 3700 K.
+Replaced with march-then-bisect: double or halve until the sign flips, only then bisect
+geometrically.
+
+Related: the stored heating and cooling were one bisection step stale relative to the stored
+temperature. Harmless for a linear quantity; here it made converged cells *look* like
+factor-of-20 imbalances. There is now a final evaluation at the converged T.
+
+**3. The diagnostic from D-027 was silently disabling the physics it protected.** `pdrStep`
+returned early when the abundance vector came back unchanged, treating that as a CVODE
+failure. But an unchanged vector is also the signature of chemistry that has **converged** -
+so the moment a cell's chemistry settled, its thermal balance stopped being computed and its
+temperature froze. The symptom was T_gas identical *to the last digit* across three different
+thermal-balance algorithms, which is what finally gave it away. It now counts the occurrence
+and continues.
+
+*The general lesson:* a guard that returns early is a guard that can disable more than it
+means to. This one was added in good faith to make a silent failure visible, and ended up
+creating a much quieter one.
+
+### The subtler problem: the handover perturbs its own trigger
+
+With all three fixed, the temperatures were still a patchwork. Instrumenting a single cell
+showed the inner loop converging cleanly - 25.4 K in, 50.8 K out, bracket [50.76, 50.83] -
+but `pdrStep` being called for that cell **once in the whole run**.
+
+The cause is circular: the handover writes the PDR temperature into `grid%Te`; T_e feeds
+MOCASSIN's ionization balance; the ionization balance sets x(H+); and x(H+) is the criterion
+deciding whether the cell gets PDR treatment at all. A cell could enter the zone, receive a
+temperature, leave the zone next iteration, and never be revisited.
+
+*Fix:* the zone flag **latches**. Once a cell has entered the PDR zone it stays there, so the
+criterion cannot be perturbed by its own effect. That single change moved the median
+heating/cooling from 11.8 to 1.03.
+
+*Worth stating as a principle:* when a coupled quantity feeds back into the test that decides
+whether the coupling applies, the test needs hysteresis or the system oscillates.
+
+### Known limitation: MOCASSIN's convergence criterion does not know about the PDR
+
+The test model converges - by MOCASSIN's own criterion, 97.8% of cells - after **3 MC
+iterations**. That is far too few for the PDR to settle across the grid: cells that enter the
+zone late get one visit. It is why 27% of cells sit within 20% of thermal balance rather than
+most of them, and why the surface cells still show heat/cool ~ 12-19.
+
+This is not a defect in the thermal balance, which converges cleanly per cell when visited. It
+is that `minConvergence` counts MOCASSIN's own ionization/temperature convergence and is blind
+to whether the PDR cells have settled. **Next step: fold PDR thermal convergence into the
+iteration criterion**, so the run does not stop while PDR cells are still moving.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] **Fold PDR thermal convergence into `minConvergence`** so runs do not stop early. This
+      is now the limiting factor on the whole coupling.
+- [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry.
+- [ ] The 1D benchmark gate carried from Phase 3 - reachable once the convergence criterion
+      is fixed.
+- [ ] Consider checkpointing `pdrLevPop`.
 - [ ] `Ndust constant` normalisation; `MdMg` is the supported control.
 
 ---

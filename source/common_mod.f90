@@ -316,6 +316,11 @@ module common_mod
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
         double precision, allocatable :: pdrLevPop(:,:)
+        ! Thermal balance state, carried across MC iterations (DEVLOG D-031).
+        ! One bracketing step per iteration; the outer loop converges it.
+        real, allocatable         :: pdrTgas(:)      ! PDR gas temperature [K]
+        real, allocatable         :: pdrTlow(:)      ! bracket, heating > cooling
+        real, allocatable         :: pdrThigh(:)     ! bracket, cooling > heating
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type
@@ -503,6 +508,7 @@ module common_mod
     integer             :: pdrNreac   = 0          ! reactions in the network
     integer             :: pdrHealpix = 0          ! HEALPix level of refinement
     integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
+    integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031)
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
     real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]
     real                :: pdrAVfac   = 6.289e-22  ! N_H -> A_V conversion

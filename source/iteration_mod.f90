@@ -49,6 +49,8 @@ module iteration_mod
            real, allocatable :: pdrHeatTmp(:), pdrHeatSum(:)
            real, allocatable :: pdrCoolTmp(:), pdrCoolSum(:)
            double precision, allocatable :: pdrLevTmp(:,:), pdrLevSum(:,:)
+           real, allocatable :: pdrTgTmp(:), pdrTgSum(:), pdrTlTmp(:), pdrTlSum(:)
+           real, allocatable :: pdrThTmp(:), pdrThSum(:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
@@ -923,6 +925,9 @@ module iteration_mod
                  allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
                  allocate(pdrLevSum(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
+                 allocate(pdrTgTmp(0:grid(iG)%nCells), pdrTgSum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrTlTmp(0:grid(iG)%nCells), pdrTlSum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrThTmp(0:grid(iG)%nCells), pdrThSum(0:grid(iG)%nCells), stat=err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
                  end if
@@ -937,6 +942,9 @@ module iteration_mod
                  pdrCoolSum   = 0.
                  pdrLevTmp    = 0.d0
                  pdrLevSum    = 0.d0
+                 pdrTgTmp = 0.; pdrTgSum = 0.
+                 pdrTlTmp = 0.; pdrTlSum = 0.
+                 pdrThTmp = 0.; pdrThSum = 0.
                  pdrNstuck   = 0
 
                  iCell = 0
@@ -957,6 +965,9 @@ module iteration_mod
                                      & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
                                 pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
                                      & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
+                                pdrTgTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrTgas(grid(iG)%active(i,j,k))
+                                pdrTlTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrTlow(grid(iG)%active(i,j,k))
+                                pdrThTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrThigh(grid(iG)%active(i,j,k))
                              end if
                           end if
                        end do
@@ -984,6 +995,15 @@ module iteration_mod
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrLevPop(1:grid(iG)%nCells,:) = pdrLevSum(1:grid(iG)%nCells,:)
                  size = grid(iG)%nCells+1
+                 call mpi_allreduce(pdrTgTmp, pdrTgSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(pdrTlTmp, pdrTlSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(pdrThTmp, pdrThSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrTgas(1:grid(iG)%nCells)  = pdrTgSum(1:grid(iG)%nCells)
+                 grid(iG)%pdrTlow(1:grid(iG)%nCells)  = pdrTlSum(1:grid(iG)%nCells)
+                 grid(iG)%pdrThigh(1:grid(iG)%nCells) = pdrThSum(1:grid(iG)%nCells)
                  grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
                  grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
 
@@ -1008,14 +1028,15 @@ module iteration_mod
                  deallocate(pdrCoolSum)
                  deallocate(pdrLevTmp)
                  deallocate(pdrLevSum)
+                 deallocate(pdrTgTmp, pdrTgSum, pdrTlTmp, pdrTlSum, pdrThTmp, pdrThSum)
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)
                  if (taskid==0) then
                     print*, '! iterateMC: pdrStep out', iG
                     if (i1PdrStuck > 0) then
-                       print*, "! iterateMC: [warning] chemistry did not advance in ", &
-                            & i1PdrStuck, " cells - flagged as pdrZone=2, see DEVLOG D-027"
+                       print*, "! iterateMC: chemistry unchanged in ", i1PdrStuck, &
+                            & " cells (converged or stalled) - thermal balance still runs"
                     end if
                  end if
               end if
@@ -1061,6 +1082,13 @@ module iteration_mod
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
 
               end if
+
+#ifdef PDR
+              ! AFTER the Te exchange, not before: that allreduce overwrites
+              ! grid%Te wholesale from TeTemp, so a handover written earlier
+              ! would be silently discarded.
+              if (lgPDR) call pdrToMocassin(grid(1:nGrids))
+#endif
 
 
               if (lgDust) then

@@ -616,6 +616,9 @@ module set_input_mod
             case ("pdrChemIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrChemIter
+            case ("pdrThermIter")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrThermIter
             case ("pdrEndTime")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrEndTime

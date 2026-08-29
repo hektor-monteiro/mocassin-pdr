@@ -1366,6 +1366,18 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
                 end if
+                allocate(grid%pdrTgas(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrTgas memory"; stop
+                end if
+                allocate(grid%pdrTlow(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrTlow memory"; stop
+                end if
+                allocate(grid%pdrThigh(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrThigh memory"; stop
+                end if
                 allocate(grid%pdrAbun(0:grid%nCells,1:pdrNspec), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrAbun memory - ", &
@@ -1379,6 +1391,9 @@ module grid_mod
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
                 grid%pdrLevPop = 0.d0
+                grid%pdrTgas  = 0.
+                grid%pdrTlow  = 0.
+                grid%pdrThigh = 0.
                 grid%pdrAbun = 0.d0
              end if
 #endif
@@ -2796,7 +2811,11 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                     if (lgPDR) then
                        write(51, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
                             & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
-                            & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
+                            & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP), &
+                          & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
+                          & grid(iG)%pdrThigh(cellP), &
+                            & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
+                            & grid(iG)%pdrThigh(cellP)
                        write(51, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                     end if
 #endif
@@ -3385,6 +3404,18 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrLevPop memory"; stop
                end if
+               allocate(grid(iG)%pdrTgas(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrTgas memory"; stop
+               end if
+               allocate(grid(iG)%pdrTlow(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrTlow memory"; stop
+               end if
+               allocate(grid(iG)%pdrThigh(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrThigh memory"; stop
+               end if
                allocate(grid(iG)%pdrAbun(0:grid(iG)%nCells,1:pdrNspec), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrAbun memory"; stop
@@ -3396,6 +3427,9 @@ end function getVolume
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
                grid(iG)%pdrLevPop = 0.d0
+               grid(iG)%pdrTgas  = 0.
+               grid(iG)%pdrTlow  = 0.
+               grid(iG)%pdrThigh = 0.
                grid(iG)%pdrAbun = 0.d0
             end if
 #endif
@@ -3614,7 +3648,9 @@ end function getVolume
                   if (lgPDR) then
                      read(91, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
                           & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
-                          & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
+                          & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP), &
+                          & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
+                          & grid(iG)%pdrThigh(cellP)
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                   end if
 #endif
