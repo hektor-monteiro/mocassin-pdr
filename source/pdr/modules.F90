@@ -143,7 +143,11 @@ MODULE maincode_module
 #endif
   character(len=50)::paramFile
   integer(kind=i4b) :: lmax_levels = 0
-  character(len=50)::coolfile(1:30)
+  ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-028): widened from len=50. Upstream
+  ! prefixes a short relative 'chemfiles/', but MOCASSIN resolves data under an
+  ! absolute PREFIX, and len=50 truncated the path mid-directory - producing a
+  ! "cannot open file" naming a path that never appeared in any input.
+  character(len=200)::coolfile(1:30)
   ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-022): upstream opens the species and
   ! rate files through a hardcoded relative path, "chemfiles/...". MOCASSIN
   ! resolves its data under PREFIX, so the directory is made settable here.

@@ -311,6 +311,8 @@ module common_mod
         real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
+        real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
+        real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type

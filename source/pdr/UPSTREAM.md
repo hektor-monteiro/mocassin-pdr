@@ -25,6 +25,7 @@ re-applied by hand at the next upstream merge.
 | `modules.F90` | added `chemPath` to `maincode_module`, default `'chemfiles/'` | D-022 |
 | `read_species.F90` | opens via `chemPath` instead of the literal `"chemfiles/"` | D-022 |
 | `read_rates.F90` | same, plus `use maincode_module, only: chemPath` | D-022 |
+| `modules.F90` | `coolfile` widened from `len=50` to `len=200` | D-028 |
 
 The defaults preserve upstream behaviour exactly, so the vendored code still
 builds and runs standalone. Otherwise the sources are byte-identical to upstream

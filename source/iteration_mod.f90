@@ -46,6 +46,9 @@ module iteration_mod
            real, allocatable :: fEscapeResPhotonsTemp(:,:) ! temporary escape res line phot
 #ifdef PDR
            integer :: i1PdrStuck                             ! cells whose chemistry stalled
+           real, allocatable :: pdrHeatTmp(:), pdrHeatSum(:)
+           real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
+           integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
 #endif
@@ -736,14 +739,6 @@ module iteration_mod
               end if
               if ( allocated(JSteTemp) )           deallocate(JSteTemp)
 
-#ifdef PDR
-              ! The MC field is now final for this iteration, so reduce it to
-              ! chi / A_V,eff / zone before any cell update consumes it.
-              if (lgPDR) then
-                 if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
-                 call mocassinToPDR(grid(1:nGrids))
-              end if
-#endif
 
 
               do i = 0, grid(iG)%nCells
@@ -769,6 +764,17 @@ module iteration_mod
 
            end do
 
+#ifdef PDR
+           ! Placed AFTER the loop above, not before it. That loop applies the
+           ! 1.e-9 unit conversion to Jste (and the lgSymmetricXYZ division by
+           ! 8); reducing the field any earlier reads the raw estimator and
+           ! overstates chi by exactly 1e9. Caught because writeFUVField, which
+           ! runs later and was validated in Phase 0, disagreed by that factor.
+           if (lgPDR) then
+              if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+              call mocassinToPDR(grid(1:nGrids))
+           end if
+#endif
 
            if (lgDust .and. (nIterateMC>1 .or. .not.lgEquivalentTau)) then
               print*, "! iterateMC: [Interactions] : total -- abs -- sca: "
@@ -906,8 +912,21 @@ module iteration_mod
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate pdrAbunSum"; stop
                  end if
-                 pdrAbunTemp = 0.d0
-                 pdrAbunSum  = 0.d0
+                 allocate(pdrHeatTmp(0:grid(iG)%nCells),   stat=err)
+                 allocate(pdrHeatSum(0:grid(iG)%nCells),   stat=err)
+                 allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
+                 end if
+                 pdrAbunTemp  = 0.d0
+                 pdrAbunSum   = 0.d0
+                 pdrHeatTmp   = 0.
+                 pdrHeatSum   = 0.
+                 pdrHeatPETmp = 0.
+                 pdrHeatPESum = 0.
+                 pdrZoneSum   = 0
                  pdrNstuck   = 0
 
                  iCell = 0
@@ -917,9 +936,14 @@ module iteration_mod
                           iCell = iCell+1
                           if (mod(iCell-(taskid+1),numtasks)==0) then
                              call pdrStep(grid(iG),i,j,k)
-                             if (grid(iG)%active(i,j,k) > 0) &
-                                  & pdrAbunTemp(grid(iG)%active(i,j,k),:) = &
-                                  & grid(iG)%pdrAbun(grid(iG)%active(i,j,k),:)
+                             if (grid(iG)%active(i,j,k) > 0) then
+                                pdrAbunTemp(grid(iG)%active(i,j,k),:) = &
+                                     & grid(iG)%pdrAbun(grid(iG)%active(i,j,k),:)
+                                pdrHeatTmp(grid(iG)%active(i,j,k))   = &
+                                     & grid(iG)%pdrHeat(grid(iG)%active(i,j,k))
+                                pdrHeatPETmp(grid(iG)%active(i,j,k)) = &
+                                     & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
+                             end if
                           end if
                        end do
                     end do
@@ -928,6 +952,24 @@ module iteration_mod
                  size = (grid(iG)%nCells+1)*pdrNspec
                  call mpi_allreduce(pdrAbunTemp, pdrAbunSum, size, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+
+                 ! The heating budget needs the same treatment. Without it only
+                 ! the cells owned by rank 0 survive into the output, so the
+                 ! array looks ~1/numtasks populated - which reads like a
+                 ! physics problem rather than a missing exchange.
+                 size = grid(iG)%nCells+1
+                 call mpi_allreduce(pdrHeatTmp, pdrHeatSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(pdrHeatPETmp, pdrHeatPESum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
+                 grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
+
+                 ! pdrZone is identical on every rank except where pdrStep
+                 ! raised it to 2 for a stalled cell, so MAX propagates that.
+                 call mpi_allreduce(grid(iG)%pdrZone, pdrZoneSum, size, &
+                      & mpi_integer, mpi_max, mpi_comm_world, ierr)
+                 grid(iG)%pdrZone = pdrZoneSum
                  ! cell 0 is the inactive dump cell: several (i,j,k) map to it,
                  ! so it is deliberately left out of the exchange
                  grid(iG)%pdrAbun(1:grid(iG)%nCells,:) = &
@@ -935,6 +977,11 @@ module iteration_mod
 
                  deallocate(pdrAbunTemp)
                  deallocate(pdrAbunSum)
+                 deallocate(pdrHeatTmp)
+                 deallocate(pdrHeatSum)
+                 deallocate(pdrHeatPETmp)
+                 deallocate(pdrHeatPESum)
+                 deallocate(pdrZoneSum)
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)

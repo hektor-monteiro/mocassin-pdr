@@ -100,6 +100,30 @@ ifeq ($(PDR),1)
   LDFLAGS += $(PDR_LIB)
 endif
 
+# Fortran module dependencies. The Makefile expresses none, so editing a
+# foundational module leaves its dependents compiling against a stale .mod and
+# failing with "Mismatch in components of derived type" - which reads like a
+# source error, not a build-order one. constants_mod and common_mod are the two
+# every other unit uses; making everything depend on them removes the common
+# case. (Same class as the flag staleness of D-023.)
+# common_mod itself needs constants_mod and vector_mod, so the base layer is
+# those three in that order.
+MODBASE = source/constants_mod.o source/vector_mod.o source/common_mod.o
+$(filter-out $(MODBASE),$(SOURCES) $(PDR_BRIDGE) source/mocassin.o \
+  source/mocassinWarm.o source/mocassinOutput.o source/mocassinPlot.o): $(MODBASE)
+source/common_mod.o: source/constants_mod.o source/vector_mod.o
+source/vector_mod.o: source/constants_mod.o
+
+# Same for the vendored tree: every 3D-PDR unit uses maincode_module, so a
+# change there must rebuild all of them. Without this, editing modules.F90
+# leaves objects compiled against the old declarations - and for something like
+# a character length that produces no error at all, just silently truncated
+# strings at run time (DEVLOG D-028).
+PDRBASE = source/pdr/definitions.o source/pdr/healpix_types.o source/pdr/modules.o
+$(filter-out $(PDRBASE),$(PDR_OBJ) $(PDR_BRIDGE)): $(PDRBASE)
+source/pdr/modules.o: source/pdr/definitions.o source/pdr/healpix_types.o
+source/pdr/healpix_types.o: source/pdr/definitions.o
+
 ifeq ($(CO),debug) #to show all compiler warnings
   FFLAGS += -fbounds-check -Wall -Wuninitialized -g -pg #-ffpe-trap=zero,overflow,invalid,underflow,denormal -fbacktrace -fcheck=all
 else ifeq ($(CO),valgrind)

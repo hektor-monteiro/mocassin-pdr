@@ -49,6 +49,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-025 | Fix the validation-chain short-circuit in `readInput` | Accepted | 2026-08-28h |
 | D-026 | A_V is derived from the model's own grain optics, not from `UV_fac` | Accepted | 2026-08-28i |
 | D-027 | Per-cell chemistry in the MC loop; slab-equivalent shielding for now | Accepted | 2026-08-28j |
+| D-028 | Declare Fortran module dependencies in the Makefile | Accepted | 2026-08-28k |
+| D-029 | Coolants loaded and per-cell PDR heating computed | Accepted | 2026-08-28k |
 
 ---
 
@@ -1364,11 +1366,124 @@ naive sense; not chased further, but noted.
 
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
-- [ ] Phase 4b: `read_coolants`, `coo`, cooling functions, and hand thermal balance over in
-      the neutral zone (D-007) with the heating-term blend band.
+- [~] Phase 4b: `read_coolants` and `coo` done, heating done (D-029). Cooling and the
+      thermal-balance handover remain.
 - [ ] Phase 4c / D-002: HEALPix-traced shielding columns for genuinely 3D geometry.
 - [ ] The 1D benchmark gate carried from Phase 3 — now reachable once 4b lands.
 - [ ] Investigate `Ndust constant` normalisation, or document `MdMg` as the supported control.
+
+---
+
+## 2026-08-28k — Phase 4b: coolants loaded, heating computed, and three ordering bugs
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-028 — Fortran module dependencies are declared in the Makefile.** *Accepted*
+
+The Makefile expressed **no** inter-module dependencies. Editing a foundational module left
+its dependents compiling against a stale `.mod`, which surfaces as
+`Mismatch in components of derived type 'grid_type'` — an error that reads like a source
+problem and is actually a build-order one. Worse, for a **character length** change it
+produces no error at all: `read_coolants.o` kept a `len=50` view of `coolfile` and silently
+truncated every path.
+
+Two dependency layers are now declared:
+
+```
+MODBASE = constants_mod.o vector_mod.o common_mod.o    (everything depends on these)
+PDRBASE = pdr/definitions.o pdr/healpix_types.o pdr/modules.o   (all vendored units)
+```
+
+Verified: touching `common_mod.f90` now rebuilds 20 objects instead of 1.
+
+This is the third instance of the same class after D-023 (flag staleness, Makefile
+staleness). The pattern is worth stating plainly: **make cannot see anything the compiler
+knows**, so every implicit dependency has to be written down or it becomes a silent
+wrong-answer bug rather than a build failure.
+
+---
+
+**D-029 — Coolants loaded; per-cell PDR heating computed.** *Accepted*
+
+`readcoolants` is now called from `initPDRnetwork` — **before** `read_species`, matching
+upstream 3DPDR.F90, because `read_species.F90:175` indexes `coolant(1:coo)`. Four coolants
+(CO, C+, C, O) load. `CALC_HEATING` then runs per cell in `pdrStep`, returning all 12 terms;
+the total and the grain photoelectric part are stored separately, because photoelectric is
+the term MOCASSIN also computes and D-007's blend band has to ramp between them rather than
+add them. Both persist in `pdrGrid.out`.
+
+### Three bugs, all ordering or completeness of an exchange
+
+**1. `coolfile` was `character(len=50)`.** Upstream prefixes a short relative `chemfiles/`;
+MOCASSIN passes an absolute path under `PREFIX`, which truncated mid-directory. The runtime
+error named a path (`.../da`) that appears in no input file. Widened to 200 and recorded in
+`UPSTREAM.md`; `initPDRnetwork` now also refuses a path that would truncate, rather than
+letting the truncation happen.
+
+**2. `mocassinToPDR` ran before `Jste` was scaled to physical units.** It was placed
+immediately after the `Jste` MPI reduction — but the `1.e-9` unit conversion (and the
+`lgSymmetricXYZ` division by 8) happens in the loop *after* that, at
+`iteration_mod.f90:742`. chi was therefore overstated by exactly 1e9.
+
+*How it was caught:* `writeFUVField`, the Phase 0 diagnostic, recomputes chi from `Jste` at
+write time by the same formula, and disagreed by that factor. **The Phase 0 diagnostic paid
+for itself here** — a stored value and an independently recomputed one disagreeing is a much
+sharper signal than either alone.
+
+**3. `CALC_HEATING` was corrupting unrelated memory.** With heating enabled, `chiFUV` came
+back as ~1e9 even after fix 2; with the call removed, chi was correct. Bounds checking found
+nothing, because the vendored routines are external with no explicit interface — the compiler
+cannot check those calls at all.
+
+The cause was a **missing initialisation**: `CALC_HEATING`'s chemical-heating term calls
+`CHEMICAL_HEATING_RATE`, whose reaction indices are built by `init_chemical_heating`.
+3DPDR.F90 calls it immediately after `READ_RATES`; `initPDRnetwork` did not. The term ran on
+unset state and wrote outside its arrays.
+
+*The lesson, which is not "call the missing routine":* the symptom appeared in `chiFUV`, a
+variable with no connection to heating, computed by a routine that was already verified
+correct. Diagnosis only converged because the bisect was mechanical — disable the one new
+call, re-run, observe. **When a verified-correct value goes wrong after an unrelated change,
+suspect memory, not physics.**
+
+**4 (not a bug so much as an omission).** With heating working, only ~26% of cells had a
+non-zero value on 4 ranks. `pdrAbun` was being reduced across ranks but `pdrHeat`,
+`pdrHeatPE` and `pdrZone` were not, so only rank 0's cells reached the output. `1/numtasks`
+coverage looks like a physics problem and is not. The heating arrays now use the same
+owner-contributes SUM as `pdrAbun`; `pdrZone` uses MAX, since it is identical on every rank
+except where `pdrStep` raised it to 2.
+
+### Verification
+
+Same model as D-027 (n_H = 2000, `MdMg 0.01`, MRN silicate+carbonaceous, 4 ranks):
+
+```
+  A_V      chi      heat_tot     heat_PE   PE/tot
+0.184   1.02e+02   3.2564e-21   4.817e-21   1.479
+0.446   1.27e+01   1.6798e-21   3.189e-21   1.898
+0.688   3.14e+00   4.8948e-22   9.582e-22   1.957
+1.142   5.25e-01   9.9420e-23   1.946e-22   1.957
+```
+
+All 4076 PDR cells carry a heating rate. `chi` is back in range (0.53-102.5) and matches
+`writeFUVField`. The budget is coherent: total heating falls monotonically as chi drops with
+depth, grain photoelectric dominates, and the net sits at about half the photoelectric term -
+the balance being gas-grain and PAH cooling, which are negative when T_gas > T_dust. The
+ratio is stable at ~1.95 through the bulk and falls to 1.48 at the surface, where
+photoelectric heating is strongest relative to the coolers.
+
+### Open items
+
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Phase 4b remainder: line cooling (needs level populations) and the thermal-balance
+      handover with the D-007 blend band. The heating half is now in place.
+- [ ] Phase 4c / D-002: HEALPix-traced shielding columns for 3D geometry.
+- [ ] The 1D benchmark gate carried from Phase 3.
+- [ ] `Ndust constant` normalisation is not linear in the dust column; `MdMg` is the
+      supported control for PDR work. Worth documenting or fixing.
 
 ---
 

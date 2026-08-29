@@ -64,6 +64,10 @@ module pdr_mod
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
 
+    ! CALC_HEATING's chemical-heating term needs this module's reaction indices
+    ! built first; without it the term reads unset state (DEVLOG D-029).
+    use chemical_heating_module, only : init_chemical_heating
+
     implicit none
 
     private
@@ -169,15 +173,21 @@ module pdr_mod
         pdrRelTol     = 1.0d-8
         pdrAbsTol     = 1.0d-30
 
-        ! Coolant filenames are resolved now, but coo stays 0 until Phase 4.
-        ! read_species indexes coolant(1:coo) (read_species.F90:175), and that
-        ! array is only allocated by read_coolants - which belongs with the
-        ! level-population machinery. Setting coo here without calling
-        ! read_coolants segfaults.
+        ! Coolant datafiles. readcoolants allocates coolant(1:coo), which
+        ! read_species then indexes (read_species.F90:175) - so it must run
+        ! FIRST, matching upstream 3DPDR.F90's ordering.
         do iS = 1, pdrNcool
+           if (len_trim(adjustl(pdrChemPath))+len_trim(adjustl(pdrCoolant(iS))) &
+                & > len(pdrCoolfile(iS))) then
+              print*, "! initPDR: coolant path too long for the buffer -"
+              print*, "!   ", trim(adjustl(pdrChemPath))//trim(adjustl(pdrCoolant(iS)))
+              print*, "!   shorten pdrDataDir, or widen coolfile in source/pdr/modules.F90"
+              stop
+           end if
            pdrCoolfile(iS) = trim(adjustl(pdrChemPath))//trim(adjustl(pdrCoolant(iS)))
         end do
-        pdrCooMod = 0
+        pdrCooMod = pdrNcool
+        if (pdrNcool > 0) call readcoolants
 
         ! ---- read the network -------------------------------------------
         call allocations
@@ -185,10 +195,17 @@ module pdr_mod
         call READ_RATES(pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
              &          pdrGamma, pdrRate, pdrDuplicate, pdrRtmin, pdrRtmax)
 
+        ! Identify the exothermic chemical-heating reactions in this network.
+        ! 3DPDR.F90 does this immediately after READ_RATES; omitting it leaves
+        ! CHEMICAL_HEATING_RATE working on uninitialised indices (D-029).
+        call init_chemical_heating(pdrNreacMod, pdrReactant, pdrProduct, &
+             &                     pdrNspecMod, pdrSpecies)
+
         if (taskid == 0) then
            print*, "! initPDR: network '", trim(adjustl(pdrNetwork)), "' - ", &
                 & pdrNspec, " species, ", pdrNreac, " reactions"
            print*, "! initPDR: chemistry data from ", trim(adjustl(pdrChemPath))
+           print*, "! initPDR: ", pdrNcool, " coolants loaded"
         end if
 
       end subroutine initPDRnetwork
@@ -455,7 +472,7 @@ module pdr_mod
         double precision   :: colCO(0:nraysLoc-1), colC(0:nraysLoc-1)
         double precision   :: colS(0:nraysLoc-1)
         double precision   :: abun(pdrNspec)
-        double precision   :: abun0(pdrNspec)
+        double precision   :: abun0(pdrNspec), heat(12)
         double precision   :: nH, Tg, Td, chi, av, NHcol
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
@@ -517,9 +534,23 @@ module pdr_mod
         if (all(abun == abun0)) then
            grid%pdrZone(cellP) = 2
            pdrNstuck = pdrNstuck + 1
-        else
-           grid%pdrAbun(cellP, 1:pdrNspec) = abun
+           return
         end if
+
+        grid%pdrAbun(cellP, 1:pdrNspec) = abun
+
+        ! PDR heating budget for this cell: 12 terms, total in slot 12.
+        ! Stored, not yet used to set a temperature - closing the thermal
+        ! balance needs the line cooling, which needs level populations
+        ! (Phase 4c). The photoelectric term is kept separately because it is
+        ! the one MOCASSIN also computes, and D-007's blend band has to ramp
+        ! between the two rather than add them.
+        call CALC_HEATING(nH, Tg, Td, chi, dble(pdrVturb)*1.d5, pdrNspecMod, &
+             & abun, pdrNreacMod, pdrRate, heat, &
+             & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
+
+        grid%pdrHeat(cellP)   = real(heat(12))
+        grid%pdrHeatPE(cellP) = real(heat(1) + heat(2) + heat(3))
 
       end subroutine pdrStep
 

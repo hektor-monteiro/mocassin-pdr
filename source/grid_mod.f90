@@ -1354,6 +1354,14 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCool memory"; stop
                 end if
+                allocate(grid%pdrHeat(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrHeat memory"; stop
+                end if
+                allocate(grid%pdrHeatPE(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrHeatPE memory"; stop
+                end if
                 allocate(grid%pdrAbun(0:grid%nCells,1:pdrNspec), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrAbun memory - ", &
@@ -1364,6 +1372,8 @@ module grid_mod
                 grid%chiFUV  = 0.
                 grid%AVeff   = 0.
                 grid%pdrCool = 0.
+                grid%pdrHeat = 0.
+                grid%pdrHeatPE = 0.
                 grid%pdrAbun = 0.d0
              end if
 #endif
@@ -2780,7 +2790,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                     ! matches resetGrid's read order exactly (DEVLOG D-006).
                     if (lgPDR) then
                        write(51, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
-                            & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP)
+                            & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
+                            & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
                        write(51, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                     end if
 #endif
@@ -3357,6 +3368,14 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCool memory"; stop
                end if
+               allocate(grid(iG)%pdrHeat(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrHeat memory"; stop
+               end if
+               allocate(grid(iG)%pdrHeatPE(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrHeatPE memory"; stop
+               end if
                allocate(grid(iG)%pdrAbun(0:grid(iG)%nCells,1:pdrNspec), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrAbun memory"; stop
@@ -3365,6 +3384,8 @@ end function getVolume
                grid(iG)%chiFUV  = 0.
                grid(iG)%AVeff   = 0.
                grid(iG)%pdrCool = 0.
+               grid(iG)%pdrHeat = 0.
+               grid(iG)%pdrHeatPE = 0.
                grid(iG)%pdrAbun = 0.d0
             end if
 #endif
@@ -3582,7 +3603,8 @@ end function getVolume
 #ifdef PDR
                   if (lgPDR) then
                      read(91, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
-                          & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP)
+                          & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
+                          & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                   end if
 #endif
