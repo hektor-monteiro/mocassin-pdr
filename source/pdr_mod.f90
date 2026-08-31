@@ -473,7 +473,7 @@ module pdr_mod
 
         type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer          :: iG, i, j, k, cellP, yTop
+        integer          :: iG, i, j, k, cellP, yTop, jStart
         double precision :: tau, dy, kap
 
         if (.not.lgPlaneIonization) return
@@ -485,10 +485,29 @@ module pdr_mod
               yTop = 1
            end if
 
+           ! Start at the illuminated plane, not at the grid edge.
+           ! planeIonization force-disables lgSymmetricXYZ, so the axes run
+           ! -Rn..+Rn and packets are launched at position%y = 0 - the grid
+           ! CENTRE. Only y > 0 is illuminated. Integrating from j = 1 would
+           ! accumulate the whole shadowed half before reaching the light, which
+           ! is what made A_V and chi inconsistent (DEVLOG D-045).
+           jStart = 1
+           do j = 1, grid(iG)%ny
+              if (grid(iG)%yAxis(j) >= 0.) then
+                 jStart = j
+                 exit
+              end if
+           end do
+
            do i = 1, grid(iG)%nx
               do k = 1, grid(iG)%nz
+                 ! shadowed half: no incident field, so no meaningful A_V
+                 do j = 1, jStart-1
+                    if (grid(iG)%active(i,j,k) > 0) &
+                         & grid(iG)%AVeff(grid(iG)%active(i,j,k)) = 0.
+                 end do
                  tau = 0.d0
-                 do j = 1, yTop
+                 do j = jStart, yTop
 
                     if (j > 1 .and. j < grid(iG)%ny) then
                        dy = 0.5d0*abs(dble(grid(iG)%yAxis(j+1)) - dble(grid(iG)%yAxis(j-1)))
@@ -534,6 +553,7 @@ module pdr_mod
 
         integer          :: iG, i, j, k, ifreq, iS, cellP, yTop
         double precision :: uFUV, chi, chi0, rr, dx, dy, dz, xHII, tauFUV
+        double precision :: chi0Plane
         double precision :: Lfuv(nStars)
         real             :: fFUV
 
@@ -559,6 +579,23 @@ module pdr_mod
               yTop = 1
            end if
 
+           ! Plane-parallel: there is no point source to dilute from. The
+           ! unattenuated field is the incident flux at the illuminated face,
+           ! which is the total FUV luminosity spread over the area the
+           ! transverse mirrors enclose - the same xAxis(nx)*zAxis(nz) that
+           ! setMotherGrid used to build Lstar from meanField (D-048).
+           chi0Plane = 0.d0
+           if (lgPlaneIonization) then
+              do iS = 1, nStars
+                 chi0Plane = chi0Plane + Lfuv(iS) / &
+                      & (dble(grid(iG)%xAxis(grid(iG)%nx)) * &
+                      &  dble(grid(iG)%zAxis(grid(iG)%nz)) * &
+                      &  dble(c)*dble(uDraine))
+              end do
+           end if
+           if (lgPlaneIonization .and. taskid == 0) &
+                & print*, "! mocassinToPDR: plane-parallel surface field chi0 =", chi0Plane
+
            do i = 1, grid(iG)%nx
               do j = 1, yTop
                  do k = 1, grid(iG)%nz
@@ -576,7 +613,9 @@ module pdr_mod
                     ! Unattenuated field at this cell: every source diluted
                     ! from its own position, not a single lumped luminosity.
                     chi0 = 0.d0
+                    if (lgPlaneIonization) chi0 = chi0Plane
                     do iS = 1, nStars
+                       if (lgPlaneIonization) exit
                        dx = dble(grid(iG)%xAxis(i)) - dble(starPosition(iS)%x)
                        dy = dble(grid(iG)%yAxis(j)) - dble(starPosition(iS)%y)
                        dz = dble(grid(iG)%zAxis(k)) - dble(starPosition(iS)%z)
@@ -584,6 +623,8 @@ module pdr_mod
                        if (rr > 0.d0) chi0 = chi0 + &
                             & Lfuv(iS)/(dble(fourPi)*rr*rr*dble(c)*dble(uDraine))
                     end do
+
+                    grid(iG)%chiFUV0(cellP) = real(chi0)
 
                     ! Invert the measured attenuation into a genuine visual
                     ! extinction in magnitudes, using this model's own grains
@@ -680,7 +721,7 @@ module pdr_mod
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm
-        double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi
+        double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
         double precision   :: TdMoc, TdHTT, T0HTT
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
@@ -742,7 +783,13 @@ module pdr_mod
            Td = max(TdMoc, TdHTT)
         end select
         if (Td <= 0.d0) Td = dble(pdrTdustMod)
-        chi = dble(grid%chiFUV(cellP))
+        ! D-050: 3D-PDR re-applies the attenuation itself, through
+        ! alpha*rad_surface*exp(-gamma*A_V) inside CALCULATE_REACTION_RATES.
+        ! The field handed over must therefore be the UNATTENUATED one; passing
+        ! the local MC field (grid%chiFUV) attenuates it twice and drives every
+        ! photodissociation front to too small an A_V.
+        chi = dble(grid%chiFUV0(cellP))
+        if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
 
         ! keep the chemistry inside the temperature range it was fitted over
@@ -813,6 +860,19 @@ module pdr_mod
         ! assumed bracket is worthless here: if F does not change sign across
         ! it, bisection simply walks to whichever bound it started nearest,
         ! which is what pinned cells at 5 K and 3700 K in the first attempt.
+        ! D-051: seed the march deterministically. The incoming Tg is the
+        ! cell's previous temperature, which carries Monte Carlo noise. Where
+        ! F(T) = heating - cooling has more than one root, the noise decides
+        ! which direction the march sets off in and therefore which root is
+        ! found - so transverse cells that are physically IDENTICAL (same A_V,
+        ! density and field, by the slab's symmetry) settled a factor of four
+        ! apart, at 33 K and 135 K. Starting above the expected root and
+        ! marching DOWN selects the highest (surface-heated) root consistently.
+        ! D-051 (reverted): seeding the march from a fixed temperature to make
+        ! the root selection deterministic does NOT work - see the DEVLOG. The
+        ! incoming temperature is kept as the seed; TgIn only guards the
+        ! non-finite exit below so a failed cell never reports a bogus value.
+        TgIn = Tg
         Tlo = 0.d0
         Thi = 0.d0
 
@@ -927,7 +987,10 @@ module pdr_mod
            ! can move it by two orders of magnitude - so the bracket has to be
            ! found by marching before bisecting, not assumed.
            ! Never let a non-finite budget move the temperature.
-           if (heat(12) /= heat(12) .or. coolTot /= coolTot) exit
+           if (heat(12) /= heat(12) .or. coolTot /= coolTot) then
+              if (Tlo <= 0.d0 .or. Thi <= 0.d0) Tg = TgIn   ! never report the seed
+              exit
+           end if
 
            Fbal = heat(12) - coolTot
            if (Fbal > 0.d0) then

@@ -616,7 +616,15 @@ module set_input_mod
             case ("pdrChemIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrChemIter
-            case ("pdrThermIter")
+            case ("pdrTseed")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrTseed
+                if (ios /= 0) then
+                   print*, "! readInput: error reading pdrTseed"
+                   stop
+                end if
+
+             case ("pdrThermIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrThermIter
             case ("pdrFcrit")
@@ -818,13 +826,6 @@ module set_input_mod
            print*, "! readInput: the min convergence level assigned to the calculation of &
                 &the resonant lines transfer is higher or equal to that assigned by maxIterateMC"
            stop
-        else if (resLinesTransfer >= 100.5 .and. lgDust .and. lgGas) then
-           print*, "! readInput: [warning] both dust and gas processes have been activated, but the &
-                &resonanceLinesTransfer keyword is absent. The dust temperatures may be underestimated!!!!"
-        else if (resLinesTransfer <= 100 .and. (.not.lgDust .or. .not.lgGas)) then
-           print*, "! readInput: [warning] both dust and gas processes must be activated, to use the&
-                &resonanceLinesTransfer keyword. Reset to 101."
-           resLinesTransfer = 101.
         else if (.not.allocated(abundanceFile) .and. lgGas) then
            print*, "! readInput: no elemental abundance file has been specified"
            stop
@@ -835,10 +836,6 @@ module set_input_mod
            print*, "! readInput: the grid is completely empty. no gas or dust present.",  &
                 lgGas,lgDust
            stop
-        else if ( lgDebug .and. .not.(lgGas) ) then
-           print*, "! readInput: debugging mode can only be used when a gas component is present. &
-                & debugging mode will be turned off."
-           lgDebug = .false.
         else if (fillingFactor > 1.) then
            print*, "! readInput: filling factor, epsilon, specified is greater than unity.", &
                 & fillingFactor
@@ -847,18 +844,10 @@ module set_input_mod
            print*,  "! readInput: Grid edges unspecified or non-valid grid &
                 &edges", Rnx,Rny,Rnz
            stop
-        else if (lgDfile .and. (Rnx>=0. .or. Rny>=0. .or. Rnz>=0.) ) then
-           print*,  "! readInput: [warning] when the density distribution is&
-                & specified via an external density file, no grid edges need &
-                & to be specified. The specified values will be ignored."
         else if (lgPlaneIonization .and. .not.lgDfile) then
            print*, "! readInput: plane ionizing field specified - must use user defined &
                 &density distribution via the densityFile option"
            stop
-        else if (lgPlaneIonization .and. lgSymmetricXYZ) then
-           print*, "! readInput [warning]: plane ionizing field specified - cannot use&
-                & symmetricXYZ - removed."
-           lgSymmetricXYZ = .false.
         else if (TStellar(1) == 0. .and. Tdiffuse==0. .and. size(contShape).ge.1) then
             if (contShape(1) /= 'powerlaw') then
               print*, "! readInput: TStellar missing from model parameter input file"
@@ -871,8 +860,6 @@ module set_input_mod
             & .and. Ldiffuse<=0.) then
             print*, "! readInput: LPhot and LStar missing from model parameter input file"
             stop
-        else if (LPhot /= 0. .and. allocated(LStar)) then
-            print*, "! readInput: [warning] LPhot and LStar both entered. "
         else if (maxIterateMC < 1) then
             print*, "! readInput: invalid maxIterateMC in model parameter input &
                  & file", in_file, maxIterateMC
@@ -938,6 +925,45 @@ module set_input_mod
                 &be specified."
            stop
         end if
+
+        ! --- non-fatal advisories: these MUST live outside the else-if chain.
+        ! Inside it, a matching warning short-circuits every check below it
+        ! (DEVLOG D-025 fixed one instance; D-046 found six more, the earliest
+        ! of which shadowed 27 fatal validations for any dust+gas model).
+
+        if (resLinesTransfer >= 100.5 .and. lgDust .and. lgGas) then
+           print*, "! readInput: [warning] both dust and gas processes have been activated, but the &
+                &resonanceLinesTransfer keyword is absent. The dust temperatures may be underestimated!!!!"
+        end if
+
+        if (resLinesTransfer <= 100 .and. (.not.lgDust .or. .not.lgGas)) then
+           print*, "! readInput: [warning] both dust and gas processes must be activated, to use the&
+                &resonanceLinesTransfer keyword. Reset to 101."
+           resLinesTransfer = 101.
+        end if
+
+        if ( lgDebug .and. .not.(lgGas) ) then
+           print*, "! readInput: debugging mode can only be used when a gas component is present. &
+                & debugging mode will be turned off."
+           lgDebug = .false.
+        end if
+
+        if (lgDfile .and. (Rnx>=0. .or. Rny>=0. .or. Rnz>=0.) ) then
+           print*,  "! readInput: [warning] when the density distribution is&
+                & specified via an external density file, no grid edges need &
+                & to be specified. The specified values will be ignored."
+        end if
+
+        if (lgPlaneIonization .and. lgSymmetricXYZ) then
+           print*, "! readInput [warning]: plane ionizing field specified - cannot use&
+                & symmetricXYZ - removed."
+           lgSymmetricXYZ = .false.
+        end if
+
+        if (LPhot /= 0. .and. allocated(LStar)) then
+            print*, "! readInput: [warning] LPhot and LStar both entered. "
+        end if
+
 
         TStellar(0) = Tdiffuse
 

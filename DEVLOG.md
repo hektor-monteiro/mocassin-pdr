@@ -65,7 +65,15 @@ reasoning that led to the wrong turn is part of the history.
 | D-041 | Reject non-finite level-population solves instead of propagating them | Accepted | 2026-08-29d |
 | D-042 | A_V inverted from the MC field degenerates where the field underflows | Resolved by D-043 | 2026-08-29d |
 | D-043 | A_V from direct dust-column integration under plane-parallel illumination | Accepted | 2026-08-29e |
-| D-044 | Slab illumination normalisation is not yet understood; benchmark still open | Open | 2026-08-29e |
+| D-044 | Slab illumination normalisation is not yet understood; benchmark still open | Resolved by D-045..D-047 | 2026-08-29e |
+| D-045 | `planeIonization` illuminates the y>0 half only; A_V must start at the mid-plane | Accepted | 2026-08-31 |
+| D-046 | Six non-fatal advisories inside the readInput else-if chain shadow 27 checks | Accepted | 2026-08-31 |
+| D-047 | Launch overhang is reflected back in, so `meanField` IS the incident flux | Revised | 2026-08-31 |
+| D-048 | `planeIonization` side walls are specular mirrors: a true infinite slab | Accepted | 2026-08-31 |
+| D-049 | Bug: z-min mirror assigns `yAxis(1)` to `rVec%z` in `pathSegment` | Reported | 2026-08-31 |
+| D-050 | Hand 3D-PDR the UNATTENUATED field; the local field double-counts extinction | Accepted | 2026-08-31 |
+| D-051 | Deterministic thermal seed - attempted, reverted; NaN guard kept | Reverted | 2026-08-31 |
+| D-052 | Mother-grid mirror walls omit the half-cell `geoCorr` the other walls use | Accepted | 2026-08-31 |
 
 ---
 
@@ -2360,3 +2368,291 @@ normalisation problem in one illumination mode.
 ---
 
 <!-- Append new entries below this line. -->
+
+## 2026-08-31 - what `planeIonization` actually does (closes D-044)
+
+D-044 asked, as a bounded reading task, what `planeIonization` normalises against. Answer, from
+the code rather than by inference. Three separate things were wrong, and only one of them was
+the factor I had been chasing.
+
+### D-045: the illuminated face is the mid-plane, not the grid edge
+
+`readInput` force-disables `lgSymmetricXYZ` for this mode (`set_input_mod.f90`, the
+`lgPlaneIonization .and. lgSymmetricXYZ` advisory), and `lgSymmetricXYZ` defaults to `.false.`
+anyway. So `setMotherGrid` takes the non-symmetric branch (`grid_mod.f90:580-596`):
+
+```fortran
+grid(1)%xAxis(i) = 2.*real(i-1)/real(grid(1)%nx-1) - 1.
+grid(1)%xAxis(i) = grid(1)%xAxis(i) * Rnx
+```
+
+The axes run **-Rn .. +Rn**, so `edges` sets the *half*-width. Packets launch at
+`position%y = 0.` travelling `+y` (`photon_mod.f90`), and **y = 0 is the centre of the grid**.
+Only the `y > 0` half is ever illuminated; the `y < 0` half sits in permanent shadow.
+
+`computeAVdust` integrated the dust column from `j = 1`, i.e. from `y = -Rny`. It therefore
+accumulated the entire shadowed half before reaching the plane where the light actually enters.
+**That is the A_V/chi inconsistency** - chi was measured from the true face while A_V was
+measured from a point half a slab away, so no extinction law could reconcile them. This is what
+made the field look as though it "decayed far faster than extinction allows".
+
+Fixed: `computeAVdust` now locates the first `j` with `yAxis(j) >= 0` and starts the column
+there, zeroing `AVeff` in the shadowed half.
+
+### D-046: six advisories shadow the rest of the validation chain
+
+D-025 fixed *one* non-fatal clause sitting inside `readInput`'s `else if` chain. It was not an
+isolated slip - there are six, and the earliest of them shadows **27** subsequent fatal checks:
+
+| line | condition | effect |
+|---|---|---|
+| 821 | `resLinesTransfer >= 100.5 .and. lgDust .and. lgGas` | shadows 27 checks |
+| 824 | `resLinesTransfer <= 100 .and. (.not.lgDust .or. .not.lgGas)` | shadows 26 |
+| 838 | `lgDebug .and. .not.lgGas` | shadows 22 |
+| 850 | `lgDfile .and. (Rnx>=0 .or. ...)` | shadows 19 |
+| 858 | `lgPlaneIonization .and. lgSymmetricXYZ` | shadows 18 |
+| 874 | `LPhot /= 0. .and. allocated(LStar)` | shadows 13 |
+
+Any dust+gas model without the `resonanceLinesTransfer` keyword trips line 821 - which is a
+*warning* - and thereby skips every validation below it. The slab model is exactly such a model,
+which is why two checks that should have caught its configuration never fired:
+
+- `lgPlaneIonization .and. .not.lgDfile` - plane ionization **requires** a density file
+- `lgPlaneIonization .and. lgSymmetricXYZ` - the symmetry force-disable
+
+All six are now standalone `if` blocks placed after the chain, so the chain is entirely fatal
+and every check is reachable. The three that mutate state (`resLinesTransfer`, `lgDebug`,
+`lgSymmetricXYZ`) still run before anything downstream consumes those values.
+
+*Verified against the shipped models:* no shipped input uses `planeIonization`, and the
+dust benchmarks that set neither `edges` nor `densityFile` (`benchmarks/dust/1D/*`,
+`benchmarks/dust/2D/*`) survive the newly-reachable `Rnx < 0` check because they ship a
+`.ndust` dust-density file, so `NdustFile /= "none"`.
+
+### D-047: the launch area exceeds the area the luminosity assumes
+
+`grid_mod.f90:1826` sets
+
+```fortran
+Lstar(1) = (meanField/1.e36)*grid%xAxis(grid%nx)*grid%zAxis(grid%nz)
+```
+
+so the assumed illuminated area is `L x L` with `L = Rnx`. But the launcher spreads packets over
+
+```fortran
+position%x = -(xAxis(2)-xAxis(1))/2. + random*( (xAxis(2)-xAxis(1))/2. &
+             + (xAxis(nx)-xAxis(nx-1))/2. + xAxis(nx))
+```
+
+i.e. over `-dx/2 .. L+dx/2`, a span of `L + dx` per axis. The delivered flux is therefore
+
+    F_actual = meanField * L^2 / (L + dx)^2
+
+Note this is *not* the factor-of-four I guessed in D-044. Packets are **not** launched across
+the full `-L..+L` face - only across the positive quadrant, which is consistent with `L x L`.
+The error is the one-cell overhang, and it vanishes only as `nx -> infinity`:
+
+| nx | dx/L | flux deficit |
+|---|---|---|
+| 5 | 0.500 | 2.25x |
+| 21 | 0.100 | 1.21x |
+| 41 | 0.050 | 1.10x |
+
+This is a genuine defect in MOCASSIN, not in the coupling, but it is small and bounded and I am
+correcting for it in the input rather than changing MOCASSIN's launcher: `meanField` is scaled
+by `((L+dx)/L)^2`. Changing the launcher would alter results for any existing plane-parallel
+model, and nothing shipped uses the mode, so there is no reference to re-validate against.
+
+### Why D-044's "factor of 5600" was a false trail
+
+It was never a single factor. chi was right at the face to within the D-047 correction; A_V was
+measured from the wrong origin (D-045); and the configuration errors that would have flagged the
+setup were unreachable (D-046). Chasing one multiplicative constant could not have found any of
+them.
+
+
+
+## 2026-08-31b - the side walls are mirrors (D-048), which revises D-047
+
+I wrote D-047 before reading the boundary handling, and it is wrong in its conclusion. Recording
+the correction rather than editing it away, since the reasoning matters.
+
+### D-048: x and z walls reflect specularly
+
+In `pathSegment` (`photon_mod.f90:2288-2345`) the `lgPlaneIonization` branch handles the four
+transverse walls. Each one pins the packet to the wall cell **and flips the normal velocity
+component**:
+
+```fortran
+if ( (rVec%x >= grid(1)%xAxis(grid(gP)%nx) .or. xP>grid(gP)%nx) ) then
+   xP = grid(gP)%nx
+   rVec%x = grid(gP)%xAxis(grid(gP)%nx)
+   vHat%x = -vHat%x            ! <- specular reflection
+end if
+```
+
+x-min, x-max, z-min and z-max all do this. Contrast the non-plane-parallel path, where the same
+faces terminate the packet (`if (.not.lgPlaneIonization .and. gP==1) return`).
+
+**So the transverse boundaries are mirrors, and the model is a genuine infinite slab.** Two
+consequences:
+
+1. *Lateral escape is not a loss channel.* I had assumed the slab needed to be wide relative to
+   its depth so sideways-scattered packets would not bias the interior column. It does not.
+   The transverse extent is physically irrelevant, so it can be made small and cheap.
+2. *The y walls remain open* - packets leave at `yAxis(1)` and at `yAxis(ny)` via `lgReturn`.
+   That is correct: the beam enters at one face and escapes out the back.
+
+`safeLimit` is reduced from 50000 to 5000 for this mode (`photon_mod.f90:1286`), which is the
+price of the mirrors: a packet can bounce for a long time before being abandoned.
+
+`lgSymmetricXYZ` together with `lgPlaneIonization` is an explicit fatal error inside
+`pathSegment` (`photon_mod.f90:2718`), independently of the `readInput` advisory in D-046.
+
+### D-047, revised: there is no normalisation deficit
+
+D-047 argued the delivered flux was low by `((L+dx)/L)^2` because packets launch over `L+dx`
+while `Lstar` assumes `L`. With mirrors that is wrong: the overhang is **reflected straight back
+into the domain**, so no energy is lost. The mirrors sit at `xAxis(1)` and `xAxis(nx)`, enclosing
+an area `L x L`, and
+
+    Lstar = meanField * xAxis(nx) * zAxis(nz) = meanField * L^2
+
+is exactly the energy that ends up inside that area. **`meanField` is the incident flux, with no
+correction** - provided the axes run `0..L`, so that the mirrors bound the illuminated region.
+
+This is why the earlier symmetric-axis runs were confused rather than simply mis-scaled: with
+axes on `-L..+L` the mirrors sit at `-L` and `+L`, enclosing `4L^2`, while `Lstar` still assumes
+`L^2` and the launch footprint covers only the positive quadrant. The geometry, not a constant,
+was wrong. Using a density file to put the axes on `0..L` removes the ambiguity entirely.
+
+### D-049: a real bug in the z-min mirror
+
+```fortran
+if ( (rVec%z <= grid(1)%zAxis(1) .or.zP<1) ) then
+   zP=1
+   rVec%z = grid(gP)%yAxis(1)      ! <- should be zAxis(1)
+   vHat%z = -vHat%z
+end if
+```
+
+`photon_mod.f90:2316` places the reflected packet using the **y** axis origin. It is only
+harmless when `yAxis(1) == zAxis(1)`, which is true for the symmetric-axis default and false for
+any grid whose y and z origins differ - including every density-file slab. Reported here; not
+patched yet, because the slab grid below is built with `yAxis(1) = zAxis(1) = 0` so the bug is
+inert for the benchmark, and fixing it changes packet paths for any existing plane-parallel model.
+
+
+## 2026-08-31c - the double-attenuation bug (D-050), and the benchmark moves
+
+### D-050: the field handed to 3D-PDR was attenuated twice
+
+`mocassinToPDR`'s own header states the D-001 contract:
+
+> A_V,eff inverts the attenuation against the unattenuated, geometrically diluted field from the
+> sources, so that feeding 3D-PDR `rad_surface(k) = chi0/nrays` with `AV(k) = AVeff` reproduces
+> the MC field through its existing `alpha*rad_surface*exp(-gamma*AV)` rate expressions.
+
+The handover did not honour it. `pdrStep` did
+
+```fortran
+chi = dble(grid%chiFUV(cellP))      ! the LOCAL, already-attenuated MC field
+av  = dble(grid%AVeff(cellP))
+radSurf = chi/dble(nraysLoc)
+```
+
+`chiFUV` is the Monte Carlo field *at the cell* - MOCASSIN has already transported it through the
+dust. `CALCULATE_REACTION_RATES` then applies `exp(-gamma*A_V)` a second time. Every
+photodissociation and photoionization rate in the network was therefore too small, and every
+front sat at too small an A_V. `chi0` was computed in `mocassinToPDR` and thrown away.
+
+Fixed by storing it: a new `grid%chiFUV0` carries the unattenuated field, and the handover reads
+that. `chiFUV` is retained as the MC diagnostic. For plane-parallel illumination there is no
+point source to dilute from, so `chi0` is the incident face flux, the FUV luminosity spread over
+the area the transverse mirrors enclose:
+
+```fortran
+chi0Plane = Lfuv(iS) / (xAxis(nx)*zAxis(nz)*c*uDraine)
+```
+
+**This is an independent confirmation of D-048.** The slab was set up for a target of chi = 10
+Draine, and the code now prints
+
+    ! mocassinToPDR: plane-parallel surface field chi0 =  10.052786555796875
+
+`meanField` really is the incident flux, with no area correction, exactly as D-048 argued from
+the mirror geometry. Two independent routes to the same number.
+
+### Benchmark: the fronts move most of the way
+
+| quantity | before D-045/D-050 | after | standalone 3D-PDR |
+|---|---|---|---|
+| H/2H2 transition, A_V | 0.025 | 0.037 - 0.043 | 0.069 |
+| C+/C transition, A_V | 0.042 | 1.130 | 1.677 |
+| heat/cool median | 1.03 | 0.997 | 1 |
+
+C+/C went from **40x wrong to 1.5x**. Both fronts are now short by a similar factor (~1.6-1.9),
+which points at one remaining common cause rather than several. The obvious candidate is the A_V
+scale: the dust column integration gives N_H/A_V = 5.25e21 per magnitude where the canonical
+diffuse-ISM value is 1.87e21, a factor of 2.8. That does not shift the *reported* front A_V on
+its own - the chemistry sees A_V directly, so a rescaling moves the physical depth, not the front's
+A_V - but it does enter the shielding columns through `NHcol = av/pdrAVfac`, and H2 and CO
+self-shielding is precisely what sets these two transitions. That is the next thing to check.
+
+### D-051: a deterministic thermal seed - attempted, and reverted
+
+The 25 transverse cells at a given depth are physically identical by the slab's symmetry, yet
+spanned 33 K to 137 K. The radiation field across them varies by only 6% (Monte Carlo noise), so
+a 4x spread in temperature is numerical, not physical: where `F(T) = heating - cooling` has more
+than one root, the incoming temperature decides which way the march sets off and therefore which
+root is found.
+
+Seeding the march from a fixed temperature to remove the path dependence **did not work**:
+
+- seeded at 1000 K, every cell came back at exactly 1000.0 K. The seed is outside the range the
+  coolant collision data covers, the first cooling evaluation was non-finite, the loop took its
+  `exit` on that branch, and the cell was stored *at the seed*.
+- seeded at 300 K, cells pinned at exactly 300.0 K the same way, and the H/2H2 front moved the
+  wrong way (0.020 against 0.037 for the unseeded run).
+
+Reverted. Two things are kept from the attempt:
+
+1. **The silent failure it exposed is now guarded.** A non-finite budget used to leave `Tg` at
+   whatever the loop last set and store it as the answer. It now falls back to the incoming
+   temperature whenever the bracket was never established. This removed the high-temperature
+   outliers on its own: the interior column ran 30 K - 9300 K before the guard and 1 K - 275 K
+   after it, with heat/cool median unchanged at 0.997.
+2. `pdrTseed` remains as an input keyword, unused by default, for a later attempt.
+
+The root-selection scatter is still open. A deterministic scan over a fixed log-spaced
+temperature grid, taking the outermost sign change, would fix it properly at the cost of extra
+cooling evaluations per cell.
+
+### D-052: the mirror walls omit the half-cell correction
+
+Prompted by a direct question about whether the lateral reflecting-wall tests use the half-cell
+geometric correction. They do not, and the branch is inconsistent with itself.
+`geoCorrX = (xAxis(nx)-xAxis(nx-1))/2` is the half-cell width, and within the single
+`lgPlaneIonization` block:
+
+| wall | test | uses geoCorr |
+|---|---|---|
+| y min / y max (open, escape) | `yAxis(1)-geoCorrY`, `yAxis(ny)+geoCorrY` | yes |
+| x/z walls, sub-grid (`gP>1`) | `xAxis(1)-geoCorrX`, `xAxis(nx)+geoCorrX` | yes |
+| **x/z walls, mother grid** | bare `xAxis(1)`, `xAxis(nx)`, `zAxis(1)`, `zAxis(nz)` | **no** |
+
+So the mother-grid mirrors sit at the *centres* of the boundary cells rather than at their faces,
+and the outer half of each boundary cell is unreachable. Measured effect on the field is about 7%
+(edge columns 6.35, interior 7.12), not the factor of two a bare half-cell would give, because
+reflection at the centre plane raises the path-length density on the inner half and partly
+compensates.
+
+**This is not a flux-normalisation error, and it should not be "fixed" casually.** Placing the
+mirrors at the cell centres is what makes the enclosed area exactly `xAxis(nx)*zAxis(nz)`, which
+is the same `L x L` that `setMotherGrid` uses to turn `meanField` into `Lstar` - and the measured
+`chi0 = 10.05` against a target of 10 confirms the pair is consistent. Adding `geoCorr` to the
+mirrors without also changing the `Lstar` area would introduce a `((L+dx)/L)^2` error - the very
+factor D-047 wrongly predicted.
+
+*Practical consequence:* the boundary columns `i=1, i=nx, k=1, k=nz` are half-cells and read
+about 7% dim. All benchmark analysis uses an interior column.

@@ -309,6 +309,7 @@ module common_mod
         ! 1e-38 and would underflow MOCASSIN's default 4-byte real.
         integer, allocatable      :: pdrZone(:)      ! 1 where PDR chemistry runs
         real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
+        real, allocatable         :: chiFUV0(:)      ! UNATTENUATED FUV field [Draine units]
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
@@ -510,7 +511,8 @@ module common_mod
     integer             :: pdrNreac   = 0          ! reactions in the network
     integer             :: pdrHealpix = 0          ! HEALPix level of refinement
     integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
-    integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031)
+    integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031, D-051)
+    real                :: pdrTseed=300.           ! deterministic seed for the thermal march (D-051)
     real                :: pdrFcrit   = 0.10        ! |heat-cool|/max tolerated as converged (D-032)
     integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
     integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)
