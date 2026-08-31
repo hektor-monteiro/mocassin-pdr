@@ -78,7 +78,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-054 | Follow TORUS-3DPDR: geometric A_V from the density field, not inverted from the MC field | Accepted | 2026-08-31 |
 | D-055 | Derive `pdrAVfac` from the model's own grains; it was 3.3x off the dust column | Accepted | 2026-08-31 |
 | D-056 | Porting 3D-PDR's thermal root finder into a 12-step inner loop - reverted | Reverted | 2026-08-31 |
-| D-057 | Graded y-axis collapses the surface thermal solve; use a uniform grid | Accepted | 2026-08-31 |
+| D-057 | Graded y-axis collapses the surface thermal solve; floor the first cell instead | Accepted | 2026-08-31 |
+| D-058 | Match the benchmark's dust (MdMg 0.0281), not just its A_V | Accepted | 2026-08-31 |
 
 ---
 
@@ -2931,3 +2932,61 @@ H/H2 front and still reaches A_V = 10.
 The full layered PDR structure is present for the first time, and the deep cloud - CO reservoir,
 temperature, thermal balance - is right. The C+/C front is still a factor of two shallow, and the
 surface is unusable until D-057 is confirmed fixed.
+
+
+## 2026-08-31g - D-058: the Rollig V1 benchmark, with the benchmark's dust
+
+D-057 diagnosed the 35 K surface as a grid problem, and a uniform grid confirmed it - but a
+uniform grid fine enough to resolve a front at A_V ~ 0.07 needs 1000+ cells to reach A_V = 10,
+and at 25025 cells the same photon budget gave 4x worse statistics per cell: heat/cool median
+72.5 and 1.6% of cells below 5 K. The working grid is **graded but with a floored first cell**
+(dA_V = 0.005, ratio 1.0067, 401 cells) - fine enough at the surface, cheap enough at depth, and
+with no cell thin enough to collapse its shielding columns.
+
+### The remaining error was the dust, not the coupling
+
+With that grid, H->H2 and C+->C were both still shallow (0.013 and 0.89 against 0.07 and 1.7)
+while C->CO was already right. That pattern is diagnostic: the two shallow fronts are the ones
+set by self-shielding, and D-055 had just established that these grains give **5.26e21 N_H per
+magnitude against the canonical 1.87e21**. At a matched A_V our shielding columns were therefore
+2.8x too large, which pushes exactly those two fronts shallow and leaves the deep CO front alone.
+
+Matching the benchmark's dust rather than only its A_V - `MdMg` 0.01 -> 0.0281 - confirmed it.
+D-055's auto-derivation picked the change up with no manual intervention:
+
+    ! calibratePDRdust: A_V per N_H = 5.33996734E-22 (N_H per mag = 1.87267061E+21)
+
+### Rollig V1 result
+
+| quantity | coupled | Rollig V1 | ratio |
+|---|---|---|---|
+| surface T | **564.8 K** | ~570 K | 0.99 |
+| H -> 2H2 | 0.032 | ~0.07 | 0.46 |
+| C+ -> C | **1.371** | ~1.7 | 0.81 |
+| C -> CO | **2.747** | ~2-3 | in range |
+| deep T | 11.5 K | ~10 K | 1.15 |
+| deep x(CO) | 9.94e-5 of C/H = 1e-4 | ~1e-4 | 0.99 |
+| heat/cool median | 1.044 | 1 | 1.04 |
+
+Progress across the three grids, all with the same physics:
+
+| | H->2H2 | C+->C | C->CO | surf T | heat/cool | cells < 5 K |
+|---|---|---|---|---|---|---|
+| graded, thin first cell | 0.018 | 0.854 | 3.00 | 35 K | 0.993 | 0.0% |
+| uniform 1001 | 0.013 | 0.859 | 4.13 | 277 K | 72.5 | 1.6% |
+| graded, floored first cell | 0.013 | 0.888 | 3.19 | 953 K | 1.963 | 0.0% |
+| **+ benchmark dust** | **0.032** | **1.371** | **2.75** | **565 K** | **1.044** | **0.0%** |
+
+Temperature structure, thermal balance and the carbon chemistry are now all within ~20% of the
+benchmark, and the CO front sits inside its range.
+
+### What is still open
+
+- **H -> H2 is a factor of two shallow** (0.032 against ~0.07) while C+/C is within 20% and C/CO
+  is in range. A single remaining discrepancy isolated to hydrogen points at H2 self-shielding or
+  the Cazaux & Tielens grain formation rate, not at the radiation field or the extinction, both of
+  which the other two fronts now validate.
+- **The thermal bracket state should persist across MC iterations** (D-056). Porting 3D-PDR's
+  +-30% expansion and Illinois regula falsi without that persistence made results worse; with it,
+  it should be strictly better than our x2 march.
+- Neither V1 run used the exact benchmark cosmic-ray rate until this one; zeta = 5e-17 is now set.
