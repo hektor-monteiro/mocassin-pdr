@@ -57,6 +57,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-033 | Dust temperature floored at T_cmb; D-009's dust ownership needs revisiting | Accepted | 2026-08-28o |
 | D-034 | Benchmark uses MOCASSIN's plane-parallel mode; geometry blocker withdrawn | Accepted | 2026-08-29 |
 | D-035 | MOCASSIN has no cosmic-ray physics; ionization state is unreconciled | Accepted | 2026-08-29 |
+| D-036 | Dust temperature from HTT91 where MOCASSIN's is unphysically low | Accepted | 2026-08-29b |
+| D-037 | Ionization state fed back to MOCASSIN for H and He | Accepted | 2026-08-29b |
 
 ---
 
@@ -1946,12 +1948,101 @@ the zone criterion to something MOCASSIN can determine correctly.
 
 ### Open items
 
-- [ ] **Fix the dust temperature in shielded cells (D-033).** Now doubly critical - it breaks
-      both the molecular chemistry and, through x(H2), the CR heating.
+- [x] **Fix the dust temperature in shielded cells (D-033)** - done, see D-036.
 - [ ] **Run the 1D benchmark using `planeIonization`** (D-034), with `nx = nz = 5`, `ny ~ 200`.
-- [ ] Reconcile the ionization state between `ionDen` and `pdrAbun` in PDR cells (D-035).
+- [x] Reconcile the ionization state between `ionDen` and `pdrAbun` in PDR cells - done, see D-037.
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Consider checkpointing `pdrLevPop`.
+
+---
+
+## 2026-08-29b — Dust temperature fixed; ionization fed back
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-036 — Dust temperature falls back to HTT91 where MOCASSIN's is unphysically low.**
+*Accepted. Resolves D-033.*
+
+`pdrStep` now computes the Hollenbach, Takahashi & Tielens (1991) dust temperature inline
+from the local chi and A_V - the same formula as the vendored `dust_t.F90`, evaluated with the
+single effective ray of D-001 - and takes `max(T_MOCASSIN, T_HTT91)`.
+
+*Why max().* Both are estimates of the same quantity, and MOCASSIN's failure mode is
+specifically to **under**-estimate: `getDustT` omits heat sources (CMB, ISRF, the IR bath from
+warmer dust that is under-sampled deep in), it does not invent them. So taking the larger keeps
+MOCASSIN's full radiative transfer wherever the grains see light and falls back to the PDR
+parametrisation where they do not. Selectable via `pdrDustModel` (0 = MOCASSIN only,
+1 = max, default, 2 = HTT91 only) so the sensitivity can be tested.
+
+*Upstream had already found this.* `dust_t.F90` ends with a floor at 10 K, commented
+"since values below 10 K can dramatically limit the rate of H2 formation on grains (the
+molecule cannot desorb from the surface)" - independently the same failure diagnosed here.
+
+### Result
+
+| dust treatment | x(H2) in shielded gas |
+|---|---|
+| MOCASSIN raw (T_dust -> 0.59 K) | 8e-3 |
+| floored at T_cmb = 2.725 K | 4.5e-2 |
+| **HTT91, floor 10 K** | **4.999e-1** |
+
+Standalone 3D-PDR at matched conditions gives **5.0e-1**, and x(CO) comes out at 1.399e-4
+against standalone's 1.4e-4. The coupled code now reproduces the standalone chemistry in
+shielded gas **to the printed precision**.
+
+That also lifts the cosmic-ray heating suppression of D-035: with x(H2) back at 0.5 rather
+than 8e-3, `COSMICRAY_HEATING` - which is proportional to `ABUNDANCE(NH2)` - recovers its
+factor of 62.
+
+*Note on the earlier CMB-floor attempt.* Flooring at 2.725 K moved x(H2) only from 8e-3 to
+4.5e-2, and it would have been easy to read that five-fold improvement as progress in the right
+direction and keep tuning the floor. It was the wrong knob: the right value is not a floor at
+all but a physical model of what heats the grains, and HTT91 supplies it. **A partial
+improvement from a plausible fix is not evidence the fix is correct.**
+
+---
+
+**D-037 — The ionization state is fed back to MOCASSIN for H and He.** *Accepted.
+Completes D-035.*
+
+`pdrToMocassin` now writes the network's H and He ionization into `grid%ionDen`, blended
+across the D-007 band exactly as the temperature is. The loop is closed: the ionization that
+sets the zone flag, the electron density and the proton density is now the one computed with
+cosmic-ray ionization in it, which MOCASSIN does not have (D-035).
+
+*Metals are deliberately not written back.* MOCASSIN's `ionDen` has two stages per element and
+no notion of molecules, so carbon locked in CO would have to be booked as either C0 or C+ and
+either choice misrepresents it - it would show up as spurious C I or C II emission. D-007
+already assigns [C II] and [O I] in PDR cells to 3D-PDR, which accounts for that carbon
+correctly. Recorded so the omission is visibly a decision rather than an oversight.
+
+*Safe against oscillation* because the zone flag latches (D-031): feeding x(H+) back cannot
+flip the criterion that decides whether the feedback happens.
+
+### Verification
+
+n_H = 1e4, MdMg = 0.01, MRN silicate+carbonaceous, 13^3, A_V to 4.51, 925 PDR cells:
+
+```
+  A_V     chi     T_gas    x(H)     x(H2)    x(C+)    x(C)     x(CO)    x(H+)
+2.400  4.41e-02   32.2   3.03e-04 5.00e-01 4.72e-08 4.48e-07 1.39e-04 4.21e-09
+4.510  5.75e-05   13.1   4.44e-04 5.00e-01 9.56e-09 6.87e-08 1.40e-04 2.70e-09
+```
+
+Fully molecular, carbon fully in CO, and a small CR-maintained x(H+) that MOCASSIN alone would
+have driven to zero. PDR-off build verified unchanged.
+
+### Open items
+
+- [ ] Run the 1D benchmark using `planeIonization` (D-034), `nx = nz = 5`, `ny ~ 200`.
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Deep cells settle at T_gas ~ 3-6 K where a real cloud interior sits nearer 10 K. Worth
+      checking whether `pdrTmin` should default above the CMB, and whether gas-grain coupling
+      to the now-warmer dust is being applied.
 - [ ] Consider checkpointing `pdrLevPop`.
 
 ---

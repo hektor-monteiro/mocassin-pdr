@@ -1095,6 +1095,14 @@ Relative heating/cooling imbalance a PDR cell may retain and still count as
 converged, default 0.10. PDR cells failing this clear their converged flag, so
 a run will not stop while the PDR is still settling.
 .TP
+.B pdrDustModel \fI0|1|2\fR
+Source of the dust temperature used by the PDR chemistry: 0 uses MOCASSIN's
+radiative-equilibrium value floored at the CMB, 2 uses the Hollenbach, Takahashi
+& Tielens (1991) parametrisation, and 1 (default) takes the larger of the two.
+MOCASSIN solves dust equilibrium against the local field only, so deeply
+shielded cells tend towards 0 K, which suppresses H2 formation on grains and,
+through it, cosmic-ray heating.
+.TP
 .B pdrEndTime \fIyears\fR
 Chemistry integration span, default 1.0e7. With steady-state chemistry this is
 the initial span rather than a physical age.

@@ -64,7 +64,7 @@ module pdr_mod
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
                                & pdrNelect    => NELECT,      &
-                               & NH2, NC, NCO, NH, NPROTON, NHe
+                               & NH2, NC, NCO, NH, NPROTON, NHe, NHEx
 
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
@@ -515,6 +515,7 @@ module pdr_mod
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi
+        double precision   :: TdMoc, TdHTT, T0HTT
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
         double precision   :: lline(pdrMaxLev,pdrMaxLev)
@@ -535,20 +536,45 @@ module pdr_mod
         ! measured it at 30-3550 K where a PDR belongs at 10-100 K.
         Tg  = dble(grid%pdrTgas(cellP))
         if (Tg <= 0.d0) Tg = dble(grid%Te(cellP))
-        ! Floor the dust temperature at the CMB (DEVLOG D-033).
-        !
+        ! ---- dust temperature (DEVLOG D-033, D-036) ----------------------
         ! MOCASSIN solves dust equilibrium against the local radiation field
         ! with no floor, so a deeply shielded cell has almost nothing heating
-        ! its grains and T_dust tends to zero - measured at 0.59 K. That is
-        ! fine for an H II region, where such cells do not matter, but it is
-        ! unphysical: real grains cannot fall below the CMB, and 3D-PDR never
-        ! encounters it because its dust is isothermal or HTT91.
+        ! its grains and T_dust tends to zero - measured at 0.59 K. Fine for an
+        ! H II region; unphysical for a PDR, and damaging twice over: H2 forms
+        ! on grains and the Cazaux & Tielens rate collapses as T_dust -> 0, and
+        ! cosmic-ray heating is proportional to x(H2), so it collapses with it.
         !
-        ! It matters here because H2 forms on grains, and the Cazaux & Tielens
-        ! rate collapses as T_dust -> 0, which held the gas atomic (x(H2) ~ 8e-3)
-        ! where the same chemistry at stated conditions gives 0.4998.
-        Td  = dble(grid%Tdust(0,0,cellP))
-        Td  = max(Td, dble(pdrTcmb))
+        ! Hollenbach, Takahashi & Tielens (1991) parametrise T_dust from the FUV
+        ! field and A_V, including the re-radiated IR and the CMB - designed for
+        ! exactly this regime. Their own routine ends by flooring T_dust at 10 K
+        ! "since values below 10 K can dramatically limit the rate of H2
+        ! formation on grains", which is the same failure found here.
+        !
+        ! The two estimates are combined by taking the larger. MOCASSIN's failure
+        ! mode is specifically to UNDER-estimate - it omits heat sources rather
+        ! than inventing them - so max() keeps its full radiative transfer where
+        ! the grains see light and falls back to HTT91 where they do not.
+        TdMoc = dble(grid%Tdust(0,0,cellP))
+
+        ! HTT91, evaluated with the single effective ray of D-001 carrying the
+        ! full local field (3D-PDR's own 1D mode does the same, putting all the
+        ! flux on one ray).
+        TdHTT = 8.9d-11*2.65d15*(1.71d0*chi) + pdrTcmb**5
+        T0HTT = 12.2d0*(1.71d0*max(chi,0.d0))**0.2d0
+        if (av > 1.0d0) T0HTT = T0HTT*av**(-0.4d0)
+        if (T0HTT > 0.d0) TdHTT = TdHTT + &
+             & (0.42d0 - log(3.45d-5*T0HTT))*(3.45d-5*T0HTT)*T0HTT**5
+        TdHTT = max(TdHTT, 0.d0)**0.2d0
+        TdHTT = max(TdHTT, 10.0d0)          ! HTT91's own floor, and the reason for it
+
+        select case (pdrDustModel)
+        case (0)
+           Td = max(TdMoc, dble(pdrTcmb))
+        case (2)
+           Td = TdHTT
+        case default
+           Td = max(TdMoc, TdHTT)
+        end select
         if (Td <= 0.d0) Td = dble(pdrTdustMod)
         chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
@@ -793,7 +819,7 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, cellP, yTop
-        double precision :: xHII, w, lo, hi
+        double precision :: xHII, w, lo, hi, xnew, heTot
 
         lo = log10(max(dble(pdrBlendLo), 1.d-30))
         hi = log10(max(dble(pdrZoneLim), 1.d-30))
@@ -814,15 +840,52 @@ module pdr_mod
                     xHII = dble(grid(iG)%ionDen(cellP, elementXref(1), 2))
 
                     if (xHII <= dble(pdrBlendLo)) then
-                       ! fully neutral: the PDR solver owns the temperature
-                       grid(iG)%Te(cellP) = grid(iG)%pdrTgas(cellP)
+                       w = 1.d0
                     else if (xHII < dble(pdrZoneLim)) then
                        ! blend band: w = 1 at the neutral edge, 0 at the ionised one
                        w = (hi - log10(max(xHII,1.d-30))) / max(hi-lo, 1.d-30)
                        w = min(max(w, 0.d0), 1.d0)
-                       grid(iG)%Te(cellP) = real( &
-                            & w*dble(grid(iG)%pdrTgas(cellP)) + &
-                            & (1.d0-w)*dble(grid(iG)%Te(cellP)))
+                    else
+                       cycle
+                    end if
+
+                    grid(iG)%Te(cellP) = real( &
+                         & w*dble(grid(iG)%pdrTgas(cellP)) + &
+                         & (1.d0-w)*dble(grid(iG)%Te(cellP)))
+
+                    ! ---- ionization state (DEVLOG D-037) -----------------
+                    ! MOCASSIN has no cosmic-ray ionization (D-035), so in
+                    ! shielded gas its ionBalance drives x(H+) to zero while the
+                    ! true value is CR-maintained. The chemical network does have
+                    ! it, so hand H and He back the same way the temperature is
+                    ! handed back. This closes the loop: the ionization that sets
+                    ! the zone flag, the electron density and the proton density
+                    ! is now the one computed with the relevant physics.
+                    !
+                    ! Metals are deliberately NOT written back. MOCASSIN's ionDen
+                    ! has two stages per element and no notion of molecules, so
+                    ! carbon locked in CO would have to be booked as either C0 or
+                    ! C+ - either choice misrepresents it. D-007 already assigns
+                    ! [C II] and [O I] in PDR cells to 3D-PDR, which is where that
+                    ! carbon is accounted for correctly.
+                    if (NPROTON > 0) then
+                       xnew = min(max(grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0)
+                       grid(iG)%ionDen(cellP,elementXref(1),2) = real( &
+                            & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(1),2)))
+                       grid(iG)%ionDen(cellP,elementXref(1),1) = &
+                            & 1.0 - grid(iG)%ionDen(cellP,elementXref(1),2)
+                    end if
+
+                    if (lgElementOn(2) .and. NHe > 0 .and. NHEx > 0 .and. nStages >= 3) then
+                       heTot = grid(iG)%pdrAbun(cellP,NHe) + grid(iG)%pdrAbun(cellP,NHEx)
+                       if (heTot > 0.d0) then
+                          xnew = min(max(grid(iG)%pdrAbun(cellP,NHEx)/heTot, 0.d0), 1.d0)
+                          grid(iG)%ionDen(cellP,elementXref(2),2) = real( &
+                               & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(2),2)))
+                          grid(iG)%ionDen(cellP,elementXref(2),1) = &
+                               & 1.0 - grid(iG)%ionDen(cellP,elementXref(2),2)
+                          grid(iG)%ionDen(cellP,elementXref(2),3) = 0.
+                       end if
                     end if
                  end do
               end do
