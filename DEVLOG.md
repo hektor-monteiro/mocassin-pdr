@@ -80,6 +80,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-056 | Porting 3D-PDR's thermal root finder into a 12-step inner loop - reverted | Reverted | 2026-08-31 |
 | D-057 | Graded y-axis collapses the surface thermal solve; floor the first cell instead | Accepted | 2026-08-31 |
 | D-058 | Match the benchmark's dust (MdMg 0.0281), not just its A_V | Accepted | 2026-08-31 |
+| D-059 | Standalone 3D-PDR baseline built and run; my quoted reference values were wrong | Accepted | 2026-08-31 |
+| D-060 | Surface gas temperature is 12x too hot - the real open defect | Open | 2026-08-31 |
 
 ---
 
@@ -2990,3 +2992,77 @@ benchmark, and the CO front sits inside its range.
   +-30% expansion and Illinois regula falsi without that persistence made results worse; with it,
   it should be strictly better than our x2 march.
 - Neither V1 run used the exact benchmark cosmic-ray rate until this one; zeta = 5e-17 is now set.
+
+
+## 2026-08-31h - D-059: an actual baseline, and what it corrected (closes D-016)
+
+Hektor asked for the 3D-PDR curves plotted alongside ours. That required a real standalone run,
+not remembered figures - which is what D-016 has been asking for since Phase 0.
+
+Upstream was cloned, built from the same tree we vendor, and run on the same slab. Its default
+`config.mk` already matches our `PDRFLAGS` almost exactly (REDUCED, H2FORM_CT02, HTT91 dust,
+ILLINOIS, REBRACKET, SOBOLEV, CHEMSTEADY, CHEMRETRY, 1D). Two build notes:
+
+- The SUNDIALS we built is MPI-enabled, and 3D-PDR never calls `MPI_INIT`, so CVODE aborted with
+  `MPI_Comm_dup() called before MPI_INIT`. Fixed with a small C constructor (`mpishim.c`) that
+  calls `MPI_Init` before `main`, linked with `mpif90`.
+- Run it under `mpirun -np 1` with stdin closed. As a singleton it initialises MPI and then blocks
+  with zero CPU.
+
+`ics/1Dn30.dat` is n_H = 10^3 over 5.15 pc - the V1 density and depth.
+
+### The reference values I had been quoting were wrong
+
+| | what I quoted | 3D-PDR, matched |
+|---|---|---|
+| H -> 2H2 | ~0.07 | **0.027** |
+| C+ -> C | ~1.7 | 1.604 |
+| C -> CO | ~2-3 | **4.924** |
+| surface T | ~570 K | **79 K** |
+| deep T | ~10 K | 10.5 K |
+
+These came from memory of the Rollig paper rather than from a computation, and two of them were
+badly off. Consequences for the record:
+
+- **The H/H2 front was never the problem.** D-058 called it "a factor of two shallow" and reasoned
+  it isolated to H2 self-shielding or the grain formation rate. It is 0.032 against 0.027 - within
+  17%. That whole line of inquiry was chasing an error in the reference.
+- **The surface temperature, which D-058 reported as agreeing (564.8 K against "~570"), is wrong
+  by a factor of twelve.** It was the one number I presented as a clean success.
+
+3D-PDR also uses C/H = 1.4e-4 from its own `species_reduced.d`, not the 1e-4 I had set from the
+benchmark paper. The comparison was re-run with abundances, dust, cosmic-ray rate and depth all
+matched.
+
+### Matched comparison
+
+| quantity | coupled | 3D-PDR | ratio |
+|---|---|---|---|
+| deep x(CO) | 1.385e-4 | 1.393e-4 | 0.99 |
+| H -> 2H2 | 0.032 | 0.027 | 1.17 |
+| deep T | 12.5 K | 10.5 K | 1.20 |
+| C+ -> C | 1.236 | 1.604 | 0.77 |
+| surface chi | 7.61 | 10.00 | 0.76 |
+| C -> CO | 3.126 | 4.924 | 0.63 |
+| **surface T** | **982 K** | **79 K** | **12.4** |
+
+The chemistry tracks. The deep cloud is essentially exact.
+
+### D-060: the surface temperature is the real defect
+
+Both codes run the same heating and cooling routines on nearly the same field, so a 12x
+disagreement at A_V ~ 0 is in what the coupling hands over at low extinction, not in the PDR
+physics. The candidates, in order:
+
+1. **The D-007 blend band.** At low x(H+) the coupling ramps between MOCASSIN's photoelectric
+   heating and 3D-PDR's. If MOCASSIN's dominates at the face, this is exactly the signature.
+2. **MOCASSIN's electron temperature leaking into PDR-owned cells** through the handover.
+3. The surface chi being 24% low should make the face *cooler*, not hotter, so it is not the cause.
+
+Worth noting the interiors agree closely and the curves converge past A_V ~ 1, which points at
+something that only operates where the gas is still partly ionized - consistent with (1) and (2).
+
+### D-016 closed
+
+The baseline exists, is reproducible from `scratchpad/3dpdr` with `mpishim.c`, and should be
+committed as a regression fixture: `sims/v1.pdr.fin` plus the `params.dat` that produced it.
