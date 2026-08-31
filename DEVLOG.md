@@ -74,6 +74,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-050 | Hand 3D-PDR the UNATTENUATED field; the local field double-counts extinction | Accepted | 2026-08-31 |
 | D-051 | Deterministic thermal seed - attempted, reverted; NaN guard kept | Reverted | 2026-08-31 |
 | D-052 | Mother-grid mirror walls omit the half-cell `geoCorr` the other walls use | Accepted | 2026-08-31 |
+| D-053 | 3D-PDR's fronts are not the target: MOCASSIN transports diffuse FUV | Accepted | 2026-08-31 |
 
 ---
 
@@ -2656,3 +2657,83 @@ factor D-047 wrongly predicted.
 
 *Practical consequence:* the boundary columns `i=1, i=nx, k=1, k=nz` are half-cells and read
 about 7% dim. All benchmark analysis uses an interior column.
+
+
+## 2026-08-31d - D-053: standalone 3D-PDR is not the benchmark target
+
+Raised by Hektor, and it corrects the standard I had been holding the benchmark to:
+
+> one thing to keep in mind in these comparisons is that the transfer in Mocassin takes into
+> account the difuse radiation. I would not expect the front to be identical as well as Te and
+> other factors.
+
+This is right, and the effect is much larger than the residual I had been chasing.
+
+### `Jste` is the total field, not the direct beam
+
+`photon_mod.f90:1593-1604`:
+
+```fortran
+if (enPacket%lgStellar) then
+   Jste += dlLoc*deltaE*weight/dV
+else                        ! diffuse packet
+   if (lgDebug) then
+      Jdif += ...           ! debug only: kept separate for inspection
+   else
+      Jste += ...           ! normal run: folded straight into Jste
+   end if
+end if
+```
+
+So in a production run `Jste` already carries the scattered and re-emitted component, and `Jdif`
+exists only to *separate* it for debugging. Two consequences:
+
+1. The bridge's `if (lgDebug) uFUV = uFUV + Jdif` is **correct as written** - it adds `Jdif` only
+   in the one case where `Jdif` is separately accumulated, and avoids double counting otherwise.
+   The matching `lgDebug` gates on the `1.e-9` scaling (`iteration_mod.f90:751`) and on the
+   accumulation itself are consistent with each other.
+2. My 2026-08-31 note flagging "chi decays 4-5x too slowly relative to A_V" as a possible defect
+   was **wrong**. That shallow decay is the diffuse field, and it is physical.
+
+### How big the effect is
+
+Fitting the transported field along the slab's interior column:
+
+| A_V range | fit |
+|---|---|
+| 0.05 - 0.5 | chi = 7.52 exp(-0.407 A_V) |
+| 0.5 - 1.5 | chi = 9.48 exp(-0.834 A_V) |
+| 0.05 - 1.6 | chi = 8.43 exp(-0.731 A_V) |
+
+3D-PDR's photoreactions use gamma ~ 2.5-3.5 (3.02 for H2 photodissociation, 3.0 for C
+photoionization). MOCASSIN transports the field at **gamma_eff = 0.73**, so at A_V = 1.5 the
+field is **31x larger** than a pure-extinction law gives.
+
+A correctly coupled model must therefore put its fronts **deeper** than standalone 3D-PDR, and
+run a different temperature structure. Recording the earlier table's framing as wrong: the
+0.069 and 1.677 figures are a *sanity range*, not targets to converge on.
+
+### The sharper consequence: the diffuse field is currently bypassed
+
+The chemistry does not presently see any of this under plane-parallel illumination. It receives
+`chi0` (unattenuated) and `AVeff` from the dust-column integration, and `CALCULATE_REACTION_RATES`
+re-derives the attenuation with its own gamma. So the coupling is reproducing **3D-PDR's**
+attenuation law, not MOCASSIN's transfer - which is exactly why the fronts land near 3D-PDR's
+values, and why that near-agreement is not the reassurance it looks like.
+
+D-001's mechanism was designed for precisely this: invert `AVeff` from `chi/chi0`, so that
+3D-PDR's `alpha*rad_surface*exp(-gamma*AVeff)` reproduces the MC field *including its diffuse
+component*. D-043 replaced that with direct dust-column integration under plane-parallel
+illumination because chi underflowed to zero deep in the slab and the inversion degenerated.
+
+**That underflow was the A_V-origin bug of D-045, and it is fixed.** chi now stays finite all the
+way to the back wall (1.16 at A_V = 1.675, against 8.4 at the face). So the inversion is viable
+again in this mode, and restoring it is what would carry the diffuse field into the chemistry.
+
+### Open item
+
+- [ ] **Restore the D-001 A_V inversion under plane-parallel illumination.** Drop the
+      `.not.lgPlaneIonization` guard in `mocassinToPDR`, keeping `computeAVdust` as the fallback
+      wherever chi still underflows. Expect the fronts to move deeper than 3D-PDR's, and treat
+      that as the correct outcome rather than a regression. Verify against gamma_eff = 0.73
+      rather than against 3D-PDR's front positions.
