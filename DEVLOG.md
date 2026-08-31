@@ -63,7 +63,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-039 | Network elemental abundances synced to MOCASSIN's | Accepted | 2026-08-29c |
 | D-040 | No memory leak; OOM was rank-count x replication under systemd-oomd | Accepted | 2026-08-29c |
 | D-041 | Reject non-finite level-population solves instead of propagating them | Accepted | 2026-08-29d |
-| D-042 | A_V inverted from the MC field degenerates where the field underflows | Open | 2026-08-29d |
+| D-042 | A_V inverted from the MC field degenerates where the field underflows | Resolved by D-043 | 2026-08-29d |
+| D-043 | A_V from direct dust-column integration under plane-parallel illumination | Accepted | 2026-08-29e |
+| D-044 | Slab illumination normalisation is not yet understood; benchmark still open | Open | 2026-08-29e |
 
 ---
 
@@ -2263,6 +2265,93 @@ with depth regardless of how few photons arrive. This is now the blocker on the 
 
 - [ ] **Compute A_V from the dust column rather than by inverting the MC field (D-042).**
       Blocks the benchmark.
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Deep cells settle at T_gas ~ 5 K where a real cloud interior sits nearer 10 K.
+- [ ] Consider checkpointing `pdrLevPop`.
+
+---
+
+## 2026-08-29e — A_V from the dust column; the slab's illumination is still wrong
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-043 — Under plane-parallel illumination, A_V comes from the dust column.** *Accepted.
+Resolves D-042.*
+
+`computeAVdust` integrates `kappa_ext(V) = absOpac + scaOpac` along +y from the illuminated
+face, evaluating A_V at each cell centre. Both arrays are `Ndust*sigma` and therefore already
+per unit length, so the accumulation is direct; `A_V = 1.0857*tau_V`.
+
+The MC inversion of D-026 is skipped when `lgPlaneIonization` and retained otherwise. General
+3D geometry still needs the ray trace of D-002.
+
+*Result:* A_V is now monotonic with depth and **no cell reports A_V = 0** (previously most
+deep cells did), spanning 0.008 to 3.35 across the slab. The transition fronts became
+locatable for the first time.
+
+*Why the old definition had to go, restated because it is a general trap:* A_V,eff was derived
+by inverting a **measurement**. That is exact while the measurement has signal and carries no
+information at all once it saturates - here, once chi underflows to zero because no packet
+reaches that depth. The failure is silent: the cells were physically correct (fully shielded,
+fully molecular) and merely mislabelled, so nothing looked wrong until the coordinate was used
+as an abscissa. **A quantity derived by inverting a measurement inherits that measurement's
+dynamic range.**
+
+---
+
+**D-044 — The slab's illumination normalisation is not understood. Benchmark still open.**
+*OPEN*
+
+With A_V fixed, the fronts could be compared for the first time, and they do not agree:
+
+| front | MOCASSIN+PDR slab | standalone 3D-PDR |
+|---|---|---|
+| H/H2 | 0.025 | 0.069 |
+| C+/C | 0.042 | 1.677 |
+
+The cause is not the chemistry - it is that **the FUV field decays far faster than dust
+extinction allows**. At the face chi = 51.9 (target: 10), and by A_V = 0.33 chi is exactly
+zero, where extinction alone predicts `51.9*exp(-3.02*0.33) = 19`.
+
+*First diagnosis, correct but insufficient:* the slab was 4.4:1 **deeper than wide**
+(`edges 2.0e18 8.8e18 2.0e18`), the opposite of what a plane-parallel approximation needs.
+MOCASSIN has no periodic boundaries, so a scattered photon exits the side after ~L_x rather
+than continuing to depth.
+
+*The correction made it worse.* Widening to `edges 4.0e19 8.8e18 4.0e19` dropped chi at the
+face to 1.77e-3 and brought the NaNs back. So the transverse aspect ratio is not the whole
+story, and something in how the incident flux is normalised against the face is wrong.
+
+The suspect is `setMotherGrid`:
+
+```fortran
+Lstar(1) = (meanField/1.e36)*grid%xAxis(grid%nx)*grid%zAxis(grid%nz)
+```
+
+which uses the axis **maxima**. If the axes run -L..+L the illuminated face is 2L x 2L while
+this computes L x L - a factor of four - and packets are launched across the full face
+(`position%x` spans the whole axis range). That would explain a normalisation error but not a
+factor of 5600, so it is at most part of it.
+
+**Stopping here rather than guessing further.** The next step is to establish, from the code
+rather than by inference, what `planeIonization` actually normalises against - whether the axes
+are symmetric in this mode, what area the packets are spread over, and how `meanField` relates
+to the flux entering the face. That is a bounded reading task, and it should precede any
+further parameter tuning.
+
+*What is not in doubt:* the coupling physics is verified independently of this. Chemistry,
+radiation field, heating, cooling, thermal balance, dust temperature and the ionization
+feedback all reproduce standalone 3D-PDR at matched conditions. What remains is a geometry and
+normalisation problem in one illumination mode.
+
+### Open items
+
+- [ ] **Establish what `planeIonization` normalises the flux against (D-044).** Blocks the
+      benchmark. Read `setMotherGrid` and the packet launcher together; do not tune parameters
+      until the normalisation is understood.
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
 - [ ] Deep cells settle at T_gas ~ 5 K where a real cloud interior sits nearer 10 K.

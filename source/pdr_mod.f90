@@ -77,7 +77,8 @@ module pdr_mod
     implicit none
 
     private
-    public :: initPDRnetwork, seedPDR, calibratePDRdust, mocassinToPDR, pdrStep, pdrToMocassin
+    public :: initPDRnetwork, seedPDR, calibratePDRdust, computeAVdust, &
+            & mocassinToPDR, pdrStep, pdrToMocassin
 
     contains
 
@@ -450,6 +451,71 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
+      ! A_V by direct integration of the dust column (DEVLOG D-042).
+      !
+      ! The MC-inverted A_V of D-026 is exact while chi is measurable and
+      ! carries NO depth information once chi underflows - deep in a resolved
+      ! slab no packet ever arrives, chi is exactly zero, and every such cell
+      ! collapses to A_V = 0. The chemistry there is still right; the
+      ! coordinate is not, and the coordinate is what a benchmark needs.
+      !
+      ! Under plane-parallel illumination the beam is normal (0,1,0) from the
+      ! y=0 face, so the column is a straight accumulation along +y of
+      ! kappa_ext(V) = absOpac + scaOpac, both of which are Ndust*sigma and so
+      ! already per unit length. A_V is evaluated at the cell centre, hence the
+      ! half-step either side.
+      !
+      ! General 3D geometry still needs the ray trace of D-002; there the MC
+      ! inversion remains in use.
+      !-----------------------------------------------------------------
+      subroutine computeAVdust(grid)
+        implicit none
+
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer          :: iG, i, j, k, cellP, yTop
+        double precision :: tau, dy, kap
+
+        if (.not.lgPlaneIonization) return
+
+        do iG = 1, nGrids
+           if (iG > 1 .or. (.not.lg2D)) then
+              yTop = grid(iG)%ny
+           else
+              yTop = 1
+           end if
+
+           do i = 1, grid(iG)%nx
+              do k = 1, grid(iG)%nz
+                 tau = 0.d0
+                 do j = 1, yTop
+
+                    if (j > 1 .and. j < grid(iG)%ny) then
+                       dy = 0.5d0*abs(dble(grid(iG)%yAxis(j+1)) - dble(grid(iG)%yAxis(j-1)))
+                    else if (j == 1) then
+                       dy = abs(dble(grid(iG)%yAxis(min(2,grid(iG)%ny))) - dble(grid(iG)%yAxis(1)))
+                    else
+                       dy = abs(dble(grid(iG)%yAxis(j)) - dble(grid(iG)%yAxis(j-1)))
+                    end if
+
+                    cellP = grid(iG)%active(i,j,k)
+                    kap = 0.d0
+                    if (cellP > 0) kap = dble(grid(iG)%absOpac(cellP,VbandP)) &
+                         &              + dble(grid(iG)%scaOpac(cellP,VbandP))
+
+                    tau = tau + kap*dy*0.5d0
+                    if (cellP > 0) grid(iG)%AVeff(cellP) = real(dble(magPerTau)*tau)
+                    tau = tau + kap*dy*0.5d0
+
+                 end do
+              end do
+           end do
+        end do
+
+      end subroutine computeAVdust
+
+
+      !-----------------------------------------------------------------
       ! Reduce the Monte Carlo radiation field to what the chemistry needs.
       !
       ! chi is the D-001 formula, validated to 0.3% in Phase 0: Jste/Jdif are
@@ -522,12 +588,20 @@ module pdr_mod
                     ! Invert the measured attenuation into a genuine visual
                     ! extinction in magnitudes, using this model's own grains
                     ! (D-026). tau_FUV -> A_V = 1.0857*tau_FUV/R_FUV.
-                    if (chi0 > chi .and. chi > 0.d0) then
-                       tauFUV = -log(chi/chi0)
-                       grid(iG)%AVeff(cellP) = &
-                            & real(dble(magPerTau)*tauFUV/dble(pdrRfuv))
-                    else
-                       grid(iG)%AVeff(cellP) = 0.
+                    !
+                    ! Skipped under plane-parallel illumination, where
+                    ! computeAVdust has already integrated the dust column
+                    ! directly: inverting the MC field loses all depth
+                    ! information once chi underflows to zero, which is exactly
+                    ! what happens deep in a well-resolved slab (D-042).
+                    if (.not.lgPlaneIonization) then
+                       if (chi0 > chi .and. chi > 0.d0) then
+                          tauFUV = -log(chi/chi0)
+                          grid(iG)%AVeff(cellP) = &
+                               & real(dble(magPerTau)*tauFUV/dble(pdrRfuv))
+                       else
+                          grid(iG)%AVeff(cellP) = 0.
+                       end if
                     end if
 
                     ! zone flag (D-007): PDR chemistry runs in the neutral gas

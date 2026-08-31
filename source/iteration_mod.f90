@@ -776,6 +776,7 @@ module iteration_mod
            ! runs later and was validated in Phase 0, disagreed by that factor.
            if (lgPDR) then
               if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+              call computeAVdust(grid(1:nGrids))
               call mocassinToPDR(grid(1:nGrids))
            end if
 #endif
