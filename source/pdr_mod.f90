@@ -427,6 +427,18 @@ module pdr_mod
            stop
         end if
 
+        ! D-055: pdrAVfac converts A_V back to N_H for the H2/CO self-shielding
+        ! columns (NHcol = av/pdrAVfac). It MUST invert what computeAVdust
+        ! produced, or the shielding columns are wrong by their ratio. Derive it
+        ! from the same grains rather than leaving it at a literature default:
+        ! A_V per unit length is magPerTau*kV, N_H per unit length is Hden.
+        if (grid(1)%Hden(iCell) > 0.) then
+           pdrAVfac = real(dble(magPerTau)*kV/dble(grid(1)%Hden(iCell)))
+           if (taskid == 0) print*, &
+                & "! calibratePDRdust: A_V per N_H =", pdrAVfac, &
+                & "  (N_H per mag =", 1./pdrAVfac, ")"
+        end if
+
         if (kV <= 0.d0 .or. kFUV <= 0.d0) then
            print*, "! calibratePDRdust: non-positive dust opacity at V or FUV"
            stop
@@ -746,6 +758,9 @@ module pdr_mod
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
+        double precision   :: Flo, Fhi, Fratio, Fden, xlo, xhi, xnewT, denom
+        logical            :: doChop
+        character(len=1)   :: prevChange, illLast
         double precision   :: TdMoc, TdHTT, T0HTT
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
@@ -1016,6 +1031,14 @@ module pdr_mod
               exit
            end if
 
+           ! D-056 (reverted): porting 3D-PDR's +-30% expansion + Illinois
+           ! regula falsi into this loop made things worse - transverse spread
+           ! at A_V~0.1 went from 150-152 K to 167-814 K, heat/cool from 0.997
+           ! to 1.055. Its +-30% steps assume 3D-PDR's ~65 OUTER iterations with
+           ! the bracket persisting across them; this inner loop gets 12 steps
+           ! and resets each MC iteration, so the search never reaches the root.
+           ! Porting it properly means persisting Tlow/Thigh/Flow/Fhigh and the
+           ! direction flags on the grid, not just the arithmetic.
            Fbal = heat(12) - coolTot
            if (Fbal > 0.d0) then
               Tlo = Tg
@@ -1024,13 +1047,11 @@ module pdr_mod
            end if
 
            if (Tlo > 0.d0 .and. Thi > 0.d0) then
-              ! bracketed: geometric bisection, which suits the two decades a
-              ! PDR temperature can span
               Tg = sqrt(Tlo*Thi)
            else if (Fbal > 0.d0) then
-              Tg = Tg*2.d0        ! too cold everywhere so far, march up
+              Tg = Tg*2.d0
            else
-              Tg = Tg*0.5d0       ! too hot everywhere so far, march down
+              Tg = Tg*0.5d0
            end if
            Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
 

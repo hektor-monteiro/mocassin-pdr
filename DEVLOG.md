@@ -76,6 +76,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-052 | Mother-grid mirror walls omit the half-cell `geoCorr` the other walls use | Accepted | 2026-08-31 |
 | D-053 | 3D-PDR's fronts are not the target: MOCASSIN transports diffuse FUV | Accepted | 2026-08-31 |
 | D-054 | Follow TORUS-3DPDR: geometric A_V from the density field, not inverted from the MC field | Accepted | 2026-08-31 |
+| D-055 | Derive `pdrAVfac` from the model's own grains; it was 3.3x off the dust column | Accepted | 2026-08-31 |
+| D-056 | Porting 3D-PDR's thermal root finder into a 12-step inner loop - reverted | Reverted | 2026-08-31 |
+| D-057 | Graded y-axis collapses the surface thermal solve; use a uniform grid | Accepted | 2026-08-31 |
 
 ---
 
@@ -2823,3 +2826,108 @@ field is mostly forward scattering, not a separate diffuse source.
 Our slab (n_H = 10^3, chi = 10) is closest to Rollig **V1**, though not identical to it: we run
 zeta = 1e-16 against the benchmark's 5e-17, and C/H = 2.2e-4, O/H = 3.3e-4 against 1e-4 and 3e-4.
 Matching V1 exactly is the natural next benchmark step.
+
+
+## 2026-08-31f - adopting what TORUS-3DPDR settled, and the Rollig V1 run
+
+Continuing on Hektor's instruction to reuse what TORUS-3DPDR already worked out rather than
+reinventing it.
+
+### D-055: `pdrAVfac` was inconsistent with our own dust
+
+`computeAVdust` builds A_V by integrating the real grain extinction (`absOpac + scaOpac` at V).
+The chemistry then inverts it to get the self-shielding columns:
+
+    NHcol = av / pdrAVfac
+
+but `pdrAVfac` was a hardcoded literature default, `6.289e-22`. The dust in this model actually
+gives `1.900e-22` per magnitude. The round trip was therefore wrong by **3.3x**, and H2 and CO
+self-shielding - which is exactly what sets the two fronts - was computed off a column 3.3x too
+small.
+
+Fixed by deriving it in `calibratePDRdust` from the same grains that `computeAVdust` integrates:
+
+```fortran
+pdrAVfac = real(dble(magPerTau)*kV/dble(grid(1)%Hden(iCell)))
+```
+
+The run now prints, and it matches the value measured from the slab profile to three digits:
+
+    ! calibratePDRdust: A_V per N_H = 1.90034396E-22 (N_H per mag = 5.26220509E+21)
+
+Worth recording as a model property: **these grains give 5.26e21 N_H per magnitude against the
+canonical diffuse-ISM 1.87e21**, so they are ~2.8x less extinguishing per hydrogen than the value
+the Rollig benchmark assumes. At a matched A_V our column is 2.8x deeper in N_H. Matching the
+benchmark's dust (rather than just its A_V) would need `MdMg` near 0.028, and is a separate
+decision from this fix.
+
+Also adopted from TORUS: the PDR zone criterion is now `x(H+) < 0.3` (was 0.5), their published
+value. We already use HEALPix level 0 (12 rays), as they do.
+
+### D-056: porting 3D-PDR's thermal root finder - attempted, reverted
+
+TORUS states its thermal-balance routines are 3D-PDR's unchanged, so the obvious move was to stop
+hand-rolling ours. 3D-PDR's `changetemperature.F90` differs from our march in ways that all looked
+like improvements:
+
+- expands the bracket by **+-30%**, not x2 / x0.5
+- tracks `previouschange` and only starts root-finding when the direction **reverses**, which is
+  what actually proves a bracket - our march set a bound from any sign of F, so a "bracket" could
+  span more than one root
+- then runs an **Illinois-modified regula falsi in ln(T)**, not plain geometric bisection
+- converges on `Fratio = 2|F|/|heat+cool| <= Fcrit`, with `fullyconverged` latching
+
+Ported faithfully, it made things measurably worse:
+
+| | old march | ported | reference |
+|---|---|---|---|
+| transverse spread at A_V ~ 0.1 | 150.9 - 152.3 K | **167 - 814 K** | uniform |
+| heat/cool median | 0.9965 | 1.0549 | 1 |
+| deep T | 11.8 K | 33.0 K | ~10 K |
+
+**Why it failed is the useful part.** 3D-PDR's +-30% expansion assumes its own outer structure:
+~65 iterations with `Tlow`, `Thigh`, `Flow`, `Fhigh`, `previouschange`, `dobinarychop` and
+`fullyconverged` **persisting across them**. Our inner loop gets `pdrThermIter = 12` steps and
+resets that state on every MC iteration. Twelve +-30% steps move the temperature by at most
+1.3^12 ~ 23x and usually far less before switching to chop, so the search never arrives. Our
+coarser x2 march covers more ground and is the better choice *for a 12-step budget*.
+
+Reverted. Porting it properly means persisting the bracket state on the grid across MC iterations
+- i.e. adopting 3D-PDR's iteration structure, not just its arithmetic. That is the right shape of
+the fix and is now the open item.
+
+### D-057: the graded y-axis breaks the surface, not the solver
+
+To reach A_V = 10 while still resolving a front at A_V ~ 0.07, I built the V1 grid with a
+geometrically graded y-axis (first cell 2e15 cm, ratio 1.0435). The deep chemistry came out well,
+but the surface layer sat at **35 K where it belongs near 570 K**.
+
+That survived the D-056 solver swap unchanged, which is what identified it. The cells at
+A_V < 0.001 report
+
+    heat = 6.5e-22   cool = 1.8e-23   ->  heat/cool = 37
+
+with `Tlow = Thigh = Tgas` - a *collapsed* bracket. The solver is reporting convergence at a point
+that is nowhere near balance.
+
+The tell is that the earlier **uniform**-grid slabs had a correct 500-570 K surface. The graded
+axis makes the first cells so thin that `NHcol = av/pdrAVfac` collapses toward zero, and the
+shielding columns and escape probabilities that the cooling depends on degenerate with it.
+
+Re-running V1 on a uniform grid, 1001 cells deep at dA_V = 0.01 per cell, which resolves the
+H/H2 front and still reaches A_V = 10.
+
+### Where the V1 run stands (graded-axis version)
+
+| quantity | coupled | Rollig V1 |
+|---|---|---|
+| C -> CO | **3.00** | ~2-3 |
+| C+ -> C | 0.85 | ~1.7 |
+| H -> 2H2 | corrupted by the surface | ~0.07 |
+| deep T | 11.8 K | ~10 K |
+| deep x(CO) | 9.94e-5 of C/H = 1e-4 | ~1e-4 |
+| heat/cool median | 0.9965 | 1 |
+
+The full layered PDR structure is present for the first time, and the deep cloud - CO reservoir,
+temperature, thermal balance - is right. The C+/C front is still a factor of two shallow, and the
+surface is unusable until D-057 is confirmed fixed.

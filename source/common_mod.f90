@@ -525,7 +525,7 @@ module common_mod
     real                :: pdrVturb   = 1.0        ! turbulent velocity [km/s]
     real                :: pdrTmin    = 1.0        ! floor gas temperature [K]
     real                :: pdrTmax    = 2.0e4      ! ceiling gas temperature [K]
-    real                :: pdrZoneLim = 0.5        ! x(H+) below which PDR chemistry runs
+    real                :: pdrZoneLim = 0.3        ! x(H+) below which PDR chemistry runs (TORUS-3DPDR, D-055)
     real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants
     character(len=50)   :: pdrCoolant(30) = ''     ! coolant datafile names
