@@ -64,7 +64,8 @@ module pdr_mod
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
                                & pdrNelect    => NELECT,      &
-                               & NH2, NC, NCO, NH, NPROTON, NHe, NHEx
+                               & NH2, NC, NCO, NH, NPROTON, NHe, NHEx, &
+                               & NCx, NO, NOx, NMG, NMGx
 
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
@@ -236,15 +237,106 @@ module pdr_mod
         implicit none
 
         type(grid_type), dimension(:), intent(inout) :: grid
-        integer :: iG, iCell
+
+        integer :: iG, iCell, i, j, k, iAb, yTop
+        double precision :: seed(pdrNspec)
+
+        ! Report how the two codes' elemental abundances compare, once. They are
+        ! set independently - the network's from species_*.d, MOCASSIN's from its
+        ! abundance file - and in the shipped files they disagree: C/H is 1.4e-4
+        ! in the reduced network against 2.2e-4 in abunHII20.in, so the chemistry
+        ! and the opacity/emission were modelling different amounts of carbon.
+        if (taskid == 0) then
+           print*, "! seedPDR: elemental abundances, network vs MOCASSIN -"
+           call reportAbun( 2, NHe,  grid(1)%elemAbun(1, 2), 'He')
+           call reportAbun( 6, NCx,  grid(1)%elemAbun(1, 6), 'C ')
+           call reportAbun( 8, NO,   grid(1)%elemAbun(1, 8), 'O ')
+           call reportAbun(12, NMGx, grid(1)%elemAbun(1,12), 'Mg')
+           if (pdrSyncAbun /= 0) then
+              print*, "!   rescaling the network to MOCASSIN's values (pdrSyncAbun)"
+           else
+              print*, "!   [warning] pdrSyncAbun=0: the two are left inconsistent"
+           end if
+        end if
 
         do iG = 1, nGrids
+           if (iG > 1 .or. (.not.lg2D)) then
+              yTop = grid(iG)%ny
+           else
+              yTop = 1
+           end if
+
+           ! default seed for cells the loop below does not reach (inactive)
            do iCell = 0, grid(iG)%nCells
               grid(iG)%pdrAbun(iCell,:) = pdrInitAbun(1:pdrNspec)
+           end do
+
+           do i = 1, grid(iG)%nx
+              do j = 1, yTop
+                 do k = 1, grid(iG)%nz
+                    iCell = grid(iG)%active(i,j,k)
+                    if (iCell <= 0) cycle
+                    iAb = grid(iG)%abFileIndex(i,j,k)
+
+                    seed = pdrInitAbun(1:pdrNspec)
+
+                    ! At initialisation each element sits in exactly one carrier
+                    ! species, so matching MOCASSIN's elemental abundance is a
+                    ! single assignment per element. Done per cell so that
+                    ! multiChemistry models with different abundance files get
+                    ! the right budget in each region.
+                    if (pdrSyncAbun /= 0) then
+                       call syncSeed(seed, NHe,  grid(iG)%elemAbun(iAb, 2))
+                       call syncSeed(seed, NCx,  grid(iG)%elemAbun(iAb, 6))
+                       call syncSeed(seed, NO,   grid(iG)%elemAbun(iAb, 8))
+                       call syncSeed(seed, NMGx, grid(iG)%elemAbun(iAb,12))
+                    end if
+
+                    grid(iG)%pdrAbun(iCell,:) = seed
+                 end do
+              end do
            end do
         end do
 
       end subroutine seedPDR
+
+
+      !-----------------------------------------------------------------
+      ! Set one element's carrier species to MOCASSIN's elemental abundance.
+      ! A zero MOCASSIN abundance means the element is switched off there, and
+      ! the network's value is left alone rather than deleting the element -
+      ! removing e.g. Mg+ would silently change the electron budget.
+      !-----------------------------------------------------------------
+      subroutine syncSeed(seed, iSp, abunMoc)
+        implicit none
+        double precision, intent(inout) :: seed(:)
+        integer, intent(in)             :: iSp
+        real, intent(in)                :: abunMoc
+
+        if (iSp <= 0) return
+        if (abunMoc <= 0.) return
+        seed(iSp) = dble(abunMoc)
+
+      end subroutine syncSeed
+
+
+      subroutine reportAbun(elem, iSp, abunMoc, label)
+        implicit none
+        integer, intent(in)          :: elem, iSp
+        real, intent(in)             :: abunMoc
+        character(len=2), intent(in) :: label
+
+        if (iSp <= 0) then
+           print*, "!   ", label, " not in this network"
+        else if (abunMoc <= 0.) then
+           print*, "!   ", label, " network ", pdrInitAbun(iSp), &
+                & " MOCASSIN: element off - network value kept"
+        else
+           print*, "!   ", label, " network ", pdrInitAbun(iSp), &
+                & " MOCASSIN ", abunMoc
+        end if
+
+      end subroutine reportAbun
 
 
 
@@ -818,7 +910,7 @@ module pdr_mod
 
         type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer          :: iG, i, j, k, cellP, yTop
+        integer          :: iG, i, j, k, cellP, yTop, iAb
         double precision :: xHII, w, lo, hi, xnew, heTot
 
         lo = log10(max(dble(pdrBlendLo), 1.d-30))
@@ -862,12 +954,6 @@ module pdr_mod
                     ! the zone flag, the electron density and the proton density
                     ! is now the one computed with the relevant physics.
                     !
-                    ! Metals are deliberately NOT written back. MOCASSIN's ionDen
-                    ! has two stages per element and no notion of molecules, so
-                    ! carbon locked in CO would have to be booked as either C0 or
-                    ! C+ - either choice misrepresents it. D-007 already assigns
-                    ! [C II] and [O I] in PDR cells to 3D-PDR, which is where that
-                    ! carbon is accounted for correctly.
                     if (NPROTON > 0) then
                        xnew = min(max(grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0)
                        grid(iG)%ionDen(cellP,elementXref(1),2) = real( &
@@ -884,15 +970,81 @@ module pdr_mod
                                & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(2),2)))
                           grid(iG)%ionDen(cellP,elementXref(2),1) = &
                                & 1.0 - grid(iG)%ionDen(cellP,elementXref(2),2)
-                          grid(iG)%ionDen(cellP,elementXref(2),3) = 0.
+                          grid(iG)%ionDen(cellP,elementXref(2),3) = 1.e-20
                        end if
                     end if
+
+                    ! ---- metals (DEVLOG D-038) ---------------------------
+                    ! MOCASSIN tracks min(elem+1, nstages) stages per element -
+                    ! seven for carbon at the default nstages=7, not two. And
+                    ! every consumer uses ionDen MULTIPLICATIVELY:
+                    !   Np           = ionDen(...,1,2)*elemAbun(1)
+                    !   forbidden    = ...*elemAbun(elem)*ionDen(...,elem,ion)
+                    ! Nothing infers a stage by closure, so the stages summing to
+                    ! one is an OUTPUT property of ionBalance, not an input
+                    ! requirement.
+                    !
+                    ! That is what makes the molecular fraction easy rather than
+                    ! awkward: carbon locked in CO simply does not appear in any
+                    ! atomic stage. The fractions then sum to less than one, which
+                    ! is exactly right - that carbon emits no atomic line and
+                    ! contributes no free electron. Higher stages are set to
+                    ! MOCASSIN's own floor since C2+ and the like are negligible
+                    ! at PDR temperatures.
+                    iAb = grid(iG)%abFileIndex(i,j,k)
+                    call setIonPair(grid(iG), cellP, iAb,  6, NC,  NCx,  w)
+                    call setIonPair(grid(iG), cellP, iAb,  8, NO,  NOx,  w)
+                    call setIonPair(grid(iG), cellP, iAb, 12, NMG, NMGx, w)
                  end do
               end do
            end do
         end do
 
       end subroutine pdrToMocassin
+
+
+      !-----------------------------------------------------------------
+      ! Write one element's neutral and singly-ionised fractions into
+      ! grid%ionDen, blended by w, and floor the higher stages.
+      !
+      ! The fractions are taken relative to MOCASSIN's own elemAbun so that
+      ! ionDen*elemAbun reproduces the network's density directly. That is
+      ! exact only if both codes use the same elemental abundances - the
+      ! network's come from species_*.d and MOCASSIN's from its abundance
+      ! file. They are clamped here, and reconciling them is an open item.
+      !-----------------------------------------------------------------
+      subroutine setIonPair(grid, cellP, iAb, elem, iNeut, iIon, w)
+        implicit none
+
+        type(grid_type), intent(inout) :: grid
+        integer, intent(in)            :: cellP, iAb, elem, iNeut, iIon
+        double precision, intent(in)   :: w
+
+        integer          :: ion, nTop
+        double precision :: tot, f0, f1
+
+        if (elem > nElements) return
+        if (.not.lgElementOn(elem)) return
+        if (iNeut <= 0 .or. iIon <= 0) return
+
+        tot = dble(grid%elemAbun(iAb, elem))
+        if (tot <= 0.d0) return
+
+        f0 = min(max(grid%pdrAbun(cellP,iNeut)/tot, 0.d0), 1.d0)
+        f1 = min(max(grid%pdrAbun(cellP,iIon )/tot, 0.d0), 1.d0)
+
+        grid%ionDen(cellP,elementXref(elem),1) = real( &
+             & w*f0 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),1)))
+        grid%ionDen(cellP,elementXref(elem),2) = real( &
+             & w*f1 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),2)))
+
+        nTop = min(elem+1, nStages)
+        do ion = 3, nTop
+           grid%ionDen(cellP,elementXref(elem),ion) = real( &
+                & w*1.d-20 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),ion)))
+        end do
+
+      end subroutine setIonPair
 
 #endif
 end module pdr_mod

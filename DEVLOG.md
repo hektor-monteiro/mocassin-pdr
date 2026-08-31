@@ -59,6 +59,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-035 | MOCASSIN has no cosmic-ray physics; ionization state is unreconciled | Accepted | 2026-08-29 |
 | D-036 | Dust temperature from HTT91 where MOCASSIN's is unphysically low | Accepted | 2026-08-29b |
 | D-037 | Ionization state fed back to MOCASSIN for H and He | Accepted | 2026-08-29b |
+| D-038 | Metals fed back too; the "two stages" rationale was wrong | Accepted | 2026-08-29c |
+| D-039 | Network elemental abundances synced to MOCASSIN's | Accepted | 2026-08-29c |
+| D-040 | No memory leak; OOM was rank-count x replication under systemd-oomd | Accepted | 2026-08-29c |
 
 ---
 
@@ -2043,6 +2046,126 @@ have driven to zero. PDR-off build verified unchanged.
 - [ ] Deep cells settle at T_gas ~ 3-6 K where a real cloud interior sits nearer 10 K. Worth
       checking whether `pdrTmin` should default above the CMB, and whether gas-grain coupling
       to the now-warmer dust is being applied.
+- [ ] Consider checkpointing `pdrLevPop`.
+
+---
+
+## 2026-08-29c — Metals fed back after a wrong premise; abundances synced; the OOM explained
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+---
+
+**D-038 — Metals ARE fed back. D-037's rationale for excluding them was wrong.** *Accepted*
+
+D-037 excluded metals on the grounds that "MOCASSIN's `ionDen` has two stages per element and
+no notion of molecules, so carbon locked in CO would have to be booked as either C0 or C+".
+Hektor pushed back, and **both halves of that were wrong**:
+
+1. **MOCASSIN tracks `min(elem+1, nStages)` stages per element** - seven for carbon at the
+   default `nstages=7`, not two. Confirmed directly from `grid2.out`, whose line-length
+   histogram is `{2: H, 3: He, 7: five metals}`.
+
+2. **Nothing requires the stages to sum to one.** Every consumer uses `ionDen`
+   *multiplicatively*:
+   ```
+   Np                           = ionDen(...,1,2)*elemAbun(1)
+   emissionHeI                  = ...*elemAbun(2)*ionDen(...,2)*Ne
+   forbiddenLines(elem,ion,:,:) = ...*elemAbun(elem)*ionDen(...,elem,ion)
+   ```
+   and nothing infers a stage by closure. Summing to unity is an **output** property of
+   `ionBalance`'s construction (`ionDen(1)=1/denominator`, `ionDen(ion)=ionProd/denominator`),
+   not an input requirement.
+
+That inverts the conclusion. The molecular fraction is not awkward - it is simply **absent**
+from the atomic stages, which is exactly right: carbon in CO emits no atomic line and donates
+no free electron. `setIonPair` now writes C, O and Mg, with stages above the first ion set to
+MOCASSIN's own 1e-20 floor.
+
+Verified in a deep cell: network has C+ 8.9e-9, C 7.0e-8, CO 1.4e-4; MOCASSIN now holds
+`ionDen(C) = [3.18e-4, 4.06e-5, 1e-20 x5]`, summing to **3.6e-4**. Only 0.036% of carbon
+appears as atomic - the rest is correctly missing. Previously `ionBalance` had those summing to
+1, i.e. treating essentially all carbon as atomic, over-predicting C I and C II by ~2800x.
+
+*Worth noting how the error survived.* It was stated confidently in a commit message and a
+design doc, and re-read several times, because it sounded like a structural fact about
+MOCASSIN. It was never checked - one look at `nstages` would have settled it. **An assumption
+about someone else's data structure is a thing to verify, not to reason from.**
+
+---
+
+**D-039 — The network's elemental abundances are synced to MOCASSIN's.** *Accepted*
+
+Investigating D-038 surfaced a second inconsistency: the two codes were modelling **different
+amounts of carbon**. The network's initial abundances come from `species_*.d`, MOCASSIN's from
+its abundance file, and nothing connected them:
+
+| element | network | MOCASSIN | |
+|---|---|---|---|
+| H | 0.4 + 2x0.3 = 1.0 | 1.0 | agree |
+| He | 1.0e-1 | 0.1 | agree |
+| C | 1.40e-4 | 2.2e-4 | **57% apart** |
+| O | 3.00e-4 | 3.3e-4 | **10% apart** |
+| Mg | 2.7e-6 | 0 (element off) | network only |
+
+So the chemistry, cooling and line emission were running on 1.4e-4 carbon while MOCASSIN's
+opacity and emission used 2.2e-4.
+
+At initialisation each element sits in exactly one carrier species, so reconciling them is a
+single assignment per element. `seedPDR` now does this **per cell**, using that cell's
+abundance-file index so `multiChemistry` models get the right budget in each region, and
+reports the comparison at startup. Controlled by `pdrSyncAbun` (default on).
+
+Where MOCASSIN has an element switched off - Mg here - the network's value is **kept rather
+than zeroed**. Deleting Mg+ would silently change the electron budget of the shielded gas,
+which is not a change to make as a side effect of an abundance sync.
+
+---
+
+**D-040 — There is no memory leak. The OOM was rank count times grid replication, under
+systemd-oomd.** *Accepted*
+
+Runs had been dying with exit 137, and the reported symptom was RAM climbing linearly without
+bound - which is the signature of a leak. It is not one.
+
+*Audited, all balanced:* `escape_probability` (3 allocate / 3 deallocate, `#ifdef SOBOLEV`
+guards matched on both sides), `calculate_abundances.c` (every CVODE object freed - context,
+vector, solver memory, matrix, linear solver, and all three `malloc`s), `chemical_heating`
+(its single allocate is in `init_chemical_heating`, called once), and the PDR block of
+`iteration_mod` (12 allocates, 12 deallocates).
+
+*Measured:* the same model at 13^3 with `nbins=1000` on 2 ranks, run with `pdr 0` and then
+`pdr 1`, holds **RSS flat at ~250 MB per rank** and exits cleanly in both cases. No growth,
+with or without the PDR module.
+
+*So the cause is the footprint, not a leak.* MOCASSIN replicates the full grid on **every**
+rank, so memory scales linearly with `-np`. The arrays that dominate are all
+`nCells x nbins`, and `escapedPackets` carries a further `nAngleBins` factor - which is why
+`iterateMC` reduces it in chunks. Asking for 14 ranks multiplies the whole footprint by 14.
+
+*And the kill was made by `systemd-oomd`, not the kernel's classic OOM path*, in a cgroup
+recorded as `app-gitkraken-9385.scope` - i.e. the shell inherited GitKraken's systemd scope.
+systemd-oomd kills on memory **pressure** within a cgroup, so it can fire well before physical
+RAM is exhausted and while `free` still shows tens of gigabytes available. That is why the
+crash looked like a runaway leak on a 61 GB machine.
+
+*Practical guidance:* run models from a plain terminal rather than one launched by a desktop
+app, and treat `-np` as a memory multiplier - for large grids or large `nbins`, fewer ranks may
+be the only way to fit, and D-013's `nbins >= 1000` recommendation has a memory price.
+
+*A process note.* Three diagnostic attempts were wasted before this landed: one sampled a model
+whose dust setup dominated and never reached `pdrStep`; two ran the binary without `mpirun` and
+with block-buffered output, so the log greps returned zero and the sampled RSS was not a
+running solver. **Each produced confident-looking numbers that meant nothing.** The fix was to
+check the harness itself - is the process actually running, is the output actually flushed -
+before reading anything into its output.
+
+### Open items
+
+- [ ] Run the 1D benchmark using `planeIonization` (D-034), `nx = nz = 5`, `ny ~ 200`.
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Deep cells settle at T_gas ~ 3-6 K where a real cloud interior sits nearer 10 K.
 - [ ] Consider checkpointing `pdrLevPop`.
 
 ---

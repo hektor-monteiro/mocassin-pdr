@@ -511,6 +511,7 @@ module common_mod
     integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031)
     real                :: pdrFcrit   = 0.10        ! |heat-cool|/max tolerated as converged (D-032)
     integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
+    integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
     real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]
     real                :: pdrAVfac   = 6.289e-22  ! N_H -> A_V conversion

@@ -625,6 +625,9 @@ module set_input_mod
             case ("pdrDustModel")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDustModel
+            case ("pdrSyncAbun")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrSyncAbun
             case ("pdrEndTime")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrEndTime
