@@ -494,6 +494,8 @@ module common_mod
     integer             :: VbandP                   ! nuArray bin nearest Johnson V
     real                :: pdrRfuv    = 0.          ! measured tau_FUV/tau_V of the dust
     integer             :: pdrNstuck  = 0           ! cells whose chemistry did not advance
+    integer             :: pdrNbadPop = 0           ! level-population solves rejected (D-041)
+    double precision    :: pdrNspecFloor = 1.d-25   ! coolant abundance below which it is skipped
     integer             :: pdrNlevTot = 0           ! total coolant levels, summed over coolants
     integer             :: pdrMaxLev  = 1           ! largest cnlev over the coolants
     integer             :: pdrLevOff(30) = 0        ! offset of each coolant in pdrLevPop

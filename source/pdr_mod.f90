@@ -769,7 +769,13 @@ module pdr_mod
            do ik = 1, pdrNcool
               nlev = pdrCoolant2(ik)%cnlev
               nSpec = abun(pdrCoolant2(ik)%cspec)*nH
-              if (nSpec <= 0.d0) cycle
+
+              ! Skip a coolant whose carrier has been chemically destroyed.
+              ! Below this the level populations are numerically meaningless
+              ! and the transition matrix goes singular - solvlevpop's
+              ! Gauss-Jordan then hits a zero pivot, returns NaN, and the NaN
+              ! rides the cooling into T_gas and out into MOCASSIN (D-041).
+              if (nSpec <= pdrNspecFloor*nH) cycle
 
               lpop(1:nlev) = grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
 
@@ -824,6 +830,18 @@ module pdr_mod
 
               call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
 
+              ! Validate before trusting it. A singular matrix returns NaN
+              ! rather than failing, and that NaN surfaces far away as
+              ! "getGrainRecombination: insane eta" - a symptom naming neither
+              ! this routine nor the real cause. Keep the previous populations
+              ! and leave this coolant out of the budget for this pass.
+              if (any(lsol(1:nlev) /= lsol(1:nlev)) .or. &
+                & any(lsol(1:nlev) < 0.d0) .or. &
+                & sum(lsol(1:nlev)) <= 0.d0 .or. coolK /= coolK) then
+                 pdrNbadPop = pdrNbadPop + 1
+                 cycle
+              end if
+
               grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
               coolTot = coolTot + coolK
            end do
@@ -834,6 +852,9 @@ module pdr_mod
            ! Cooling is exponentially sensitive to T - a single bisection step
            ! can move it by two orders of magnitude - so the bracket has to be
            ! found by marching before bisecting, not assumed.
+           ! Never let a non-finite budget move the temperature.
+           if (heat(12) /= heat(12) .or. coolTot /= coolTot) exit
+
            Fbal = heat(12) - coolTot
            if (Fbal > 0.d0) then
               Tlo = Tg

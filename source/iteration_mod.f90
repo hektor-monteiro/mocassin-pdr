@@ -946,6 +946,7 @@ module iteration_mod
                  pdrTlTmp = 0.; pdrTlSum = 0.
                  pdrThTmp = 0.; pdrThSum = 0.
                  pdrNstuck   = 0
+                 pdrNbadPop  = 0
 
                  iCell = 0
                  do i = 1, grid(iG)%nx
@@ -1034,6 +1035,9 @@ module iteration_mod
                       & mpi_sum, mpi_comm_world, ierr)
                  if (taskid==0) then
                     print*, '! iterateMC: pdrStep out', iG
+                    if (pdrNbadPop > 0) print*, &
+                         & "! iterateMC: [warning] ", pdrNbadPop, &
+                         & " level-population solves rejected as non-finite (D-041)"
                     if (i1PdrStuck > 0) then
                        print*, "! iterateMC: chemistry unchanged in ", i1PdrStuck, &
                             & " cells (converged or stalled) - thermal balance still runs"

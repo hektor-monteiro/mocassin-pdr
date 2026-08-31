@@ -62,6 +62,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-038 | Metals fed back too; the "two stages" rationale was wrong | Accepted | 2026-08-29c |
 | D-039 | Network elemental abundances synced to MOCASSIN's | Accepted | 2026-08-29c |
 | D-040 | No memory leak; OOM was rank-count x replication under systemd-oomd | Accepted | 2026-08-29c |
+| D-041 | Reject non-finite level-population solves instead of propagating them | Accepted | 2026-08-29d |
+| D-042 | A_V inverted from the MC field degenerates where the field underflows | Open | 2026-08-29d |
 
 ---
 
@@ -2166,6 +2168,104 @@ before reading anything into its output.
 - [ ] Install `cmake` system-wide (carried from D-015).
 - [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
 - [ ] Deep cells settle at T_gas ~ 3-6 K where a real cloud interior sits nearer 10 K.
+- [ ] Consider checkpointing `pdrLevPop`.
+
+---
+
+## 2026-08-29d — Plane-parallel slab runs; a NaN fixed; A_V found wanting
+
+**Participants:** Hektor Monteiro, Claude (Opus 5)
+
+### Setting up the slab
+
+`planeIonization <flux> <nu0>` works as needed. With `nu0 = 0` the rescaling is skipped and
+the value is taken directly as the incident **bolometric** flux, and
+`Lstar = flux x xAxis(nx) x zAxis(nz)`. For chi = 10 Draine at the face with a 25 kK
+blackbody (f_FUV = 0.535):
+
+```
+F_FUV = chi*u_D*c = 2.680e-2 erg/s/cm2   ->   F_bol = 5.010e-2
+```
+
+Two setup facts that cost a run each and are worth recording:
+
+- **`ny` must be odd** - "the automatic grid option requires odd integer ny if not symmetric".
+- **`Rout 0` disables the radial clipping**, which otherwise trims a slab's corners since the
+  termination test is `sqrt(x^2+y^2+z^2) >= R_out .and. R_out > 0`.
+
+`edges Lx Ly Lz` sets each axis extent independently, so `nx = nz = 5, ny = 201` gives a
+5 x 201 x 5 slab - 5025 cells, trivial memory. The beam is normal: `direction = (0,1,0)`
+from the `y = 0` face, matching 3D-PDR's 1D geometry where all the flux sits on one ray.
+
+---
+
+**D-041 — A non-finite level-population solve is rejected, not propagated.** *Accepted*
+
+The full-resolution slab died with **19.9 million NaN lines**. The messages all read
+`getGrainRecombination: insane eta` - MOCASSIN's own grain code, nowhere near the PDR module.
+
+*Bisected in two runs, each halving the space:*
+
+| run | result |
+|---|---|
+| `pdr 0`, full resolution | **clean**, 2m25 - so it is not baseline MOCASSIN |
+| `pdr 1`, cooling off (`pdrCoolants 0`) | **clean** - so it is not the chemistry or heating |
+| `pdr 1`, cooling on | 19.9M NaN - **the level-population solve** |
+
+The chain: in a cell whose coolant has been chemically destroyed, the transition matrix goes
+singular; `solvlevpop`'s Gauss-Jordan hits a zero pivot, sets `call_writes` and dumps the
+matrix (those 19.9M lines), and returns **NaN rather than failing**; the NaN rides the cooling
+into `coolTot`, through the thermal balance into `T_gas`, and out through `pdrToMocassin` into
+`grid%Te` - where it finally surfaces in a routine that names neither the cause nor the
+culprit.
+
+*Three guards, in order of preference:*
+
+1. **Skip the coolant** when its carrier is below `pdrNspecFloor` (1e-25 relative). This is the
+   real fix - the populations are meaningless there and solving is what creates the singularity.
+2. **Validate the solution** before use: NaN, negative, or zero-sum populations mean the solve
+   failed, so keep the previous populations and leave the coolant out of this pass. Counted and
+   reported.
+3. **Never let a non-finite budget move the temperature** - the thermal loop exits instead.
+
+In the fixed run guard 1 caught everything: the slab completes in 2m55 with **no NaN** and no
+rejections reported.
+
+*Worth noting where the diagnosis nearly went wrong.* The visible symptom named MOCASSIN's
+grain recombination, which is not remotely near this code. Reading the symptom rather than
+bisecting would have sent the search into the wrong module entirely. **A NaN's point of
+discovery says nothing about its point of origin** - only its path.
+
+---
+
+**D-042 — A_V inverted from the MC field degenerates where the field underflows.** *OPEN*
+
+The slab now produces real PDR structure: A_V to 11.7, x(H2) = 0.499, CO forming. But the
+transition depths could not be measured, because **many deep cells report `A_V = 0.000` with
+`chi = 0`**.
+
+The cause is in the definition (D-001/D-026): A_V,eff is obtained by *inverting the measured
+attenuation*, `A_V = 1.0857*ln(chi0/chi)/R_FUV`. That is exact while chi is measurable, and it
+carries no depth information at all once chi underflows to zero - which is exactly what
+happens deep in a well-resolved slab, where no packet ever arrives. Those cells fall to the
+`else` branch and get A_V = 0, so sorting by A_V scrambles the profile and the H/H2 and C+/C
+fronts cannot be located.
+
+The chemistry in those cells is still right - they are fully shielded and fully molecular,
+which is the correct answer for large A_V - but the *coordinate* is wrong, and the benchmark
+needs the coordinate.
+
+*The fix is the ray-traced column of D-002*, or for plane-parallel geometry the much simpler
+accumulation of dust optical depth along the beam. Either gives an A_V that grows monotonically
+with depth regardless of how few photons arrive. This is now the blocker on the benchmark.
+
+### Open items
+
+- [ ] **Compute A_V from the dust column rather than by inverting the MC field (D-042).**
+      Blocks the benchmark.
+- [ ] Install `cmake` system-wide (carried from D-015).
+- [ ] Generate and commit the fresh 3D-PDR baseline (D-016).
+- [ ] Deep cells settle at T_gas ~ 5 K where a real cloud interior sits nearer 10 K.
 - [ ] Consider checkpointing `pdrLevPop`.
 
 ---
