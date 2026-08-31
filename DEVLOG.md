@@ -75,6 +75,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-051 | Deterministic thermal seed - attempted, reverted; NaN guard kept | Reverted | 2026-08-31 |
 | D-052 | Mother-grid mirror walls omit the half-cell `geoCorr` the other walls use | Accepted | 2026-08-31 |
 | D-053 | 3D-PDR's fronts are not the target: MOCASSIN transports diffuse FUV | Accepted | 2026-08-31 |
+| D-054 | Follow TORUS-3DPDR: geometric A_V from the density field, not inverted from the MC field | Accepted | 2026-08-31 |
 
 ---
 
@@ -2737,3 +2738,88 @@ again in this mode, and restoring it is what would carry the diffuse field into 
       wherever chi still underflows. Expect the fronts to move deeper than 3D-PDR's, and treat
       that as the correct outcome rather than a regression. Verify against gamma_eff = 0.73
       rather than against 3D-PDR's front positions.
+
+
+## 2026-08-31e - D-054: what TORUS-3DPDR actually does
+
+Hektor asked how TORUS-3DPDR (Bisbas et al. 2015, arXiv:1509.05038) handles the coupling. It is
+the closest published analogue to this work - a Monte Carlo radiative transfer code coupled to
+the same 3D-PDR - so its choices are worth matching or consciously departing from.
+
+### Where we agree
+
+Their FUV field estimator is ours. TORUS accumulates
+
+    U = (eps/dt) * (1/(1.71 H_0)) * (1/V) * sum(l)
+
+over path lengths in the 912-2400 A band - the Lucy path-length estimator normalised to Draine
+units. That is the D-001 formula, arrived at independently, which is a useful check on Phase 0.
+
+One difference: TORUS stores the field **directionally**, as positive/negative direction vectors,
+so multi-dimensional geometries keep the anisotropy. We store a scalar per cell.
+
+### Where we differed, and why we now match them
+
+TORUS computes A_V **geometrically from the density field**, integrating along HEALPix rays:
+
+    A_V(q) = A_V,0 * integral_0^L n_H dr
+
+with l=0 (12 rays) sufficient for their tests. The field handed to the chemistry is
+
+    chi(r,q) = chi_0(q) * exp(-tau_UV * A_V(q)) * R_IF^2/(R_IF + r)^2
+
+- a direction-dependent **surface** field, times ray-traced extinction, times a geometric
+dilution term. They report agreement with MOCASSIN in their photoionization+PDR test (their
+section 5.4) *only* when the dilution term was included; the on-the-spot approximation
+underestimated PDR temperatures.
+
+So the published coupling is **surface field + geometric A_V**. The MC field sets `chi_0`; it is
+never inverted to produce an extinction. Our spherical path already matches this structurally -
+`chi0` carries the per-source inverse-square dilution, and `AVeff` from `chi/chi0` removes it
+again, leaving the extinction - so `chi0*exp(-gamma*AVeff)` has the same three factors.
+
+D-053's plane-parallel inversion was a departure from it, and the experiment says it is the wrong
+lever:
+
+| run | A_V treatment | H/2H2 (A_V,dust) | C+/C (A_V,dust) |
+|---|---|---|---|
+| slabF | geometric dust column (D-043) | 0.033 | 1.128 |
+| slab8 | inverted vs analytic chi0 | **none** | 1.370 |
+| slab9 | inverted vs column-max chi | 0.005 | 1.671 |
+
+Inverting against `chi0` puts **A_V = 1.00 in the first cell**, because the MC field at a slab
+surface is already ~29% below the incident flux for two reasons that are not extinction: the mean
+intensity at a surface is below the incident flux (only inward-going radiation is present), and
+the cell at the launch plane is a half-cell (D-052). That artificial shielding floor made the
+surface molecular and **erased the H/H2 front entirely**. Referencing to the column maximum
+(slab9) restores an atomic surface, but still leaves A_V = 0.68 in the first cell and drives the
+H/2H2 transition to *smaller* A_V - whereas TORUS reports the diffuse field moves that transition
+**interior**. Our inversion moves it the wrong way.
+
+**Withdrawn.** `computeAVdust`'s geometric column stands, which is both the published method and
+the one that behaves correctly here.
+
+### What TORUS found about the diffuse field
+
+With the diffuse component enabled they report inner-cloud temperatures up 100-200 K at high
+optical depth, H2 decreasing (more atomic H) with the H-to-H2 transition shifted interior, and CO
+J=7-6 emissivity up by as much as five orders of magnitude - concluding that diffuse radiation
+matters most for high-J CO as a temperature diagnostic.
+
+This confirms D-053's substance (the diffuse field is a first-order effect, and standalone 3D-PDR
+front positions are not targets) while correcting D-053's proposed mechanism. In their geometry
+the diffuse field is dominated by recombination photons inside an HII region reaching shadowed
+gas. Our externally-illuminated slab has no such source, so the honest expectation for *this*
+benchmark is a small diffuse effect - and the large `gamma_eff = 0.73` measured in the transported
+field is mostly forward scattering, not a separate diffuse source.
+
+### Benchmarks they ran
+
+- 1D PDR against 3D-PDR on **Rollig et al. 2007 V2** (n_H = 10^5 cm^-3, A_V = 10, chi = 10^3):
+  "excellent agreement" in temperature, H/H2/C abundances and line emissivities.
+- Lexington **HII40** photoionization test against CLOUDY and others: within 8-30% of median.
+- 1D photoionization+PDR against **MOCASSIN** for the ionized region.
+
+Our slab (n_H = 10^3, chi = 10) is closest to Rollig **V1**, though not identical to it: we run
+zeta = 1e-16 against the benchmark's 5e-17, and C/H = 2.2e-4, O/H = 3.3e-4 against 1e-4 and 3e-4.
+Matching V1 exactly is the natural next benchmark step.

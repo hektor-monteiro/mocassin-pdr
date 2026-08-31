@@ -635,6 +635,20 @@ module pdr_mod
                     ! directly: inverting the MC field loses all depth
                     ! information once chi underflows to zero, which is exactly
                     ! what happens deep in a well-resolved slab (D-042).
+                    ! D-053: carry the MC field - diffuse component included -
+                    ! into the chemistry. 3D-PDR re-derives the attenuation from
+                    ! A_V using its own gamma, so the A_V handed over must be the
+                    ! one that REPRODUCES the measured field, not the geometric
+                    ! dust column. MOCASSIN transports the field at gamma_eff
+                    ! ~ 0.73 against 3D-PDR's ~3.0, so the two differ by a lot.
+                    !
+                    ! D-043 disabled this under plane-parallel illumination
+                    ! because chi underflowed to zero deep in the slab and the
+                    ! inversion degenerated. That underflow was the A_V-origin
+                    ! bug of D-045 and is fixed, so the inversion is viable here
+                    ! again. computeAVdust has already run this iteration
+                    ! (iteration_mod.f90:779), so wherever chi HAS underflowed
+                    ! its dust-column value simply stands.
                     if (.not.lgPlaneIonization) then
                        if (chi0 > chi .and. chi > 0.d0) then
                           tauFUV = -log(chi/chi0)
@@ -681,6 +695,16 @@ module pdr_mod
                  end do
               end do
            end do
+
+           ! D-054: the plane-parallel A_V inversion is NOT enabled. TORUS-3DPDR
+           ! (Bisbas et al. 2015) - the published MC + 3D-PDR coupling - derives
+           ! A_V geometrically from the density field along HEALPix rays and uses
+           ! the MC field only to set the direction-dependent surface field, plus
+           ! a geometric dilution term. Inverting A_V out of the MC field is a
+           ! departure from that, and measurably worse here: it puts A_V = 0.68 in
+           ! the first cell and drives the H/H2 transition to smaller A_V, where
+           ! TORUS finds the diffuse field moves it deeper. computeAVdust's
+           ! geometric column stands (D-043).
         end do
 
       end subroutine mocassinToPDR
