@@ -91,7 +91,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-068 | [CII]/[OI] are included correctly but under-emit; [OI] by 17x | Open | 2026-09-01 |
 | D-069 | Blend band is inactive in a pure-PDR slab; packets are not the limit | Closed | 2026-09-01 |
 | D-070 | MOCASSIN and 3D-PDR use different atomic data AND different excitation physics | Open | 2026-09-01 |
-| D-071 | MOCASSIN re-solves Te in PDR cells, overwriting the handover | Open | 2026-09-01 |
+| D-071 | MOCASSIN re-solves Te in PDR cells, overwriting the handover | Resolved by D-072 | 2026-09-01 |
+| D-072 | The PDR owns the thermal balance in its own cells | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3470,3 +3471,57 @@ consistent" has to mean here.
 
 *Also removed:* the hard-coded `if (cellP == 9249) print*, ...` debug statement at
 `update_mod.f90:673`, which fired in any model with that many cells.
+
+
+## 2026-09-01c - D-072: the PDR owns thermal balance in its own cells
+
+Hektor's call, and it is the right division of labour: *"we should leave PDR balance to 3DPDR
+since it takes into account the adequate physics. Mocassin should then take those values and
+ionization balance from it in cells that are in PDR."*
+
+The justification is D-070. MOCASSIN's [CII] and [OI] cooling is driven by **electron**
+collisions - correct for an H II region - but in a PDR x(e-) ~ 1.4e-4, so those lines contribute
+almost nothing and its thermal solve runs away. In neutral gas the same lines are excited by H,
+H2 and He, which is what 3D-PDR uses, and 3D-PDR also applies an escape probability where
+MOCASSIN treats them optically thin.
+
+Implemented in `updateCell`: a cell with `pdrZone == 1` and a valid `pdrTgas` has `TeUsed` pinned
+to the PDR temperature, runs **one full pass** of the loop - `calcalpha`, `ionBalance`, the grain
+potential and photoelectric/dust-gas terms, `thermBalance` - so every derived quantity the Monte
+Carlo needs is populated consistently at that temperature, and then exits without the secant
+update.
+
+### Effect
+
+On MOCASSIN's own electron temperature across the grid:
+
+| | median Te | max Te |
+|---|---|---|
+| MOCASSIN owned | 102.0 K | **10222.5 K** |
+| PDR owned | 66.0 K | **2270.6 K** |
+
+The runaway is gone. The residual 2270 K maximum is the PDR's own outlier cell, now faithfully
+adopted rather than replaced - which is the guard working as intended.
+
+### Correction to D-071
+
+D-071 called this "the most likely candidate yet for the residual offset". **It was not.** The PDR
+temperatures are essentially unchanged by the guard:
+
+| quantity | MOCASSIN owned | PDR owned | 3D-PDR |
+|---|---|---|---|
+| median T, first 20 | 158.96 | 153.12 | 79.62 |
+| C+ -> C | 1.215 | 1.216 | 1.604 |
+| C -> CO | 3.951 | 3.927 | 4.924 |
+| deep T | 49.92 | 50.27 | 10.46 |
+
+The reason is that `pdrStep` already seeded `Tg` from `grid%pdrTgas` rather than `grid%Te`, so the
+PDR was insulated from the runaway in the first place. The guard fixes the *reverse* direction -
+MOCASSIN's ionization balance and opacities in PDR cells were being computed at up to 10^4 K and
+now are not. That is a real self-consistency gain, and it is what the coupling should have been
+doing, but it does not explain the ~1.9x offset.
+
+**Still open (D-064, D-068):** the offset survives every fix so far, and the sharpest handle on it
+remains the line emission - [CII] at 0.24x and [OI] at 0.06x of standalone at matched temperature,
+with identical atomic data, identical collision-partner mapping and an identical detailed-balance
+rebuild. The population solve is where to look next.

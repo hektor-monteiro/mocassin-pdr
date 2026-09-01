@@ -546,6 +546,7 @@ subroutine iterateT()
 
     logical :: lgGCBConv            ! Grain charge balance converged?
     logical :: lgIBConv             ! Ionization balance converged?
+    logical :: lgPDRcell
     logical :: lgTConverged         ! Thermal balance converged?
 
     real :: coolInt                 ! Total cooling rate [erg/s/Hden]
@@ -564,6 +565,28 @@ subroutine iterateT()
     Thigh = 0.0
     thResidualLow = 0.0
     thResidualHigh = 0.0
+
+    ! D-072: cells the PDR owns keep the PDR's temperature. MOCASSIN's
+    ! thermal balance is built for photoionised gas: its [CII] and [OI]
+    ! cooling is driven by ELECTRON collisions, and in a PDR x(e-) ~ 1e-4, so
+    ! those lines contribute almost nothing and the solve runs away - measured
+    ! at 2691 K in a cell where 3D-PDR gives ~150 K. In neutral gas those same
+    ! lines are excited by H, H2 and He, which is what 3D-PDR uses, and it also
+    ! applies an escape probability where MOCASSIN treats them optically thin.
+    !
+    ! So the PDR owns the thermal balance in its own cells. The loop still runs
+    ! ONE full pass - calcalpha, ionBalance, the grain terms and thermBalance -
+    ! at the PDR temperature, so every derived quantity the Monte Carlo needs is
+    ! populated consistently; only the temperature update is skipped.
+    lgPDRcell = .false.
+#ifdef PDR
+    if (lgPDR) then
+       if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
+          lgPDRcell = .true.
+          TeUsed    = grid%pdrTgas(cellP)
+       end if
+    end if
+#endif
 
     !================================================================!
     ! MAIN ITERATION LOOP
@@ -620,6 +643,12 @@ subroutine iterateT()
             if (lgTalk) print*, "! iterateT: [talk] Convergence achieved after ", &
                 & nIterateT, " steps. (cell, T)", xP, yP, zP, TeUsed
             exit ! Exit the loop, we found the temperature
+        end if
+
+        ! D-072: the PDR owns this cell's temperature - one pass, no update.
+        if (lgPDRcell) then
+            lgTConverged = .true.
+            exit
         end if
 
 
