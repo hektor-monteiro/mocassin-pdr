@@ -102,6 +102,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-079 | What the reported convergence actually measures, and why it is not a PDR test | Noted | 2026-09-01 |
 | D-080 | H II + PDR model runs; the blend band needs a resolved ionization front | Accepted | 2026-09-01 |
 | D-081 | A uniform grid provably cannot resolve the front; a graded 1D grid can, and the blend band was bypassed | Accepted | 2026-09-01 |
+| D-082 | Rollig V2 (n=1e5, chi=1e3) matches standalone to 0-8%; the fixes generalise | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4221,3 +4222,54 @@ the front, which is what the design intended.
 This model is deliberately weakly ionized - `meanField` 2e-3 gives x(H+) ~ 0.6 at the face rather
 than a fully ionized region - which broadens the transition and makes it a good test of the blend.
 It is a machinery test, not a physical H II region; `benchmarks/pdr/hiipdr/` is the physical one.
+
+
+## 2026-09-01m - D-082: Rollig V2, and the limits of a 3D comparison
+
+### V2 matches
+
+Built by scaling 3D-PDR's own `ics/1Dn30.dat` by 1/100 in length at n_H = 1e5, so the A_V span is
+unchanged, and running standalone 3D-PDR on it at chi = 1e3. Committed as
+`benchmarks/pdr/v2slab/` with the reference in `benchmarks/pdr/baseline3dpdr/v2.pdr.fin`.
+
+| quantity | coupled | 3D-PDR | ratio |
+|---|---|---|---|
+| median T, first 20 cells | 196.28 K | 195.67 K | **1.00** |
+| deep T | 10.03 K | 9.80 K | **1.02** |
+| C -> CO front | 2.2355 | 2.2638 | **0.99** |
+| C+ -> C front | 1.5571 | 1.5949 | **0.98** |
+| H -> 2H2 front | 0.0534 | 0.0583 | 0.92 |
+| heat/cool | 1.0000 | 1.0000 | - |
+
+**This is the important result of the two.** V2 is 1000x denser and carries a 100x stronger field
+than V1, which puts the coolants above their critical densities and changes the thermal balance
+regime entirely. The fixes of D-075 through D-078 were all found on V1; that they hold to 0-8% on
+V2 without any retuning says they were real physics errors, not V1-specific compensation.
+
+Worth noting the **deep temperature is 1.02 here against 1.27 on V1**. So V1's deep residual is a
+low-density effect, not a general defect - which also means it is the less interesting of the two
+remaining discrepancies.
+
+### A 3D comparison cannot be matched, and why
+
+3D-PDR's 3D mode illuminates isotropically:
+
+```fortran
+pdr(p)%rad_surface = Gext(1)/real(nrays,kind=dp)     ! UVfield.F90:91
+```
+
+- every ray carries the same external field. MOCASSIN has no equivalent. Its `diffuseSource` is a
+*distributed emitter inside* the grid, not an external bath, and its other options are point
+sources or a plane-parallel beam. So a like-for-like 3D benchmark against
+`ics/3Dsphere.dat` is not available without modifying vendored source.
+
+The 3D run is therefore framed honestly as a **machinery test**, not a benchmark: 3D-PDR's own
+sphere density field (32^3, n = 1e3 in a 9.7 pc box, 53% of cells dense, A_V ~ 8 through the
+diameter) illuminated plane-parallel at chi = 10. What it establishes is whether the coupling
+functions in three dimensions at all - and it exercises the one thing 3D-PDR structurally cannot
+produce under isotropic illumination: **shadowing behind the cloud**, which is precisely what the
+Monte Carlo transfer contributes.
+
+Memory: 32768 cells at nbins = 600 on 14 ranks measured **15.7 GB**, against the D-081 model
+predicting 3.2 + 0.147*32768/1024 = 7.9 GB. The excess is the dust arrays, which the slab models
+carried too but at a twentieth the cell count. Worth folding into the memory model.
