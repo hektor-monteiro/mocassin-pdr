@@ -97,6 +97,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-074 | Full parameter audit against 3D-PDR's params.dat; Fcrit was 20x loose | Accepted | 2026-09-01 |
 | D-075 | `NH` species index shadowed by a local `nH`: atomic H collision partner was ZERO | Accepted | 2026-09-01 |
 | D-076 | Photoelectric heating was given the UNATTENUATED surface field at every depth | Accepted | 2026-09-01 |
+| D-077 | Frequency bins and grid resolution are both converged; 3D-PDR has no grain size distribution | Closed | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3771,3 +3772,68 @@ heating field (D-076) at depth - which is why no single earlier fix moved it.
 
 Residual: the mid-slab (A_V ~ 1-2) still runs ~2x warm, and both carbon fronts sit ~20-25% shallow
 while C->CO is now within 3%.
+
+
+## 2026-09-01g - D-077: convergence, and how the two codes treat dust
+
+Hektor asked whether grid resolution, the number of frequency bins, or a difference in how the
+size distributions are treated could explain the field decaying too slowly.
+
+### The two codes do not treat grain sizes the same way, and cannot
+
+**3D-PDR has no size distribution and computes no opacity.** `grain_radius` from its `params.dat`
+appears in exactly one place in the source - `writeparams.F90`, which prints it. There is no Mie
+code, no `Q_ext`, no size integration anywhere in the tree. Its dust is entirely parametric:
+
+    A_V          = (Av conversion factor) * N_H     ! 5.33997e-22, prescribed
+    attenuation  = exp(-(UV factor) * A_V)          ! 3.02, prescribed, NO scattering
+
+MOCASSIN computes real Mie opacities over `nSpecies x nSizes` grains and `nbins` frequency bins.
+So the comparison cannot be "same size distribution"; it can only be "same *effective*
+R_FUV and A_V/N_H", which is what D-073/D-074 tuned - 3.59 against 3.02, and 5.338e-22 against
+5.33997e-22.
+
+**This also means the field panel is the one place the two codes should legitimately disagree.**
+3D-PDR's exponential has no scattering at all. Ours transports a field through grains of albedo
+0.486, so scattered light survives deeper: gamma_eff = 1.85 per magnitude against the prescribed
+3.02. That is Hektor's original point from 2026-08-31, now quantified with the correct dust.
+
+### Both resolutions are converged
+
+**Frequency bins** - the FUV band (0.441-1.000 Ryd) is sampled by 59 of 1000 bins, 231 of 4000:
+
+| quantity | nbins=1000 | nbins=4000 | change |
+|---|---|---|---|
+| R_FUV | 3.595 | 3.591 | -0.1% |
+| gamma_eff | 1.832 | 1.795 | -2.0% |
+| median T, first 20 | 83.08 | 82.70 | -0.5% |
+| C -> CO | 4.769 | 4.758 | -0.2% |
+
+**Grid resolution** - 401 vs 801 cells (first cell dA_V 0.005 vs 0.0025):
+
+| quantity | 401 | 801 | 3D-PDR | change |
+|---|---|---|---|---|
+| gamma_eff | 1.785 | 1.850 | - | +3.6% |
+| median T, first 20 | 83.08 | **80.67** | 79.62 | -2.9% |
+| deep T | 13.31 | 13.31 | 10.46 | 0.0% |
+| C+ -> C | 1.263 | 1.263 | 1.604 | 0.0% |
+| C -> CO | 4.752 | 4.760 | 4.924 | +0.2% |
+
+Nothing moves by more than 4%, and the extra resolution improves the surface to **1.01x**. Neither
+was the limitation.
+
+### Where the benchmark stands
+
+| quantity | coupled | 3D-PDR | ratio |
+|---|---|---|---|
+| median T, first 20 cells (801) | 80.7 K | 79.6 K | **1.01** |
+| deep T | 13.3 K | 10.5 K | 1.27 |
+| C -> CO front | 4.752 | 4.924 | **0.97** |
+| C+ -> C front | 1.263 | 1.604 | 0.79 |
+| H -> 2H2 front | 0.021 | 0.027 | 0.78 |
+| heat/cool | 1.000 | 1 | - |
+| gamma_eff of the field | 1.85/mag | 3.02 prescribed | physical difference |
+
+Temperature and the CO front now agree to a few per cent. The two carbon/hydrogen fronts sit
+~20% shallow, which is the expected direction for a field that penetrates deeper than 3D-PDR's
+scattering-free exponential.

@@ -477,6 +477,9 @@ module pdr_mod
         pdrRfuv = real(kFUV/kV)
         if (taskid == 0) print*, "! [D073] kFUV/kV = R_FUV =", pdrRfuv, &
              & "  kV =", real(kV), "  kFUV =", real(kFUV)
+        if (taskid == 0) print*, "! [D077] FUV band bins:", FUVhighP-FUVlowP+1, &
+             & " of", nbins, " (FUVlowP,FUVhighP =", FUVlowP, FUVhighP, &
+             & ") nu =", real(nuArray(FUVlowP)), real(nuArray(FUVhighP))
 
         if (taskid == 0) then
            print*, "! calibratePDRdust: measured from this model's grains -"
