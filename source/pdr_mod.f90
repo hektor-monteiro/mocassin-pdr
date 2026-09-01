@@ -64,7 +64,14 @@ module pdr_mod
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
                                & pdrNelect    => NELECT,      &
-                               & NH2, NC, NCO, NH, NPROTON, NHe, NHEx, &
+                               ! D-075: NH must be renamed. It is the species
+                               ! index for atomic H, but pdrStep declares a local
+                               ! `nH` for the hydrogen density and Fortran is
+                               ! CASE-INSENSITIVE, so inside that routine `NH`
+                               ! resolved to the local double and abun(NH) indexed
+                               ! a 33-element array at 1000. gfortran accepts the
+                               ! real subscript as a legacy extension, silently.
+                               & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
                                & NCx, NO, NOx, NMG, NMGx
 
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
@@ -1025,7 +1032,7 @@ module pdr_mod
                    & pdrCoolant2(ik)%HP_COL, pdrCoolant2(ik)%EL_COL, &
                    & pdrCoolant2(ik)%HE_COL, pdrCoolant2(ik)%H2_COL, &
                    & pdrCoolant2(ik)%PH2_COL, pdrCoolant2(ik)%OH2_COL, &
-                   & Ccoef(1:nlev,1:nlev), abun(NH)*nH, abun(NPROTON)*nH, &
+                   & Ccoef(1:nlev,1:nlev), abun(pdrNHsp)*nH, abun(NPROTON)*nH, &
                    & abun(pdrNelect)*nH, abun(NHe)*nH, abun(NH2)*nH)
 
               ! Rebuild the upward rates by detailed balance at the local gas
@@ -1115,13 +1122,15 @@ module pdr_mod
               coolTot = coolTot + coolK
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0) then
+              if (pdrDiagCool > 0 .and. taskid == 0 .and. (ik==2 .or. ik==4) .and. &
+                 & grid%AVeff(cellP) < 0.02) then
                  if (pdrNdiag < 400000) then
                     pdrNdiag = pdrNdiag + 1
-                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1)', &
+                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
                        & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " Td=", Td, " T=", Tg
+                       & " cool=", coolK, " Td=", Td, " T=", Tg, " pop=", lsol(1), lsol(2), &
+                       & " nSpec=", nSpec, " ne=", abun(pdrNelect)*nH, " nH0=", abun(pdrNHsp)*nH
                  end if
               end if
            end do

@@ -95,6 +95,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-072 | The PDR owns the thermal balance in its own cells | Accepted | 2026-09-01 |
 | D-073 | The benchmark's grains were 0.07-50 um: grey extinction, R_FUV = 1.12 | Accepted | 2026-09-01 |
 | D-074 | Full parameter audit against 3D-PDR's params.dat; Fcrit was 20x loose | Accepted | 2026-09-01 |
+| D-075 | `NH` species index shadowed by a local `nH`: atomic H collision partner was ZERO | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3629,3 +3630,78 @@ temperature because its cooling per unit temperature is weaker.
 That remains the open thread, and it is now the *only* one: atomic data byte-identical, collision
 partners correctly mapped, detailed balance identical, escape-probability branch identical, dust
 corrected, every input parameter audited.
+
+
+## 2026-09-01e - D-075: the atomic hydrogen collision partner was zero
+
+### Finding it
+
+The [CII]/[OI] deficit was sharpest at the **surface**, where the column is negligible, so
+beta ~ 1 in both codes and the level populations reduce to an optically thin statistical
+equilibrium with inputs verified identical. If the answer still differed there, it had to be the
+solve. Printing the populations and the collision partners alongside 3D-PDR's `.spop.fin` files
+made it immediate:
+
+    pop= 1.277E-01 1.222E-02   nSpec= 1.399E-01   ne= 1.432E-01   nH0= 0.000E+00
+                                                                  ^^^^^^^^^^^^^^
+
+**The atomic hydrogen density passed to `FIND_CCOEFF` was exactly zero**, in every cell, in every
+model. At A_V = 0.018 the gas is mostly atomic and n(H) should be ~500 cm^-3.
+
+### The cause
+
+`global_module` exports `NH`, the *species index* for atomic hydrogen, set by name-matching in
+`read_species.F90:109`. `pdrStep` declares
+
+```fortran
+double precision :: nH, Tg, Td, chi, av, NHcol
+```
+
+and **Fortran is case-insensitive**, so inside that routine `NH` resolves to the local double
+precision hydrogen *density*, not the species index. `abun(NH)` therefore indexed a 33-element
+array at 1000.0. gfortran accepts a real array subscript as a legacy extension and compiled it
+**silently** - no warning at any optimisation level.
+
+This is precisely the collision class D-021 identified when the module imports were written
+("3D-PDR modules export `i`, `j`, `k`, `p`, `NH`, `NC`"). The `common_mod` clashes were renamed
+then; this one was a clash with our own local, and was missed.
+
+Fixed by renaming the import to `pdrNHsp => NH`.
+
+### Why it produced exactly the observed signature
+
+[CII] 158 um and [OI] 63 um are excited in a PDR overwhelmingly by **neutral H**. With n(H) = 0,
+only electrons (n_e ~ 0.14) and H2 remained. And it explains the *ratio* that had been the clue
+all along: [OI] is excited almost entirely by H and barely at all by electrons, so it was hit four
+times harder than [CII].
+
+| at A_V = 0.018 | before | after | 3D-PDR |
+|---|---|---|---|
+| n(H) partner | **0** | **516** | ~520 |
+| C+ upper level | - | 1.693e-2 | 1.974e-2 (0.86) |
+| [CII] cooling | 0.24x | **4.885e-22** | 5.770e-22 (**0.85**) |
+| [OI] cooling | 0.06x | **1.003e-22** | 1.203e-22 (**0.84**) |
+| T_gas | 216 K | **86.9 K** | ~85 K |
+
+### Effect on the benchmark
+
+| quantity | before | after | 3D-PDR | ratio |
+|---|---|---|---|---|
+| median T, first 20 cells | 155.8 K | **94.1 K** | 79.6 K | **1.18** |
+| surface cell T | - | **83.5 K** | 79.4 K | **1.05** |
+| H -> 2H2 | 0.021 | 0.019 | 0.027 | 0.71 |
+| C+ -> C | 1.215 | 1.215 | 1.604 | 0.76 |
+| C -> CO | 4.028 | 4.054 | 4.924 | 0.82 |
+| deep T | 40.1 K | 40.1 K | 10.5 K | 3.83 |
+| heat/cool | 0.999 | 0.999 | 1 | - |
+
+The gas temperature profile now tracks standalone through the illuminated layer:
+83.5, 93.7, 108.0, 121.3 K against 79.4, 79.5, 79.8, 82.3 K.
+
+**This closes D-064 and D-068.** The "uniform ~1.9x temperature offset" and the
+"[CII] 0.24x / [OI] 0.06x cooling deficit" were the same bug seen from two directions.
+
+*The deep cloud is untouched* - 40.1 K against 10.5 K, exactly as before - which is consistent:
+at A_V > 4 the gas is molecular, x(H) ~ 1e-3, so the H collision partner barely contributes there.
+That residual is separate and most likely the FUV field, which still decays at gamma_eff = 1.86
+per magnitude against the 3.02 3D-PDR assumes, delivering too much photoelectric heating at depth.
