@@ -521,7 +521,7 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, cellP, yTop, jStart
-        double precision :: tau, dy, kap
+        double precision :: tau, dy, kap, cH2, cC, cCO
 
         if (.not.lgPlaneIonization) return
 
@@ -554,6 +554,7 @@ module pdr_mod
                          & grid(iG)%AVeff(grid(iG)%active(i,j,k)) = 0.
                  end do
                  tau = 0.d0
+                 cH2 = 0.d0; cC = 0.d0; cCO = 0.d0
                  do j = jStart, yTop
 
                     if (j > 1 .and. j < grid(iG)%ny) then
@@ -572,6 +573,35 @@ module pdr_mod
                     tau = tau + kap*dy*0.5d0
                     if (cellP > 0) grid(iG)%AVeff(cellP) = real(dble(magPerTau)*tau)
                     tau = tau + kap*dy*0.5d0
+
+                    ! D-078: integrate the SHIELDING COLUMNS the same way.
+                    ! They used to be formed as NHcol*abun(X) - the LOCAL
+                    ! abundance times the TOTAL column - where 3D-PDR
+                    ! integrates the real column along its rays. Wherever the
+                    ! abundance rises with depth, which is precisely what H2, C
+                    ! and CO do across their own fronts, that overestimates the
+                    ! column (about 2x at the H/H2 front, where x(H2) climbs
+                    ! from ~0 to 0.25 while the local value is applied over the
+                    ! whole path). Too much self-shielding lets the species
+                    ! survive shallower, which is the ~20% shallow bias seen in
+                    ! both the H/H2 and C+/C fronts.
+                    if (cellP > 0) then
+                       cH2 = cH2 + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NH2))*dy*0.5d0
+                       cC  = cC  + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NC ))*dy*0.5d0
+                       cCO = cCO + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NCO))*dy*0.5d0
+                       grid(iG)%pdrColH2(cellP) = real(cH2)
+                       grid(iG)%pdrColC (cellP) = real(cC)
+                       grid(iG)%pdrColCO(cellP) = real(cCO)
+                       cH2 = cH2 + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NH2))*dy*0.5d0
+                       cC  = cC  + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NC ))*dy*0.5d0
+                       cCO = cCO + dble(grid(iG)%Hden(cellP)) &
+                            & *dble(grid(iG)%pdrAbun(cellP,NCO))*dy*0.5d0
+                    end if
                  end do
 
                  ! D-061: the remaining column to the far boundary, which the
@@ -813,7 +843,7 @@ module pdr_mod
         integer            :: jjr(0:nraysLoc-1)
         integer            :: kray
         double precision   :: mu, colA, avBack
-        double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol
+        double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol, sH2, sC, sCO
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
         cellP = grid%active(xP,yP,zP)
@@ -922,9 +952,16 @@ module pdr_mod
         NHcol = av/dble(pdrAVfac)
         abun  = grid%pdrAbun(cellP, 1:pdrNspec)
 
-        colH2 = NHcol*abun(NH2)
-        colCO = NHcol*abun(NCO)
-        colC  = NHcol*abun(NC)
+        ! D-078: true integrated columns, not local abundance x total column
+        sH2 = dble(grid%pdrColH2(cellP))
+        sCO = dble(grid%pdrColCO(cellP))
+        sC  = dble(grid%pdrColC(cellP))
+        if (sH2 <= 0.d0) sH2 = NHcol*abun(NH2)
+        if (sCO <= 0.d0) sCO = NHcol*abun(NCO)
+        if (sC  <= 0.d0) sC  = NHcol*abun(NC)
+        colH2 = sH2
+        colCO = sCO
+        colC  = sC
         colHD = 0.d0
         colS  = 0.d0
 
@@ -943,9 +980,11 @@ module pdr_mod
                 & pdrNspecMod, pdrNreacMod)
 
            ! shielding columns follow the abundances between passes
-           colH2 = NHcol*abun(NH2)
-           colCO = NHcol*abun(NCO)
-           colC  = NHcol*abun(NC)
+           ! columns follow the abundances between passes, scaled from the
+           ! integrated value so the depth weighting is preserved (D-078)
+           if (abun0(NH2) > 0.d0) colH2 = sH2*abun(NH2)/abun0(NH2)
+           if (abun0(NCO) > 0.d0) colCO = sCO*abun(NCO)/abun0(NCO)
+           if (abun0(NC ) > 0.d0) colC  = sC *abun(NC )/abun0(NC )
         end do
 
         ! Make a silent solver failure visible. calculate_abundances copies the

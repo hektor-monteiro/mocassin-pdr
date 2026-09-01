@@ -311,6 +311,9 @@ module common_mod
         real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
         real, allocatable         :: chiFUV0(:)      ! UNATTENUATED FUV field [Draine units]
         real, allocatable         :: AVback(:)       ! A_V from this cell to the far boundary (D-061)
+        real, allocatable         :: pdrColH2(:)     ! integrated N(H2) from the illuminated face (D-078)
+        real, allocatable         :: pdrColC(:)      ! integrated N(C)  from the illuminated face (D-078)
+        real, allocatable         :: pdrColCO(:)     ! integrated N(CO) from the illuminated face (D-078)
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]

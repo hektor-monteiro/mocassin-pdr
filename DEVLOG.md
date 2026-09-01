@@ -98,6 +98,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-075 | `NH` species index shadowed by a local `nH`: atomic H collision partner was ZERO | Accepted | 2026-09-01 |
 | D-076 | Photoelectric heating was given the UNATTENUATED surface field at every depth | Accepted | 2026-09-01 |
 | D-077 | Frequency bins and grid resolution are both converged; 3D-PDR has no grain size distribution | Closed | 2026-09-01 |
+| D-078 | Shielding columns used local abundance x total column instead of the integral | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3837,3 +3838,85 @@ was the limitation.
 Temperature and the CO front now agree to a few per cent. The two carbon/hydrogen fronts sit
 ~20% shallow, which is the expected direction for a field that penetrates deeper than 3D-PDR's
 scattering-free exponential.
+
+
+## 2026-09-01h - D-078: the shielding columns were not integrated
+
+### The contradiction that located it
+
+With D-076 in, the temperatures agreed but both the H/H2 and C+/C fronts still sat ~20% shallow.
+The explanation offered - a field penetrating deeper than 3D-PDR's - does not survive checking:
+a stronger field at depth would push C+ **deeper**, not shallower. Tabulating the profiles made
+the contradiction explicit:
+
+| A_V | chi ours | chi 3D-PDR | x(C+) ours | x(C+) 3D-PDR |
+|---|---|---|---|---|
+| 0.599 | 2.60 | 1.74 | 1.37e-4 | 1.37e-4 |
+| 1.260 | 0.644 | 0.232 | 7.08e-5 | 1.10e-4 |
+| 1.601 | 0.358 | 0.0875 | 1.59e-5 | 7.40e-5 |
+
+Our field is **stronger** at every depth, yet our C+ converts to C **faster**. Both cannot follow
+from the radiation field. And at the H/H2 front our gas was more molecular at every A_V while
+slightly *cooler*. Both are the signature of too much self-shielding.
+
+### The cause
+
+```fortran
+NHcol = av/dble(pdrAVfac)
+colH2 = NHcol*abun(NH2)     ! LOCAL abundance x TOTAL column
+colCO = NHcol*abun(NCO)
+colC  = NHcol*abun(NC)
+```
+
+3D-PDR integrates the real column along each ray (`columndensity.F90`). We took the *local*
+abundance and applied it over the *whole* path. Wherever a species' abundance rises with depth -
+which is exactly what H2, C and CO do across their own fronts - that overestimates the column. At
+the H/H2 front x(H2) climbs from ~0 to 0.25 while the local value is applied over the entire path,
+so the column comes out about **2x** too large. More self-shielding lets the species survive at
+shallower depth, which is the ~20% shallow bias in both fronts.
+
+Fixed by integrating N(H2), N(C) and N(CO) from the illuminated face in `computeAVdust`, which
+already walks the column for the dust, and handing those to the chemistry. Between chemistry
+passes the columns are now scaled from the integrated value rather than rebuilt from the local
+abundance, so the depth weighting is preserved.
+
+### Result
+
+| quantity | local x total | integrated | 3D-PDR | ratio |
+|---|---|---|---|---|
+| median T, first 20 cells | 80.67 K | **79.98 K** | 79.62 K | **1.00** |
+| C+ -> C front | 1.263 | **1.594** | 1.604 | **0.99** |
+| C -> CO front | 4.760 | 4.769 | 4.924 | **0.97** |
+| H -> 2H2 front | 0.021 | **0.025** | 0.027 | **0.91** |
+| deep T | 13.31 K | 13.31 K | 10.46 K | 1.27 |
+| heat/cool | 1.000 | 1.000 | 1 | - |
+
+**The 1D benchmark is now met.** Surface temperature to 0.4%, C+/C to 1%, C/CO to 3%, H/H2 to 9%,
+with thermal balance closed to 1.000.
+
+### The arc of the temperature problem, for the record
+
+The offset that stood from D-059 to D-076 was never one bug. In order of discovery:
+
+1. **D-060** - level populations lagged the temperature, so F(T) was not monotonic and the
+   bracket found an arbitrary root.
+2. **D-065** - HTT91 read `chi` and `av` before assignment and returned its 10 K floor in every
+   cell of every model.
+3. **D-073** - the benchmark's grains ran 0.07-50 um, giving grey extinction, R_FUV = 1.12.
+4. **D-074** - `pdrFcrit` was 0.10 against 3D-PDR's 0.005.
+5. **D-075** - `NH`, the species index for atomic H, was shadowed by a local `nH`, so the
+   dominant collision partner for [CII] and [OI] was zero.
+6. **D-076** - photoelectric heating was given the unattenuated surface field at every depth.
+7. **D-078** - shielding columns used the local abundance over the total path.
+
+Only the last three moved the temperatures, and each was masked by the others. The single most
+useful diagnostic throughout was comparing a quantity **at matched temperature** rather than in
+the converged solution, which is what separated "the cooling function is weak" from "the gas is
+hotter so it radiates more".
+
+### Remaining
+
+- **Deep gas at 13.3 K against 10.5 K (1.27x).** The only outstanding discrepancy.
+- The transported field decays at gamma_eff = 1.85 per magnitude against 3D-PDR's prescribed
+  3.02. This is a genuine physical difference - 3D-PDR's exponential has no scattering, ours
+  transports through grains of albedo 0.486 - and is expected to persist.
