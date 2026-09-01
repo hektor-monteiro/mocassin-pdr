@@ -100,6 +100,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-077 | Frequency bins and grid resolution are both converged; 3D-PDR has no grain size distribution | Closed | 2026-09-01 |
 | D-078 | Shielding columns used local abundance x total column instead of the integral | Accepted | 2026-09-01 |
 | D-079 | What the reported convergence actually measures, and why it is not a PDR test | Noted | 2026-09-01 |
+| D-080 | H II + PDR model runs; the blend band needs a resolved ionization front | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4084,3 +4085,57 @@ Two habits did most of the work in this session:
 - **Check that a claimed explanation predicts the right direction.** The shallow fronts were
   attributed to a deeper-penetrating field for some time; that field would have pushed C+ *deeper*.
   Noticing the sign error is what led to D-078.
+
+
+## 2026-09-01k - D-080: the first H II region + PDR model
+
+Built from MOCASSIN's own validated `benchmarks/gas/HII40`, which already sits at TORUS-3DPDR's
+section 5.4 conditions - n_H = 100 cm^-3 and a 4e4 K blackbody. Its `Rout` stops at the ionization
+front, so it was extended from 1.46e19 to 6.0e19 cm to open a neutral zone, dust and the PDR were
+added, and the abundances matched to the slab benchmark (He 0.1, C 1.4e-4, O 3e-4, zeta = 5e-17).
+
+Committed as `benchmarks/pdr/hiipdr/`.
+
+### It works
+
+Converged to 99.2% in 5 MC iterations. Radial cut along x:
+
+| r [cm] | T_e | x(H+) | x(C+)/C |
+|---|---|---|---|
+| 4.0e18 | 9544 K | 0.9999 | 0.008 |
+| 1.2e19 | 11230 K | 0.980 | 0.838 |
+| **1.6e19** | **198 K** | **8.9e-5** | 1.000 |
+| 2.8e19 | 124 K | 1.3e-5 | 1.000 |
+| 4.0e19 | 93 K | 3.9e-6 | 0.997 |
+| 6.0e19 | 22 K | 7.6e-6 | 0.484 |
+
+An ionization front at R_IF ~ 1.4e19 against a Stromgren estimate of 1.58e19, 9500-11000 K
+ionized gas, and a PDR beyond it falling to 22 K with CO taking over the carbon at the outer edge.
+14903 of 29791 cells are in the PDR zone.
+
+**Three coupling paths are exercised here for the first time**, none of which the slab could reach:
+
+1. the **spherical A_V path** - `AVeff` inverted from `chi/chi0` per source (D-001), rather than
+   `computeAVdust`'s plane-parallel dust column;
+2. **metal multi-stage feedback across a front** - the C+ fraction runs 0.008 near the star,
+   through 1.0 in the PDR, back to 0.48 as CO forms;
+3. a **diffuse field with a real recombination source**, which is the physical reason for coupling
+   to a Monte Carlo code at all.
+
+### But the blend band is still dead, and now we know why
+
+Zero cells fall in `0.01 < x(H+) < 0.3`. The transition runs from x(H+) = 0.98 at r = 1.2e19 to
+8.9e-5 at 1.6e19 - **inside a single cell**. The front is simply thinner than the grid:
+
+    front thickness ~ 1/(n*sigma) = 1.6e15 cm
+    cell size (nx=31, Rout=6e19) = 2.0e18 cm
+    under-resolved by a factor of ~1260
+
+Placing ~10 cells across the front needs ~1.6e14 cm cells, which a uniform grid to 6e19 cm cannot
+provide (3.8e5 cells per axis). **The D-007 blend band therefore cannot be tested without
+MOCASSIN's nested sub-grids** (`nGrids > 1`) refining the region around R_IF - or a dedicated 1D
+model spanning only the front.
+
+That is a concrete, bounded next step, and it is worth doing: the blend band has never executed in
+any run of this coupling, so it remains the one substantial piece of the design that is entirely
+unverified.
