@@ -101,6 +101,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-078 | Shielding columns used local abundance x total column instead of the integral | Accepted | 2026-09-01 |
 | D-079 | What the reported convergence actually measures, and why it is not a PDR test | Noted | 2026-09-01 |
 | D-080 | H II + PDR model runs; the blend band needs a resolved ionization front | Accepted | 2026-09-01 |
+| D-081 | A uniform grid provably cannot resolve the front; a graded 1D grid can, and the blend band was bypassed | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4139,3 +4140,84 @@ model spanning only the front.
 That is a concrete, bounded next step, and it is worth doing: the blend band has never executed in
 any run of this coupling, so it remains the one substantial piece of the design that is entirely
 unverified.
+
+
+## 2026-09-01l - D-081: resolving the front without sub-grids, and the bug it found
+
+Hektor ruled out MOCASSIN's nested sub-grids and asked what resolution the available RAM allows.
+
+### Measured memory
+
+Two points at nbins = 600 on 14 ranks - 9261 cells at 329 MB/rank and 29791 at 539 MB/rank - give
+
+    per rank:  234 MB fixed  +  10.47 kB/cell
+    14 ranks:  3.2 GB fixed  +  147 kB/cell
+
+The machine has 61 GB, 44 GB available. Budgeting 30 GB (oomd killed earlier runs well below full
+RAM, D-040):
+
+| nbins | cells | uniform grid |
+|---|---|---|
+| 600 | 192000 | **58^3** |
+| 200 | 575000 | **83^3** |
+
+### A uniform grid provably cannot do it
+
+To put even one cell inside the front while spanning a PDR of depth A_V:
+
+    cell <= d_IF  = 1/(n*sigma)          = 1.59e17/n
+    box  >= L_PDR = A_V/(n*5.34e-22)
+    =>  N >= L_PDR/d_IF = [A_V/5.34e-22]/1.59e17      <- n CANCELS
+
+| A_V | cells per axis |
+|---|---|
+| 0.5 | 5.9e3 |
+| 1 | 1.2e4 |
+| 2 | 2.4e4 |
+
+Memory allows 83. **Short by 140-430x, and the density cancels** - raising n thins the front and
+shortens the PDR in exact step, so no choice of density, luminosity or geometry helps. This is not
+a resource limitation; a uniform 3D grid is the wrong tool.
+
+### A graded 1D grid costs nothing
+
+MOCASSIN already reads arbitrary axes from a `densityFile`, which is how the slab benchmark is
+built. It is not sub-gridding. Applying it to a plane-parallel *ionizing* beam - 2e14 cm at the
+face, ratio 1.013, 601 cells - puts **~8 cells across the front** and still reaches A_V = 1.9, in
+15025 cells and about 5 GB. Committed as `benchmarks/pdr/ifront/`.
+
+Result: **168 cells inside 0.01 < x(H+) < 0.3.** The D-007 blend band executed for the first time
+in the history of this coupling.
+
+### D-081: and it was being bypassed
+
+`pdrToMocassin` writes the blended temperature into `grid%Te`:
+
+```fortran
+grid(iG)%Te(cellP) = real(w*pdrTgas + (1-w)*Te)
+```
+
+but D-072's guard pinned `TeUsed = grid%pdrTgas(cellP)` - the **raw** PDR temperature - discarding
+the ramp and applying the pure PDR value right up to the zone edge. The blend band exists
+precisely to avoid a discontinuity at the ionization front, and it was doing nothing.
+
+Invisible in every previous model, because none had a single cell in the band.
+
+Fixed to `TeUsed = grid%Te(cellP)`, which is the value `pdrToMocassin` already blended.
+
+| y [cm] | x(H+) | w | before | after |
+|---|---|---|---|---|
+| 1.80e16 | 0.308 | 0.00 | 8596 K | 8596 K |
+| 2.79e16 | 0.098 | 0.33 | - | **4930 K** |
+| 4.06e16 | 0.019 | 0.82 | - | **1724 K** |
+| 5.71e16 | 0.0058 | 1.00 | 50 K | 372 K |
+| 7.85e16 | 0.0024 | 1.00 | 52 K | 52 K |
+
+Before the fix the temperature fell 8922 K to 50 K in a single step. It now ramps smoothly across
+the front, which is what the design intended.
+
+### Note
+
+This model is deliberately weakly ionized - `meanField` 2e-3 gives x(H+) ~ 0.6 at the face rather
+than a fully ionized region - which broadens the transition and makes it a good test of the blend.
+It is a machinery test, not a physical H II region; `benchmarks/pdr/hiipdr/` is the physical one.

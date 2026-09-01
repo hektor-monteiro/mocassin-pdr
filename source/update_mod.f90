@@ -583,7 +583,16 @@ subroutine iterateT()
     if (lgPDR) then
        if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
           lgPDRcell = .true.
-          TeUsed    = grid%pdrTgas(cellP)
+          ! D-081: use grid%Te, NOT grid%pdrTgas. pdrToMocassin has already
+          ! written the D-007 BLENDED temperature into grid%Te,
+          !   Te = w*pdrTgas + (1-w)*Te
+          ! with w ramping from 1 at x(H+) = pdrBlendLo to 0 at pdrZoneLim.
+          ! Pinning to the raw pdrTgas discards that ramp and applies the pure
+          ! PDR temperature right up to the zone edge, so the blend band -
+          ! which exists precisely to avoid a discontinuity at the ionization
+          ! front - was bypassed. Invisible in every model run before this one,
+          ! because none had a single cell inside the band.
+          TeUsed    = grid%Te(cellP)
        end if
     end if
 #endif

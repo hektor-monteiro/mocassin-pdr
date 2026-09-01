@@ -1,0 +1,25 @@
+TStellar 40000.
+contShape blackbody
+planeIonization 2.0e-3 0.
+densityFile 'input/front.den'
+nebComposition "input/abunV1.in"
+TeStart 8000.
+maxIterateMC 12 95.
+nPhotons 6000000
+nx 5
+ny 601
+nz 5
+nbins 600
+nuMax 15.
+nuMin 1.001e-5
+Rin 0.
+Rout 0.
+convLimit 0.90
+dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
+MdMg constant 0.01059
+pdr 1
+pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
+pdrNetwork "reduced"
+pdrZeta 5.0e-17
+pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4
