@@ -1122,8 +1122,7 @@ module pdr_mod
               coolTot = coolTot + coolK
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0 .and. (ik==2 .or. ik==4) .and. &
-                 & grid%AVeff(cellP) < 0.02) then
+              if (pdrDiagCool > 0 .and. taskid == 0) then
                  if (pdrNdiag < 400000) then
                     pdrNdiag = pdrNdiag + 1
                     print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
