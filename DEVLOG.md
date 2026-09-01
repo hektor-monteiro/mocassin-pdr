@@ -88,6 +88,10 @@ reasoning that led to the wrong turn is part of the history.
 | D-065 | HTT91 ran on uninitialised chi/av and returned its 10 K floor in every cell | Accepted | 2026-09-01 |
 | D-066 | MOCASSIN's own dust equilibrium gives 1.2 K at an illuminated PDR face | Open | 2026-09-01 |
 | D-067 | MOCASSIN floors Te at 10 K, exactly where PDR interiors live | Noted | 2026-09-01 |
+| D-068 | [CII]/[OI] are included correctly but under-emit; [OI] by 17x | Open | 2026-09-01 |
+| D-069 | Blend band is inactive in a pure-PDR slab; packets are not the limit | Closed | 2026-09-01 |
+| D-070 | MOCASSIN and 3D-PDR use different atomic data AND different excitation physics | Open | 2026-09-01 |
+| D-071 | MOCASSIN re-solves Te in PDR cells, overwriting the handover | Open | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3377,3 +3381,92 @@ downstream of the warmer surface dust through H2 formation, not the deep dust it
 
 **The dust hypothesis is therefore partly confirmed:** it found a real and long-standing bug, but
 it does not account for the ~1.8x offset, which survives the fix.
+
+
+## 2026-09-01b - four questions from Hektor, four answers
+
+### D-068: are [CII] and [OI] included correctly?
+
+Verified, top to bottom:
+
+- **Level structure.** `12c+.dat` has 2P_1/2 -> 2P_3/2 at 63.395 cm^-1 (157.7 um, the [CII] line)
+  plus three 4P states near 43000 cm^-1. `16o.dat` has 3P_2 -> 3P_1 at 158.269 cm^-1 (63.2 um)
+  and 3P_1 -> 3P_0 at 68.7 cm^-1 (145.6 um), plus 1D_2 and 1S_0. Both correct.
+- **Collision partners.** Our `FIND_CCOEFF` call passes `H, H+, e-, He, H2` against its signature
+  `H_abd, Hp_abd, elec_abd, He_abd, H2_abd`. Correct order.
+- **Detailed balance.** Our rebuild loop is character-for-character 3D-PDR's
+  `coolingfunctions.F90:78-83`, same indices, same units.
+
+So they are included correctly - and both still under-emit. Measured at the face, our T = 69.2 K
+against 3D-PDR's T = 79.4 K:
+
+| line | ours | 3D-PDR | ratio |
+|---|---|---|---|
+| [CII] 158 um | 1.36e-22 | 5.77e-22 | 0.24 |
+| [OI] 63+146 um | 6.9e-24 | 1.20e-22 | **0.06** |
+
+That [OI] is 17x low while [CII] is 4x low is the diagnostic. [OI] 63 um has a critical density
+near 5e5 cm^-3 against [CII]'s ~3e3, so at n_H = 1e3 it is the line furthest below thermalisation
+and therefore the most sensitive to the level populations. Both being low, with [OI] far worse,
+points at the population solve rather than at the atomic data or the escape geometry.
+
+### D-069: the blend band, and the packet count
+
+**The blend band is inactive in this benchmark.** x(H+) never exceeds **7.6e-5** anywhere in the
+column - 130x below `pdrBlendLo = 0.01` - so the weight is w = 1 in all 401 cells. Narrowing the
+band or moving its start to x(H+) = 0.1 cannot change these results. The suggestion is sound but
+needs an HII-region + PDR model with a real ionization front to test; a pure-PDR slab cannot.
+
+**Packets are not the limit either.** 6e6 -> 24e6 (600 -> 2400 per cell):
+
+| | 6e6 | 24e6 |
+|---|---|---|
+| median T, first 20 | 158.96 | 153.09 |
+| H -> 2H2 / C+ -> C / C -> CO | 0.017 / 1.215 / 3.951 | 0.017 / 1.229 / 3.982 |
+| deep T | 49.92 | 49.85 |
+| surface chi | 7.519 | 7.516 |
+
+Fronts identical to three digits. The 24% surface-chi deficit against the analytic 10.0 is
+**systematic, not noise** - consistent with the surface mean-intensity and half-cell explanation
+of D-052, and not something more photons will fix.
+
+### D-070: the two codes do NOT use the same atomic data
+
+The `dataPDR/` files are byte-identical to upstream 3D-PDR's `chemfiles/` - all four coolants,
+`species_reduced.d` and `rates_reduced.d`. So the **PDR side** of the comparison is clean.
+
+MOCASSIN's own side is a different dataset entirely:
+
+| ion | MOCASSIN | 3D-PDR |
+|---|---|---|
+| C II | `data/cii.dat`, **46 levels**, CHIANTI v10 | `12c+.dat`, **5 levels**, LAMDA |
+| O I | `data/oi.dat`, **24 levels**, CHIANTI v10 | `16o.dat`, **5 levels**, LAMDA |
+
+And, as Hektor pointed out, **MOCASSIN does not apply self-absorption to these lines**.
+`setResLineEscapeProb` handles *resonance* lines only, and only fires under
+`lgDust .and. convPercent >= resLinesTransfer`. The forbidden fine-structure CELs are optically
+thin in MOCASSIN, while 3D-PDR gives them an escape probability.
+
+Underneath the data difference is a physics difference that matters more: **MOCASSIN's CEL cooling
+is driven by electron collisions**, correct for an H II region, while in a PDR
+x(e-) ~ 1.4e-4 and these lines are excited by neutral **H, H2 and He** - which is what 3D-PDR
+uses. The two codes are not computing the same quantity for the same ion.
+
+### D-071: MOCASSIN overwrites the temperature the PDR just handed it
+
+`update_mod.f90` contains no `pdrZone` guard, so `updateCell` re-solves the thermal balance in
+PDR-owned cells, unaware that the PDR owns them, and overwrites the value `pdrToMocassin` wrote at
+`pdr_mod.f90:1231`. A leftover debug print in that routine showed it converging to **2691 K** in a
+cell where the PDR gives ~150 K - the electron-cooling solve of D-070 applied to neutral gas.
+
+`pdrStep` seeds from `grid%pdrTgas`, so the PDR itself is insulated. But `grid%Te` drives
+MOCASSIN's ionization balance and opacities, so those are being computed at a temperature that is
+wrong by ~20x in every PDR cell, and the resulting ionization fractions are what set `pdrZone`.
+
+**This is the most likely candidate yet for the residual offset**, and unlike the escape-geometry
+work it is a coupling-design question rather than a tuning one: a cell the PDR owns should not
+have its temperature re-solved by the photoionisation thermal balance. That is what "self
+consistent" has to mean here.
+
+*Also removed:* the hard-coded `if (cellP == 9249) print*, ...` debug statement at
+`update_mod.f90:673`, which fired in any model with that many cells.

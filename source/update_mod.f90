@@ -455,8 +455,7 @@ module update_mod
 !                    if (TeUsed <= 20.) TeUsed = 20.
 
 !                    ! next T-iteration
-!                    if (cellP == 9249) print*, nIterateT, TeUsed, '[', Tlow, Thigh, ']', (thResidual), thLimit * heatInt
-
+!            
 !                    call iterateT()
 !                    return
 
@@ -670,7 +669,6 @@ subroutine iterateT()
         ! Ensure temperature doesn't go beyond atomic data limit for H
         if (TeUsed > 30000.) TeUsed = 30000.
         
-        if (cellP == 9249) print*, nIterateT, TeUsed, '[', Tlow, Thigh, ']', (thResidual), thLimit * heatInt
 
     END DO ! End of main iteration loop
 
