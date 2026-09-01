@@ -84,11 +84,11 @@ reasoning that led to the wrong turn is part of the history.
 | D-060 | Level populations must converge at fixed T before the temperature moves | Accepted | 2026-08-31 |
 | D-061 | Per-ray slab escape geometry: helps C->CO, does not close the cooling gap | Partial | 2026-08-31 |
 | D-063 | We compiled RAYTHEIA_MO where 3D-PDR compiles ONEDIMENSIONAL; beta divided by 12 | Accepted | 2026-08-31 |
-| D-064 | Residual is a uniform ~1.8x temperature offset, not a surface blowup | Open | 2026-08-31 |
+| D-064 | Residual is a uniform ~1.8x temperature offset, not a surface blowup | Closed by D-075/D-076 | 2026-08-31 |
 | D-065 | HTT91 ran on uninitialised chi/av and returned its 10 K floor in every cell | Accepted | 2026-09-01 |
 | D-066 | MOCASSIN's own dust equilibrium gives 1.2 K at an illuminated PDR face | Open | 2026-09-01 |
 | D-067 | MOCASSIN floors Te at 10 K, exactly where PDR interiors live | Noted | 2026-09-01 |
-| D-068 | [CII]/[OI] are included correctly but under-emit; [OI] by 17x | Open | 2026-09-01 |
+| D-068 | [CII]/[OI] are included correctly but under-emit; [OI] by 17x | Closed by D-075 | 2026-09-01 |
 | D-069 | Blend band is inactive in a pure-PDR slab; packets are not the limit | Closed | 2026-09-01 |
 | D-070 | MOCASSIN and 3D-PDR use different atomic data AND different excitation physics | Open | 2026-09-01 |
 | D-071 | MOCASSIN re-solves Te in PDR cells, overwriting the handover | Resolved by D-072 | 2026-09-01 |
@@ -4008,3 +4008,79 @@ suffice and the reported number would not catch it.
 **Recommended practice:** treat the reported percentage as a necessary but not sufficient check,
 and confirm any new configuration with a relaxation test (raise `pdrChemIter`/`pdrThermIter` and
 verify nothing moves) before trusting the result.
+
+
+## 2026-09-01j - where the work stands, and what to do next
+
+### Status
+
+The 1D benchmark is met. Against standalone 3D-PDR on a matched slab:
+
+| quantity | ratio |
+|---|---|
+| median T_gas, first 20 cells | 1.00 |
+| C+ -> C front | 0.99 |
+| C -> CO front | 0.97 |
+| H -> 2H2 front | 0.91 |
+| heat/cool balance | 1.000 |
+| deep T_gas | 1.27 |
+
+Original scope is complete: vendored 3D-PDR builds inside MOCASSIN, `mocassinWarm` round-trips
+the PDR state losslessly, `mocassinPlot` and `mocassinOutput` are PDR-aware, and the DEVLOG has
+carried every decision.
+
+### The gap that matters
+
+**Everything MOCASSIN uniquely brings to this coupling is still untested.** The only configuration
+ever exercised is a plane-parallel slab lit by a non-ionizing source, in which:
+
+- `x(H+)` never exceeds **7.6e-5**, so the D-007 **blend band has never once been active** - the
+  whole ramp between MOCASSIN's photoelectric heating and 3D-PDR's is dead code in every run so far;
+- there is **no ionization front**, so the zone criterion has never been tested where it matters;
+- the **metal ionization feedback** - the multi-stage work of D-037 onward - is never exercised,
+  because there is nothing to ionize;
+- the geometry is 1D, so HEALPix rays, three-dimensional A_V and the directional field are all
+  collapsed to a single direction;
+- the diffuse field, which is the physical reason to couple to a Monte Carlo code at all, has no
+  recombination source to generate it.
+
+A 1D slab is the right first benchmark and it found nine real bugs. But it cannot validate the
+coupling's reason for existing.
+
+### Recommended next step: an H II region + PDR model
+
+This is TORUS-3DPDR's own section 5.4 test - a uniform-density cloud around an ionizing star,
+which they validated against **MOCASSIN** for the ionized zone and **3D-PDR** for the PDR. It is
+the natural next benchmark because it exercises, in one model, every path the slab could not:
+
+1. a real ionization front, so `pdrZoneLim` and the blend band finally do something;
+2. metal ionization feedback across the front;
+3. the geometric dilution term `R_IF^2/(R_IF+r)^2` that TORUS reports was **required** for
+   agreement with MOCASSIN, and which this coupling has never needed and never tested;
+4. genuine diffuse radiation from recombination, which is where TORUS found effects worth 100-200 K
+   and five orders of magnitude in CO J=7-6.
+
+It also has a published reference on both sides, which the slab did not.
+
+### Then, in order
+
+- **Rollig V2** (n_H = 10^5, chi = 10^3): the stiffer chemistry test, and the model TORUS validated
+  on. High density puts the coolants above their critical densities, which exercises the level
+  population solve in the opposite regime from V1.
+- **Deep gas at 1.27x** (13.3 K against 10.5 K): the last discrepancy in the 1D benchmark.
+- **Checkpoint `pdrLevPop`** (carried since D-016 era). It mattered little when populations were
+  re-solved from LTE each pass; after D-060 made the fixed-T level iteration central, a warm start
+  that discards them restarts that relaxation from scratch.
+- **Decide the `pdrStartIter` default.** Currently 1 for backward compatibility, but the evidence
+  of D-062 favours a warm-up, and the benchmark uses 4.
+
+### A note on method, for whoever picks this up
+
+Two habits did most of the work in this session:
+
+- **Compare at matched temperature, not in the converged solution.** "Our cooling is weak" and
+  "our emissivities are larger" were both true simultaneously, and only the matched-temperature
+  comparison distinguished cause from consequence.
+- **Check that a claimed explanation predicts the right direction.** The shallow fronts were
+  attributed to a deeper-penetrating field for some time; that field would have pushed C+ *deeper*.
+  Noticing the sign error is what led to D-078.
