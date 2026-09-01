@@ -12,13 +12,32 @@ every parameter matched, so the two can be compared directly.
     cd v1slab && python3 make_density.py
     mpirun -np 14 ../../../mocassin
 
-`MdMg = 0.0281` is deliberate: MOCASSIN's grains at the usual 0.01 give
-5.26e21 N_H per magnitude, 2.8x less extinguishing per hydrogen than the
-canonical 1.87e21. Matching the *dust*, not just the A_V, is what brings the
-self-shielding columns onto the same footing (DEVLOG D-058). Confirm with the
-line the run prints:
+The grain setup matters and was got wrong once (DEVLOG D-073). Silicates from
+0.07 to 50 um - as this benchmark originally inherited - are large enough to
+give *grey* extinction, R_FUV = tau_FUV/tau_V = 1.12, where interstellar dust
+gives ~3. The transported FUV field then decays far too slowly and reaches
+chi ~ 1e-2 at A_V = 8.5, eight orders above 3D-PDR. The committed
+`dust_species.dat` uses 0.010-0.30 um, giving R_FUV = 3.59 against 3D-PDR's
+stated UV factor of 3.02, and `MdMg = 0.01059` then holds A_V/N_H at 3D-PDR's
+value. Confirm both from the lines the run prints:
 
-    ! calibratePDRdust: A_V per N_H = 5.33996734E-22 (N_H per mag = 1.87267061E+21)
+    ! calibratePDRdust: A_V per N_H = 5.33838558E-22 (N_H per mag = 1.87322554E+21)
+    ! [D073] kFUV/kV = R_FUV = 3.59476638
+
+## Parameters audited against 3D-PDR's params.dat (D-074)
+
+| parameter | 3D-PDR | here |
+|---|---|---|
+| G0 | 10 Draine | 10.1 |
+| cosmic-ray rate | 5e-17 | 5e-17 |
+| turbulent velocity | 1 km/s | 1.0 |
+| grain radius | 1e-5 cm | 1e-5 |
+| A_V conversion | 5.33997e-22 | 5.33839e-22 |
+| T_min / T_max | 1 / 2e4 | 1 / 2e4 |
+| HEALPix level | 0 | 0 |
+| Fcrit | 0.005 | 0.005 |
+| UV factor (R_FUV) | 3.02 | 3.59 |
+| dust-to-gas x1e-2 | 1 | 1.06 |
 
 ## Regenerating the standalone baseline
 
@@ -60,6 +79,12 @@ H = 32, e- = 33 — the same order `source/pdr/` uses.
 
 ## Where it stands
 
-Matched against the standalone run: deep x(CO) 0.99, H->2H2 1.17, deep T 1.20,
-C+->C 0.77, C->CO 0.63. **Surface temperature is 12.4x too hot** — the open
-defect, tracked as DEVLOG D-060.
+Matched against the standalone run, all three chemical fronts land within a
+tight band: H->2H2 0.76, C+->C 0.76, C->CO 0.82, with heating and cooling
+balanced to 0.999 in every cell.
+
+The open defect is a **uniform ~1.96x gas temperature offset** (deep 3.8x),
+tracked as DEVLOG D-064. It traces to a cooling function that is weak at fixed
+temperature - [C II] at 0.24x and [O I] at 0.06x of standalone when compared at
+the same T - with the atomic data, collision-partner mapping, detailed balance
+and escape-probability branch all verified identical.
