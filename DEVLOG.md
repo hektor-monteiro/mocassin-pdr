@@ -81,7 +81,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-057 | Graded y-axis collapses the surface thermal solve; floor the first cell instead | Accepted | 2026-08-31 |
 | D-058 | Match the benchmark's dust (MdMg 0.0281), not just its A_V | Accepted | 2026-08-31 |
 | D-059 | Standalone 3D-PDR baseline built and run; my quoted reference values were wrong | Accepted | 2026-08-31 |
-| D-060 | Surface gas temperature is 12x too hot - the real open defect | Open | 2026-08-31 |
+| D-060 | Level populations must converge at fixed T before the temperature moves | Accepted | 2026-08-31 |
+| D-061 | C+ line cooling is ~4x too weak; escape-probability geometry is the suspect | Open | 2026-08-31 |
+| D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
 
@@ -3066,3 +3068,81 @@ something that only operates where the gas is still partly ionized - consistent 
 
 The baseline exists, is reproducible from `scratchpad/3dpdr` with `mpishim.c`, and should be
 committed as a regression fixture: `sims/v1.pdr.fin` plus the `params.dat` that produced it.
+
+
+## 2026-08-31i - D-060/D-061/D-062: the cooling, and a warm-up
+
+### D-060: the thermal bracket was searching on a non-monotonic function
+
+Instrumenting the per-coolant budget at one face cell across thermal iterations:
+
+| T | C+ cooling | O cooling |
+|---|---|---|
+| 34.6 K | 5.08e-22 | 6.90e-22 |
+| 17.3 K | 3.96e-23 | 1.61e-25 |
+| 24.5 K | **3.33e-24** | 1.93e-28 |
+| 29.1 K | 1.42e-23 | 9.49e-27 |
+
+Cooling was **not monotonic in T** - it fell 12x between 17 K and 24 K. The level populations were
+carried one pass behind and never converged at fixed T, so `F(T) = heating - cooling` was noise
+and the root the bracket found was arbitrary.
+
+3D-PDR guards exactly this. `changetemperature.F90` opens with `if (.not.level_conv) return` - it
+refuses to move the temperature until the populations have converged. D-056 ported its arithmetic
+and missed that line, which is the part that actually matters.
+
+Fixed with an inner fixed-T iteration over `escape_probability` + `solvlevpop`, to
+`pdrLevTol = 1e-3` or `pdrLevIter = 25` passes. Cooling is now monotonic and saturating, as a
+fine-structure line must be:
+
+    3.96e-23 (34.6 K) -> 1.29e-22 (69 K) -> 2.32e-22 (138 K) -> 3.00e-22 (277 K) -> 3.29e-22 (553 K)
+
+**This also retires D-051.** The "multiple roots" and the factor-of-four scatter between
+physically identical cells were never bistability - they were a bracket search on a noisy
+function. With the warm-up below, identical cells now agree to the digit (142.1 K across all
+nine interior cells at A_V ~ 0.1, against 142.0-145.7 K before).
+
+### D-061: what the fix exposed
+
+Making the solver well-posed made the temperatures *worse*, because two errors had been partly
+cancelling. The residual is now clean and isolated: at the face our C+ cooling saturates near
+3.3e-22 where 3D-PDR reaches 5.77e-22 at only 79 K - a factor of ~4 deficit at fixed conditions,
+with the carrier abundance identical to four digits (1.3986e-4 against 1.3992e-4) and the
+collision partners all passed correctly to `FIND_CCOEFF`.
+
+That points at the escape-probability geometry, not the chemistry or the field. We collapse the
+ray structure to **one ray with two evaluation points set to the same populations** (D-030), and
+iterating that to a fixed point may simply converge on the wrong operator. 3D-PDR uses 12 HEALPix
+rays with genuinely distinct evaluation points along each. This is the next thing to fix.
+
+### D-062: `pdrStartIter` - warm up MOCASSIN before enabling the PDR
+
+Hektor's suggestion, and it matches TORUS-3DPDR's architecture (converge photoionization first,
+then run the PDR). Two supporting observations:
+
+- At `maxIterateMC 1` **no cell is ever in the PDR zone** - the zone flag latches from the second
+  iteration, so a single-iteration run does no chemistry at all. Worth knowing.
+- With the PDR live from iteration 1 the model **never converges**: 71.6% after 8 iterations,
+  because the chemistry keeps perturbing the ionization structure. Without it, 100% in 3.
+
+The first attempt failed instructively: `pdrStartIter 4` on a slab that converges in 3 finished
+before the chemistry ran once - 100% converged at iteration 3, zero `pdrStep` calls, every cell
+still zone 0. So the warm-up must also **hold the run open**: the convergence exit is now
+suppressed until the PDR has been enabled and had a pass.
+
+Effect at `pdrStartIter 4` (8 MC iterations, 5 with chemistry):
+
+| quantity | warm=1 | warm=4 | 3D-PDR |
+|---|---|---|---|
+| transverse spread at A_V ~ 0.1 | 142.0-145.7 K | **142.1-142.1 K** | - |
+| C+ -> C | 0.670 | **1.215** | 1.604 |
+| C -> CO | 0.484 | **3.360** | 4.924 |
+| heat/cool median | 1.001 | 0.999 | 1 |
+
+Default is `pdrStartIter = 1`, preserving current behaviour; it is an option, not a new default.
+
+### Where the temperatures stand
+
+Still hot - surface 2270 K against 79 K, deep 49.6 K against 10.5 K - and that is D-061, not the
+solver. The chemistry fronts, the thermal balance and the cell-to-cell consistency are all now
+in good shape; the cooling *magnitude* is the single remaining defect.

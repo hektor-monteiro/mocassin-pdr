@@ -513,6 +513,11 @@ module common_mod
     integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
     integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031, D-051)
     real                :: pdrTseed=300.           ! deterministic seed for the thermal march (D-051)
+    integer             :: pdrStartIter=1          ! let MOCASSIN converge this many MC iterations first (D-062)
+    integer             :: pdrLevIter=25           ! D-060: fixed-T level-population passes
+    real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
+    integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
+    integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
     real                :: pdrFcrit   = 0.10        ! |heat-cool|/max tolerated as converged (D-032)
     integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
     integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)

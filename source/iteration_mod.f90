@@ -774,7 +774,7 @@ module iteration_mod
            ! 8); reducing the field any earlier reads the raw estimator and
            ! overstates chi by exactly 1e9. Caught because writeFUVField, which
            ! runs later and was validated in Phase 0, disagreed by that factor.
-           if (lgPDR) then
+           if (lgPDR .and. nIterateMC >= pdrStartIter) then
               if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
               call computeAVdust(grid(1:nGrids))
               call mocassinToPDR(grid(1:nGrids))
@@ -907,7 +907,7 @@ module iteration_mod
               ! owner contributes them whether or not pdrStep changed anything -
               ! otherwise skipped cells (inactive, or outside the PDR zone)
               ! would come back zero and lose their seeded abundances.
-              if (lgPDR) then
+              if (lgPDR .and. nIterateMC >= pdrStartIter) then
                  if (taskid==0) print*, '! iterateMC: pdrStep in', iG
                  allocate(pdrAbunTemp(0:grid(iG)%nCells,1:pdrNspec), stat=err)
                  if (err /= 0) then
@@ -1092,7 +1092,8 @@ module iteration_mod
               ! AFTER the Te exchange, not before: that allreduce overwrites
               ! grid%Te wholesale from TeTemp, so a handover written earlier
               ! would be silently discarded.
-              if (lgPDR) call pdrToMocassin(grid(1:nGrids))
+              if (lgPDR .and. nIterateMC >= pdrStartIter) &
+                   & call pdrToMocassin(grid(1:nGrids))
 #endif
 
 
@@ -1350,7 +1351,13 @@ module iteration_mod
               print *,"! iterateMC: [Summary] Iteration ",nIterateMC,"; finished at ",time(1:2),":",time(3:4),":",time(5:6)
            endif
 
-           if ( totPercent >= minConvergence ) then
+           ! D-062: a warm-up must not let the pre-PDR solution END the run.
+           ! Without this, `pdrStartIter 4` on a slab that converges in 3 stops
+           ! before the chemistry has run once - measured: 100% converged at
+           ! iteration 3, zero pdrStep calls, every cell still zone 0. Hold the
+           ! run open until the PDR has been enabled and has had one pass.
+           if ( totPercent >= minConvergence .and. &
+              & (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
 
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &

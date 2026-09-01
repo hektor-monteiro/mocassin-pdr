@@ -437,6 +437,7 @@ module pdr_mod
            if (taskid == 0) print*, &
                 & "! calibratePDRdust: A_V per N_H =", pdrAVfac, &
                 & "  (N_H per mag =", 1./pdrAVfac, ")"
+           if (taskid == 0) print*, "! [D060] pdrDiagCool =", pdrDiagCool, " pdrNcool =", pdrNcool
         end if
 
         if (kV <= 0.d0 .or. kFUV <= 0.d0) then
@@ -756,7 +757,7 @@ module pdr_mod
         double precision   :: colS(0:nraysLoc-1)
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
-        integer            :: ik, il, jl, nlev, itherm
+        integer            :: ik, il, jl, nlev, itherm, ilev
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
         double precision   :: Flo, Fhi, Fratio, Fden, xlo, xhi, xnewT, denom
         logical            :: doChop
@@ -984,13 +985,28 @@ module pdr_mod
                  end do
               end do
 
-              ! one ray, one evaluation point, slab depth in pc
-              evpop = 0.d0
-              evpop(0,0,1:nlev) = lpop(1:nlev)
-              evpop(0,1,1:nlev) = lpop(1:nlev)
+              ! ---- D-060: converge the level populations AT FIXED T -------
+              ! One pass per thermal step is not enough. The populations then
+              ! lag the temperature by a step, and the cooling they produce is
+              ! not a monotonic function of T - measured at one face cell it
+              ! ran 5.1e-22 at 34.6 K, 4.0e-23 at 17.3 K and 3.3e-24 at 24.5 K.
+              ! A bracket search on a non-monotonic F(T) finds an arbitrary
+              ! root, which is why the surface settled 12x hotter than
+              ! standalone 3D-PDR and why physically identical cells landed
+              ! decades apart (D-051 blamed bistability; it was this).
+              !
+              ! 3D-PDR guards the same thing: changetemperature.F90 opens with
+              ! `if (.not.level_conv) return` - it refuses to move T until the
+              ! populations have converged. D-056 ported its arithmetic but not
+              ! that guard. Here the equivalent is an inner fixed-T iteration.
               jjr(0)  = 1
               plen    = 0.d0
               plen(0,1) = (NHcol/nH)/PC
+
+              do ilev = 1, max(pdrLevIter,1)
+              evpop = 0.d0
+              evpop(0,0,1:nlev) = lpop(1:nlev)
+              evpop(0,1,1:nlev) = lpop(1:nlev)
 
               trans(1:nlev,1:nlev) = 0.d0
               call escape_probability(trans(1:nlev,1:nlev), Td, 1, nlev, &
@@ -1015,8 +1031,29 @@ module pdr_mod
                  cycle
               end if
 
+              ! converged when the populations stop moving at this T
+              lsum = 0.d0
+              do il = 1, nlev
+                 if (lsol(il) > 0.d0) lsum = max(lsum, &
+                      & abs(lsol(il)-lpop(il))/lsol(il))
+              end do
+              lpop(1:nlev) = lsol(1:nlev)
+              if (lsum < dble(pdrLevTol)) exit
+              end do
+
               grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
               coolTot = coolTot + coolK
+
+              ! D-060 diagnostic: per-coolant budget at the illuminated face
+              if (pdrDiagCool > 0 .and. taskid == 0) then
+                 if (pdrNdiag < 60) then
+                    pdrNdiag = pdrNdiag + 1
+                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es10.3,a,es10.3,a,f8.1)', &
+                       & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
+                       & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
+                       & " cool=", coolK, " plen_pc=", plen(0,1), " T=", Tg
+                 end if
+              end if
            end do
 
            grid%pdrCool(cellP) = real(coolTot)
