@@ -812,12 +812,34 @@ module pdr_mod
         ! mode is specifically to UNDER-estimate - it omits heat sources rather
         ! than inventing them - so max() keeps its full radiative transfer where
         ! the grains see light and falls back to HTT91 where they do not.
+        ! D-065: chi and A_V must be in hand BEFORE the dust block - HTT91
+        ! reads both. They used to be assigned ~25 lines later, so HTT91 ran on
+        ! uninitialised locals: with chi = 0 it reduces to (T_cmb^5)^0.2 = 2.73 K
+        ! and then hits its own max(...,10), returning exactly 10.00 K in every
+        ! cell of every model regardless of the radiation field. Measured: 10.00
+        ! at the illuminated face where the correct value is 20.9 K.
+        chi = dble(grid%chiFUV0(cellP))
+        if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
+        av  = dble(grid%AVeff(cellP))
+
         TdMoc = dble(grid%Tdust(0,0,cellP))
 
         ! HTT91, evaluated with the single effective ray of D-001 carrying the
         ! full local field (3D-PDR's own 1D mode does the same, putting all the
         ! flux on one ray).
-        TdHTT = 8.9d-11*2.65d15*(1.71d0*chi) + pdrTcmb**5
+        ! D-065: HTT91 uses TWO different fields, and conflating them is what
+        ! made the deep cloud run hot. 3D-PDR's dust_t.F90:
+        !
+        !   Tdust = 8.9e-11*NU_0*(1.71*PDR(P)%UVfield) + Tcmb**5   <- LOCAL field
+        !   T_0   = 12.2*(1.71*PDR(P)%RAD_SURFACE(J))**0.2         <- SURFACE field
+        !   if (AV(J) > 1) T_0 = T_0 * AV(J)**(-0.4)
+        !
+        ! The first term is the direct FUV heating where the grain sits, so it
+        ! must be the ATTENUATED local field; the second is the re-radiated IR
+        ! from the illuminated skin, so it carries the surface field and its own
+        ! Rowan-Robinson depth attenuation. Feeding the surface field to both
+        ! left T_dust near 21 K at every depth and heated the deep gas to 50 K.
+        TdHTT = 8.9d-11*2.65d15*(1.71d0*dble(grid%chiFUV(cellP))) + pdrTcmb**5
         T0HTT = 12.2d0*(1.71d0*max(chi,0.d0))**0.2d0
         if (av > 1.0d0) T0HTT = T0HTT*av**(-0.4d0)
         if (T0HTT > 0.d0) TdHTT = TdHTT + &
@@ -839,9 +861,6 @@ module pdr_mod
         ! The field handed over must therefore be the UNATTENUATED one; passing
         ! the local MC field (grid%chiFUV) attenuates it twice and drives every
         ! photodissociation front to too small an A_V.
-        chi = dble(grid%chiFUV0(cellP))
-        if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
-        av  = dble(grid%AVeff(cellP))
 
         ! keep the chemistry inside the temperature range it was fitted over
         Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
@@ -1072,13 +1091,13 @@ module pdr_mod
               coolTot = coolTot + coolK
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0) then
+              if (pdrDiagCool > 0 .and. taskid == 0 .and. ik == 2) then
                  if (pdrNdiag < 60) then
                     pdrNdiag = pdrNdiag + 1
-                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es10.3,a,es10.3,a,f8.1)', &
+                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es10.3,a,f7.2,a,f7.2,a,f7.2,a,f8.1)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
                        & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " plen_pc=", evpt(1,6,1), " T=", Tg
+                       & " chiLoc=", grid%chiFUV(cellP), " Td=", Td, " TdMoc=", TdMoc, " TdHTT=", TdHTT, " T=", Tg
                  end if
               end if
            end do

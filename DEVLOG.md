@@ -85,6 +85,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-061 | Per-ray slab escape geometry: helps C->CO, does not close the cooling gap | Partial | 2026-08-31 |
 | D-063 | We compiled RAYTHEIA_MO where 3D-PDR compiles ONEDIMENSIONAL; beta divided by 12 | Accepted | 2026-08-31 |
 | D-064 | Residual is a uniform ~1.8x temperature offset, not a surface blowup | Open | 2026-08-31 |
+| D-065 | HTT91 ran on uninitialised chi/av and returned its 10 K floor in every cell | Accepted | 2026-09-01 |
+| D-066 | MOCASSIN's own dust equilibrium gives 1.2 K at an illuminated PDR face | Open | 2026-09-01 |
+| D-067 | MOCASSIN floors Te at 10 K, exactly where PDR interiors live | Noted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3270,3 +3273,107 @@ with a median, not a maximum.
 *Correction to the record:* every "surface temperature" ratio reported in this log from D-059
 onwards (12.4x, 28.6x, 28.9x, 32.9x) is a max-over-six-cells statistic and overstates the
 disagreement. The comparable numbers are ~1.9x.
+
+
+## 2026-09-01 - D-065/D-066/D-067: the dust temperature
+
+Hektor asked whether MOCASSIN's dust treatment, and its inclusion in the thermal balance, could
+account for the temperature offset. The hypothesis found a real bug, though not the mechanism
+first guessed.
+
+### The mechanism guessed, and why it was wrong
+
+`escape_probability` forms the net line cooling as
+`line = A*h*nu*pop*beta*(S_ij - BB_ij)/S_ij`, where `BB_ij` carries the dust continuum at
+`T_dust`. Hotter dust raises the background and suppresses net cooling *multiplicatively* -
+depth-independent, matching the uniform offset. But measurement runs the other way: our dust was
+**colder** than 3D-PDR's (10 K against 21 K at the face), so it was not suppressing cooling.
+
+### D-065: HTT91 was returning its floor in every cell of every model
+
+```
+815:  TdMoc = dble(grid%Tdust(0,0,cellP))
+820:  TdHTT = 8.9d-11*2.65d15*(1.71d0*chi) + pdrTcmb**5     <- uses chi
+821:  T0HTT = 12.2d0*(1.71d0*max(chi,0.d0))**0.2d0          <- uses chi
+822:  if (av > 1.0d0) ...                                   <- uses av
+...
+842:  chi = dble(grid%chiFUV0(cellP))                       <- assigned HERE
+844:  av  = dble(grid%AVeff(cellP))
+```
+
+`chi` and `av` were read 22 lines before they were assigned. With `chi = 0` the expression
+collapses to `(T_cmb^5)^0.2 = 2.73 K`, which then hits HTT91's own `max(...,10)` - so **TdHTT
+returned exactly 10.00 K in every cell, in every model, regardless of the radiation field**.
+Measured at the illuminated face where the correct value is 20.9 K.
+
+Fixed by hoisting the assignments above the dust block. TdHTT now reads **21.02 K** at the face
+against 3D-PDR's 21.0 K.
+
+A second error surfaced immediately: HTT91 uses *two different fields*, and we fed one to both.
+3D-PDR's `dust_t.F90`:
+
+```fortran
+PDR(P)%Tdust = 8.9D-11*NU_0*(1.71D0*PDR(P)%UVfield) + Tcmb**5   ! LOCAL field
+T_0          = 12.2*(1.71D0*PDR(P)%RAD_SURFACE(J))**0.2         ! SURFACE field
+IF (PDR(P)%AV(J)>1.0D0) T_0 = T_0 * PDR(P)%AV(J)**(-0.4)
+```
+
+The first term is direct FUV heating where the grain sits, so it takes the attenuated local
+field; the second is IR re-radiated from the illuminated skin, carrying the surface field with
+its own Rowan-Robinson depth attenuation. Feeding the surface field to both held T_dust near
+21 K at every depth. Corrected; T_dust now falls with the local field (19.8 K at A_V = 0.013,
+18.9 K at 0.62).
+
+### D-066: but MOCASSIN's own dust cannot be favoured yet
+
+Hektor's instruction was that if 3D-PDR's treatment is the less self-consistent, we should prefer
+MOCASSIN's. On the physics that is right: 3D-PDR uses an HTT91 parametrisation with a
+Rowan-Robinson correction, while MOCASSIN solves real radiative equilibrium against the
+transported field with actual grain opacities and a size distribution.
+
+The measurement blocks it. `TdMoc = grid%Tdust(0,0,cellP)` - the same grand-average slot
+`update_mod` itself uses - reads **1.10 to 1.45 K** right across the illuminated surface, where
+both HTT91 and 3D-PDR give ~21 K. A grain at a chi = 10 Draine surface cannot be at 1.2 K. So
+MOCASSIN's dust equilibrium is under-heated by a factor of ~17 in temperature in this regime, and
+`max(TdMoc, TdHTT)` is currently always selecting HTT91.
+
+Until that is understood, favouring MOCASSIN's value would replace a working parametrisation with
+a broken solve. Establishing *why* MOCASSIN's dust is cold here - whether the PDR cells' dust is
+updated at all, and what field its equilibrium actually integrates - is the prerequisite.
+
+### D-067: MOCASSIN floors Te at 10 K
+
+Confirmed at Hektor's suggestion, `update_mod.f90:669`:
+
+```fortran
+! Ensure temperature doesn't become non-physical
+if (TeUsed < 10.) TeUsed = 10.
+```
+
+This sits exactly where PDR interiors live - 3D-PDR's deep gas is 10.5 K. `pdrToMocassin` writes
+the PDR temperature back into `grid%Te`, so a genuinely cold interior is clamped on the way back
+and then re-seeds `pdrStep`. Not the cause of a *hot* bias, but it means `grid%Te` carries no
+information below 10 K and should never be used as a PDR seed or diagnostic.
+
+*Also spotted:* a leftover hard-coded debug print at `update_mod.f90:673`,
+`if (cellP == 9249) print*, ...`, which fires in any model with that many cells.
+
+### Effect on the benchmark - and a caution
+
+| quantity | HTT91 broken | HTT91 fixed | 3D-PDR |
+|---|---|---|---|
+| median T, first 20 | 156.4 | 159.0 | 79.6 |
+| H -> 2H2 | 0.018 | 0.017 | 0.027 |
+| C+ -> C | 1.216 | 1.215 | 1.604 |
+| C -> CO | 4.008 | 3.951 | 4.924 |
+| **deep T** | **18.7** | **49.9** | **10.5** |
+
+The correction made the deep temperature worse, and the honest reading is that the previous
+agreement was partly luck: with HTT91 pinned at its 10 K floor, our deep dust coincidentally
+matched 3D-PDR's deep dust, which is also 10 K. The fixed code is right and the old agreement was
+not evidence of anything. Why the deep gas now settles at 50 K is **not yet explained** - the
+local field there is small enough that HTT91 should return its floor, so the effect is likely
+downstream of the warmer surface dust through H2 formation, not the deep dust itself.
+
+**The dust hypothesis is therefore partly confirmed:** it found a real and long-standing bug, but
+it does not account for the ~1.8x offset, which survives the fix.
