@@ -1350,6 +1350,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate chiFUV0 memory"; stop
                 end if
+                allocate(grid%AVback(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate AVback memory"; stop
+                end if
                 allocate(grid%AVeff(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate AVeff memory"; stop
@@ -1391,6 +1395,7 @@ module grid_mod
                 grid%pdrZone = 0
                 grid%chiFUV  = 0.
                 grid%chiFUV0 = 0.
+                grid%AVback  = 0.
                 grid%AVeff   = 0.
                 grid%pdrCool = 0.
                 grid%pdrHeat = 0.
@@ -3393,6 +3398,10 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate chiFUV0 memory"; stop
                end if
+               allocate(grid(iG)%AVback(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate AVback memory"; stop
+               end if
                allocate(grid(iG)%AVeff(0:grid(iG)%nCells), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate AVeff memory"; stop
@@ -3432,6 +3441,7 @@ end function getVolume
                grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.
+               grid(iG)%AVback  = 0.
                grid(iG)%AVeff   = 0.
                grid(iG)%pdrCool = 0.
                grid(iG)%pdrHeat = 0.

@@ -310,6 +310,7 @@ module common_mod
         integer, allocatable      :: pdrZone(:)      ! 1 where PDR chemistry runs
         real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
         real, allocatable         :: chiFUV0(:)      ! UNATTENUATED FUV field [Draine units]
+        real, allocatable         :: AVback(:)       ! A_V from this cell to the far boundary (D-061)
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]

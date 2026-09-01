@@ -82,7 +82,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-058 | Match the benchmark's dust (MdMg 0.0281), not just its A_V | Accepted | 2026-08-31 |
 | D-059 | Standalone 3D-PDR baseline built and run; my quoted reference values were wrong | Accepted | 2026-08-31 |
 | D-060 | Level populations must converge at fixed T before the temperature moves | Accepted | 2026-08-31 |
-| D-061 | C+ line cooling is ~4x too weak; escape-probability geometry is the suspect | Open | 2026-08-31 |
+| D-061 | Per-ray slab escape geometry: helps C->CO, does not close the cooling gap | Partial | 2026-08-31 |
+| D-063 | Cooling ceiling is the escape probability; Sobolev length is the next suspect | Open | 2026-08-31 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3146,3 +3147,55 @@ Default is `pdrStartIter = 1`, preserving current behaviour; it is an option, no
 Still hot - surface 2270 K against 79 K, deep 49.6 K against 10.5 K - and that is D-061, not the
 solver. The chemistry fronts, the thermal balance and the cell-to-cell consistency are all now
 in good shape; the cooling *magnitude* is the single remaining defect.
+
+
+## 2026-08-31j - D-061 partial, and where the cooling gap actually lives
+
+`escape_probability` averages beta over rays (`beta_ij = beta_ij_sum/real(nrays)`), so it only
+needs a correct path length per ray - and a plane-parallel slab gives that in closed form.
+HEALPix nside=1 is three rings: 4 rays at mu = +2/3, 4 at mu = 0, 4 at mu = -2/3. Rays looking
+back at the illuminated face see `A_V/|mu|`; rays looking inward see the remaining column
+`A_Vback/mu`; rays parallel to an infinite slab never escape. Implemented, with a new
+`grid%AVback` filled by `computeAVdust`.
+
+**Result: real but not sufficient.**
+
+| quantity | 1 ray | 12 rays | 3D-PDR |
+|---|---|---|---|
+| C -> CO | 3.360 | **4.100** | 4.924 |
+| C+ -> C | 1.215 | 1.213 | 1.604 |
+| H -> 2H2 | 0.018 | 0.019 | 0.027 |
+| surface T | 2270 K | 2296 K | 79 K |
+| deep T | 49.6 K | 56.2 K | 10.5 K |
+
+The C->CO front moved from 0.68 to 0.83 of standalone. The temperatures did not move.
+
+### D-063: the ceiling is beta, and the geometric column may be the wrong length
+
+Measured C+ cooling against temperature at the face, with the corrected ray geometry:
+
+| T | 29.7 | 59.3 | 118.6 | 237.3 | 474.5 | 949 | 1898 |
+|---|---|---|---|---|---|---|---|
+| C+ cooling | 1.9e-23 | 6.8e-23 | 1.2e-22 | 1.6e-22 | 1.6e-22 | 1.6e-22 | 1.5e-22 |
+
+It saturates at **1.6e-22, which is 6% of the optically thin LTE ceiling** (2.69e-21 for
+n(C+) = 0.14). 3D-PDR reaches 5.77e-22, or **21%**, at only 79 K. So even at infinite temperature
+our C+ line cannot emit what 3D-PDR emits at 79 K - the limit is not the level populations or the
+temperature, it is the escape probability.
+
+Backing the numbers out: with populations sub-thermal by roughly n/(n+n_crit) ~ 0.25 at
+n_H = 1e3, our saturated value implies beta ~ 0.33 - exactly the 4-of-12 rays that see a short
+column in our slab construction. 3D-PDR's 5.77e-22 implies beta ~ 0.86, i.e. its lines escape
+almost freely at the face.
+
+**The suspect is the length itself, not the ray count.** Both builds set `-DSOBOLEV`, where the
+optical depth belongs to the local velocity-coherent (Sobolev/LVG) length, not the geometric
+column. We pass the geometric path - for an inward ray at the face that is 7.755 pc, which is
+enormously thick - and that alone would push beta from ~0.86 down to the ~0.33 we measure. The
+next step is to establish what length 3D-PDR's `escape_probability` expects under SOBOLEV and
+pass that instead.
+
+*What is now well established, and worth not relitigating:* the chemistry tracks standalone
+(all three fronts within 0.68-0.83), thermal balance closes (heat/cool 0.999), physically
+identical cells agree exactly, and the radiation field is verified twice over. The open defect is
+one number - the escape probability - in one routine.
