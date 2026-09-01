@@ -810,7 +810,7 @@ module pdr_mod
         integer            :: jjr(0:nraysLoc-1)
         integer            :: kray
         double precision   :: mu, colA, avBack
-        double precision   :: nH, Tg, Td, chi, av, NHcol
+        double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
         cellP = grid%active(xP,yP,zP)
@@ -852,6 +852,22 @@ module pdr_mod
         chi = dble(grid%chiFUV0(cellP))
         if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
+
+        ! D-076: heating takes the LOCAL, attenuated field; the reaction rates
+        ! take the SURFACE field. 3D-PDR keeps them separate and we did not:
+        !
+        !   UVfield = sum_j rad_surface(j)*EXP(-AV(j)*UV_fac)   <- local
+        !   call calc_heating(rho, nTgas, Tdust, UVfield, ...)  <- local
+        !   CALCULATE_REACTION_RATES(..., rad_surface, AV, ...) <- surface
+        !
+        ! We passed chiFUV0 - the unattenuated 10 Draine surface field - to
+        ! CALC_HEATING at every depth, so photoelectric heating never
+        ! attenuated. Below A_V ~ 0.1 that is harmless; beyond it the error
+        ! grows exponentially, which is exactly where the gas temperature was
+        ! seen to peel away from standalone while the DUST temperature (fixed
+        ! to use the local field in D-065) stayed correct.
+        chiLoc = dble(grid%chiFUV(cellP))
+        if (chiLoc <= 0.d0) chiLoc = chi*exp(-av*dble(pdrRfuv))
 
         TdMoc = dble(grid%Tdust(0,0,cellP))
 
@@ -983,7 +999,7 @@ module pdr_mod
            ! photoelectric part is kept separately because it is the term
            ! MOCASSIN also computes, and D-007's blend band ramps between the
            ! two rather than adding them.
-           call CALC_HEATING(nH, Tg, Td, chi, dble(pdrVturb)*1.d5, pdrNspecMod, &
+           call CALC_HEATING(nH, Tg, Td, chiLoc, dble(pdrVturb)*1.d5, pdrNspecMod, &
                 & abun, pdrNreacMod, pdrRate, heat, &
                 & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
 
@@ -1176,7 +1192,7 @@ module pdr_mod
         ! and cooling correspond to the stored T. Without this they are one
         ! bisection step stale, and because cooling is exponential in T that
         ! makes a converged cell look like a factor-of-20 imbalance.
-        call CALC_HEATING(nH, Tg, Td, chi, dble(pdrVturb)*1.d5, pdrNspecMod, &
+        call CALC_HEATING(nH, Tg, Td, chiLoc, dble(pdrVturb)*1.d5, pdrNspecMod, &
              & abun, pdrNreacMod, pdrRate, heat, &
              & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
         grid%pdrHeat(cellP)   = real(heat(12))

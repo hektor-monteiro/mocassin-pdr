@@ -96,6 +96,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-073 | The benchmark's grains were 0.07-50 um: grey extinction, R_FUV = 1.12 | Accepted | 2026-09-01 |
 | D-074 | Full parameter audit against 3D-PDR's params.dat; Fcrit was 20x loose | Accepted | 2026-09-01 |
 | D-075 | `NH` species index shadowed by a local `nH`: atomic H collision partner was ZERO | Accepted | 2026-09-01 |
+| D-076 | Photoelectric heating was given the UNATTENUATED surface field at every depth | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3705,3 +3706,68 @@ The gas temperature profile now tracks standalone through the illuminated layer:
 at A_V > 4 the gas is molecular, x(H) ~ 1e-3, so the H collision partner barely contributes there.
 That residual is separate and most likely the FUV field, which still decays at gamma_eff = 1.86
 per magnitude against the 3.02 3D-PDR assumes, delivering too much photoelectric heating at depth.
+
+
+## 2026-09-01f - D-076: heating was using the surface field at every depth
+
+Hektor's observation located this precisely: *"the dust temperature is much better and agrees well
+with the 3DPDR benchmark. The gas temperature however is not so good. Beginning Av~0.1 it is
+consistently higher."*
+
+Dust temperature follows the local field; gas temperature follows photoelectric heating. If one is
+right and the other is not, they are being handed different fields - and they were.
+
+3D-PDR keeps two fields and never confuses them:
+
+```fortran
+! UVfield.F90 - the LOCAL, attenuated field
+pdr(p)%UVfield = pdr(p)%UVfield + pdr(p)%rad_surface(j)*EXP(-pdr(p)%AV(j)*UV_fac)
+
+! changetemperature.F90 - heating takes the LOCAL field
+call calc_heating(pdr(p)%rho, pdr(p)%nTgas, pdr(p)%Tdust, pdr(p)%UVfield, ...)
+
+! the RATES take the surface field, and attenuate internally
+CALCULATE_REACTION_RATES(..., pdr(p)%rad_surface(0:nrays-1), pdr(p)%AV(0:nrays-1), ...)
+```
+
+We passed `chi = grid%chiFUV0` - the unattenuated ~10 Draine **surface** field - to `CALC_HEATING`
+at every depth, so **photoelectric heating never attenuated**. Below A_V ~ 0.1 the attenuation is
+negligible and it does not matter; beyond that the error grows exponentially. Exactly the
+behaviour reported.
+
+This is the same error class as D-065, which fixed the *dust* temperature to use the local field.
+The heating call was missed then, which is why the dust came right and the gas did not.
+
+Fixed: `chiLoc = grid%chiFUV(cellP)` (the Monte Carlo transported local field, falling back to
+`chi0*exp(-A_V*R_FUV)` where it underflows) now goes to both `CALC_HEATING` calls, while
+`radSurf` keeps the surface field for the rates.
+
+### Effect
+
+| quantity | surface field | local field | 3D-PDR | ratio |
+|---|---|---|---|---|
+| median T, first 20 cells | 94.1 K | **83.1 K** | 79.6 K | **1.04** |
+| deep T | 40.1 K | **13.3 K** | 10.5 K | **1.27** |
+| C -> CO | 4.054 | **4.752** | 4.924 | **0.97** |
+| C+ -> C | 1.215 | 1.263 | 1.604 | 0.79 |
+| H -> 2H2 | 0.019 | 0.021 | 0.027 | 0.75 |
+| heat/cool | 0.999 | 1.000 | 1 | - |
+
+The temperature profile now tracks standalone across the whole slab:
+
+| A_V | ours | 3D-PDR |
+|---|---|---|
+| 0.008 | 76.1 | 81.2 |
+| 0.108 | 84.7 | 85.3 |
+| 0.363 | 75.7 | 68.2 |
+| 0.882 | 50.6 | 38.9 |
+| 1.946 | 27.0 | 11.7 |
+| 3.675 | 11.8 | 8.1 |
+| 8.491 | 13.3 | 10.5 |
+
+**D-064 is now closed.** The temperature offset that survived D-060, D-065, D-072, D-073 and D-074
+was two separate bugs - the zero collision partner (D-075) at the surface and the unattenuated
+heating field (D-076) at depth - which is why no single earlier fix moved it.
+
+Residual: the mid-slab (A_V ~ 1-2) still runs ~2x warm, and both carbon fronts sit ~20-25% shallow
+while C->CO is now within 3%.
