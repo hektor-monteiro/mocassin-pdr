@@ -58,7 +58,7 @@ ifeq ($(PDR),1)
   #   OPENMP (MOCASSIN's MPI already parallelises the cell loop),
   #   CHEMANALYSIS (temp_rate(nreac,ncells) is prohibitive in 3D),
   #   GUESS_TEMP (lives in calc_UVfield, which D-001 removes).
-  PDRFLAGS = -DTHERMALBALANCE -DREDUCED -DRAYTHEIA -DRAYTHEIA_MO -DH2FORM_CT02 \
+  PDRFLAGS = -DTHERMALBALANCE -DREDUCED -DONEDIMENSIONAL -DH2FORM_CT02 \
              -DCHEMSTEADY -DCHEMRETRY -DFORCECONVERGENCE \
              -DNGACCEL -DNGCYCLE -DNGRELAX -DILLINOIS -DREBRACKET -DSOBOLEV
 

@@ -83,7 +83,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-059 | Standalone 3D-PDR baseline built and run; my quoted reference values were wrong | Accepted | 2026-08-31 |
 | D-060 | Level populations must converge at fixed T before the temperature moves | Accepted | 2026-08-31 |
 | D-061 | Per-ray slab escape geometry: helps C->CO, does not close the cooling gap | Partial | 2026-08-31 |
-| D-063 | Cooling ceiling is the escape probability; Sobolev length is the next suspect | Open | 2026-08-31 |
+| D-063 | We compiled RAYTHEIA_MO where 3D-PDR compiles ONEDIMENSIONAL; beta divided by 12 | Accepted | 2026-08-31 |
+| D-064 | Residual is a uniform ~1.8x temperature offset, not a surface blowup | Open | 2026-08-31 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3199,3 +3200,73 @@ pass that instead.
 (all three fronts within 0.68-0.83), thermal balance closes (heat/cool 0.999), physically
 identical cells agree exactly, and the radiation field is verified twice over. The open defect is
 one number - the escape probability - in one routine.
+
+
+## 2026-08-31k - D-063: we were compiling a different escape-probability branch
+
+Three attempts to approximate 3D-PDR's escape geometry from outside all failed, in different
+directions. The reason is that `escape_probability.F90` has three mutually exclusive branches, and
+we were not compiling the one 3D-PDR uses.
+
+```fortran
+#ifdef ONEDIMENSIONAL
+         beta_ij = beta_ij_sum                      ! 3D-PDR's 1D build
+#else
+         beta_ij = beta_ij_sum / real(nrays,kind=DP)   ! ours (RAYTHEIA_MO)
+#endif
+```
+
+3D-PDR's 1D build blanks 11 of its 12 rays to `tau = 1e50` and then does **not** divide, so its
+beta is one normal ray's value, up to ~1. Our `PDRFLAGS` set `-DRAYTHEIA -DRAYTHEIA_MO`, whose
+branch divides by `nrays`. Every geometry we tried was therefore fighting a factor we could not
+see from the call site:
+
+| attempt | beta | result |
+|---|---|---|
+| 1 ray, inward column (original) | beta_1 | C+ saturates 3.3e-22 |
+| 12 rays, true slab lengths (D-061) | 4/12 = 0.33 | C+ saturates 1.6e-22, C->CO improved |
+| 1 ray, nearest face | beta_1 | fronts worse (C+/C 0.68) |
+
+**Fix: compile the same branch.** `PDRFLAGS` now selects `-DONEDIMENSIONAL` in place of
+`-DRAYTHEIA -DRAYTHEIA_MO`, and the call supplies what that branch asks for - evaluation-point
+coordinates in pc along ray 6 - instead of a path-length array. Both codes now run identical
+escape-probability code. (`eval_points` and `CRattenuation` also respond to the flag; we call
+neither.)
+
+### Effect
+
+| quantity | RAYTHEIA_MO | ONEDIMENSIONAL | 3D-PDR |
+|---|---|---|---|
+| **deep T** | 56.2 K | **18.7 K** | 10.5 K |
+| C -> CO | 4.100 | 4.008 | 4.924 |
+| C+ -> C | 1.213 | 1.216 | 1.604 |
+| heat/cool | 0.999 | 0.999 | 1 |
+
+The deep cloud went from 5.4x to 1.8x, and the deep profile now tracks closely - our last two
+points are 30 K and 19 K against 3D-PDR's 29 K and 10 K.
+
+### D-064: and the "surface blowup" was a reporting artefact
+
+The headline "surface T" figure in every table above was `max(T)` over the first six cells. It was
+catching a single outlier. The actual surface layer:
+
+| j | A_V | our T | 3D-PDR T |
+|---|---|---|---|
+| 1 | 0.0075 | 377 | 81 |
+| 2 | 0.0125 | 255 | 83 |
+| 5 | 0.0278 | 186 | 84 |
+| 10 | 0.0539 | 158 | 86 |
+| 15 | 0.0808 | 146 | 86 |
+
+**Only 1 cell in 401 exceeds 500 K.** Median over the first 20 cells is 156 K against 3D-PDR's
+~85 K. Heating and cooling agree to four digits in every cell, and our surface heating (4.98e-22)
+is close to 3D-PDR's (6.98e-22).
+
+So the residual is not a blowup at the face - it is a **uniform ~1.8x temperature offset** through
+the whole column (1.9x at the surface, 1.79x deep), with the first cell somewhat worse. That is a
+far better-posed problem than what the max-based metric was describing, and it should be tracked
+with a median, not a maximum.
+
+*Correction to the record:* every "surface temperature" ratio reported in this log from D-059
+onwards (12.4x, 28.6x, 28.9x, 32.9x) is a max-over-six-cells statistic and overstates the
+disagreement. The comparable numbers are ~1.9x.

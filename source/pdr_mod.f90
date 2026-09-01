@@ -775,6 +775,7 @@ module pdr_mod
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
         double precision   :: lline(pdrMaxLev,pdrMaxLev)
         double precision   :: evpop(0:nraysLoc-1,0:1,pdrMaxLev), plen(0:nraysLoc-1,0:1)
+        double precision   :: evpt(1:3,0:nraysLoc-1,0:1)
         integer            :: jjr(0:nraysLoc-1)
         integer            :: kray
         double precision   :: mu, colA, avBack
@@ -1009,39 +1010,23 @@ module pdr_mod
               ! `if (.not.level_conv) return` - it refuses to move T until the
               ! populations have converged. D-056 ported its arithmetic but not
               ! that guard. Here the equivalent is an inner fixed-T iteration.
-              ! ---- D-061: real per-ray escape geometry ---------------------
-              ! Collapsing to ONE ray carrying the inward column made every
-              ! line escape as if the cell were buried, and cost a factor of
-              ! ~4 in C+ cooling at the face. escape_probability averages
-              ! beta over rays (beta_ij_sum/nrays), so it only needs a correct
-              ! path length per ray - which a slab gives in closed form.
-              !
-              ! HEALPix nside=1 is 12 pixels in three rings: 4 at mu = +2/3,
-              ! 4 at mu = 0, 4 at mu = -2/3, with mu measured along the slab
-              ! normal. Rays with mu < 0 look back at the illuminated face and
-              ! see A_V/|mu|; rays with mu > 0 look into the cloud and see the
-              ! remaining column A_Vback/mu; rays with mu = 0 run parallel to
-              ! an infinite slab and never escape.
+              ! ---- D-063: compile and call the SAME branch 3D-PDR uses ----
+              ! Approximating 3D-PDR's escape geometry from outside kept
+              ! failing: 12 rays divided by 12 gave beta = 0.33 (D-061), one
+              ! ray on the nearest face gave worse fronts still. The branch
+              ! itself was the difference - we compiled RAYTHEIA_MO, which
+              ! divides beta by nrays, while 3D-PDR's 1D build takes
+              ! ONEDIMENSIONAL, which blanks 11 of 12 rays to tau = 1e50 and
+              ! does NOT divide. PDRFLAGS now selects ONEDIMENSIONAL, so both
+              ! codes run identical escape_probability code and the only thing
+              ! we supply is the geometry it asks for: evaluation-point
+              ! coordinates, in pc, along ray 6.
               avBack = dble(grid%AVback(cellP))
-              do kray = 0, nraysLoc-1
-                 if (kray < 4) then
-                    mu =  2.d0/3.d0
-                 else if (kray < 8) then
-                    mu =  0.d0
-                 else
-                    mu = -2.d0/3.d0
-                 end if
-                 if (mu > 1.d-6) then
-                    colA = avBack/mu
-                 else if (mu < -1.d-6) then
-                    colA = av/abs(mu)
-                 else
-                    colA = 1.d30            ! parallel: fully trapped
-                 end if
-                 jjr(kray)     = 1
-                 plen(kray,0)  = 0.d0
-                 plen(kray,1)  = min((colA/dble(pdrAVfac))/nH/PC, 1.d30)
-              end do
+              colA   = av                       ! column back to the illuminated face
+              jjr    = 1
+              evpt   = 0.d0
+              evpt(1,6,0) = 0.d0
+              evpt(1,6,1) = (colA/dble(pdrAVfac))/nH/PC
 
               do ilev = 1, max(pdrLevIter,1)
               evpop = 0.d0
@@ -1055,9 +1040,9 @@ module pdr_mod
                    & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
                    & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
                    & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tg, dble(pdrVturb)*1.d5, jjr, &
-                   & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
+                   & lpop(1:nlev), evpt, pdrCoolant2(ik)%weights, coolK, &
                    & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
-                   & pdrCoolant2(ik)%molweight, plen)
+                   & pdrCoolant2(ik)%molweight)
 
               call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
 
@@ -1093,7 +1078,7 @@ module pdr_mod
                     print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es10.3,a,es10.3,a,f8.1)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
                        & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " plen_pc=", plen(0,1), " T=", Tg
+                       & " cool=", coolK, " plen_pc=", evpt(1,6,1), " T=", Tg
                  end if
               end if
            end do
