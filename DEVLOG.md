@@ -99,6 +99,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-076 | Photoelectric heating was given the UNATTENUATED surface field at every depth | Accepted | 2026-09-01 |
 | D-077 | Frequency bins and grid resolution are both converged; 3D-PDR has no grain size distribution | Closed | 2026-09-01 |
 | D-078 | Shielding columns used local abundance x total column instead of the integral | Accepted | 2026-09-01 |
+| D-079 | What the reported convergence actually measures, and why it is not a PDR test | Noted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3920,3 +3921,90 @@ hotter so it radiates more".
 - The transported field decays at gamma_eff = 1.85 per magnitude against 3D-PDR's prescribed
   3.02. This is a genuine physical difference - 3D-PDR's exponential has no scattering, ours
   transports through grains of albedo 0.486 - and is expected to persist.
+
+
+## 2026-09-01i - D-079: what the reported convergence actually measures
+
+Hektor asked how the convergence the model reports is doing. Worth answering carefully, because
+the number is not measuring what its name suggests.
+
+### What it reports
+
+    Iteration 1 ;   0.000 % converged
+    Iteration 2 ;   0.424 %
+    Iteration 3 ; 100.000 %
+    Iteration 4 ; 100.000 %
+    Iteration 5 ;  99.995 %   -> convergence reached after 5 iterations
+
+### What that criterion is
+
+In `updateCell` the **gas-phase** convergence test is commented out in upstream MOCASSIN:
+
+```fortran
+!            grid%Te(cellP)         = TeUsed
+!            deltaXHI = (grid%ionDen(cellP,elementXref(1),1) - XOldHI) / XOldHI
+!            if ( abs(deltaXHI) <= XHILimit ) then
+!               grid%lgConverged(cellP) = 1
+```
+
+The live test is on the **dust temperature**:
+
+```fortran
+XOldHI   = grid%Tdust(0,0,cellP)
+call getDustT()
+deltaXHI = (grid%Tdust(0,0,cellP) - XOldHI) / XOldHI
+if (abs(deltaXHI) <= XHILimit) grid%lgConverged(cellP) = 1
+```
+
+To which D-032 adds the only PDR-aware term - `pdrStep` clears `lgConverged` for any cell whose
+instantaneous imbalance exceeds `pdrFcrit`:
+
+```fortran
+if (abs(heat(12)-coolTot)/max(abs(heat(12)), coolTot) > dble(pdrFcrit)) &
+     & grid%lgConverged(cellP) = 0
+```
+
+So "100% converged" means: **dust temperature stable, and heating balances cooling to 0.5% at the
+current temperature.** It says nothing about whether the chemistry has reached steady state.
+
+### The PDR only ever gets about two passes
+
+With `pdrStartIter 4` the run exits at iteration 5, so `pdrStep` runs **twice**. That is by
+construction: D-062's guard holds the run open only until the PDR has been enabled and had a pass.
+Raising `convLimit` does not change it - at 99.99 and even at 100.5 the model still stopped after
+3-5 iterations, because the dust had already stabilised before the PDR started.
+
+### But the PDR is nonetheless converged - verified directly
+
+The reported number cannot establish this, so it was tested by quadrupling the internal
+relaxation: `pdrChemIter` 3 -> 12, `pdrThermIter` 12 -> 40, `pdrLevIter` 25 -> 60.
+
+| quantity | 3/12/25 | 12/40/60 | change |
+|---|---|---|---|
+| median T, first 20 cells | 79.977 | 79.749 | -0.3% |
+| deep T | 13.306 | 13.305 | -0.0% |
+| H -> 2H2 | 0.0250 | 0.0252 | **+0.7%** |
+| C+ -> C | 1.5944 | 1.5936 | -0.1% |
+| C -> CO | 4.7689 | 4.7743 | +0.1% |
+| heat/cool | 1.0000 | 1.0000 | 0.0% |
+
+Everything moves by 0.7% or less. The inner loops do the relaxation within a single pass, so two
+passes suffice **for this model**.
+
+*A false alarm on the way to that:* an earlier attempt reported the H/H2 front moving by -93%. That
+run had been killed mid-flight by a polling timeout and its `pdrGrid.out` was a partial write. It
+parsed cleanly - the record count was right - which is exactly why it was believable. Re-running
+it detached gave +0.7%. Worth remembering that a complete-looking checkpoint from a killed run is
+not a result.
+
+### The honest assessment
+
+The convergence report is **trustworthy for this model but not diagnostic of the PDR**. It
+measures dust-temperature stability plus an instantaneous energy balance; chemical steady state is
+established separately, by the relaxation test above. For a model whose chemistry evolves more
+slowly - higher density, greater depth, or a network with longer timescales - two passes might not
+suffice and the reported number would not catch it.
+
+**Recommended practice:** treat the reported percentage as a necessary but not sufficient check,
+and confirm any new configuration with a relaxation test (raise `pdrChemIter`/`pdrThermIter` and
+verify nothing moves) before trusting the result.

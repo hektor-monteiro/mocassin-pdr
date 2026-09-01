@@ -751,7 +751,6 @@ subroutine iterateT()
     ! This was added to help implementing MPI communication
     TeTemp(cellP) = TeUsed
     
-    if (cellP == 9249) print*, nIterateT, TeUsed, '[', Tlow, Thigh, ']', (thResidual), thLimit * heatInt
 
 
 end subroutine iterateT
