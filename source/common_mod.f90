@@ -519,7 +519,7 @@ module common_mod
     real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
-    real                :: pdrFcrit   = 0.10        ! |heat-cool|/max tolerated as converged (D-032)
+    real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
     integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
     integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]

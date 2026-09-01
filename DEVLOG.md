@@ -93,6 +93,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-070 | MOCASSIN and 3D-PDR use different atomic data AND different excitation physics | Open | 2026-09-01 |
 | D-071 | MOCASSIN re-solves Te in PDR cells, overwriting the handover | Resolved by D-072 | 2026-09-01 |
 | D-072 | The PDR owns the thermal balance in its own cells | Accepted | 2026-09-01 |
+| D-073 | The benchmark's grains were 0.07-50 um: grey extinction, R_FUV = 1.12 | Accepted | 2026-09-01 |
+| D-074 | Full parameter audit against 3D-PDR's params.dat; Fcrit was 20x loose | Accepted | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -3525,3 +3527,105 @@ doing, but it does not explain the ~1.9x offset.
 remains the line emission - [CII] at 0.24x and [OI] at 0.06x of standalone at matched temperature,
 with identical atomic data, identical collision-partner mapping and an identical detailed-balance
 rebuild. The population solve is where to look next.
+
+
+## 2026-09-01d - D-073/D-074: the benchmark's dust was wrong, and a full parameter audit
+
+### Following the deep-cloud discrepancy to its source
+
+The deep cloud was cooling 200-1500x more than 3D-PDR and still sitting at 30-60 K against 8-10 K.
+Since heat/cool = 0.999 in both, the deep *heating* had to be equally excessive, and the candidate
+was the FUV field: ours reached chi = 7.4e-3 at A_V = 8.5 where 3D-PDR's is 7.3e-11.
+
+**It is not Monte Carlo noise.** Quadrupling the packets to 2400 per cell left the deep field
+unchanged at every depth (ratios 0.97-1.05), so it is genuinely transported radiation.
+
+That made the decay rate the thing to explain. Measuring the dust directly:
+
+    ! [D073] kFUV/kV = R_FUV = 1.11973917   kV = 4.91996275E-19   kFUV = 5.50907510E-19
+    ! [D073] FUV albedo = 0.549705327
+
+With omega = 0.55, diffusion theory gives the diffuse field decaying as
+`exp(-tau*sqrt(3(1-w)(1-wg)))`, i.e. gamma_eff ~ 0.95*R_FUV/1.0857. At R_FUV = 1.12 that predicts
+0.98-1.20 per magnitude against the 0.73 measured - agreement to ~35%, about as good as a
+diffusion approximation gets. **So the deep field was physically consistent with the dust. The
+dust was wrong.**
+
+### D-073: 0.07 to 50 micron grains
+
+```
+2
+'dustData/astroSilD2003_base.nk' 0.9800 0.07 50      <- silicate, 0.07-50 um
+'dustData/PAHneu_30.cat'         0.0200 1e-05 0.002
+```
+
+Interstellar MRN grains run 0.005-0.25 um. This distribution is dominated by large grains, which
+give **grey extinction** - hence R_FUV = 1.12 where interstellar dust gives ~3. Changing only the
+size range, same materials:
+
+| a range | R_FUV | albedo | A_V/N_H |
+|---|---|---|---|
+| 0.07-50 um (as inherited) | **1.12** | 0.550 | 5.34e-22 |
+| 0.005-0.25 um | 5.21 | 0.450 | 1.15e-21 |
+| **0.010-0.30 um (adopted)** | **3.59** | 0.486 | 1.42e-21 |
+
+3D-PDR's `params.dat` states its UV factor as **3.02**, so 0.010-0.30 um at R_FUV = 3.59 is within
+19%. Rescaling `MdMg` to hold A_V/N_H at 3D-PDR's value gives **0.01059** - essentially the
+canonical dust-to-gas ratio, which is itself a consistency check: proper ISM grains at the
+canonical dust-to-gas reproduce the canonical extinction per hydrogen. The 0.0281 of D-058 was
+compensating for the wrong grain sizes.
+
+### D-074: the full parameter audit
+
+Prompted by Hektor: having found one inconsistency, check them all against 3D-PDR's `params.dat`.
+
+| parameter | 3D-PDR | ours | |
+|---|---|---|---|
+| G0 | 10 Draine | 10.1 | ok |
+| zeta | 5e-17 | 5e-17 | ok |
+| turbulent velocity | 1 km/s | 1.0 | ok |
+| grain radius | 1e-5 cm | 1e-5 | ok |
+| A_V conversion | 5.33997e-22 | **5.33839e-22** | ok, 0.03% |
+| T_min / T_max | 1 / 2e4 | 1 / 2e4 | ok |
+| HEALPix level | 0 | 0 | ok |
+| **Fcrit** | **0.005** | **0.10** | **was 20x loose - fixed** |
+| **UV factor (R_FUV)** | **3.02** | 1.12 -> **3.59** | fixed to 19% |
+| **dust-to-gas x1e-2** | **1** | 2.81 -> **1.06** | fixed |
+| chemistry iterations | 8 then 6000 | 3 per MC pass | differs by design |
+
+`pdrFcrit` had been 0.10 since D-032 - twenty times looser than 3D-PDR's thermal convergence
+criterion, and a plain error on our side. Now 0.005.
+
+### Effect of the corrected setup
+
+| quantity | old dust | corrected | 3D-PDR | ratio |
+|---|---|---|---|---|
+| gamma_eff of the field | 0.73/mag | **1.86/mag** | 3.02 assumed | - |
+| chi at A_V = 8.5 | 7.1e-3 | **underflows to 0** | 7.3e-11 | - |
+| H -> 2H2 | 0.017 | **0.021** | 0.027 | 0.76 |
+| C+ -> C | 1.216 | 1.215 | 1.604 | 0.76 |
+| C -> CO | 3.927 | **4.028** | 4.924 | 0.82 |
+| deep T | 50.3 K | **40.1 K** | 10.5 K | 3.83 |
+| median T, first 20 | 153 K | 156 K | 79.6 K | 1.96 |
+| heat/cool | 0.999 | 0.999 | 1 | - |
+
+The radiation field is now physically sensible - it decays 2.5x faster and underflows at depth as
+it should - and **all three chemical fronts now cluster at 0.76-0.82** of standalone rather than
+scattering between 0.62 and 0.82.
+
+The temperatures did not follow: the surface is unchanged at ~1.96x and the deep cloud improved
+only from 5.4x to 3.8x. So the dust was a real and necessary fix for the *radiation field* and the
+*chemistry*, but it is not the explanation for the temperature offset either.
+
+### Where that leaves the [CII]/[OI] question
+
+The emissivity comparison needs restating, because the earlier framing was misleading. Measured at
+**matched temperature**, our cooling function is weak: [CII] 0.24x, [OI] 0.06x. But in the
+*converged* model our emissivities are comparable to or larger than 3D-PDR's, because our gas is
+hotter and radiates more. Both are true and they answer different questions. heat/cool = 0.999
+throughout, so the model is internally consistent; it simply balances the same heating at a higher
+temperature because its cooling per unit temperature is weaker.
+
+That remains the open thread, and it is now the *only* one: atomic data byte-identical, collision
+partners correctly mapped, detailed balance identical, escape-probability branch identical, dust
+corrected, every input parameter audited.

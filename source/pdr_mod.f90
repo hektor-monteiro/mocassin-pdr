@@ -372,7 +372,7 @@ module pdr_mod
         type(grid_type), dimension(:), intent(in) :: grid
 
         integer          :: iG, iCell, ifreq, nUsed
-        double precision :: kFUV, kV, wsum, w
+        double precision :: kFUV, kV, wsum, w, kabs, ksca
 
         ! find any cell that actually carries dust; the ratio is independent of
         ! the dust column, so one representative cell is enough
@@ -438,6 +438,28 @@ module pdr_mod
                 & "! calibratePDRdust: A_V per N_H =", pdrAVfac, &
                 & "  (N_H per mag =", 1./pdrAVfac, ")"
            if (taskid == 0) print*, "! [D060] pdrDiagCool =", pdrDiagCool, " pdrNcool =", pdrNcool
+        ! D-073: the FUV albedo and asymmetry set how fast the DIFFUSE field
+        ! decays: exp(-tau*sqrt(3(1-w)(1-wg))). Report them alongside R_FUV so
+        ! the measured gamma_eff can be checked against diffusion theory.
+        if (taskid == 0) then
+           kabs = 0.d0; ksca = 0.d0; wsum = 0.d0
+           do ifreq = FUVlowP, FUVhighP
+              if (ifreq > 1) then
+                 w = dble(inSpectrumProbDen(1,ifreq)) - dble(inSpectrumProbDen(1,ifreq-1))
+              else
+                 w = dble(inSpectrumProbDen(1,ifreq))
+              end if
+              if (w <= 0.d0) cycle
+              kabs = kabs + w*dble(grid(1)%absOpac(iCell,ifreq))
+              ksca = ksca + w*dble(grid(1)%scaOpac(iCell,ifreq))
+              wsum = wsum + w
+           end do
+           if (wsum > 0.d0) then
+              kabs = kabs/wsum; ksca = ksca/wsum
+              print*, "! [D073] R_FUV =", pdrRfuv, " FUV albedo =", &
+                   & real(ksca/max(kabs+ksca,1.d-99))
+           end if
+        end if
         end if
 
         if (kV <= 0.d0 .or. kFUV <= 0.d0) then
@@ -446,6 +468,8 @@ module pdr_mod
         end if
 
         pdrRfuv = real(kFUV/kV)
+        if (taskid == 0) print*, "! [D073] kFUV/kV = R_FUV =", pdrRfuv, &
+             & "  kV =", real(kV), "  kFUV =", real(kFUV)
 
         if (taskid == 0) then
            print*, "! calibratePDRdust: measured from this model's grains -"
@@ -1091,9 +1115,8 @@ module pdr_mod
               coolTot = coolTot + coolK
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0 .and. (ik == 2 .or. ik == 4) .and. &
-                 & grid%AVeff(cellP) < 0.02) then
-                 if (pdrNdiag < 200) then
+              if (pdrDiagCool > 0 .and. taskid == 0) then
+                 if (pdrNdiag < 400000) then
                     pdrNdiag = pdrNdiag + 1
                     print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
