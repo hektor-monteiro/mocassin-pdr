@@ -105,6 +105,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-082 | Rollig V2 (n=1e5, chi=1e3) matches standalone to 0-8%; the fixes generalise | Accepted | 2026-09-01 |
 | D-083 | Our build compiles ONEDIMENSIONAL, which is 1D-correct and WRONG for any 3D model | Resolved by D-084 | 2026-09-01 |
 | D-084 | `PDRGEOM` build switch; 3D needs BOTH RAYTHEIA flags; committed fixture did not reproduce | Accepted | 2026-09-02 |
+| D-085 | 3D-PDR has no photoionization; its 1D mode IS a central-source PDR minus dilution | Accepted | 2026-09-02 |
+| D-086 | Spherical `AVeff` from the chi/chi0 inversion under-reads the dust column by ~1.8x | Open | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4410,3 +4412,102 @@ flavour is **built but unexercised** - testing it needs 3D-PDR's `ics/3Dsphere.d
 `diffuse_32.dat`, which live upstream and were lost with the session scratchpad, and a 3D model
 still supplies per-ray columns from the plane-parallel closed form rather than ray-tracing them
 through the grid (`columndensity.F90` is the routine that would do it).
+
+
+## 2026-09-02b - D-085/D-086: can 3D-PDR run an H II model? No, and what that leaves
+
+Hektor asked whether we could run something like HII40 in 3D-PDR, to get a realistic spherical
+model with a central star and compare against MOCASSIN.
+
+### D-085: 3D-PDR has no photoionization at all
+
+Checked against the source rather than assumed. Searching for ionizing transfer finds only
+**carbon and sulphur** photoionization - `heatingfunctions.F90:157` "Carbon photoionization
+heating", `calc_reac_rates.F90:280` "reaction number for CI photoionization" - which are FUV
+processes inside the PDR. There is no Lyman-continuum transfer anywhere, and H+ in the reduced
+network is produced by chemistry (charge exchange, cosmic rays), not by a stellar ionizing field.
+
+So 3D-PDR cannot produce an H II region. That is by design: it is a PDR code that begins where the
+ionized gas ends, which is exactly why TORUS-3DPDR's section 5.4 compared the ionized zone against
+**MOCASSIN** and the PDR against **3D-PDR**, separately.
+
+It also has exactly two illumination modes, both in `UVfield.F90`:
+
+```fortran
+#ifdef ONEDIMENSIONAL
+   pdr(p)%rad_surface(6) = Gext(1)                    ! all flux on one ray
+#else
+   pdr(p)%rad_surface = Gext(1)/real(nrays,kind=dp)   ! isotropic bath
+#endif
+```
+
+No point source. (A directional variant was contemplated - the commented
+`!-DOT_PRODUCT(Gext(:),vectors(:,j))` - and `Gext` is declared as a 3-vector, but only `Gext(1)`
+is ever read.)
+
+**But Hektor's idea has a realizable form.** In a spherically symmetric problem with a central
+source, radiation reaches any point from one direction only - radially. That is precisely the
+`ONEDIMENSIONAL` mode. So 3D-PDR's 1D mode *is* a centrally-illuminated spherical PDR, missing
+only the geometric dilution, which is the `R_IF^2/(R_IF+r)^2` factor TORUS reported was required
+for agreement with MOCASSIN.
+
+### The test that results
+
+MOCASSIN ran the spherical H II + PDR model (`benchmarks/pdr/hiipdr`, n_H = 100, 4e4 K blackbody,
+LPhot 4.26e13). It converged and produced a proper structure:
+
+| r [cm] | T_e | x(H+) | note |
+|---|---|---|---|
+| 4.0e18 | 9533 K | 0.9999 | H II region |
+| 1.2e19 | 11147 K | 0.9814 | |
+| **1.341e19** | | **0.5** | **ionization front** |
+| 1.6e19 | 3130 K | 0.0189 | **inside the D-007 blend band** |
+| 2.8e19 | 125 K | 1.4e-5 | PDR |
+| 6.0e19 | 39 K | 4.7e-4 | outer edge, x(H2) = 0.49 |
+
+Note the blend band is genuinely active here - x(H+) = 0.0189 lies in 0.01-0.3 - which the slab
+models never achieved and the earlier plane-parallel front model needed a graded grid to reach.
+
+3D-PDR was then run in 1D at n_H = 100 with `Gext = 105.15`, the field our model gives at the
+front, over a matched A_V span.
+
+### D-086: and the comparison found a defect - after a false start
+
+Aligned on **our** A_V, the ratio chi_ours/chi_3DPDR tracked (R_IF/r)^2 to about 15%, which looked
+like a clean confirmation that we carry the dilution TORUS had to add.
+
+**That comparison was circular.** In the spherical path `AVeff` is *defined* from the field:
+
+```fortran
+if (.not.lgPlaneIonization) then
+   tauFUV = -log(chi/chi0)
+   grid(iG)%AVeff(cellP) = real(dble(magPerTau)*tauFUV/dble(pdrRfuv))
+```
+
+so aligning on that A_V matches the attenuation by construction, and what remains is the dilution
+almost by definition. Re-aligned on **geometric** depth from the front - independent of either
+code - the picture changes:
+
+| | our A_V | geometric A_V |
+|---|---|---|
+| outer edge, r = 6e19 | **1.386** | **2.487** |
+
+**Our spherical A_V under-reads the true dust column by a factor of 1.8.** The cause is known: the
+Monte Carlo field carries scattered light, so `-ln(chi/chi0)` under-reads the extinction. The slab
+measured gamma_eff = 1.86 per magnitude against the 3.02 of pure extinction, a ratio of 1.6 -
+close to the 1.8 seen here.
+
+This is the same defect D-054 fixed for the plane-parallel case by abandoning the inversion in
+favour of `computeAVdust`'s geometric column. That routine still opens with
+
+```fortran
+if (.not.lgPlaneIonization) return
+```
+
+so **the spherical path never got the fix**. Extending it - integrating the dust column radially
+from the source rather than inverting the field - is the outstanding work, and it is the same
+correction, applied to the geometry that was left behind.
+
+*Caveat on the run itself:* the 3D-PDR grid was sized to our derived A_V span (1.181) rather than
+the geometric one (2.487), so the comparison is only valid to r ~ 3.4e19 where its grid still has
+points. Re-running it over the geometric span is cheap and should be done alongside the fix.
