@@ -515,6 +515,125 @@ module pdr_mod
       ! General 3D geometry still needs the ray trace of D-002; there the MC
       ! inversion remains in use.
       !-----------------------------------------------------------------
+      !-----------------------------------------------------------------
+      ! D-087: geometric A_V for a NON plane-parallel geometry.
+      !
+      ! The spherical path used to define A_V by inverting the Monte Carlo
+      ! field, AVeff = 1.0857*(-ln(chi/chi0))/R_FUV. That under-reads the dust
+      ! column, because the transported field carries scattered light: measured
+      ! against the geometric column in the spherical H II + PDR model it came
+      ! out 1.386 where the column gives 2.487, low by a factor of 1.8 (D-086).
+      ! The slab saw the same thing as gamma_eff = 1.86 per magnitude against
+      ! the 3.02 of pure extinction.
+      !
+      ! D-054 fixed this for plane-parallel illumination by integrating the dust
+      ! column directly, which is also what TORUS-3DPDR does - A_V ray-traced
+      ! from the density field, never inverted from the field. This is the same
+      ! correction for the geometry that was left behind: walk from each source
+      ! to the cell, accumulating extinction.
+      !
+      ! With several sources the effective A_V is the one that reproduces the
+      ! summed transmitted flux, so it reduces to the plain column for a single
+      ! source:
+      !
+      !   A_V,eff = -(1.0857/R_FUV) ln( SUM_s f_s e^{-R_FUV A_V,s/1.0857}
+      !                                 / SUM_s f_s )
+      !-----------------------------------------------------------------
+      subroutine computeAVradial(grid)
+        implicit none
+
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer          :: iG, i, j, k, cellP, iS, istep, nstep, ix, iy, iz
+        double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS
+        double precision :: fSum, fTot, kap, rr, avS
+
+        if (pdrRfuv <= 0.) return
+
+        do iG = 1, nGrids
+           do i = 1, grid(iG)%nx
+              do j = 1, grid(iG)%ny
+                 do k = 1, grid(iG)%nz
+                    cellP = grid(iG)%active(i,j,k)
+                    if (cellP <= 0) cycle
+
+                    fSum = 0.d0
+                    fTot = 0.d0
+                    do iS = 1, nStars
+                       sx = dble(starPosition(iS)%x)
+                       sy = dble(starPosition(iS)%y)
+                       sz = dble(starPosition(iS)%z)
+                       dxs = dble(grid(iG)%xAxis(i)) - sx
+                       dys = dble(grid(iG)%yAxis(j)) - sy
+                       dzs = dble(grid(iG)%zAxis(k)) - sz
+                       seg = sqrt(dxs*dxs + dys*dys + dzs*dzs)
+                       if (seg <= 0.d0) cycle
+
+                       ! march from the source to the cell centre; the step is
+                       ! set by the finest axis spacing so no cell is skipped
+                       nstep = max(8, min(400, int(seg/max( &
+                            & abs(dble(grid(iG)%xAxis(min(2,grid(iG)%nx))) &
+                            &    -dble(grid(iG)%xAxis(1))), 1.d0))))
+                       ds   = seg/dble(nstep)
+                       tauS = 0.d0
+                       do istep = 1, nstep
+                          rr = (dble(istep)-0.5d0)*ds
+                          ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
+                               & real(sx + dxs*rr/seg))
+                          iy = nearestAx(grid(iG)%yAxis, grid(iG)%ny, &
+                               & real(sy + dys*rr/seg))
+                          iz = nearestAx(grid(iG)%zAxis, grid(iG)%nz, &
+                               & real(sz + dzs*rr/seg))
+                          if (grid(iG)%active(ix,iy,iz) <= 0) cycle
+                          kap = dble(grid(iG)%absOpac(grid(iG)%active(ix,iy,iz),VbandP)) &
+                              & + dble(grid(iG)%scaOpac(grid(iG)%active(ix,iy,iz),VbandP))
+                          tauS = tauS + kap*ds
+                       end do
+
+                       avS  = dble(magPerTau)*tauS
+                       fS   = 1.d0/(seg*seg)          ! geometric dilution only
+                       fTot = fTot + fS
+                       fSum = fSum + fS*exp(-dble(pdrRfuv)*avS/dble(magPerTau))
+                    end do
+
+                    if (fTot > 0.d0 .and. fSum > 0.d0) then
+                       grid(iG)%AVeff(cellP) = real( &
+                            & -dble(magPerTau)/dble(pdrRfuv)*log(fSum/fTot))
+                    end if
+                 end do
+              end do
+           end do
+        end do
+
+      contains
+
+        ! nearest axis index to a coordinate; a contained helper so this
+        ! routine does not depend on MOCASSIN's `locate` (D-087)
+        integer function nearestAx(ax, n, v)
+          implicit none
+          real, intent(in) :: ax(:)
+          integer, intent(in) :: n
+          real, intent(in) :: v
+          integer :: lo, hi, mid
+          lo = 1; hi = n
+          do while (hi - lo > 1)
+             mid = (lo + hi)/2
+             if (v >= ax(mid)) then
+                lo = mid
+             else
+                hi = mid
+             end if
+          end do
+          if (abs(v-ax(hi)) < abs(v-ax(lo))) then
+             nearestAx = hi
+          else
+             nearestAx = lo
+          end if
+        end function nearestAx
+
+      end subroutine computeAVradial
+
+
       subroutine computeAVdust(grid)
         implicit none
 
@@ -522,8 +641,13 @@ module pdr_mod
 
         integer          :: iG, i, j, k, cellP, yTop, jStart
         double precision :: tau, dy, kap, cH2, cC, cCO
+        integer          :: iS, istep, nstep, ix, iy, iz
+        double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS, fSum, fTot
 
-        if (.not.lgPlaneIonization) return
+        if (.not.lgPlaneIonization) then
+           call computeAVradial(grid)
+           return
+        end if
 
         do iG = 1, nGrids
            if (iG > 1 .or. (.not.lg2D)) then
@@ -734,15 +858,15 @@ module pdr_mod
                     ! again. computeAVdust has already run this iteration
                     ! (iteration_mod.f90:779), so wherever chi HAS underflowed
                     ! its dust-column value simply stands.
-                    if (.not.lgPlaneIonization) then
-                       if (chi0 > chi .and. chi > 0.d0) then
-                          tauFUV = -log(chi/chi0)
-                          grid(iG)%AVeff(cellP) = &
-                               & real(dble(magPerTau)*tauFUV/dble(pdrRfuv))
-                       else
-                          grid(iG)%AVeff(cellP) = 0.
-                       end if
-                    end if
+                    ! D-087: the chi/chi0 inversion is NO LONGER used. It
+                    ! under-reads the dust column because the transported field
+                    ! carries scattered light - measured 1.386 against a
+                    ! geometric 2.487 in the spherical model (D-086).
+                    ! computeAVradial now integrates the column from each source
+                    ! for this geometry, exactly as computeAVdust does for the
+                    ! plane-parallel case (D-054), and has already run this
+                    ! iteration (iteration_mod.f90:779). Overwriting it here was
+                    ! why adding computeAVradial changed nothing at first.
 
                     ! zone flag (D-007): PDR chemistry runs in the neutral gas
                     xHII = dble(grid(iG)%ionDen(cellP, elementXref(1), 2))

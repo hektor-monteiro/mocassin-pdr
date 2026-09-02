@@ -106,7 +106,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-083 | Our build compiles ONEDIMENSIONAL, which is 1D-correct and WRONG for any 3D model | Resolved by D-084 | 2026-09-01 |
 | D-084 | `PDRGEOM` build switch; 3D needs BOTH RAYTHEIA flags; committed fixture did not reproduce | Accepted | 2026-09-02 |
 | D-085 | 3D-PDR has no photoionization; its 1D mode IS a central-source PDR minus dilution | Accepted | 2026-09-02 |
-| D-086 | Spherical `AVeff` from the chi/chi0 inversion under-reads the dust column by ~1.8x | Open | 2026-09-02 |
+| D-086 | Spherical `AVeff` from the chi/chi0 inversion under-reads the dust column by ~1.8x | Resolved by D-087 | 2026-09-02 |
+| D-087 | `computeAVradial`: geometric A_V for non plane-parallel geometry | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4511,3 +4512,65 @@ correction, applied to the geometry that was left behind.
 *Caveat on the run itself:* the 3D-PDR grid was sized to our derived A_V span (1.181) rather than
 the geometric one (2.487), so the comparison is only valid to r ~ 3.4e19 where its grid still has
 points. Re-running it over the geometric span is cheap and should be done alongside the fix.
+
+
+## 2026-09-02c - D-087: a geometric A_V for the spherical geometry
+
+D-086 established that the spherical path's `AVeff`, defined by inverting the Monte Carlo field,
+under-reads the dust column - and that D-054 had already fixed exactly this for the plane-parallel
+case by integrating the column instead. `computeAVdust` opened with
+`if (.not.lgPlaneIonization) return`, so the spherical geometry never received the fix.
+
+### What was added
+
+`computeAVradial` walks from each source to each cell centre, accumulating dust extinction
+(`absOpac + scaOpac` at V, as `computeAVdust` does), and forms the effective A_V that reproduces
+the summed transmitted flux:
+
+    A_V,eff = -(1.0857/R_FUV) ln( SUM_s f_s e^{-R_FUV A_V,s/1.0857} / SUM_s f_s )
+
+which reduces to the plain column for a single source. The march step is set by the finest axis
+spacing so no cell is skipped, and a contained `nearestAx` helper does the index lookup rather
+than depending on MOCASSIN's `locate`, which `pdr_mod` does not `use`.
+
+### The first attempt changed nothing, and the reason is worth recording
+
+Adding the routine moved the median A_V/truth from 0.390 to 0.386 - no change at all.
+`mocassinToPDR` was still running the old inversion *after* `computeAVdust`, overwriting the
+result. Adding a better calculation is not the same as removing the worse one that follows it. The
+inversion is now deleted for this geometry.
+
+### Result
+
+Measured against the geometric column from the source, `A_V_true = 5.338e-22 * n * r`:
+
+| r [cm] | A_V true | inversion | radial | radial/true |
+|---|---|---|---|---|
+| 1.8e19 | 0.9608 | 0.3149 | 0.7509 | 0.782 |
+| 3.0e19 | 1.6014 | 0.5871 | 1.4942 | 0.933 |
+| 4.2e19 | 2.2420 | 0.9459 | 2.0383 | 0.909 |
+| 6.0e19 | 3.2028 | 1.3861 | 3.1073 | **0.970** |
+
+**Median A_V/truth: 0.390 -> 0.928.** The residual few per cent is the finite march step and the
+`Rin = 3e18` cavity, which carries no gas.
+
+The effect on the PDR is large and in the right direction - more extinction, so the gas turns
+molecular sooner and the carbon transition moves inside the model:
+
+| r [cm] | x(H2) before | x(H2) after | T before | T after |
+|---|---|---|---|---|
+| 2.2e19 | 0.029 | **0.381** | 147 K | 204 K |
+| 2.8e19 | 0.157 | **0.475** | 125 K | 200 K |
+| 4.0e19 | 0.413 | 0.495 | 103 K | 126 K |
+
+The C+ -> C transition now falls inside the grid, crossing near r = 4e19 where
+x(C+) = 7.1e-5 against x(C) = 6.9e-5. Under the inversion it never happened - C+ stayed at
+1.40e-4 to the outer edge.
+
+### Still to do on this comparison
+
+The 3D-PDR 1D reference for this model was built to span our *old* (under-read) A_V range of
+1.181. With the corrected A_V the model now reaches 3.1, so that reference no longer covers it and
+the quantitative comparison must be re-run over the new span before any agreement is claimed. The
+qualitative check that motivated the fix - our A_V against the geometric column - needs no
+reference and is what the table above reports.
