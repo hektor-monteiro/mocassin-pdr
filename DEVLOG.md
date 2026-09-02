@@ -108,6 +108,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-085 | 3D-PDR has no photoionization; its 1D mode IS a central-source PDR minus dilution | Accepted | 2026-09-02 |
 | D-086 | Spherical `AVeff` from the chi/chi0 inversion under-reads the dust column by ~1.8x | Resolved by D-087 | 2026-09-02 |
 | D-087 | `computeAVradial`: geometric A_V for non plane-parallel geometry | Accepted | 2026-09-02 |
+| D-088 | Radial path never filled the shielding columns, so it fell back to D-078's error | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4574,3 +4575,129 @@ The 3D-PDR 1D reference for this model was built to span our *old* (under-read) 
 the quantitative comparison must be re-run over the new span before any agreement is claimed. The
 qualitative check that motivated the fix - our A_V against the geometric column - needs no
 reference and is what the table above reports.
+
+
+## 2026-09-02d - D-088: the radial path fell back to the D-078 shielding-column error
+
+### What the corrected reference showed
+
+With D-087's geometric A_V in place, the 3D-PDR 1D reference was rebuilt over the corrected span
+(A_V = 0 to 2.4637 from the ionization front, n_H = 100, `Gext = 65.349` - the field in our first
+PDR cell) and compared against the spherical coupled model, aligned on geometric A_V. Alignment on
+a geometric A_V is independent of our radiation field, so this comparison is no longer circular the
+way D-086's was.
+
+The field tracked well (chi ratio 0.79-1.85 across two decades of attenuation), but the chemistry
+did not:
+
+| A_V from front | x(H2) ours | x(H2) 3D-PDR |
+|---|---|---|
+| 0.000 | 4.16e-02 | 1.63e-06 |
+| 0.322 | 3.07e-01 | 8.20e-03 |
+| 0.429 | 4.04e-01 | 1.96e-02 |
+| 0.743 | 4.75e-01 | 1.31e-01 |
+
+H -> 2H2 crossing: **ours 0.26, 3D-PDR 0.91**. Our gas turns molecular almost immediately, and
+x(C+) fell to 4e-5 by the outer edge where 3D-PDR holds it at its full 1.4e-4 (at n = 100 and
+chi = 65 the carbon front is deeper than this model reaches). Both are the signature of far too
+much self-shielding.
+
+### Cause
+
+`computeAVradial` (D-087) writes `AVeff` and nothing else. `pdrColH2`, `pdrColC`, `pdrColCO` and
+`AVback` stay at zero, and `pdrToMocassin` has a fallback for exactly that case:
+
+```fortran
+if (sH2 <= 0.d0) sH2 = NHcol*abun(NH2)
+```
+
+That is the D-078 error - the local abundance times the whole column - which we removed from the
+plane-parallel path in D-078 and then reintroduced, unnoticed, by adding a second geometry whose
+column integration was never written. It is worse here than it was in the slab: `NHcol` is the
+column all the way back to the star, so it counts the entire H II region as H2-bearing at the
+local molecular fraction. At the first PDR cell that is a column of ~1e21 cm^-2 of "H2" where the
+true integrated value is essentially zero, and the H2 photodissociation rate is shielded away
+before any H2 exists.
+
+Adding a better A_V calculation was not enough; the routine also has to supply everything the old
+one supplied. Same lesson as D-087's first attempt, one layer down.
+
+### Fix
+
+`computeAVradial` now accumulates n_H(cell) * x_X(cell) * ds for H2, C and CO along the same
+source-to-cell march it already walks for the dust optical depth, and adds a second outward march
+from the cell to the grid boundary for `AVback`. Where there is more than one source the four
+quantities are combined with the same 1/r^2 flux weight used for the A_V, which is exact for the
+single-source case these models use.
+
+That fixed C, CO and the outward escape column - but x(H2) did not move by one digit. Three more
+things were shielding H2, each hidden behind the last.
+
+### (2) The column ran through the H II region on seed abundances
+
+`pdrAbun` is only solved where `pdrZone == 1`. Everywhere else it still holds `seedPDR`'s values -
+x(H2) = 0.3, x(H) = 0.4 - because nothing ever overwrites them. Integrating those from the star put
+~1e21 cm^-2 of fictitious H2 in front of the first PDR cell. In ionized gas the molecules are
+dissociated and carbon is C+ or higher, so the true shielding column through it is zero: the
+accumulation is now gated on `pdrZone(cP) == 1`.
+
+C+ improved sharply - it now holds its full 1.4e-4 out to A_V ~ 1.4, as the reference does - and
+x(H2) still did not move.
+
+### (3) A cell's own H2 shielded that cell
+
+The march ran source -> cell *centre*, so the target cell's own near half was in its own column.
+That feedback is positive: more H2 -> less dissociation -> more H2. On 3D-PDR's graded grid the
+half-cell column is ~1e13 cm^-2 and it does nothing. On a 2e18 cm MOCASSIN cell it is 4e18 cm^-2 -
+enough to shield the surface cell outright - and the solver settles on that runaway branch. The
+accumulation now skips the target cell (`cP /= cellP`), giving the near-face column: it lags the
+true centre column by half a cell, an error that shrinks with resolution rather than amplifying.
+
+And x(H2) *still* did not move, to three digits, across every variant and across gas temperatures
+from 203 K to 3418 K. That last part was the clue - no real chemistry is that insensitive.
+
+### (4) Zero is an answer, not a missing value
+
+```fortran
+if (sH2 <= 0.d0) sH2 = NHcol*abun(NH2)
+```
+
+The first PDR cell's near-face column is legitimately **zero** - there is nothing molecular in
+front of it. That tripped the "not computed" fallback and handed the cell `NHcol*abun(NH2)`: the
+entire column back to the star times the local molecular fraction. Every fix above was being
+overwritten by the one line meant to cover the case where none of them had run.
+
+The column arrays now initialise to -1, the sentinel test is `< 0`, and the surface cell keeps its
+zero.
+
+### Result
+
+Spherical H II + PDR model (n_H = 100, 31^3, chi = 65.6 at the front) against 3D-PDR run over the
+matched A_V span, aligned on geometric A_V:
+
+| A_V from front | x(H2) before | x(H2) after | 3D-PDR |
+|---|---|---|---|
+| 0.000 | 4.16e-02 | **4.44e-06** | 1.63e-06 |
+| 0.322 | 3.07e-01 | **2.13e-05** | 8.20e-03 |
+| 0.429 | 4.04e-01 | **6.02e-05** | 1.96e-02 |
+| 0.743 | 4.75e-01 | 4.16e-01 | 1.31e-01 |
+
+H -> 2H2 crossing: 0.26 -> **0.53** against the reference's 0.905. x(C+) now holds 1.40e-4 to
+A_V ~ 1.4 where before it had fallen to 7e-5. Median T ratio 1.46 -> 1.34.
+
+The residual is resolution: x(H2) goes from 6e-5 to 0.42 across a single cell, because a uniform
+31^3 grid over 6e19 cm gives dA_V = 0.107 per cell and the H/H2 front is thinner than that. The
+front cannot land anywhere but on a cell boundary. This is the same limit already recorded for the
+ionization front - a uniform grid cannot resolve either - and it is what TORUS-3DPDR uses AMR for.
+
+### Regression check
+
+The change touches the shared sentinel test, so both slab benchmarks were re-run. They reproduce
+their committed values exactly:
+
+| | H->2H2 | C+->C | C->CO | deep T |
+|---|---|---|---|---|
+| V1 | 0.916 | 0.994 | 0.962 | 1.32 |
+| V2 | 0.914 | 0.977 | 0.988 | 1.025 |
+
+V1's chemistry matches the reference to 3-4 digits at every depth.

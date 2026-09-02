@@ -545,8 +545,10 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, cellP, iS, istep, nstep, ix, iy, iz
+        integer          :: cP, nback
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS
         double precision :: fSum, fTot, kap, rr, avS
+        double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, span, nd
 
         if (pdrRfuv <= 0.) return
 
@@ -559,6 +561,10 @@ module pdr_mod
 
                     fSum = 0.d0
                     fTot = 0.d0
+                    wH2  = 0.d0
+                    wC   = 0.d0
+                    wCO  = 0.d0
+                    wB   = 0.d0
                     do iS = 1, nStars
                        sx = dble(starPosition(iS)%x)
                        sy = dble(starPosition(iS)%y)
@@ -576,6 +582,9 @@ module pdr_mod
                             &    -dble(grid(iG)%xAxis(1))), 1.d0))))
                        ds   = seg/dble(nstep)
                        tauS = 0.d0
+                       cH2S = 0.d0
+                       cCS  = 0.d0
+                       cCOS = 0.d0
                        do istep = 1, nstep
                           rr = (dble(istep)-0.5d0)*ds
                           ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
@@ -585,20 +594,85 @@ module pdr_mod
                           iz = nearestAx(grid(iG)%zAxis, grid(iG)%nz, &
                                & real(sz + dzs*rr/seg))
                           if (grid(iG)%active(ix,iy,iz) <= 0) cycle
-                          kap = dble(grid(iG)%absOpac(grid(iG)%active(ix,iy,iz),VbandP)) &
-                              & + dble(grid(iG)%scaOpac(grid(iG)%active(ix,iy,iz),VbandP))
+                          cP  = grid(iG)%active(ix,iy,iz)
+                          kap = dble(grid(iG)%absOpac(cP,VbandP)) &
+                              & + dble(grid(iG)%scaOpac(cP,VbandP))
                           tauS = tauS + kap*ds
+
+                          ! D-088: integrate the SHIELDING COLUMNS along the
+                          ! same ray. computeAVradial used to fill AVeff only,
+                          ! so every radial model fell through to the
+                          ! NHcol*abun(X) fallback - the local abundance times
+                          ! the whole column back to the star, H II region
+                          ! included. That is the D-078 error again, and it is
+                          ! far larger here: it self-shields H2 from the first
+                          ! PDR cell on.
+                          ! only PDR cells shield. Elsewhere pdrAbun still
+                          ! holds seedPDR's values - x(H2) = 0.3, x(C) and
+                          ! x(CO) likewise - because the chemistry is never
+                          ! solved there, and integrating those across the H II
+                          ! region puts ~1e21 cm^-2 of fictitious H2 in front
+                          ! of the first PDR cell. In the ionized gas the
+                          ! molecules are dissociated and carbon is C+ or
+                          ! higher, so the true shielding column is zero.
+                          ! ...and only cells IN FRONT of this one. Including
+                          ! the target cell's own near half makes its H2 shield
+                          ! itself, and that feedback is positive: more H2 ->
+                          ! less dissociation -> more H2. On 3D-PDR's grid the
+                          ! half-cell column is ~1e13 cm^-2 and the effect is
+                          ! nil; on a 2e18 cm MOCASSIN cell it is 4e18 cm^-2,
+                          ! enough to shield the surface cell completely, and
+                          ! the solver settles on that runaway branch. The
+                          ! near-face column removes the self-term; it lags the
+                          ! true centre column by half a cell, which is an
+                          ! error that shrinks with resolution instead of
+                          ! amplifying.
+                          if (cP /= cellP .and. grid(iG)%pdrZone(cP) == 1) then
+                             nd   = dble(grid(iG)%Hden(cP))
+                             cH2S = cH2S + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
+                             cCS  = cCS  + nd*dble(grid(iG)%pdrAbun(cP,NC ))*ds
+                             cCOS = cCOS + nd*dble(grid(iG)%pdrAbun(cP,NCO))*ds
+                          end if
+                       end do
+
+                       ! remaining column outwards, along the same direction,
+                       ! to the grid boundary: what the outward escape rays see
+                       span  = dble(grid(iG)%xAxis(grid(iG)%nx)) &
+                             & - dble(grid(iG)%xAxis(1))
+                       nback = max(4, min(200, int(span/ds)))
+                       tauB  = 0.d0
+                       do istep = 1, nback
+                          rr = seg + (dble(istep)-0.5d0)*ds
+                          ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
+                               & real(sx + dxs*rr/seg))
+                          iy = nearestAx(grid(iG)%yAxis, grid(iG)%ny, &
+                               & real(sy + dys*rr/seg))
+                          iz = nearestAx(grid(iG)%zAxis, grid(iG)%nz, &
+                               & real(sz + dzs*rr/seg))
+                          if (grid(iG)%active(ix,iy,iz) <= 0) cycle
+                          tauB = tauB &
+                               & + (dble(grid(iG)%absOpac(grid(iG)%active(ix,iy,iz),VbandP)) &
+                               &  + dble(grid(iG)%scaOpac(grid(iG)%active(ix,iy,iz),VbandP)))*ds
                        end do
 
                        avS  = dble(magPerTau)*tauS
                        fS   = 1.d0/(seg*seg)          ! geometric dilution only
                        fTot = fTot + fS
                        fSum = fSum + fS*exp(-dble(pdrRfuv)*avS/dble(magPerTau))
+                       wH2  = wH2 + fS*cH2S
+                       wC   = wC  + fS*cCS
+                       wCO  = wCO + fS*cCOS
+                       wB   = wB  + fS*dble(magPerTau)*tauB
                     end do
 
                     if (fTot > 0.d0 .and. fSum > 0.d0) then
                        grid(iG)%AVeff(cellP) = real( &
                             & -dble(magPerTau)/dble(pdrRfuv)*log(fSum/fTot))
+                       ! flux-weighted columns (exact for a single source)
+                       grid(iG)%pdrColH2(cellP) = real(wH2/fTot)
+                       grid(iG)%pdrColC (cellP) = real(wC /fTot)
+                       grid(iG)%pdrColCO(cellP) = real(wCO/fTot)
+                       grid(iG)%AVback  (cellP) = real(wB /fTot)
                     end if
                  end do
               end do
@@ -1080,9 +1154,18 @@ module pdr_mod
         sH2 = dble(grid%pdrColH2(cellP))
         sCO = dble(grid%pdrColCO(cellP))
         sC  = dble(grid%pdrColC(cellP))
-        if (sH2 <= 0.d0) sH2 = NHcol*abun(NH2)
-        if (sCO <= 0.d0) sCO = NHcol*abun(NCO)
-        if (sC  <= 0.d0) sC  = NHcol*abun(NC)
+        ! D-088: "< 0", not "<= 0". Zero is a real, common answer - the first
+        ! PDR cell has nothing molecular in front of it - and treating it as
+        ! missing data sent that cell to NHcol*abun(X), the whole column back to
+        ! the star times the local molecular fraction. That self-shielded the
+        ! illuminated face completely and pinned x(H2) near 0.04 where 3D-PDR
+        ! gives 1.6e-6, no matter what the column integration did.
+        if (sH2 < 0.d0) sH2 = NHcol*abun(NH2)
+        if (sCO < 0.d0) sCO = NHcol*abun(NCO)
+        if (sC  < 0.d0) sC  = NHcol*abun(NC)
+        sH2 = max(sH2, 0.d0)
+        sCO = max(sCO, 0.d0)
+        sC  = max(sC , 0.d0)
         colH2 = sH2
         colCO = sCO
         colC  = sC

@@ -1408,7 +1408,10 @@ module grid_mod
                 grid%chiFUV  = 0.
                 grid%chiFUV0 = 0.
                 grid%AVback  = 0.
-                grid%pdrColH2 = 0.; grid%pdrColC = 0.; grid%pdrColCO = 0.
+                ! -1 marks "not computed": the shielding columns are legitimately ZERO in
+                ! the first PDR cell (nothing molecular in front of it), and
+                ! pdrToMocassin's fallback must not read that as missing data (D-088)
+                grid%pdrColH2 = -1.; grid%pdrColC = -1.; grid%pdrColCO = -1.
                 grid%AVeff   = 0.
                 grid%pdrCool = 0.
                 grid%pdrHeat = 0.
@@ -3467,7 +3470,7 @@ end function getVolume
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.
                grid(iG)%AVback  = 0.
-               grid(iG)%pdrColH2 = 0.; grid(iG)%pdrColC = 0.; grid(iG)%pdrColCO = 0.
+               grid(iG)%pdrColH2 = -1.; grid(iG)%pdrColC = -1.; grid(iG)%pdrColCO = -1.   ! see setMotherGrid (D-088)
                grid(iG)%AVeff   = 0.
                grid(iG)%pdrCool = 0.
                grid(iG)%pdrHeat = 0.
