@@ -118,6 +118,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-095 | The "PAH inconsistency" was mostly my own double-count of an unused heating term | Accepted | 2026-09-02 |
 | D-096 | Full audit pass: per-coolant cooling, missing MPI exchange, non-PDR build restored | Accepted | 2026-09-02 |
 | D-097 | MOCASSIN's infrared transfer verified; HTT91's 10 K floor is the wrong one | Accepted | 2026-09-02 |
+| D-098 | Adopt TORUS-3DPDR's section 5.4 photoionization+PDR model as the coupled-code reference | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5293,3 +5294,74 @@ The one caveat worth stating: all of this is for a plane-parallel slab with refl
 walls, where infrared cannot escape sideways. That is the correct model for a 1D benchmark and it
 is what 3D-PDR's 1D mode assumes too, but a real 3D cloud loses infrared laterally and its interior
 would be cooler. Nothing here has been verified in 3D.
+
+### A trap in the method, recorded because it nearly produced a false alarm
+
+The first pass at the estimate above returned 7.4 K against MOCASSIN's 20.7 - a factor of three,
+which looks like a decisive failure. It was the method that was wrong.
+
+`tauNu.out` is the **total** opacity, gas and dust together. Weighting it over the 25000 K stellar
+spectrum picks up hydrogen and helium photoionization below 912 A, which is enormous and has
+nothing to do with grains: it returned a "dust" opacity of 7703 in tau units where tau at 0.1 um is
+only 47. The energy absorbed there goes into the gas and leaves as lines and free-free, not as dust
+infrared.
+
+Restricting the weighting to the non-ionizing range, where dust genuinely dominates the opacity,
+gives the numbers in the table. Anyone repeating this check should take the ultraviolet anchor from
+tau(0.1 um) and not from an integral over the stellar spectrum.
+
+
+## 2026-09-02n - D-098: TORUS-3DPDR section 5.4 as the coupled-code reference
+
+The 3D flavour cannot be validated directly - `PDRGEOM=3D` compiles but there is no reference to
+run it against, and MOCASSIN has no isotropic external ISRF source to match 3D-PDR's own 3D mode
+with. Rather than build one, adopt the only published benchmark of a *coupled* photoionization+PDR
+code: Bisbas et al. (2015), TORUS-3DPDR, section 5.4.
+
+### Why this test and not another
+
+It is the same problem we are solving, done independently, and - importantly - **they benchmarked
+it against the two codes we are coupling**. Their Fig. 3 overplots MOCASSIN for the photoionized
+region and 3D-PDR for the photodissociation region. We are MOCASSIN plus 3D-PDR, so both curves are
+predictions for us, not just qualitative targets.
+
+### Their setup, verbatim from section 5.4
+
+    n_H            = 100 cm^-3, uniform
+    star           = blackbody, T = 4e4 K, radius 18.67 R_sun, at the grid edge
+    grid           = uniform spherical, 256 cells, one-dimensional
+    PDR cell test  = T < 3000 K, corresponding to ionization fraction <= 0.3
+    "These values correspond to the HII40 simulation of the Lexington benchmarking"
+
+Our `hiipdr` fixture already is this model. The star reproduces the canonical HII40 photon rate -
+integrating a 4e4 K Planck function above 13.6 eV over 18.67 R_sun gives Q(H) = 4.272e49 s^-1
+against the canonical 4.26e49 - and the analytic Stromgren radius for n = 100 is 1.579e19 cm
+against the 1.5e19 our run places the front at, the small deficit being dust absorption. What did
+not match were the abundances, which had been left at the Roellig V1 PDR values (C 1.4e-4,
+O 3.0e-4, no N, Ne or S) rather than HII40's.
+
+### What their section 5.4 actually found, and why it matters to us
+
+They ran it two ways: attenuation taken from the Monte Carlo transport, and attenuation from the
+prescribed exponential of their Eqn. 1. The prescribed version does not reproduce the Monte Carlo
+one unless the geometric dilution is added explicitly - their Eqn. 3,
+
+    chi(r,q) = chi_o(q) exp(-tau_UV A_V(q)) R_IF^2 / (R_IF + r)^2
+
+- and they state the PDR temperature profile "is reproducible only when the distance from the
+source is taken into account", while noting H2 and H I are not strongly sensitive to it.
+
+That is the same result D-087 arrived at independently and from the opposite direction. We had
+inverted A_V out of the Monte Carlo field, which conflates dilution with extinction; replacing it
+with a geometric A_V walked from the source, with the 1/r^2 dilution left where it belongs in the
+transported field, moved the median A_V from 0.39 to 0.93 of truth. MOCASSIN's transport carries
+the dilution inherently, so we are on their Monte Carlo branch by construction - the branch their
+prescribed-field runs had to be corrected to match.
+
+### What is being compared
+
+Their Fig. 3: gas temperature against distance in the upper panel, and fractional abundances of
+H II, H I and H2 in the lower. Both panels run through the ionization front into the PDR, which is
+the transition this whole coupling exists to model and the one place a 1D slab benchmark cannot
+test.
+
