@@ -12,21 +12,37 @@ every parameter matched, so the two can be compared directly.
     cd v1slab && python3 make_density.py && mkdir -p output
     mpirun -np 14 ../../../mocassin
 
-`input.in` resolves every path under `input/`, so the density file, the
-abundances and the two dust files all live there; `make_density.py` writes into
-it. MOCASSIN does not create `output/` itself.
+MOCASSIN reads `input/input.in`, so every fixture file lives under `input/` and
+`make_density.py` writes there too. MOCASSIN does not create `output/` itself.
 
-The grain setup matters and was got wrong once (DEVLOG D-073). Silicates from
-0.07 to 50 um - as this benchmark originally inherited - are large enough to
-give *grey* extinction, R_FUV = tau_FUV/tau_V = 1.12, where interstellar dust
-gives ~3. The transported FUV field then decays far too slowly and reaches
-chi ~ 1e-2 at A_V = 8.5, eight orders above 3D-PDR. The committed
-`dust_species.dat` uses 0.010-0.30 um, giving R_FUV = 3.59 against 3D-PDR's
-stated UV factor of 3.02, and `MdMg = 0.01059` then holds A_V/N_H at 3D-PDR's
-value. Confirm both from the lines the run prints:
+The grain setup matters and was got wrong twice (DEVLOG D-073, D-092).
+Silicates from 0.07 to 50 um - as this benchmark originally inherited - are
+large enough to give *grey* extinction, R_FUV = tau_FUV/tau_V = 1.12, where
+interstellar dust gives ~3. D-073 narrowed them to 0.010-0.30 um but changed
+nothing else, and that left two things inherited rather than chosen: a PAH
+species, and a size grid running 1e-4 to 5 um that neither species covers.
 
-    ! calibratePDRdust: A_V per N_H = 5.33838558E-22 (N_H per mag = 1.87322554E+21)
-    ! [D073] kFUV/kV = R_FUV = 3.59476638
+`grainWeight` is a NUMBER weight normalised over the whole size grid, and an
+MRN distribution puts nearly all of its number in the smallest bins. With the
+silicates confined to bins 15-25 they carried 6e-6 of it, 14 of 35 bins held no
+grains at all, and the benchmark's dust was in practice PAH-only - while the
+README claimed 0.010-0.30 um silicates. It also made `Tdust(0,0)`, which the
+PDR bridge reads, a meaningless 1.16 K.
+
+The committed setup is now **one silicate species over a size grid spanning
+exactly its own range**, which is also what 3D-PDR models (a single 0.1 um
+grain; its PAH photoelectric heating is a metallicity-scaled formula, not tied
+to a grain inventory). If you want PAHs back for science runs, add them AND
+extend `dust_sizes.dat` to cover them - the two files have to agree.
+
+    ! calibratePDRdust: A_V per N_H = 5.33995522E-22 (N_H per mag = 1.87267483E+21)
+    ! [D073] FUV albedo = 0.484520972   asymmetry g = 0.414128453
+    ! [D073] kFUV/kV = R_FUV = 3.94185853
+
+A_V/N_H now sits on 3D-PDR's 5.33997e-22 to six figures. R_FUV = 3.94 is
+equivalent to exp(-3.63 A_V) against 3D-PDR's prescribed exp(-3.02 A_V); the
+Savage & Mathis curve that 3D-PDR's own shielding functions use implies 4.65,
+so ours sits between the two.
 
 ## Parameters audited against 3D-PDR's params.dat (D-074)
 
@@ -36,12 +52,12 @@ value. Confirm both from the lines the run prints:
 | cosmic-ray rate | 5e-17 | 5e-17 |
 | turbulent velocity | 1 km/s | 1.0 |
 | grain radius | 1e-5 cm | 1e-5 |
-| A_V conversion | 5.33997e-22 | 5.33839e-22 |
+| A_V conversion | 5.33997e-22 | 5.33996e-22 |
 | T_min / T_max | 1 / 2e4 | 1 / 2e4 |
 | HEALPix level | 0 | 0 |
 | Fcrit | 0.005 | 0.005 |
-| UV factor (R_FUV) | 3.02 | 3.59 |
-| dust-to-gas x1e-2 | 1 | 1.06 |
+| UV factor (R_FUV) | 3.02 | 3.94 (see above) |
+| dust-to-gas x1e-2 | 1 | 1.13 |
 
 ## Regenerating the standalone baseline
 

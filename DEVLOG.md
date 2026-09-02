@@ -112,6 +112,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-089 | The mid-cloud temperature excess is the scattered FUV field, not the thermal balance | Accepted | 2026-09-02 |
 | D-090 | gamma_eff = 1.85 is what this geometry's scattering should give; 3D-PDR's 3.02 omits it | Accepted | 2026-09-02 |
 | D-091 | Audit: what H2 and CO exchange with dust, and the one place it uses the wrong dust | Open | 2026-09-02 |
+| D-092 | The benchmark dust was PAH-only by accident; MOCASSIN's dust temperature was never broken | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4881,3 +4882,96 @@ an interstellar extinction curve the model does not have.
 The fix is to scale the `SCATTER` optical depth by the model's measured R_FUV rather than leaving
 it on the tabulated curve. Not done here: it changes front positions in every model, so it needs
 its own before/after against both slab benchmarks.
+
+
+## 2026-09-02h - D-092: the benchmark dust was PAH-only, and D-065's "broken" dust temperature was a misread
+
+Asked why there were PAHs in a setup the log describes as MRN silicates. There should not have
+been, and chasing it retracts a claim this log has carried since D-065.
+
+### What was committed
+
+`git log` on the fixture is unambiguous. D-073 (`b995c17`) changed exactly one line - the silicate
+size range, 0.07-50 -> 0.010-0.30 um - and left the PAH species untouched, inherited from whatever
+MOCASSIN example the fixture was copied from. `dust_sizes.dat` was never touched at all, and still
+ran 1e-4 to 5 um.
+
+`grainWeight(ai)` is a **number** weight normalised over the whole size grid, and MRN puts nearly
+all of its number in the smallest bins. The result:
+
+| | bins | number weight |
+|---|---|---|
+| silicate, 0.010-0.30 um | 15-25 | **6.1e-06** |
+| PAH, 1e-5-0.002 um | 0-9 | 0.9997 |
+| no grains at all | 14 bins | 3.2e-04 |
+
+So the benchmark's dust was, in practice, **PAH-only** - while the README documented 0.010-0.30 um
+silicates and D-073's "R_FUV = 3.59 from the corrected size distribution" was really a PAH number.
+Fourteen of thirty-five size bins held nothing.
+
+### The retraction
+
+`Tdust(0,0)` is built as `sum_ns grainAbun(ns) * sum_ai grainWeight(ai) Tdust(ns,ai)`. With the
+silicates at 6e-6 of the weight, that produced 1.16 K. D-065 read that number, concluded
+"MOCASSIN's own dust equilibrium reads 1.2 K at an illuminated face where HTT91 gives 21 K", and
+introduced `max(TdMoc, TdHTT)` so the parametrisation would carry it. D-089 and D-090 repeated the
+claim, and it reached the published benchmark artifact.
+
+**It was never true.** Reading the per-species, per-size array directly, MOCASSIN's grains at the
+V1 illuminated face are at:
+
+    silicate (0.0118-0.285 um)   26.3 -> 18.8 K
+    PAH      (1e-4-0.0018 um)    58.1 K
+
+against HTT91's 21 K. MOCASSIN's dust radiative transfer was right all along; the bridge was
+reading a number-weighted mean over a size grid most of the grains did not occupy.
+
+### The corrected fixture
+
+One silicate species over a size grid spanning exactly 0.010-0.30 um, no dead bins, `MdMg` retuned
+0.01059 -> 0.011295. This is also what 3D-PDR models: a single 0.1 um grain, with its PAH
+photoelectric heating a metallicity-scaled formula rather than a grain inventory.
+
+    A_V per N_H = 5.33995522E-22   against 3D-PDR's 5.33997e-22
+    R_FUV = 3.94   albedo 0.4845   g 0.4141
+    Tdust(0,0) at the face = 26.09 K   (was 1.16)
+
+### What it does to the benchmark
+
+| | old (PAH-only) | corrected | 3D-PDR |
+|---|---|---|---|
+| V1 H -> 2H2 | 0.916 | 1.142 | - |
+| V1 C+ -> C | 0.994 | 0.995 | - |
+| V1 C -> CO | 0.962 | 0.973 | - |
+| V1 median T | 1.338 | 1.272 | - |
+| V2 H -> 2H2 | 0.915 | **1.031** | - |
+| V2 C+ -> C | 0.977 | 0.980 | - |
+| V2 C -> CO | 0.988 | 0.985 | - |
+| V2 deep T | 1.025 | 1.513 | - |
+
+Mixed, and honestly so. The carbon fronts improve slightly everywhere and V2's H2 front improves a
+lot; V1's H2 front overshoots instead of undershooting by a similar amount; V2's deep gas gets
+worse. The mechanism is visible and is the point: with `Tdust(0,0)` meaningful, the `max()` no
+longer hands everything to HTT91, so MOCASSIN's transferred dust temperature now drives H2
+formation and the gas-grain coupling for the first time. Warmer grains form H2 more slowly, which
+moves the front deeper.
+
+And the deep V2 dust is much warmer than HTT91:
+
+| A_V | Td MOCASSIN | Td HTT91 | Td 3D-PDR |
+|---|---|---|---|
+| 0.013 | 55.3 | 49.9 | 52.4 |
+| 1.10 | 35.1 | 32.6 | 29.1 |
+| 3.11 | 24.3 | 15.9 | 13.4 |
+
+Surface agreement is good; at depth MOCASSIN's grains stay ~10 K hotter because it transports the
+IR re-radiated by the hot skin into the interior, where HTT91 applies a Rowan-Robinson
+`A_V^-0.4` attenuation that falls off faster. That is the same shape of disagreement as D-090's
+FUV result - a transferred field against a prescribed one - and whether ours is right is now a
+question about MOCASSIN's IR transfer. It is the obvious next thing to test, and it should be
+tested before the `max(TdMoc, TdHTT)` crutch is removed.
+
+### Also fixed
+
+`input.in` itself was still at the fixture root while everything it references had been moved into
+`input/`. MOCASSIN reads `input/input.in`, so the fixtures still did not run as documented.
