@@ -5365,3 +5365,28 @@ H II, H I and H2 in the lower. Both panels run through the ionization front into
 the transition this whole coupling exists to model and the one place a 1D slab benchmark cannot
 test.
 
+
+
+### D-098 result
+
+`hiipdr` re-run with HII40's abundances (He 0.1, C 2.2e-4, N 4.0e-5, O 3.3e-4, Ne 5.0e-5,
+S 9.0e-6), which had been left at the Roellig V1 values. Reference `sec54.pdr.fin` is standalone
+3D-PDR at the field the coupled model delivers to its first PDR cell (chi = 61.236, A_V span
+2.4534), with the network's C and O rescaled to the same HII40 values.
+
+| quantity | coupled | expected |
+|---|---|---|
+| H II region temperature | 7925-9440 K | ~8000-9000 K (HII40) |
+| ionization front | 1.2-1.6e19 cm | 1.579e19 cm (Stromgren) |
+| Q(H) from the specified star | 4.272e49 /s | 4.26e49 canonical |
+| PDR temperature, median ratio | 1.21 | vs standalone 3D-PDR |
+| deep x(H2) | 0.495 | 0.494 |
+| H -> 2H2 front | A_V = 0.52 | A_V = 0.89 |
+
+The ionized region agreeing is a consistency check rather than an independent one - Bisbas et al.
+overplot MOCASSIN there and our ionized region *is* MOCASSIN. What it establishes is that the
+coupling has not damaged the photoionization solver, which is worth knowing on its own.
+
+The H/H2 front remains the one real gap and it is the grid: dA_V = 0.107 per uniform cell against a
+front thinner than that. Bisbas et al. used 256 cells clustered on the front. This is the same
+limit recorded in D-080/D-081 and it is not reachable by tuning.
