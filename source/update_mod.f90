@@ -2396,6 +2396,12 @@ end subroutine iterateT
             integer :: nS, i, ai ! counters
             integer :: iT        ! pointer to dust temp in dust temp array
             integer :: global_nS ! pointer index for dust component
+#ifdef PDR
+            integer :: nS2, ai2          ! D-093: cross-section normalisation
+            real    :: xsecTot           ! total grain cross-section per unit volume [1/cm]
+            real    :: ggPerGrain, pePerGrain
+            logical :: lgPDRcell
+#endif
 
             ! radiation field at this location
             if (lgDebug) then
@@ -2410,6 +2416,35 @@ end subroutine iterateT
                grid%Tdust(:,:,cellP) = forceTDust
                return
             endif
+
+#ifdef PDR
+            ! D-093: in PDR cells MOCASSIN's own gas-grain and photoelectric
+            ! terms are built from its ION inventory - every H nucleus counted
+            ! as a free atom, no H2 at all - which is the wrong description of
+            ! the gas there. The PDR solves both properly, so use its rates.
+            ! They are volumetric (erg cm^-3 s^-1); the dust balance wants
+            ! erg s^-1 per grain, and both processes scale with grain area, so
+            ! spread them over the population by cross-section. That makes
+            ! SUM_grains n(ns,ai)*rate(ns,ai) equal the volumetric rate again.
+            lgPDRcell = .false.
+            xsecTot   = 0.
+            if (lgPDR) then
+               if (grid%pdrZone(cellP) == 1 .and. grid%Ndust(cellP) > 0.) then
+                  do nS2 = 1, nSpeciesPart(nspU)
+                     if (grainAbun(nspU, nS2) <= 1.e-20) cycle
+                     do ai2 = 1, nSizes
+                        if (grainRadius(ai2) >= componentMinRadius(nspU, nS2) .and. &
+                           & grainRadius(ai2) <= componentMaxRadius(nspU, nS2)) then
+                           xsecTot = xsecTot + grainWeight(ai2)*grainAbun(nspU,nS2)*&
+                                & Pi*grainRadius(ai2)*grainRadius(ai2)*1.e-8
+                        end if
+                     end do
+                  end do
+                  xsecTot = xsecTot*grid%Ndust(cellP)
+                  if (xsecTot > 0.) lgPDRcell = .true.
+               end if
+            end if
+#endif
 
             ! calculate absorption integrals for each species
             do nS = 1, nSpeciesPart(nspU)
@@ -2445,9 +2480,25 @@ end subroutine iterateT
                         dustAbsIntegral = dustAbsIntegral+resLineHeat
                      end if
 
+#ifdef PDR
+                     if (lgPDRcell) then
+                        ! pdrHeatGG > 0 means the dust is heating the gas, so
+                        ! the dust loses it; pdrHeatPE is FUV energy the grain
+                        ! absorbed and shed as photoelectrons rather than
+                        ! re-radiating, so it leaves the grain budget too.
+                        ggPerGrain = grid%pdrHeatGG(cellP)*&
+                             & Pi*grainRadius(ai)*grainRadius(ai)*1.e-8/xsecTot
+                        pePerGrain = grid%pdrHeatPE(cellP)*&
+                             & Pi*grainRadius(ai)*grainRadius(ai)*1.e-8/xsecTot
+                        dustAbsIntegral = dustAbsIntegral - ggPerGrain - pePerGrain
+                     else if (lgGas .and. lgPhotoelectric) then
+                        dustAbsIntegral = dustAbsIntegral+gasDustColl_d(nS,ai)-&
+                             & photoelHeat_d(nS,ai)
+#else
                      if (lgGas .and. lgPhotoelectric) then
                         dustAbsIntegral = dustAbsIntegral+gasDustColl_d(nS,ai)-&
                              & photoelHeat_d(nS,ai)
+#endif
                      end if
 
                      if (lgTraceHeating.and.taskid==0) then

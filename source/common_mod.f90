@@ -318,6 +318,8 @@ module common_mod
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
+        real, allocatable         :: pdrHeatGG(:)    ! gas-grain collisional term alone (D-093);
+                                                     ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
         double precision, allocatable :: pdrLevPop(:,:)
@@ -523,7 +525,11 @@ module common_mod
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
     real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
-    integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
+    integer             :: pdrDustModel = 0          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
+                                                     ! D-094: default was 1 while Tdust(0,0) was
+                                                     ! misread as ~1 K (D-092). With the readout
+                                                     ! sound, max() only imposes HTT91's artificial
+                                                     ! 10 K floor on a colder transported value.
     integer             :: pdrFUVmode = 0            ! 0 = transported MC field heats the gas,
                                                      ! 1 = 3D-PDR's prescribed chi0*exp(-UVfac*A_V) (D-089 diagnostic)
     integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)

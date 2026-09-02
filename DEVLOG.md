@@ -113,6 +113,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-090 | gamma_eff = 1.85 is what this geometry's scattering should give; 3D-PDR's 3.02 omits it | Accepted | 2026-09-02 |
 | D-091 | Audit: what H2 and CO exchange with dust, and the one place it uses the wrong dust | Open | 2026-09-02 |
 | D-092 | The benchmark dust was PAH-only by accident; MOCASSIN's dust temperature was never broken | Accepted | 2026-09-02 |
+| D-093 | Photoelectric and gas-grain energy fed back into MOCASSIN's dust balance | Accepted | 2026-09-02 |
+| D-094 | Deep dust temperature is transported IR, not a floor; drop the HTT91 crutch | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4975,3 +4977,97 @@ tested before the `max(TdMoc, TdHTT)` crutch is removed.
 
 `input.in` itself was still at the fixture root while everything it references had been moved into
 `input/`. MOCASSIN reads `input/input.in`, so the fixtures still did not run as documented.
+
+
+## 2026-09-02i - D-093: the two grain energy terms now feed back to MOCASSIN
+
+MOCASSIN already had the hook. `getDustT` has carried
+
+```fortran
+if (lgGas .and. lgPhotoelectric) then
+   dustAbsIntegral = dustAbsIntegral + gasDustColl_d(nS,ai) - photoelHeat_d(nS,ai)
+```
+
+for as long as the dust solver has existed, and `lgPhotoelectric` defaults true. What was wrong is
+where the two numbers come from: both are built by looping over MOCASSIN's **ion** inventory. In a
+PDR that description is wrong twice over - every H nucleus is counted as a free H atom, and H2 does
+not exist at all - so the collisional rate is roughly double what it should be and carries the
+wrong partner mass.
+
+The PDR already computes both correctly: `HEATING_RATE(11)` is Burke & Hollenbach gas-grain,
+`HEATING_RATE(1..3)` the photoelectric terms. `pdrHeatPE` was already stored per cell; `pdrHeatGG`
+is new.
+
+In `pdrZone == 1` cells the dust balance now takes those instead. They are volumetric
+(erg cm^-3 s^-1) where the balance wants erg s^-1 per grain, and both processes scale with grain
+area, so they are spread over the population by cross-section:
+
+    rate(ns,ai) = Gamma_vol * pi a_ai^2 / SUM_grains n(ns,ai) pi a_ai^2
+
+which makes `SUM n(ns,ai) rate(ns,ai)` equal the volumetric rate again. Both are subtracted: a
+positive gas-grain term means the dust is heating the gas and loses that energy, and the
+photoelectric term is FUV the grain absorbed and shed as electrons rather than re-radiating.
+
+It moves the dust temperature toward 3D-PDR at every depth in V2:
+
+| A_V | before | after | 3D-PDR |
+|---|---|---|---|
+| 0.013 | 55.3 | 53.2 | 52.4 |
+| 0.36 | 48.1 | 45.4 | 42.6 |
+| 1.10 | 35.1 | **30.4** | 29.1 |
+| 1.95 | 27.3 | 24.0 | 18.6 |
+
+and the H2 front with it: V2 1.031 -> **0.985**, V1 1.142 -> 1.099.
+
+One inconsistency is inherited rather than introduced. The PDR's dominant heating term is PAH
+photoelectric heating, computed from a metallicity-scaled formula, while the dust inventory after
+D-092 is silicate only. Energy is now conserved - what the gas gains is taken from the grain budget
+- but it is taken from grains that did not absorb it as PAHs. 3D-PDR has the same split (single
+0.1 um grain for opacity, PAH formula for heating), so matching it means inheriting it.
+
+
+## 2026-09-02j - D-094: the deep dust temperature is transported IR, and HTT91's floor is the crutch
+
+D-092 left MOCASSIN's dust ~10 K warmer than 3D-PDR deep in the V2 slab, and it was not obvious
+whether that was real. It plateaus - 23.9 K at A_V = 1.9 through 21.2 K at 6.7 - while the FUV
+field falls three orders of magnitude across the same span, which looks like a floor.
+
+It is not. Comparing the two regimes, whose incident fields differ by 100x:
+
+| A_V | V1 (chi 10) | V2 (chi 1000) | ratio |
+|---|---|---|---|
+| surface | 23.5 | 47.2 | 2.01 |
+| 5.0 | 8.2 | 22.1 | **2.71** |
+
+T_dust ~ chi^0.2 predicts 2.51. A noise floor or a table limit would not scale with the incident
+luminosity; this does. The deep dust is genuinely heated by IR re-radiated at the illuminated skin
+and transported inward - and under `planeIonization` the transverse walls are specular mirrors, so
+that IR cannot escape sideways, the same trapping that gave gamma_eff = 1.85 for the FUV in D-090.
+
+The decisive detail is the other direction. In V1 MOCASSIN's deep dust reaches **6.4 K at
+A_V = 8**, *below* HTT91's 10 K floor - which HTT91's own paper describes as an artificial device
+to stop H2 formation collapsing. 3D-PDR runs `DUST = HTT91`, so its deep dust temperature in both
+regimes is simply that floor. Our transported value is more physical in both directions.
+
+`pdrDustModel` therefore defaults to 0 (MOCASSIN only) instead of 1 (max with HTT91). The max was
+introduced in D-065 because `Tdust(0,0)` was believed broken; D-092 showed it never was, so all the
+max() does now is impose HTT91's floor on a colder, better value.
+
+### Benchmark, all changes in
+
+| | V1 | V2 |
+|---|---|---|
+| H -> 2H2 | 1.102 | **0.986** |
+| C+ -> C | **0.995** | **0.981** |
+| C -> CO | 1.075 | **0.985** |
+| deep T | **1.061** | 1.503 |
+
+V1's deep gas, open since the first slab comparison at 1.27-1.32x, closes to **1.061** - it was
+HTT91's floor holding the grains at 10 K where the transfer gives 6.4 K. The cost is V1's C -> CO
+front, which overshoots to 1.075 where the floor had it at 0.971.
+
+V2's deep gas goes the other way, 1.02 -> 1.50, and the mechanism is worth stating because it is
+not a regression in the physics: at n_H = 1e5 the gas-grain coupling is strong enough that the deep
+gas temperature simply reports the dust temperature. Ours is 20.7 K (transported IR), 3D-PDR's is
+10.0 K (the floor), and the gas follows each. The old 1.02 agreement was reached with a dust
+temperature that was meaningless (D-092) and a floor that happened to sit near 3D-PDR's answer.
