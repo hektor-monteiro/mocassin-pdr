@@ -111,6 +111,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-088 | Radial path never filled the shielding columns, so it fell back to D-078's error | Accepted | 2026-09-02 |
 | D-089 | The mid-cloud temperature excess is the scattered FUV field, not the thermal balance | Accepted | 2026-09-02 |
 | D-090 | gamma_eff = 1.85 is what this geometry's scattering should give; 3D-PDR's 3.02 omits it | Accepted | 2026-09-02 |
+| D-091 | Audit: what H2 and CO exchange with dust, and the one place it uses the wrong dust | Open | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4802,3 +4803,81 @@ scattering as if it were absorption, which under-reads the deep FUV field by a f
 A_V = 2. **Ours is the more complete treatment, and the disagreement in panels (a) and (e) of the
 benchmark is the coupling doing its job.** It also means the benchmark can never close to better
 than this in the mid-cloud, and should not be tuned to try.
+
+
+## 2026-09-02g - D-091: audit of the H2/CO-dust interaction
+
+Asked directly whether the coupling accounts for H2 and CO interacting with dust. It does, in five
+places, all on the 3D-PDR side of the bridge - and there is one place where it uses the wrong dust.
+
+### Present
+
+| interaction | where | driven by |
+|---|---|---|
+| H2 formation on grain surfaces | `h2_form.F90`, Cazaux & Tielens 2002/2004, `-DH2FORM_CT02` | our T_dust |
+| dust continuum shielding of the H2 and CO photorates | `shield.F90` `SCATTER(A_V, lambda)` | A_V |
+| gas-grain collisional thermal coupling | `heatingfunctions.F90` `GASGRAIN_HEATING`, Burke & Hollenbach | our T_dust |
+| grain (PAH) photoelectric heating | `PAHPHOTOELEC_HEATING`, the dominant PDR heating term | local FUV field |
+| grain thermal continuum pumping the CO / [C II] / [O I] level populations | `escape_probability.F90` `BB_ij_dust`, added to the CMB term | our T_dust |
+
+The last one is easy to miss: the level solver does not just see the CMB, it sees a grain
+blackbody at T_dust scaled by a simple emissivity, so the dust temperature feeds the line
+excitation directly and not only the chemistry.
+
+### Absent
+
+**No freeze-out or desorption anywhere.** The dispatch in `calc_reac_rates.F90` has labels for
+`FREEZE`, `ELFRZE`, `THERM` and `PHOTD`, so the machinery exists - but none of the three shipped
+networks contains a single such reaction:
+
+    reduced (33 species): 0    medium (78): 0    full (215): 0
+
+The only grain reactions in the reduced network are three: H + H + # -> H2, He+ + e- + # -> He,
+and C+ + e- + # -> C. So CO cannot deplete onto grains at any depth or dust temperature. In a real
+cloud CO freeze-out is first-order beyond A_V ~ 5 with T_dust < 20 K, which is inside the
+benchmark's range. This is a network limitation shared with standalone 3D-PDR, so it does not
+affect the comparison - but it does bound what the coupled code can be used for.
+
+**The two grain-assisted recombinations are placeholders.** `BALG` and `GRAINRECOMB` are off in
+our `PDRFLAGS`, and the reference build has `GRAINRECOMB = 0` too, so the comparison is
+consistent. But note the dispatch tests the SECOND reactant for `#`:
+
+```fortran
+IF(REACTANT(I,2)(1:1).EQ."#") GOTO 9
+```
+
+and reactions 330/331 carry `#` as the THIRD reactant. They therefore fall through to the generic
+modified-Arrhenius branch and get 5.2e-17 (T/300)^0.5 - four orders below C+ radiative
+recombination, i.e. effectively zero. Turning `GRAINRECOMB` on would be needed to get the
+Weingartner & Draine rate, and would move the C+ -> C front shallower.
+
+**MOCASSIN's own opacity has no molecules.** H2 and CO contribute no continuum opacity, no line
+blanketing and no cooling on the MOCASSIN side. They reach it only through what the bridge writes
+back: T_e, the ionization state, and the carbon locked in CO removed from the atomic stages
+(D-038).
+
+### The one real problem: the photorates use somebody else's dust
+
+`SCATTER(A_V, lambda)` converts A_V to tau(lambda) through `XLAMBDA`, which splines a **fixed
+Savage & Mathis (1979) extinction curve** - tau(1000 A)/tau(V) = 4.65 - and then applies the
+Wagenblast & Hartquist multi-exponential scattering fit. The A_V handed in is measured from the
+model's own grains, but the wavelength dependence is not. Effective attenuation of the H2 and CO
+photorates:
+
+| | gamma per magnitude |
+|---|---|
+| H2 / CO photorates via `SCATTER` (A_V 0.2-1) | 3.31 |
+| H2 / CO photorates via `SCATTER` (A_V 1-4) | 3.53 |
+| **the field that actually heats the gas (measured, D-090)** | **1.85** |
+| our grains, pure extinction | 3.31 |
+| 3D-PDR's field prescription | 3.02 |
+
+In the benchmark this is invisible, because the grains were tuned in D-073 to R_FUV = 3.59, which
+happens to sit right on the Savage & Mathis value. It will not stay invisible. With the grey
+0.07-50 um silicates this benchmark originally inherited (R_FUV = 1.12, D-073), the transported
+field would decay three times more slowly while the H/H2 and C/CO fronts would still be placed by
+an interstellar extinction curve the model does not have.
+
+The fix is to scale the `SCATTER` optical depth by the model's measured R_FUV rather than leaving
+it on the tabulated curve. Not done here: it changes front positions in every model, so it needs
+its own before/after against both slab benchmarks.
