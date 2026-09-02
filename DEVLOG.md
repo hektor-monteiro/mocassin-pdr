@@ -86,7 +86,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-063 | We compiled RAYTHEIA_MO where 3D-PDR compiles ONEDIMENSIONAL; beta divided by 12 | Accepted | 2026-08-31 |
 | D-064 | Residual is a uniform ~1.8x temperature offset, not a surface blowup | Closed by D-075/D-076 | 2026-08-31 |
 | D-065 | HTT91 ran on uninitialised chi/av and returned its 10 K floor in every cell | Accepted | 2026-09-01 |
-| D-066 | MOCASSIN's own dust equilibrium gives 1.2 K at an illuminated PDR face | Open | 2026-09-01 |
+| D-066 | MOCASSIN's own dust equilibrium gives 1.2 K at an illuminated PDR face | Retracted by D-092 | 2026-09-01 |
 | D-067 | MOCASSIN floors Te at 10 K, exactly where PDR interiors live | Noted | 2026-09-01 |
 | D-068 | [CII]/[OI] are included correctly but under-emit; [OI] by 17x | Closed by D-075 | 2026-09-01 |
 | D-069 | Blend band is inactive in a pure-PDR slab; packets are not the limit | Closed | 2026-09-01 |
@@ -111,7 +111,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-088 | Radial path never filled the shielding columns, so it fell back to D-078's error | Accepted | 2026-09-02 |
 | D-089 | The mid-cloud temperature excess is the scattered FUV field, not the thermal balance | Accepted | 2026-09-02 |
 | D-090 | gamma_eff = 1.85 is what this geometry's scattering should give; 3D-PDR's 3.02 omits it | Accepted | 2026-09-02 |
-| D-091 | Audit: what H2 and CO exchange with dust, and the one place it uses the wrong dust | Open | 2026-09-02 |
+| D-091 | Audit: what H2 and CO exchange with dust, and the one place it uses the wrong dust | Mostly closed by D-095 | 2026-09-02 |
 | D-092 | The benchmark dust was PAH-only by accident; MOCASSIN's dust temperature was never broken | Accepted | 2026-09-02 |
 | D-093 | Photoelectric and gas-grain energy fed back into MOCASSIN's dust balance | Accepted | 2026-09-02 |
 | D-094 | Deep dust temperature is transported IR, not a floor; drop the HTT91 crutch | Accepted | 2026-09-02 |
