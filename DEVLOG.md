@@ -116,6 +116,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-093 | Photoelectric and gas-grain energy fed back into MOCASSIN's dust balance | Accepted | 2026-09-02 |
 | D-094 | Deep dust temperature is transported IR, not a floor; drop the HTT91 crutch | Accepted | 2026-09-02 |
 | D-095 | The "PAH inconsistency" was mostly my own double-count of an unused heating term | Accepted | 2026-09-02 |
+| D-096 | Full audit pass: per-coolant cooling, missing MPI exchange, non-PDR build restored | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5125,3 +5126,86 @@ The conceptual mismatch is still real - the PDR heats the gas with a PAH formula
 are silicate - but it is no longer doing measurable damage: the grains always absorb more than the
 gas takes. The cap and its counter stay as a guard, and `nDustCapped > 0` is now a genuine signal
 rather than a symptom of this bug.
+
+
+## 2026-09-02l - D-096: full audit pass
+
+A deliberate stop to re-run every benchmark on one build and check what had drifted. Four things
+had.
+
+### 1. The non-PDR build was broken
+
+`iteration_mod.f90:1389` used `lgPDR` and `pdrStartIter` outside any `#ifdef PDR`, so
+`make mocassin` without `PDR=1` failed to compile. The whole point of guarding the coupling is
+that plain MOCASSIN still builds; it had not for some time. Guarded, and the non-PDR binary now
+compiles and runs a dust+gas model clean (2:03, 21 iterations). All three flavours build:
+`PDR=0`, `PDR=1 PDRGEOM=1D`, `PDR=1 PDRGEOM=3D`.
+
+### 2. pdrHeatGG was never exchanged between ranks
+
+Every other PDR array is `mpi_allreduce`d after the `pdrStep` loop; the one D-093 added was not.
+It happened to work because `pdrStep` and `updateCell` use the identical decomposition
+(`mod(iCell-(taskid+1),numtasks)==0`), so each rank had the value for its own cells - but it was
+luck, not design. Added to the exchange.
+
+### 3. The other two fixtures still had the D-092 dust
+
+`hiipdr` and `ifront` carried the same inherited PAH species, unmatched size grid and old
+`MdMg = 0.01059` that D-092 corrected in the slabs, and their inputs were still at the fixture root
+rather than under `input/`. Both fixed the same way.
+
+### 4. Per-coolant cooling was not recoverable
+
+`coolK` was computed per coolant and summed into `pdrCool` without being stored, so a
+coolant-by-coolant comparison against 3D-PDR's `.cool.fin` needed a rebuild to reconstruct. Now
+kept in `pdrCoolSp(cell, coolant)`, exchanged, and written to `output/pdrCoolSp.out` in the same
+record order as `pdrGrid.out`.
+
+`v1.cool.fin`, lost in the machine crash, was regenerated - and the run that produced it also
+regenerated `v1.pdr.fin` **bit-identical to the committed reference**, which independently confirms
+the 3D-PDR build and parameters are the ones behind every comparison in this log.
+
+### What the coolant comparison shows
+
+Local cooling rate, ours / 3D-PDR:
+
+| A_V | CO | [C II] | [C I] | [O I] |
+|---|---|---|---|---|
+| 0.05 | 0.85 | 0.95 | 1.01 | 0.81 |
+| 0.20 | 0.96 | 1.01 | 1.02 | 1.03 |
+| 0.50 | 1.19 | 1.21 | 1.04 | 1.74 |
+| 1.00 | 1.82 | 1.80 | 1.18 | 5.04 |
+| 2.00 | 3.74 | 50.1 | 2.86 | 835 |
+
+(V1; V2 is the same shape.) Every coolant agrees to within 5% out to A_V = 0.2 and within 20% to
+0.5. That is a direct check on the level populations, the collision coefficients and the escape
+probability, and it passes.
+
+Past A_V ~ 1 the ratios diverge, and they diverge in the order of the transitions' excitation
+energies - [C I] least, then CO and [C II], then [O I] hardest. [O I] 63 um sits 228 K above
+ground, so at 30 K against 12 K its emissivity differs by e^11. **The deep cooling discrepancy is
+not independent of the temperature discrepancy; it is the same fact seen through an exponential.**
+Nothing here points at a second defect.
+
+### Benchmark state on this build
+
+| | V1 | V2 |
+|---|---|---|
+| H -> 2H2 | 1.120 | **1.002** |
+| C+ -> C | **0.995** | **0.980** |
+| C -> CO | 1.070 | **0.985** |
+| deep T | **1.061** | 1.508 |
+| median T | 1.249 | 1.505 |
+
+Spherical H II + PDR, against a 3D-PDR reference regenerated at its matched field
+(chi = 61.28 at the front, A_V span 2.464):
+
+| A_V from front | x(H2) ours | x(H2) 3D-PDR |
+|---|---|---|
+| 0.000 | 4.05e-06 | 1.76e-06 |
+| 1.073 | 4.85e-01 | 3.67e-01 |
+| 2.464 | 4.96e-01 | 4.94e-01 |
+
+H -> 2H2 crossing 0.515 against 0.888, x(C+) holding its full 1.4e-4 to A_V ~ 1.4 as the reference
+does. The gap is grid resolution: dA_V = 0.107 per cell on a uniform 31^3 grid, and the front is
+thinner than one cell.

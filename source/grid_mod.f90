@@ -1370,6 +1370,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate AVeff memory"; stop
                 end if
+                allocate(grid%pdrCoolSp(0:grid%nCells, 1:max(pdrNcool,1)), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
+                end if
                 allocate(grid%pdrCool(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCool memory"; stop
@@ -1418,6 +1422,7 @@ module grid_mod
                 grid%pdrColH2 = -1.; grid%pdrColC = -1.; grid%pdrColCO = -1.
                 grid%AVeff   = 0.
                 grid%pdrCool = 0.
+                grid%pdrCoolSp = 0.
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
                 grid%pdrHeatGG = 0.
@@ -2779,6 +2784,12 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  print*, "! writeGrid: can't open file for writing - output/pdrGrid.out"
                  stop
               end if
+              close(52)
+              open(unit=52, file="output/pdrCoolSp.out", action="write",position="rewind",status="unknown", iostat = ios)
+              if (ios /= 0 ) then
+                 print*, "! writeGrid: can't open file for writing - output/pdrCoolSp.out"
+                 stop
+              end if
            end if
 #endif
 
@@ -2848,6 +2859,10 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                             & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
                             & grid(iG)%pdrThigh(cellP)
                        write(51, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
+                       ! D-096: per-coolant cooling, same record order, so a
+                       ! coolant-by-coolant comparison against 3D-PDR's
+                       ! .cool.fin no longer needs a rerun to reconstruct.
+                       write(52, *) (grid(iG)%pdrCoolSp(cellP,iPdrS), iPdrS = 1, max(pdrNcool,1))
                     end if
 #endif
                     if (lgDust) then
@@ -3439,6 +3454,10 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate AVeff memory"; stop
                end if
+               allocate(grid(iG)%pdrCoolSp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
+               end if
                allocate(grid(iG)%pdrCool(0:grid(iG)%nCells), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCool memory"; stop
@@ -3482,6 +3501,7 @@ end function getVolume
                grid(iG)%pdrColH2 = -1.; grid(iG)%pdrColC = -1.; grid(iG)%pdrColCO = -1.   ! see setMotherGrid (D-088)
                grid(iG)%AVeff   = 0.
                grid(iG)%pdrCool = 0.
+               grid(iG)%pdrCoolSp = 0.
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
                grid(iG)%pdrHeatGG = 0.

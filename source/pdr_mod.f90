@@ -1454,6 +1454,7 @@ module pdr_mod
 
               grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
               coolTot = coolTot + coolK
+              grid%pdrCoolSp(cellP, ik) = real(coolK)   ! D-096
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
               if (pdrDiagCool > 0 .and. taskid == 0) then

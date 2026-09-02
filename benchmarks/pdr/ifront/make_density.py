@@ -25,7 +25,7 @@ for i in range(ny - 1):
     ys.append(acc)
 xs = [Lx * i / (nx - 1) for i in range(nx)]
 zs = [Lz * k / (nz - 1) for k in range(nz)]
-with open("front.den", "w") as fh:
+with open("input/front.den", "w") as fh:
     for x in xs:
         for y in ys:
             for z in zs:

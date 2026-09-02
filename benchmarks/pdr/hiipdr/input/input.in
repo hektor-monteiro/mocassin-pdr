@@ -18,7 +18,7 @@ Rout 6.0e19
 edges 6.0e19 6.0e19 6.0e19
 convLimit 0.90
 dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
-MdMg constant 0.01059
+MdMg constant 0.011295
 pdr 1
 pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
 pdrNetwork "reduced"

@@ -52,6 +52,8 @@ module iteration_mod
            real, allocatable :: pdrTgTmp(:), pdrTgSum(:), pdrTlTmp(:), pdrTlSum(:)
            real, allocatable :: pdrThTmp(:), pdrThSum(:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
+           real, allocatable :: pdrHeatGGTmp(:), pdrHeatGGSum(:)      ! D-096
+           real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
@@ -921,6 +923,10 @@ module iteration_mod
                  allocate(pdrHeatSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrHeatGGTmp(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrHeatGGSum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
+                 allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
                  allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
@@ -937,6 +943,8 @@ module iteration_mod
                  pdrHeatTmp   = 0.
                  pdrHeatSum   = 0.
                  pdrHeatPETmp = 0.
+                 pdrHeatGGTmp = 0.
+                 pdrCoolSpTmp = 0.
                  pdrHeatPESum = 0.
                  pdrZoneSum   = 0
                  pdrCoolTmp   = 0.
@@ -965,6 +973,10 @@ module iteration_mod
                                      & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
                                 pdrCoolTmp(grid(iG)%active(i,j,k))   = &
                                      & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
+                                pdrHeatGGTmp(grid(iG)%active(i,j,k)) = &
+                                     & grid(iG)%pdrHeatGG(grid(iG)%active(i,j,k))
+                                pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
+                                     & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
                                 pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
                                      & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
                                 pdrTgTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrTgas(grid(iG)%active(i,j,k))
@@ -992,6 +1004,14 @@ module iteration_mod
                  call mpi_allreduce(pdrCoolTmp, pdrCoolSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrCool(1:grid(iG)%nCells) = pdrCoolSum(1:grid(iG)%nCells)
+                 call mpi_allreduce(pdrHeatGGTmp, pdrHeatGGSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrHeatGG(1:grid(iG)%nCells) = pdrHeatGGSum(1:grid(iG)%nCells)
+                 size = (grid(iG)%nCells+1)*max(pdrNcool,1)
+                 call mpi_allreduce(pdrCoolSpTmp, pdrCoolSpSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrCoolSp(1:grid(iG)%nCells,:) = pdrCoolSpSum(1:grid(iG)%nCells,:)
+                 size = grid(iG)%nCells+1
                  size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
                  call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
@@ -1365,8 +1385,12 @@ module iteration_mod
            ! before the chemistry has run once - measured: 100% converged at
            ! iteration 3, zero pdrStep calls, every cell still zone 0. Hold the
            ! run open until the PDR has been enabled and has had one pass.
+#ifdef PDR
            if ( totPercent >= minConvergence .and. &
               & (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
+#else
+           if ( totPercent >= minConvergence ) then
+#endif
 
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
