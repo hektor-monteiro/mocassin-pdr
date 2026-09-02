@@ -115,6 +115,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-092 | The benchmark dust was PAH-only by accident; MOCASSIN's dust temperature was never broken | Accepted | 2026-09-02 |
 | D-093 | Photoelectric and gas-grain energy fed back into MOCASSIN's dust balance | Accepted | 2026-09-02 |
 | D-094 | Deep dust temperature is transported IR, not a floor; drop the HTT91 crutch | Accepted | 2026-09-02 |
+| D-095 | The "PAH inconsistency" was mostly my own double-count of an unused heating term | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5087,3 +5088,40 @@ not a regression in the physics: at n_H = 1e5 the gas-grain coupling is strong e
 gas temperature simply reports the dust temperature. Ours is 20.7 K (transported IR), 3D-PDR's is
 10.0 K (the floor), and the gas follows each. The old 1.02 agreement was reached with a dust
 temperature that was meaningless (D-092) and a floor that happened to sit near 3D-PDR's answer.
+
+
+## 2026-09-02k - D-095: the energy-budget caps were a double-count, not a PAH problem
+
+D-093 reported 55 cells where the PDR's photoelectric heating exceeded what MOCASSIN's grains
+absorbed, and attributed it to the PDR assuming a PAH population the silicate-only dust inventory
+does not carry. Asked to explain that, it does not survive checking.
+
+`pdrHeatPE` was formed as `heat(1) + heat(2) + heat(3)`. Of those three, `TOTAL_HEATING` takes
+**only heat(2)**:
+
+```fortran
+TOTAL_HEATING=&
+!    & + PHOTOELECTRIC_HEATING &     <- heat(1), hard-set to 0.0D0
+     & + PAHPHOTOELEC_HEATING &      <- heat(2), the one that counts
+!    & + WEINGARTNER_HEATING &       <- heat(3), an ALTERNATIVE prescription, commented out
+```
+
+`heat(1)` is zero, and `heat(3)` is Weingartner & Draine's photoelectric rate offered *instead of*
+the PAH one, not in addition to it. Summing all three was harmless while `pdrHeatPE` was only a
+diagnostic. The moment D-093 began subtracting it from the grain energy budget it removed about
+twice the right amount, including a term the gas never received - which is what pushed those cells
+past what their grains had absorbed.
+
+With `pdrHeatPE = heat(2)` alone:
+
+| | caps hit | H -> 2H2 | C+ -> C | C -> CO | deep T |
+|---|---|---|---|---|---|
+| V1 | **0** | 1.117 | 0.995 | 1.076 | 1.062 |
+| V2 | **0** | **1.003** | 0.981 | 0.985 | 1.505 |
+
+The cap never fires now, in either regime, and V2's H2 front closes to 1.003.
+
+The conceptual mismatch is still real - the PDR heats the gas with a PAH formula while the grains
+are silicate - but it is no longer doing measurable damage: the grains always absorb more than the
+gas takes. The cap and its counter stay as a guard, and `nDustCapped > 0` is now a genuine signal
+rather than a symptom of this bug.

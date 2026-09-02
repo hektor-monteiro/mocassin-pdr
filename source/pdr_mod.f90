@@ -1278,7 +1278,14 @@ module pdr_mod
                 & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
 
            grid%pdrHeat(cellP)   = real(heat(12))
-           grid%pdrHeatPE(cellP) = real(heat(1) + heat(2) + heat(3))
+           ! D-095: heat(2) ALONE. TOTAL_HEATING takes only PAHPHOTOELEC_HEATING from
+           ! the photoelectric family - heat(1) is hard-set to zero and heat(3),
+           ! Weingartner & Draine, is an ALTERNATIVE prescription commented out of
+           ! the sum. Summing all three was harmless while this was a diagnostic;
+           ! once D-093 started subtracting it from the grain energy budget it
+           ! removed about twice the right amount, including a term the gas never
+           ! received.
+           grid%pdrHeatPE(cellP) = real(heat(2))
            grid%pdrHeatGG(cellP) = real(heat(11))
 
            ! ---- line cooling (DEVLOG D-030) --------------------------------
@@ -1507,7 +1514,7 @@ module pdr_mod
              & abun, pdrNreacMod, pdrRate, heat, &
              & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
         grid%pdrHeat(cellP)   = real(heat(12))
-        grid%pdrHeatPE(cellP) = real(heat(1) + heat(2) + heat(3))
+        grid%pdrHeatPE(cellP) = real(heat(2))   ! D-095: heat(2) alone, see above
         grid%pdrHeatGG(cellP) = real(heat(11))
 
         grid%pdrTgas(cellP)  = real(Tg)
