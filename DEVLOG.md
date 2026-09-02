@@ -110,6 +110,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-087 | `computeAVradial`: geometric A_V for non plane-parallel geometry | Accepted | 2026-09-02 |
 | D-088 | Radial path never filled the shielding columns, so it fell back to D-078's error | Accepted | 2026-09-02 |
 | D-089 | The mid-cloud temperature excess is the scattered FUV field, not the thermal balance | Accepted | 2026-09-02 |
+| D-090 | gamma_eff = 1.85 is what this geometry's scattering should give; 3D-PDR's 3.02 omits it | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4759,3 +4760,45 @@ The adopted T_dust is `max(TdMoc, TdHTT)`, and TdMoc - MOCASSIN's own dust equil
 1.6 K at the illuminated face of the V1 slab where HTT91 and 3D-PDR both give ~21 K. HTT91 wins the
 max at every depth in both regimes. So the benchmark's dust agreement is the parametrisation
 agreeing with 3D-PDR, not the transfer agreeing with it.
+
+
+## 2026-09-02f - D-090: gamma_eff = 1.85 is right, and 3D-PDR's 3.02 is the approximation
+
+D-089 left one question: the mid-cloud temperature excess is the transported FUV field, but is that
+field itself right? Two ways it could decay too slowly - MOCASSIN scattering isotropically where
+FUV grain scattering is forward-peaked, or the FUV opacity being wrong.
+
+**Scattering is not isotropic.** `photon_mod.f90` samples Henyey-Greenstein with a
+frequency-dependent asymmetry parameter `gSca(nuP)` built in `ph_mod.f90` from the grains' own
+`gCos` tables. So the phase function is not the suspect.
+
+The `[D073]` diagnostic reported the albedo but not the asymmetry, though its own comment named
+both as what sets the decay. It now reports the scattering-weighted g as well. For the benchmark
+grains:
+
+    ! [D073] FUV albedo = 0.485525399   asymmetry g = 0.354697287
+    ! [D073] kFUV/kV = R_FUV = 3.59476638
+
+which bracket the possible decay rates:
+
+| treatment | gamma per magnitude |
+|---|---|
+| pure extinction - every scattered photon lost | 3.31 |
+| 3D-PDR's prescription | 3.02 |
+| reduced by forward scattering, (1 - w g) | 2.74 |
+| every scattered photon retained, (1 - w) | 1.70 |
+| **measured, V1** | **1.849** |
+| **measured, V2** | **1.847** |
+
+Two regimes two decades apart in density give the same number to three digits, and it sits just
+above the (1 - albedo) floor. That is exactly where a slab under `planeIonization` should sit: the
+transverse walls are specular mirrors, so laterally scattered photons are reflected back in rather
+than escaping, and the only loss is backscatter out through the illuminated face. In that geometry
+almost every scattered photon is eventually absorbed inside the slab, and the effective attenuation
+approaches (1 - albedo) times the extinction value.
+
+So the field is behaving as the grains and the geometry require. 3D-PDR's exp(-3.02 A_V) treats
+scattering as if it were absorption, which under-reads the deep FUV field by a factor of ~6 at
+A_V = 2. **Ours is the more complete treatment, and the disagreement in panels (a) and (e) of the
+benchmark is the coupling doing its job.** It also means the benchmark can never close to better
+than this in the mid-cloud, and should not be tuned to try.

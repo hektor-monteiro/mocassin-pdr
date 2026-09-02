@@ -379,7 +379,7 @@ module pdr_mod
         type(grid_type), dimension(:), intent(in) :: grid
 
         integer          :: iG, iCell, ifreq, nUsed
-        double precision :: kFUV, kV, wsum, w, kabs, ksca
+        double precision :: kFUV, kV, wsum, w, kabs, ksca, gbar
 
         ! find any cell that actually carries dust; the ratio is independent of
         ! the dust column, so one representative cell is enough
@@ -449,7 +449,7 @@ module pdr_mod
         ! decays: exp(-tau*sqrt(3(1-w)(1-wg))). Report them alongside R_FUV so
         ! the measured gamma_eff can be checked against diffusion theory.
         if (taskid == 0) then
-           kabs = 0.d0; ksca = 0.d0; wsum = 0.d0
+           kabs = 0.d0; ksca = 0.d0; wsum = 0.d0; gbar = 0.d0
            do ifreq = FUVlowP, FUVhighP
               if (ifreq > 1) then
                  w = dble(inSpectrumProbDen(1,ifreq)) - dble(inSpectrumProbDen(1,ifreq-1))
@@ -459,12 +459,20 @@ module pdr_mod
               if (w <= 0.d0) cycle
               kabs = kabs + w*dble(grid(1)%absOpac(iCell,ifreq))
               ksca = ksca + w*dble(grid(1)%scaOpac(iCell,ifreq))
+              ! scattering-weighted: g only matters where light actually scatters
+              gbar = gbar + w*dble(grid(1)%scaOpac(iCell,ifreq))*dble(gSca(ifreq))
               wsum = wsum + w
            end do
            if (wsum > 0.d0) then
+              if (ksca > 0.d0) gbar = gbar/ksca
               kabs = kabs/wsum; ksca = ksca/wsum
-              print*, "! [D073] R_FUV =", pdrRfuv, " FUV albedo =", &
-                   & real(ksca/max(kabs+ksca,1.d-99))
+              ! D-089: these two set how much shallower the transported field
+              ! decays than 3D-PDR's scattering-free exp(-3.02 A_V). Forward
+              ! scattering keeps photons in the beam, so the effective
+              ! extinction is reduced by (1 - albedo*g); the measured gamma_eff
+              ! should sit between that reduction and the full extinction value.
+              print*, "! [D073] FUV albedo =", real(ksca/max(kabs+ksca,1.d-99)), &
+                   & " asymmetry g =", real(gbar)
            end if
         end if
         end if
