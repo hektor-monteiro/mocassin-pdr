@@ -109,6 +109,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-086 | Spherical `AVeff` from the chi/chi0 inversion under-reads the dust column by ~1.8x | Resolved by D-087 | 2026-09-02 |
 | D-087 | `computeAVradial`: geometric A_V for non plane-parallel geometry | Accepted | 2026-09-02 |
 | D-088 | Radial path never filled the shielding columns, so it fell back to D-078's error | Accepted | 2026-09-02 |
+| D-089 | The mid-cloud temperature excess is the scattered FUV field, not the thermal balance | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4701,3 +4702,60 @@ their committed values exactly:
 | V2 | 0.914 | 0.977 | 0.988 | 1.025 |
 
 V1's chemistry matches the reference to 3-4 digits at every depth.
+
+
+## 2026-09-02e - D-089: the mid-cloud temperature excess is the field, not the balance
+
+### What V2 established
+
+Running the V2 slab (n_H = 1e5, chi = 1e3) with nothing adjusted after V1 gave fronts of 0.915 /
+0.977 / 0.988 and a deep temperature of 1.02x - but a temperature that runs hot through the middle
+of the cloud, peaking at **3.7x near A_V = 3.3**, where V1 peaks at **2.4x near A_V = 2.2**. The
+same defect in two regimes two decades apart in density rules out anything tuned to V1.
+
+Surface right, deep right (in V2), middle wrong is not the signature of a missing coolant or a
+broken root find. It is the signature of a heating term that is too large only where something
+else has diverged - and panel (e) of the benchmark already showed exactly one thing diverging
+there: the FUV field. MOCASSIN transports it through grains of albedo 0.486, so scattered light
+survives to depth; 3D-PDR applies exp(-3.02 A_V) with no scattering term at all. At A_V = 1.95 the
+transported field is 0.168 Draine against the prescription's 0.028 - a factor of six.
+
+### The test
+
+The reaction rates already run on the prescription: `CALCULATE_REACTION_RATES` rebuilds
+chi0*exp(-gamma*A_V) internally from `radSurf` and `AVray`. Only `CALC_HEATING` and the HTT91 dust
+temperature take the transported field. So substituting the prescription in those two places, and
+nowhere else, isolates the field from the balance.
+
+`pdrFUVmode = 1` does that. V1, everything else identical:
+
+| | median T/T_3DPDR | peak | deep |
+|---|---|---|---|
+| transported MC field (default) | 1.341 | 2.42 | 13.3 K |
+| prescribed exp(-3.02 A_V) | **0.991** | **1.39** | 13.3 K |
+
+Depth by depth, the prescribed run sits at 0.95-0.85 of 3D-PDR from A_V = 0.2 to 1.6 and 0.98-1.19
+beyond - flat agreement where the default runs from 1.04 up to 2.28.
+
+**The thermal balance is right.** The entire mid-cloud excess is the extra FUV energy that
+MOCASSIN's transfer deposits and 3D-PDR's exponential does not. It is not a bug to be fixed, and
+`pdrFUVmode = 1` is a diagnostic, not a mode to run in - it discards the radiative transfer that
+is the whole reason for coupling the two codes.
+
+### What that leaves open
+
+The excess is real physics only if gamma_eff = 1.85 per magnitude is right. Two ways it could be
+too shallow: MOCASSIN scattering isotropically where FUV grain scattering is strongly forward
+throwing photons out of the beam that should have stayed in it, or the FUV dust opacity itself.
+That is now the question, and it is a question about MOCASSIN's dust transfer rather than about
+the coupling.
+
+Note also that V1's deep offset (1.27x) survives the substitution unchanged - 13.3 K in both runs.
+It is a separate defect, and one V2 does not share (1.02x).
+
+### Not settled by this: the dust temperature
+
+The adopted T_dust is `max(TdMoc, TdHTT)`, and TdMoc - MOCASSIN's own dust equilibrium - reads
+1.6 K at the illuminated face of the V1 slab where HTT91 and 3D-PDR both give ~21 K. HTT91 wins the
+max at every depth in both regimes. So the benchmark's dust agreement is the parametrisation
+agreeing with 3D-PDR, not the transfer agreeing with it.

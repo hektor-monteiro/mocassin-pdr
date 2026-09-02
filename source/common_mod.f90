@@ -524,6 +524,8 @@ module common_mod
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
     real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
     integer             :: pdrDustModel = 1          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
+    integer             :: pdrFUVmode = 0            ! 0 = transported MC field heats the gas,
+                                                     ! 1 = 3D-PDR's prescribed chi0*exp(-UVfac*A_V) (D-089 diagnostic)
     integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
     real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]

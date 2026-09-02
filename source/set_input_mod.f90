@@ -619,6 +619,9 @@ module set_input_mod
             case ("pdrStartIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrStartIter
+            case ("pdrFUVmode")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrFUVmode
 
             case ("pdrDiagCool")
                 backspace 10

@@ -1042,6 +1042,7 @@ module pdr_mod
         integer            :: kray
         double precision   :: mu, colA, avBack
         double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol, sH2, sC, sCO
+        double precision   :: chiHeat
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
         cellP = grid%active(xP,yP,zP)
@@ -1100,6 +1101,22 @@ module pdr_mod
         chiLoc = dble(grid%chiFUV(cellP))
         if (chiLoc <= 0.d0) chiLoc = chi*exp(-av*dble(pdrRfuv))
 
+        ! D-089, diagnostic only. The reaction rates already run on 3D-PDR's
+        ! prescription - CALCULATE_REACTION_RATES rebuilds
+        ! chi0*exp(-gamma*A_V) internally from radSurf and AVray - but the
+        ! heating and the HTT91 dust temperature take the TRANSPORTED field,
+        ! which carries scattered light the prescription has no term for. At
+        ! A_V ~ 2 the two differ by an order of magnitude. pdrFUVmode = 1
+        ! substitutes the prescription here as well, which isolates whether
+        ! the mid-cloud temperature excess is the field or the thermal
+        ! balance. Not a physical mode: it throws away the transfer that is
+        ! the reason for coupling the codes at all.
+        chiHeat = dble(grid%chiFUV(cellP))
+        if (pdrFUVmode == 1) then
+           chiLoc  = chi*exp(-av*dble(pdrRfuv))
+           chiHeat = chiLoc
+        end if
+
         TdMoc = dble(grid%Tdust(0,0,cellP))
 
         ! HTT91, evaluated with the single effective ray of D-001 carrying the
@@ -1117,7 +1134,7 @@ module pdr_mod
         ! from the illuminated skin, so it carries the surface field and its own
         ! Rowan-Robinson depth attenuation. Feeding the surface field to both
         ! left T_dust near 21 K at every depth and heated the deep gas to 50 K.
-        TdHTT = 8.9d-11*2.65d15*(1.71d0*dble(grid%chiFUV(cellP))) + pdrTcmb**5
+        TdHTT = 8.9d-11*2.65d15*(1.71d0*chiHeat) + pdrTcmb**5
         T0HTT = 12.2d0*(1.71d0*max(chi,0.d0))**0.2d0
         if (av > 1.0d0) T0HTT = T0HTT*av**(-0.4d0)
         if (T0HTT > 0.d0) TdHTT = TdHTT + &
