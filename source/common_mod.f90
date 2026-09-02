@@ -525,6 +525,7 @@ module common_mod
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
     real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
+    integer             :: nDustCapped = 0           ! D-093: grain-budget caps hit this iteration
     integer             :: pdrDustModel = 0          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
                                                      ! D-094: default was 1 while Tdust(0,0) was
                                                      ! misread as ~1 K (D-092). With the readout

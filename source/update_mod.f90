@@ -2399,7 +2399,7 @@ end subroutine iterateT
 #ifdef PDR
             integer :: nS2, ai2          ! D-093: cross-section normalisation
             real    :: xsecTot           ! total grain cross-section per unit volume [1/cm]
-            real    :: ggPerGrain, pePerGrain
+            real    :: ggPerGrain, pePerGrain, ggpeLoss
             logical :: lgPDRcell
 #endif
 
@@ -2490,7 +2490,21 @@ end subroutine iterateT
                              & Pi*grainRadius(ai)*grainRadius(ai)*1.e-8/xsecTot
                         pePerGrain = grid%pdrHeatPE(cellP)*&
                              & Pi*grainRadius(ai)*grainRadius(ai)*1.e-8/xsecTot
-                        dustAbsIntegral = dustAbsIntegral - ggPerGrain - pePerGrain
+                        ! A grain cannot shed more energy than it absorbed. Without
+                        ! this cap the balance has no solution and the temperature
+                        ! interpolation extrapolates straight through zero - two
+                        ! cells of the V1 slab came back at -4850 K and -1191 K.
+                        ! Hitting the cap is diagnostic, not cosmetic: it means the
+                        ! PDR's photoelectric heating exceeds what MOCASSIN's grains
+                        ! absorbed, which is the PAH inconsistency of D-093 showing
+                        ! up - the PDR assumes a PAH population the dust inventory
+                        ! does not carry. Counted and reported rather than hidden.
+                        ggpeLoss = ggPerGrain + pePerGrain
+                        if (ggpeLoss > 0.9*dustAbsIntegral) then
+                           ggpeLoss = 0.9*dustAbsIntegral
+                           nDustCapped = nDustCapped + 1
+                        end if
+                        dustAbsIntegral = dustAbsIntegral - ggpeLoss
                      else if (lgGas .and. lgPhotoelectric) then
                         dustAbsIntegral = dustAbsIntegral+gasDustColl_d(nS,ai)-&
                              & photoelHeat_d(nS,ai)

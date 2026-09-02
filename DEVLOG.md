@@ -5025,6 +5025,22 @@ D-092 is silicate only. Energy is now conserved - what the gas gains is taken fr
 - but it is taken from grains that did not absorb it as PAHs. 3D-PDR has the same split (single
 0.1 um grain for opacity, PAH formula for heating), so matching it means inheriting it.
 
+### The cap, and why it is a diagnostic
+
+The first version subtracted without limit, and it can subtract more than the grain absorbed. Two
+cells of the V1 slab then came back at **-4850 K and -1191 K**: with `dustAbsIntegral` negative the
+balance has no solution and the temperature interpolation extrapolates straight through zero.
+
+A grain cannot shed more energy than it absorbed, so the loss is capped at 90% of the absorbed
+integral. Hitting the cap is exactly the PAH inconsistency above becoming visible - the PDR's
+photoelectric heating exceeding what a silicate-only inventory absorbed - so the count is
+accumulated in `nDustCapped` and printed with the iteration summary rather than hidden:
+
+    ! iterateMC: [Summary] Iteration  5 ;  55  grain energy-budget caps hit
+
+55 of 20025 cells in V2. Small, but it is the number to watch if PAHs are ever added back to the
+dust inventory, where it should go to zero.
+
 
 ## 2026-09-02j - D-094: the deep dust temperature is transported IR, and HTT91's floor is the crutch
 

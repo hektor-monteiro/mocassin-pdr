@@ -1241,6 +1241,15 @@ module iteration_mod
                       &int(grid(iG)%noIonBal),"% Ion balance not reached in grid ", iG
                  print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
                       &int(grid(iG)%noTeBal),"% Te balance not reached in grid", iG
+#ifdef PDR
+                 ! D-093: a non-zero count means the PDR's grain heating terms
+                 ! exceeded what MOCASSIN's grains absorbed in those cells, and
+                 ! the loss was capped to keep the dust balance solvable.
+                 if (lgPDR .and. nDustCapped > 0) &
+                      & print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
+                      & nDustCapped," grain energy-budget caps hit"
+                 nDustCapped = 0
+#endif
                  write(21,*) "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
                       &int(convPercent),"% converged cells in grid ", iG
                  write(21,*) "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
