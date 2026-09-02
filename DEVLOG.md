@@ -103,6 +103,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-080 | H II + PDR model runs; the blend band needs a resolved ionization front | Accepted | 2026-09-01 |
 | D-081 | A uniform grid provably cannot resolve the front; a graded 1D grid can, and the blend band was bypassed | Accepted | 2026-09-01 |
 | D-082 | Rollig V2 (n=1e5, chi=1e3) matches standalone to 0-8%; the fixes generalise | Accepted | 2026-09-01 |
+| D-083 | Our build compiles ONEDIMENSIONAL, which is 1D-correct and WRONG for any 3D model | Open | 2026-09-01 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4273,3 +4274,62 @@ Monte Carlo transfer contributes.
 Memory: 32768 cells at nbins = 600 on 14 ranks measured **15.7 GB**, against the D-081 model
 predicting 3.2 + 0.147*32768/1024 = 7.9 GB. The excess is the dust arrays, which the slab models
 carried too but at a twentieth the cell count. Worth folding into the memory model.
+
+
+## 2026-09-01n - D-083: the escape-probability branch is dimensionality-specific
+
+Hektor pointed at 3D-PDR's documentation for running a 3D example, which led to
+`templates/3D/config.mk`. Diffed against the 1D template it carries:
+
+```
+DIMENSIONS   = 3        (1D template: 1)
+RAYTHEIA     = 1        (1D template: 0)
+```
+
+That second line matters. `escape_probability.F90` has three mutually exclusive branches and the
+flags select between them:
+
+| build | branch | beta |
+|---|---|---|
+| 1D template (`RAYTHEIA=0`, `DIMENSIONS=1`) | `ONEDIMENSIONAL` | 11 of 12 rays blanked to tau = 1e50; **beta = beta_6, undivided** |
+| 3D template (`RAYTHEIA=1`) | `RAYTHEIA` | all rays real; **beta = sum(beta)/nrays** |
+
+**Our `PDRFLAGS` sets `-DONEDIMENSIONAL`** (D-063), chosen deliberately so the coupling runs the
+same code as the 1D reference. That is correct for every benchmark run so far - V1, V2, the
+ionization front - and **wrong for any three-dimensional model**, where it would blank eleven of
+twelve escape directions and leave beta undivided.
+
+D-061's per-ray slab geometry was, in hindsight, the RAYTHEIA formulation applied under a
+RAYTHEIA_MO build; it was withdrawn for the wrong reason. The formulation was not the error, the
+branch was.
+
+**Practical consequence:** the branch is a compile-time `#ifdef`, so one binary cannot serve both.
+A 3D model needs either a second build with `-DRAYTHEIA` in place of `-DONEDIMENSIONAL`, or
+`escape_probability` restructured to take the choice as an argument. Until then, **3D results from
+this coupling would use the wrong escape geometry and should not be trusted.**
+
+### Also learned from the 3D template
+
+The official 3D example uses `ics/diffuse_32.dat`, not `3Dsphere.dat`, at G0 = 10,
+zeta = 1e-16, A_V factor 6.289e-22, UV factor 3.02, HEALPix level 0, and requires the HDF5
+post-processing path for column-density maps.
+
+### State of the 3D attempt
+
+A 32^3 run on `3Dsphere.dat` was set up and reached iteration 4 (96% converged) before the
+session scratchpad was cleared, taking the run and the upstream clone with it. Two things were
+learned first and are worth keeping:
+
+1. **`planeIonization` requires axes starting at zero** (D-045), and 3D-PDR's sphere IC starts at
+   0.156 pc. Unshifted, every packet launch failed with
+   `integratePathTau: starting position in x is outside the grid`. Shifting the axes fixed it.
+2. Measured memory for 32768 cells at nbins = 600 on 14 ranks was **15.7 GB**, against 7.9 GB from
+   the D-081 model. The excess is dust arrays, which scale with `nSpecies x nSizes` and were a
+   negligible fraction at the slab cell counts the model was fitted on. The memory model
+   under-predicts for dusty 3D grids by about 2x.
+
+### Not recovered
+
+`v1.cool.fin` - the per-species cooling reference for V1, used by the artifact's emissivity panel
+- lived only in the scratchpad. Regenerating it means re-cloning upstream and re-running the 1D
+reference, which `benchmarks/pdr/baseline3dpdr/` has everything else needed for.
