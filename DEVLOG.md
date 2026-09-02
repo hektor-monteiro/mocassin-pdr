@@ -117,6 +117,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-094 | Deep dust temperature is transported IR, not a floor; drop the HTT91 crutch | Accepted | 2026-09-02 |
 | D-095 | The "PAH inconsistency" was mostly my own double-count of an unused heating term | Accepted | 2026-09-02 |
 | D-096 | Full audit pass: per-coolant cooling, missing MPI exchange, non-PDR build restored | Accepted | 2026-09-02 |
+| D-097 | MOCASSIN's infrared transfer verified; HTT91's 10 K floor is the wrong one | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5209,3 +5210,86 @@ Spherical H II + PDR, against a 3D-PDR reference regenerated at its matched fiel
 H -> 2H2 crossing 0.515 against 0.888, x(C+) holding its full 1.4e-4 to A_V ~ 1.4 as the reference
 does. The gap is grid resolution: dA_V = 0.107 per cell on a uniform 31^3 grid, and the front is
 thinner than one cell.
+
+
+## 2026-09-02m - D-097: the infrared transfer is right, and HTT91's floor is not
+
+D-094 left the deep dust temperature resting on an argument from scaling alone. It is now checked
+directly, and it passes on five counts.
+
+### 1. The machinery exists and is complete
+
+A packet absorbed by dust is not destroyed. `pathSegment` sets `packetType = "diffuse"` (or
+`"dustEmi"` with no gas) and exits, and `newPhotonPacket` re-emits it by sampling `recPDF`, which
+includes `sumDiffuseDust` whenever `lgDust`. So absorbed energy is re-radiated with the local dust
+emission spectrum and transported like any other packet - the Lucy immediate re-emission scheme,
+intact.
+
+### 2. The infrared is resolved
+
+The frequency mesh is logarithmic - `nuArray(i) = 10**(log10(nuArray(i-1)) + nuStepSize)` - and
+spans 0.006 um to 7 cm in 1000 bins. **708 of them lie between 50 and 2000 um**, where 10-50 K
+grains radiate. A linear mesh would have collapsed the entire far-infrared into one or two bins;
+this one does not.
+
+### 3. The flat depth profile is what the optical depth demands
+
+From the model's own `tauNu.out`, centre to edge:
+
+| lambda | tau |
+|---|---|
+| 0.1 um | 46.6 |
+| 0.55 um | 7.82 |
+| 30 um | 0.157 |
+| 255 um | **0.0018** |
+
+The slab is optically thick in the ultraviolet and **optically thin in the far infrared by a factor
+of ~4000**. Infrared emitted at the hot skin therefore streams through the whole interior almost
+unattenuated, and with `planeIonization`'s specular transverse walls it cannot escape sideways
+either. A deep dust temperature that barely declines with depth is not a symptom - it is the only
+thing that optical depth allows.
+
+This is exactly what HTT91 gets wrong here. Its infrared term carries a Rowan-Robinson
+`A_V**(-0.4)` attenuation, appropriate to a medium that is optically thick to its own infrared. At
+tau(FIR) = 0.002 that attenuation has no physical basis, and it is what drives HTT91 onto its 10 K
+floor.
+
+### 4. The surface value matches the standard result
+
+    12.2 * chi**0.2  =  48.6 K        (the textbook FUV-heated grain)
+    HTT91                49.9 K
+    MOCASSIN             53.2 K
+
+### 5. The deep value matches an independent estimate, in both regimes
+
+Balancing a deep grain against the infrared bath from the warm skin,
+
+    (T_deep/T_skin)**(4+beta) = f_in * <kappa>_IR / kappa_FUV
+
+with beta = 2.26 measured from the model's own opacity curve, `kappa` taken from `tauNu.out`,
+`<kappa>_IR` weighted over the skin's own emission, and `f_in` the fraction of the skin's infrared
+directed inward:
+
+| | T_skin | predicted (f = 0.5 .. 1.0) | MOCASSIN | implied f |
+|---|---|---|---|---|
+| V1 | 23.5 K | 5.8 - 6.5 K | **6.4 K** | 0.93 |
+| V2 | 53.2 K | 17.5 - 19.6 K | **20.7 K** | 1.41 |
+
+V1 lands in the middle of the band. V2 sits just above it, at an implied inward fraction of 1.4,
+which is the expected direction: the estimate treats the emitting skin as one layer at a single
+temperature, where the real warm column spans A_V ~ 0 to 1.5 and every layer in it radiates.
+
+The V1 row is the decisive one. Its deep grains sit at **6.4 K, below HTT91's 10 K floor**, and the
+independent estimate says 5.8-6.5 K. MOCASSIN is right there and HTT91 is not.
+
+### Consequence
+
+V2's deep gas at 1.51x is not our error. At n_H = 1e5 the gas-grain coupling ties the deep gas to
+the dust; ours follows verified dust at 20.7 K, 3D-PDR's follows HTT91's floor at 10.0 K. The
+disagreement is 3D-PDR's parametrisation, and it should not be tuned out - the same conclusion
+D-090 reached for the FUV field, arrived at independently.
+
+The one caveat worth stating: all of this is for a plane-parallel slab with reflecting transverse
+walls, where infrared cannot escape sideways. That is the correct model for a 1D benchmark and it
+is what 3D-PDR's 1D mode assumes too, but a real 3D cloud loses infrared laterally and its interior
+would be cooler. Nothing here has been verified in 3D.
