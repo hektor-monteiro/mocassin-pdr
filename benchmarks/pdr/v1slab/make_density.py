@@ -28,9 +28,9 @@ for i in range(n):
     ys.append(acc)
 xs = [Lx * i / (nx - 1) for i in range(nx)]
 zs = [Lz * k / (nz - 1) for k in range(nz)]
-with open("v1.den", "w") as fh:
+with open("input/v1.den", "w") as fh:
     for x in xs:
         for y in ys:
             for z in zs:
                 fh.write(f"{x:.6e} {y:.6e} {z:.6e} {den:.4e}\n")
-print(f"v1.den: {nx*ny*nz} cells, depth {ys[-1]:.4e} cm, A_V max {AVfac*den*ys[-1]:.3f}, r={r:.5f}")
+print(f"input/v1.den: {nx*ny*nz} cells, depth {ys[-1]:.4e} cm, A_V max {AVfac*den*ys[-1]:.3f}, r={r:.5f}")

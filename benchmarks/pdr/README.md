@@ -9,8 +9,12 @@ every parameter matched, so the two can be compared directly.
 
 ## Running the coupled model
 
-    cd v1slab && python3 make_density.py
+    cd v1slab && python3 make_density.py && mkdir -p output
     mpirun -np 14 ../../../mocassin
+
+`input.in` resolves every path under `input/`, so the density file, the
+abundances and the two dust files all live there; `make_density.py` writes into
+it. MOCASSIN does not create `output/` itself.
 
 The grain setup matters and was got wrong once (DEVLOG D-073). Silicates from
 0.07 to 50 um - as this benchmark originally inherited - are large enough to
