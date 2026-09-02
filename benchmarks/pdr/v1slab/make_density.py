@@ -7,13 +7,13 @@ balance (D-057). A_V/N_H = 5.33997e-22 matches the canonical 1.87e21 N_H per
 magnitude, which MOCASSIN reaches at MdMg = 0.0281 (D-058).
 """
 nx = nz = 5
-ny = 401
+ny = 801
 Lx = Lz = 2.0e19
 den = 1000.0
 AVfac = 5.33997e-22          # must match what calibratePDRdust reports
 AVmax = 8.491                # extent of 3D-PDR's ics/1Dn30.dat under this dust
 Ly = AVmax / (AVfac * den)
-dy0 = 0.005 / (AVfac * den)  # first cell = 0.005 mag
+dy0 = 0.0025 / (AVfac * den)  # first cell = 0.0025 mag
 n = ny - 1
 lo, hi = 1.0000001, 1.05
 f = lambda r: dy0 * (r**n - 1) / (r - 1) - Ly

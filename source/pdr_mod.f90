@@ -1118,23 +1118,49 @@ module pdr_mod
               ! `if (.not.level_conv) return` - it refuses to move T until the
               ! populations have converged. D-056 ported its arithmetic but not
               ! that guard. Here the equivalent is an inner fixed-T iteration.
-              ! ---- D-063: compile and call the SAME branch 3D-PDR uses ----
-              ! Approximating 3D-PDR's escape geometry from outside kept
-              ! failing: 12 rays divided by 12 gave beta = 0.33 (D-061), one
-              ! ray on the nearest face gave worse fronts still. The branch
-              ! itself was the difference - we compiled RAYTHEIA_MO, which
-              ! divides beta by nrays, while 3D-PDR's 1D build takes
-              ! ONEDIMENSIONAL, which blanks 11 of 12 rays to tau = 1e50 and
-              ! does NOT divide. PDRFLAGS now selects ONEDIMENSIONAL, so both
-              ! codes run identical escape_probability code and the only thing
-              ! we supply is the geometry it asks for: evaluation-point
-              ! coordinates, in pc, along ray 6.
+              ! ---- D-083: geometry for whichever branch was compiled --------
+              ! The branch and the arguments must agree. ONEDIMENSIONAL takes
+              ! evaluation-point coordinates and uses only ray 6; RAYTHEIA takes
+              ! a per-ray path length and uses all of them. See the PDRGEOM
+              ! switch in the Makefile.
               avBack = dble(grid%AVback(cellP))
-              colA   = av                       ! column back to the illuminated face
+#ifdef RAYTHEIA
+              ! Per-ray slab geometry. HEALPix nside=1 is three rings: 4 rays at
+              ! mu = +2/3, 4 at mu = 0, 4 at mu = -2/3 along the slab normal.
+              ! Rays looking back at the illuminated face see A_V/|mu|; rays
+              ! looking inward see the remaining column A_Vback/mu; rays parallel
+              ! to an infinite slab never escape.
+              !
+              ! NOTE: this is the SLAB closed form. A genuinely 3D model needs
+              ! per-ray columns ray-traced through the grid, as 3D-PDR does in
+              ! columndensity.F90. Until that exists, a 3D run using this is
+              ! approximating every ray's column by the plane-parallel result.
+              do kray = 0, nraysLoc-1
+                 if (kray < 4) then
+                    mu =  2.d0/3.d0
+                 else if (kray < 8) then
+                    mu =  0.d0
+                 else
+                    mu = -2.d0/3.d0
+                 end if
+                 if (mu > 1.d-6) then
+                    colA = avBack/mu
+                 else if (mu < -1.d-6) then
+                    colA = av/abs(mu)
+                 else
+                    colA = 1.d30
+                 end if
+                 jjr(kray)    = 1
+                 plen(kray,0) = 0.d0
+                 plen(kray,1) = min((colA/dble(pdrAVfac))/nH/PC, 1.d30)
+              end do
+#else
+              colA   = av
               jjr    = 1
               evpt   = 0.d0
               evpt(1,6,0) = 0.d0
               evpt(1,6,1) = (colA/dble(pdrAVfac))/nH/PC
+#endif
 
               do ilev = 1, max(pdrLevIter,1)
               evpop = 0.d0
@@ -1144,6 +1170,15 @@ module pdr_mod
               end do
 
               trans(1:nlev,1:nlev) = 0.d0
+#ifdef RAYTHEIA
+              call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
+                   & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
+                   & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
+                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tg, dble(pdrVturb)*1.d5, jjr, &
+                   & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
+                   & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
+                   & pdrCoolant2(ik)%molweight, plen)
+#else
               call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
                    & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
                    & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
@@ -1151,6 +1186,7 @@ module pdr_mod
                    & lpop(1:nlev), evpt, pdrCoolant2(ik)%weights, coolK, &
                    & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
                    & pdrCoolant2(ik)%molweight)
+#endif
 
               call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
 

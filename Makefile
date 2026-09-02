@@ -58,7 +58,33 @@ ifeq ($(PDR),1)
   #   OPENMP (MOCASSIN's MPI already parallelises the cell loop),
   #   CHEMANALYSIS (temp_rate(nreac,ncells) is prohibitive in 3D),
   #   GUESS_TEMP (lives in calc_UVfield, which D-001 removes).
-  PDRFLAGS = -DTHERMALBALANCE -DREDUCED -DONEDIMENSIONAL -DH2FORM_CT02 \
+  # D-083: escape_probability.F90 has three mutually exclusive branches and the
+  # right one depends on the model's dimensionality, exactly as 3D-PDR's own
+  # templates/1D and templates/3D config.mk select it:
+  #
+  #   PDRGEOM=1D -> -DONEDIMENSIONAL : blanks 11 of 12 rays, beta = beta_6
+  #                                    undivided. Correct for a 1D slab, and
+  #                                    what every committed benchmark uses.
+  #   PDRGEOM=3D -> -DRAYTHEIA -DRAYTHEIA_MO : all rays carry a real path
+  #                                    length, beta = sum(beta)/nrays. Both
+  #                                    flags are required: 3D-PDR's own makefile
+  #                                    maps RAYTHEIA=1 to the pair, and
+  #                                    -DRAYTHEIA alone (their RAYTHEIA=2) does
+  #                                    not link - columndensity.F90 then uses a
+  #                                    bare `projected` that is only declared
+  #                                    under RAYTHEIA_MO.
+  #
+  # The two take DIFFERENT arguments - RAYTHEIA takes a per-ray `length` array,
+  # ONEDIMENSIONAL takes evaluation-point coordinates - so pdr_mod guards the
+  # call with the same flag. One binary cannot serve both; build twice.
+  PDRGEOM ?= 1D
+  ifeq ($(PDRGEOM),3D)
+    PDRGEOMFLAG = -DRAYTHEIA -DRAYTHEIA_MO
+  else
+    PDRGEOMFLAG = -DONEDIMENSIONAL
+  endif
+
+  PDRFLAGS = -DTHERMALBALANCE -DREDUCED $(PDRGEOMFLAG) -DH2FORM_CT02 \
              -DCHEMSTEADY -DCHEMRETRY -DFORCECONVERGENCE \
              -DNGACCEL -DNGCYCLE -DNGRELAX -DILLINOIS -DREBRACKET -DSOBOLEV
 
@@ -154,7 +180,7 @@ new: clean all
 # symbols. Stamp the current value and make every object depend on it, so
 # switching the flag forces a rebuild instead of a confusing compile error.
 .pdrflag: FORCE
-	@[ -f $@ ] && [ "`cat $@`" = "$(PDR)" ] || echo "$(PDR)" > $@
+	@[ -f $@ ] && [ "`cat $@`" = "$(PDR)-$(PDRGEOM)" ] || echo "$(PDR)-$(PDRGEOM)" > $@
 FORCE:
 .PHONY: FORCE
 

@@ -4,10 +4,10 @@ planeIonization 5.01e-2 0.
 densityFile 'input/v1.den'
 nebComposition "input/abunV1.in"
 TeStart 100.
-maxIterateMC 4 95.
+maxIterateMC 8 95.
 nPhotons 6000000
 nx 5
-ny 401
+ny 801
 nz 5
 nbins 1000
 nuMax 15.
@@ -22,3 +22,4 @@ pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
 pdrNetwork "reduced"
 pdrZeta 5.0e-17
 pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4

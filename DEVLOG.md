@@ -103,7 +103,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-080 | H II + PDR model runs; the blend band needs a resolved ionization front | Accepted | 2026-09-01 |
 | D-081 | A uniform grid provably cannot resolve the front; a graded 1D grid can, and the blend band was bypassed | Accepted | 2026-09-01 |
 | D-082 | Rollig V2 (n=1e5, chi=1e3) matches standalone to 0-8%; the fixes generalise | Accepted | 2026-09-01 |
-| D-083 | Our build compiles ONEDIMENSIONAL, which is 1D-correct and WRONG for any 3D model | Open | 2026-09-01 |
+| D-083 | Our build compiles ONEDIMENSIONAL, which is 1D-correct and WRONG for any 3D model | Resolved by D-084 | 2026-09-01 |
+| D-084 | `PDRGEOM` build switch; 3D needs BOTH RAYTHEIA flags; committed fixture did not reproduce | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -4333,3 +4334,79 @@ learned first and are worth keeping:
 `v1.cool.fin` - the per-species cooling reference for V1, used by the artifact's emissivity panel
 - lived only in the scratchpad. Regenerating it means re-cloning upstream and re-running the 1D
 reference, which `benchmarks/pdr/baseline3dpdr/` has everything else needed for.
+
+
+## 2026-09-02 - D-084: a PDRGEOM switch, and a fixture that did not reproduce
+
+### The 3D flags are a pair, not one
+
+D-083 recorded that `templates/3D/config.mk` sets `RAYTHEIA = 1`. That is a *makefile* variable,
+not a preprocessor symbol, and 3D-PDR maps it to two flags:
+
+```make
+ifeq ($(RAYTHEIA),1)
+  CFLAGS += -DRAYTHEIA
+  CFLAGS += -DRAYTHEIA_MO
+endif
+ifeq ($(RAYTHEIA),2)
+  CFLAGS += -DRAYTHEIA          # -DRAYTHEIA alone
+endif
+```
+
+`-DRAYTHEIA` alone - their `RAYTHEIA=2` - **does not link**: `columndensity.F90` then compiles a
+path using a bare `projected` array that is only declared under `RAYTHEIA_MO`, so the reference is
+resolved as an undefined external `projected_`. That combination is evidently untested upstream.
+`columndensity.o` cannot simply be dropped either, since `chemicaliterations` calls
+`calc_columndens`.
+
+So the 3D configuration is `-DRAYTHEIA -DRAYTHEIA_MO`, **which is exactly what this coupling built
+before D-063 changed it to `-DONEDIMENSIONAL`**. D-061's per-ray slab geometry was the right
+formulation for that branch all along; it was withdrawn for the wrong reason.
+
+### The switch
+
+`make PDR=1` builds the 1D flavour (`-DONEDIMENSIONAL`), `make PDR=1 PDRGEOM=3D` the 3D one
+(`-DRAYTHEIA -DRAYTHEIA_MO`). The two branches take **different arguments** - RAYTHEIA a per-ray
+`length` array, ONEDIMENSIONAL evaluation-point coordinates - so the call in `pdrStep` and the
+geometry that feeds it are guarded by the same `#ifdef`. One binary cannot serve both.
+
+The `.pdrflag` stamp now records `$(PDR)-$(PDRGEOM)`, so switching geometry forces a rebuild.
+Without that it is exactly the staleness trap of D-023 and D-028.
+
+### The regression found a worse problem than the one it was checking
+
+Running the committed `benchmarks/pdr/v1slab` fixture through the 1D build did not reproduce the
+D-078 result: H -> 2H2 came out at 0.14 of standalone against the 0.91 recorded, and C+ -> C at
+1.09 against 0.99.
+
+The build was not at fault. **The committed fixture was never the configuration that produced the
+published numbers.** It carried `maxIterateMC 4`, `ny 401`, and *no* `pdrStartIter` line at all -
+so it ran without the D-062 warm-up - because it had been copied from a D-058-era input and never
+updated as the configuration evolved through D-062, D-076 and D-078.
+
+Corrected to `ny 801`, `maxIterateMC 8`, `pdrStartIter 4`, with `make_density.py` matched
+(first cell 0.0025 mag). It now reproduces exactly:
+
+| quantity | fixture rerun | 3D-PDR | ratio | D-078 reported |
+|---|---|---|---|---|
+| median T, first 20 cells | 79.9253 | 79.6172 | **1.00** | 1.00 |
+| deep T | 13.3063 | 10.4611 | **1.27** | 1.27 |
+| H -> 2H2 | 0.0250 | 0.0274 | **0.91** | 0.91 |
+| C+ -> C | 1.5942 | 1.6039 | **0.99** | 0.99 |
+| C -> CO | 4.7839 | 4.9236 | **0.97** | 0.97 |
+| heat/cool | 1.0000 | 1 | - | - |
+
+`v2slab` had the same defect and was corrected the same way.
+
+**The lesson is about the fixtures, not the physics.** Every benchmark number in this log from
+D-062 onwards was produced from a scratch directory, and the committed fixture was assumed to
+match. It did not, and nothing checked. Re-running a committed fixture against a committed
+reference is cheap and should be done whenever either changes.
+
+### State
+
+Both flavours build clean. The 1D flavour is verified against `baseline3dpdr/v1.pdr.fin`. The 3D
+flavour is **built but unexercised** - testing it needs 3D-PDR's `ics/3Dsphere.dat` or
+`diffuse_32.dat`, which live upstream and were lost with the session scratchpad, and a 3D model
+still supplies per-ray columns from the plane-parallel closed form rather than ray-tracing them
+through the grid (`columndensity.F90` is the routine that would do it).
