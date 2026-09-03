@@ -1608,6 +1608,19 @@ module pdr_mod
                     ! the zone flag, the electron density and the proton density
                     ! is now the one computed with the relevant physics.
                     !
+                    ! D-102: publish, per element, the fraction NOT locked in
+                    ! molecules. ionBalance normalises the ion stages to sum to
+                    ! one, which is false wherever a molecule holds some of the
+                    ! element - and that normalisation silently undid both this
+                    ! routine's hydrogen handover and D-038's carbon one on the
+                    ! next pass. The available fraction is taken straight from
+                    ! the chemistry as (neutral + ionized)/total, which needs no
+                    ! enumeration of which molecules exist.
+                    if (pdrNHsp > 0 .and. NPROTON > 0) &
+                         & grid(iG)%elemAvail(cellP,1) = real(min(max( &
+                         &   grid(iG)%pdrAbun(cellP,pdrNHsp) &
+                         & + grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0))
+
                     if (NPROTON > 0) then
                        xnew = min(max(grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0)
                        grid(iG)%ionDen(cellP,elementXref(1),2) = real( &
@@ -1716,6 +1729,12 @@ module pdr_mod
 
         f0 = min(max(grid%pdrAbun(cellP,iNeut)/tot, 0.d0), 1.d0)
         f1 = min(max(grid%pdrAbun(cellP,iIon )/tot, 0.d0), 1.d0)
+
+        ! D-102: what is left over is locked in molecules - CO above all for
+        ! carbon and oxygen. Record the available fraction so ionBalance does
+        ! not renormalise the atomic stages back to one on the next pass, which
+        ! is what had been quietly undoing this handover ever since D-038.
+        grid%elemAvail(cellP, elem) = real(min(max(f0+f1, 0.d0), 1.d0))
 
         grid%ionDen(cellP,elementXref(elem),1) = real( &
              & w*f0 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),1)))

@@ -1601,6 +1601,7 @@ end subroutine iterateT
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
+            real(kind=8), dimension(nElements) :: availFrac   ! D-102
 
 
             real, dimension(nElements, nstages) :: &
@@ -1770,6 +1771,16 @@ end subroutine iterateT
                 end do
             end do
 
+            availFrac = 1.
+#ifdef PDR
+            if (lgPDR) then
+               do elem = 1, nElements
+                  if (lgElementOn(elem)) availFrac(elem) = &
+                       & min(max(dble(grid%elemAvail(cellP, elem)), 1.d-10), 1.d0)
+               end do
+            end if
+#endif
+
             ! calculate denominators for final ion abundances
             do elem = 1, nElements
                 do ion = 1, min(elem, nstages-1)
@@ -1788,12 +1799,20 @@ end subroutine iterateT
                     if (.not.lgElementOn(elem)) exit
 
 
+                    ! D-102: the ion stages share only the part of the element
+                    ! that is not locked in a molecule. Without this factor the
+                    ! stages are normalised to sum to one, which asserts that no
+                    ! molecules exist - false in any PDR cell, and it silently
+                    ! overwrote both the hydrogen and the carbon handovers on
+                    ! every pass. elemAvail is 1.0 wherever the chemistry has
+                    ! not run, so this is a no-op outside the PDR.
                     if (ion == 1) then
-                        grid%ionDen(cellP,elementXref(elem),ion) = real(1.0/denominator(elem))
+                        grid%ionDen(cellP,elementXref(elem),ion) = &
+                             & real(availFrac(elem)/denominator(elem))
                     else
 
                         grid%ionDen(cellP,elementXref(elem),ion) = &
-                             & real(ionProd(elem, ion-1)/denominator(elem))
+                             & real(availFrac(elem)*ionProd(elem, ion-1)/denominator(elem))
 
                    end if
 

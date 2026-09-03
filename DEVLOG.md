@@ -122,6 +122,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-099 | ionDen(H,1) is the non-ionized total, not atomic H; correcting it needs H2 opacity | Reverted, documented | 2026-09-02 |
 | D-100 | How to give MOCASSIN an H2 opacity: not by reusing the self-shielding function | Design | 2026-09-02 |
 | D-101 | The slabs are fed ionizing photons Roellig does not specify - necessary but not sufficient | Partial | 2026-09-02 |
+| D-102 | ionBalance normalised the ion stages to sum to one, asserting no molecules exist | Accepted | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5626,3 +5627,85 @@ than downstream of it.
   `planeIonization` recalibration and both slabs then need re-running and every artifact
   regenerating. Held as a separate step rather than folded in here.
 - `pdrAtomicH` switch: committed, default 0, so behaviour is unchanged.
+
+
+## 2026-09-02r - D-102: ionBalance asserted that no molecules exist
+
+D-101 narrowed the runaway to `ionBalance` itself. Reading it settles the question in four lines:
+
+```fortran
+denominator(elem) = 1. + SUM(ionProd(elem, :))
+ionDen(elem,1)    = 1.0/denominator(elem)
+ionDen(elem,ion)  = ionProd(elem,ion-1)/denominator(elem)
+```
+
+It solves for the *ratios* between successive stages and then **normalises the stages to sum to
+exactly one**. That is an assertion that every atom of the element is in some atomic ion stage,
+which is false in any PDR cell: for hydrogen the stages should sum to 1 - 2x(H2) ~ 0.01, for carbon
+to 1 - x(CO)/C_total.
+
+This explains what D-099 could not. Whatever the bridge writes into the neutral stage is discarded
+on the next pass, because that stage is recomputed as `1/denominator` from the ratios alone. And it
+was not only hydrogen: **D-038's carbon handover was being undone the same way, every iteration,
+since the day it was written.** Its comment says "the fractions then sum to less than one, which is
+exactly right" - and `ionBalance` had been restoring the one.
+
+### Fix
+
+A per-element available fraction, `grid%elemAvail(cell, element)`, defaulting to 1.0 and set by the
+bridge from the chemistry as (neutral + ionized)/total - which needs no enumeration of which
+molecules hold the element. `ionBalance` multiplies the normalised stages by it:
+
+```fortran
+ionDen(elem,1)   = availFrac(elem)/denominator(elem)
+ionDen(elem,ion) = availFrac(elem)*ionProd(elem,ion-1)/denominator(elem)
+```
+
+It is 1.0 wherever the chemistry has not run, so it is a no-op outside the PDR, and it applies
+uniformly to H, C, O and Mg. `NeUsed` is built multiplicatively from `ionDen`, so the electron
+density follows correctly with no further change.
+
+### Measured
+
+Default configuration - committed fixture, `pdrAtomicH` off:
+
+| | before | after |
+|---|---|---|
+| H -> 2H2 | 1.117 | 1.219 |
+| C+ -> C | 0.995 | **1.003** |
+| C -> CO | 1.075 | 1.078 |
+| deep T | 1.062 | 1.062 |
+
+With everything self-consistent - pure FUV source (D-101), `elemAvail`, and the true atomic
+hydrogen handover:
+
+| | value |
+|---|---|
+| H -> 2H2 | 1.212 |
+| C+ -> C | **1.004** |
+| C -> CO | **0.987** |
+| deep T | 1.338 |
+| cells above pdrBlendLo | **103** of 801, from 733 |
+| max x(H+) | 1.3e-02, from 1.8e-01 |
+
+x(H I) now tracks the chemistry at every depth, and x(H+) matches it exactly below A_V ~ 2. The
+C -> CO front reaching 0.987 is D-038's handover finally surviving to the next iteration.
+
+Worth stating plainly: the H -> 2H2 front moves from 1.117 to ~1.21 under *three independent*
+corrections - the pure FUV source, `elemAvail`, and the atomic hydrogen handover - each of which
+arrives at nearly the same place. The old 1.117 was propped up by errors that happened to push the
+other way.
+
+### Open
+
+In the fully self-consistent configuration the deep dust temperature roughly doubles - 11.3 -> 32.2 K
+at A_V = 2, 6.3 -> 18.0 K at A_V = 8 - and carries the deep gas to 1.34.
+
+It is not the radiation field and not the PDR: chi_FUV agrees to 1% at every depth between the two
+runs, tau(V) and tau(100um) are identical, no grain energy-budget caps fire, and the PDR's own
+heating and cooling budgets agree to three digits. So it is inside `getDustT`, in the part of the
+transported field chi does not measure - the infrared. The obvious candidate is that the gas
+opacity and electron density both changed by orders of magnitude when the neutral hydrogen became
+real, and something in the infrared responds to that. Not yet identified.
+
+`pdrAtomicH` stays default 0 until it is.

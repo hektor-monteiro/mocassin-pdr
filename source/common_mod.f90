@@ -315,6 +315,10 @@ module common_mod
         real, allocatable         :: pdrColC(:)      ! integrated N(C)  from the illuminated face (D-078)
         real, allocatable         :: pdrColCO(:)     ! integrated N(CO) from the illuminated face (D-078)
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
+        real, allocatable         :: elemAvail(:,:)  ! (cell, element): the fraction of that
+                                                     ! element NOT locked in molecules, and so
+                                                     ! available to the atomic ion stages (D-102).
+                                                     ! 1.0 everywhere the chemistry has not run.
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
         real, allocatable         :: pdrCoolSp(:,:)  ! per-coolant cooling [erg/s/cm^3] (D-096),
                                                      ! in the order pdrCoolants lists them
