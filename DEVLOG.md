@@ -120,6 +120,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-097 | MOCASSIN's infrared transfer verified; HTT91's 10 K floor is the wrong one | Accepted | 2026-09-02 |
 | D-098 | Adopt TORUS-3DPDR's section 5.4 photoionization+PDR model as the coupled-code reference | Accepted | 2026-09-02 |
 | D-099 | ionDen(H,1) is the non-ionized total, not atomic H; correcting it needs H2 opacity | Reverted, documented | 2026-09-02 |
+| D-100 | How to give MOCASSIN an H2 opacity: not by reusing the self-shielding function | Design | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5458,3 +5459,91 @@ Give MOCASSIN an H2 continuum opacity. Then `ionDen(H,1)` can hold atomic hydrog
 descriptions stop having to share one array, and the blend stops being poisoned by an ionization
 balance solved against the wrong absorber. That is a change to MOCASSIN's opacity model, not to the
 bridge, and it is the prerequisite for this correction rather than a refinement of it.
+
+
+## 2026-09-02p - D-100: how to give MOCASSIN an H2 opacity
+
+D-099 left the missing H2 opacity as the blocker. Asked whether 3D-PDR's self-shielding could be
+reused for it, and what that would do to the diffuse transfer.
+
+### The self-shielding function cannot be reused, and the reason is structural
+
+`H2SHIELD1(N(H2), DOPW, RADW)` returns a dimensionless factor: the fraction of the band-integrated
+dissociating flux surviving a column N(H2). `grid%opacity(cell, nu)` needs a local, memoryless
+coefficient that `pathSegment` multiplies by a path length. Three properties each disqualify it.
+
+**It is a function of the column, not the density.** The Monte Carlo accumulates tau = SUM kappa ds
+cell by cell with no memory of what a packet already traversed. A shielding factor is that integral,
+already taken.
+
+**It is not an exponential, so no kappa reproduces it.** Defining one anyway,
+kappa_eff = -d(ln f)/dN, gives a number that is not constant:
+
+| N(H2) | f_shield | implied sigma |
+|---|---|---|
+| 1e14 | 7.02e-01 | 3.22e-15 |
+| 1e16 | 9.80e-03 | 7.97e-17 |
+| 1e18 | 7.53e-04 | 5.19e-19 |
+| 1e20 | 5.35e-05 | 6.90e-21 |
+
+A factor of **4.7e5** across the columns that matter. The physics is line saturation: absorption is
+in ~30 discrete Lyman-Werner bands whose cores black out early, after which the damping wings do
+the work. One opacity per frequency bin cannot represent a medium that is opaque at line centre and
+transparent between lines.
+
+**It has no frequency resolution to give.** Our grid carries **17 bins** across 912-1108 A, each
+~3564 km/s wide, against a thermal H2 line width of ~0.9 km/s at 100 K.
+
+### What is available
+
+**Recommended: the H2 photoionization continuum above 15.43 eV.** A genuine smooth continuum,
+sigma ~ 1e-18 cm^2 against atomic hydrogen's 6.3e-18, needing only n(H2) per cell - already in
+`pdrAbun(cellP,NH2)` - and dropping into the existing opacity accumulation unchanged.
+
+Its decisive property is *where it sits*: 15.43 eV is above the Lyman limit and far above the FUV
+band the PDR owns (0.44-1.0 Ryd). **It cannot double-count against anything 3D-PDR is already
+doing** - and double-counting is the live hazard, not accuracy. D-050 was exactly this: we handed
+the PDR an already-attenuated field while its rate expressions re-applied exp(-gamma*A_V), and
+every front moved too shallow. Any scheme touching 912-2400 A must transfer ownership of that band,
+not add to it.
+
+**Rejected: full Lyman-Werner line transfer.** Physically complete, and it is a different code.
+Resolving line cores needs ~1 km/s bins across 912-1108 A, about 4000x the resolution there, with
+memory at 10.5 kB per cell scaling with nbins - plus H2 rovibrational level populations, since the
+shielding depends on which states absorb. This is why photoionization and PDR codes are separate
+programs; building it here is rebuilding 3D-PDR inside MOCASSIN.
+
+**Deferred: an energy-equivalent grey LW opacity.** Take the dissociation rate the PDR already
+computes with proper shielding, convert the energy removed into a grey kappa over the band. The
+D-093 pattern applied to radiation - the PDR computes the rate, MOCASSIN is told what energy left
+the field. Requires transferring LW ownership in the same change. Worth doing only if that band's
+energy matters for the transfer, which here it does not: it is narrow, well inside the FUV, and
+dust dominates the continuum extinction across it.
+
+### Effect on the diffuse field
+
+MOCASSIN conserves energy by immediate re-emission - an absorbed packet becomes `"diffuse"` and is
+re-emitted from `recPDF`. For the photoionization continuum that fate is *correct*, not merely
+convenient: H2 photoionization thermalizes and returns through the recombination continua and lines
+already in `recPDF`, the same fate as an ionizing photon absorbed by atomic H.
+
+For the LW options it is wrong. A Lyman-Werner absorption does not thermalize - ~85% fluoresces
+back down into LW and infrared quadrupole lines, ~15% dissociates depositing ~0.4 eV. Those need
+their own re-emission channel or the energy comes back at the wrong frequency.
+
+The transfer machinery itself is untouched in every case: an extra additive term in
+`grid%opacity` changes the numbers `pathSegment` accumulates, not the structure, and nothing about
+the scattering, the Lucy estimators or the convergence logic changes.
+
+### One thing to check before building anything
+
+Between 13.6 and 15.43 eV only atomic hydrogen absorbs, and molecular gas genuinely has very little
+of it - there the real absorber is dust. Whether restoring H2 above 15.43 eV is enough to keep
+MOCASSIN's ionization balance sane with a true x(H) is an experiment, not a deduction.
+
+And there may be a simpler answer sitting underneath it. **3D-PDR's radiation field is FUV-only by
+definition** - chi is measured over 912-2400 A and it models no ionizing photons at all - while
+MOCASSIN carries the whole stellar spectrum. The Roellig slab benchmarks specify a pure FUV field,
+so MOCASSIN arguably should not be sending ionizing photons into those slabs at all. If that is
+where the spurious deep ionization of D-099 comes from, the fix is in the benchmark's source
+spectrum and not in the opacity.
