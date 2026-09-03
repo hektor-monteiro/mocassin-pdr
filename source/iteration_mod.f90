@@ -779,7 +779,16 @@ module iteration_mod
            ! overstates chi by exactly 1e9. Caught because writeFUVField, which
            ! runs later and was validated in Phase 0, disagreed by that factor.
            if (lgPDR .and. nIterateMC >= pdrStartIter) then
-              if (pdrRfuv <= 0.) call calibratePDRdust(grid(1:nGrids))
+              if (pdrRfuv <= 0.) then
+                 call calibratePDRdust(grid(1:nGrids))
+              else
+                 ! D-109: refresh every iteration. The dust opacity is rebuilt
+                 ! above each pass (sublimation, and Tdust feedback through it),
+                 ! so per-cell values measured once at pdrStartIter would go
+                 ! stale - which is how a one-shot calibration froze a transient
+                 ! into the A_V scale for a whole run.
+                 call dustPerCell(grid(1:nGrids))
+              end if
               call computeAVdust(grid(1:nGrids))
               call mocassinToPDR(grid(1:nGrids))
            end if

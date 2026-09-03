@@ -2592,6 +2592,26 @@ end subroutine iterateT
                         grid%Tdust(nS,ai,cellP) = 1.
                      else if (iT>=nTemps) then
                         grid%Tdust(nS,ai,cellP) = real(nTemps)
+                     else if (dustEmIntegral(global_nS,ai,iT+1) <= &
+                            & dustEmIntegral(global_nS,ai,iT)) then
+                        ! DEVLOG D-109. The linear interpolation below divides by
+                        ! the width of the bracketing interval in the emission
+                        ! table, and nothing checked that width was non-zero.
+                        ! Where a cell has absorbed almost nothing the table is
+                        ! flat - neighbouring entries underflow to the same value
+                        ! - and the quotient explodes: a corner cell of the
+                        ! ifront benchmark produced T_dust = 2.3e9 K.
+                        !
+                        ! That is not merely a wrong number in a diagnostic. Any
+                        ! size above TdustSublime is DROPPED from absOpac and
+                        ! from the dust emission, so one degenerate interval
+                        ! silently deletes grains from the cell - which is how a
+                        ! cell came to carry 30% less V-band opacity than its
+                        ! neighbours at identical Ndust.
+                        !
+                        ! A flat interval carries no information about where in
+                        ! it the answer lies, so take the bracket itself.
+                        grid%Tdust(nS,ai,cellP) = real(iT)
                      else
                         !if(nspU == 2) print*, nspU,nS,ai,iT, grainAbun(nspU,nS), dustAbsIntegral, xSecArray(dustAbsXsecP(global_nS,ai)+i-1)
                         grid%Tdust(nS,ai,cellP) = real(iT) + &

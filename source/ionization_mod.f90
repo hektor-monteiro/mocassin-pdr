@@ -124,12 +124,19 @@ module ionization_mod
          call eDenSum()
 
         ! reevaluate all opacities if new ionization
+        ! D-109: lgPDR and grid%H2den only exist in the PDR build - guard the
+        ! whole block, not just the runtime test (this is the same slip D-096
+        ! caught in iteration_mod, and it had broken the plain build again).
+#ifdef PDR
         if (lgPDR) then
            call addOpacity(grid%opacity(grid%active(ix, iy, iz), :), &
                 & grid%H2den(grid%active(ix, iy, iz)))
         else
            call addOpacity(grid%opacity(grid%active(ix, iy, iz), :))
         end if
+#else
+        call addOpacity(grid%opacity(grid%active(ix, iy, iz), :))
+#endif
 
     end subroutine ionizationDriver
 

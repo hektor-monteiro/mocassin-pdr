@@ -1370,6 +1370,14 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate AVeff memory"; stop
                 end if
+                allocate(grid%dustAVfac(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate dustAVfac memory"; stop
+                end if
+                allocate(grid%dustRfuv(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate dustRfuv memory"; stop
+                end if
                 allocate(grid%pdrCoolSp(0:grid%nCells, 1:max(pdrNcool,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
@@ -1433,6 +1441,10 @@ module grid_mod
                 ! pdrToMocassin's fallback must not read that as missing data (D-088)
                 grid%pdrColH2 = -1.; grid%pdrColC = -1.; grid%pdrColCO = -1.
                 grid%AVeff   = 0.
+                ! 0 marks "not measured yet"; every consumer falls back to the
+                ! model-wide value from calibratePDRdust until then (D-109)
+                grid%dustAVfac = 0.
+                grid%dustRfuv  = 0.
                 grid%pdrCool = 0.
                 grid%elemAvail = 1.
                 grid%NePDR = 0.
@@ -3495,6 +3507,14 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate AVeff memory"; stop
                end if
+               allocate(grid(iG)%dustAVfac(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate dustAVfac memory"; stop
+               end if
+               allocate(grid(iG)%dustRfuv(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate dustRfuv memory"; stop
+               end if
                allocate(grid(iG)%pdrCoolSp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
@@ -3553,6 +3573,8 @@ end function getVolume
                grid(iG)%AVback  = 0.
                grid(iG)%pdrColH2 = -1.; grid(iG)%pdrColC = -1.; grid(iG)%pdrColCO = -1.   ! see setMotherGrid (D-088)
                grid(iG)%AVeff   = 0.
+               grid(iG)%dustAVfac = 0.       ! see setMotherGrid (D-109)
+               grid(iG)%dustRfuv  = 0.
                grid(iG)%pdrCool = 0.
                grid(iG)%elemAvail = 1.
                grid(iG)%NePDR = 0.

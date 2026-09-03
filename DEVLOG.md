@@ -129,6 +129,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-106 | Let the chemistry own the ionization of its own elements in PDR cells | Accepted | 2026-09-03 |
 | D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
 | D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
+| D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6118,3 +6119,148 @@ The error is unbounded with depth. A grey-dust slab run both ways gives nearly i
 sit at A_V ~ 0.003 where the dust term is negligible and self-shielding does all the work. Any
 model that combines non-Savage-&-Mathis grains with a front at appreciable A_V would have been
 wrong by orders of magnitude, silently.
+
+## 2026-09-03g - D-109: the dust the chemistry sees is the dust in its own cell
+
+Prompted by a direct instruction, after the audit below found a calibration that had silently
+drifted: *"we should not use one arbitrarily-chosen cell, we should use the values of the cell at
+which the chemistry is being calculated. This is because we should use 3D-PDR to calculate the
+chemistry and self shielding at each cell and Mocassin should provide the radiation field and the
+dust properties at each cell location."*
+
+That is the division of labour the whole coupling is built on, and the dust was the one place it
+was not being honoured.
+
+### What the audit found
+
+Asked to re-check the dust setups, the fixtures came back clean - all four benchmarks carry the
+D-073/D-092 correction, silicate only, 0.010-0.30 um on a matched MRN grid with `MdMg 0.011295`,
+no PAH line at all. (The 0.07-50 um grains quoted in D-108 were a *constructed counterexample* in
+a scratch directory, not a model setup. They should have been labelled as such.)
+
+What was not clean was the calibration. Five hiipdr runs from the same input files:
+
+| run | build | kV | R_FUV | A_V per N_H |
+|---|---|---|---|---|
+| hii54, hiiA, hiiF, hiiCK | four commits incl. head | 4.92e-20 | 4.16 | 5.342e-22 |
+| hii107 | 0af9592-dirty | **3.46e-20** | **5.30** | **3.757e-22** |
+
+One run in five read a V-band opacity 30% low at its calibration cell, with `Hden` = 100 there as
+everywhere else. Downstream that run computed N_H **1.42x too large** at every A_V - every H2 and
+CO shielding column in the model - and attenuated the FUV 27% more steeply per magnitude.
+
+**The cause was never found.** Ruled out by measurement: identical total dust mass (1208.748 Msol),
+`Ndust` uniform at 8.707e-09 in every cell of both runs, max per-size T_dust 89 K against a 1400 K
+sublimation cut, identical frequency grid, byte-identical input and dust files. The one in-code
+mechanism that can lower a single cell's opacity at fixed `Ndust` is the sublimation mask, and that
+predicts R_FUV going *down* (it removes the small grains, which carry the FUV) while the
+measurement went *up*. Head reproduces the canonical value bit-identically, so the instance is
+gone. The absence of any guard against it was not.
+
+### The change
+
+`calibratePDRdust` took one cell - literally the first in array order carrying any dust - and made
+its `kV/Hden` and `kFUV/kV` the law for the whole model, once, at `pdrStartIter`, never revisited.
+That is correct only if every cell has the same dust-to-gas ratio and the same grain mixture, and
+nothing checked that it did.
+
+**`dustPerCell` (new)** measures both quantities in every cell from that cell's own
+`absOpac`/`scaOpac`/`Hden`, into two new grid arrays `dustAVfac` and `dustRfuv`. The
+emitted-energy band weights are a property of the source spectrum, so they are built once outside
+the cell loop; the per-cell cost is one pass over the FUV bins.
+
+**`pdrStep`** - the per-cell chemistry call - now reads its own cell, falling back to the
+model-wide value only where a cell carries no dust at all, and reseeds the vendored module global
+`AV_fac` per cell so that `CRattenuation` and `UVfield`, which are not touched, get this cell's
+grains. `NHcol`, the escape-probability path lengths and the `chiLoc` fallback all follow.
+
+**`computeAVradial`** now inverts `exp(-R_FUV*A_V)` with the target cell's own ratio, so the A_V it
+stores is the A_V the chemistry will then interpret with the same grains.
+
+**`calibratePDRdust`** keeps only three jobs: the fallback for dust-free cells, the seed before the
+first cell, and diagnostics. It no longer picks the first cell it finds - it takes the
+density-weighted mean over all dusty cells, picks the cell nearest that mean as representative, and
+**reports the spread**, so a model whose dust is not uniform says so instead of silently electing a
+delegate.
+
+**Refreshed every iteration**, not once. The dust opacity is rebuilt each pass, so a one-shot
+measurement goes stale - which is the shape of failure hii107 exhibited, whatever its cause.
+
+### What was deliberately NOT changed
+
+`UV_fac` is reseeded from nothing. It is tempting to set it to `R_FUV/magPerTau` in the same
+breath, but it is not a measured dust property - it is the exponent of a *prescription*,
+exp(-UV_fac*A_V), reconstructing a local field from the surface field. D-090 measured what the
+transported field actually does in this geometry: gamma_eff = 1.849 (V1) and 1.847 (V2), against
+3.31 for pure extinction and 3.02 for 3D-PDR's prescription, because the mirror walls return
+laterally scattered photons. `R_FUV/magPerTau` is the pure-extinction number - the one D-090 showed
+is wrong here. Substituting it would have been a regression dressed as self-consistency. The
+reasoning is now a comment at the assignment so it is not "fixed" later.
+
+### What it found immediately: T_dust = 2.3e9 K
+
+Three of the four benchmarks came back **uniform to 1 part in 1e4** over 10-20 thousand cells, and
+bit-identical to the old single-cell numbers - the right answer for a constant-`MdMg` model, and
+the first time that uniformity has been measured rather than asserted.
+
+`ifront` did not:
+
+    ! [D109]   spread over the model: min = 3.58e-22  max = 5.37e-22  (ratio 1.498)
+    ! [D109]   least-opaque cell at (i,j,k) = 1 1 5
+    ! [D109]     Hden = 100.0   Ndust = 8.68659189E-09
+    ! [D109]     max T_dust = 2.28894669E+09 K;  sizes above T_sublime: 16 of 35
+
+A corner cell at normal density with a full grain complement, carrying a dust temperature of 2.3
+BILLION K, which puts 16 of its 35 sizes over `TdustSublime` so they are deleted from `absOpac`.
+That is the 30% opacity deficit. `dustGrid.out` shows 1236 K for the same model at the end of the
+run, so the excursion is transient - and a one-shot calibration is exactly the thing that freezes a
+transient into a run.
+
+The cause is in `getDustT` (`update_mod.f90`), pre-existing and nothing to do with the coupling:
+
+    grid%Tdust(nS,ai,cellP) = real(iT) + (dustAbsIntegral-dustEmIntegral(...,iT)) * &
+         & (real(iT+1)-real(iT))/(dustEmIntegral(...,iT+1)-dustEmIntegral(...,iT))
+
+It divides by the width of the bracketing interval in the emission table and never checks that the
+width is non-zero. There are guards for `iT<=0` and `iT>=nTemps`, none for a degenerate interval.
+In a cell that absorbed almost nothing, neighbouring table entries underflow to the same value and
+the quotient explodes. Guarded: a flat interval carries no information about where in it the answer
+lies, so take the bracket itself. With the guard, ifront's spread collapses to uniform and its mean
+moves to 5.36504781e-22, the value the other cells always had.
+
+**This is very probably what happened to hii107**, and it explains the one thing that defeated the
+audit: the sign. Sublimation removing SMALL grains would lower R_FUV, and hii107's R_FUV rose. A
+degenerate interval does not select by size - it fires wherever the table is flat, and here it took
+16 sizes out of 35 including the large ones that dominate the V band. It also could not be
+reproduced because it needs one cell to be transiently pathological at one iteration.
+
+The exposure is not confined to the PDR coupling. A size dropped for being "sublimated" is dropped
+from dust EMISSION too, so plain MOCASSIN models carry the same risk in low-flux cells.
+
+### Measured
+
+All four benchmarks on the change, 14 ranks:
+
+| | V1 | V2 | sec 5.4 sphere | ifront |
+|---|---|---|---|---|
+| dusty cells measured | 20025 | 10025 | 15203 | 15025 |
+| A_V/N_H mean | 5.33995522e-22 | 5.33995472e-22 | 5.34152688e-22 | 5.36504781e-22 |
+| spread | uniform to 1e-4 | uniform to 1e-4 | uniform to 1e-4 | uniform to 1e-4 |
+| R_FUV | 3.94185853 | 3.94185877 | 4.15870857 | 4.12171555 |
+| H -> 2H2 | 1.109 | 1.007 | - | - |
+| C+ -> C | 0.994 | 0.979 | - | - |
+| C -> CO | 1.076 | 1.075 | - | - |
+| deep T ratio | 1.062 | 1.515 | - | - |
+
+Against the D-108 baseline (1.113 / 0.994 / 1.074 / 1.061 and 1.009 / 0.979 / 1.075 / 1.519) every
+number is inside the repeat-run scatter. That is the expected and correct outcome: for a model with
+constant MdMg the per-cell value IS the global one, and if these had moved it would have meant the
+old global was wrong for these benchmarks too. What changed is not the answer but what the run
+knows about it.
+
+### Also fixed: the plain build, broken again
+
+D-107 guarded `lgPDR` and `grid%H2den` in `ionization_mod.f90` with a runtime `if` rather than
+`#ifdef PDR`, so the non-PDR build had not compiled since. Same slip D-096 caught in
+`iteration_mod`. All three flavours - PDR `mocassin`, `mocassinWarm`, plain `mocassin` - build
+clean again.

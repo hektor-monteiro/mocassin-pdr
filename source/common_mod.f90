@@ -315,6 +315,8 @@ module common_mod
         real, allocatable         :: pdrColC(:)      ! integrated N(C)  from the illuminated face (D-078)
         real, allocatable         :: pdrColCO(:)     ! integrated N(CO) from the illuminated face (D-078)
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
+        real, allocatable         :: dustAVfac(:)    ! A_V per N_H from THIS cell's grains (D-109)
+        real, allocatable         :: dustRfuv(:)     ! tau_FUV/tau_V from THIS cell's grains (D-109)
         real, allocatable         :: H2den(:)        ! n(H2) from the CHEMISTRY [cm^-3] (D-107),
                                                      ! for the H2 photoionization continuum above
                                                      ! 15.43 eV in addOpacity.

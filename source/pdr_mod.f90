@@ -88,7 +88,7 @@ module pdr_mod
     implicit none
 
     private
-    public :: initPDRnetwork, seedPDR, calibratePDRdust, computeAVdust, &
+    public :: initPDRnetwork, seedPDR, calibratePDRdust, dustPerCell, computeAVdust, &
             & mocassinToPDR, pdrStep, pdrToMocassin
 
     contains
@@ -377,34 +377,189 @@ module pdr_mod
       ! inside #ifdef CRATTENUATION. They enter only through this conversion,
       ! which is why measuring it correctly is the whole job.
       !-----------------------------------------------------------------
+      ! D-109: measure the dust properties SEPARATELY IN EVERY CELL.
+      !
+      ! calibratePDRdust used to read absOpac at one cell - literally the first
+      ! in array order that carried any dust - and hand the resulting A_V per
+      ! N_H and tau_FUV/tau_V to the chemistry for the whole model. That is only
+      ! correct if every cell has the same dust-to-gas ratio and the same grain
+      ! mixture, and nothing checked that it did: an unrepresentative cell
+      ! silently rescaled every H2/CO shielding column in the run.
+      !
+      ! It is also the wrong division of labour. MOCASSIN owns the radiation
+      ! field and the grains; 3D-PDR owns the chemistry. MOCASSIN should
+      ! therefore report what the dust is doing AT THE CELL the chemistry is
+      ! being solved in, exactly as it already does for chi, A_V and T_dust.
+      ! D-109 diagnostic: locate the least-opaque dusty cell and report what
+      ! its grains are doing, so a non-uniform model can be diagnosed.
+      subroutine reportExtreme(grid, aTarget)
+        implicit none
+        type(grid_type), dimension(:), intent(in) :: grid
+        double precision, intent(in) :: aTarget
+        integer :: iG, i, j, k, cP, nS, ai, nHot, nMask
+        double precision :: aLoc, tMax
+
+        do iG = 1, nGrids
+           do i = 1, grid(iG)%nx
+              do j = 1, grid(iG)%ny
+                 do k = 1, grid(iG)%nz
+                    cP = grid(iG)%active(i,j,k)
+                    if (cP <= 0) cycle
+                    aLoc = dble(grid(iG)%dustAVfac(cP))
+                    if (aLoc <= 0.d0) cycle
+                    if (abs(aLoc - aTarget) > 1.d-6*aTarget) cycle
+
+                    tMax = 0.d0; nHot = 0; nMask = 0
+                    do nS = 1, nSpeciesPart(1)
+                       do ai = 1, nSizes
+                          tMax = max(tMax, dble(grid(iG)%Tdust(nS,ai,cP)))
+                          if (grid(iG)%Tdust(nS,ai,cP) >= &
+                            & TdustSublime(dustComPoint(1)-1+nS)) nMask = nMask + 1
+                          nHot = nHot + 1
+                       end do
+                    end do
+                    print*, "! [D109]   least-opaque cell at (i,j,k) =", i, j, k
+                    print*, "! [D109]     Hden =", grid(iG)%Hden(cP), &
+                         & "  Ndust =", grid(iG)%Ndust(cP)
+                    print*, "! [D109]     max T_dust =", real(tMax), &
+                         & " K;  grain sizes above T_sublime:", nMask, "of", nHot
+                    return
+                 end do
+              end do
+           end do
+        end do
+      end subroutine reportExtreme
+
+
+      subroutine dustPerCell(grid)
+        implicit none
+
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer          :: iG, cP, ifreq
+        double precision :: kV, kFUV, wsum
+        double precision :: wt(nbins)
+
+        ! the emitted-energy weights are a property of the source spectrum, not
+        ! of the cell - build them once (see the band-average note below)
+        wt = 0.d0
+        wsum = 0.d0
+        do ifreq = FUVlowP, FUVhighP
+           if (ifreq > 1) then
+              wt(ifreq) = dble(inSpectrumProbDen(1,ifreq)) &
+                        & - dble(inSpectrumProbDen(1,ifreq-1))
+           else
+              wt(ifreq) = dble(inSpectrumProbDen(1,ifreq))
+           end if
+           if (wt(ifreq) < 0.d0) wt(ifreq) = 0.d0
+           wsum = wsum + wt(ifreq)
+        end do
+        if (wsum <= 0.d0) return
+
+        do iG = 1, nGrids
+           do cP = 0, grid(iG)%nCells
+              grid(iG)%dustAVfac(cP) = 0.
+              grid(iG)%dustRfuv(cP)  = 0.
+
+              kV = dble(grid(iG)%absOpac(cP,VbandP)) &
+                 & + dble(grid(iG)%scaOpac(cP,VbandP))
+              if (kV <= 0.d0) cycle          ! no dust here; consumers fall back
+
+              kFUV = 0.d0
+              do ifreq = FUVlowP, FUVhighP
+                 if (wt(ifreq) <= 0.d0) cycle
+                 kFUV = kFUV + wt(ifreq)*(dble(grid(iG)%absOpac(cP,ifreq)) &
+                      &                 + dble(grid(iG)%scaOpac(cP,ifreq)))
+              end do
+              kFUV = kFUV/wsum
+              if (kFUV <= 0.d0) cycle
+
+              grid(iG)%dustRfuv(cP) = real(kFUV/kV)
+              if (grid(iG)%Hden(cP) > 0.) &
+                 & grid(iG)%dustAVfac(cP) = &
+                 & real(dble(magPerTau)*kV/dble(grid(iG)%Hden(cP)))
+           end do
+        end do
+
+      end subroutine dustPerCell
+
+
       subroutine calibratePDRdust(grid)
         implicit none
 
-        type(grid_type), dimension(:), intent(in) :: grid
+        ! inout, not in: dustPerCell fills the per-cell arrays below (D-109)
+        type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, iCell, ifreq, nUsed
         double precision :: kFUV, kV, wsum, w, kabs, ksca, gbar
         integer          :: iL, nOwn, i       ! D-108
         double precision :: nuL, kLam       ! D-108
+        integer          :: cP, nDusty                                ! D-109
+        double precision :: aLoc, aSum, aWt, aMin, aMax, dBest, dHere ! D-109
 
-        ! find any cell that actually carries dust; the ratio is independent of
-        ! the dust column, so one representative cell is enough
-        iCell = -1
+        ! D-109: the per-cell arrays are the values the chemistry actually
+        ! uses. Everything below only derives the model-wide REPRESENTATIVE
+        ! numbers - reported here, used as the fallback where a cell carries no
+        ! dust, and used to seed the vendored module before the first cell.
+        call dustPerCell(grid)
+
+        ! Representative cell = the dusty cell whose A_V per N_H sits closest to
+        ! the density-weighted mean, NOT whichever cell happened to come first
+        ! in array order. If the model's dust-to-gas is uniform these are the
+        ! same cell and nothing changes; if it is not, this is the cell that
+        ! best describes the model, and the spread printed below says how much
+        ! trust the single number deserves.
+        aSum = 0.d0; aWt = 0.d0; nDusty = 0
+        aMin = huge(1.d0); aMax = 0.d0
         do iG = 1, nGrids
-           do ifreq = 0, grid(iG)%nCells
-              if (grid(iG)%absOpac(ifreq,VbandP) + &
-                & grid(iG)%scaOpac(ifreq,VbandP) > 0.) then
-                 iCell = ifreq
-                 exit
+           do cP = 0, grid(iG)%nCells
+              aLoc = dble(grid(iG)%dustAVfac(cP))
+              if (aLoc <= 0.d0) cycle
+              w    = dble(grid(iG)%Hden(cP))
+              aSum = aSum + w*aLoc
+              aWt  = aWt  + w
+              aMin = min(aMin, aLoc)
+              aMax = max(aMax, aLoc)
+              nDusty = nDusty + 1
+           end do
+        end do
+
+        if (nDusty == 0 .or. aWt <= 0.d0) then
+           print*, "! calibratePDRdust: no cell carries dust opacity - cannot"
+           print*, "!   calibrate A_V. PDR runs require dust (DEVLOG D-019)."
+           stop
+        end if
+
+        aSum  = aSum/aWt
+        iCell = -1
+        dBest = huge(1.d0)
+        do iG = 1, nGrids
+           do cP = 0, grid(iG)%nCells
+              aLoc = dble(grid(iG)%dustAVfac(cP))
+              if (aLoc <= 0.d0) cycle
+              dHere = abs(aLoc - aSum)
+              if (dHere < dBest) then
+                 dBest = dHere
+                 iCell = cP
               end if
            end do
            if (iCell >= 0) exit
         end do
 
-        if (iCell < 0) then
-           print*, "! calibratePDRdust: no cell carries dust opacity - cannot"
-           print*, "!   calibrate A_V. PDR runs require dust (DEVLOG D-019)."
-           stop
+        if (taskid == 0) then
+           print*, "! [D109] dust measured per cell:", nDusty, "dusty cells,", &
+                & " A_V/N_H mean =", real(aSum)
+           if (aMax > 1.0001d0*aMin) then
+              print*, "! [D109]   spread over the model: min =", real(aMin), &
+                   & " max =", real(aMax), " (ratio", real(aMax/aMin), ")"
+              print*, "! [D109]   the chemistry uses each cell's own value;", &
+                   & " the mean is only a fallback"
+              ! say WHERE the extreme is and what the grains are doing there,
+              ! so a spread can be diagnosed instead of merely noted
+              call reportExtreme(grid, aMin)
+           else
+              print*, "! [D109]   uniform to 1 part in 1e4 across the model"
+           end if
         end if
 
         kV = dble(grid(1)%absOpac(iCell,VbandP)) + dble(grid(1)%scaOpac(iCell,VbandP))
@@ -601,6 +756,7 @@ module pdr_mod
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS
         double precision :: fSum, fTot, kap, rr, avS
         double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, span, nd
+        double precision :: RfuvL                          ! D-109
 
         if (pdrRfuv <= 0.) return
 
@@ -610,6 +766,13 @@ module pdr_mod
                  do k = 1, grid(iG)%nz
                     cellP = grid(iG)%active(i,j,k)
                     if (cellP <= 0) cycle
+
+                    ! D-109: A_V is defined by the grains AT THIS CELL. The
+                    ! per-ray sum below inverts exp(-R_FUV*A_V) to an effective
+                    ! A_V, so it must invert it with the same R_FUV the
+                    ! chemistry will then use here.
+                    RfuvL = dble(grid(iG)%dustRfuv(cellP))
+                    if (RfuvL <= 0.d0) RfuvL = dble(pdrRfuv)
 
                     fSum = 0.d0
                     fTot = 0.d0
@@ -710,7 +873,7 @@ module pdr_mod
                        avS  = dble(magPerTau)*tauS
                        fS   = 1.d0/(seg*seg)          ! geometric dilution only
                        fTot = fTot + fS
-                       fSum = fSum + fS*exp(-dble(pdrRfuv)*avS/dble(magPerTau))
+                       fSum = fSum + fS*exp(-RfuvL*avS/dble(magPerTau))
                        wH2  = wH2 + fS*cH2S
                        wC   = wC  + fS*cCS
                        wCO  = wCO + fS*cCOS
@@ -719,7 +882,7 @@ module pdr_mod
 
                     if (fTot > 0.d0 .and. fSum > 0.d0) then
                        grid(iG)%AVeff(cellP) = real( &
-                            & -dble(magPerTau)/dble(pdrRfuv)*log(fSum/fTot))
+                            & -dble(magPerTau)/RfuvL*log(fSum/fTot))
                        ! flux-weighted columns (exact for a single source)
                        grid(iG)%pdrColH2(cellP) = real(wH2/fTot)
                        grid(iG)%pdrColC (cellP) = real(wC /fTot)
@@ -1095,6 +1258,7 @@ module pdr_mod
         double precision   :: mu, colA, avBack
         double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol, sH2, sC, sCO
         double precision   :: chiHeat
+        double precision   :: AVfacL, RfuvL          ! this cell's own dust (D-109)
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
 
         cellP = grid%active(xP,yP,zP)
@@ -1137,6 +1301,30 @@ module pdr_mod
         if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
 
+        ! D-109: the dust properties THIS cell's grains have, not a model-wide
+        ! constant read off one arbitrary cell. MOCASSIN measures them where the
+        ! chemistry is about to be solved; the calibrated model-wide values are
+        ! only the fallback for a cell that carries no dust at all.
+        AVfacL = dble(grid%dustAVfac(cellP))
+        RfuvL  = dble(grid%dustRfuv(cellP))
+        if (AVfacL <= 0.d0) AVfacL = dble(pdrAVfac)
+        if (RfuvL  <= 0.d0) RfuvL  = dble(pdrRfuv)
+
+        ! AV_fac is read from a module global inside the vendored chemistry
+        ! (CRattenuation, UVfield) - reseed it per cell so those routines get
+        ! THIS cell's grains.
+        pdrAVfacMod = AVfacL*dble(pdrMetal)
+        !
+        ! UV_fac is deliberately NOT reseeded from RfuvL. It is not a measured
+        ! dust property but the exponent of a PRESCRIPTION, exp(-UV_fac*A_V),
+        ! that reconstructs a local field from the surface field. D-090 measured
+        ! what the transported field actually does in this geometry -
+        ! gamma_eff = 1.85, because the mirror walls return laterally scattered
+        ! photons - against 3.31 for pure extinction and 3.02 for 3D-PDR's
+        ! prescription. RfuvL/magPerTau is the pure-extinction number, i.e. the
+        ! one D-090 showed is wrong here, so substituting it would be a
+        ! regression dressed as self-consistency. It stays at the input value.
+
         ! D-076: heating takes the LOCAL, attenuated field; the reaction rates
         ! take the SURFACE field. 3D-PDR keeps them separate and we did not:
         !
@@ -1151,7 +1339,7 @@ module pdr_mod
         ! seen to peel away from standalone while the DUST temperature (fixed
         ! to use the local field in D-065) stayed correct.
         chiLoc = dble(grid%chiFUV(cellP))
-        if (chiLoc <= 0.d0) chiLoc = chi*exp(-av*dble(pdrRfuv))
+        if (chiLoc <= 0.d0) chiLoc = chi*exp(-av*RfuvL)
 
         ! D-089, diagnostic only. The reaction rates already run on 3D-PDR's
         ! prescription - CALCULATE_REACTION_RATES rebuilds
@@ -1165,7 +1353,7 @@ module pdr_mod
         ! the reason for coupling the codes at all.
         chiHeat = dble(grid%chiFUV(cellP))
         if (pdrFUVmode == 1) then
-           chiLoc  = chi*exp(-av*dble(pdrRfuv))
+           chiLoc  = chi*exp(-av*RfuvL)
            chiHeat = chiLoc
         end if
 
@@ -1216,7 +1404,7 @@ module pdr_mod
         AVray   = av
 
         ! slab-equivalent shielding columns (see header)
-        NHcol = av/dble(pdrAVfac)
+        NHcol = av/AVfacL
         abun  = grid%pdrAbun(cellP, 1:pdrNspec)
 
         ! D-078: true integrated columns, not local abundance x total column
@@ -1438,14 +1626,14 @@ module pdr_mod
                  end if
                  jjr(kray)    = 1
                  plen(kray,0) = 0.d0
-                 plen(kray,1) = min((colA/dble(pdrAVfac))/nH/PC, 1.d30)
+                 plen(kray,1) = min((colA/AVfacL)/nH/PC, 1.d30)
               end do
 #else
               colA   = av
               jjr    = 1
               evpt   = 0.d0
               evpt(1,6,0) = 0.d0
-              evpt(1,6,1) = (colA/dble(pdrAVfac))/nH/PC
+              evpt(1,6,1) = (colA/AVfacL)/nH/PC
 #endif
 
               do ilev = 1, max(pdrLevIter,1)
