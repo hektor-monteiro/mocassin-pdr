@@ -631,6 +631,9 @@ module set_input_mod
             case ("pdrUseNePDR")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrUseNePDR
+            case ("pdrOwnDust")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnDust
             case ("pdrOwnIon")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnIon

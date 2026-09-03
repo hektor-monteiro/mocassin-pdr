@@ -60,6 +60,10 @@ module pdr_mod
 
     ! Species indices come from global_module. NH2/NC/NCO do not collide with
     ! anything in common_mod, so they are imported under their own names.
+    ! D-108: the Savage & Mathis extinction table SCATTER() splines, so it can
+    ! be repopulated with this model's own grains.
+    use uclpdr_module,    only : start, N_GRID, L_GRID, X_GRID
+
     use global_module,    only : pdrMetalMod  => metallicity, &
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
@@ -380,6 +384,8 @@ module pdr_mod
 
         integer          :: iG, iCell, ifreq, nUsed
         double precision :: kFUV, kV, wsum, w, kabs, ksca, gbar
+        integer          :: iL, nOwn, i       ! D-108
+        double precision :: nuL, kLam       ! D-108
 
         ! find any cell that actually carries dust; the ratio is independent of
         ! the dust column, so one representative cell is enough
@@ -485,6 +491,44 @@ module pdr_mod
         pdrRfuv = real(kFUV/kV)
         if (taskid == 0) print*, "! [D073] kFUV/kV = R_FUV =", pdrRfuv, &
              & "  kV =", real(kV), "  kFUV =", real(kFUV)
+
+        ! D-108: give the H2 and CO photorate shielding THIS model's grains.
+        !
+        ! 3D-PDR's SCATTER() converts A_V to tau(lambda) through XLAMBDA, which
+        ! splines a fixed Savage & Mathis (1979) extinction curve - so those
+        ! rates were attenuated on a literature dust law no matter what grains
+        ! the model actually has, while the field heating the gas is transported
+        ! through the real ones. Invisible in the benchmark only because D-073
+        ! happened to tune R_FUV close to that curve; wrong for any other dust.
+        !
+        ! X_GRID is a saved module array that XLAMBDA splines, so repopulating
+        ! it with k(lambda)/k(V) measured from absOpac+scaOpac - dust only, the
+        ! same arrays kV and kFUV come from - redirects every caller (H2, CO,
+        ! C I, S I) onto the model's own extinction with no change to the
+        ! vendored routines. START is reset so the spline is rebuilt from it.
+        if (pdrOwnDust /= 0) then
+           nOwn = 0
+           do iL = 1, N_GRID
+              ! L_GRID is in Angstrom; nuArray in Ryd, lambda = 911.76/nu
+              nuL = 911.76d0/L_GRID(iL)
+              if (nuL < dble(nuArray(1)) .or. nuL > dble(nuArray(nbins))) cycle
+              ifreq = 1
+              do i = 2, nbins
+                 if (abs(dble(nuArray(i))-nuL) < abs(dble(nuArray(ifreq))-nuL)) ifreq = i
+              end do
+              kLam = dble(grid(1)%absOpac(iCell,ifreq)) + dble(grid(1)%scaOpac(iCell,ifreq))
+              if (kLam <= 0.d0) cycle
+              X_GRID(iL) = kLam/kV
+              nOwn = nOwn + 1
+           end do
+           start = .true.
+           if (taskid == 0) then
+              print*, "! [D108] H2/CO shielding now uses this model's dust:", &
+                   & nOwn, " of", N_GRID, " extinction points replaced"
+              print*, "! [D108]   tau(1000A)/tau(V): Savage & Mathis 4.65, this model", &
+                   & real(X_GRID(3))
+           end if
+        end if
         if (taskid == 0) print*, "! [D077] FUV band bins:", FUVhighP-FUVlowP+1, &
              & " of", nbins, " (FUVlowP,FUVhighP =", FUVlowP, FUVhighP, &
              & ") nu =", real(nuArray(FUVlowP)), real(nuArray(FUVhighP))

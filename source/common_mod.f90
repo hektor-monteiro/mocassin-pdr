@@ -544,6 +544,9 @@ module common_mod
                                                      ! photoionization continuum removes the reason
                                                      ! this was held off (D-099/D-103/D-104).
     integer             :: pdrDustFeedback = 1       ! D-093: 1 = PDR rates drive the dust balance
+    integer             :: pdrOwnDust  = 1           ! D-108: 1 = the H2/CO photorate shielding
+                                                     ! uses THIS model's grains rather than the
+                                                     ! Savage & Mathis 1979 table shipped with 3D-PDR
     integer             :: pdrUseNePDR = 0           ! D-105: 1 = ionBalance uses the chemistry's Ne
     integer             :: pdrOwnIon   = 1           ! D-106: ionBalance leaves the chemistry's
                                                      ! own elements alone in PDR cells. Default 1 as

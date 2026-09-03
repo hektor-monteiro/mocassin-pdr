@@ -128,6 +128,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-105 | Substituting the chemistry's electron density makes the runaway worse, not better | Rejected | 2026-09-03 |
 | D-106 | Let the chemistry own the ionization of its own elements in PDR cells | Accepted | 2026-09-03 |
 | D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
+| D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6052,3 +6053,68 @@ The fit is a single power law with no resonance structure and an order-of-magnit
 revisit it if the ionization structure of molecular gas ever needs to be more than a guard against
 D-099's failure mode. And this is 1D-slab-verified only, under `planeIonization`'s reflecting walls
 - the 3D flavour remains untested for this or anything else.
+
+
+## 2026-09-03f - D-108: the photorate shielding now uses the model's own dust
+
+D-091 recorded that `SCATTER()` converts A_V to tau(lambda) through `XLAMBDA`, which splines a
+fixed Savage & Mathis (1979) extinction curve - so the H2 and CO photodissociation rates were
+attenuated on a literature dust law regardless of what grains the model actually carries, while the
+field heating the same gas is transported through the real ones.
+
+### The fix is smaller than it sounds
+
+`X_GRID` is a `save`d array in `uclpdr_module` that `XLAMBDA` splines on demand. Repopulating it
+from `absOpac + scaOpac` - dust only, the same arrays `kV` and `kFUV` already come from - redirects
+every caller (H2, CO, C I, S I) onto the model's own extinction with **no change to any vendored
+routine**. `start` is reset so the spline is rebuilt. 29 of the 30 tabulated wavelengths are
+replaced; the last, at 1e9 A, lies past the frequency grid and keeps its Savage & Mathis value
+of 0.
+
+    ! [D108] H2/CO shielding now uses this model's dust: 29 of 30 extinction points replaced
+    ! [D108]   tau(1000A)/tau(V): Savage & Mathis 4.65, this model 4.83
+
+### On the benchmark it changes almost nothing, and that was predicted
+
+| | S&M curve | model's own |
+|---|---|---|
+| V1 H -> 2H2 | 1.117 | 1.113 |
+| V1 C+ -> C | 0.995 | 0.994 |
+| V1 C -> CO | 1.074 | 1.074 |
+| V2 H -> 2H2 | 1.017 | 1.009 |
+| V2 C+ -> C | 0.980 | 0.979 |
+| V2 C -> CO | 0.986 | **1.075** |
+
+D-091 said this would be invisible here because D-073 tuned the grains close to the tabulated
+curve, and it is: 4.83 against 4.65. The one real move is V2's C -> CO front, and it is a genuine
+shift rather than scatter - repeat runs of that quantity sit in 2.23-2.32 and this gives 2.43.
+That front sits at A_V ~ 2.4 where the two curves have diverged enough to matter, and both the
+C-ionizing and CO-dissociating rates shift, so the direction is not fixed by inspection. V1's
+C -> CO front, though deeper still at A_V ~ 5.3, does not move at all: there the radiation is
+attenuated far enough that cosmic rays dominate the carbon chemistry and the photorate could change
+by a factor of two without being noticed.
+
+**This moves away from the reference by design**, in exactly the sense D-090 established for the
+FUV field: 3D-PDR's own run uses the Savage & Mathis curve, so agreeing with it perfectly requires
+sharing its dust. `pdrOwnDust` defaults to 1 because self-consistency is the point of the coupling;
+set it to 0 to reproduce a like-for-like 3D-PDR comparison.
+
+### Why it matters anyway
+
+The benchmark hides the size of the error because its fronts are shallow. Evaluating `SCATTER` for
+the grey 0.07-50 um grains D-091 warned about, whose model curve is tau(1000A)/tau(V) = **1.13**
+against the tabulated 4.65:
+
+| A_V | S&M | grey grains | ratio |
+|---|---|---|---|
+| 0.03 | 9.08e-01 | 9.77e-01 | 1.1 |
+| 0.3 | 3.86e-01 | 7.91e-01 | 2.1 |
+| 1.0 | 3.71e-02 | 4.59e-01 | 12 |
+| 3.0 | 3.37e-05 | 9.37e-02 | **2800** |
+| 8.0 | 4.69e-13 | 1.43e-03 | 3e9 |
+
+The error is unbounded with depth. A grey-dust slab run both ways gives nearly identical fronts
+(0.0033 against 0.0034) only because grey grains barely attenuate the FUV at all, so those fronts
+sit at A_V ~ 0.003 where the dust term is negligible and self-shielding does all the work. Any
+model that combines non-Savage-&-Mathis grains with a front at appreciable A_V would have been
+wrong by orders of magnitude, silently.
