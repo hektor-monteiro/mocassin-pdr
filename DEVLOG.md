@@ -5960,3 +5960,25 @@ Three switches, all default 0, so shipped behaviour is unchanged: `pdrAtomicH`, 
 `pdrOwnIon`. `elemAvail` (D-102) remains unconditional. The configuration that should eventually
 ship is `pdrAtomicH 1` + `pdrOwnIon 1` + an H2 continuum opacity, and the first two are ready and
 measured.
+
+
+## 2026-09-03d - Step 0: restore the record
+
+The plan's step 0. All four benchmarks re-run on head `37ace4b` with every switch (`pdrAtomicH`,
+`pdrOwnIon`, `pdrUseNePDR`) at its default of 0, so this is the build as it ships.
+
+| | V1 | V2 |
+|---|---|---|
+| H -> 2H2 | 1.219 | 1.029 |
+| C+ -> C | 1.003 | 0.989 |
+| C -> CO | 1.074 | 1.026 |
+| deep T | 1.062 | 1.507 |
+
+V1's H -> 2H2 confirms exactly the 1.219 measured in passing during D-102's work; V2 is a first
+measurement with `elemAvail` live and moves both carbon fronts slightly (0.980->0.989,
+0.985->1.026) without changing deep T. The spherical sec54 model and the ionization front benchmark
+both re-run clean; sec54's H II region is 808-9479 K (HII40 ~8000-9000) and its PDR median ratio is
+1.20 against standalone 3D-PDR at the model's own field.
+
+All three artifacts (benchmark comparison, sec54, status) regenerated from these runs and
+republished. A fourth artifact, a sequenced work plan, is now the reference for what comes next.
