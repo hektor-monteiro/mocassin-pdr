@@ -119,6 +119,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-096 | Full audit pass: per-coolant cooling, missing MPI exchange, non-PDR build restored | Accepted | 2026-09-02 |
 | D-097 | MOCASSIN's infrared transfer verified; HTT91's 10 K floor is the wrong one | Accepted | 2026-09-02 |
 | D-098 | Adopt TORUS-3DPDR's section 5.4 photoionization+PDR model as the coupled-code reference | Accepted | 2026-09-02 |
+| D-099 | ionDen(H,1) is the non-ionized total, not atomic H; correcting it needs H2 opacity | Reverted, documented | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5390,3 +5391,70 @@ coupling has not damaged the photoionization solver, which is worth knowing on i
 The H/H2 front remains the one real gap and it is the grid: dA_V = 0.107 per uniform cell against a
 front thinner than that. Bisbas et al. used 256 cells clustered on the front. This is the same
 limit recorded in D-080/D-081 and it is not reachable by tuning.
+
+
+## 2026-09-02o - D-099: the neutral hydrogen MOCASSIN carries is not atomic hydrogen
+
+Raised from the section 5.4 figure: x(H I) does not fall in the PDR the way 3D-PDR's does. Is the
+hydrogen being corrected for the H2 that formed?
+
+**In the chemistry, yes. In the array MOCASSIN carries, no - and that turns out to be load-bearing.**
+
+### The observation is correct
+
+`pdrToMocassin` closes the neutral stage against the proton fraction alone:
+
+```fortran
+grid%ionDen(cellP,elementXref(1),1) = 1.0 - grid%ionDen(cellP,elementXref(1),2)
+```
+
+Every hydrogen nucleus locked in H2 is therefore handed back as free atomic H. Deep in the V1 slab
+the chemistry gives x(H) = 1.2e-3 while this writes 1.000 - three orders of magnitude. It looked
+like exactly the omission D-038 fixed for carbon, where carbon in CO simply does not appear in any
+atomic stage and the ionization fractions correctly sum to less than one.
+
+### Fixing it made things worse, for a reason worth keeping
+
+Handing back the chemistry's x(H) instead, with the molecular hydrogen also removed from
+MOCASSIN's side of the blend so hydrogen stays conserved across the band, does what it should to
+the abundances - x(H I) tracks the chemistry, and x(H I) + 2x(H2) + x(H II) = 1.0000 exactly in
+fully-PDR cells. Then the benchmark moved the wrong way:
+
+| | before | after |
+|---|---|---|
+| V1 deep T ratio | **1.061** | 1.321 |
+| V1 H -> 2H2 | 1.120 | 1.219 |
+| V1 median T | 1.249 | 1.287 |
+
+The cause is that **MOCASSIN has no H2 opacity**. Its opacity is atomic photoionization plus dust,
+and nothing else absorbs the Lyman continuum. The atomic hydrogen in `ionDen` was, without anyone
+intending it, standing in for the molecular hydrogen as well - and it is the only thing keeping the
+molecular interior opaque there. Take it away and the medium goes transparent:
+
+| A_V | ionDen(H,II) before | after | chemistry x(H+) |
+|---|---|---|---|
+| 0.45 | 5.7e-07 | **0.168** | 5.4e-07 |
+| 4.00 | 8.1e-07 | **0.0131** | 8.1e-07 |
+
+MOCASSIN's own `ionBalance` answers with 17% ionization at A_V = 0.45 where the chemistry gives
+5e-7. And 0.168 sits inside the blend band, since `pdrZoneLim = 0.3`, so the weight
+w = (log 0.3 - log 0.168)/(log 0.3 - log 0.01) collapses to **0.17** - and the handover the blend
+exists to deliver is 83% discarded, gas temperature included. Hence the deep-T regression.
+
+Reverted. The line now carries a comment saying what it is and why, because it reads like a bug and
+is not one.
+
+### What is actually true
+
+- the chemistry's x(H) is right, and is already written per cell to `pdrGrid.out`
+- `ionDen(H,1)` is the **total non-ionized hydrogen**, which is the correct absorber for the Lyman
+  continuum given that H2 absorbs there too and MOCASSIN cannot represent it
+- the figure in the section 5.4 artifact was plotting `ionDen` rather than the chemistry, which is
+  why the H I curve looked wrong. It now plots x(H) from the chemistry.
+
+### The real fix, when it is wanted
+
+Give MOCASSIN an H2 continuum opacity. Then `ionDen(H,1)` can hold atomic hydrogen alone, the two
+descriptions stop having to share one array, and the blend stops being poisoned by an ionization
+balance solved against the wrong absorber. That is a change to MOCASSIN's opacity model, not to the
+bridge, and it is the prerequisite for this correction rather than a refinement of it.

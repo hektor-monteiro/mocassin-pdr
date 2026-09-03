@@ -1612,6 +1612,25 @@ module pdr_mod
                        xnew = min(max(grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0)
                        grid(iG)%ionDen(cellP,elementXref(1),2) = real( &
                             & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(1),2)))
+                       ! D-099: this is NOT the atomic hydrogen fraction, and
+                       ! deliberately so. It is the total non-ionized hydrogen -
+                       ! every nucleus not in H+, the molecular ones included.
+                       !
+                       ! The chemistry's own x(H) is the physical atomic
+                       ! fraction and is what pdrGrid.out carries; handing it
+                       ! here instead was tried and reverted. MOCASSIN has no H2
+                       ! opacity at all, so the atomic hydrogen in this array is
+                       ! the only thing keeping the molecular interior opaque to
+                       ! the Lyman continuum. Replacing 1.0 with the true
+                       ! x(H) ~ 0.002 makes the medium transparent and
+                       ! MOCASSIN's own ionBalance then answers x(H+) ~ 0.17 at
+                       ! A_V = 0.45, where the chemistry gives 5e-7. That lands
+                       ! inside the blend band (pdrZoneLim = 0.3), drives w to
+                       ! 0.17 and discards 83% of the handover, temperature
+                       ! included: V1 deep T ratio went 1.06 -> 1.32.
+                       !
+                       ! Fixing it properly means giving MOCASSIN an H2 opacity,
+                       ! not changing this line.
                        grid(iG)%ionDen(cellP,elementXref(1),1) = &
                             & 1.0 - grid(iG)%ionDen(cellP,elementXref(1),2)
                     end if
