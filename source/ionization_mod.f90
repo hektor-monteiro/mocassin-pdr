@@ -124,7 +124,12 @@ module ionization_mod
          call eDenSum()
 
         ! reevaluate all opacities if new ionization
-        call addOpacity(grid%opacity(grid%active(ix, iy, iz), :))
+        if (lgPDR) then
+           call addOpacity(grid%opacity(grid%active(ix, iy, iz), :), &
+                & grid%H2den(grid%active(ix, iy, iz)))
+        else
+           call addOpacity(grid%opacity(grid%active(ix, iy, iz), :))
+        end if
 
     end subroutine ionizationDriver
 
@@ -346,10 +351,11 @@ module ionization_mod
         end do
     end subroutine eDenSum
 
-    subroutine addOpacity(opacity)
+    subroutine addOpacity(opacity, H2density)
         implicit none
 
         real, dimension(:), intent(out) :: opacity                !  opacity
+        real, intent(in), optional      :: H2density               ! n(H2) [cm^-3] (D-107)
 
        ! local variables
 
@@ -358,6 +364,35 @@ module ionization_mod
 
         ! (re) initialize opacity arrays
         opacity = 0.
+
+        ! D-107: H2 photoionization continuum, threshold 15.43 eV = 1.1345 Ryd.
+        ! MOCASSIN otherwise has no absorber below the Lyman edge but atomic
+        ! hydrogen - no H-minus, no Rayleigh - so once the coupling makes the
+        ! neutral fraction physically small (D-099), photons between 13.6 and
+        ! whatever this covers pass through the whole cloud unabsorbed and heat
+        ! dust far from the surface (D-103/D-104). This restores that missing
+        ! absorber; it does not touch the 912-2400 A band the PDR already owns,
+        ! so it cannot double-count against 3D-PDR's shielding.
+        !
+        ! sigma(nu): threshold ~6e-18 cm^2 rising to a broad peak of order
+        ! 1e-17 cm^2 near 18-20 eV then falling off - Backx, Wight & Van der
+        ! Wiel (1976); Chung, Lee & Gallagher (1993); Yan, Sadeghpour & Dalgarno
+        ! (1998) for the tabulated cross section this approximates. The fit
+        ! below is a single power law anchored at threshold, NOT a reproduction
+        ! of the resonance structure near 15-18 eV - it is restoring an
+        ! absorber that is otherwise entirely absent, not a spectroscopic
+        ! result. Revisit with the tabulated cross section if the ionization
+        ! structure of molecular gas ever needs to be more than a guard against
+        ! this failure mode.
+        if (present(H2density)) then
+           if (H2density > 0.) then
+              do i = 1, nbins
+                 if (nuArray(i) >= 1.1345) then
+                    opacity(i) = opacity(i) + H2density*6.2e-18*(nuArray(i)/1.1345)**(-2.7)
+                 end if
+              end do
+           end if
+        end if
 
         ! hydrogen helium and heavy element brems (free-free) opacity,
         ! assuming hydrogen ff gaunt factors

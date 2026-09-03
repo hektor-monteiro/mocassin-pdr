@@ -54,6 +54,7 @@ module iteration_mod
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
            real, allocatable :: pdrHeatGGTmp(:), pdrHeatGGSum(:)      ! D-096
            real, allocatable :: NePDRTmp(:), NePDRSum(:)              ! D-105
+           real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
            real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
@@ -928,6 +929,8 @@ module iteration_mod
                  allocate(pdrHeatGGSum(0:grid(iG)%nCells), stat=err)
                  allocate(NePDRTmp(0:grid(iG)%nCells), stat=err)
                  allocate(NePDRSum(0:grid(iG)%nCells), stat=err)
+                 allocate(H2denTmp(0:grid(iG)%nCells), stat=err)
+                 allocate(H2denSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
                  allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
                  allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
@@ -948,6 +951,7 @@ module iteration_mod
                  pdrHeatPETmp = 0.
                  pdrHeatGGTmp = 0.
                  NePDRTmp = 0.
+                 H2denTmp = 0.
                  pdrCoolSpTmp = 0.
                  pdrHeatPESum = 0.
                  pdrZoneSum   = 0
@@ -981,6 +985,8 @@ module iteration_mod
                                      & grid(iG)%pdrHeatGG(grid(iG)%active(i,j,k))
                                 NePDRTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%NePDR(grid(iG)%active(i,j,k))
+                                H2denTmp(grid(iG)%active(i,j,k)) = &
+                                     & grid(iG)%H2den(grid(iG)%active(i,j,k))
                                 pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
                                      & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
                                 pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
@@ -1016,6 +1022,9 @@ module iteration_mod
                  call mpi_allreduce(NePDRTmp, NePDRSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%NePDR(1:grid(iG)%nCells) = NePDRSum(1:grid(iG)%nCells)
+                 call mpi_allreduce(H2denTmp, H2denSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%H2den(1:grid(iG)%nCells) = H2denSum(1:grid(iG)%nCells)
                  size = (grid(iG)%nCells+1)*max(pdrNcool,1)
                  call mpi_allreduce(pdrCoolSpTmp, pdrCoolSpSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)

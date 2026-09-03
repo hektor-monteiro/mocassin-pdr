@@ -126,7 +126,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-103 | The deep dust heating is the diffuse Lyman continuum; H2 opacity is confirmed as the blocker | Confirmed by D-104 | 2026-09-03 |
 | D-104 | Band budget: the ionizing field is 1955x larger, and it is paid for by nothing | Partly withdrawn by D-106 | 2026-09-03 |
 | D-105 | Substituting the chemistry's electron density makes the runaway worse, not better | Rejected | 2026-09-03 |
-| D-106 | Let the chemistry own the ionization of its own elements in PDR cells | Accepted, default off | 2026-09-03 |
+| D-106 | Let the chemistry own the ionization of its own elements in PDR cells | Accepted | 2026-09-03 |
+| D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5982,3 +5983,72 @@ both re-run clean; sec54's H II region is 808-9479 K (HII40 ~8000-9000) and its 
 
 All three artifacts (benchmark comparison, sec54, status) regenerated from these runs and
 republished. A fourth artifact, a sequenced work plan, is now the reference for what comes next.
+
+
+## 2026-09-03e - D-107: the H2 opacity, and both switches now default on
+
+Step 1 and step 2 of the plan, done together because the second only became safe once the first was
+measured working.
+
+### The term
+
+`addOpacity` gained an optional `H2density` argument and, when present and positive, adds
+
+    sigma(nu) = 6.2e-18 * (nu/1.1345)^(-2.7)   cm^2,   nu >= 1.1345 Ryd (15.43 eV)
+
+a single power law anchored at the H2 photoionization threshold, explicitly commented as an
+approximation to the tabulated cross section (Backx, Wight & Van der Wiel 1976; Chung, Lee &
+Gallagher 1993; Yan, Sadeghpour & Dalgarno 1998) rather than a reproduction of its resonance
+structure - the job is restoring an absorber that is otherwise entirely absent between 13.6 eV and
+wherever this falls off, not a spectroscopic result. `grid%H2den(cell)`, filled from
+`abun(NH2)*nH` and MPI-exchanged, supplies the density - the same pattern as `NePDR` (D-105), which
+made this a small, mechanical addition. A packet absorbed here becomes `"diffuse"` and re-emits
+through `recPDF`, the physically correct fate for a photoionization.
+
+### Both criteria the plan set, met
+
+V1, with `pdrAtomicH 1` and `pdrOwnIon 1`:
+
+| | without H2 opacity | with it | D-097's independent value |
+|---|---|---|---|
+| J(>1 Ryd), summed | 2.032e+01 | **1.813e-02** | (closure run: 1.020e-02) |
+| max x(H+) | 9.82e-06 | 9.82e-06 (unchanged - already correct) | - |
+| T_dust(A_V=8) | 15.24 K | **6.27 K** | 6.4 K, verified in D-097 |
+
+Both the ionizing field and the deep dust temperature return to the closure run's values, and the
+dust temperature lands on the value D-097 verified independently from the model's own opacity
+curve. V2 confirms it: J(>1 Ryd) 8.5e-03, max x(H+) 3.5e-08, T_dust(A_V=8) 20.80 K against D-097's
+20.7 K.
+
+### A better result than expected: the truncated source was not required
+
+The plan treated the Lyman-truncated source (D-101, plan step 4) as possibly necessary before the
+opacity could be tested cleanly. It is not. Re-running the **committed fixtures**, unmodified,
+un-truncated blackbody source, with only the two switches flipped to their new defaults:
+
+| | V1 | V2 |
+|---|---|---|
+| H -> 2H2 | 1.117 | 1.015 |
+| C+ -> C | 0.995 | 0.980 |
+| C -> CO | 1.074 | 0.986 |
+| deep T | 1.061 | 1.519 |
+| max x(H+) | 8.15e-06 | (chemistry-matched) |
+| T_dust(A_V=8) | 6.30 K | - |
+
+This is the best this benchmark has produced. The H2 continuum is a genuine physical absorber, not
+a patch for a truncated spectrum, so it absorbs real stellar ionizing photons as well as the
+diffuse ones - step 4 becomes a separate correctness question (should these slabs receive ionizing
+photons at all) rather than a prerequisite for anything already committed here.
+
+### Defaults changed
+
+`pdrAtomicH` and `pdrOwnIon`: 0 -> **1**. `pdrUseNePDR` stays 0 - it was rejected outright in D-105
+and has no dependency on the opacity. The spherical sec54 model and the ionization front benchmark
+both re-run clean under the new defaults.
+
+### What remains open
+
+The fit is a single power law with no resonance structure and an order-of-magnitude normalisation;
+revisit it if the ionization structure of molecular gas ever needs to be more than a guard against
+D-099's failure mode. And this is 1D-slab-verified only, under `planeIonization`'s reflecting walls
+- the 3D flavour remains untested for this or anything else.
