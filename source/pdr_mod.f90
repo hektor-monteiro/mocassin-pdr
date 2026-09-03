@@ -1631,8 +1631,19 @@ module pdr_mod
                        !
                        ! Fixing it properly means giving MOCASSIN an H2 opacity,
                        ! not changing this line.
-                       grid(iG)%ionDen(cellP,elementXref(1),1) = &
-                            & 1.0 - grid(iG)%ionDen(cellP,elementXref(1),2)
+                       ! D-101: with a source that emits no ionizing photons
+                       ! this can be the true atomic fraction. Guarded so the
+                       ! two can be compared.
+                       if (pdrAtomicH /= 0 .and. pdrNHsp > 0) then
+                          grid(iG)%ionDen(cellP,elementXref(1),1) = real(max( &
+                               & w*min(max(dble(grid(iG)%pdrAbun(cellP,pdrNHsp)),0.d0),1.d0) &
+                               & + (1.d0-w)*(1.d0 &
+                               &   - dble(grid(iG)%ionDen(cellP,elementXref(1),2)) &
+                               &   - 2.d0*dble(grid(iG)%pdrAbun(cellP,NH2))), 0.d0))
+                       else
+                          grid(iG)%ionDen(cellP,elementXref(1),1) = &
+                               & 1.0 - grid(iG)%ionDen(cellP,elementXref(1),2)
+                       end if
                     end if
 
                     if (lgElementOn(2) .and. NHe > 0 .and. NHEx > 0 .and. nStages >= 3) then

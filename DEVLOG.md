@@ -121,6 +121,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-098 | Adopt TORUS-3DPDR's section 5.4 photoionization+PDR model as the coupled-code reference | Accepted | 2026-09-02 |
 | D-099 | ionDen(H,1) is the non-ionized total, not atomic H; correcting it needs H2 opacity | Reverted, documented | 2026-09-02 |
 | D-100 | How to give MOCASSIN an H2 opacity: not by reusing the self-shielding function | Design | 2026-09-02 |
+| D-101 | The slabs are fed ionizing photons Roellig does not specify - necessary but not sufficient | Partial | 2026-09-02 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5547,3 +5548,81 @@ MOCASSIN carries the whole stellar spectrum. The Roellig slab benchmarks specify
 so MOCASSIN arguably should not be sending ionizing photons into those slabs at all. If that is
 where the spurious deep ionization of D-099 comes from, the fix is in the benchmark's source
 spectrum and not in the opacity.
+
+
+## 2026-09-02q - D-101: the slab benchmarks are fed ionizing photons the specification excludes
+
+D-100 flagged a free check before building any opacity: 3D-PDR's field is FUV-only by definition,
+MOCASSIN carries the whole stellar spectrum, and the Roellig slabs specify a pure FUV field. Tested.
+
+### The mismatch is real and it was already doing damage
+
+`contShape blackbody` at `TStellar 25000` puts **11.6% of the source energy above 1 Ryd**. The
+Roellig V1/V2 tests specify chi in Draine units over 912-2400 A and no ionizing radiation at all.
+
+The consequence was in the committed runs and had not been noticed:
+
+| A_V | x(H+) MOCASSIN | x(H+) chemistry |
+|---|---|---|
+| 0.00125 | **2.775e-01** | 8.15e-06 |
+| 0.05 | 1.51e-03 | 2.12e-06 |
+
+The surface cell is 28% ionized in MOCASSIN's view against 8e-6 in the chemistry's - a factor of
+34000 - and 0.277 sits inside the blend band (`pdrZoneLim = 0.3`), so that cell received a blend
+weight of **0.023**. Its PDR result was 98% discarded.
+
+### Fixing it
+
+The source is now a 25000 K blackbody tabulated in the `rauch` two-column format with the flux
+zeroed shortward of 911.75 A, and `planeIonization` rescaled 5.01e-2 -> 4.4316e-2 to put chi0 back
+at 10.115 (removing 11.6% of the luminosity had otherwise pushed the FUV up to 11.435, since
+MOCASSIN normalises the total).
+
+| | max x(H+) MOCASSIN | chemistry | ratio |
+|---|---|---|---|
+| full blackbody | 2.775e-01 | 8.15e-06 | 34000 |
+| **pure FUV** | **1.568e-03** | 9.81e-06 | **160** |
+
+and at every depth below the first few cells MOCASSIN's x(H+) now equals the chemistry's exactly,
+so the handover runs at full weight throughout.
+
+### What it costs, honestly
+
+| | H->2H2 | C+->C | C->CO | deep T |
+|---|---|---|---|---|
+| full blackbody | **1.117** | 0.995 | 1.075 | 1.062 |
+| pure FUV | 1.234 | 0.995 | 1.075 | 1.061 |
+
+The H2 front moves further from the reference. That is not a regression to be undone: the previous
+1.117 was obtained with a surface cell whose PDR answer had been 98% replaced by MOCASSIN's, and
+1.234 is what the chemistry actually produces once it is allowed to stand. Everything else is
+unchanged.
+
+### It is necessary but NOT sufficient
+
+The point of the test was whether this unblocks D-099. It does not. Re-applying the true atomic
+hydrogen handover on top of the pure-FUV source (`pdrAtomicH 1`, added as a switch, default off):
+
+| A_V | x(H+) closure handover | x(H+) with atomic H | chemistry |
+|---|---|---|---|
+| 0.10 | 9.10e-04 | 3.78e-02 | 1.18e-06 |
+| 0.50 | 5.83e-07 | **1.82e-01** | 5.72e-07 |
+| 8.00 | 4.62e-07 | 1.69e-02 | 1.23e-08 |
+
+**733 of 801 cells** end up above `pdrBlendLo`, so the whole slab sits in the blend band and the
+handover is diluted everywhere. Deep T goes 1.061 -> 1.324, the same regression as D-099.
+
+So the runaway is not driven by the stellar ionizing photons. With none in the source it happens
+anyway, which rules out the simple explanation and points at MOCASSIN's `ionBalance` itself: on a
+straight equilibrium argument, x(H+)^2 n alpha = x(H0) Gamma, reducing x(H0) by 500x should *lower*
+x(H+), not raise it. It rises, so that is not the equation being solved - most likely a
+normalisation of the ionization stages to sum to one, which the molecular case violates by
+construction. That is the next thing to read, and it is upstream of the H2 opacity question rather
+than downstream of it.
+
+### State
+
+- pure FUV source: **not yet adopted** in the committed fixtures. It is right, but V2 needs its own
+  `planeIonization` recalibration and both slabs then need re-running and every artifact
+  regenerating. Held as a separate step rather than folded in here.
+- `pdrAtomicH` switch: committed, default 0, so behaviour is unchanged.
