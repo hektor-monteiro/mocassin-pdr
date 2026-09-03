@@ -124,7 +124,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-101 | The slabs are fed ionizing photons Roellig does not specify - necessary but not sufficient | Partial | 2026-09-02 |
 | D-102 | ionBalance normalised the ion stages to sum to one, asserting no molecules exist | Accepted | 2026-09-02 |
 | D-103 | The deep dust heating is the diffuse Lyman continuum; H2 opacity is confirmed as the blocker | Confirmed by D-104 | 2026-09-03 |
-| D-104 | Band budget: the ionizing field is 1955x larger, and it is paid for by nothing | Diagnosed | 2026-09-03 |
+| D-104 | Band budget: the ionizing field is 1955x larger, and it is paid for by nothing | Partly withdrawn by D-106 | 2026-09-03 |
+| D-105 | Substituting the chemistry's electron density makes the runaway worse, not better | Rejected | 2026-09-03 |
+| D-106 | Let the chemistry own the ionization of its own elements in PDR cells | Accepted, default off | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5894,3 +5896,67 @@ below H2's 15.43 eV edge entirely, so an H2 photoionization continuum would not 
 **The order of work has changed.** Before any opacity: find why `ionBalance` returns x(H+) ~ 1e-2 in
 a cell with no ionizing radiation. That is the term creating the energy, and both the deep dust
 anomaly and the D-099 blocker are downstream of it.
+
+
+## 2026-09-03c - D-105/D-106: two attempts, one wrong, and what the ionizing field really is
+
+### D-105, rejected: the electron density
+
+D-104 ended by pointing at `ionBalance` ionizing without radiation. Reading it gives a clean
+candidate: the stage ratio is
+
+```fortran
+ionRatio = (nPhotoSte + collIon + revRate) / (NeUsed*alphaTot + ...)
+```
+
+so X(i+1)/X(i) = Gamma/(Ne alpha), and `NeUsed` is rebuilt each pass from MOCASSIN's own ion sum
+with **no floor** - only a warning if it reaches exactly zero. Once carbon is honestly locked in CO
+that sum collapses, so the ratio diverges and an infinitesimal Gamma ionizes the cell. The obvious
+fix is to hand back the chemistry's electron density, which is maintained by cosmic rays that
+MOCASSIN does not have.
+
+**It made things worse.** max x(H+) went 1.3e-2 -> **0.906**. The chemistry's Ne is *smaller*, not
+larger - deep in a PDR x_e ~ 1e-8 - so substituting it shrinks the denominator further. The
+diagnosis was backwards. Kept as `pdrUseNePDR`, default 0, with the array and its MPI exchange
+retained because the measurement needed them.
+
+### D-106, accepted: the chemistry owns its own elements
+
+The principle was already settled for the thermal balance - the PDR owns it because MOCASSIN's
+solver is the wrong one there. The same argument applies to ionization, and had never been applied:
+in a PDR cell the chemistry has already solved H, He, C, O and Mg with cosmic rays and a molecular
+network, and re-solving them from Gamma/(Ne alpha) replaces a correct answer with an expression
+evaluated far outside the regime it was built for.
+
+`pdrOwnIon = 1` makes `ionBalance` skip those elements in `pdrZone == 1` cells. It works:
+
+| | max x(H+) | C+ -> C | C -> CO | H -> 2H2 |
+|---|---|---|---|---|
+| closure handover | 2.29e-03 | 0.995 | 1.075 | 1.117 |
+| true atomic H | 1.32e-02 | 1.004 | 0.987 | 1.212 |
+| **chemistry owns ions** | **9.82e-06** | **0.995** | **0.988** | 1.237 |
+
+x(H+) now matches the chemistry to within a factor of two everywhere, from 1.3e-2 down to 9.8e-6.
+
+### And it disproves the D-104 mechanism
+
+D-104 argued the ionizing field was recombination radiation emitted for ionization nothing paid
+for. With the ionization now correct at ~1e-5, that emission is gone - and the ionizing field is
+**unchanged**: J(>1 Ryd) summed over the profile is 2.03e+01 against 2.01e+01, still 2000x the
+closure run's 1.02e-02. The deep dust stays hot, 15.2 K against 6.3 K.
+
+So the spurious recombination was real but it was not the source of the ionizing field. What
+remains is simply that **the slab is transparent to ionizing photons once the hydrogen is
+molecular**: whatever residual flux exists above 1 Ryd used to be absorbed in the first cells by
+abundant atomic hydrogen, and now crosses the whole slab and is absorbed by dust.
+
+That is D-100's argument, no longer argued but demonstrated, with the confounders removed one at a
+time: not the source spectrum (D-101), not the escaping-line channel (D-104), not the electron
+density (D-105), not spurious recombination (D-106). **MOCASSIN needs an H2 opacity.**
+
+### State
+
+Three switches, all default 0, so shipped behaviour is unchanged: `pdrAtomicH`, `pdrUseNePDR`,
+`pdrOwnIon`. `elemAvail` (D-102) remains unconditional. The configuration that should eventually
+ship is `pdrAtomicH 1` + `pdrOwnIon 1` + an H2 continuum opacity, and the first two are ready and
+measured.

@@ -1806,6 +1806,19 @@ end subroutine iterateT
                     ! overwrote both the hydrogen and the carbon handovers on
                     ! every pass. elemAvail is 1.0 wherever the chemistry has
                     ! not run, so this is a no-op outside the PDR.
+#ifdef PDR
+                    ! D-106: in a PDR cell the chemistry has already solved the
+                    ! ionization of the elements it tracks, with cosmic rays and
+                    ! the molecular network that MOCASSIN does not have. Re-solving
+                    ! them here does not add information - it replaces a correct
+                    ! answer with Gamma/(Ne alpha) evaluated in a regime that
+                    ! expression was never meant for, and feeds a self-sustaining
+                    ! ionization/recombination loop (D-104).
+                    if (lgPDR .and. pdrOwnIon /= 0) then
+                       if (grid%pdrZone(cellP) == 1 .and. &
+                            & (elem==1 .or. elem==2 .or. elem==6 .or. elem==8 .or. elem==12)) cycle
+                    end if
+#endif
                     if (ion == 1) then
                         grid%ionDen(cellP,elementXref(elem),ion) = &
                              & real(availFrac(elem)/denominator(elem))
@@ -1848,6 +1861,26 @@ end subroutine iterateT
             end do
 
             NeUsed = NeUsed * grid%Hden(cellP)
+
+#ifdef PDR
+            ! D-105: in a PDR cell the electron density is the chemistry's, not a
+            ! sum over the ion stages MOCASSIN happens to track. Once carbon is
+            ! honestly locked in CO that sum collapses, and with no cosmic-ray
+            ! ionization to hold a floor nothing stops it reaching zero - at which
+            ! point X(i+1)/X(i) = Gamma/(Ne alpha) diverges and an infinitesimal
+            ! photoionization rate ionizes the cell. Measured: x(H+) = 8e-3 where
+            ! the chemistry gives 6e-7, in gas with no ionizing radiation at all,
+            ! and MOCASSIN then emitted a recombination continuum for it (D-104).
+            ! Tried and rejected: substituting it makes the runaway WORSE, because
+            ! the chemistry's Ne is SMALLER than MOCASSIN's ion sum (cosmic-ray
+            ! maintained, x_e ~ 1e-8) - Gamma/(Ne alpha) then diverges harder and
+            ! max x(H+) went 1.3e-2 -> 0.906. Off by default; the array and its
+            ! exchange are kept because the diagnosis needed them.
+            if (lgPDR .and. pdrUseNePDR /= 0) then
+               if (grid%pdrZone(cellP) == 1 .and. grid%NePDR(cellP) > 0.) &
+                    & NeUsed = grid%NePDR(cellP)
+            end if
+#endif
 
             if (NeUsed==0. .and.lgTalk) print*, '! ionBalance [warning]: cell ', xP,yP,zP, &
                  &'; NeUsed = ',  NeUsed

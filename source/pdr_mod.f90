@@ -1287,6 +1287,7 @@ module pdr_mod
            ! received.
            grid%pdrHeatPE(cellP) = real(heat(2))
            grid%pdrHeatGG(cellP) = real(heat(11))
+           grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
 
            ! ---- line cooling (DEVLOG D-030) --------------------------------
            ! Non-LTE level populations per coolant, solved with an escape
@@ -1517,6 +1518,7 @@ module pdr_mod
         grid%pdrHeat(cellP)   = real(heat(12))
         grid%pdrHeatPE(cellP) = real(heat(2))   ! D-095: heat(2) alone, see above
         grid%pdrHeatGG(cellP) = real(heat(11))
+        grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
 
         grid%pdrTgas(cellP)  = real(Tg)
         grid%pdrTlow(cellP)  = real(Tlo)

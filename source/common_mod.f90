@@ -315,6 +315,11 @@ module common_mod
         real, allocatable         :: pdrColC(:)      ! integrated N(C)  from the illuminated face (D-078)
         real, allocatable         :: pdrColCO(:)     ! integrated N(CO) from the illuminated face (D-078)
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
+        real, allocatable         :: NePDR(:)        ! electron density from the CHEMISTRY [cm^-3]
+                                                     ! (D-105). MOCASSIN's own sum over ion stages
+                                                     ! collapses once carbon is locked in CO, and
+                                                     ! it has no cosmic-ray ionization to hold a
+                                                     ! floor, so Gamma/(Ne alpha) diverges.
         real, allocatable         :: elemAvail(:,:)  ! (cell, element): the fraction of that
                                                      ! element NOT locked in molecules, and so
                                                      ! available to the atomic ion stages (D-102).
@@ -533,6 +538,9 @@ module common_mod
     real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
     integer             :: pdrAtomicH = 0            ! D-101: 1 = hand back the true atomic H fraction
     integer             :: pdrDustFeedback = 1       ! D-093: 1 = PDR rates drive the dust balance
+    integer             :: pdrUseNePDR = 0           ! D-105: 1 = ionBalance uses the chemistry's Ne
+    integer             :: pdrOwnIon   = 0           ! D-106: 1 = ionBalance leaves the chemistry's
+                                                     ! elements alone in PDR cells
     integer             :: nDustCapped = 0           ! D-093: grain-budget caps hit this iteration
     integer             :: pdrDustModel = 0          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
                                                      ! D-094: default was 1 while Tdust(0,0) was

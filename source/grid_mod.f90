@@ -1374,6 +1374,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
                 end if
+                allocate(grid%NePDR(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate NePDR memory"; stop
+                end if
                 allocate(grid%elemAvail(0:grid%nCells, 1:nElements), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate elemAvail memory"; stop
@@ -1427,6 +1431,7 @@ module grid_mod
                 grid%AVeff   = 0.
                 grid%pdrCool = 0.
                 grid%elemAvail = 1.
+                grid%NePDR = 0.
                 grid%pdrCoolSp = 0.
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
@@ -3489,6 +3494,10 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
                end if
+               allocate(grid(iG)%NePDR(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate NePDR memory"; stop
+               end if
                allocate(grid(iG)%elemAvail(0:grid(iG)%nCells, 1:nElements), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate elemAvail memory"; stop
@@ -3537,6 +3546,7 @@ end function getVolume
                grid(iG)%AVeff   = 0.
                grid(iG)%pdrCool = 0.
                grid(iG)%elemAvail = 1.
+               grid(iG)%NePDR = 0.
                grid(iG)%pdrCoolSp = 0.
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
