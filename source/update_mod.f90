@@ -2448,7 +2448,8 @@ end subroutine iterateT
             lgPDRcell = .false.
             xsecTot   = 0.
             if (lgPDR) then
-               if (grid%pdrZone(cellP) == 1 .and. grid%Ndust(cellP) > 0.) then
+               if (pdrDustFeedback /= 0 .and. grid%pdrZone(cellP) == 1 &
+                    & .and. grid%Ndust(cellP) > 0.) then
                   do nS2 = 1, nSpeciesPart(nspU)
                      if (grainAbun(nspU, nS2) <= 1.e-20) cycle
                      do ai2 = 1, nSizes

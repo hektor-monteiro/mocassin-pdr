@@ -625,6 +625,9 @@ module set_input_mod
             case ("pdrAtomicH")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrAtomicH
+            case ("pdrDustFeedback")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrDustFeedback
 
             case ("pdrDiagCool")
                 backspace 10

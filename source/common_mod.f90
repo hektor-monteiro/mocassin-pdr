@@ -532,6 +532,7 @@ module common_mod
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
     real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
     integer             :: pdrAtomicH = 0            ! D-101: 1 = hand back the true atomic H fraction
+    integer             :: pdrDustFeedback = 1       ! D-093: 1 = PDR rates drive the dust balance
     integer             :: nDustCapped = 0           ! D-093: grain-budget caps hit this iteration
     integer             :: pdrDustModel = 0          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
                                                      ! D-094: default was 1 while Tdust(0,0) was

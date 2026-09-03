@@ -123,6 +123,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-100 | How to give MOCASSIN an H2 opacity: not by reusing the self-shielding function | Design | 2026-09-02 |
 | D-101 | The slabs are fed ionizing photons Roellig does not specify - necessary but not sufficient | Partial | 2026-09-02 |
 | D-102 | ionBalance normalised the ion stages to sum to one, asserting no molecules exist | Accepted | 2026-09-02 |
+| D-103 | The deep dust heating is the diffuse Lyman continuum; H2 opacity is confirmed as the blocker | Diagnosed | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5709,3 +5710,68 @@ opacity and electron density both changed by orders of magnitude when the neutra
 real, and something in the infrared responds to that. Not yet identified.
 
 `pdrAtomicH` stays default 0 until it is.
+
+
+## 2026-09-03a - D-103: the deep dust heating is the diffuse Lyman continuum
+
+D-102 left one thing open: with the hydrogen self-consistent, the deep dust temperature roughly
+triples and carries the deep gas to 1.34. Traced by elimination.
+
+### What it is not
+
+| candidate | test | result |
+|---|---|---|
+| the FUV field | chi at every depth, both runs | agrees to 1% |
+| the source spectrum | chi0, Lstar, contShape, the file itself | byte-identical setup |
+| the D-093 gas-grain feedback | re-ran with `pdrDustFeedback 0` | T_dust 32.22 -> 32.69, unchanged |
+| MOCASSIN's own grain terms | that same run uses them instead | same answer |
+| the PDR's budget | heating, cooling, heatPE per cell | agree to three digits |
+| grain energy-budget caps | counter | zero in both |
+
+`tauNu.out` also agrees - but that is not evidence, and it is worth recording why: it is computed
+along **direction 1,0,0** while the slab is graded in **y**. It says nothing about depth structure
+in these models.
+
+### What it is
+
+Atomic hydrogen contributes opacity in exactly one place:
+
+```fortran
+! hydrogen lyman continuum photoelectric opacity
+call inOpacity(HlevXSecP(1), HlevNuP(1), nbins, density(1,1), 0.)
+```
+
+from the Lyman edge upward, and nowhere below 1 Ryd - MOCASSIN has no H-minus and no Rayleigh
+scattering, so the only sub-Lyman gas term is free-free. Reducing n(H I) by 500x therefore changes
+the opacity **only above 13.6 eV**.
+
+The source has no photons there: it is Lyman-truncated (D-101). But the *diffuse* field does.
+Recombination to the ground state emits Lyman-continuum photons, and the self-consistent run has
+x(H+) ~ 1e-2 in about a hundred surface cells to emit them. Previously those photons were reabsorbed
+within a cell or two by the abundant atomic hydrogen. With the atomic hydrogen now correctly at
+~2e-3, nothing stops them, and they travel until **dust** absorbs them - at 13.6 eV a photon, deep
+in the cloud, which is a very efficient way to heat a grain that would otherwise sit at 6 K.
+
+### Why this vindicates D-100
+
+The chain closes on the H2 opacity. In a real PDR those diffuse Lyman-continuum photons do not
+travel: H2 absorbs above 15.43 eV, and the Lyman-Werner bands take the rest. MOCASSIN carries
+neither, so with the atomic hydrogen made honest there is nothing left to stop them.
+
+D-100 recommended the H2 photoionization continuum above 15.43 eV on the grounds that it sits
+outside the band the PDR owns and so cannot double-count. This is the physical case for it, arrived
+at independently: it is precisely the absorber missing from the path these photons take. D-101
+showed that removing the *stellar* ionizing photons was necessary but not sufficient; the reason it
+was not sufficient is that the problem is the diffuse ones, which no change to the source spectrum
+can remove.
+
+### Order of work
+
+1. H2 photoionization continuum above 15.43 eV (D-100, option 3)
+2. re-test `pdrAtomicH 1`, which should then hold
+3. if the deep dust is still hot, the remaining 13.6-15.43 eV window is dust-absorbed only, and
+   that is a genuine physical statement rather than a missing term
+
+Until then `pdrAtomicH` stays 0. `elemAvail` (D-102) is unconditional and does not depend on any of
+this - it fixes the normalisation for carbon and oxygen regardless, which is where the C -> CO front
+gain came from.
