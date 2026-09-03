@@ -5775,3 +5775,65 @@ can remove.
 Until then `pdrAtomicH` stays 0. `elemAvail` (D-102) is unconditional and does not depend on any of
 this - it fixes the normalisation for carbon and oxygen regardless, which is where the C -> CO front
 gain came from.
+
+
+### D-103 continued: what the diffuse PDF does, and what is still unexplained
+
+Prompted by the observation that diffuse photons are drawn from an emission PDF - which is the
+right thread, and worth writing down because the machinery is not obvious.
+
+`setDiffusePDF` builds two things per cell:
+
+```fortran
+normalize  = normHI + normHeI + normHeII + normDust        ! continuum
+normalize  = normalize + totalLines                        ! + lines
+totalLines = totalLines / normalize                        ! P(a diffuse packet is a LINE photon)
+recPDF     = cumulative(sumDiffuseHI + HeI + HeII + Dust)  ! normalised to 1
+```
+
+and `newPhotonPacket` uses them:
+
+```fortran
+if (random <= totalLines) then      ! line photon - "line photons escape"
+else                                ! continuum photon, frequency from recPDF
+```
+
+Two consequences matter here. First, `recPDF` is **normalised** - it is a shape, not an amplitude -
+so every absorbed packet is re-emitted with a frequency drawn from whatever the local gas and dust
+emissivities look like in ratio, however small they are absolutely. Second, the line branch
+**escapes the grid**, while the continuum branch is transported. So the fraction of re-emitted
+energy that leaves a cell immediately is set by the gas line emissivity relative to the dust
+continuum.
+
+That gives a plausible route for the deep dust anomaly: making the hydrogen and carbon
+self-consistent collapses n_e and with it every gas emissivity MOCASSIN computes, `totalLines`
+falls toward zero, less energy escapes as line photons, and more is retained locally as dust
+continuum. It also fits the observation that the anomaly is insensitive to everything on the
+absorption side.
+
+**It is not yet demonstrated.** `totalLines` is not written to any output, so the comparison between
+runs has not been made. Recorded as the leading hypothesis, not a finding.
+
+### Eliminated so far
+
+| candidate | test | verdict |
+|---|---|---|
+| FUV field | chi at every depth | identical to 1% |
+| source spectrum | chi0, Lstar, file identity | identical |
+| Lyman-edge sampling artefact | re-truncated with 120000 points, 0.0137% spacing, finer than the tightest bin | T_dust 32.22 -> 32.28, unchanged |
+| D-093 gas-grain feedback | `pdrDustFeedback 0` | 32.22 -> 32.69, unchanged |
+| MOCASSIN's own grain terms | same run, uses them instead | unchanged |
+| PDR heating/cooling budget | per cell | agrees to 3 digits |
+| grain energy-budget caps | counter | zero in both |
+| resonance line heating of dust | `Gline ~ ionDen(H,2)*Ne` | scales DOWN with the change, cannot heat |
+| H I opacity below 1 Ryd | there is none - no H-minus, no Rayleigh, only free-free | n/a |
+
+The strongest single fact remains that **T_dust reaches 32 K at A_V = 2 while the illuminated face
+sits at 25 K**. Dust hotter deep inside than at the surface, with no internal source, is not a
+subtle calibration issue - it is energy appearing where none is delivered.
+
+### Next measurement
+
+Write `totalLines` and the band-integrated `Jste` per cell to a diagnostic file and compare the two
+runs directly. That distinguishes "more energy is being retained" from "more energy is arriving",
+which every test so far has been unable to separate.
