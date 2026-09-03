@@ -2744,6 +2744,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            integer                     :: yTop                ! 2D index
 #ifdef PDR
            integer                     :: iPdrS               ! PDR species counter
+           real                        :: radI, radF, radO, radR  ! D-104 band sums
 #endif
 
            print* , 'in writeGrid'
@@ -2795,6 +2796,13 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  print*, "! writeGrid: can't open file for writing - output/pdrCoolSp.out"
                  stop
               end if
+              close(53)
+              open(unit=53, file="output/pdrRad.out", action="write",position="rewind",status="unknown", iostat = ios)
+              if (ios /= 0 ) then
+                 print*, "! writeGrid: can't open file for writing - output/pdrRad.out"
+                 stop
+              end if
+              write(53,*) "# A_V  totalLines  J(>1Ryd)  J(FUV)  J(0.01-0.44)  J(<0.01Ryd)  Tdust"
            end if
 #endif
 
@@ -2868,6 +2876,24 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        ! coolant-by-coolant comparison against 3D-PDR's
                        ! .cool.fin no longer needs a rerun to reconstruct.
                        write(52, *) (grid(iG)%pdrCoolSp(cellP,iPdrS), iPdrS = 1, max(pdrNcool,1))
+                       ! D-104: where a cell's energy is. totalLines is the
+                       ! fraction of re-emitted energy that escapes as a line
+                       ! photon; the J sums say whether more energy is arriving
+                       ! or simply not leaving.
+                       radI = 0.; radF = 0.; radO = 0.; radR = 0.
+                       do iPdrS = 1, nbins
+                          if (nuArray(iPdrS) > 1.0) then
+                             radI = radI + grid(iG)%Jste(cellP,iPdrS)
+                          else if (nuArray(iPdrS) >= 0.44) then
+                             radF = radF + grid(iG)%Jste(cellP,iPdrS)
+                          else if (nuArray(iPdrS) >= 0.01) then
+                             radO = radO + grid(iG)%Jste(cellP,iPdrS)
+                          else
+                             radR = radR + grid(iG)%Jste(cellP,iPdrS)
+                          end if
+                       end do
+                       write(53, *) grid(iG)%AVeff(cellP), grid(iG)%totalLines(cellP), &
+                            & radI, radF, radO, radR, grid(iG)%Tdust(0,0,cellP)
                     end if
 #endif
                     if (lgDust) then

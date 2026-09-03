@@ -123,7 +123,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-100 | How to give MOCASSIN an H2 opacity: not by reusing the self-shielding function | Design | 2026-09-02 |
 | D-101 | The slabs are fed ionizing photons Roellig does not specify - necessary but not sufficient | Partial | 2026-09-02 |
 | D-102 | ionBalance normalised the ion stages to sum to one, asserting no molecules exist | Accepted | 2026-09-02 |
-| D-103 | The deep dust heating is the diffuse Lyman continuum; H2 opacity is confirmed as the blocker | Diagnosed | 2026-09-03 |
+| D-103 | The deep dust heating is the diffuse Lyman continuum; H2 opacity is confirmed as the blocker | Confirmed by D-104 | 2026-09-03 |
+| D-104 | Band budget: the ionizing field is 1955x larger, and it is paid for by nothing | Diagnosed | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -5837,3 +5838,59 @@ subtle calibration issue - it is energy appearing where none is delivered.
 Write `totalLines` and the band-integrated `Jste` per cell to a diagnostic file and compare the two
 runs directly. That distinguishes "more energy is being retained" from "more energy is arriving",
 which every test so far has been unable to separate.
+
+
+## 2026-09-03b - D-104: the band budget, and a retraction of the retraction
+
+`pdrRad.out` now writes, per cell, `totalLines` and the field summed over four bands. Two runs,
+identical but for `pdrAtomicH`, both on the Lyman-truncated source.
+
+### The hypothesis was wrong, and so was the retraction
+
+`totalLines` is **1e-7 or below in both runs** at every depth. The escaping-line channel carries
+nothing either way, so the idea that collapsing gas emissivities retained energy by closing that
+channel is dead. Recorded as a hypothesis last entry; falsified here.
+
+But the retraction in that same entry was also wrong. Summed over the profile:
+
+| band | A: closure | B: atomic H | B/A |
+|---|---|---|---|
+| ionizing > 1 Ryd | 1.02e-02 | 1.99e+01 | **1955** |
+| FUV 0.44-1 | 2.9234 | 2.9268 | 1.00 |
+| 0.01-0.44 | 6.9156 | 6.8578 | 0.99 |
+| FIR < 0.01 Ryd | 3.34e-03 | 2.05e-02 | 6.14 |
+
+The ionizing field is **three orders of magnitude larger**, exactly as D-103 argued. The reason the
+cleanly re-truncated source changed nothing is that these photons are not from the source: they are
+diffuse, which is what D-103 said and what I then failed to hold onto when reading that null result.
+D-103's mechanism stands. FUV and optical are untouched to 1%, and the far-infrared - which sets
+the deep dust temperature - is up 6x, downstream of dust absorbing the ionizing photons.
+
+### The part that is worse than a transfer problem
+
+Where does a 13.6 eV photon field come from when the source emits none?
+
+`ionBalance` gives x(H+) = 8e-3 at A_V = 0.5 where the chemistry gives 6e-7. `setDiffusePDF` then
+builds `sumDiffuseHI` from that ionization and emits a recombination continuum accordingly. At
+n_H = 1000 that is ~1.7e-11 recombinations cm^-3 s^-1, some 3.6e-22 erg cm^-3 s^-1 - the same order
+as the entire photoelectric heating of the cell.
+
+**Nothing paid for it.** Ionizing that hydrogen costs 13.6 eV per atom and the source supplies no
+photons above 1 Ryd. MOCASSIN is emitting recombination radiation for ionization that was never
+purchased, and the dust is absorbing it. That is not a transfer artefact to be routed around; it is
+energy created by an ionization balance answering a question no radiation asked.
+
+Note this is latent in the shipped code too - the same spurious x(H+) exists there (D-101 measured
+0.277 in the surface cell). What the honest neutral fraction changes is that the atomic hydrogen no
+longer reabsorbs the resulting photons locally, so the error stops hiding and spreads through the
+slab.
+
+### What this makes of the H2 opacity plan
+
+D-100's option 3 would help - dust and H2 would both compete for these photons - but it would be
+treating the symptom. The recombination continuum at 65 K is emitted within ~1e-6 Ryd of threshold,
+below H2's 15.43 eV edge entirely, so an H2 photoionization continuum would not even absorb it.
+
+**The order of work has changed.** Before any opacity: find why `ionBalance` returns x(H+) ~ 1e-2 in
+a cell with no ionizing radiation. That is the term creating the energy, and both the deep dust
+anomaly and the D-099 blocker are downstream of it.
