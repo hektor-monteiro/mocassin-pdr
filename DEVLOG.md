@@ -6338,8 +6338,21 @@ coexists with ionization and therefore exactly where a negative recombination
 rate was biting. An improvement confined to the geometry that has the problem
 is a better result than a uniform shift would have been.
 
-### Still open
+### The "still open" item, retracted
 
-`revRate` carries a factor (1 - x(H+)), so a cell where x(H+) transiently
-exceeds 1 drives the NUMERATOR negative by an entirely separate route. Not
-touched here; it deserves its own before/after.
+D-116 closed by flagging `revRate` as a second, separate route to a negative
+rate. **That was wrong, and it was an inference rather than a measurement.**
+
+Two errors in one sentence. The factor is `(1 - x(H0))`, the NEUTRAL fraction,
+not `(1 - x(H+))` as written - so it needs x(H0) > 1, not x(H+) > 1. And
+`xMax = 0.99999` is a hard parameter in `constants_mod`, applied to every
+`ionDen` assignment in `ionBalance`, so x(H0) can never exceed it. The factor
+is bounded below by 1e-5 and `revRate` is structurally non-negative.
+
+Measured to be sure, on both the model with cool gas beside an ionization front
+and the 200 kK nine-element model: **zero negative numerators, every iteration
+of both**. The concern does not exist.
+
+Worth recording because the pattern is now familiar in this log: a mechanism
+asserted from reading code, propagated into a commit message and a plan, and
+false. The instrument that settled it took ten minutes.
