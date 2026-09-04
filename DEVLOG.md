@@ -132,6 +132,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
 | D-116 | Dielectronic fit returns negative rates in cool gas; clamped, with its division guarded | Accepted | 2026-09-04 |
 | D-117 | Matrix ionBalance closes at 2e-15 / 3e-8 once rates are non-negative; enabled | Accepted | 2026-09-04 |
+| D-118 | Chemistry's per-stage rates feed the ion matrix; elemAvail stands down | Accepted | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -6823,3 +6824,92 @@ was settled in ten to fifteen minutes by an instrument aimed one level closer
 to the thing in question. The lesson is not "measure more" but specifically:
 **a conclusion about why something cannot work deserves the same evidential
 standard as a claim that it does.**
+
+## 2026-09-04d - D-118: the chemistry's rates feed the ion matrix
+
+Step 3 of D-111, and the first change in this sequence that alters physics
+rather than preparing to. The chemistry now constrains the ionization through
+per-stage formation and destruction rates, as Cloudy does
+(`ion_solver.cpp:765`), instead of through `elemAvail`'s scalar.
+
+### What was built
+
+`pdrLinkSpec/Elem/Ion` is Cloudy's `ipMl` in Fortran: which MOCASSIN ion each
+network species is. Built from the index variables `read_species` resolved, not
+from literals, because the species indices are irregular - He+ is 2, Mg is 3,
+H is 32 - and a literal would silently attach one element's chemistry to
+another's ionization, which looks like physics rather than a bug.
+
+`pdrIonRate(cell, 1:2*pdrNlink)` carries `form` and `loss` per linked stage,
+MPI-gathered like the other per-cell PDR arrays. `ionBalance` puts them in the
+two slots D-114 left empty:
+
+    ionMat(ic,ic) = ionMat(ic,ic) - chemSnk(ir)*ionScal(ir)   ! diagonal
+    ionRHS(ic)    = ionRHS(ic)    - chemSrc(ir)               ! RHS
+
+The sink is a rate coefficient so it scales with the column; the source is a
+rate so it goes to the RHS unscaled. A stage the network does not carry keeps
+zero for both and stays entirely with the ion solver - Cloudy's `ipMl == -1`
+rule, which is what lets a singly-ionized network couple to a seven-stage
+solver with no special case.
+
+### Two ordering constraints, both learned the hard way
+
+The link table was first built before `read_species` ran, so every index was
+zero, `linkIon` rejected all ten, and **five fixtures completed cleanly with an
+empty table**. That is the dangerous kind of failure: it looks like success,
+and the "benchmarks unchanged" result would have been rationalised away. What
+caught it was printing `count(pdrLinkSpec > 0)` rather than assuming. The count
+is printed for that reason and should stay.
+
+Second: `linkIon` must NOT test `lgElementOn`. `initPDRnetwork` runs before
+`setComposition` populates it, so such a check would silently empty the table
+again. The guard that matters is in `ionBalance`'s element loop. Both
+constraints are now comments at the call site.
+
+### elemAvail stands down, and that is the point
+
+`elemAvail` (D-102) and the rates are **two descriptions of the same physics**:
+one says "this fraction is locked in molecules", the other "it is being locked
+up this fast and released that fast". Running both double-counts. The first
+measurement of step 3 was taken with both active and was therefore of a
+configuration nobody would ship - small shifts that meant nothing. `elemAvail`
+now stands down in PDR-zone cells where the rates are supplied, and stays in
+force elsewhere, where it is 1.0 anyway.
+
+### Measured
+
+| | step 2 (elemAvail) | step 3 (rates only) |
+|---|---|---|
+| V1 H->2H2 / C+->C / C->CO / deep T | 1.113 / 0.994 / 1.071 / 1.061 | 1.113 / 0.994 / 1.078 / 1.062 |
+| V2 H->2H2 / C+->C / C->CO / deep T | 1.005 / 0.979 / 1.075 / 1.516 | 1.007 / 0.979 / 1.075 / 1.522 |
+| sec 5.4 median T ratio | 0.997 | 0.985 |
+
+**Essentially unchanged**, and that is the correct result rather than a
+disappointing one. In equilibrium the two formulations agree by construction:
+a scalar locked fraction f and a pair of rates whose ratio determines f are the
+same statement. The rate form is not better here - it is more GENERAL, and the
+generality buys nothing until the system is out of equilibrium or chemistry
+moves material between non-adjacent stages, neither of which these benchmarks
+exercise.
+
+That the answer did not move is also the evidence the wiring is right. It is
+paired with the conservation check, which shows the locking really is going
+through the rates:
+
+    x(C0) + x(C+) + x(CO) = C/H   to 5.7e-5 over every PDR cell
+    x(H0) + 2x(H2) + x(H+) = 1    to 7.5e-8
+
+The carbon sum falls short of C/H by exactly the CO fraction - 3.8e-14 at the
+inner edge rising to 7.1e-7 at the outer - so carbon is being removed from the
+ion stages by the chemical sink and accounted for in the molecule. With
+`availFrac` now 1.0 in those cells, nothing else could be doing it.
+
+### Process
+
+Two suites ran concurrently at one point, 28 processes on 14 physical cores.
+The cause is in the transcript: a `pkill` was issued, the next line printed
+`ranks: 14`, and the launch went ahead anyway. Printing a check and then
+ignoring it is worse than not checking. The driver script now waits for the
+process count to reach zero before each run, which makes the constraint
+structural rather than dependent on attention.

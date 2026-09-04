@@ -1629,6 +1629,8 @@ end subroutine iterateT
             double precision, dimension(nElements, nstages) :: ionUp, ionDn
             double precision, dimension(nstages, nstages)   :: ionMat
             double precision, dimension(nstages)            :: ionRHS, ionSol, ionScal
+            double precision, dimension(nstages)            :: chemSrc, chemSnk  ! D-118
+            integer                                         :: ik                ! D-118
             double precision, dimension(nElements, nstages) :: ionSolve
             integer                          :: nst, ir, ic, ic2Swap, ipiv, iBig
             integer                          :: iLo, iHi, nr
@@ -1853,9 +1855,24 @@ end subroutine iterateT
             availFrac = 1.
 #ifdef PDR
             if (lgPDR) then
+               ! D-118: elemAvail (D-102) and the per-stage chemical rates are
+               ! TWO DESCRIPTIONS OF THE SAME PHYSICS. elemAvail says "this
+               ! fraction of the element is locked in molecules"; the rates say
+               ! "it is being locked up this fast and released that fast".
+               ! Applying both double-counts the locking, so where the rates
+               ! are supplied elemAvail must stand down.
+               !
+               ! It is kept, not deleted, for the cells the rates do not reach:
+               ! outside the PDR zone there are no rates, and elemAvail is 1.0
+               ! there anyway, so the two agree by construction.
                do elem = 1, nElements
-                  if (lgElementOn(elem)) availFrac(elem) = &
+                  if (.not.lgElementOn(elem)) cycle
+                  if (lgIonChemRates .and. grid%pdrZone(cellP) == 1) then
+                     availFrac(elem) = 1.d0
+                  else
+                     availFrac(elem) = &
                        & min(max(dble(grid%elemAvail(cellP, elem)), 1.d-10), 1.d0)
+                  end if
                end do
             end if
 #endif
@@ -1968,12 +1985,46 @@ end subroutine iterateT
                   nr = iHi - iLo + 1
                   ionMat = 0.d0
                   ionRHS = 0.d0
+
+                  ! D-118: the chemistry's terms for this element's stages.
+                  ! chemSrc is an additive production rate, chemSnk a specific
+                  ! destruction rate multiplying the stage's own abundance -
+                  ! exactly the RHS and diagonal slots left empty in D-114, and
+                  ! exactly what Cloudy puts there (ion_solver.cpp:765):
+                  !     source[i] -= mole.source[nelem][ion];
+                  !     MAT(xmat,i,i) -= mole.sink[nelem][ion];
+                  ! A stage the network does not carry keeps zero for both and
+                  ! is left entirely to the ion solver.
+                  chemSrc = 0.d0; chemSnk = 0.d0
+#ifdef PDR
+                  if (lgPDR .and. lgIonChemRates) then
+                     if (grid%pdrZone(cellP) == 1) then
+                        do ik = 1, pdrNlink
+                           if (pdrLinkSpec(ik) <= 0) cycle
+                           if (pdrLinkElem(ik) /= elem) cycle
+                           ir = pdrLinkIon(ik)
+                           if (ir < 1 .or. ir > nst) cycle
+                           chemSrc(ir) = dble(grid%pdrIonRate(cellP, ik))
+                           chemSnk(ir) = dble(grid%pdrIonRate(cellP, pdrNlink+ik))
+                        end do
+                     end if
+                  end if
+#endif
                   do ir = iLo, iHi-1
                      ic = ir - iLo + 1
                      ionMat(ic,ic)     = ionMat(ic,ic)     - ionUp(elem,ir)*ionScal(ir)
                      ionMat(ic+1,ic)   = ionMat(ic+1,ic)   + ionUp(elem,ir)*ionScal(ir)
                      ionMat(ic,ic+1)   = ionMat(ic,ic+1)   + ionDn(elem,ir)*ionScal(ir+1)
                      ionMat(ic+1,ic+1) = ionMat(ic+1,ic+1) - ionDn(elem,ir)*ionScal(ir+1)
+                  end do
+
+                  ! chemical terms on the same scaled system: the sink is a
+                  ! rate coefficient so it scales with the column, the source
+                  ! is a rate so it goes to the RHS unscaled
+                  do ir = iLo, iHi
+                     ic = ir - iLo + 1
+                     ionMat(ic,ic) = ionMat(ic,ic) - chemSnk(ir)*ionScal(ir)
+                     ionRHS(ic)    = ionRHS(ic)    - chemSrc(ir)
                   end do
 
                   ! close on the largest stage in the range, and conserve only
@@ -1989,6 +2040,8 @@ end subroutine iterateT
                      ionMat(iBig,ir-iLo+1) = ionScal(ir)
                      fac = fac + ionScal(ir)
                   end do
+                  ! the conservation row replaces its balance equation, and its
+                  ! chemical terms with it
                   ionRHS(iBig) = fac
                   nst = nr
 

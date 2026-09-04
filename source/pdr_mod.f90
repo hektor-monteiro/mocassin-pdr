@@ -176,6 +176,7 @@ module pdr_mod
         pdrNspecMod = pdrNspec
         pdrNreacMod = pdrNreac
 
+
         ! ---- parameters readparams would have supplied (D-022) ----------
         pdrMetalMod   = dble(pdrMetal)
         pdrGrainRadM  = dble(pdrGrainRad)
@@ -222,6 +223,36 @@ module pdr_mod
         ! ---- read the network -------------------------------------------
         call allocations
         call read_species(pdrNspecMod, pdrSpecies, pdrInitAbun, pdrMass)
+
+        ! D-118: which MOCASSIN ion each network species IS. MUST come after
+        ! read_species: NCx, NC, NPROTON and the rest are resolved there, and
+        ! are all zero before it. Built earlier at first, which produced a
+        ! silently empty table - the count printed below is what caught it,
+        ! and is why it is printed rather than assumed.
+        !
+        ! It must also NOT test lgElementOn: initPDRnetwork runs before
+        ! setComposition, so that array is not populated yet. The guard that
+        ! matters is in ionBalance's element loop, which skips elements that
+        ! are off. Cloudy keeps the
+        ! same table as chem_nuclide::ipMl and uses it to hand per-stage source
+        ! and sink terms to the ion solver (D-111). The species indices are not
+        ! arithmetic - He+ is 2, Mg is 3, H is 32 - so the map is explicit, and
+        ! built from the index variables the network itself resolved rather
+        ! than from literals, so a different species file cannot silently
+        ! mis-assign a rate to the wrong element.
+        pdrLinkSpec = 0; pdrLinkElem = 0; pdrLinkIon = 0
+        call linkIon( 1, pdrNHsp,  1, 1)   ! H     -> H I
+        call linkIon( 2, NPROTON,  1, 2)   ! H+    -> H II
+        call linkIon( 3, NHe,      2, 1)   ! He    -> He I
+        call linkIon( 4, NHEx,     2, 2)   ! He+   -> He II
+        call linkIon( 5, NC,       6, 1)   ! C     -> C I
+        call linkIon( 6, NCx,      6, 2)   ! C+    -> C II
+        call linkIon( 7, NO,       8, 1)   ! O     -> O I
+        call linkIon( 8, NOx,      8, 2)   ! O+    -> O II
+        call linkIon( 9, NMG,     12, 1)   ! Mg    -> Mg I
+        call linkIon(10, NMGx,    12, 2)   ! Mg+   -> Mg II
+        if (taskid == 0) print*, "! [D118] chemistry/ion links established:", &
+             & count(pdrLinkSpec > 0), "of", pdrNlink
         call READ_RATES(pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
              &          pdrGamma, pdrRate, pdrDuplicate, pdrRtmin, pdrRtmax)
 
@@ -322,6 +353,25 @@ module pdr_mod
       ! the network's value is left alone rather than deleting the element -
       ! removing e.g. Mg+ would silently change the electron budget.
       !-----------------------------------------------------------------
+      !-----------------------------------------------------------------
+      ! D-118: record that network species iSp is MOCASSIN's (elem, ion).
+      ! A species the network does not carry leaves the slot at zero, which
+      ! consumers read as "no chemical terms for this stage" - Cloudy's
+      ! ipMl == -1 rule, and what lets a singly-ionized network couple to a
+      ! seven-stage ion solver with no special case anywhere.
+      !-----------------------------------------------------------------
+      subroutine linkIon(slot, iSp, elem, ion)
+        implicit none
+        integer, intent(in) :: slot, iSp, elem, ion
+
+        if (iSp <= 0 .or. iSp > pdrNspec) return
+        if (elem > nElements) return
+        pdrLinkSpec(slot) = iSp
+        pdrLinkElem(slot) = elem
+        pdrLinkIon (slot) = ion
+      end subroutine linkIon
+
+
       subroutine syncSeed(seed, iSp, abunMoc)
         implicit none
         double precision, intent(inout) :: seed(:)
@@ -1472,6 +1522,19 @@ module pdr_mod
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
+
+        ! D-118: publish the chemistry's per-stage formation and destruction
+        ! rates for the ions MOCASSIN also tracks. form is an additive
+        ! production rate; loss is a specific destruction rate multiplying the
+        ! species' own abundance - the same decomposition ionBalance's matrix
+        ! wants for its RHS and diagonal, and the one Cloudy consumes as
+        ! mole.source / mole.sink. loss is stored positive; the sign convention
+        ! lives with the consumer.
+        do ik = 1, pdrNlink
+           if (pdrLinkSpec(ik) <= 0) cycle
+           grid%pdrIonRate(cellP, ik)          = real(pdrFormSp(pdrLinkSpec(ik)))
+           grid%pdrIonRate(cellP, pdrNlink+ik) = real(-pdrLossSp(pdrLinkSpec(ik)))
+        end do
 
         ! D-113 verification, one representative cell, last iteration only.
         ! Two checks on the exported rates:

@@ -330,6 +330,11 @@ module common_mod
                                                      ! available to the atomic ion stages (D-102).
                                                      ! 1.0 everywhere the chemistry has not run.
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
+        ! D-118: the chemistry's formation and destruction rates for the ion
+        ! stages MOCASSIN also tracks, published per cell so ionBalance can put
+        ! them into its matrix. Indexed (cell, 1:2*pdrNlink) as
+        ! form(1..n) then loss(1..n), one entry per linked (element, stage).
+        real, allocatable         :: pdrIonRate(:,:)
         real, allocatable         :: pdrCoolSp(:,:)  ! per-coolant cooling [erg/s/cm^3] (D-096),
                                                      ! in the order pdrCoolants lists them
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
@@ -589,6 +594,16 @@ module common_mod
     ! recursion. It exists so the chemistry can inject per-ion-stage source and
     ! sink terms (D-111), which a product of ratios cannot represent.
     logical             :: lgIonMatrix = .true.  ! matrix ionBalance
+    ! D-118: feed the chemistry's per-stage rates into the ion matrix, replacing
+    ! elemAvail's scalar "this fraction is locked up" with "it is being locked
+    ! up this fast and released that fast". Cloudy's ion_solver.cpp:765.
+    logical             :: lgIonChemRates = .true.
+    ! The linked (element, stage) pairs: which MOCASSIN ion each network species
+    ! is. Set in initPDRnetwork once the species indices are known.
+    integer, parameter  :: pdrNlink = 10
+    integer             :: pdrLinkElem(pdrNlink) = 0
+    integer             :: pdrLinkIon (pdrNlink) = 0
+    integer             :: pdrLinkSpec(pdrNlink) = 0
     ! Stage-trimming threshold, as a fraction of the most populated stage.
     ! Cloudy's equivalent (ionbal.trimlo) is 1e-10 of the element; 1e-12 here
     ! keeps a little more of the tail while still bounding the system to twelve
