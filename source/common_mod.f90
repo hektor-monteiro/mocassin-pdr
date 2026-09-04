@@ -572,6 +572,8 @@ module common_mod
     real                :: pdrVturb   = 1.0        ! turbulent velocity [km/s]
     real                :: pdrTmin    = 1.0        ! floor gas temperature [K]
     real                :: pdrTmax    = 2.0e4      ! ceiling gas temperature [K]
+    integer             :: pdrDiagRates = 0      ! print the D-113 exported form/loss
+    real                :: pdrDiagAV  = 1.0        ! A_V at which to print them
     real                :: pdrZoneLim = 0.3        ! x(H+) below which PDR chemistry runs (TORUS-3DPDR, D-055)
     real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants

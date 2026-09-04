@@ -450,6 +450,19 @@ int calculate_abundances_(realtype *abundance, realtype *rate, realtype *density
     }
     abundance[n * (*nspec) + nelect] = user_data->x_e;
 
+    /* D-113: re-evaluate the right-hand side once at the abundances actually
+     * being returned, so the exported form/loss correspond to the solution and
+     * not to whatever interior stage CVODE last happened to evaluate. f()
+     * stores them on every call; this is simply the last call. */
+    {
+      N_Vector ydot_capture = N_VClone(y);
+      if (ydot_capture != NULL)
+      {
+        f(t, y, ydot_capture, user_data);
+        N_VDestroy_Serial(ydot_capture);
+      }
+    }
+
     /* Free y vector memory allocation */
     N_VDestroy_Serial(y);
 

@@ -133,6 +133,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
+| D-113 | Per-species form/loss exported from the ODE RHS; H2 formation measured at 4.6e-17 | Accepted | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6407,13 +6408,15 @@ decide the outcome.
 
 ### Why it matters, and when
 
-t_form(H2) = 1/(R n_H) with R ~ 3e-17 cm3/s:
+t_form(H2) = 1/(R n_H). R was taken as the textbook 3e-17 cm3/s when this was
+written; D-113 then measured the value this build actually uses, 4.6e-17, because
+`-DH2FORM_CT02` selects Cazaux & Tielens (2002) rather than Jura. Corrected:
 
-| n_H | t_form | against an H II region lifetime of 1-10 Myr |
+| n_H | t_form (R = 4.6e-17, measured) | against an H II region lifetime of 1-10 Myr |
 |---|---|---|
-| 1e5 (V2) | 10 kyr | equilibrium long since reached |
-| 1e3 (V1) | 1.1 Myr | comparable |
-| 1e2 (sec 5.4) | 10.6 Myr | LONGER than the region lives |
+| 1e5 (V2) | 6.9 kyr | equilibrium long since reached |
+| 1e3 (V1) | 0.69 Myr | comparable |
+| 1e2 (sec 5.4) | 6.9 Myr | inside the window, so the seed is physics there |
 
 Borne out directly: V2 did not move at all under re-seeding (1.007 to four digits), V1 moved 12%.
 For the sec 5.4 model the H2 abundance genuinely has not reached equilibrium within the lifetime of
@@ -6443,3 +6446,79 @@ Three predictions were made ahead of these measurements and two were wrong - tha
 explained the D-109 opacity deficit (wrong sign), and that V1's seed dependence was slow relaxation
 (it is bistability). Recorded because the pattern is the point: reasoning ahead of the measurement
 has been the main source of error in this log.
+
+## 2026-09-03k - D-113: export per-species formation and destruction rates
+
+Step 1 of the D-111 design. No physics change: this only surfaces two numbers the
+chemistry was already computing and discarding.
+
+### What was added
+
+`chemistry_module` gains two `bind(c)` arrays, `species_form` and `species_loss`,
+following the convention `calculate_abundances.c` already uses for the solver
+tolerances. The generated ODE files write into them.
+
+The odes_*.c files are GENERATED, so the capture is a re-runnable patch script
+(`tools/patch_odes_capture.py`) rather than a hand edit that would be lost the
+next time the network is rebuilt. Every ODE line has the identical shape
+
+    ode[N] = form+x[N]*loss;
+
+so the patch appends a store after each - 32 of them in the reduced network. It
+checks the `ode` and `x` indices agree on every line, refuses to run if the
+generator's output shape ever stops matching rather than silently doing nothing,
+and is idempotent.
+
+`calculate_abundances.c` re-evaluates the right-hand side once at the abundances
+being returned. This is the part that is easy to get wrong: `f()` stores on every
+call, but CVODE's LAST internal evaluation sits at an interior stage of the final
+step, not at the solution it hands back. Without the deliberate call the exported
+rates would describe a state the integrator never returned.
+
+No capture flag. OpenMP is off in PDRFLAGS and `pdrStep` passes npart = 1, so
+there is no race, and 64 stores per RHS call is nothing against ~300 rate
+expressions. `pdrDiagRates` and `pdrDiagAV` gate the diagnostic only; both
+default off.
+
+### Verification
+
+Two independent checks, V1 at A_V ~ 0.91, n_H = 1e3:
+
+| species | x | form | x*loss | residual |
+|---|---|---|---|---|
+| H2 | 0.4952 | 4.36660784e-16 | -4.36660784e-16 | 2.9e-09 |
+| CO | 1.227e-08 | 4.55690129e-19 | -4.55690129e-19 | 7.2e-13 |
+| H  | 9.570e-03 | 8.22381747e-16 | -8.22381747e-16 | -3.1e-09 |
+
+`form` and `x*loss` cancel to nine significant figures. That tests three things
+at once: the right quantities were captured, they were captured AT THE RETURNED
+SOLUTION (an interior stage would leave a large residual), and the chemistry is
+genuinely at steady state at this depth. H and H2 carry opposite-signed residuals,
+which is what exchange between them looks like.
+
+Second check, absolute rather than internal: the implied H2 formation coefficient
+`form(H2)/(n_H*x(H))` comes out **4.56-4.64e-17 cm3/s**. The textbook Jura value
+is 3e-17, but this build carries `-DH2FORM_CT02`, so formation is Cazaux &
+Tielens (2002), which is higher and lands exactly in this range at these grain
+temperatures. **This corrects D-112's timescale table**, which used 3e-17 - the
+real formation times are ~35% shorter, and the entry above has been fixed. No
+conclusion changes: sec 5.4 at 6.9 Myr still sits inside the 1-10 Myr window where
+the seed is physics rather than a numerical choice.
+
+### Physics unchanged, as required
+
+V1 against the pre-D-113 tree, all within MC scatter:
+
+| | before | with capture |
+|---|---|---|
+| H -> 2H2 | 1.109 | 1.113 |
+| C+ -> C | 0.994 | 0.994 |
+| C -> CO | 1.076 | 1.074 |
+| deep T | 1.062 | 1.062 |
+
+All three build flavours compile and the PDR rebuild is byte-identical.
+
+One process note worth keeping: the first no-op comparison was made against
+`v1slab112`, which carries the D-110 dissociation that was rejected and reverted.
+Against that baseline a clean no-op reads as a 12% regression. Compare against the
+tree you actually changed, not the most recent run.

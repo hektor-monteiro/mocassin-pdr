@@ -525,6 +525,23 @@ module chemistry_module
 
   real(kind=dp),bind(c,name='chemistry_module_mp_relative_abundance_tolerance_') :: relative_abundance_tolerance
   real(kind=dp),bind(c,name='chemistry_module_mp_absolute_abundance_tolerance_') :: absolute_abundance_tolerance
+
+  ! D-113: per-species formation and destruction rates, exported from the ODE
+  ! right-hand side. The generated odes_*.c already computes exactly these, as
+  !     ode[i] = form + x[i]*loss
+  ! and discards them as locals. form is an additive production rate; loss is a
+  ! specific destruction rate multiplying the species' own abundance - the same
+  ! decomposition Cloudy's ion solver consumes as mole.source / mole.sink
+  ! (D-111). Captured on every RHS call and re-evaluated once deliberately at
+  ! the converged abundances, since CVODE's last internal evaluation sits at an
+  ! interior stage rather than at the solution it returns.
+  !
+  ! Fixed size, not allocatable: bind(c) needs an explicit shape, and the
+  ! generated ODE files are hard-wired to their network anyway. 256 covers the
+  ! largest shipped network (full, ~215 species) with room to spare.
+  integer(kind=i4b),parameter :: MAX_RATE_SPEC = 256
+  real(kind=dp),bind(c,name='chemistry_module_mp_species_form_') :: species_form(MAX_RATE_SPEC)
+  real(kind=dp),bind(c,name='chemistry_module_mp_species_loss_') :: species_loss(MAX_RATE_SPEC)
 end module chemistry_module
 
 

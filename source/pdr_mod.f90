@@ -78,6 +78,9 @@ module pdr_mod
                                & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
                                & NCx, NO, NOx, NMG, NMGx
 
+    ! D-113: per-species formation and destruction rates from the ODE RHS
+    use chemistry_module, only : pdrFormSp => species_form, &
+                               & pdrLossSp => species_loss
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
 
@@ -1469,6 +1472,35 @@ module pdr_mod
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
+
+        ! D-113 verification, one representative cell, last iteration only.
+        ! Two checks on the exported rates:
+        !   (a) form + x*loss must reproduce dx/dt. At a converged steady state
+        !       that is ~0, so |form + x*loss| / form is the residual.
+        !   (b) H2 formation on grains is the textbook R*n_H*x(H) with
+        !       R ~ 3e-17 cm^3/s, so form(H2)/(nH*x(H)) recovers R.
+        if (pdrDiagRates /= 0 .and. taskid == 0 .and. grid%pdrZone(cellP) == 1) then
+           if (av > 0.9d0*pdrDiagAV .and. av < 1.1d0*pdrDiagAV) then
+              print*, "! [D113] rates at A_V =", real(av), " n_H =", real(nH)
+              print*, "! [D113]   species     x            form         ", &
+                   & "x*loss       residual"
+              do it = 1, 3
+                 nSpec = 0.d0
+                 select case (it)
+                 case (1); ik = NH2
+                 case (2); ik = NCO
+                 case (3); ik = pdrNHsp
+                 end select
+                 print*, "! [D113]  ", pdrSpecies(ik), real(abun(ik)), &
+                      & real(pdrFormSp(ik)), real(abun(ik)*pdrLossSp(ik)), &
+                      & real((pdrFormSp(ik)+abun(ik)*pdrLossSp(ik)) &
+                      &      / max(abs(pdrFormSp(ik)),1.d-99))
+              end do
+              print*, "! [D113]   implied H2 formation coefficient R =", &
+                   & real(pdrFormSp(NH2)/max(nH*abun(pdrNHsp),1.d-99)), &
+                   & " cm^3/s   (textbook ~3e-17)"
+           end if
+        end if
 
 
         ! ---- inner thermal-balance loop (DEVLOG D-031) -------------------
