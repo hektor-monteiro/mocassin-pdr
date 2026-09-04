@@ -130,6 +130,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
 | D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
 | D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
+| D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
+| D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
+| D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6264,3 +6267,179 @@ D-107 guarded `lgPDR` and `grid%H2den` in `ionization_mod.f90` with a runtime `i
 `#ifdef PDR`, so the non-PDR build had not compiled since. Same slip D-096 caught in
 `iteration_mod`. All three flavours - PDR `mocassin`, `mocassinWarm`, plain `mocassin` - build
 clean again.
+
+## 2026-09-03h - D-110: zeroing molecules outside the PDR zone, implemented and REJECTED
+
+Prompted by: *"H2 and CO should show 0 in Mocassin arrays where PDR chemistry is not activated.
+This should be result of self consistency."*
+
+The observation is correct. `seedPDR` fills `pdrAbun` in EVERY cell with the network's initial
+condition - `species_reduced.d` opens at H = 0.4, H2 = 0.3 - and `pdrStep` returns at its first
+line for any cell with `pdrZone == 0`. So a cell deep inside the H II region reported x(H2) = 0.3,
+a seed presented as a result.
+
+Implemented as a `dissociate()` helper called from both seeding paths (the non-PDR branch of
+`pdrStep` and `seedPDR`'s inactive-cell default), moving the hydrogen in H2 back to atomic H and
+CO's carbon and oxygen back to C+ and O so the elements stayed whole. Measured: molecules zero
+outside the zone, x(H) = 1.0 rather than 0.4, budgets closing to 1.0000 and 2.2e-4 on both sides
+of the boundary. All three build flavours compiled.
+
+**Rejected on the next instruction**, and correctly: *"we should have arrays that track the
+abundances of ions and they should be set with initial values and after that it should only be
+changed by the code based on physics or chemistry calculations. Molecules should naturally
+disappear in ionized regions due to the physics not the seeding."* Writing a dissociated state by
+hand is the same defect as the seed wearing better clothes - nothing computed it. Reverted; nothing
+committed on `pdr-coupling`.
+
+### Two real findings survive the rejection
+
+**`grid%H2den` is never re-zeroed.** It is initialised to 0 and written only in PDR cells, but the
+zone is re-evaluated every iteration. A cell that is PDR on one pass and ionized on the next keeps
+its stale n(H2) and goes on feeding the D-107 photoionization opacity into gas MOCASSIN has since
+ionized. Not triggered by the current benchmarks; still a stale-cache bug, and it is NOT an
+imposed-physics question - it is a refusal to use a number computed for a state the cell has left.
+Unfixed, deliberately, pending the redesign below.
+
+**`computeAVdust` does not gate the shielding columns on zone.** It accumulates cH2/cC/cCO with
+only a `cellP > 0` guard (`pdr_mod.f90`, D-078 block), while `computeAVradial` gates on
+`pdrZone == 1`. So under plane-parallel illumination the seed in non-PDR cells contributes real
+H2 self-shielding to every cell behind them, and the two geometries disagree about whether
+non-PDR cells shield. Also unfixed.
+
+
+## 2026-09-03i - D-111: how Cloudy couples ionization to chemistry, read from the source
+
+Asked to check Cloudy before committing to a design. Read `cloudy-c25.00` locally rather than
+relying on the papers.
+
+**The first scope draft proposed adding EUV photoionization to the 3D-PDR network. Cloudy wrote
+exactly those reactions and commented them out.** `data/mole_co_base.dat`:
+
+    #These would be double counted if included in the molecular network
+    #C+,e-=>C:ele_recomb:1.:0.:0.
+    #O+,e-=>O:ele_recomb:1.:0.:0.
+    #C,PHOTON=>C+,e-:ele_ionize:1.:0.:0.
+    #O,PHOTON=>O+,e-:ele_ionize:1.:0.:0.
+    #N,PHOTON=>N+,e-:ele_ionize:1.:0.:0.
+    #S,PHOTON=>S+,e-:ele_ionize:1.:0.:0.
+
+Atomic photoionization AND recombination, written out with a rate function `ele_ionize`, disabled
+on purpose, with the reason stated in the file.
+
+### What they do instead
+
+The ion solver keeps photoionization, recombination and charge transfer. The chemistry reports,
+per element and per ionization stage, how fast it creates and destroys that stage, and those two
+numbers enter the ionization matrix directly - `ion_solver.cpp:765`:
+
+    source[i] -= mole.source[nelem][ion];
+    MAT( xmat, i, i ) -= mole.sink[nelem][ion];
+
+Both are then iterated to a joint solution in the same zone (`conv_base.cpp`: solve ionization,
+call `mole_drive()`, test, with oscillation detection and 50% damping). There is no zone gate
+anywhere in Cloudy and no "available fraction".
+
+`chem_nuclide::ipMl` is sized `Z+1`, one slot per ionization stage, and `ipMl[ion] == -1` means
+"not in the network" - that stage gets zero molecular source and sink and is left entirely to the
+ion solver. **This dissolves what looked like our blocker**: a singly-ionized network is fine,
+C2+ simply has no chemical terms and MOCASSIN owns it.
+
+### What this costs us
+
+Our generated ODE code already computes both numbers. From `odes_reduced.c`:
+
+    loss = -rate[51]*x[30]*n_H - ... - rate[243]*x_e*n_H;
+    form = +rate[41]*x[26]*x[31]*n_H + ...;
+    ode[10] = form + x[10]*loss;
+
+`form` is additive production, `loss` a specific destruction rate multiplying the species' own
+abundance - the same shape as Cloudy's `source` and diagonal `sink`. They are computed for every
+species on every call and discarded as locals.
+
+**The obstacle is `ionBalance`, which is a chain solver.** It forms adjacent-stage ratios,
+multiplies them into `ionProd`, sums to a `denominator` and normalises
+(`update_mod.f90:1760-1830`). That is only valid when the only couplings are ionization up and
+recombination down. A molecular source is inhomogeneous - it adds rather than multiplies - and
+chemistry can move an element between non-adjacent stages. Converting it to a linear solve is the
+real work, not the network and not the rates. `nstages = 7`, so the systems are 7x7.
+
+**Decided: convert for ALL elements, not just the five the chemistry touches.** Reason given:
+*"the user may want to select different abundances for each model"* - `nebComposition` and
+`lgElementOn` are per-model, so hardcoding a subset would break silently when someone enables a
+different set, and it removes a special case rather than adding one. Cost: this touches a solver
+every MOCASSIN model uses, so "with zero molecular terms it reproduces the chain answer to
+round-off" becomes a mandatory regression, on non-PDR models too.
+
+`elemAvail` (D-102) retires when this lands. It is the scalar approximation of the same idea:
+"this fraction is locked up" against "it is being locked up this fast and released that fast".
+
+
+## 2026-09-03j - D-112: H2 self-shielding is bistable, so the seed is a model input
+
+The D-110 work turned up something that looked like a numerical defect: dissociating 7 surface
+cells moved V1's H -> 2H2 front from 1.109 to 1.245. The suspicion was that the chemistry carries
+a memory of its initial condition because `calculate_abundances` integrates to `pdrEndTime` rather
+than to a steady state.
+
+Suggested that the matrix conversion of D-111 would make this moot. It does not, and the reason is
+physics rather than numerics.
+
+### The measurement
+
+Three V1 runs, IDENTICAL elemental budget (0.4 + 2x0.3 = 1.0 = 1.0 + 0), differing only in where
+the chemistry starts:
+
+| seeding | integration | H -> 2H2 | C+ -> C |
+|---|---|---|---|
+| network, H = 0.4 / H2 = 0.3 | 1e7 yr | 1.109 | 0.994 |
+| every cell dissociated | 1e7 yr | 1.679 | 1.244 |
+| every cell dissociated | **1e9 yr** | **1.682** | 1.244 |
+
+A hundredfold longer integration changes nothing - the surface layers agree to four digits between
+them (x(H2) = 8.202e-05 against 8.206e-05 at A_V = 0.00125). The dissociated state is not relaxing
+slowly toward the molecular one; it is converged, to a different answer.
+
+**H2 self-shielding is a positive feedback with two stable attractors at the front.** More H2 gives
+more shielding gives more H2. The system stays in whichever basin its initial condition put it in,
+and no amount of integration moves it. The deep chemistry is unaffected - C -> CO sits at 1.076
+against 1.072 - because the feedback only bites where the field is strong enough for shielding to
+decide the outcome.
+
+### Why it matters, and when
+
+t_form(H2) = 1/(R n_H) with R ~ 3e-17 cm3/s:
+
+| n_H | t_form | against an H II region lifetime of 1-10 Myr |
+|---|---|---|
+| 1e5 (V2) | 10 kyr | equilibrium long since reached |
+| 1e3 (V1) | 1.1 Myr | comparable |
+| 1e2 (sec 5.4) | 10.6 Myr | LONGER than the region lives |
+
+Borne out directly: V2 did not move at all under re-seeding (1.007 to four digits), V1 moved 12%.
+For the sec 5.4 model the H2 abundance genuinely has not reached equilibrium within the lifetime of
+the source, so the initial condition there is not a numerical artifact at all.
+
+### Decided
+
+There is no astrophysical justification for the network's 0.4/0.3 - it is a numerically convenient
+midpoint from the UMIST distribution - and no numerical fix, because integration cannot remove it.
+So it becomes an explicit model input:
+
+- **x(H+) seeded per cell from MOCASSIN's photoionization**, as proposed. That equilibrium is fast
+  and reliable to small fractions, and it removes the ambiguity everywhere it can be removed.
+- **The neutral split is a named choice** with two physically motivated presets rather than an
+  inherited number:
+  - *atomic* - gas that recently crossed an ionization front and is forming H2. Correct for
+    expanding H II regions and champagne flows, i.e. the sec 5.4 geometry.
+  - *molecular* - a pre-existing cloud with a dissociation front eating inward. The
+    Tielens & Hollenbach picture, i.e. what the Rollig benchmarks represent.
+- Carbon follows the same logic, C+ or CO. Its front is just as sensitive: 0.994 -> 1.244.
+
+**For the record: the benchmark agreement depends on this choice.** V1's 1.109 holds because we and
+3D-PDR both start from 0.4/0.3. That is a fair like-for-like comparison and it is not
+seed-independent physics. The artifacts now say so.
+
+Three predictions were made ahead of these measurements and two were wrong - that sublimation
+explained the D-109 opacity deficit (wrong sign), and that V1's seed dependence was slow relaxation
+(it is bistability). Recorded because the pattern is the point: reasoning ahead of the measurement
+has been the main source of error in this log.
