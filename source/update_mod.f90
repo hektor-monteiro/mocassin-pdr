@@ -1793,6 +1793,26 @@ end subroutine iterateT
                     if (ionUp(elem,ion) < 0.d0) ionUp(elem,ion) = 0.d0
                     if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
 
+                    ! D-116: a zero denominator is what drives the whole
+                    ! pathology. Report its two terms the first time it
+                    ! happens, so the cause is read rather than inferred -
+                    ! the alphaTot audit already came back clean, so it is
+                    ! not missing atomic data.
+                    if (lgAlphaAudit .and. taskid == 0 .and. .not.lgDnAudited &
+                        & .and. ionDn(elem,ion) <= 0.d0) then
+                       lgDnAudited = .true.
+                       print*, "! [D116] ionDn = 0 : elem", elem, " stage", ion
+                       print*, "! [D116]   Ne =", NeUsed, "  alphaTot =", alphaTot(elem,ion), &
+                            & "  -> term1 =", NeUsed*alphaTot(elem,ion)
+                       print*, "! [D116]   chex =", chex(elem,ion,1), "  Hden =", &
+                            & grid%Hden(cellP), "  x(H0) =", &
+                            & grid%ionDen(cellP,elementXref(1),1), &
+                            & "  -> term2 =", chex(elem,ion,1) &
+                            & *grid%Hden(cellP)*grid%ionDen(cellP,elementXref(1),1)
+                       print*, "! [D116]   Te =", TeUsed, " (chex is zeroed outside 6000-50000 K)"
+                       print*, "! [D116]   ionUp =", ionUp(elem,ion)
+                    end if
+
                     ! The clamp above can leave ionDn at EXACTLY zero where it
                     ! was previously a small negative, turning this division
                     ! into 0/0 = NaN. That NaN propagates into ionProd, into
@@ -2515,9 +2535,56 @@ end subroutine iterateT
             do elem = 3, nElements
                 do ion = 1, min(nstages-1, elem)
                    if (diRec(elem,ion) == 0.) diRec(elem,ion) = diRec(8,ion)
+
+                   ! D-116: the dielectronic rate is a POLYNOMIAL FIT in
+                   ! t = Te/1e4,
+                   !     1e-12*(a/t + b + c*t + d*t^2)*t^(-3/2)*exp(-f/t),
+                   ! and nothing here bounds the temperature it is evaluated
+                   ! at. Below the fitted range the a/t term dominates and the
+                   ! polynomial goes NEGATIVE: measured alphaTot = -2.54e-10
+                   ! for carbon stage 4 at Te = 383 K.
+                   !
+                   ! Zero is the physically correct floor, not just a
+                   ! convenient one - dielectronic capture needs a doubly
+                   ! excited state and is exponentially suppressed as Te falls,
+                   ! so the true rate there is negligible, never negative.
+                   !
+                   ! What a negative rate did: alphaTot < 0 makes ionDn < 0 in
+                   ! ionBalance, so the stage ratio ionUp/ionDn came out
+                   ! negative and produced negative ion fractions - ~10^6
+                   ! stage-cells per iteration, caught downstream by the 1e-20
+                   ! floor and therefore invisible. It is also what D-114's
+                   ! clamp turned into 0/0 = NaN, and thence into the 3 GB log
+                   ! that took the machine down.
+                   if (diRec(elem,ion) < 0.) diRec(elem,ion) = 0.
+
                     alphaTot(elem, ion) = alphaTot(elem, ion) + diRec(elem, ion)
+                    if (alphaTot(elem,ion) < 0.) alphaTot(elem,ion) = 0.
                 end do
             end do
+
+            ! D-116: report every (element, stage) whose TOTAL recombination
+            ! coefficient is zero. A zero alphaTot means the stage above has no
+            ! way back down, so ionBalance divides by it: before D-114 that gave
+            ! ionUp/0 = +Inf, and the lower stages came out as finite/Inf = 0 -
+            ! an ion fraction manufactured by an overflow rather than computed.
+            ! Printed once, with the electron count and the branch radRecFit
+            ! would have taken, so the cause can be read off directly.
+            if (lgAlphaAudit .and. taskid == 0 .and. .not.lgAlphaAudited) then
+               lgAlphaAudited = .true.
+               print*, "! [D116] recombination audit at Te =", TeUsed, " K"
+               do elem = 1, nElements
+                  if (.not.lgElementOn(elem)) cycle
+                  do ion = 1, min(nstages-1, elem)
+                     if (alphaTot(elem,ion) > 0.) cycle
+                     print*, "! [D116]   alphaTot = 0 : elem", elem, " stage", ion, &
+                          & " n_elec", elem-ion+1, &
+                          & "  radRec", radRecFit(elem, elem-ion+1), &
+                          & "  diRec", diRec(elem,ion)
+                  end do
+               end do
+               print*, "! [D116] end of audit"
+            end if
 
 
 

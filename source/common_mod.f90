@@ -597,6 +597,10 @@ module common_mod
     ! decades, which double precision resolves with four digits to spare.
     real(kind=8)        :: ionTrim = 1.d-12
     integer             :: nIonDump = 0
+    ! D-116: one-shot audit of zero total recombination coefficients
+    logical             :: lgAlphaAudit   = .true.
+    logical             :: lgAlphaAudited = .false.
+    logical             :: lgDnAudited    = .false.
     ! D-114 self-check: worst relative difference between the matrix answer and
     ! the chain answer, accumulated IN THE SAME CELL of the SAME run so no MC
     ! feedback can contaminate the comparison. Two separate runs cannot settle
