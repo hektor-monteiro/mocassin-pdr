@@ -130,6 +130,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
 | D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
 | D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
+| D-116 | Dielectronic fit returns negative rates in cool gas; clamped, with its division guarded | Accepted | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -6670,3 +6671,93 @@ rest on overflow rather than on a rate.
 Next step is to find which (element, stage) pairs have `alphaTot = 0` under what
 conditions, and whether that is missing data, a temperature range being exceeded,
 or a lookup returning zero where it should extrapolate.
+## 2026-09-04a - D-116: the dielectronic recombination fit returns negative rates
+
+Found while investigating why a matrix ion solver on the photoionization branch
+could not reproduce the chain. The cause turned out to have nothing to do with
+solvers and everything to do with a rate coefficient, so the fix belongs here,
+on the branch every MOCASSIN variant descends from.
+
+### What is wrong
+
+`calcAlpha` builds the total recombination coefficient as radiative plus
+dielectronic. The dielectronic part is a POLYNOMIAL FIT in t = Te/1e4:
+
+    diRec = 1e-12*(a/t + b + c*t + d*t^2)*t^(-3/2)*exp(-f/t)
+
+Nothing anywhere bounds the temperature it is evaluated at. Below the fitted
+range the `a/t` term dominates - at Te = 383 K, t = 0.038, so a/t is ~26a - and
+the polynomial goes NEGATIVE. Measured directly:
+
+    elem 6 (carbon), stage 4:  alphaTot = -2.54443133E-10  at Te = 382.858 K
+
+A first audit at Te = 20000 K came back completely clean, which is why this has
+never been noticed: the fits are fine everywhere the code was exercised, and
+only misbehave in cool gas.
+
+Physically the answer there is not negative, it is negligible: dielectronic
+capture needs a doubly excited state and is exponentially suppressed as Te
+falls. Zero is the correct floor, not merely a convenient one.
+
+### What it was doing
+
+alphaTot < 0 makes the recombination denominator in `ionBalance` negative, so
+the stage ratio comes out negative and the chain produces NEGATIVE ion
+fractions - measured at ~10^6 stage-cells per iteration in a 200 kK model.
+They have never been visible because the `1e-20` floor at the end of
+`ionBalance` catches them. Published results were therefore not corrupted, but
+those stages were floored rather than computed.
+
+### The fix is TWO changes that cannot be separated
+
+Clamping `diRec` and `alphaTot` at zero is necessary and not sufficient. It can
+leave the denominator EXACTLY zero where it was previously a small negative -
+`chex` is itself zeroed outside 6000-50000 K, so in cool gas both terms vanish
+together - and the division then gives 0/0 = NaN instead of a finite wrong
+answer. A NaN T_dust reads as "all grains sublimed" in `pathSegment`, because
+**NaN fails every comparison**, and the run hits a hard `stop`.
+
+Measured: with the clamp alone, hiipdr died at its second PDR iteration, 14
+stops, one per rank. The three slab fixtures passed - only the spherical model
+with a real ionization front and cool cells exercises the path. So the
+numerator and denominator are now formed separately and the division guarded,
+capping where there is no recombination path rather than overflowing.
+
+**The general rule this is the second instance of: clamping a quantity to zero
+is never safe in isolation if anything divides by it.**
+
+### Measured effect
+
+| | V1 | V2 | sec 5.4 |
+|---|---|---|---|
+| H -> 2H2 | 1.109 -> 1.109 | 1.007 -> 1.009 | 0.4973 -> 0.4976 |
+| C+ -> C | 0.994 -> 0.994 | 0.979 -> 0.979 | 2.1753 -> 2.1929 |
+| C -> CO | 1.076 -> 1.076 | 1.075 -> 1.075 | - |
+| deep T | 1.062 -> 1.062 | 1.515 -> 1.516 | - |
+| median T ratio | - | - | **0.908 -> 0.971** |
+
+The slabs do not move: they are warm and uniform, with few cells in the regime
+where the fit misbehaves. The spherical model improves - its median PDR
+temperature ratio goes from 0.908 to 0.971 - which is exactly where cool gas
+coexists with ionization and therefore exactly where a negative recombination
+rate was biting. An improvement confined to the geometry that has the problem
+is a better result than a uniform shift would have been.
+
+### The "still open" item, retracted
+
+D-116 closed by flagging `revRate` as a second, separate route to a negative
+rate. **That was wrong, and it was an inference rather than a measurement.**
+
+Two errors in one sentence. The factor is `(1 - x(H0))`, the NEUTRAL fraction,
+not `(1 - x(H+))` as written - so it needs x(H0) > 1, not x(H+) > 1. And
+`xMax = 0.99999` is a hard parameter in `constants_mod`, applied to every
+`ionDen` assignment in `ionBalance`, so x(H0) can never exceed it. The factor
+is bounded below by 1e-5 and `revRate` is structurally non-negative.
+
+Measured to be sure, on both the model with cool gas beside an ionization front
+and the 200 kK nine-element model: **zero negative numerators, every iteration
+of both**. The concern does not exist.
+
+Worth recording because the pattern is now familiar in this log: a mechanism
+asserted from reading code, propagated into a commit message and a plan, and
+false. The instrument that settled it took ten minutes.

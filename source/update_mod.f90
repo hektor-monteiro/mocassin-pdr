@@ -1781,15 +1781,14 @@ end subroutine iterateT
                          & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
                          & * dble(grid%ionDen(cellP,elementXref(1),1))
 
-                    ! D-114: a NEGATIVE rate coefficient is meaningless, and
-                    ! these can go negative: revRate carries a factor
-                    ! (1 - x(H+)), so any cell where x(H+) transiently exceeds
-                    ! 1 drives ionUp below zero. That propagates through the
-                    ! chain as a negative ionProd and a negative ion fraction -
-                    ! measured in ~10^6 stage-cells per iteration, silently
-                    ! caught until now by the 1e-20 floor at the end of the
-                    ! routine. Clamping at source fixes both solvers rather
-                    ! than hiding it in one.
+                    ! A negative rate coefficient is meaningless. The real
+                    ! source of them is the dielectronic fit going negative in
+                    ! cool gas (see calcAlpha above), which drives ionDn below
+                    ! zero. ionUp is NOT a second route: revRate carries
+                    ! (1 - x(H0)), and xMax = 0.99999 caps every ionDen, so the
+                    ! factor is bounded below by 1e-5. An earlier comment here
+                    ! claimed otherwise; measured on two models, the numerator
+                    ! is never negative. The clamps stay as cheap insurance.
                     if (ionUp(elem,ion) < 0.d0) ionUp(elem,ion) = 0.d0
                     if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
 
@@ -2549,13 +2548,17 @@ end subroutine iterateT
                    ! excited state and is exponentially suppressed as Te falls,
                    ! so the true rate there is negligible, never negative.
                    !
-                   ! What a negative rate did: alphaTot < 0 makes ionDn < 0 in
-                   ! ionBalance, so the stage ratio ionUp/ionDn came out
-                   ! negative and produced negative ion fractions - ~10^6
-                   ! stage-cells per iteration, caught downstream by the 1e-20
-                   ! floor and therefore invisible. It is also what D-114's
-                   ! clamp turned into 0/0 = NaN, and thence into the 3 GB log
-                   ! that took the machine down.
+                   ! What a negative rate does: alphaTot < 0 makes the
+                   ! recombination denominator negative in ionBalance, so the
+                   ! stage ratio comes out negative and the chain produces
+                   ! NEGATIVE ion fractions. Measured at ~10^6 stage-cells per
+                   ! iteration in a 200 kK model. They were never visible
+                   ! because the 1e-20 floor at the end of ionBalance catches
+                   ! them, so published results were not corrupted - but those
+                   ! stages were floored, not computed, and any code that
+                   ! divides by the denominator instead of flooring the result
+                   ! will hit 0/0 or a sign flip. This is why the fix belongs
+                   ! here rather than in whatever consumes it.
                    if (diRec(elem,ion) < 0.) diRec(elem,ion) = 0.
 
                     alphaTot(elem, ion) = alphaTot(elem, ion) + diRec(elem, ion)
