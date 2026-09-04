@@ -584,18 +584,16 @@ module common_mod
     ! ionBalance and getGrainRecombination compile into EVERY flavour, so
     ! guarding them with #ifdef PDR breaks the plain build - which is exactly
     ! how it broke here first time round.
-    ! D-114: OFF by default. The matrix solve is present and correct for the
-    ! balance rows, but cannot yet resolve stages tens of decades below the
-    ! dominant one - the conservation row couples every stage at O(1), so the
-    ! elimination loses them. It needs Cloudy's ion_trim approach (restrict the
-    ! system to the populated range) before it can replace the chain. Until
-    ! then this stays inert and MOCASSIN behaves exactly as before.
-    logical             :: lgIonMatrix = .false. ! D-114: matrix ionBalance
+    ! D-117: ON. The matrix reproduces the chain to 2e-15 on V1 and 3e-8 on a
+    ! nine-element 200 kK model, with the tail handled by the exact ratio
+    ! recursion. It exists so the chemistry can inject per-ion-stage source and
+    ! sink terms (D-111), which a product of ratios cannot represent.
+    logical             :: lgIonMatrix = .true.  ! matrix ionBalance
     ! Stage-trimming threshold, as a fraction of the most populated stage.
     ! Cloudy's equivalent (ionbal.trimlo) is 1e-10 of the element; 1e-12 here
     ! keeps a little more of the tail while still bounding the system to twelve
     ! decades, which double precision resolves with four digits to spare.
-    real(kind=8)        :: ionTrim = 1.d-12
+    real(kind=8)        :: ionTrim = 1.d-8
     integer             :: nIonDump = 0
     ! D-116: one-shot audit of zero total recombination coefficients
     logical             :: lgAlphaAudit   = .true.

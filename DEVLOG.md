@@ -131,6 +131,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
 | D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
 | D-116 | Dielectronic fit returns negative rates in cool gas; clamped, with its division guarded | Accepted | 2026-09-04 |
+| D-117 | Matrix ionBalance closes at 2e-15 / 3e-8 once rates are non-negative; enabled | Accepted | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -6761,3 +6762,64 @@ of both**. The concern does not exist.
 Worth recording because the pattern is now familiar in this log: a mechanism
 asserted from reading code, propagated into a commit message and a plan, and
 false. The instrument that settled it took ten minutes.
+
+## 2026-09-04c - D-117: the matrix solve closes, once the rates are not negative
+
+D-115 parked the matrix with a structural verdict: the conservation row couples
+every stage at O(1), so a stage twenty-five decades down is lost no matter how
+the columns are scaled, and trimming cannot help because the degeneracy sits in
+the middle of the range rather than at its ends.
+
+**Every observation there was accurate and the conclusion was wrong.** The
+middle-stage degeneracy was manufactured by the negative dielectronic rate of
+D-116 - carbon stage 4 at 1e-30 between neighbours at 1e-19 and 1 was the 1e30
+ratio cap firing on a zero denominator, not a real population. Fix the rate and
+the profile is monotonic again, trimming bounds the span as intended, and the
+numerical obstacle disappears.
+
+### Agreement, in the same cell on the same call
+
+| model | matrix vs chain |
+|---|---|
+| V1 slab | **2.09e-15** - round-off |
+| test_Problem, 9 elements at 200 kK | **3.2e-8** |
+| negative ion fractions | 0 |
+
+The residual is the SPAN of the linear system and nothing else, which was
+predicted and then confirmed: twelve decades against sixteen digits leaves
+~1e-4 at the bottom of the range.
+
+| ionTrim | span | worst agreement |
+|---|---|---|
+| 1e-12 | 12 decades | 5.5e-5 |
+| **1e-8** | 8 decades | **3.2e-8** |
+
+Four decades less span, ~1700x better agreement - one digit per decade, as the
+arithmetic requires. Nothing is lost by trimming harder: stages below the
+threshold take the ratio recursion, which is exact there. Cloudy's equivalent
+(trimlo) is 1e-10.
+
+### Enabled, and what it does to the benchmarks
+
+| | chain | matrix |
+|---|---|---|
+| V1 H->2H2 / C+->C / C->CO / deep T | 1.109 / 0.994 / 1.076 / 1.062 | 1.113 / 0.994 / 1.071 / 1.061 |
+| V2 H->2H2 / C+->C / deep T | 1.009 / 0.979 / 1.516 | 1.005 / 0.979 / 1.516 |
+| sec 5.4 median T ratio | 0.971 | **0.997** |
+
+Within scatter everywhere except the spherical model, which improves again -
+its PDR temperature now agrees with standalone 3D-PDR to 0.3%. All five
+fixtures complete with zero NaN flags and zero sublimation stops.
+
+`lgIonMatrix` therefore defaults true. The chain is kept behind the switch as
+the reference the matrix is checked against, not as a fallback.
+
+### The pattern, recorded because it keeps happening
+
+Three times this session a structural "this cannot work" verdict dissolved on
+measurement: sublimation explaining the D-109 opacity deficit (wrong sign), the
+seed dependence being slow relaxation (it is bistability), and this one. Each
+was settled in ten to fifteen minutes by an instrument aimed one level closer
+to the thing in question. The lesson is not "measure more" but specifically:
+**a conclusion about why something cannot work deserves the same evidential
+standard as a claim that it does.**
