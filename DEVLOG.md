@@ -133,6 +133,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-116 | Dielectronic fit returns negative rates in cool gas; clamped, with its division guarded | Accepted | 2026-09-04 |
 | D-117 | Matrix ionBalance closes at 2e-15 / 3e-8 once rates are non-negative; enabled | Accepted | 2026-09-04 |
 | D-118 | Chemistry's per-stage rates feed the ion matrix; elemAvail stands down | Accepted | 2026-09-04 |
+| D-119 | In-cell ionization/chemistry loop; H2 front 0.497 -> 0.905 against a 0.9054 reference | Accepted | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -6913,3 +6914,78 @@ The cause is in the transcript: a `pkill` was issued, the next line printed
 ignoring it is worse than not checking. The driver script now waits for the
 process count to reach zero before each run, which makes the constraint
 structural rather than dependent on attention.
+
+## 2026-09-04e - D-119: closing the ionization/chemistry loop moves the H2 front onto the reference
+
+Step 4 of D-111. Until now `updateCell` and `pdrStep` ran once each per MC
+iteration, in sequence, so the loop between them closed only ACROSS MC
+iterations: the chemistry saw last iteration's ionization and the ionization
+saw last iteration's chemistry. Cloudy iterates the two to a joint solution
+within a zone (`conv_base`) with damping and oscillation detection.
+
+`pdrCoupleIter` sets how many times the pair is repeated inside one MC
+iteration. The count is FIXED, not convergence-tested, because every rank must
+execute the same number of passes or the MPI collectives inside the PDR block
+deadlock. Convergence is measured and reported; the operator chooses the count.
+Damping is Cloudy's 50% averaging.
+
+### The result
+
+| configuration | H -> 2H2 front, three runs each |
+|---|---|
+| 1 pass (sequential, as before) | 0.4969, 0.4973, 0.4979 |
+| **3 passes (joint)** | **0.9044, 0.9055, 0.9048** |
+| standalone 3D-PDR | **0.9054** |
+
+Both clusters are tight to 0.1%, which is the MC scatter, and they are
+separated by a factor of 1.82. The three-pass cluster lands on the reference to
+**0.1%**.
+
+**This corrects a documented claim.** The sec 5.4 artifact has explained that
+front's factor-of-two disagreement as a GRID RESOLUTION limit - "the H/H2 front
+is thinner than one cell, so it can only land on a cell boundary", with an
+argument that no choice of n_H helps and that Bisbas et al. used 256 clustered
+cells for the same reason. That explanation was wrong. The grid resolves the
+front perfectly well; the sequential coupling was lagging, and the front sat
+where a half-converged ionization put it. The resolution argument was
+plausible, quantitative, and never tested against the alternative.
+
+Other quantities, three runs each:
+
+| | 1 pass | 3 passes |
+|---|---|---|
+| C+ -> C front | 2.177, 2.186, 2.183 | 2.302, 2.293, 2.291 |
+| median T ratio | 0.905, 1.044, 0.974 | 0.898, 0.866, 0.872 |
+
+C+ -> C moves 5% and out of the 1-pass scatter, so it is real but small. The
+temperature ratio scatters more between repeats than it differs between
+configurations - 1-pass spans 0.905-1.044 - so nothing can be concluded about
+it from three runs, and the earlier single-run temperature comparisons in this
+log should be read with that in mind.
+
+### Convergence
+
+Abundance-weighted mean change in the ion fractions, per pass:
+
+| MC iteration | pass 2 | pass 3 |
+|---|---|---|
+| 4 | 8.24e-04 | 1.43e-04 |
+| 5 | 6.07e-03 | 2.69e-03 |
+
+Monotonically decreasing, by factors of 2 to 6 per pass. Converging, not
+oscillating, so the damping is insurance rather than necessity here.
+
+### The metric had to be fixed first
+
+The first version reported changes of 1e5 and looked like divergence. It was a
+bare relative difference over every stage above a 1e-10 guard, so a stage
+sitting ON the guard - where a negligible absolute change is an enormous
+relative one - dominated the answer. Abundance-weighting fixed it.
+
+That is the THIRD time in this work a comparison built that way has measured
+its own floor rather than the physics: the chain-vs-matrix diff reported 1.0
+from a near-zero pair and sent me chasing a solver bug that did not exist, and
+a "24% MC noise floor" turned out to be a completed run compared against a
+crashed one. The general form is worth stating once: **a relative-difference
+metric with a bare floor guard measures the floor.** Weight by the quantity
+that matters, or restrict to values that matter, every time.

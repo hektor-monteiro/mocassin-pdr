@@ -25,6 +25,12 @@ module iteration_mod
        ! local variables
 
        integer :: i, j, k                     ! counters
+        ! D-119: the coupling loop wraps updateCell, which compiles in EVERY
+        ! flavour, so these cannot sit behind #ifdef PDR. Third time this trap
+        ! has been sprung in this file - see D-096 and D-109.
+        real, allocatable :: ionDenPrev(:,:,:)
+        integer           :: iCouple, iDum, jDum, kDum
+        double precision  :: wNew, fWt
 
        ! To perform message spliting in mpi
        integer :: chunk_start, chunk_end, chunk_size, chunk, nCells
@@ -908,6 +914,27 @@ module iteration_mod
                  end if
               end if
 
+
+              ! D-119: close the ionization <-> chemistry loop inside one MC
+              ! iteration. Until now they ran once each in sequence, so the
+              ! loop closed only across MC iterations - the chemistry saw last
+              ! iteration's ionization and vice versa. Cloudy iterates them to
+              ! a joint solution within a zone (conv_base) with damping and
+              ! oscillation detection.
+              !
+              ! The count is FIXED, not convergence-tested, on purpose: every
+              ! rank must execute the same number of passes or the MPI
+              ! collectives inside deadlock. Convergence is measured and
+              ! reported instead, and the operator chooses the count.
+              do iCouple = 1, max(pdrCoupleIter, 1)
+#ifdef PDR
+              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple > 1) then
+                 ! remember the ionization this pass starts from, so the change
+                 ! across the pass can be measured and damped
+                 if (allocated(ionDenPrev)) ionDenPrev = grid(iG)%ionDen
+              end if
+#endif
+
               if(taskid==0) print*, 'iterateMC: updateCell in', iG
               iCell = 0
               do i = 1, grid(iG)%nx
@@ -959,6 +986,12 @@ module iteration_mod
                  allocate(H2denSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
                  allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
+                 if (pdrCoupleIter > 1 .and. .not.allocated(ionDenPrev)) then
+                    allocate(ionDenPrev(0:grid(iG)%nCells, 1:nElementsUsed, 1:nstages), stat=err)
+                    if (err /= 0) then
+                       print*, "! iterateMC: can't allocate ionDenPrev"; stop
+                    end if
+                 end if
                  allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
                  allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
                  allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
@@ -1119,6 +1152,50 @@ module iteration_mod
                  end if
               end if
 #endif
+
+#ifdef PDR
+              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple > 1 &
+                  & .and. allocated(ionDenPrev)) then
+                 ! Cloudy damps by averaging old and new rather than taking the
+                 ! new value outright; two solvers passing rates can otherwise
+                 ! chase each other instead of settling.
+                 ! D-119: measure the change ABUNDANCE-WEIGHTED.
+                 !
+                 ! The first version of this was a bare relative difference
+                 ! over every stage above 1e-10, and it reported changes of
+                 ! 1e5 - not a diverging loop, but a stage sitting on the guard
+                 ! where a negligible absolute change is an enormous relative
+                 ! one. That is the third time in this work a comparison built
+                 ! that way has measured its own floor rather than the physics
+                 ! (see the chain-vs-matrix diff and the MC "noise floor").
+                 !
+                 ! The general form of the mistake: a relative-difference
+                 ! metric with a bare floor guard measures the floor. Weight by
+                 ! how much of the element the stage actually holds, so a
+                 ! stage carrying 1e-12 of it cannot dominate the answer.
+                 pdrCoupleResid = 0.d0
+                 fWt = 0.d0
+                 do iDum = 1, grid(iG)%nCells
+                    do jDum = 1, nElementsUsed
+                       do kDum = 1, nstages
+                          wNew = dble(grid(iG)%ionDen(iDum,jDum,kDum))
+                          if (wNew <= 0.d0) cycle
+                          pdrCoupleResid = pdrCoupleResid + wNew * &
+                             & abs(wNew - dble(ionDenPrev(iDum,jDum,kDum)))
+                          fWt = fWt + wNew
+                       end do
+                    end do
+                 end do
+                 if (fWt > 0.d0) pdrCoupleResid = pdrCoupleResid/fWt
+                 grid(iG)%ionDen = real(pdrCoupleDamp*dble(grid(iG)%ionDen) &
+                      &          + (1.d0-pdrCoupleDamp)*dble(ionDenPrev))
+                 if (taskid == 0) print*, "! [D119] coupling pass", iCouple, &
+                      & " abundance-weighted mean ion-fraction change:", &
+                      & real(pdrCoupleResid)
+              end if
+#endif
+              end do
+
 
               if (lgTraceHeating.and.taskid==0) then
                  close (57)

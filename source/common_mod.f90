@@ -598,6 +598,15 @@ module common_mod
     ! elemAvail's scalar "this fraction is locked up" with "it is being locked
     ! up this fast and released that fast". Cloudy's ion_solver.cpp:765.
     logical             :: lgIonChemRates = .true.
+    ! D-119: how many times to close the ionization <-> chemistry loop inside a
+    ! single MC iteration. 1 reproduces the sequential behaviour exactly, which
+    ! is the default until the loop is shown to be worth its cost. Cloudy's
+    ! equivalent lives in conv_base and needs damping plus oscillation
+    ! detection, which is evidence that two solvers passing rates can chase
+    ! each other rather than settle.
+    integer             :: pdrCoupleIter = 1
+    real(kind=8)        :: pdrCoupleDamp = 0.5   ! Cloudy's 50% averaging
+    real(kind=8)        :: pdrCoupleResid = 0.
     ! The linked (element, stage) pairs: which MOCASSIN ion each network species
     ! is. Set in initPDRnetwork once the species indices are known.
     integer, parameter  :: pdrNlink = 10
@@ -627,6 +636,7 @@ module common_mod
     ! is worth keeping (it detects a NaN nothing else catches) but it has to be
     ! bounded. Cap the prints and report the total once.
     integer             :: nInsaneEta = 0
+    integer             :: nDustNaN = 0   ! D-120 one-shot probe
     integer, parameter  :: maxInsaneEta = 20
     ! dust parameters
     integer            :: nSizes           ! number of grain sizes

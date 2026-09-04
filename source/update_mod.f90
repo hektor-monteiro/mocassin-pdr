@@ -2971,6 +2971,27 @@ end subroutine iterateT
                         end if
                      end if
 
+                     ! D-120: an intermittent NaN reaches T_dust and, because
+                     ! NaN fails every comparison, reads as "all grains
+                     ! sublimed" in pathSegment and hard-stops the run. It is
+                     ! realisation-dependent, so a clean run proves nothing.
+                     ! Report the first non-finite integral with the terms that
+                     ! build it, once, so the source is read rather than
+                     ! guessed at.
+                     if (.not.(dustAbsIntegral == dustAbsIntegral) .and. &
+                         & nDustNaN == 0) then
+                        nDustNaN = 1
+                        print*, "! [D120] non-finite dustAbsIntegral at cell", cellP, &
+                             & " species", nS, " size", ai
+                        print*, "! [D120]   dabs =", dabs, "  reslineheat =", reslineheat
+#ifdef PDR
+                        print*, "! [D120]   pdrHeatPE =", grid%pdrHeatPE(cellP), &
+                             & "  pdrHeatGG =", grid%pdrHeatGG(cellP)
+                        print*, "! [D120]   pdrZone =", grid%pdrZone(cellP), &
+                             & "  Tgas =", grid%pdrTgas(cellP), "  Ne =", NeUsed
+#endif
+                     end if
+
                      call locate(dustEmIntegral(global_nS,ai,:), dustAbsIntegral, iT)
 
                      if (iT<=0 .and. lgTalk) then
