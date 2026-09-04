@@ -130,6 +130,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-107 | H2 photoionization continuum added; pdrAtomicH and pdrOwnIon now default on | Accepted | 2026-09-03 |
 | D-108 | The H2/CO photorate shielding now uses this model's grains, not Savage & Mathis 1979 | Accepted | 2026-09-03 |
 | D-109 | Dust measured per cell, not from one arbitrary cell; found T_dust = 2.3e9 K in getDustT | Accepted | 2026-09-03 |
+| D-116 | Dielectronic fit returns negative rates in cool gas; clamped, with its division guarded | Accepted | 2026-09-04 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6264,3 +6265,81 @@ D-107 guarded `lgPDR` and `grid%H2den` in `ionization_mod.f90` with a runtime `i
 `#ifdef PDR`, so the non-PDR build had not compiled since. Same slip D-096 caught in
 `iteration_mod`. All three flavours - PDR `mocassin`, `mocassinWarm`, plain `mocassin` - build
 clean again.
+
+## 2026-09-04a - D-116: the dielectronic recombination fit returns negative rates
+
+Found while investigating why a matrix ion solver on the photoionization branch
+could not reproduce the chain. The cause turned out to have nothing to do with
+solvers and everything to do with a rate coefficient, so the fix belongs here,
+on the branch every MOCASSIN variant descends from.
+
+### What is wrong
+
+`calcAlpha` builds the total recombination coefficient as radiative plus
+dielectronic. The dielectronic part is a POLYNOMIAL FIT in t = Te/1e4:
+
+    diRec = 1e-12*(a/t + b + c*t + d*t^2)*t^(-3/2)*exp(-f/t)
+
+Nothing anywhere bounds the temperature it is evaluated at. Below the fitted
+range the `a/t` term dominates - at Te = 383 K, t = 0.038, so a/t is ~26a - and
+the polynomial goes NEGATIVE. Measured directly:
+
+    elem 6 (carbon), stage 4:  alphaTot = -2.54443133E-10  at Te = 382.858 K
+
+A first audit at Te = 20000 K came back completely clean, which is why this has
+never been noticed: the fits are fine everywhere the code was exercised, and
+only misbehave in cool gas.
+
+Physically the answer there is not negative, it is negligible: dielectronic
+capture needs a doubly excited state and is exponentially suppressed as Te
+falls. Zero is the correct floor, not merely a convenient one.
+
+### What it was doing
+
+alphaTot < 0 makes the recombination denominator in `ionBalance` negative, so
+the stage ratio comes out negative and the chain produces NEGATIVE ion
+fractions - measured at ~10^6 stage-cells per iteration in a 200 kK model.
+They have never been visible because the `1e-20` floor at the end of
+`ionBalance` catches them. Published results were therefore not corrupted, but
+those stages were floored rather than computed.
+
+### The fix is TWO changes that cannot be separated
+
+Clamping `diRec` and `alphaTot` at zero is necessary and not sufficient. It can
+leave the denominator EXACTLY zero where it was previously a small negative -
+`chex` is itself zeroed outside 6000-50000 K, so in cool gas both terms vanish
+together - and the division then gives 0/0 = NaN instead of a finite wrong
+answer. A NaN T_dust reads as "all grains sublimed" in `pathSegment`, because
+**NaN fails every comparison**, and the run hits a hard `stop`.
+
+Measured: with the clamp alone, hiipdr died at its second PDR iteration, 14
+stops, one per rank. The three slab fixtures passed - only the spherical model
+with a real ionization front and cool cells exercises the path. So the
+numerator and denominator are now formed separately and the division guarded,
+capping where there is no recombination path rather than overflowing.
+
+**The general rule this is the second instance of: clamping a quantity to zero
+is never safe in isolation if anything divides by it.**
+
+### Measured effect
+
+| | V1 | V2 | sec 5.4 |
+|---|---|---|---|
+| H -> 2H2 | 1.109 -> 1.109 | 1.007 -> 1.009 | 0.4973 -> 0.4976 |
+| C+ -> C | 0.994 -> 0.994 | 0.979 -> 0.979 | 2.1753 -> 2.1929 |
+| C -> CO | 1.076 -> 1.076 | 1.075 -> 1.075 | - |
+| deep T | 1.062 -> 1.062 | 1.515 -> 1.516 | - |
+| median T ratio | - | - | **0.908 -> 0.971** |
+
+The slabs do not move: they are warm and uniform, with few cells in the regime
+where the fit misbehaves. The spherical model improves - its median PDR
+temperature ratio goes from 0.908 to 0.971 - which is exactly where cool gas
+coexists with ionization and therefore exactly where a negative recombination
+rate was biting. An improvement confined to the geometry that has the problem
+is a better result than a uniform shift would have been.
+
+### Still open
+
+`revRate` carries a factor (1 - x(H+)), so a cell where x(H+) transiently
+exceeds 1 drives the NUMERATOR negative by an entirely separate route. Not
+touched here; it deserves its own before/after.

@@ -1598,6 +1598,7 @@ end subroutine iterateT
 
 
             real                   :: revRate       ! reverse charge exchange rate
+            double precision       :: ionNum, ionDen2   ! D-116: guarded stage ratio
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -1740,20 +1741,34 @@ end subroutine iterateT
                     if ( (elem>1) .or. (ion>1) ) collIon = 0.
 
                     ! calculate the X(i+1)/X(i) ratio
-                    if (lgDebug) then
-                       ionRatio(elem,ion) = (nPhotoSte(elem,ion)+nPhotoDif(elem,ion)+&
-                            & collIon+revRate)/&
-                            & (NeUsed*alphaTot(elem,ion)&
-                            & +chex(elem,ion,1)*grid%Hden(grid%active(xP,yp,zP)) * &
-                            & grid%ionDen(cellP,elementXref(1),1))
-                    else
-                       ionRatio(elem,ion) = (nPhotoSte(elem,ion)+&
-                            & collIon+revRate)/&
-                            & (NeUsed*alphaTot(elem,ion)&
-                            & +chex(elem,ion,1)*grid%Hden(grid%active(xP,yp,zP)) * &
-                            & grid%ionDen(cellP,elementXref(1),1))
+                    ! D-116: form numerator and denominator separately so the
+                    ! division can be guarded. Clamping alphaTot at zero above
+                    ! is necessary but NOT sufficient on its own: it can leave
+                    ! this denominator EXACTLY zero where it was previously a
+                    ! small negative - chex is itself zeroed outside
+                    ! 6000-50000 K, so both terms vanish together - and the
+                    ! division then yields 0/0 = NaN instead of a finite wrong
+                    ! answer. A NaN T_dust then reads as "all grains sublimed"
+                    ! in pathSegment, because NaN fails every comparison, and
+                    ! the run stops. Measured: hiipdr died at its second PDR
+                    ! iteration with the clamp alone and completes with this.
+                    ! The clamp and this guard are one change, not two.
+                    ionNum = dble(nPhotoSte(elem,ion)) + dble(collIon) + dble(revRate)
+                    if (lgDebug) ionNum = ionNum + dble(nPhotoDif(elem,ion))
+                    ionDen2 = dble(NeUsed)*dble(alphaTot(elem,ion)) &
+                         & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
+                         & * dble(grid%ionDen(cellP,elementXref(1),1))
 
+                    if (ionDen2 > 0.d0) then
+                       ionRatio(elem,ion) = ionNum/ionDen2
+                    else if (ionNum > 0.d0) then
+                       ! no recombination path out of the stage above: nothing
+                       ! physical bounds the ratio, so cap rather than overflow
+                       ionRatio(elem,ion) = 1.d30
+                    else
+                       ionRatio(elem,ion) = 0.d0
                     end if
+                    if (.not. (ionRatio(elem,ion) >= 0.d0)) ionRatio(elem,ion) = 0.d0
                  end do
               end do
 
@@ -2247,7 +2262,35 @@ end subroutine iterateT
             do elem = 3, nElements
                 do ion = 1, min(nstages-1, elem)
                    if (diRec(elem,ion) == 0.) diRec(elem,ion) = diRec(8,ion)
+
+                   ! D-116: the dielectronic rate is a POLYNOMIAL FIT in
+                   ! t = Te/1e4,
+                   !     1e-12*(a/t + b + c*t + d*t^2)*t^(-3/2)*exp(-f/t),
+                   ! and nothing here bounds the temperature it is evaluated
+                   ! at. Below the fitted range the a/t term dominates and the
+                   ! polynomial goes NEGATIVE: measured alphaTot = -2.54e-10
+                   ! for carbon stage 4 at Te = 383 K.
+                   !
+                   ! Zero is the physically correct floor, not just a
+                   ! convenient one - dielectronic capture needs a doubly
+                   ! excited state and is exponentially suppressed as Te falls,
+                   ! so the true rate there is negligible, never negative.
+                   !
+                   ! What a negative rate does: alphaTot < 0 makes the
+                   ! recombination denominator negative in ionBalance, so the
+                   ! stage ratio comes out negative and the chain produces
+                   ! NEGATIVE ion fractions. Measured at ~10^6 stage-cells per
+                   ! iteration in a 200 kK model. They were never visible
+                   ! because the 1e-20 floor at the end of ionBalance catches
+                   ! them, so published results were not corrupted - but those
+                   ! stages were floored, not computed, and any code that
+                   ! divides by the denominator instead of flooring the result
+                   ! will hit 0/0 or a sign flip. This is why the fix belongs
+                   ! here rather than in whatever consumes it.
+                   if (diRec(elem,ion) < 0.) diRec(elem,ion) = 0.
+
                     alphaTot(elem, ion) = alphaTot(elem, ion) + diRec(elem, ion)
+                    if (alphaTot(elem,ion) < 0.) alphaTot(elem,ion) = 0.
                 end do
             end do
 
