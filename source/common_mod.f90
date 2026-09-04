@@ -590,7 +590,13 @@ module common_mod
     ! elimination loses them. It needs Cloudy's ion_trim approach (restrict the
     ! system to the populated range) before it can replace the chain. Until
     ! then this stays inert and MOCASSIN behaves exactly as before.
-    logical             :: lgIonMatrix = .false. ! D-114: matrix ionBalance (WIP)
+    logical             :: lgIonMatrix = .false. ! D-114: matrix ionBalance
+    ! Stage-trimming threshold, as a fraction of the most populated stage.
+    ! Cloudy's equivalent (ionbal.trimlo) is 1e-10 of the element; 1e-12 here
+    ! keeps a little more of the tail while still bounding the system to twelve
+    ! decades, which double precision resolves with four digits to spare.
+    real(kind=8)        :: ionTrim = 1.d-12
+    integer             :: nIonDump = 0
     ! D-114 self-check: worst relative difference between the matrix answer and
     ! the chain answer, accumulated IN THE SAME CELL of the SAME run so no MC
     ! feedback can contaminate the comparison. Two separate runs cannot settle

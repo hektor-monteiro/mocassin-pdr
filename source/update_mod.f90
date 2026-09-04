@@ -1630,7 +1630,8 @@ end subroutine iterateT
             double precision, dimension(nstages, nstages)   :: ionMat
             double precision, dimension(nstages)            :: ionRHS, ionSol, ionScal
             double precision, dimension(nElements, nstages) :: ionSolve
-            integer                                :: nst, ir, ic, ic2Swap, ipiv, iBig
+            integer                          :: nst, ir, ic, ic2Swap, ipiv, iBig
+            integer                          :: iLo, iHi, nr
             double precision                       :: piv, fac, big
             real, dimension(nElements, nstages,4) :: &
                  & chex         ! ch exchange coeff in cm^3/s
@@ -1905,43 +1906,72 @@ end subroutine iterateT
                      end if
                      if (.not.(ionScal(ir) > 0.d0)) ionScal(ir) = 0.d0
                   end do
-                  if (maxval(ionScal(1:nst)) <= 0.d0) cycle
-                  ! Never leave a column identically zero. Doing so drops that
-                  ! unknown from the system while the neighbouring rows still
-                  ! reference it, so the balance breaks for the stages either
-                  ! side - measured as a 10.8% error on Mg stage 4 at a real
-                  ! 1.6e-4 population, invisible in the PDR fixtures because
-                  ! their deep stages sit on the floor. Floor the scale far
-                  ! below any population that matters instead.
-                  fac = maxval(ionScal(1:nst))*1.d-30
-                  do ir = 1, nst
-                     if (ionScal(ir) < fac) ionScal(ir) = fac
+                  big = maxval(ionScal(1:nst))
+                  if (big <= 0.d0) cycle
+
+                  ! TRIM the system to the populated stages, as Cloudy does
+                  ! (ion_trim, trimlo = 1e-10 of the element). Column scaling
+                  ! alone is not enough and the earlier attempt proved it: it
+                  ! conditions the balance rows, but the conservation row ties
+                  ! every stage to O(1), so a stage twenty-five decades down is
+                  ! lost in the rounding of order-unity quantities no matter how
+                  ! the columns are scaled. Measured then: neutral carbon 18-20
+                  ! orders out in test_Problem. Bounding the SPAN is what makes
+                  ! the problem tractable; the threshold is the mechanism, not
+                  ! the price.
+                  iLo = 1
+                  do while (iLo < nst .and. ionScal(iLo) < ionTrim*big)
+                     iLo = iLo + 1
+                  end do
+                  iHi = nst
+                  do while (iHi > iLo .and. ionScal(iHi) < ionTrim*big)
+                     iHi = iHi - 1
                   end do
 
+                  ! Stages outside the range keep their chain value - the ratio
+                  ! recursion is exact and perfectly stable precisely where the
+                  ! matrix is not, so this is not a fallback but the better
+                  ! instrument for that regime.
+                  do ir = 1, nst
+                     ionSolve(elem,ir) = ionScal(ir)
+                  end do
+                  if (iHi <= iLo) cycle
+
+                  ! Build over [iLo,iHi] with the boundaries CLOSED - no flux in
+                  ! from iLo-1, none out to iHi+1. That is not an approximation
+                  ! here: with the boundary closed, row iLo reads
+                  !   -U(iLo) x(iLo) + D(iLo) x(iLo+1) = 0
+                  ! which the chain satisfies identically, and likewise at iHi.
+                  ! So the trimmed system's exact solution IS the chain
+                  ! restricted to the range, and the no-molecular-terms
+                  ! equivalence stays exact by construction rather than by
+                  ! numerical luck.
+                  nr = iHi - iLo + 1
                   ionMat = 0.d0
                   ionRHS = 0.d0
-                  do ir = 1, nst
-                     if (ir < nst) then
-                        ionMat(ir,ir)    = ionMat(ir,ir)    - ionUp(elem,ir)*ionScal(ir)
-                        ionMat(ir+1,ir)  = ionMat(ir+1,ir)  + ionUp(elem,ir)*ionScal(ir)
-                        ionMat(ir,ir+1)  = ionMat(ir,ir+1)  + ionDn(elem,ir)*ionScal(ir+1)
-                        ionMat(ir+1,ir+1)= ionMat(ir+1,ir+1)- ionDn(elem,ir)*ionScal(ir+1)
-                     end if
+                  do ir = iLo, iHi-1
+                     ic = ir - iLo + 1
+                     ionMat(ic,ic)     = ionMat(ic,ic)     - ionUp(elem,ir)*ionScal(ir)
+                     ionMat(ic+1,ic)   = ionMat(ic+1,ic)   + ionUp(elem,ir)*ionScal(ir)
+                     ionMat(ic,ic+1)   = ionMat(ic,ic+1)   + ionDn(elem,ir)*ionScal(ir+1)
+                     ionMat(ic+1,ic+1) = ionMat(ic+1,ic+1) - ionDn(elem,ir)*ionScal(ir+1)
                   end do
 
-                  ! close the system on the largest stage, found from the chain
-                  ! products - which are only used to pick the row, never as
-                  ! the answer
-                  iBig = 1; big = 1.d0
-                  do ir = 2, nst
-                     if (ionProd(elem,ir-1) > big) then
-                        big = ionProd(elem,ir-1); iBig = ir
+                  ! close on the largest stage in the range, and conserve only
+                  ! what the range holds
+                  iBig = 1; big = 0.d0
+                  do ir = iLo, iHi
+                     if (ionScal(ir) > big) then
+                        big = ionScal(ir); iBig = ir - iLo + 1
                      end if
                   end do
-                  do ic = 1, nst
-                     ionMat(iBig,ic) = ionScal(ic)
+                  fac = 0.d0
+                  do ir = iLo, iHi
+                     ionMat(iBig,ir-iLo+1) = ionScal(ir)
+                     fac = fac + ionScal(ir)
                   end do
-                  ionRHS(iBig) = availFrac(elem)
+                  ionRHS(iBig) = fac
+                  nst = nr
 
                   ! dense Gaussian elimination with partial pivoting. nst <= 7,
                   ! so this is not worth a library call.
@@ -1983,9 +2013,9 @@ end subroutine iterateT
                      end if
                   end do
 
-                  ! undo the scaling: x = c*y
-                  do ir = 1, nst
-                     ionSolve(elem,ir) = max(ionScal(ir)*ionSol(ir), 0.d0)
+                  ! undo the scaling over the solved range only
+                  do ir = 1, nr
+                     ionSolve(elem,iLo+ir-1) = max(ionScal(iLo+ir-1)*ionSol(ir), 0.d0)
                   end do
                end do
             end if

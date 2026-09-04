@@ -135,6 +135,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
 | D-113 | Per-species form/loss exported from the ODE RHS; H2 formation measured at 4.6e-17 | Accepted | 2026-09-03 |
 | D-114 | Matrix ionBalance: balance rows correct, trace stages not; inert pending ion_trim | Partial | 2026-09-04 |
+| D-115 | Trimming implemented; blocked by alphaTot = 0, which the old code hid behind Inf | Blocked | 2026-09-04 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6606,3 +6607,66 @@ which carries the rejected D-110 dissociation - against that baseline a clean
 no-op reads as a 12% regression. Compare against the tree you changed. And an
 overnight job wrote unbounded output to a RAM-backed filesystem; long-run logs
 belong on disk, not in `/tmp`.
+
+## 2026-09-04b - D-115: Cloudy's trimming, and the zero recombination coefficient underneath
+
+Tried Cloudy's `ion_trim` approach on D-114's matrix: restrict the system to the
+populated stage range so it never spans more than a decade or so. Their
+thresholds are `trimhi = 1e-6`, `trimlo = 1e-10` of the element; ours is one
+parameter, `ionTrim = 1e-12`, and stages outside the range keep their chain
+value - the ratio recursion is exact and stable precisely where the matrix is
+not, so that is the better instrument for the tail rather than a fallback.
+
+The boundaries are closed deliberately. With no flux in from iLo-1 or out to
+iHi+1, row iLo reads `-U(iLo)x(iLo) + D(iLo)x(iLo+1) = 0`, which the chain
+satisfies identically, and likewise at iHi. So the trimmed system's exact
+solution IS the chain restricted to the range, and equivalence stays exact by
+construction rather than by numerical luck.
+
+**The linear algebra is correct.** Replicated the assembly, pivoting and
+back-substitution outside MOCASSIN and ran a 7-stage system spanning nineteen
+decades: every stage reproduced to 1.0000, trimmed range and untrimmed tail
+alike. Whatever is wrong is not the solver.
+
+### What the dump showed
+
+Carbon in `test_Problem`, dumped from the failing solve:
+
+    nst 5  iLo 1  iHi 5  nr 5  iBig 5
+      stage 1  c = 6.96e-09   y = 1366.9
+      stage 2  c = 3.53e-07   y = 1366.9
+      stage 3  c = 8.80e-19   y = 1366.9
+      stage 4  c = 1.00e-30   y = 1366.9
+      stage 5  c = 9.99e-01   y = 0.9995
+
+The chain estimate is **non-monotonic**: stage 4 at 1e-30 sitting between stage
+3 at 1e-19 and stage 5 at ~1. That is the 1e30 ratio cap from D-114 firing,
+which means `ionDn` is ZERO for carbon stage 4 - `alphaTot` carries no
+recombination coefficient there.
+
+Two things follow.
+
+**Trimming the ends cannot bound the span when the degeneracy is in the middle.**
+Both ends are populated, so iLo = 1 and iHi = 5 and nothing is trimmed; the
+system still spans thirty decades. Cloudy's method is right for a monotonic
+profile and a missing rate coefficient destroys that assumption.
+
+**This predates all of this work.** Before D-114's clamp the same situation gave
+`ionUp/0 = +Inf`, so `ionProd` went to Inf, `denominator` to Inf, and the lower
+stages came out as `finite/Inf = 0`. MOCASSIN has been hiding a missing
+recombination rate behind infinity arithmetic, and the chain's answers for those
+stages were never meaningful - they were zeros manufactured by an overflow. The
+cap made it visible as 1e-30 instead of fixing it.
+
+### Where this leaves the coupling
+
+The matrix stays inert (`lgIonMatrix = .false.`). The blocker is no longer
+numerical: it is that `alphaTot` is zero for some stages, which corrupts the
+reference any solver would scale against. That has to be settled first - it is a
+data question, not a linear-algebra one - and it is worth settling on its own
+merits, because it means some published ion fractions in strongly-ionized models
+rest on overflow rather than on a rate.
+
+Next step is to find which (element, stage) pairs have `alphaTot = 0` under what
+conditions, and whether that is missing data, a temperature range being exceeded,
+or a lookup returning zero where it should extrapolate.
