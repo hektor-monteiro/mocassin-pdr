@@ -662,6 +662,9 @@ module set_input_mod
             case ("pdrSyncAbun")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrSyncAbun
+            case ("ionMatrix")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, lgIonMatrix
             case ("pdrDiagRates")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagRates

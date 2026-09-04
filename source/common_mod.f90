@@ -579,6 +579,32 @@ module common_mod
     integer             :: pdrNcool   = 0          ! number of coolants
     character(len=50)   :: pdrCoolant(30) = ''     ! coolant datafile names
 #endif
+
+    ! D-114 / crash fix state. These live OUTSIDE the PDR block on purpose:
+    ! ionBalance and getGrainRecombination compile into EVERY flavour, so
+    ! guarding them with #ifdef PDR breaks the plain build - which is exactly
+    ! how it broke here first time round.
+    ! D-114: OFF by default. The matrix solve is present and correct for the
+    ! balance rows, but cannot yet resolve stages tens of decades below the
+    ! dominant one - the conservation row couples every stage at O(1), so the
+    ! elimination loses them. It needs Cloudy's ion_trim approach (restrict the
+    ! system to the populated range) before it can replace the chain. Until
+    ! then this stays inert and MOCASSIN behaves exactly as before.
+    logical             :: lgIonMatrix = .false. ! D-114: matrix ionBalance (WIP)
+    ! D-114 self-check: worst relative difference between the matrix answer and
+    ! the chain answer, accumulated IN THE SAME CELL of the SAME run so no MC
+    ! feedback can contaminate the comparison. Two separate runs cannot settle
+    ! this - a solver difference changes the opacity and amplifies.
+    real(kind=8)        :: ionMatMaxDiff = 0.
+    integer             :: ionMatWorstEl = 0, ionMatWorstIon = 0
+    real(kind=8)        :: ionMatWorstA = 0., ionMatWorstB = 0.
+    integer             :: ionMatNegChain = 0   ! chain returned a negative fraction
+    ! An unthrottled NaN warning wrote 38.5 million lines and a 3 GB log into a
+    ! tmpfs overnight - i.e. into RAM - and took the machine down. The warning
+    ! is worth keeping (it detects a NaN nothing else catches) but it has to be
+    ! bounded. Cap the prints and report the total once.
+    integer             :: nInsaneEta = 0
+    integer, parameter  :: maxInsaneEta = 20
     ! dust parameters
     integer            :: nSizes           ! number of grain sizes
     integer, allocatable    :: nSpeciesPart(:)  ! number of grain specie

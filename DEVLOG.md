@@ -134,6 +134,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
 | D-113 | Per-species form/loss exported from the ODE RHS; H2 formation measured at 4.6e-17 | Accepted | 2026-09-03 |
+| D-114 | Matrix ionBalance: balance rows correct, trace stages not; inert pending ion_trim | Partial | 2026-09-04 |
 | D-062 | `pdrStartIter`: let MOCASSIN converge before enabling the PDR | Accepted | 2026-08-31 |
 
 ---
@@ -6522,3 +6523,86 @@ One process note worth keeping: the first no-op comparison was made against
 `v1slab112`, which carries the D-110 dissociation that was rejected and reverted.
 Against that baseline a clean no-op reads as a 12% regression. Compare against the
 tree you actually changed, not the most recent run.
+
+## 2026-09-04a - D-114: matrix ionBalance, and the overnight crash
+
+Step 2 of D-111. **Not finished** - the matrix is committed but inert
+(`lgIonMatrix = .false.`). Two real fixes came out of the attempt and those
+are live.
+
+### The crash
+
+An overnight `test_Problem` run took the machine down. Not the model outgrowing
+memory: a clamp added here,
+
+    if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
+
+left the denominator at EXACTLY zero where it had been a small negative, so the
+following division became 0/0 = NaN. The NaN propagated through ionProd into
+ionDen and out to `getGrainRecombination`, whose "insane eta" warning fires only
+on NaN and has no throttle. It wrote **38.5 million lines and a 3 GB log** into
+`/tmp`, which is tmpfs - RAM-backed. That was the memory exhaustion.
+
+Two fixes, both kept:
+
+- **The division is guarded.** A zero denominator means no recombination path
+  out of the stage above; nothing physical bounds the ratio, so it is capped
+  rather than allowed to become an infinity, and any non-finite result is
+  caught.
+- **The warning is throttled** to 20 prints with a per-iteration summary of how
+  many NaNs occurred. This is a PRE-EXISTING hazard independent of the bug that
+  triggered it: any NaN from any cause would have done the same to any user. The
+  warning detects something nothing else catches, so it is worth keeping - but
+  bounded.
+
+Verified: log 100 KB against 3 GB, zero "insane eta", clean exit.
+
+### What the clamp was for, and that it works
+
+`revRate` carries a factor `(1 - x(H+))`, so any cell where x(H+) transiently
+exceeds 1 drives `ionUp` negative, which propagates as a negative `ionProd` and
+a negative ion fraction. Measured at ~10^6 stage-cells per iteration in V1,
+silently caught until now by the `1e-20` floor at the end of the routine.
+Clamping at source fixes both solvers; after it, the negative count is zero.
+Published results were never corrupted - the floor caught them - but the chain
+was routinely computing unphysical intermediates.
+
+### Why the matrix is not finished
+
+The balance rows are right. Verified in V1 against the chain IN THE SAME CELL on
+the SAME call, which is the only comparison that means anything here: two
+separate runs differing only by the switch diverge from any difference at all,
+because MOCASSIN is deterministic and a solver difference of 1e-11 in one cell
+amplifies through the opacity to 0.5% by iteration 5. In-run, V1's converged
+iteration agrees to **1.8e-15 on the dominant stage**.
+
+`test_Problem` - 9 elements, 200 kK, PDR off - then failed, and it is the case
+V1 cannot probe because V1's deep stages sit on the 1e-20 floor while 200 kK
+genuinely populates middle stages. Neutral carbon in the ionized gas:
+
+| chain | matrix |
+|---|---|
+| 7.85e-25 | 4.83e-05 |
+| 8.38e-28 | 4.00e-10 |
+| 2.19e-26 | 7.99e-08 |
+
+Eighteen to twenty orders out, persistently. Column scaling by the chain
+estimate - which fixed an earlier 5-decade error on C3+ - cannot fix this. It
+conditions the BALANCE rows, but the conservation row `sum(c_i y_i) = availFrac`
+couples every stage at O(1), so a stage 25 decades down is lost in the rounding
+of order-unity quantities no matter how the columns are scaled.
+
+**This is what Cloudy's `ion_trim` is for**, and the first scope draft dismissed
+it: *"scaling avoids having to choose a trimming threshold"*. The threshold is
+not the cost of trimming - it is the mechanism that makes the problem tractable
+at all, by keeping the system inside a few decades. The next attempt should
+restrict the matrix to the populated range and fill trace stages from the ratio
+recursion, which is exact and stable precisely where the matrix is not.
+
+### Process notes
+
+Two mistakes worth keeping. The first no-op check compared against `v1slab112`,
+which carries the rejected D-110 dissociation - against that baseline a clean
+no-op reads as a 12% regression. Compare against the tree you changed. And an
+overnight job wrote unbounded output to a RAM-backed filesystem; long-run logs
+belong on disk, not in `/tmp`.

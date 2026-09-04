@@ -801,6 +801,22 @@ module iteration_mod
                    &  scaInt*100./(scaInt+absInt),"%"
            end if
 
+           if (taskid==0 .and. lgIonMatrix) then
+              print*, "! [D114] matrix vs chain, worst relative difference:", &
+                   & real(ionMatMaxDiff), " elem", ionMatWorstEl, " ion", ionMatWorstIon
+              print*, "! [D114]   chain =", real(ionMatWorstA), " matrix =", real(ionMatWorstB), &
+                   & "  (stages above 1e-15 only)"
+              print*, "! [D114]   chain returned a NEGATIVE fraction in", ionMatNegChain, &
+                   & "stage-cells; the matrix clamps those to zero"
+              ionMatMaxDiff = 0.; ionMatNegChain = 0
+           end if
+
+           if (taskid==0 .and. nInsaneEta > 0) then
+              print*, "! [warning] getGrainRecombination hit a NaN eta", nInsaneEta, &
+                   & "times this iteration - the ionization solution has NaNs in it"
+              nInsaneEta = 0
+           end if
+
            if (taskid==0) print*, " total Escaped Packets :",  totalEscaped
 
            if (taskid==0) call writeSED(grid)

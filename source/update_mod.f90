@@ -936,7 +936,12 @@ end subroutine iterateT
           else if (eta >0.) then
              eta = exp(-eta)
           else
-             print*, "! getGrainRecombination: insane eta for e-", eta
+             nInsaneEta = nInsaneEta + 1
+             if (nInsaneEta <= maxInsaneEta) then
+                print*, "! getGrainRecombination: insane eta for e-", eta
+                if (nInsaneEta == maxInsaneEta) print*, &
+                     & "! getGrainRecombination: further 'insane eta' warnings suppressed"
+             end if
           end if
 
           getGrainRecombination = getGrainRecombination + &
@@ -963,8 +968,13 @@ end subroutine iterateT
                    else if (eta >0.) then
                       eta = exp(-eta)
                    else
-                      print*, "! getGrainRecombination: insane eta", &
-                           & eta, elem, istage
+                      nInsaneEta = nInsaneEta + 1
+                      if (nInsaneEta <= maxInsaneEta) then
+                         print*, "! getGrainRecombination: insane eta", &
+                              & eta, elem, istage
+                         if (nInsaneEta == maxInsaneEta) print*, &
+                              & "! getGrainRecombination: further 'insane eta' warnings suppressed"
+                      end if
                    end if
 
                    getGrainRecombination = getGrainRecombination - &
@@ -1598,6 +1608,7 @@ end subroutine iterateT
 
 
             real                   :: revRate       ! reverse charge exchange rate
+            double precision       :: chainVal, diffVal   ! D-114 self-check
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -1610,6 +1621,17 @@ end subroutine iterateT
             double precision, dimension(nElements, nstages) :: &
                  & ionRatio, &   ! X(i+1)/X(+i)
                  & ionProd       ! ionRatio products
+
+            ! D-114: the chain solve forms only the RATIO of adjacent stages.
+            ! A matrix solve needs the two rates separately, so keep them.
+            !   ionUp(elem,ion) = rate coefficient   stage ion -> ion+1  [s^-1]
+            !   ionDn(elem,ion) = rate coefficient   stage ion+1 -> ion  [s^-1]
+            double precision, dimension(nElements, nstages) :: ionUp, ionDn
+            double precision, dimension(nstages, nstages)   :: ionMat
+            double precision, dimension(nstages)            :: ionRHS, ionSol, ionScal
+            double precision, dimension(nElements, nstages) :: ionSolve
+            integer                                :: nst, ir, ic, ic2Swap, ipiv, iBig
+            double precision                       :: piv, fac, big
             real, dimension(nElements, nstages,4) :: &
                  & chex         ! ch exchange coeff in cm^3/s
 
@@ -1617,6 +1639,9 @@ end subroutine iterateT
             ! initialize variables
             correction  = 0.
             ionRatio    = 0.
+            ionUp       = 0.d0
+            ionDn       = 0.d0
+            ionSolve    = -1.d0
             ionProd     = 1.
             denominator = 1.
             lgConv      = .true.
@@ -1740,20 +1765,54 @@ end subroutine iterateT
                     if ( (elem>1) .or. (ion>1) ) collIon = 0.
 
                     ! calculate the X(i+1)/X(i) ratio
+                    ! D-114: form the two rates separately and take the ratio
+                    ! from them, so the chain and the matrix are guaranteed to
+                    ! be solving identical physics rather than merely similar
+                    ! expressions.
                     if (lgDebug) then
-                       ionRatio(elem,ion) = (nPhotoSte(elem,ion)+nPhotoDif(elem,ion)+&
-                            & collIon+revRate)/&
-                            & (NeUsed*alphaTot(elem,ion)&
-                            & +chex(elem,ion,1)*grid%Hden(grid%active(xP,yp,zP)) * &
-                            & grid%ionDen(cellP,elementXref(1),1))
+                       ionUp(elem,ion) = dble(nPhotoSte(elem,ion))+dble(nPhotoDif(elem,ion))+&
+                            & dble(collIon)+dble(revRate)
                     else
-                       ionRatio(elem,ion) = (nPhotoSte(elem,ion)+&
-                            & collIon+revRate)/&
-                            & (NeUsed*alphaTot(elem,ion)&
-                            & +chex(elem,ion,1)*grid%Hden(grid%active(xP,yp,zP)) * &
-                            & grid%ionDen(cellP,elementXref(1),1))
-
+                       ionUp(elem,ion) = dble(nPhotoSte(elem,ion))+&
+                            & dble(collIon)+dble(revRate)
                     end if
+                    ionDn(elem,ion) = dble(NeUsed)*dble(alphaTot(elem,ion)) &
+                         & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
+                         & * dble(grid%ionDen(cellP,elementXref(1),1))
+
+                    ! D-114: a NEGATIVE rate coefficient is meaningless, and
+                    ! these can go negative: revRate carries a factor
+                    ! (1 - x(H+)), so any cell where x(H+) transiently exceeds
+                    ! 1 drives ionUp below zero. That propagates through the
+                    ! chain as a negative ionProd and a negative ion fraction -
+                    ! measured in ~10^6 stage-cells per iteration, silently
+                    ! caught until now by the 1e-20 floor at the end of the
+                    ! routine. Clamping at source fixes both solvers rather
+                    ! than hiding it in one.
+                    if (ionUp(elem,ion) < 0.d0) ionUp(elem,ion) = 0.d0
+                    if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
+
+                    ! The clamp above can leave ionDn at EXACTLY zero where it
+                    ! was previously a small negative, turning this division
+                    ! into 0/0 = NaN. That NaN propagates into ionProd, into
+                    ! ionDen, and out to getGrainRecombination, whose "insane
+                    ! eta" warning is unthrottled: one overnight run wrote 38.5
+                    ! million lines and a 3 GB log into a tmpfs, i.e. into RAM.
+                    ! Guard the division rather than the symptom.
+                    !
+                    ! A zero denominator means no recombination path out of the
+                    ! stage above - nothing physical bounds the ratio, so cap it
+                    ! rather than inventing an infinity. The cap is far above
+                    ! any ratio that survives normalisation.
+                    if (ionDn(elem,ion) > 0.d0) then
+                       ionRatio(elem,ion) = ionUp(elem,ion)/ionDn(elem,ion)
+                       if (ionRatio(elem,ion) > 1.d30) ionRatio(elem,ion) = 1.d30
+                    else if (ionUp(elem,ion) > 0.d0) then
+                       ionRatio(elem,ion) = 1.d30
+                    else
+                       ionRatio(elem,ion) = 0.d0
+                    end if
+                    if (.not. (ionRatio(elem,ion) >= 0.d0)) ionRatio(elem,ion) = 0.d0
                  end do
               end do
 
@@ -1791,6 +1850,146 @@ end subroutine iterateT
                end do
             end do
 
+            ! ---------------------------------------------------------------
+            ! D-114: matrix solve, replacing the chain above.
+            !
+            ! The chain forms x(i+1)/x(i) for each adjacent pair, multiplies
+            ! the ratios and normalises. That is the exact solution of a pure
+            ! birth-death system and nothing more: it is only valid while the
+            ! ONLY couplings are ionization up and recombination down. A
+            ! molecular source is inhomogeneous - it adds rather than
+            ! multiplies - and chemistry can move an element between stages
+            ! that are not adjacent. Neither fits a product of ratios, which
+            ! is why Cloudy solves a matrix (D-111, ion_solver.cpp).
+            !
+            ! Balance for stage i, with U = ionUp and D = ionDn:
+            !
+            !   U(i-1) x(i-1) - (U(i) + D(i-1)) x(i) + D(i) x(i+1) = 0
+            !
+            ! The system is singular by construction - it conserves the
+            ! element, so one equation is redundant - and is closed by
+            ! replacing the row of the LARGEST stage with sum(x) = availFrac.
+            ! Replacing the largest rather than the first is what keeps it
+            ! conditioned when the population spans twenty decades.
+            !
+            ! Molecular source/sink terms enter on the RHS and the diagonal
+            ! respectively (step 3); with none supplied this reproduces the
+            ! chain to round-off, which is the acceptance test.
+            if (lgIonMatrix) then
+               do elem = 1, nElements
+                  if (.not.lgElementOn(elem)) cycle
+                  nst = min(elem+1, nstages)
+                  if (nst < 2) cycle
+
+                  ! Column-scale by the chain estimate: substitute
+                  ! x(i) = c(i)*y(i) and solve for y. The stage populations
+                  ! span thirteen decades or more (measured: C+ at 0.92 beside
+                  ! C3+ at 7e-13), and eliminating on the raw matrix loses the
+                  ! trace stages to cancellation - the first version of this
+                  ! returned 5e-18 for that C3+, five orders out. Scaling makes
+                  ! every unknown O(1), so the elimination is conditioned on
+                  ! the ratios that matter rather than on the absolute sizes.
+                  !
+                  ! It also makes the acceptance test exact rather than
+                  ! approximate: with no molecular terms the chain IS the
+                  ! solution, so y = 1 identically and the elimination has
+                  ! nothing left to lose. Cloudy solves the same problem by
+                  ! trimming the stage range instead (ion_trim); scaling avoids
+                  ! having to choose a trimming threshold.
+                  ionScal = 0.d0
+                  do ir = 1, nst
+                     if (ir == 1) then
+                        ionScal(ir) = availFrac(elem)/denominator(elem)
+                     else
+                        ionScal(ir) = availFrac(elem)*ionProd(elem,ir-1)/denominator(elem)
+                     end if
+                     if (.not.(ionScal(ir) > 0.d0)) ionScal(ir) = 0.d0
+                  end do
+                  if (maxval(ionScal(1:nst)) <= 0.d0) cycle
+                  ! Never leave a column identically zero. Doing so drops that
+                  ! unknown from the system while the neighbouring rows still
+                  ! reference it, so the balance breaks for the stages either
+                  ! side - measured as a 10.8% error on Mg stage 4 at a real
+                  ! 1.6e-4 population, invisible in the PDR fixtures because
+                  ! their deep stages sit on the floor. Floor the scale far
+                  ! below any population that matters instead.
+                  fac = maxval(ionScal(1:nst))*1.d-30
+                  do ir = 1, nst
+                     if (ionScal(ir) < fac) ionScal(ir) = fac
+                  end do
+
+                  ionMat = 0.d0
+                  ionRHS = 0.d0
+                  do ir = 1, nst
+                     if (ir < nst) then
+                        ionMat(ir,ir)    = ionMat(ir,ir)    - ionUp(elem,ir)*ionScal(ir)
+                        ionMat(ir+1,ir)  = ionMat(ir+1,ir)  + ionUp(elem,ir)*ionScal(ir)
+                        ionMat(ir,ir+1)  = ionMat(ir,ir+1)  + ionDn(elem,ir)*ionScal(ir+1)
+                        ionMat(ir+1,ir+1)= ionMat(ir+1,ir+1)- ionDn(elem,ir)*ionScal(ir+1)
+                     end if
+                  end do
+
+                  ! close the system on the largest stage, found from the chain
+                  ! products - which are only used to pick the row, never as
+                  ! the answer
+                  iBig = 1; big = 1.d0
+                  do ir = 2, nst
+                     if (ionProd(elem,ir-1) > big) then
+                        big = ionProd(elem,ir-1); iBig = ir
+                     end if
+                  end do
+                  do ic = 1, nst
+                     ionMat(iBig,ic) = ionScal(ic)
+                  end do
+                  ionRHS(iBig) = availFrac(elem)
+
+                  ! dense Gaussian elimination with partial pivoting. nst <= 7,
+                  ! so this is not worth a library call.
+                  ionSol = ionRHS
+                  do ic = 1, nst-1
+                     ipiv = ic; piv = abs(ionMat(ic,ic))
+                     do ir = ic+1, nst
+                        if (abs(ionMat(ir,ic)) > piv) then
+                           piv = abs(ionMat(ir,ic)); ipiv = ir
+                        end if
+                     end do
+                     if (piv <= 0.d0) cycle
+                     if (ipiv /= ic) then
+                        do ic2Swap = 1, nst
+                           fac = ionMat(ic,ic2Swap)
+                           ionMat(ic,ic2Swap) = ionMat(ipiv,ic2Swap)
+                           ionMat(ipiv,ic2Swap) = fac
+                        end do
+                        fac = ionSol(ic); ionSol(ic) = ionSol(ipiv); ionSol(ipiv) = fac
+                     end if
+                     do ir = ic+1, nst
+                        if (ionMat(ir,ic) == 0.d0) cycle
+                        fac = ionMat(ir,ic)/ionMat(ic,ic)
+                        do ic2Swap = ic, nst
+                           ionMat(ir,ic2Swap) = ionMat(ir,ic2Swap) - fac*ionMat(ic,ic2Swap)
+                        end do
+                        ionSol(ir) = ionSol(ir) - fac*ionSol(ic)
+                     end do
+                  end do
+                  do ir = nst, 1, -1
+                     fac = ionSol(ir)
+                     do ic = ir+1, nst
+                        fac = fac - ionMat(ir,ic)*ionSol(ic)
+                     end do
+                     if (ionMat(ir,ir) /= 0.d0) then
+                        ionSol(ir) = fac/ionMat(ir,ir)
+                     else
+                        ionSol(ir) = 0.d0
+                     end if
+                  end do
+
+                  ! undo the scaling: x = c*y
+                  do ir = 1, nst
+                     ionSolve(elem,ir) = max(ionScal(ir)*ionSol(ir), 0.d0)
+                  end do
+               end do
+            end if
+
 
             ! calculate the new abundances for all ions
             do elem = 1, nElements
@@ -1819,7 +2018,46 @@ end subroutine iterateT
                             & (elem==1 .or. elem==2 .or. elem==6 .or. elem==8 .or. elem==12)) cycle
                     end if
 #endif
-                    if (ion == 1) then
+                    ! D-114 self-check: the chain answer for this same stage,
+                    ! this same cell, this same call. With no molecular terms
+                    ! the two must agree to round-off; anything larger is the
+                    ! solver, not the model.
+                    if (lgIonMatrix .and. ionSolve(elem,ion) >= 0.d0) then
+                       if (ion == 1) then
+                          chainVal = availFrac(elem)/denominator(elem)
+                       else
+                          chainVal = availFrac(elem)*ionProd(elem,ion-1)/denominator(elem)
+                       end if
+                       ! The chain can return a small NEGATIVE fraction - it
+                       ! forms a product of ratios over a denominator and has
+                       ! no positivity constraint, and -2.4e-18 was measured
+                       ! for C stage 5. The matrix clamps at zero, which is
+                       ! the physical answer, so comparing against a negative
+                       ! reference reports a spurious difference of 1.0. Count
+                       ! those separately rather than letting them mask the
+                       ! comparison that matters.
+                       if (chainVal < 0.d0) then
+                          ionMatNegChain = ionMatNegChain + 1
+                       else if (max(chainVal,ionSolve(elem,ion)) > 1.d-15) then
+                          diffVal = abs(chainVal-ionSolve(elem,ion)) &
+                               &  / max(abs(chainVal),abs(ionSolve(elem,ion)))
+                          if (diffVal > ionMatMaxDiff) then
+                             ionMatMaxDiff  = diffVal
+                             ionMatWorstEl  = elem
+                             ionMatWorstIon = ion
+                             ionMatWorstA   = chainVal
+                             ionMatWorstB   = ionSolve(elem,ion)
+                          end if
+                       end if
+                    end if
+
+                    if (lgIonMatrix .and. ionSolve(elem,ion) >= 0.d0) then
+                        ! D-114: the matrix answer. Identical to the chain when
+                        ! no molecular terms are supplied - that equality is the
+                        ! acceptance test for this conversion.
+                        grid%ionDen(cellP,elementXref(elem),ion) = &
+                             & real(ionSolve(elem,ion))
+                    else if (ion == 1) then
                         grid%ionDen(cellP,elementXref(elem),ion) = &
                              & real(availFrac(elem)/denominator(elem))
                     else
