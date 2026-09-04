@@ -134,6 +134,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-117 | Matrix ionBalance closes at 2e-15 / 3e-8 once rates are non-negative; enabled | Accepted | 2026-09-04 |
 | D-118 | Chemistry's per-stage rates feed the ion matrix; elemAvail stands down | Accepted | 2026-09-04 |
 | D-119 | In-cell ionization/chemistry loop; H2 front 0.497 -> 0.905 against a 0.9054 reference | Accepted | 2026-09-04 |
+| D-120 | Intermittent NaN reaching T_dust, ~8%, pre-existing; probe armed, not yet caught | Open | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -6989,3 +6990,65 @@ a "24% MC noise floor" turned out to be a completed run compared against a
 crashed one. The general form is worth stating once: **a relative-difference
 metric with a bare floor guard measures the floor.** Weight by the quantity
 that matters, or restrict to values that matter, every time.
+
+## 2026-09-04f - D-120: an intermittent NaN, ~8%, pre-existing - recorded, not fixed
+
+Found while validating D-119, and recorded here rather than chased now because
+finding it needs hours of runs and the diagnosis is already useful.
+
+### What happens
+
+A NaN reaches T_dust. In `pathSegment` the sublimation test is
+
+    if (.not. ANY( ... grid%Tdust(...) < TdustSublime(...) )) then ... stop
+
+and **NaN fails every comparison**, so a NaN dust temperature reads as "all
+grains have sublimed" and the run hits a hard stop. IEEE_INVALID flags
+accompany it.
+
+### It is intermittent and pre-existing
+
+| build | clean | crashed |
+|---|---|---|
+| D-118 | 3 | 0 |
+| D-119 + probe | 8 | 1 |
+
+**~8% failure rate.** Two independent lines say the coupling work did not
+introduce it: the rates are statistically indistinguishable between builds, and
+the D-119 diff is 74 insertions with every added block skipped at
+`pdrCoupleIter = 1`, so that build is a functional no-op.
+
+At 8% this has almost certainly been present throughout this project, and every
+benchmark reported in this log before today was a single run. It would never
+have surfaced without repeats.
+
+### The probe, armed and not yet triggered
+
+`getDustT` now carries a one-shot report of the first non-finite
+`dustAbsIntegral` with the terms that build it - `dabs`, `reslineheat`, and the
+D-093 additions `pdrHeatPE` and `pdrHeatGG`. Four runs did not trip it. **That
+is not evidence of absence**: at 8%, four clean runs happens 72% of the time.
+Catching it with 90% confidence needs ~28 runs, about three hours.
+
+The probe distinguishes the two candidate origins. If `pdrHeatPE` or
+`pdrHeatGG` is non-finite the fault is in the coupling's feedback into the
+grain energy balance; if `dabs` is, it predates the PDR work entirely. The
+D-109 guard covers a degenerate interpolation interval in `getDustT`, which is
+a different failure, and demonstrably does not cover this one.
+
+### Why this matters beyond the bug
+
+The methodological point is larger than the defect. MOCASSIN is a Monte Carlo
+code and is not reproducible run to run - stated plainly here because this log
+asserted the opposite earlier today and built comparisons on it. Consequences,
+all of which cost time before being noticed:
+
+- A single clean run is not verification. Acceptance needs repeats.
+- Completion means the `end simulation reached` line, not the existence of an
+  output file. A wait keyed on `grid2.out` returned "done" for a crashed run,
+  and the comparison that followed produced a fictitious "24% MC noise floor".
+- Run-to-run scatter must be measured before a difference between two runs can
+  be called an effect. On the sec 5.4 model the median per-stage scatter is
+  ~2%, and the median PDR temperature ratio spans 0.905-1.044 across three
+  identical runs - wide enough that several single-run temperature comparisons
+  earlier in this log carry more uncertainty than they were reported with.
