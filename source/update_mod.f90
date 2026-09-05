@@ -2884,6 +2884,8 @@ end subroutine iterateT
             integer :: nS, i, ai ! counters
             integer :: iT        ! pointer to dust temp in dust temp array
             integer :: global_nS ! pointer index for dust component
+            ! D-126: recomputation of the collisional term at the probe point
+            real    :: kTchk, psichk, etachk, xichk, vmchk, collchk
 #ifdef PDR
             integer :: nS2, ai2          ! D-093: cross-section normalisation
             real    :: xsecTot           ! total grain cross-section per unit volume [1/cm]
@@ -3120,6 +3122,34 @@ end subroutine iterateT
                            print*, "! [D122]   grainPot =", grainPot(nS,ai), &
                                 & "  Ne =", NeUsed, "  Te =", TeUsed, &
                                 & "  Tdust(nS,ai) =", grid%Tdust(nS,ai,cellP)
+                           ! D-126: rebuild the electron half of the collisional
+                           ! term from the state as it stands here.
+                           ! setDustGasCollHeatCool ran earlier in this same
+                           ! updateCell call, so a stored value orders of
+                           ! magnitude above a sane recomputation is stale or
+                           ! corrupt data rather than a formula misbehaving.
+                           ! This lives in getDustT deliberately: instrumenting
+                           ! setDustGasCollHeatCool suppressed the fault
+                           ! (D-125), while every build that fires already
+                           ! carries a probe here.
+                           kTchk  = 6.336e-6*TeUsed
+                           psichk = -grainPot(nS,ai)/kTchk
+                           if (psichk <= 0.) then
+                              etachk = 1.-psichk
+                              xichk  = 1.-psichk/2.
+                           else
+                              etachk = exp(-psichk)
+                              xichk  = (1.+psichk/2.)*etachk
+                           end if
+                           vmchk = sqrt((1.1045e-15)*TeUsed/Pi/me)
+                           collchk = NeUsed*Pi*grainRadius(ai)*grainRadius(ai)*&
+                                & 1.e-8*vmchk*(2.*kTchk*Ryd2erg*xichk + &
+                                & etachk*grainPot(nS,ai)*Ryd2erg)/fourPi
+                           print*, "! [D126] recomputed e- term =", collchk, &
+                                & "  stored gasDustColl_d =", gasDustColl_d(nS,ai), &
+                                & "  ratio =", gasDustColl_d(nS,ai)/max(collchk,1.e-30)
+                           print*, "! [D126] max over all (ns,ai) =", &
+                                & maxval(gasDustColl_d), "  min =", minval(gasDustColl_d)
                         end if
 #ifdef PDR
                         if (lgPDR) print*, "! [D122]   pdrZone =", &

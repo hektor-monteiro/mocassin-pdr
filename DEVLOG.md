@@ -140,6 +140,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-123 | Pass-count ladder: loop converges by 5 passes; collapses between-fixture spread 4.3x at a systematic 5% low bias; default 1 -> 5 | Done | 2026-09-05 |
 | D-124 | Sublimation excursion is gas-grain collisional heating in ionized cells, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Open | 2026-09-05 |
 | D-125 | Instrumentation suppresses the fault (6/20 -> 0/14), which is what a stale-read hypothesis predicts; layout-preserving bounds build is the discriminating test | Open | 2026-09-05 |
+| D-126 | Vectorisation ruled out (3/10); getDustT is safe to instrument while setDustGasCollHeatCool is not; recomputation probe distinguishes extreme input from corruption | Open | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7474,3 +7475,70 @@ perturbing the thing being measured):
 dust-gas collisional heating in ionized cells, so it is not confined to the PDR
 branch and plain MOCASSIN runs carry it too. Like the negative dielectronic
 recombination of D-116, the fix will belong on `dev` rather than here.
+
+## 2026-09-05d - D-126: vectorisation ruled out; instrument where the fault survives
+
+`-fno-tree-vectorize` on the firing source layout fired **3/10**, against the
+uninstrumented baseline of 10/30. Auto-vectorisation is not involved, and the
+hypothesis floated at the end of D-125 - a vectorised loop consuming a garbage
+lane - is dead.
+
+That result is worth more than the hypothesis it killed, because it establishes
+where instrumentation is safe. Codegen in `setDustGasCollHeatCool` can be
+changed (no vectorisation at all) without suppressing the fault, so the
+suppression in M124 was not "any recompilation": it was the specific
+combination of a new module variable and an in-scope read of the accumulator.
+
+### Honest accounting of the suppression evidence
+
+D-125 quoted 0/22 at P = 3.9e-4, which lumps three builds. Taken separately
+against the 1/3 baseline:
+
+| build | result | P(0 of n) |
+|---|---|---|
+| M124 (in-loop probe) | 0/10 | 1.6% |
+| B124 (that source + bounds) | 0/4 | 20% |
+| KB (firing layout + bounds) | 0/8 | 4% |
+
+Only M124 is strong on its own, and B124 shares its source. **The claim that
+bounds checking by itself suppresses the fault rests on KB's 0/8, which is a 4%
+result - suggestive, not established.** The combined figure is real but should
+not be read as three independent confirmations.
+
+### The instrument this licenses
+
+Every build that fires carries a probe in `getDustT`, and the probe grew
+between H122 and K122 without changing the rate. So `getDustT` can be edited
+freely while `setDustGasCollHeatCool` cannot.
+
+`setDustGasCollHeatCool` is called at update_mod.f90:640, earlier in the same
+`updateCell` invocation than the `getDustT` at :312. The probe now rebuilds the
+electron half of the collisional term from `NeUsed`, `TeUsed` and
+`grainPot(nS,ai)` as they stand at the probe point, and prints it beside the
+stored value with their ratio, plus `maxval`/`minval` over the whole array:
+
+- **recomputed ~ stored** - the formula really does produce ~1e6 from the state
+  it was given, so one of its inputs was extreme at compute time even though
+  all three read as normal a few lines later. The hunt moves to what changes
+  between :640 and :312.
+- **recomputed ~1e-13, stored orders above** - the stored value does not
+  correspond to any state the cell has held, which is corruption, and
+  `maxval`/`minval` says whether one entry or the whole array is affected.
+
+Observed magnitudes so far span 2.26e-06, 2.81, 44.7 and 1.27e6 across
+occurrences, with `grainPot` 0.29-0.84, `Ne` ~110 and `Te` 7900-9200 every
+time. A formula whose inputs move by a factor of three while its output moves
+by twelve orders of magnitude is already hard to reconcile with the first
+reading.
+
+### An unrelated defect noticed in passing - not fixed
+
+update_mod.f90:632
+
+    if (grainPotP(isp,ai) == 0) grainPotP = 1
+
+assigns **the whole array**, not the element - the indices are missing on the
+left-hand side. Every grain species and size gets its pointer reset whenever
+any single one comes back zero. It is not this fault (it clamps to a valid
+index rather than producing garbage) and single-species models cannot show a
+difference, so it is recorded for its own measurement rather than changed here.
