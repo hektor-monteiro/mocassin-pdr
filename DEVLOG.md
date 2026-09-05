@@ -137,6 +137,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-120 | Intermittent NaN reaching T_dust, ~8%, pre-existing; probe armed, not yet caught | Open | 2026-09-04 |
 | D-121 | Coupling loop across four fixtures: improves two, degrades V2; default stays 1 | Partial | 2026-09-04 |
 | D-122 | "All grains sublimed" crash is a finite 1451 K excursion in a mirror-wall corner, not a NaN; D-120 retracted | Open | 2026-09-04 |
+| D-123 | Pass-count ladder: loop converges by 5 passes; collapses between-fixture spread 4.3x at a systematic 5% low bias; default 1 -> 5 | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7062,11 +7063,18 @@ completed, no crashes, no NaN flags.
 
 ### The result is mixed, and that is the finding
 
-H -> 2H2 front ratio, 1.0 meaning agreement with standalone 3D-PDR:
+H -> 2H2 front, against standalone 3D-PDR. **The sec 5.4 row is an absolute
+A_V and the V1/V2 rows are ratios** - sec 5.4 is spherical and compared with
+`cmp_sph.py` against `hii1dv2.pdr.fin`, whose front is at A_V = 0.9054, while
+V1/V2 are planeIonization slabs compared with `cmp_slab.py` against
+`benchmarks/pdr/baseline3dpdr/v{1,2}.pdr.fin`, which report ours/reference.
+Agreement therefore means 0.9054 in the first row and 1.0 in the other two.
+(Corrected in D-122: this table originally labelled every column a ratio,
+which would have made the sec 5.4 entries mean the opposite of what they are.)
 
 | fixture | 1 pass | 3 passes |
 |---|---|---|
-| sec 5.4 | 0.497, 0.497, 0.498 | **0.904, 0.906, 0.905** |
+| sec 5.4 (abs A_V) | 0.497, 0.497, 0.498 | **0.904, 0.906, 0.905** |
 | V1 | 1.113, 1.113 | **0.978, 0.978** |
 | V2 | 1.007, 1.005 | **0.899, 0.901** |
 
@@ -7198,3 +7206,80 @@ carrying on is the physically consistent alternative, since that is already what
 happens to individual sizes above `TdustSublime`. That change is not being made
 while the cause is unknown - a crash that reveals a real energy-budget fault is
 more useful than a silent workaround that hides it.
+
+## 2026-09-05a - D-123: the pass-count ladder, and what it does to the D-121 reading
+
+Twelve runs, three fixtures at 1/3/5/7 passes, one run per configuration (the
+D-121 repeats established that front positions repeat to three digits, so
+repeats bought nothing here). One run crashed - sec 5.4 at one pass, which is
+D-122 and unrelated to the pass count; its 1-pass entry is taken from `cpl1`.
+
+H -> 2H2 front as a ratio to standalone 3D-PDR, so all three fixtures are in
+the same units (sec 5.4's absolute A_V divided by the reference 0.9054):
+
+| fixture | 1 pass | 3 | 5 | 7 | d(1->3) | d(3->5) | d(5->7) |
+|---|---|---|---|---|---|---|---|
+| sec 5.4 | 0.549 | 1.000 | 1.009 | **1.010** | 0.451 | 0.009 | 0.0009 |
+| V1 | 1.113 | 0.978 | 0.956 | **0.953** | 0.135 | 0.022 | 0.0030 |
+| V2 | 1.007 | 0.899 | 0.883 | **0.880** | 0.108 | 0.016 | 0.0030 |
+
+### 1. The loop converges, and V2's degradation is the converged answer
+
+Every fixture is monotone and the increments fall by two orders of magnitude:
+d(5->7) is 0.0009-0.0030 against d(1->3) of 0.108-0.451. Five passes is
+converged; three is not, sitting 0.9-2.2% off the settled value.
+
+This kills the more comfortable of D-121's two readings. That entry offered
+*"three passes is not converged and V2 is still in flight"* as a live
+possibility. It is not: V2 settles at 0.880 and stays there. **The converged
+coupling genuinely disagrees with 3D-PDR for V2 by 12%, and no amount of
+further iteration repairs it.**
+
+### 2. What the loop actually does is collapse the scatter, not improve accuracy
+
+| | 1 pass | 3 | 5 | 7 |
+|---|---|---|---|---|
+| between-fixture spread | 0.564 | 0.101 | 0.126 | **0.130** |
+| mean ratio | 0.890 | 0.959 | 0.949 | **0.948** |
+
+At one pass the three fixtures disagree with each other by 56% and happen to
+straddle the reference. Converged, they agree with each other to 13% and sit
+systematically 5% low. That reframes the whole D-121 result:
+
+- **V2's 1.007 at one pass was not accuracy.** It is an unconverged number that
+  landed near the right answer; the same calculation puts sec 5.4 at 0.549.
+  Scoring a configuration by how close one fixture lands, when the same
+  configuration is 45% wrong on another, measures luck.
+- **sec 5.4's exact 0.9054 at three passes was the curve passing through.** It
+  continues to 0.9146 and settles there, 1.0% past the reference. D-121 read
+  that coincidence as the headline improvement.
+
+A systematic 5% offset shared by three fixtures has a single cause worth
+looking for. A 56% scatter does not. The loop is therefore a real improvement
+in the model's internal consistency even though the mean error barely moves,
+and the residual - +1.0% (sec 5.4), -4.7% (V1), -12.0% (V2) - is now a clean
+physics question rather than noise.
+
+### 3. Cost, and the default
+
+Per-run wall time on 14 ranks, derived from consecutive completion times:
+
+| fixture | 1 | 3 | 5 | 7 |
+|---|---|---|---|---|
+| sec 5.4 | (crashed at 3.0) | 10.1 | 18.0 | 23.4 |
+| V1 | 10.0 | 17.0 | 25.5 | 26.2 |
+| V2 | 4.4 | 9.1 | 12.8 | 15.8 |
+
+Five passes costs about 2.5-3x one pass. Seven costs a further ~25% for a
+change of 0.3% or less, so seven is not worth its price.
+
+**`pdrCoupleIter` default moves from 1 to 5.** The standing requirement is that
+the coupling be as self-consistent as it can be made, and 1 is the setting
+whose answers depend on where the iteration was stopped. Three passes is a
+defensible cheaper setting - within 2.2% of converged at ~40% of the cost - and
+is what to use when turnaround matters more than the last two percent.
+
+This bakes in a configuration that is measurably worse for V2 against 3D-PDR
+(0.7% error at one pass, 12% converged), and that is a deliberate judgement
+rather than an oversight: an unconverged calculation that lands near the
+reference on one fixture out of three is not evidence the calculation is right.

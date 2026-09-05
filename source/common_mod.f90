@@ -599,12 +599,19 @@ module common_mod
     ! up this fast and released that fast". Cloudy's ion_solver.cpp:765.
     logical             :: lgIonChemRates = .true.
     ! D-119: how many times to close the ionization <-> chemistry loop inside a
-    ! single MC iteration. 1 reproduces the sequential behaviour exactly, which
-    ! is the default until the loop is shown to be worth its cost. Cloudy's
-    ! equivalent lives in conv_base and needs damping plus oscillation
+    ! single MC iteration. 1 reproduces the sequential behaviour exactly.
+    ! Cloudy's equivalent lives in conv_base and needs damping plus oscillation
     ! detection, which is evidence that two solvers passing rates can chase
     ! each other rather than settle.
-    integer             :: pdrCoupleIter = 1
+    !
+    ! D-123 measured the ladder 1/3/5/7 on three fixtures. The loop converges:
+    ! the change from 5 to 7 passes is 0.0009-0.0030 in front ratio against
+    ! 0.108-0.451 from 1 to 3. It also collapses the between-fixture spread
+    ! from 0.564 to 0.130 while leaving the mean error near 5% - i.e. it buys
+    ! internal consistency, not accuracy, and at 1 pass the fixtures merely
+    ! straddled the reference. 5 is converged at ~2.5-3x the cost of 1; 3 is
+    ! within 2.2% of converged at ~40% of that cost.
+    integer             :: pdrCoupleIter = 5
     real(kind=8)        :: pdrCoupleDamp = 0.5   ! Cloudy's 50% averaging
     real(kind=8)        :: pdrCoupleResid = 0.
     ! The linked (element, stage) pairs: which MOCASSIN ion each network species
