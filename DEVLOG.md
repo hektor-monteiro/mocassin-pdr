@@ -134,13 +134,13 @@ reasoning that led to the wrong turn is part of the history.
 | D-117 | Matrix ionBalance closes at 2e-15 / 3e-8 once rates are non-negative; enabled | Accepted | 2026-09-04 |
 | D-118 | Chemistry's per-stage rates feed the ion matrix; elemAvail stands down | Accepted | 2026-09-04 |
 | D-119 | In-cell ionization/chemistry loop; H2 front 0.497 -> 0.905 against a 0.9054 reference | Accepted | 2026-09-04 |
-| D-120 | Intermittent NaN reaching T_dust, ~8%, pre-existing; probe armed, not yet caught | Open | 2026-09-04 |
-| D-121 | Coupling loop across four fixtures: improves two, degrades V2; default stays 1 | Partial | 2026-09-04 |
-| D-122 | "All grains sublimed" crash is a finite 1451 K excursion in a mirror-wall corner, not a NaN; D-120 retracted | Open | 2026-09-04 |
+| D-120 | Intermittent crash at T_dust, ~8%, pre-existing. Framed as a NaN; it was not one | Superseded by D-127 | 2026-09-04 |
+| D-121 | Coupling loop across four fixtures: improves two, degrades V2 | Settled by D-123/D-128 | 2026-09-04 |
+| D-122 | "All grains sublimed" is a finite excursion, not a NaN (correct). Blamed on the mirror-wall corner (wrong) | Superseded by D-127 | 2026-09-04 |
 | D-123 | Pass-count ladder: loop converges by 5 passes; collapses between-fixture spread 4.3x at a systematic 5% low bias; default 1 -> 5 | Done | 2026-09-05 |
-| D-124 | Sublimation excursion is gas-grain collisional heating in ionized cells, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Open | 2026-09-05 |
-| D-125 | Instrumentation suppresses the fault (6/20 -> 0/14), which is what a stale-read hypothesis predicts; layout-preserving bounds build is the discriminating test | Open | 2026-09-05 |
-| D-126 | Vectorisation ruled out (3/10); getDustT is safe to instrument while setDustGasCollHeatCool is not; recomputation probe distinguishes extreme input from corruption | Open | 2026-09-05 |
+| D-124 | Excursion localised to gas-grain collisional heating, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Superseded by D-127 | 2026-09-05 |
+| D-125 | Instrumentation suppresses the fault (6/20 -> 0/14) - the clue that led to D-127; control run established the rate had not drifted | Superseded by D-127 | 2026-09-05 |
+| D-126 | Vectorisation ruled out (3/10), narrowing the fault to memory layout; the grainPotP note here grew into D-130 | Superseded by D-127/D-130 | 2026-09-05 |
 | D-127 | **Root cause: IPerg read uninitialised for istage==1 on every call.** Fixed; 0/12. Must precede any fix to the S units bug | Done | 2026-09-05 |
 | D-128 | Ladder re-run clean: fronts unchanged to MC scatter, D-123 stands. My prediction that the garbage shifted results everywhere was wrong - it was negligible or catastrophic, never in between | Done | 2026-09-05 |
 | D-129 | Sticking coefficient units fixed (grams vs amu, 1.7e-25 -> 0.091). Invisible in the coupled fixtures by construction; in plain MOCASSIN the coldest dust warms 10%, groups fully separated | Done | 2026-09-05 |
