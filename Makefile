@@ -168,6 +168,12 @@ else
   FFLAGS += -O2
 endif
 
+# Appended last so it can override anything above. Used to answer questions
+# about codegen without editing the source - e.g. EXTRA=-fno-tree-vectorize to
+# ask whether a fault depends on auto-vectorisation, where editing the routine
+# to instrument it would perturb the very thing being measured (D-125).
+FFLAGS += $(EXTRA)
+
 .PHONY: all clean new install uninstall
 
 all: mocassin mocassinWarm mocassinOutput mocassinPlot

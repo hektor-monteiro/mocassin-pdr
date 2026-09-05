@@ -7428,6 +7428,48 @@ A `CO=bounds` target was added to the Makefile for this (`-O2 -fcheck=bounds
 -fbacktrace -g`), keeping full optimisation so a run stays minutes rather than
 hours. It is worth having independently of this bug.
 
+### The control, which should have been run alongside
+
+The layout-preserving bounds build fired 0/8 as well - the third outcome. At
+that point every non-firing set differed from the firing ones in **two** ways:
+the instrumentation, and being run several hours later. The whole inference
+rested on a 30% rate measured before any of them, and nothing had re-checked
+that the rate itself was still 30%.
+
+Ten runs of the *unmodified* K122 binary - byte-identical to the one that fired
+3/10, launched after all the instrumented sets - fired **4/10**.
+
+| build | fires |
+|---|---|
+| uninstrumented (H122, K122, control C122) | 10/30 |
+| instrumented (M124, B124, KB) | **0/22** |
+
+P(0/22) at the measured rate is 3.9e-4. The rate is stable across the whole
+session, so the suppression is the instrumentation and not drift. The control
+is what licenses that sentence; without it the same numbers would have
+supported "the fault stopped happening for some other reason" equally well.
+
+### A cleaner hypothesis than a stale read
+
+`-fcheck=bounds` and an in-loop read of the accumulator have one thing in
+common besides perturbing memory: **both inhibit auto-vectorisation.** A
+vectorised loop consuming a garbage lane fits every observation as well as a
+stray read does, and it is separable - `-fno-tree-vectorize` changes codegen
+without moving a single byte of data layout, so it isolates vectorisation from
+the layout effects that adding a module variable brings with it.
+
+Ten runs are under way on the firing source built with
+`EXTRA=-fno-tree-vectorize` (a new Makefile hook, appended after the `CO`
+block, so questions about codegen can be asked without editing the routine and
+perturbing the thing being measured):
+
+- **still fires ~4/10** - vectorisation is not involved, and the suppression
+  came from layout or register allocation; the remaining instrument is one that
+  does not recompile at all;
+- **fires 0/10** - the fault lives in a vectorised loop, which narrows it from
+  "somewhere in `setDustGasCollHeatCool`" to a specific loop nest and makes
+  `-fopt-info-vec` on that routine the next read.
+
 **Scope note.** Every occurrence has `pdrZone = 0`. This is MOCASSIN's own
 dust-gas collisional heating in ionized cells, so it is not confined to the PDR
 branch and plain MOCASSIN runs carry it too. Like the negative dielectronic
