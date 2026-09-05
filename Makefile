@@ -152,6 +152,13 @@ source/pdr/healpix_types.o: source/pdr/definitions.o
 
 ifeq ($(CO),debug) #to show all compiler warnings
   FFLAGS += -fbounds-check -Wall -Wuninitialized -g -pg #-ffpe-trap=zero,overflow,invalid,underflow,denormal -fbacktrace -fcheck=all
+else ifeq ($(CO),bounds)
+# D-124: array-bounds checking at full optimisation. The gas-grain collisional
+# heating term reaches 1e19 times a hand evaluation of its own formula, which
+# is the signature of an out-of-range read rather than bad physics, and a
+# stochastic 30% fault is not worth hunting by repetition when the compiler
+# can decide it in one run.
+  FFLAGS += -O2 -fcheck=bounds -fbacktrace -g
 else ifeq ($(CO),valgrind)
   FFLAGS += -g
 else ifeq ($(CO),gprof)

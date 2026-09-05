@@ -139,6 +139,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-122 | "All grains sublimed" crash is a finite 1451 K excursion in a mirror-wall corner, not a NaN; D-120 retracted | Open | 2026-09-04 |
 | D-123 | Pass-count ladder: loop converges by 5 passes; collapses between-fixture spread 4.3x at a systematic 5% low bias; default 1 -> 5 | Done | 2026-09-05 |
 | D-124 | Sublimation excursion is gas-grain collisional heating in ionized cells, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Open | 2026-09-05 |
+| D-125 | Instrumentation suppresses the fault (6/20 -> 0/14), which is what a stale-read hypothesis predicts; layout-preserving bounds build is the discriminating test | Open | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7368,3 +7369,66 @@ Fortran writes values above 1400 in plain decimal - so the D-123 ladder table,
 whose `hot` column comes from `ladder.py` using Python floats throughout,
 stands as reported. **Any numeric scan of Fortran list-directed output in this
 project must use Python, not awk.**
+
+## 2026-09-05c - D-125: the probe suppresses the fault it measures
+
+The term-level probe added at the end of D-124 returned nothing in ten runs.
+Taken with the four bounds-checked runs that followed, the pattern is not
+chance:
+
+| set | build | probe hits | hot cells in final dump |
+|---|---|---|---|
+| H122 | D-122 probe only | 3/10 | 1 |
+| K122 | + decomposition prints in getDustT | 3/10 | 2 |
+| M124 | + term-level prints inside setDustGasCollHeatCool | **0/10** | 0 |
+| B124 | M124 source + `-fcheck=bounds` | **0/4** | 0 |
+
+6/20 in the first pair against 0/14 in the second. P(0/14) at the measured 30%
+rate is 0.7%, so the instrumentation is suppressing the fault rather than the
+fault having gone quiet on its own.
+
+The obvious mundane explanations were checked and ruled out first: both probes
+are present in the binaries (6 strings each), the per-run binaries are
+byte-identical to the repo build, and `pdrCoupleIter 1` is pinned in every
+input.
+
+**Why this is evidence rather than an annoyance.** D-124 concluded from
+arithmetic that the value cannot come from its inputs - a hand evaluation gives
+1e-13 and the code gives 1.27e6 - and inferred a stale or out-of-range read.
+A read of that kind depends on what the surrounding memory happens to hold, so
+it is exactly the class of fault that a probe can extinguish. Two changes went
+in with the term-level probe: a new module variable in `common_mod` (which
+moves module storage) and an in-loop read of the accumulator (which forces it
+through memory instead of a register). Either would change what a stray read
+finds. The Heisenbug is a prediction of the D-124 hypothesis, not a setback to
+it.
+
+**The distinction that makes the next experiment possible:** `-fcheck=bounds`
+inserts checks but does **not** move data; adding a module variable does. So
+the B124 result is uninformative - bounds checking had nothing to catch because
+the fault did not occur - while a bounds build of the *K122 source layout*
+should still fire.
+
+That build is `mocassin.k122bounds`: the D-122 probe exactly as it was in the
+set that fires, with the D-124 in-loop probes and their counters removed so the
+layout matches, compiled `-O2 -fcheck=bounds -fbacktrace`. Eight runs give a
+94% chance of at least one occurrence at the measured rate. The outcomes are
+mutually exclusive and both worth having:
+
+- **bounds violation reported** - the array, index and line are named, and
+  D-124's hypothesis is confirmed at a specific line;
+- **fault fires, bounds silent** - it is not an out-of-range read. Uninitialised
+  memory or a genuine floating-point path then become the candidates, and the
+  next instrument is valgrind or `-finit-real=snan`, not more repetitions;
+- **fault does not fire in eight** - even the bounds instrumentation perturbs
+  it, and the fault has to be caught by a method that does not recompile the
+  routine at all.
+
+A `CO=bounds` target was added to the Makefile for this (`-O2 -fcheck=bounds
+-fbacktrace -g`), keeping full optimisation so a run stays minutes rather than
+hours. It is worth having independently of this bug.
+
+**Scope note.** Every occurrence has `pdrZone = 0`. This is MOCASSIN's own
+dust-gas collisional heating in ionized cells, so it is not confined to the PDR
+branch and plain MOCASSIN runs carry it too. Like the negative dielectronic
+recombination of D-116, the fix will belong on `dev` rather than here.
