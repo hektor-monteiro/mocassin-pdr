@@ -651,6 +651,10 @@ module common_mod
     ! sublimation point, with the terms that built the integral.
     integer             :: nDustHot = 0
     integer, parameter  :: maxDustHot = 8
+    ! D-124: which term of setDustGasCollHeatCool blows the gas-grain
+    ! collisional heating up by ~1e19 over a hand evaluation.
+    integer             :: nCollBlow = 0
+    integer, parameter  :: maxCollBlow = 12
     ! D-121: first non-finite value seen anywhere in the coupled chain, with
     ! the stage that produced it. The NaN surfaces in pathSegment as "all
     ! grains sublimed", which is several steps downstream of wherever it is

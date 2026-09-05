@@ -1133,6 +1133,29 @@ end subroutine iterateT
                                     & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
                                     & (Z*grainPot(ns,na)*Ryd2erg-IPerg+&
                                     & 2.*kBoltzmann*grid%Tdust(ns,na,cellP)))
+                               ! D-124: a hand evaluation of this term with the
+                               ! Ne/Te/grainPot the D-122 probe reported gives
+                               ! ~1e-13 erg/s, and the accumulated total reached
+                               ! 1.27e6. No smooth function of those inputs
+                               ! spans 1e19, so print the factors of whichever
+                               ! term crosses the threshold.
+                               if (gasDustColl_d(ns,na) > 1.e-6 .and. &
+                                    & nCollBlow < maxCollBlow) then
+                                  nCollBlow = nCollBlow + 1
+                                  print*, "! [D124] ion term at cell", cellP, &
+                                       & " elem", elem, " istage", istage, &
+                                       & " ns", ns, " na", na
+                                  print*, "! [D124]   total =", gasDustColl_d(ns,na), &
+                                       & "  ionDen =", ionDenUsed(elementXref(elem),istage), &
+                                       & "  abun =", grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem), &
+                                       & "  Hden =", grid%Hden(cellP)
+                                  print*, "! [D124]   S =", S, "  vmean =", vmean, &
+                                       & "  kT =", kT, "  eta =", eta, "  xi =", xi, &
+                                       & "  psi =", psi
+                                  print*, "! [D124]   grainPot =", grainPot(ns,na), &
+                                       & "  IPerg =", IPerg, "  Tdust =", &
+                                       & grid%Tdust(ns,na,cellP), "  mcp =", mcp
+                               end if
 
                                gasDustColl_g = gasDustColl_g + &
                                     & ionDenUsed(elementXref(elem),istage)*&
@@ -1174,6 +1197,16 @@ end subroutine iterateT
                            & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
                            & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
                            & (Z*grainPot(ns,na)*ryd2erg))
+                      ! D-124: same check on the electron half.
+                      if (gasDustColl_d(ns,na) > 1.e-6 .and. &
+                           & nCollBlow < maxCollBlow) then
+                         nCollBlow = nCollBlow + 1
+                         print*, "! [D124] e- term at cell", cellP, " ns", ns, " na", na
+                         print*, "! [D124]   total =", gasDustColl_d(ns,na), &
+                              & "  Ne =", NeUsed, "  vmean =", vmean, "  kT =", kT
+                         print*, "! [D124]   eta =", eta, "  xi =", xi, "  psi =", psi, &
+                              & "  grainPot =", grainPot(ns,na), "  S =", S
+                      end if
 
                       gasDustColl_g = gasDustColl_g + &
                            & NeUsed* &
@@ -3074,6 +3107,20 @@ end subroutine iterateT
                         print*, "! [D122]   iT =", iT, "  emInt(iT) =", &
                              & dustEmIntegral(global_nS,ai,min(max(iT,1),nTemps)), &
                              & "  Ndust =", grid%Ndust(cellP)
+                        ! Measured: dabs is in the normal range (2.8e-12, i.e.
+                        ! a ~80 K grain) while the integral is 44.7, so the
+                        ! excess is entirely the gas-grain / photoelectric
+                        ! pair. Print both, with the quantities they are built
+                        ! from, so the 1e13 discrepancy is attributed rather
+                        ! than inferred. Ndust is uniform in these models, so
+                        ! it is not a dust-free-cell effect.
+                        if (lgGas .and. lgPhotoelectric) then
+                           print*, "! [D122]   gasDustColl_d =", gasDustColl_d(nS,ai), &
+                                & "  photoelHeat_d =", photoelHeat_d(nS,ai)
+                           print*, "! [D122]   grainPot =", grainPot(nS,ai), &
+                                & "  Ne =", NeUsed, "  Te =", TeUsed, &
+                                & "  Tdust(nS,ai) =", grid%Tdust(nS,ai,cellP)
+                        end if
 #ifdef PDR
                         if (lgPDR) print*, "! [D122]   pdrZone =", &
                              & grid%pdrZone(cellP), "  pdrHeatPE =", &

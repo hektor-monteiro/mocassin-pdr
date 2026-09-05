@@ -138,6 +138,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-121 | Coupling loop across four fixtures: improves two, degrades V2; default stays 1 | Partial | 2026-09-04 |
 | D-122 | "All grains sublimed" crash is a finite 1451 K excursion in a mirror-wall corner, not a NaN; D-120 retracted | Open | 2026-09-04 |
 | D-123 | Pass-count ladder: loop converges by 5 passes; collapses between-fixture spread 4.3x at a systematic 5% low bias; default 1 -> 5 | Done | 2026-09-05 |
+| D-124 | Sublimation excursion is gas-grain collisional heating in ionized cells, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Open | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7283,3 +7284,87 @@ This bakes in a configuration that is measurably worse for V2 against 3D-PDR
 (0.7% error at one pass, 12% converged), and that is a deliberate judgement
 rather than an oversight: an unconverged calculation that lands near the
 reference on one fixture out of three is not evidence the calculation is right.
+
+## 2026-09-05b - D-124: the excursion is gas-grain collisional heating, and it is not a PDR fault
+
+Two 10-run replications of sec 5.4 at one pass, the configuration D-122 crashed
+in. All twenty completed; none crashed. The probe fired in 3/10 and 3/10, and
+one run of the first set still carried a hot cell in its final dump. So the
+excursion happens in ~30% of runs, usually relaxes before the last iteration,
+and only becomes a crash when a packet also happens to scatter in that cell
+while it is hot - which is the ~8% originally recorded as D-120.
+
+### The decomposition
+
+    T = 3000.00 (the iT>=nTemps clamp)
+    dustAbsIntegral = 1266735.88     emInt(3000 K)  = 5.18e-05
+    dabs            = 3.23e-12       resLineHeat    = 4.34e-44
+    gasDustColl_d   = 1266735.88     photoelHeat_d  = 1.10e-14
+    grainPot = 0.290   Ne = 109.65   Te = 9190.8
+    pdrZone = 0   pdrHeatPE = 0   pdrHeatGG = 0   xsecTot = 0
+
+`dustAbsIntegral` and `gasDustColl_d` are equal to the last digit. The radiative
+term `dabs = 3.2e-12` is an entirely normal ~80 K grain. **The whole excursion
+is the gas-grain collisional heating term.**
+
+This rules out both hypotheses this log has carried:
+
+- **Not the mirror-wall corner (D-122).** The cell is #4 here and #6 in the
+  other run, not the (1,1,3) corner, and D-122's reasoning from cell 3 being
+  hot in one run and 82 K in four was a coincidence of which cell tripped first.
+- **Not the PDR coupling at all.** `pdrZone = 0`: these are ionized cells, and
+  the D-093 feedback terms `pdrHeatPE`, `pdrHeatGG` and the `xsecTot` divisor
+  named in D-122 as "the one division that can amplify without bound" are all
+  identically zero on this path. The fault is in MOCASSIN's own
+  `setDustGasCollHeatCool` and predates this branch.
+
+Two further hypotheses are dead on the evidence: zero "insane eta" warnings and
+zero `nDustCapped` hits across all twenty runs, and `grainPot` = 0.29-0.84 with
+`Ne` = 110 and `Te` = 7900-9200 are all unremarkable.
+
+### Why the number cannot come from those inputs
+
+Hand evaluation of the electron branch with the reported values - kT = 0.0582
+Ryd, psi = -4.98, eta = 5.98, xi = 3.49, vmean = 5.96e7 cm/s, Ne = 110,
+pi a^2 = 3.14e-12 cm^2 - gives ~1e-13 erg/s per grain after the 1/4pi. The code
+produced 1.27e6. **A factor of 1e19 is not something a smooth function of these
+inputs produces**, which points at a stale or out-of-range value read at the
+moment the term is accumulated rather than at the physics of the formula. The
+accumulator reset (`gasDustColl_d = 0.`) is unconditional at the top of the
+routine, so it is not cross-cell accumulation.
+
+A third probe now prints, for whichever term first pushes the running total
+past 1e-6, the element, ionization stage, grain species and size with every
+factor: `ionDenUsed`, `elemAbun`, `Hden`, `S`, `vmean`, `kT`, `eta`, `xi`,
+`psi`, `grainPot`, `IPerg`, `Tdust` and `mcp`.
+
+### A separate defect found while reading the routine - NOT yet verified
+
+    S = 2*mcp*MsurfAtom(global_ns)/(mcp+MsurfAtom(global_ns))**2
+
+is the standard accommodation coefficient `2mM/(m+M)^2`, which is dimensionless
+and O(1) only when both masses share units. `mcp = aWeight(elem)*amu` is in
+**grams** (~1.7e-24); `MsurfAtom` is declared in common_mod as *"mass of surf
+atom of a grain [amu]"* - a pure number ~20. Mixing them gives S ~ 1e-25
+instead of O(0.1), which would suppress the neutral-atom half of the gas-grain
+coupling almost entirely.
+
+This is recorded as an observation, not a fix. It runs in the opposite
+direction to the excursion (it under-heats), so it is not the cause, and
+changing it would alter dust temperatures in every model. It needs its own
+measurement before anything is touched.
+
+### Retraction: an analysis bug of mine
+
+While tracing this I reported that the affected cell had `Ndust = 8.7e-09`
+against neighbours "at 8" and reasoned it was a nine-orders-of-magnitude
+dust-poor cell. That was wrong. The system `awk` is mawk, which does not parse
+Fortran E-notation: `"8.70684591E-09" + 0` evaluates to **8**. Every cell in
+these models carries the identical `Ndust = 8.707e-09`. There is no dust-free
+cell and no dust-free effect.
+
+Re-scanned in Python, the hot-cell counts are unchanged (0,0,0,0,1), because
+Fortran writes values above 1400 in plain decimal - so the D-123 ladder table,
+whose `hot` column comes from `ladder.py` using Python floats throughout,
+stands as reported. **Any numeric scan of Fortran list-directed output in this
+project must use Python, not awk.**
