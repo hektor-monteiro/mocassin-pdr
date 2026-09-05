@@ -144,6 +144,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-127 | **Root cause: IPerg read uninitialised for istage==1 on every call.** Fixed; 0/12. Must precede any fix to the S units bug | Done | 2026-09-05 |
 | D-128 | Ladder re-run clean: fronts unchanged to MC scatter, D-123 stands. My prediction that the garbage shifted results everywhere was wrong - it was negligible or catastrophic, never in between | Done | 2026-09-05 |
 | D-129 | Sticking coefficient units fixed (grams vs amu, 1.7e-25 -> 0.091). Invisible in the coupled fixtures by construction; in plain MOCASSIN the coldest dust warms 10%, groups fully separated | Done | 2026-09-05 |
+| D-130 | Multi-component dust segfaults on unmodified code - species index offset twice. Fixed, plus local/global grainPot reads and the whole-array grainPotP assignment | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7781,3 +7782,84 @@ models, so it goes in regardless. It changes no benchmark result and overturns
 no earlier conclusion; it restores a channel that was silently absent. D-127's
 `IPerg` initialisation was the prerequisite and is in on both branches, so the
 ordering constraint recorded there is satisfied.
+
+## 2026-09-05h - D-130: multi-component dust has never worked
+
+Chasing the `grainPotP` whole-array assignment noted in D-126 opened a larger
+seam: MOCASSIN carries a species index in two conventions and mixes them.
+
+- **Per-component arrays** take `(icomp, local)`: `grainAbun`,
+  `componentMinRadius`, `componentMaxRadius`.
+- **Per-species physical data** is **global**, built in `ph_mod` as
+  `dustComPoint(icomp)+i-1`: `rho`, `grainVn`, `MsurfAtom`, `dustAbsXsecP`,
+  `dustScaXsecP`.
+
+`grainPot` and `grainPotP` are allocated `1:nSpecies` - global - and written at
+the global index. They were read at the local one.
+
+### The crash
+
+`updateCell` resolves `ispbig = isp + dustComPoint(nspU) - 1` and passes it to
+`setGrainPotential`, which forwards it to `getGrainEmission` - which applied
+`dustComPoint` **a second time**:
+
+    global_isp = dustComPoint(nspU) + isp - 1     ! isp is already global
+
+With two components, `dustComPoint(2) = 2`, so a component-2 grain became index
+3 into `dustAbsXsecP`, dimensioned 2. Under `-fcheck=bounds` that is a clean
+diagnostic; at -O2 it is a segfault. **A two-component dust model crashes
+immediately on the unmodified code**, which is presumably why nothing in this
+project or its fixtures has ever used one.
+
+### What else was wrong once it could run
+
+- `grainPot`/`grainPotP` read locally in `setPhotoelHeatCool`,
+  `setDustGasCollHeatCool` and `getDustT`, so component 2 used component 1's
+  grain potentials. Now global everywhere.
+- `if (grainPotP(isp,ai) == 0) grainPotP = 1` assigned the **whole array** -
+  the left-hand indices were missing - resetting every species and size
+  whenever any one came back zero. This was the D-126 note; it turned out to be
+  the smallest of the family.
+- One `grainVn(ns)` in the photoelectric yield denominator whose own numerator
+  already used `grainVn(global_ns)`.
+
+### Measured on a purpose-built two-component model
+
+15^3, plain photoionization, silicate inside and graphite outside - genuinely
+different grains (`grainVn` 0.588 vs 0.323 Ryd, `MsurfAtom` 20.077 vs 12.004
+amu). Before: segfault. After: completes with zero bounds violations.
+
+`B` keeps the crash fix but restores the local reads; `C` is the full fix.
+Per-cell |T_dust difference|, median over the cells of each component:
+
+| component | C/C2 | C/C3 | C2/C3 | **B/C** |
+|---|---|---|---|---|
+| 1 silicate - fix cannot act here | 0.174 | 0.170 | 0.147 | **0.160** |
+| 2 graphite - fix acts | 0.471 | 0.473 | 0.470 | **0.619** |
+
+Component 1 is the control and it is not a rhetorical one: `dustComPoint(1) = 1`
+makes local and global indices *identical* there, so B and C are the same
+computation and must differ only by Monte Carlo noise. They do - 0.160 sits
+inside the 0.147-0.174 noise band.
+
+Component 2 is where the indices diverge. Its noise floor is reproducible to
++/-0.002 (0.4702, 0.4709, 0.4730) and the fix moves it to 0.619 - far outside
+that band. The magnitude is modest because the two work functions differ by
+less than a factor of two and dust temperature is dominated by radiative
+heating; the point is that it is real and localised exactly where the analysis
+said it would be.
+
+### Scope
+
+Unreachable with a single dust component, where `dustComPoint(1) = 1` collapses
+the two conventions - which is why every fixture in this project has been blind
+to it. Belongs on `dev` with D-127 and D-129: it is MOCASSIN's own dust code and
+nothing here is PDR-specific.
+
+### Process note
+
+I discarded these edits mid-session with a careless `git checkout
+source/update_mod.f90` while building a comparison binary, and had to
+reconstruct them. Re-applied by unique context rather than line numbers, and
+verified by rebuilding to a binary **byte-identical** to the one that had
+already run the test model clean. Commit before building variants, not after.
