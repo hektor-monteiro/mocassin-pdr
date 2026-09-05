@@ -135,6 +135,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-118 | Chemistry's per-stage rates feed the ion matrix; elemAvail stands down | Accepted | 2026-09-04 |
 | D-119 | In-cell ionization/chemistry loop; H2 front 0.497 -> 0.905 against a 0.9054 reference | Accepted | 2026-09-04 |
 | D-120 | Intermittent NaN reaching T_dust, ~8%, pre-existing; probe armed, not yet caught | Open | 2026-09-04 |
+| D-121 | Coupling loop across four fixtures: improves two, degrades V2; default stays 1 | Partial | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7052,3 +7053,68 @@ all of which cost time before being noticed:
   ~2%, and the median PDR temperature ratio spans 0.905-1.044 across three
   identical runs - wide enough that several single-run temperature comparisons
   earlier in this log carry more uncertainty than they were reported with.
+
+## 2026-09-04g - D-121: the coupling loop across four fixtures, and a probe for D-120
+
+Sixteen runs - four fixtures, two configurations, two repeats each. All
+completed, no crashes, no NaN flags.
+
+### The result is mixed, and that is the finding
+
+H -> 2H2 front ratio, 1.0 meaning agreement with standalone 3D-PDR:
+
+| fixture | 1 pass | 3 passes |
+|---|---|---|
+| sec 5.4 | 0.497, 0.497, 0.498 | **0.904, 0.906, 0.905** |
+| V1 | 1.113, 1.113 | **0.978, 0.978** |
+| V2 | 1.007, 1.005 | **0.899, 0.901** |
+
+Repeats agree to three digits inside every configuration, so every shift here
+is real and far above the Monte Carlo scatter.
+
+**Closing the loop is not a uniform correction.** It moves every front by 0.11
+to 0.41 in ratio, but sec 5.4 and V1 move toward the reference while V2 moves
+away. The reading this was drifting toward - "the sequential coupling was
+lagging everywhere" - is not what the data says, and is recorded here as a
+narrative that the wider set refuted rather than confirmed.
+
+Two readings remain, and this set cannot separate them:
+
+1. The loop is right and V2's previous agreement was coincidental - a lag that
+   happened to cancel against another offset. Uncomfortable, but sec 5.4 is
+   hard to explain otherwise: 0.497 -> 0.905 against a 0.9054 reference is not
+   a coincidence.
+2. Three passes is not converged and V2 is still in flight. The residuals were
+   still falling at pass 3 (8.2e-4 -> 1.4e-4, 6.1e-3 -> 2.7e-3), so this is
+   live.
+
+A pass-count ladder - 1, 3, 5, 7 - separates them. Until it is run,
+`pdrCoupleIter` stays at 1: a change that improves two fixtures and degrades a
+third is not a default.
+
+`ifront` and `test_Problem` completed clean in both configurations, so the loop
+is safe on the non-PDR path as well.
+
+### What the repeats settled, and what they did not
+
+Front positions are stable to 3-4 digits across identical runs, so single runs
+are adequate for measuring them from here. The median PDR temperature ratio is
+NOT: it spans 0.905-1.044 across three identical runs of the same
+configuration. Front comparisons in this log can be trusted at face value;
+single-run temperature comparisons cannot, and several earlier entries report
+them without that caveat.
+
+### D-120 probe, broadened
+
+The NaN of D-120 surfaces in `pathSegment` as "all grains sublimed", several
+steps downstream of wherever it is born. The probe now checks three hand-offs
+in order and records the first failure with the stage that produced it:
+
+- chemistry outputs: `abun`, `pdrHeatPE`, `pdrHeatGG`, `pdrTgas`
+- ionization: `ionDen` after `ionBalance`
+- grain energy balance: `dustAbsIntegral` and its constituent terms
+
+That distinguishes a NaN born in the coupling's feedback (the D-093 additions)
+from one born in MOCASSIN's own radiation terms. It costs a comparison against
+a saved flag, so it can ride along with ordinary work rather than needing a
+dedicated hunt - which is how an 8% fault is realistically caught.

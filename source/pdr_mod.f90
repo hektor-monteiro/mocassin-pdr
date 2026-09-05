@@ -1521,6 +1521,31 @@ module pdr_mod
         ! Count it for diagnostics, but never skip the thermal balance for it.
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
+        ! D-121: the chemistry's outputs are the first hand-off in the chain.
+        ! A NaN here reaches the grain energy balance through pdrHeatPE and
+        ! pdrHeatGG (D-093) and thence T_dust, where it stops the run under a
+        ! message about sublimation that names nothing useful.
+        if (.not.lgNanFound) then
+           do ik = 1, pdrNspec
+              if (.not.(abun(ik) == abun(ik))) then
+                 lgNanFound = .true.; nanWhere = "chemistry abundance"
+                 nanCell = cellP; nanIdx = ik; exit
+              end if
+           end do
+           if (.not.lgNanFound) then
+              if (.not.(grid%pdrHeatPE(cellP) == grid%pdrHeatPE(cellP))) then
+                 lgNanFound = .true.; nanWhere = "pdrHeatPE"; nanCell = cellP
+              else if (.not.(grid%pdrHeatGG(cellP) == grid%pdrHeatGG(cellP))) then
+                 lgNanFound = .true.; nanWhere = "pdrHeatGG"; nanCell = cellP
+              else if (.not.(grid%pdrTgas(cellP) == grid%pdrTgas(cellP))) then
+                 lgNanFound = .true.; nanWhere = "pdrTgas"; nanCell = cellP
+              end if
+           end if
+           if (lgNanFound .and. taskid == 0) print*, &
+                & "! [D121] first non-finite: ", trim(nanWhere), &
+                & "  cell", nanCell, " index", nanIdx
+        end if
+
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
 
         ! D-118: publish the chemistry's per-stage formation and destruction

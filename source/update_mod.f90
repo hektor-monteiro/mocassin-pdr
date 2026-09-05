@@ -2176,6 +2176,18 @@ end subroutine iterateT
                         & grid%ionDen(cellP,elementXref(elem),ion) = 1.e-20
 
 
+                   ! D-121: the ionization hand-off, checked before the
+                   ! value is consumed downstream
+                   if (.not.lgNanFound) then
+                      if (.not.(grid%ionDen(cellP,elementXref(elem),ion) == &
+                              & grid%ionDen(cellP,elementXref(elem),ion))) then
+                         lgNanFound = .true.; nanWhere = "ionDen after ionBalance"
+                         nanCell = cellP; nanIdx = elem*100 + ion
+                         print*, "! [D121] first non-finite: ", trim(nanWhere), &
+                              & "  cell", nanCell, " elem*100+ion", nanIdx
+                      end if
+                   end if
+
                    ionDenUsed(elementXref(elem), ion) = &
                         & grid%ionDen(cellP,elementXref(elem),ion)
                    ! this was added to help MPI communication

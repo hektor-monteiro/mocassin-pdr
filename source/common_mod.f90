@@ -637,6 +637,13 @@ module common_mod
     ! bounded. Cap the prints and report the total once.
     integer             :: nInsaneEta = 0
     integer             :: nDustNaN = 0   ! D-120 one-shot probe
+    ! D-121: first non-finite value seen anywhere in the coupled chain, with
+    ! the stage that produced it. The NaN surfaces in pathSegment as "all
+    ! grains sublimed", which is several steps downstream of wherever it is
+    ! born; catching it at each hand-off localises the origin instead.
+    character(len=48)   :: nanWhere = ""
+    integer             :: nanCell = -1, nanIdx = -1
+    logical             :: lgNanFound = .false.
     integer, parameter  :: maxInsaneEta = 20
     ! dust parameters
     integer            :: nSizes           ! number of grain sizes
