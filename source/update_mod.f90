@@ -628,8 +628,8 @@ subroutine iterateT()
 
                         ispbig = isp+dustComPoint(nspU)-1
                         call setGrainPotential(ispbig,ai,lgGCBConv)
-                        call locate(nuArray, grainPot(isp,ai), grainPotP(isp,ai))
-                        if (grainPotP(isp,ai) == 0) grainPotP = 1
+                        call locate(nuArray, grainPot(ispbig,ai), grainPotP(ispbig,ai))
+                        if (grainPotP(ispbig,ai) == 0) grainPotP(ispbig,ai) = 1
 
                     endif
                 end do
@@ -853,10 +853,17 @@ end subroutine iterateT
 
           integer, intent(in) :: isp, ai
           integer :: ifreq, ip
-          integer :: global_isp ! <<-- DECLARE GLOBAL INDEX
+          integer :: global_isp
 
-          ! Calculate the correct global index for the species
-          global_isp = dustComPoint(nspU) + isp - 1
+          ! D-130. isp arrives ALREADY GLOBAL. updateCell resolves it as
+          !   ispbig = isp + dustComPoint(nspU) - 1
+          ! and passes that to setGrainPotential, which forwards the same value
+          ! here. Applying dustComPoint a second time offset it twice: with two
+          ! dust components (dustComPoint(2) = 2) a component-2 grain became
+          ! index 3 in an array dimensioned 2, which is a segfault without
+          ! bounds checking. Every other use in this function - grainVn(isp),
+          ! and grainPot(isp,ai) in the caller - already treats it as global.
+          global_isp = isp
 
           getGrainEmission=0.
 
@@ -1010,20 +1017,20 @@ end subroutine iterateT
              
                 if (grainRadius(na) >= componentMinRadius(nspU, ns) .and. grainRadius(na) <= componentMaxRadius(nspU, ns)) then
 
-                   if (grainPotP(ns,na) <= 0) then
+                   if (grainPotP(global_ns,na) <= 0) then
                       print*, "! setPhotoelHeatCool irregular grain potential index", &
-                           grainPotP(ns,na), grainPot(ns,na)
+                           grainPotP(global_ns,na), grainPot(global_ns,na)
                       stop
                    end if
 
-                   th = max(grainVn(global_ns)+grainPot(ns,na), grainVn(global_ns))
+                   th = max(grainVn(global_ns)+grainPot(global_ns,na), grainVn(global_ns))
                    call locate(nuArray,th,thP)
                    if(thP<=0) thP=1
 
                    do ifreq = thP, nbins
 
                       Yn = min(Y0*(1.-grainVn(global_ns)/nuArray(ifreq)), Y1)
-                      Yhat = Yn*min(1., max(0.,1.-grainPot(ns,na)/(nuArray(ifreq)-grainVn(global_ns))))
+                      Yhat = Yn*min(1., max(0.,1.-grainPot(global_ns,na)/(nuArray(ifreq)-grainVn(global_ns))))
 
                       if (.not. lgDebug) then
                          photFlux = grid%Jste(cellP,ifreq)/(hcRyd*nuArray(ifreq))
@@ -1034,11 +1041,11 @@ end subroutine iterateT
                       photFlux = photFLux
                       Qa = XSecArray(dustAbsXsecP(global_ns,na)+ifreq-1)
                       EY = Yn*0.5* min(nuArray(ifreq)-grainVn(global_ns),&
-                           & max(0., ((nuArray(ifreq)-grainVn(global_ns))**2-grainPot(ns,na)**2)/&
-                           & (nuArray(ifreq)-grainVn(ns))))
+                           & max(0., ((nuArray(ifreq)-grainVn(global_ns))**2-grainPot(global_ns,na)**2)/&
+                           & (nuArray(ifreq)-grainVn(global_ns))))
 
                       photoelHeat_d(ns,na) = photoelHeat_d(ns,na)+Qa*photFlux*EY*hcRyd/Pi
-                      photoelHeat_g = photoelHeat_g+Qa*photFlux*(EY-Yhat*grainPot(ns,na))*&
+                      photoelHeat_g = photoelHeat_g+Qa*photFlux*(EY-Yhat*grainPot(global_ns,na))*&
                            & grainAbun(nspU,ns)*grainWeight(na)
 
                    end do
@@ -1148,7 +1155,7 @@ end subroutine iterateT
                          
                             if (grainRadius(na) >= componentMinRadius(nspU, ns) .and. grainRadius(na) <= componentMaxRadius(nspU, ns)) then
 
-                               psi = Z*grainPot(ns,na)/kT
+                               psi = Z*grainPot(global_ns,na)/kT
                                if (psi <= 0. ) then
                                   eta = 1.-psi
                                   xi = 1. - psi/2.
@@ -1163,7 +1170,7 @@ end subroutine iterateT
                                     & grid%Hden(cellP)*&
                                     & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
                                     & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
-                                    & (Z*grainPot(ns,na)*Ryd2erg-IPerg+&
+                                    & (Z*grainPot(global_ns,na)*Ryd2erg-IPerg+&
                                     & 2.*kBoltzmann*grid%Tdust(ns,na,cellP)))
 
                                gasDustColl_g = gasDustColl_g + &
@@ -1186,13 +1193,14 @@ end subroutine iterateT
              ! add contribution of e- collisions
              vmean = sqrt(eightkT_pi/me)
              do ns = 1, nSpeciesPart(nspU)
+                global_ns = dustComPoint(nspU) + ns - 1
                 S = 1.
                 Z=-1.
                 do na = 1, nSizes
                 
                    if (grainRadius(na) >= componentMinRadius(nspU, ns) .and. grainRadius(na) <= componentMaxRadius(nspU, ns)) then
 
-                      psi = Z*grainPot(ns,na)/kT
+                      psi = Z*grainPot(global_ns,na)/kT
                       if (psi <= 0. ) then
                          eta = 1.-psi
                          xi = 1. - psi/2.
@@ -1205,7 +1213,7 @@ end subroutine iterateT
                            & NeUsed* &
                            & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
                            & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
-                           & (Z*grainPot(ns,na)*ryd2erg))
+                           & (Z*grainPot(global_ns,na)*ryd2erg))
 
                       gasDustColl_g = gasDustColl_g + &
                            & NeUsed* &
@@ -3018,7 +3026,7 @@ end subroutine iterateT
                         write(57,*) 'Res Lines Heating: ', reslineheat
                         if (lgGas .and. lgPhotoelectric) then
 
-                           write(57,*) 'Grain potential ', grainPot(ns,ai)
+                           write(57,*) 'Grain potential ', grainPot(global_nS,ai)
                            write(57,*) 'Gas-dust collision heat', gasDustColl_d(nS,ai)
                            write(57,*) 'Photoelctric cooling: ', photoelHeat_d(nS,ai)
                         end if
@@ -3125,7 +3133,7 @@ end subroutine iterateT
                         if (lgGas .and. lgPhotoelectric) then
                            print*, "! [D122]   gasDustColl_d =", gasDustColl_d(nS,ai), &
                                 & "  photoelHeat_d =", photoelHeat_d(nS,ai)
-                           print*, "! [D122]   grainPot =", grainPot(nS,ai), &
+                           print*, "! [D122]   grainPot =", grainPot(global_nS,ai), &
                                 & "  Ne =", NeUsed, "  Te =", TeUsed, &
                                 & "  Tdust(nS,ai) =", grid%Tdust(nS,ai,cellP)
                            ! D-126: rebuild the electron half of the collisional
@@ -3139,7 +3147,7 @@ end subroutine iterateT
                            ! (D-125), while every build that fires already
                            ! carries a probe here.
                            kTchk  = 6.336e-6*TeUsed
-                           psichk = -grainPot(nS,ai)/kTchk
+                           psichk = -grainPot(global_nS,ai)/kTchk
                            if (psichk <= 0.) then
                               etachk = 1.-psichk
                               xichk  = 1.-psichk/2.
@@ -3150,7 +3158,7 @@ end subroutine iterateT
                            vmchk = sqrt((1.1045e-15)*TeUsed/Pi/me)
                            collchk = NeUsed*Pi*grainRadius(ai)*grainRadius(ai)*&
                                 & 1.e-8*vmchk*(2.*kTchk*Ryd2erg*xichk + &
-                                & etachk*grainPot(nS,ai)*Ryd2erg)/fourPi
+                                & etachk*grainPot(global_nS,ai)*Ryd2erg)/fourPi
                            print*, "! [D126] recomputed e- term =", collchk, &
                                 & "  stored gasDustColl_d =", gasDustColl_d(nS,ai), &
                                 & "  ratio =", gasDustColl_d(nS,ai)/max(collchk,1.e-30)
