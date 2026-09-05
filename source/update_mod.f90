@@ -3055,6 +3055,33 @@ end subroutine iterateT
                           & print*, "! getDustT: [talk] cell ", xP,yP,zP,"; Grain temperature: "&
                           &, grid%Tdust(nS,ai,cellP), " species ", grainLabel(global_nS), " size:", grainRadius(ai)
 
+                     ! D-122: a grain above its sublimation point is dropped
+                     ! from the opacity, and a cell where EVERY size is gone
+                     ! hard-stops pathSegment. Measured behaviour: cell 3 of the
+                     ! sec5.4 fixture sits at 82 K in every completed run and
+                     ! reached 1451 K in one crashed realisation - a factor 1e7
+                     ! in absorbed energy, which is not Monte Carlo noise.
+                     ! Report the terms so the excursion is read, not guessed.
+                     if (grid%Tdust(nS,ai,cellP) >= &
+                          & TdustSublime(dustComPoint(nspU)+nS-1) .and. &
+                          & nDustHot < maxDustHot) then
+                        nDustHot = nDustHot + 1
+                        print*, "! [D122] grain over sublimation at cell", cellP, &
+                             & " species", nS, " size", ai, " T =", &
+                             & grid%Tdust(nS,ai,cellP)
+                        print*, "! [D122]   dustAbsIntegral =", dustAbsIntegral, &
+                             & "  dabs =", dabs, "  resLineHeat =", resLineHeat
+                        print*, "! [D122]   iT =", iT, "  emInt(iT) =", &
+                             & dustEmIntegral(global_nS,ai,min(max(iT,1),nTemps)), &
+                             & "  Ndust =", grid%Ndust(cellP)
+#ifdef PDR
+                        if (lgPDR) print*, "! [D122]   pdrZone =", &
+                             & grid%pdrZone(cellP), "  pdrHeatPE =", &
+                             & grid%pdrHeatPE(cellP), "  pdrHeatGG =", &
+                             & grid%pdrHeatGG(cellP), "  xsecTot =", xsecTot
+#endif
+                     end if
+
                      ! find weighted mean
                      grid%Tdust(nS,0,cellP) = grid%Tdust(nS,0,cellP)+&
                           & grid%Tdust(nS,ai,cellP)*grainWeight(ai)

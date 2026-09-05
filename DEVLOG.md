@@ -136,6 +136,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-119 | In-cell ionization/chemistry loop; H2 front 0.497 -> 0.905 against a 0.9054 reference | Accepted | 2026-09-04 |
 | D-120 | Intermittent NaN reaching T_dust, ~8%, pre-existing; probe armed, not yet caught | Open | 2026-09-04 |
 | D-121 | Coupling loop across four fixtures: improves two, degrades V2; default stays 1 | Partial | 2026-09-04 |
+| D-122 | "All grains sublimed" crash is a finite 1451 K excursion in a mirror-wall corner, not a NaN; D-120 retracted | Open | 2026-09-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7118,3 +7119,82 @@ That distinguishes a NaN born in the coupling's feedback (the D-093 additions)
 from one born in MOCASSIN's own radiation terms. It costs a comparison against
 a saved flag, so it can ride along with ordinary work rather than needing a
 dedicated hunt - which is how an 8% fault is realistically caught.
+
+## 2026-09-04h - D-122: the "sublimed grains" crash is not a NaN
+
+**Retraction first.** D-120 recorded the intermittent hard stop as an
+intermittent NaN, and D-121 armed a probe that tests for non-finite values at
+each hand-off in the coupled chain. That framing was wrong, and the probe it
+motivated cannot trip on the actual fault. The evidence:
+
+The pass-count ladder's first run (`Lhii1`, sec5.4 at one pass) died in
+iteration 4 at `photon_mod.f90:1776` - `pathSegment: packet scatters with dust
+at position where all grains have sublimed -2-`, followed by `stop`. That check
+is
+
+    .not. ANY( grainabun(...) > 0 .and. Tdust(1:nSpeciesPart(1), 0, cell) < TdustSublime(...) )
+
+and it fires either when the temperature is NaN (NaN fails every comparison) or
+when it is genuinely at or above the sublimation point. The iteration-3 grid
+dump distinguishes the two, and it is unambiguous: **no NaN anywhere in
+`dustGrid.out`, and exactly one cell above the 1400 K sublimation point of
+Ssil.**
+
+| run | passes | completed | hottest cells (size-averaged T_dust, K) |
+|---|---|---|---|
+| hiis3 | 1 | 5 iters | c994=86, c63=82, **c3=82** |
+| Lhii1 | 1 | **crashed, iter 4** | **c3=1451, c4=1363**, c994=86 |
+| Lhii3 | 3 | 5 iters | c994=86, c63=82, **c3=82** |
+| Lhii5 | 5 | 5 iters | c994=86, c63=82, **c3=82** |
+| Lhii7 | 7 | 5 iters | c994=86, c63=82, **c3=82** |
+
+Three facts follow directly, and none of them needed a new run:
+
+1. **It is not a NaN.** 1451 K is a finite number produced by the ordinary
+   interpolation branch, not by the `iT>=nTemps` clamp (which would give 3000)
+   and not by the D-109 degenerate-interval branch (which is now guarded).
+2. **It is not the pass count.** `hiis3` is the same fixture at the same one
+   pass and reaches iteration 5 with cell 3 at 82 K. One pass is not
+   deterministically fatal, so `Lhii1` is a run-to-run excursion.
+3. **It is not Monte Carlo noise.** Cell 3 sits at 82 K in four runs and at
+   1451 K in one. For T_dust ~ (absorbed flux)^(1/(4+beta)), a factor 17.7 in
+   temperature is a factor ~1e7 in absorbed energy. Path-length estimators do
+   not have a 1e7 tail. Something in that cell's energy budget is wrong in that
+   realisation, not merely under-sampled.
+
+**Where cell 3 is.** With a 31^3 grid and the write order of `writeGrid`, cell
+index 3 is (x,y,z) = (1,1,3) - exactly the position printed by the crash. That
+is the corner column where two mirror walls of the planeIonization geometry
+meet. It is also the same corner named in D-109: *"a corner cell of the ifront
+benchmark produced T_dust = 2.3e9 K."* D-109 closed one fault there (a flat
+emission-table interval divided into); this is a second, and the recurrence of
+the same two cells (3 and 4, adjacent in z) says the geometry concentrates
+something into that column rather than that one cell is unlucky.
+
+**Hypothesis, held loosely:** mirror-wall reflection double-counts packets in
+the corner where two walls meet, so the corner column's path-length estimator
+occasionally accumulates far more than the physical flux. This is a hypothesis,
+not a finding - the four predictions of D-109/D-112/D-116/D-119 that measurement
+contradicted are the reason to say so explicitly.
+
+**What was changed:** nothing in the physics. The D-120/D-121 probes stay (they
+test a different thing and cost a comparison), and a new probe reports the first
+`maxDustHot = 8` grains to cross their sublimation temperature, printing
+`dustAbsIntegral` with the terms that build it - `dabs`, `resLineHeat`, `iT`,
+`Ndust`, and under `-DPDR` the D-093 feedback terms `pdrHeatPE`, `pdrHeatGG`
+and `xsecTot`. That separates a large continuum absorption from a large
+resonance-line term from a small `xsecTot` blowing up the per-grain PDR
+heating, which is the one division in that block that can amplify without bound.
+
+**Why the probe is worth more than the crash rate suggests.** The excursion is
+recorded in the grid dump whether or not a packet happens to scatter in that
+cell, so a surviving run is still evidence: none of the four completed runs has
+any cell above 1400 K. The observable is "did any cell cross", not "did the run
+die", and that is roughly an order of magnitude more sensitive.
+
+**Still open.** Whether the `stop` is the right response at all. A single cell
+of 29791 losing its grains halts fourteen ranks; dropping the cell's dust and
+carrying on is the physically consistent alternative, since that is already what
+happens to individual sizes above `TdustSublime`. That change is not being made
+while the cause is unknown - a crash that reveals a real energy-budget fault is
+more useful than a silent workaround that hides it.

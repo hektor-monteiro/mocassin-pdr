@@ -637,6 +637,13 @@ module common_mod
     ! bounded. Cap the prints and report the total once.
     integer             :: nInsaneEta = 0
     integer             :: nDustNaN = 0   ! D-120 one-shot probe
+    ! D-122: the "all grains sublimed" hard stop is NOT driven by a NaN. The
+    ! excursion is a finite but enormous dustAbsIntegral in one cell in one
+    ! realisation, so a probe that only tests for non-finite values never
+    ! trips. Report the first few cells whose grain temperature crosses the
+    ! sublimation point, with the terms that built the integral.
+    integer             :: nDustHot = 0
+    integer, parameter  :: maxDustHot = 8
     ! D-121: first non-finite value seen anywhere in the coupled chain, with
     ! the stage that produced it. The NaN surfaces in pathSegment as "all
     ! grains sublimed", which is several steps downstream of wherever it is
