@@ -142,6 +142,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-125 | Instrumentation suppresses the fault (6/20 -> 0/14), which is what a stale-read hypothesis predicts; layout-preserving bounds build is the discriminating test | Open | 2026-09-05 |
 | D-126 | Vectorisation ruled out (3/10); getDustT is safe to instrument while setDustGasCollHeatCool is not; recomputation probe distinguishes extreme input from corruption | Open | 2026-09-05 |
 | D-127 | **Root cause: IPerg read uninitialised for istage==1 on every call.** Fixed; 0/12. Must precede any fix to the S units bug | Done | 2026-09-05 |
+| D-128 | Ladder re-run clean: fronts unchanged to MC scatter, D-123 stands. My prediction that the garbage shifted results everywhere was wrong - it was negligible or catastrophic, never in between | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7627,3 +7628,78 @@ against fixed code before they are quoted again.
 Scope: `pdrZone = 0` in every occurrence - this is MOCASSIN's own dust-gas
 collisional heating, it affects every variant, and like D-116 it belongs on
 `dev`.
+
+## 2026-09-05f - D-128: the ladder re-run clean, and a prediction of mine that was wrong
+
+Twelve runs on the D-127 build, pass count pinned in every input. All completed
+- including sec 5.4 at one pass, which is the configuration that crashed in
+D-122 - and **no cell anywhere crossed the sublimation point**. The fix holds.
+
+### The fronts did not move
+
+| fixture | pass | pre-fix | post-fix | delta |
+|---|---|---|---|---|
+| sec 5.4 | 1 | 0.4969 (from cpl1; the ladder run crashed) | 0.4982 | +0.0013 |
+| sec 5.4 | 3 | 0.9054 | 0.9051 | -0.0003 |
+| sec 5.4 | 5 | 0.9138 | 0.9150 | +0.0012 |
+| sec 5.4 | 7 | 0.9146 | 0.9146 | 0 |
+| V1 | 1/3/5/7 | 1.113 / 0.978 / 0.956 / 0.953 | identical | 0 |
+| V2 | 1/3/5/7 | 1.007 / 0.899 / 0.883 / 0.880 | 1.007 / 0.899 / 0.882 / 0.880 | -0.001 |
+
+Every difference is at or below the Monte Carlo scatter established in D-121,
+where repeats of one configuration spanned 0.904-0.906.
+
+**This contradicts what I predicted.** D-127 recorded that "the garbage entered
+the neutral-atom collisional heating on every call... so dust temperatures
+carry a small systematic error everywhere, not only in the 1/3 of runs that
+produced a visible excursion", and told the reader the ladder needed
+re-checking before it could be quoted. The re-check says the fronts were never
+affected.
+
+The reason is the interaction already documented in D-127, followed through to
+its conclusion, which I did not do at the time. The `S` units bug suppresses
+the whole neutral-atom term by 24 orders of magnitude, so a garbage `IPerg`
+contributes nothing at all unless it exceeds ~1.5e24. **The fault was never
+"small everywhere and occasionally large" - it was negligible or catastrophic,
+with nothing in between.** The arithmetic for that was already in D-127; I drew
+the wrong conclusion from it by reasoning about how often the variable was read
+rather than about what magnitude was needed to matter.
+
+That is worth stating plainly because the prediction was the stated reason for
+this whole re-run. The re-run was still right to do - "the fronts are unchanged"
+is only knowable by measuring - but it confirmed the old numbers rather than
+correcting them.
+
+### D-123 stands unchanged, now on clean data
+
+| fixture | 1 | 3 | 5 | 7 | d(3->5) | d(5->7) |
+|---|---|---|---|---|---|---|
+| sec 5.4 | 0.550 | 1.000 | 1.011 | **1.010** | 0.0109 | 0.0004 |
+| V1 | 1.113 | 0.978 | 0.956 | **0.953** | 0.0220 | 0.0030 |
+| V2 | 1.007 | 0.899 | 0.882 | **0.880** | 0.0170 | 0.0020 |
+
+| | 1 pass | 3 | 5 | 7 |
+|---|---|---|---|---|
+| between-fixture spread | 0.563 | 0.101 | 0.129 | **0.130** |
+| mean ratio | 0.890 | 0.959 | 0.950 | **0.948** |
+
+Converged by five passes; V2's disagreement is the converged answer, not a
+way-point; the loop buys internal consistency (spread 0.563 -> 0.130) rather
+than accuracy (mean stuck near 0.95). `pdrCoupleIter = 5` stands.
+
+One improvement over D-123: the sec 5.4 1-pass entry is now measured directly
+(0.4982) instead of borrowed from `cpl1` because the ladder run had crashed.
+
+### Still open
+
+- **`S` mixes grams with amu** (~1.7e-25 against an intended O(0.1)). This is
+  now the most consequential known defect in the dust-gas coupling: it
+  effectively deletes the neutral-atom collisional channel. It must not be
+  corrected on its own - D-127's `IPerg` initialisation is the prerequisite -
+  and it needs its own measurement of what the dust temperatures do when the
+  channel is restored.
+- **`grainPotP` whole-array assignment**, update_mod.f90:632, indices missing
+  on the left-hand side. Single-species models cannot show it.
+- The residual front offsets: +1.0% (sec 5.4), -4.7% (V1), -12.0% (V2). With
+  the crash explained and the ladder converged, this is the open physics
+  question.
