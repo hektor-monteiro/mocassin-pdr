@@ -1147,29 +1147,6 @@ end subroutine iterateT
                                     & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
                                     & (Z*grainPot(ns,na)*Ryd2erg-IPerg+&
                                     & 2.*kBoltzmann*grid%Tdust(ns,na,cellP)))
-                               ! D-124: a hand evaluation of this term with the
-                               ! Ne/Te/grainPot the D-122 probe reported gives
-                               ! ~1e-13 erg/s, and the accumulated total reached
-                               ! 1.27e6. No smooth function of those inputs
-                               ! spans 1e19, so print the factors of whichever
-                               ! term crosses the threshold.
-                               if (gasDustColl_d(ns,na) > 1.e-6 .and. &
-                                    & nCollBlow < maxCollBlow) then
-                                  nCollBlow = nCollBlow + 1
-                                  print*, "! [D124] ion term at cell", cellP, &
-                                       & " elem", elem, " istage", istage, &
-                                       & " ns", ns, " na", na
-                                  print*, "! [D124]   total =", gasDustColl_d(ns,na), &
-                                       & "  ionDen =", ionDenUsed(elementXref(elem),istage), &
-                                       & "  abun =", grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem), &
-                                       & "  Hden =", grid%Hden(cellP)
-                                  print*, "! [D124]   S =", S, "  vmean =", vmean, &
-                                       & "  kT =", kT, "  eta =", eta, "  xi =", xi, &
-                                       & "  psi =", psi
-                                  print*, "! [D124]   grainPot =", grainPot(ns,na), &
-                                       & "  IPerg =", IPerg, "  Tdust =", &
-                                       & grid%Tdust(ns,na,cellP), "  mcp =", mcp
-                               end if
 
                                gasDustColl_g = gasDustColl_g + &
                                     & ionDenUsed(elementXref(elem),istage)*&
@@ -1211,16 +1188,6 @@ end subroutine iterateT
                            & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
                            & S*vmean*(2.*kT*Ryd2erg*xi-eta*&
                            & (Z*grainPot(ns,na)*ryd2erg))
-                      ! D-124: same check on the electron half.
-                      if (gasDustColl_d(ns,na) > 1.e-6 .and. &
-                           & nCollBlow < maxCollBlow) then
-                         nCollBlow = nCollBlow + 1
-                         print*, "! [D124] e- term at cell", cellP, " ns", ns, " na", na
-                         print*, "! [D124]   total =", gasDustColl_d(ns,na), &
-                              & "  Ne =", NeUsed, "  vmean =", vmean, "  kT =", kT
-                         print*, "! [D124]   eta =", eta, "  xi =", xi, "  psi =", psi, &
-                              & "  grainPot =", grainPot(ns,na), "  S =", S
-                      end if
 
                       gasDustColl_g = gasDustColl_g + &
                            & NeUsed* &
