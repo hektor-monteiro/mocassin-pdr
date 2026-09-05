@@ -141,6 +141,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-124 | Sublimation excursion is gas-grain collisional heating in ionized cells, ~1e19 over a hand evaluation; not PDR, not the corner; mawk E-notation retraction | Open | 2026-09-05 |
 | D-125 | Instrumentation suppresses the fault (6/20 -> 0/14), which is what a stale-read hypothesis predicts; layout-preserving bounds build is the discriminating test | Open | 2026-09-05 |
 | D-126 | Vectorisation ruled out (3/10); getDustT is safe to instrument while setDustGasCollHeatCool is not; recomputation probe distinguishes extreme input from corruption | Open | 2026-09-05 |
+| D-127 | **Root cause: IPerg read uninitialised for istage==1 on every call.** Fixed; 0/12. Must precede any fix to the S units bug | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7542,3 +7543,87 @@ left-hand side. Every grain species and size gets its pointer reset whenever
 any single one comes back zero. It is not this fault (it clamps to a valid
 index rather than producing garbage) and single-species models cannot show a
 difference, so it is recorded for its own measurement rather than changed here.
+
+## 2026-09-05e - D-127: found it. IPerg is read uninitialised on every call
+
+update_mod.f90:1092
+
+    if (istage>1) then
+       ... IPerg = <ionization potential> ...
+    end if                        ! <- no else branch
+    ...
+    gasDustColl_d(ns,na) = gasDustColl_d(ns,na) + ... * &
+         & (2.*kT*Ryd2erg*xi - eta*(Z*grainPot*Ryd2erg - IPerg + 2.*kBoltzmann*Tdust))
+
+`IPerg` is used unconditionally but assigned only for `istage > 1`, and the
+loop's first iteration is `elem = 1, istage = 1`. Fortran does not initialise
+locals, so **every call to `setDustGasCollHeatCool` reads a stack slot** and
+puts its contents into the dust temperature.
+
+Physically the fix is not a patch: `IPerg` is the recombination energy released
+when an electron on the grain neutralises an impacting **ion**. A neutral atom
+carries none, so `IPerg = 0.` in the `else` is the correct value.
+
+### The evidence, and what each piece does and does not establish
+
+| observation | what it shows |
+|---|---|
+| the source at :1092 | the read is uninitialised. This is not statistical - it is a fact about the code |
+| `-finit-real=zero`, flags only, 0/10 | uninitialised reals are the cause. **No layout change**, so this is not confounded |
+| `-fno-tree-vectorize`, flags only, 3/10 | codegen alone does not suppress; the sensitivity is to memory, not instructions |
+| layout-changing builds M124/R126/KB, 0/22 | consistent with a stack read |
+| the fix, 0/12, no cell above 1400 K | **corroborating but confounded** - the fix is a source change, and D-126 established that any source change moves the stack |
+
+The last row is worth being explicit about: 0/12 at P = 0.8% would be
+convincing on its own only if the fix could not have suppressed the fault by
+accident, and it could. The claim rests on the first two rows - a defect read
+directly out of the source, and a flag-only experiment that neutralises exactly
+that class of defect without touching layout.
+
+### The arithmetic checks out, and it is only survivable because of a second bug
+
+The prefactor multiplying `IPerg` in the neutral term, with Te = 9190 K,
+Ne = Hden = 100, a = 0.01 um and the `S` from D-124, is 5.8e-30. So:
+
+- clamping T_dust at 3000 K needs the garbage `IPerg` above **1.5e24**;
+- the observed 1.27e6 needs about **3.7e34**.
+
+Both sit inside single-precision range (max 3.4e38), and a stack slot holding
+an arbitrary bit pattern lands above 1e24 often enough to explain a ~1/3 rate.
+The legitimate value is ~2e-11 erg.
+
+**The two defects interact, and the order of fixing matters.** D-124 recorded
+that `S = 2*mcp*MsurfAtom/(mcp+MsurfAtom)**2` mixes grams with amu, giving
+1.7e-25 where the accommodation coefficient should be O(0.1). That error
+suppresses the whole neutral-atom term by 24 orders of magnitude - and it is
+the only reason the garbage `IPerg` is survivable. Correcting `S` alone, with
+`IPerg` still uninitialised, would have amplified this term by 6e23 and turned
+an intermittent crash into a certainty. **`S` must not be touched before this
+commit is in.**
+
+### Correction to D-124's reasoning
+
+D-124 argued "dabs = 3.23e-12 is an entirely normal ~80 K grain, so the
+radiative term is healthy and the excess is all gas-grain". The conclusion is
+right - `dustAbsIntegral` equalled `gasDustColl_d` to the last digit - but the
+argument was not: `dabs` is written only under `lgTraceHeating .and.
+taskid==0`, which is off in these runs, so the probe was printing another
+uninitialised stack slot. The same is true of `resLineHeat`, whose 4.34e-44
+in every print is a denormal, and which is why the logs carry IEEE_DENORMAL
+flags. Neither enters the physics (both are read only inside the guards that
+write them), but both are now zeroed unconditionally so that a read outside the
+guard means what it appears to mean.
+
+### What this costs downstream
+
+The garbage entered the neutral-atom collisional heating on **every call**,
+usually as a stale value from the previous call at the same stack depth rather
+than as something wild. So dust temperatures carry a small systematic error
+everywhere, not only in the 1/3 of runs that produced a visible excursion.
+Every dust temperature and every front position measured before this commit was
+measured with it present, including the D-123 ladder. Those need re-checking
+against fixed code before they are quoted again.
+
+Scope: `pdrZone = 0` in every occurrence - this is MOCASSIN's own dust-gas
+collisional heating, it affects every variant, and like D-116 it belongs on
+`dev`.

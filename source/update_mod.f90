@@ -1099,6 +1099,20 @@ end subroutine iterateT
                          else
                             IPerg = nuArray(elementP(elem,istage-1,nShells(elem,istage-1),1))*ryd2erg
                          end if
+                      else
+                         ! D-127. IPerg is the ionization potential released when
+                         ! an electron on the grain neutralises an impacting ion.
+                         ! A NEUTRAL atom carries no such energy, so the term is
+                         ! zero - but it was never assigned in that case while
+                         ! still being read by the accumulation below, and
+                         ! elem=1/istage=1 is the first iteration of every call.
+                         ! The stack slot therefore supplied it, and its contents
+                         ! reached the dust temperature: measured values of
+                         ! gasDustColl_d spanning 2.3e-06 to 1.3e6 erg/s per
+                         ! grain against a hand evaluation of ~1e-13, clamping
+                         ! T_dust to 3000 K and hard-stopping ~8% of runs in
+                         ! pathSegment as "all grains have sublimed".
+                         IPerg = 0.
                       end if
 
                       do ns = 1, nSpeciesPart(nspU)
@@ -2951,8 +2965,15 @@ end subroutine iterateT
                   if (grainRadius(ai) >= componentMinRadius(nspU, ns) .and. grainRadius(ai) <= componentMaxRadius(nspU, ns)) then
                   
                      dustAbsIntegral=0.
-                                    
-                     if (lgTraceHeating.and.taskid==0) dabs=0.
+
+                     ! D-127. dabs and resLineHeat are written only under their
+                     ! own guards (trace heating, and resonance line transfer),
+                     ! so anything that reads them outside those guards - the
+                     ! probes in this routine did - gets a stack slot. Zero them
+                     ! unconditionally: they are cheap, and it makes a read
+                     ! outside the guard mean what it appears to mean.
+                     dabs = 0.
+                     resLineHeat = 0.
 
                      do i = 1, nbins
                         dustAbsIntegral = dustAbsIntegral+xSecArray(dustAbsXsecP(global_nS,ai)+i-1)*radField(i)
