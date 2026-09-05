@@ -1121,7 +1121,25 @@ end subroutine iterateT
                          global_ns = dustComPoint(nspU) + ns - 1
                       
                          if (istage == 1) then
-                            S = 2*mcp*MsurfAtom(global_ns)/(mcp+MsurfAtom(global_ns))**2
+                            ! D-129. Energy accommodation for a neutral atom
+                            ! striking the grain: the classical elastic-collision
+                            ! transfer fraction 2mM/(m+M)^2, defined at the end
+                            ! of appendix A.10 of Baldwin, Ferland & Martin.
+                            ! It is dimensionless and scale-invariant, so it is
+                            ! only correct when BOTH masses are in the same
+                            ! units. It was written with mcp in grams
+                            ! (aWeight*amu ~ 1.7e-24) against MsurfAtom in amu
+                            ! (~20, as the .nk headers and the declaration in
+                            ! common_mod both say), which returned ~1.7e-25
+                            ! instead of ~0.09 and so deleted the neutral-atom
+                            ! collisional channel outright.
+                            !
+                            ! mcp itself is right as it stands - vmean above
+                            ! needs a mass in grams - so the units are fixed
+                            ! here rather than there. Cloudy computes the same
+                            ! quantity from two amu masses (grains_mie.cpp:1154).
+                            S = 2.*aWeight(elem)*MsurfAtom(global_ns)/&
+                                 & (aWeight(elem)+MsurfAtom(global_ns))**2
                          else
                             S = 1.
                          end if

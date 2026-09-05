@@ -143,6 +143,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-126 | Vectorisation ruled out (3/10); getDustT is safe to instrument while setDustGasCollHeatCool is not; recomputation probe distinguishes extreme input from corruption | Open | 2026-09-05 |
 | D-127 | **Root cause: IPerg read uninitialised for istage==1 on every call.** Fixed; 0/12. Must precede any fix to the S units bug | Done | 2026-09-05 |
 | D-128 | Ladder re-run clean: fronts unchanged to MC scatter, D-123 stands. My prediction that the garbage shifted results everywhere was wrong - it was negligible or catastrophic, never in between | Done | 2026-09-05 |
+| D-129 | Sticking coefficient units fixed (grams vs amu, 1.7e-25 -> 0.091). Invisible in the coupled fixtures by construction; in plain MOCASSIN the coldest dust warms 10%, groups fully separated | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7703,3 +7704,80 @@ One improvement over D-123: the sec 5.4 1-pass entry is now measured directly
 - The residual front offsets: +1.0% (sec 5.4), -4.7% (V1), -12.0% (V2). With
   the crash explained and the ladder converged, this is the open physics
   question.
+
+## 2026-09-05g - D-129: the sticking coefficient's units, fixed and measured
+
+    S = 2*mcp*MsurfAtom(global_ns)/(mcp+MsurfAtom(global_ns))**2
+
+is the elastic energy-transfer fraction 2mM/(m+M)^2 defined at the end of
+appendix A.10 of Baldwin, Ferland & Martin. It is dimensionless and
+scale-invariant, so it is correct only when both masses carry the same units.
+They did not: `mcp = aWeight(elem)*amu` is in grams (~1.7e-24) while
+`MsurfAtom` is in amu - 20.077 in the `astroSilD2003_base.nk` header, and
+declared "[amu]" in common_mod. The result was 1.67e-25 where it should be
+0.091, which deleted the neutral-atom collisional channel outright.
+
+Three independent confirmations before touching it: the grain data file, the
+declaration, and **Cloudy computing the identical quantity from two amu
+masses** (`grains_mie.cpp:1154`, citing the same BFM appendix).
+
+The fix is applied to the `S` expression, not to `mcp`. `mcp` is also used for
+`vmean = sqrt(eightkT_pi/mcp)`, which legitimately wants grams - correcting
+`mcp` would have fixed `S` and silently broken the thermal velocity.
+
+    S = 2.*aWeight(elem)*MsurfAtom(global_ns)/(aWeight(elem)+MsurfAtom(global_ns))**2
+
+| collider | old S | new S |
+|---|---|---|
+| H | 1.67e-25 | 0.0910 |
+| He | | 0.2772 |
+| C | | 0.4684 |
+| O | | 0.4936 |
+
+approaching 0.5 as m -> M, as the formula requires.
+
+### The coupled fixtures cannot see it, by construction
+
+sec 5.4, V1 and V2 at the default five passes: fronts 0.9150 -> 0.9149,
+0.956 -> 0.953, 0.882 -> 0.882; dust temperatures within 0.05%. That is not
+reassurance, it is a blind test. In PDR cells the D-093 branch replaces
+`gasDustColl_d` wholesale with 3D-PDR's rates - exactly where neutral atoms
+dominate - and in the ionized cells that do use this path the neutral
+population is a ~1e-4 fraction against an ion channel that already had S = 1.
+
+### Measured where the channel is live
+
+A plain photoionization model - the same geometry with the PDR stripped out, so
+nothing replaces the term - run three times each with binaries differing in
+that one expression and nothing else (the rebuilt `newS` binary was verified
+byte-identical to the one used above).
+
+| statistic | old S | new S | change | groups overlap | perm p |
+|---|---|---|---|---|---|
+| T_dust min | 12.846 | 14.145 | **+10.11%** | no | 0.10 |
+| T_dust median | 20.564 | 20.569 | +0.03% | yes | 0.60 |
+| T_gas median | 5301.3 | 5360.1 | +1.11% | no | 0.10 |
+| T_gas max | 9422.0 | 9337.7 | -0.90% | no | 0.10 |
+
+Two-sided exact permutation on 3v3; 0.10 is the floor, so it means the two
+groups do not overlap at all - the strongest result this sample size admits.
+The pattern is what the physics predicts: the coldest dust, deepest in the
+model where radiative heating is weakest and the collisional term competes,
+warms by 10%, while the bulk median - the one statistic that overlaps - does
+not move.
+
+**Correction to my own analysis.** On first seeing the single-pair result I
+judged it against "twice the within-group spread" and reported every statistic
+as *not separable from scatter*. That is not a test: it ignores that three of
+the four groups do not overlap at all. Replacing it with an exact permutation
+test reverses the verdict on three of four rows. The instinct to demand a
+scatter control was right - a single pair could not have established this - but
+the criterion applied to the control was wrong.
+
+### Standing
+
+The fix is correct on first principles independently of how much it moves these
+models, so it goes in regardless. It changes no benchmark result and overturns
+no earlier conclusion; it restores a channel that was silently absent. D-127's
+`IPerg` initialisation was the prerequisite and is in on both branches, so the
+ordering constraint recorded there is satisfied.
