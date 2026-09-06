@@ -1550,9 +1550,18 @@ end subroutine iterateT
                        ! actually seeing, and the H0 density the opacity is built
                        ! from, at the edge and just above it.
                        if (elem == 1 .and. ion == 1) then
-                          print*, "! [D140]   Jste at IP =", grid%Jste(cellP,IPnuP), &
-                               & "  at IP+2 bins =", grid%Jste(cellP,min(IPnuP+2,nbins)), &
-                               & "  Jste(1) =", grid%Jste(cellP,1)
+                          ! D-142: the sum runs IPnuP..highNuP; sampling only
+                          ! its first bins showed Jste = 0 while the integral
+                          ! was 4e-24, which just meant the flux is elsewhere in
+                          ! the range. Report the whole band.
+                          print*, "! [D142]   max Jste over IPnuP..highNuP =", &
+                               & maxval(grid%Jste(cellP,IPnuP:highNuP)), &
+                               & "  at bin", &
+                               & IPnuP-1+maxloc(grid%Jste(cellP,IPnuP:highNuP),1), &
+                               & " of", IPnuP, "..", highNuP
+                          print*, "! [D142]   nu at that bin =", &
+                               & nuArray(IPnuP-1+maxloc(grid%Jste(cellP,IPnuP:highNuP),1)), &
+                               & " Ryd ;  sum Jste =", sum(grid%Jste(cellP,IPnuP:highNuP))
                           print*, "! [D140]   ionDen H0 =", &
                                & grid%ionDen(cellP,elementXref(1),1), &
                                & "  H+ =", grid%ionDen(cellP,elementXref(1),2), &

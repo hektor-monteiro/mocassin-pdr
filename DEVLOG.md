@@ -152,6 +152,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-138 | H I photoionization is 99.5% of the heating in deep PDR cells; carbon 0.0%, so the metals explanation is dead | Open | 2026-09-05 |
 | D-139 | Added an H2 continuum at 13.6-15.4 eV, then REVERTED: Cloudy puts zero there, and x(H)=0.189 gives tau=230 per cell so nothing was leaking | Reverted | 2026-09-05 |
 | D-141 | Yan/Sadeghpour/Dalgarno H2 photoionization cross section ported from Cloudy, replacing D-107's power law - which was 2.5x low across the 18 eV peak | Done | 2026-09-05 |
+| D-143 | Deep-PDR H I heating is not transported light: one bin in 171 carries flux, the same bin in 31/31 cells, where tau = 175 per cell. Points at the boundary treatment (D-049) | Open | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7973,3 +7974,60 @@ only above ~200 eV.
 The Fortran port reproduces the C to five significant figures at 16, 18, 25,
 40, 100 and 500 eV, checked against an independent evaluation of the published
 fit rather than against itself. Both build flavours verified.
+
+## 2026-09-06a - D-143: the deep-PDR heating is not transported light
+
+Where the H I photoionization heating of D-138 comes from, run to ground.
+
+### The chain of measurements
+
+| probe | result |
+|---|---|
+| D-138 per-ion | H I is 99.5% of the heating at A_V > 1; carbon 0.0% |
+| D-140 field at the edge | `Jste` at the Lyman edge is EXACTLY zero |
+| D-142 whole band | one bin non-zero out of 171: bin 465, 1.7922 Ryd, in **31 of 31** cells |
+| D-143 opacity there | smooth, no dip: H I sigma 1.269e-18, tau = **175 per cell** |
+
+`sum(Jste) == max(Jste)` over bins 430-600 in every sampled cell, and the other
+170 bins are exact zeros - not small, zero. An exact zero means no packet of
+that frequency ever crossed the cell, so this is packet discreteness rather
+than a field leaking through.
+
+### What that rules out
+
+- **Not missing opacity.** D-139 added a continuum for a leak that does not
+  exist; reverted. H I alone gives tau = 175-230 per cell across this band.
+- **Not a cross-section or density error.** density(1,1) = 71-83 cm^-3 is right
+  (ionDen x elemAbun x Hden), the table is tabulated HlevNuP(1)..nbins, and the
+  opacity is smooth across 460-470.
+- **Not Monte Carlo shot noise.** Noise would scatter across bins from cell to
+  cell. The same bin in 31 of 31 cells is deterministic.
+- **Not the metals, not the coolants, not the photoelectric split, not the 4pi.**
+  Each was proposed and each was wrong (D-133, D-134, D-135).
+
+### What is left
+
+Photons are reaching cells they cannot reach by attenuated transport. The route
+matters, not the amount. The prime suspect is the boundary treatment: this
+model runs `symmetricXYZ`, and D-049 records that `pathSegment`'s z-min mirror
+assigns `yAxis(1)` to `rVec%z` - reported and never fixed, and noted there as
+harmless for 1D slabs but not for anything using the z mirror.
+
+Bin 465 sits just below the He I edge (1.807 Ryd), the natural transparency
+window between H I falling as nu^-3 and He I switching on. That is where
+surviving photons SHOULD cluster - so the frequency is not itself anomalous.
+What is anomalous is that any survive at tau = 175 per cell over ~22 cells.
+
+### Standing
+
+This is a MOCASSIN transport question, not a coupling one. It is only visible
+because the self-consistency work made MOCASSIN's own thermal balance depend on
+its radiation field in gas where that field should be zero; with the PDR owning
+the temperature (the shipped default) it is entirely masked. Nothing in use is
+affected, and `pdrTeFromMocassin` stays off until this is closed.
+
+Note on the D-143 probe itself: it prints immediately after the H I opacity
+call and before the He I and heavy-element calls, so its "total opacity" column
+is partial. It is valid for H I, which is what was under test; the absence of a
+jump at the He I edge in that column is an artifact of the print position, not
+a result.
