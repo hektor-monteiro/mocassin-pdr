@@ -162,6 +162,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-152 | Failing cells are at the ionization front where the two codes disagree 3-38x on x(H0), and the blend gate keys on the disputed quantity | Superseded by D-155 | 2026-09-06 |
 | D-153 | MOCASSIN owns ionization, chemistry returns molecules only, no gating. Implemented; does NOT fix convergence, and the network relaxes an imposed ratio back | Partial | 2026-09-06 |
 | D-155 | **Convergence criterion compared against the previous COUPLING PASS, not the previous iteration** - a D-119 regression. Reported 100% where the truth was 0%. Fixed | Done | 2026-09-06 |
+| D-156 | Ladder re-measured correctly: pdrAllCells and pdrCoolFeedback converge at 97.7% in 5 iterations; pdrTeFromMocassin collapses and removing the gating does not help. The transport defect blocks the whole self-consistent mode | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8305,3 +8306,51 @@ Every convergence number in this session, in both directions:
 
 The autoPackets escalation is also driven by `totPercent`, so packet counts were
 being increased on a signal that did not mean what it claimed.
+
+## 2026-09-06f - D-156: the ladder, re-measured on a criterion that means something
+
+Every convergence figure in this session was taken with the D-155 defect in
+place. Re-run on the corrected criterion:
+
+| config | switches | iterations | converged |
+|---|---|---|---|
+| reference | none | 5 | 99.36% |
+| RC_1 | `pdrAllCells` | 5 | **97.73%** |
+| RC_2 | `+ pdrCoolFeedback` | 5 | **97.74%** |
+| RC_3 | `+ pdrTeFromMocassin` | 12 (never) | 0.099% |
+| RC_4 | `+ pdrIonFromMocassin` | 12 (never) | 0.118% |
+
+### The collapse is real
+
+I expected the corrected criterion to dissolve it - the earlier 97.7% -> 0.13%
+had been measured on the inner coupling loop - and said so before RC_3
+finished. It did not. Correctly measured, the collapse is if anything sharper:
+91.5% at iteration 3, then off a cliff when the PDR engages. So D-149 to D-153
+were chasing a real phenomenon on numbers that happened to be wrong.
+
+### What is sound
+
+`pdrAllCells` and `pdrCoolFeedback` both converge in five iterations at 97.7%,
+against the reference's 99.36% in five. So the chemistry running in every cell -
+H2 and CO emerging from the network everywhere rather than being seeded - and
+the molecular cooling plus the six missing heating terms are stable, at a cost
+of about 1.6 points of convergence.
+
+### What is not, and why it is not the coupling
+
+RC_4 removes the ionization blending and the zone gate entirely, which was the
+best structural account of the collapse (D-152: front cells where the codes
+disagree 3-38x on x(H0), with the gate keyed on the disputed quantity). It
+changes nothing: 0.118% against RC_3's 0.099%. The instability is therefore not
+in how the two codes negotiate ionization.
+
+It is in the thermal balance itself, and the measurement that has survived every
+criterion change and every reframing says why: the failing cells sit at
+**7000-9700 K where the PDR's own balance gives ~50 K**, because H I
+photoionization supplies **99.5%** of their heating (D-138) from a field that
+tau = 175 per cell says cannot reach them (D-143, D-146). A thermal balance fed
+a spurious dominant heating term cannot settle, and no restructuring of the
+handover will make it.
+
+**The transport defect is therefore not one open item among several - it is the
+blocker for the entire self-consistent configuration.**
