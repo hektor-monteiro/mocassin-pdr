@@ -1533,6 +1533,34 @@ end subroutine iterateT
                          &grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)
 
                     heatSte    = heatSte + heatIonSte
+#ifdef PDR
+                    ! D-138: which ion is depositing the heat in a deep PDR
+                    ! cell, and from which part of the spectrum. Three
+                    ! hypotheses about this balance had been wrong from
+                    ! inference; name the contributor before adding opacity.
+                    if (nIonProbe < 240 .and. heatIonSte > 0. .and. &
+                         & grid%pdrZone(cellP) == 1 .and. grid%AVeff(cellP) > 1.0 &
+                         & .and. nIterateMC >= 6 .and. taskid == 0) then
+                       nIonProbe = nIonProbe + 1
+                       print*, "! [D138] cell", cellP, " elem", elem, " ion", ion, &
+                            & " heat =", heatIonSte, "  IP(Ryd) =", nuArray(IPnuP)
+                       ! D-140: atomic hydrogen alone gives tau = 230 per cell at
+                       ! the Lyman edge here, so no stellar photon can survive to
+                       ! this depth. Print the field that the heating integral is
+                       ! actually seeing, and the H0 density the opacity is built
+                       ! from, at the edge and just above it.
+                       if (elem == 1 .and. ion == 1) then
+                          print*, "! [D140]   Jste at IP =", grid%Jste(cellP,IPnuP), &
+                               & "  at IP+2 bins =", grid%Jste(cellP,min(IPnuP+2,nbins)), &
+                               & "  Jste(1) =", grid%Jste(cellP,1)
+                          print*, "! [D140]   ionDen H0 =", &
+                               & grid%ionDen(cellP,elementXref(1),1), &
+                               & "  H+ =", grid%ionDen(cellP,elementXref(1),2), &
+                               & "  Hden =", grid%Hden(cellP), &
+                               & "  elemAvail =", grid%elemAvail(cellP,1)
+                       end if
+                    end if
+#endif
                     if (lgDebug) &
                          & heatDIf    = heatDif + heatIonDif
 
@@ -1621,8 +1649,13 @@ end subroutine iterateT
                   ! failed, and both assumed these terms actually move coolInt.
                   ! Report the sizes once, for a deep PDR cell, before guessing
                   ! a third time.
-                  if (nBalProbe < 3 .and. grid%pdrZone(cellP) == 1 .and. &
-                       & grid%AVeff(cellP) > 1.0) then
+                  ! D-137: fire LATE, on a settled deep PDR cell. Every probe
+                  ! so far ran at iteration 1 on cells that had barely seen a
+                  ! photon, and three hypotheses have been built on inference
+                  ! from them. Print the whole budget, both sides, at the
+                  ! temperature the model actually converges to.
+                  if (nBalProbe < 4 .and. grid%pdrZone(cellP) == 1 .and. &
+                       & grid%AVeff(cellP) > 1.0 .and. nIterateMC >= 6) then
                      nBalProbe = nBalProbe + 1
                      print*, "! [D135] cell", cellP, " Te =", TeUsed, &
                           & " Hden =", grid%Hden(cellP)
@@ -1636,6 +1669,17 @@ end subroutine iterateT
                           & " -> contributes", pdrCoolMol/grid%Hden(cellP)
                      print*, "! [D135]   PDR heatXtra =", grid%pdrHeatXtra(cellP), &
                           & " -> contributes", grid%pdrHeatXtra(cellP)/grid%Hden(cellP)
+                     print*, "! [D137]   PDR totals: heat(12) =", grid%pdrHeat(cellP), &
+                          & "  heat(2) PE =", grid%pdrHeatPE(cellP), &
+                          & "  heatGG =", grid%pdrHeatGG(cellP)
+                     print*, "! [D137]   heat(4)+heat(11) =", &
+                          & grid%pdrHeat(cellP)-grid%pdrHeatPE(cellP)-grid%pdrHeatXtra(cellP)
+                     print*, "! [D137]   MOCASSIN PE per-H =", photoelHeat_g, &
+                          & "  PDR PE per-H =", grid%pdrHeatPE(cellP)/grid%Hden(cellP), &
+                          & "  ratio =", photoelHeat_g/ &
+                          & max(grid%pdrHeatPE(cellP)/grid%Hden(cellP),1.e-30)
+                     print*, "! [D137]   Tdust =", grid%Tdust(0,0,cellP), &
+                          & "  AVeff =", grid%AVeff(cellP), "  chi =", grid%chiFUV(cellP)
                   end if
                   coolInt = coolInt + pdrCoolMol/grid%Hden(cellP)
                   ! The heating side needs the same treatment, and for the same

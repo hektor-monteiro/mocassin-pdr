@@ -631,6 +631,7 @@ module common_mod
     ! difference against the reference.
     integer             :: pdrPEfromPDR = 0
     integer             :: nBalProbe = 0   ! D-135 one-shot balance probe
+    integer             :: nIonProbe = 0   ! D-138 per-ion heating probe
     real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants
     ! D-131: which coolants MOCASSIN does NOT already compute for itself.

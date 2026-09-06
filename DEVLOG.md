@@ -149,6 +149,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-133 | Atomic coolants REPLACE rather than are excluded inside the PDR - MOCASSIN excites [C II]/[O I] with electrons alone, 3D-PDR carries H/H+/He/H2 | Done | 2026-09-05 |
 | D-135 | The handed-over terms were divided by 4pi as well as Hden, making them 12.6x too small - which is why two successive hypotheses each moved the deep PDR by ~1 K | Fixed | 2026-09-05 |
 | D-136 | **Policy: 3D-PDR is a reference, not a benchmark. MOCASSIN owns the dust and everything following from it** | Standing | 2026-09-05 |
+| D-138 | H I photoionization is 99.5% of the heating in deep PDR cells; carbon 0.0%, so the metals explanation is dead | Open | 2026-09-05 |
+| D-139 | Added an H2 continuum at 13.6-15.4 eV, then REVERTED: Cloudy puts zero there, and x(H)=0.189 gives tau=230 per cell so nothing was leaking | Reverted | 2026-09-05 |
+| D-141 | Yan/Sadeghpour/Dalgarno H2 photoionization cross section ported from Cloudy, replacing D-107's power law - which was 2.5x low across the 18 eV peak | Done | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7914,3 +7917,59 @@ The distinction that matters is *why* the codes disagree:
 The rule is therefore: hand over what MOCASSIN lacks or computes with
 incomplete physics; never hand over what it computes differently because it
 models different dust.
+
+## 2026-09-05j - D-139 reverted, D-141: use Cloudy's H2 cross section
+
+### The opacity that was not missing
+
+D-138 measured H I photoionization depositing 99.5% of the heating in deep PDR
+cells, at the Lyman edge. The inference drawn was that the 13.6-15.4 eV window
+had no absorber - D-107's H2 continuum starts at 15.43 eV, its own ionization
+threshold - so a flat 6e-18 cm^2 was added there (D-139).
+
+Both halves were wrong, and the user's question about Cloudy exposed the first:
+
+1. **Cloudy puts zero H2 continuum there.** `Yan_H2_CS`
+   (`source/mole_h2_etc.cpp:358`) opens with `if( energy < 15.4 ) cross_section
+   = 0.`. That window is covered by H2 LINE absorption in the higher electronic
+   bands, not a continuum. The reference the fix would have cited says not to
+   make it.
+
+2. **The premise was false anyway.** The argument rested on D-099's remark that
+   the atomic hydrogen fraction is ~0.002, quoted without re-measuring it here.
+   Measured in this model's deep PDR cells: **x(H) = 0.189**, so n(H0) = 18.9
+   cm^-3 and the Lyman-edge optical depth is **230 per cell**, ~5000 to
+   A_V = 2.3. The window is opaque by thousands of e-foldings and no stellar
+   photon reaches that depth. Nothing was missing.
+
+D-139 is reverted, with the reasoning kept in the source so it is not retraced.
+The H I heating measured at depth is real and still unexplained - it cannot be
+transported stellar light, so either the heating integral sees a field it should
+not, or it is multiplied by a density it should not. A probe on `Jste` at the
+edge and on the densities the opacity is built from is running.
+
+### D-141: the cross section itself, from Cloudy
+
+D-107's comment asked for the tabulated cross section once a power law stopped
+being adequate. It is now ported: Yan, Sadeghpour & Dalgarno 1998 (ApJ 496,
+1044) with the 2001 erratum (ApJ 559, 1194), exactly as Cloudy implements it -
+same branch boundaries, coefficients and E^-7/2 scaling.
+
+The power law was not merely imprecise, it was the wrong shape:
+
+| E (eV) | Yan | D-107 power law | ratio |
+|---|---|---|---|
+| 16 | 2.86e-18 | 5.63e-18 | 1.97 |
+| **18** | **9.82e-18** | 4.09e-18 | **0.42** |
+| 25 | 4.30e-18 | 1.69e-18 | 0.39 |
+| 40 | 9.93e-19 | 4.74e-19 | 0.48 |
+| 200 | 6.17e-21 | 6.15e-21 | 1.00 |
+
+The true cross section rises from threshold to 9.8e-18 cm^2 at 18 eV and then
+falls; the power law fell monotonically from 6.2e-18, so it was a factor 2.5
+LOW right across the peak and a factor 2 HIGH just above threshold, converging
+only above ~200 eV.
+
+The Fortran port reproduces the C to five significant figures at 16, 18, 25,
+40, 100 and 500 eV, checked against an independent evaluation of the published
+fit rather than against itself. Both build flavours verified.

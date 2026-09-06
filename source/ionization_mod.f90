@@ -358,6 +358,50 @@ module ionization_mod
         end do
     end subroutine eDenSum
 
+    ! D-141. H2 photoionization cross section, Yan, Sadeghpour & Dalgarno
+    ! 1998 ApJ 496, 1044, with the revisions of the 2001 erratum (ApJ 559,
+    ! 1194). Ported from Cloudy c25's Yan_H2_CS (source/mole_h2_etc.cpp), which
+    ! is the same published fit; the branch boundaries, coefficients and the
+    ! E^-7/2 scaling are Cloudy's exactly.
+    !
+    ! This replaces the single power law of D-107, whose own comment asked for
+    ! the tabulated cross section once an approximation stopped being adequate.
+    ! It was not merely imprecise but the wrong shape: the true cross section
+    ! RISES from threshold to 9.8e-18 cm^2 at 18 eV before falling, while the
+    ! power law fell monotonically from 6.2e-18 - a factor 2.5 too low right
+    ! across the peak, and a factor 2 too high just above threshold.
+    !
+    ! Returns cm^2. Zero below the 15.4 eV threshold: H2 absorption in the
+    ! 13.6-15.4 eV window is line opacity in the higher electronic bands, not a
+    ! continuum, and Cloudy treats it that way too (D-139).
+    function yanH2xSec(nu) result(xsec)
+      implicit none
+      real, intent(in) :: nu      ! photon energy [Ryd]
+      real             :: xsec    ! [cm^2]
+      real             :: e, ekev, x, xsq, x15, x2
+      e = nu*13.605693
+      xsec = 0.
+      if (e < 15.4) return
+      x    = e/15.4
+      ekev = e/1000.
+      xsq  = sqrt(x)
+      x15  = x*xsq
+      x2   = x*x
+      if (e < 18.) then
+         xsec = 1.e7*(1. - 197.448/xsq + 438.823/x - 260.481/x15 + 17.915/x2)
+         ! the fit is negative at threshold; Cloudy clamps it the same way
+         xsec = max(0., xsec)
+      else if (e <= 30.) then
+         xsec = (-145.528 + 351.394*xsq - 274.294*x + 74.320*x15)/ekev**3.5
+      else if (e <= 85.) then
+         xsec = (65.304 - 91.762*xsq + 51.778*x - 9.364*x15)/ekev**3.5
+      else
+         xsec = 45.57*(1. - 2.003/xsq - 4.806/x + 50.577/x15 - 171.044/x2 &
+              & + 231.608/(xsq*x2) - 81.885/(x*x2))/ekev**3.5
+      end if
+      xsec = xsec*1.e-24            ! barns -> cm^2
+    end function yanH2xSec
+
     subroutine addOpacity(opacity, H2density)
         implicit none
 
@@ -395,7 +439,19 @@ module ionization_mod
            if (H2density > 0.) then
               do i = 1, nbins
                  if (nuArray(i) >= 1.1345) then
-                    opacity(i) = opacity(i) + H2density*6.2e-18*(nuArray(i)/1.1345)**(-2.7)
+                    ! D-139 (reverted): an H2 continuum was briefly added between
+                    ! 1.0 and 1.1345 Ryd on the theory that the Lyman continuum
+                    ! was leaking to A_V ~ 1.5. Two things killed it. Cloudy's
+                    ! own H2 cross section (Yan, Sadeghpour & Dalgarno, in
+                    ! mole_h2_etc.cpp:Yan_H2_CS) is explicitly ZERO below
+                    ! 15.4 eV - it covers that window with H2 line absorption in
+                    ! the higher electronic bands, not a continuum. And the
+                    ! premise was false anyway: measured x(H) in deep PDR cells
+                    ! is 0.189, not the 0.002 of D-099, so atomic hydrogen alone
+                    ! gives tau = 230 PER CELL at the Lyman edge and tau ~ 5000
+                    ! to that depth. Nothing is leaking; the H I photoionization
+                    ! heating measured there has another cause.
+                    opacity(i) = opacity(i) + H2density*yanH2xSec(nuArray(i))
                  end if
               end do
            end if
