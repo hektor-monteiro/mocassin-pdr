@@ -168,6 +168,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-161 | **The codes were never disagreeing.** The reduced network has NO H photoionization - every H->H+ channel is charge exchange or cosmic rays - so its x(H+) is the cosmic-ray equilibrium. Cloudy's answer: shared storage for linked ion stages, network gives src/snk only | Done | 2026-09-06 |
 | D-162 | **One x(H+), owned by MOCASSIN.** Ratio re-imposed after the solve as well as before, for all five linked elements. Chemistry and MOCASSIN now agree to 7-8 figures where they were 3-38x apart. 97.76% vs 97.74% - costs nothing | Done | 2026-09-06 |
 | D-163 | Duplicated channels removed from the network as Cloudy does: C and Mg photoionization, and recombination of all five ions. Charge exchange and cosmic rays kept. Every suppression printed | Done | 2026-09-06 |
+| D-164 | Suppression corrected: reactions 330/331 are recombination ON GRAINS ('#' marker), which MOCASSIN lacks - now kept. Nine channels suppressed, not eleven. 97.74% | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8625,3 +8626,47 @@ D-153's imposition) was machinery for a problem that should not have existed.
 That is a temperature instability (D-160: no stable fixed point from either
 initial condition), and it is now cleanly separated from the ionization
 question rather than entangled with it.
+
+## 2026-09-06k - D-164: the suppression set, corrected
+
+The D-163 startup print earned its keep. Of the eleven channels it suppressed,
+**two were wrong**:
+
+    330,He+,e-,#,He,#,,,5.20E-17,...
+    331,C+ ,e-,#,C ,#,,,5.20E-17,...
+
+The `#` is the grain marker: these are recombination of ions **on grain
+surfaces**, not radiative recombination. The 5.2e-17 coefficient, which looked
+wrong for a recombination rate when the reactions were first enumerated, is the
+tell. MOCASSIN's `alphaTot` is radiative recombination only - it has no
+gas-phase ion recombination on grains - so these belong with charge exchange
+and cosmic rays as physics only the network carries.
+
+The matcher now requires PHOTON among the products and no `#` among the
+reactants, which separates
+`242,H+,e-,,H,PHOTON` (radiative, MOCASSIN computes it) from
+`330,He+,e-,#,He,#` (grain surface, only the network has it).
+
+Final set, nine channels, printed at startup in every run:
+
+| suppressed | kept |
+|---|---|
+| radiative recombination of H+, He+, C+ (x3), O+, Mg+ | grain-surface recombination (330, 331) |
+| photoionization of C and Mg | charge exchange |
+| | cosmic-ray ionization |
+
+DUP2, the corrected set: 0.00 / 16.65 / 91.55 / 78.02 / **97.74%** - matching
+DUP_pdrT's 97.72% and ONE_pdrT's 97.76%. The two grain channels are slow enough
+not to move the result, but that is a measurement rather than an assumption now.
+
+### The complete picture across every variant
+
+| | PDR owns T | MOCASSIN owns T |
+|---|---|---|
+| blend + zone gate (D-156) | 97.74% | 0.099% |
+| one x(H+), no gate (D-162) | 97.76% | 0.079% |
+| + duplicates suppressed (D-163) | 97.72% | 0.217% |
+| + grain recombination kept (D-164) | **97.74%** | - |
+
+The ionization architecture is settled and free. The thermal instability is
+untouched by any of it, and is now cleanly separated as its own problem.

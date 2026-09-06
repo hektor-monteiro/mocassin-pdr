@@ -371,10 +371,21 @@ module pdr_mod
                  if (any(adjustl(pdrReactant(iR,:)) == sNeut) .and. &
                       & any(adjustl(pdrReactant(iR,:)) == 'PHOTON') .and. &
                       & any(adjustl(pdrProduct(iR,:)) == sIon)) lgDupPhot = .true.
-                 ! radiative recombination of the ion
+                 ! RADIATIVE recombination of the ion - and only that.
+                 ! MOCASSIN's alphaTot is radiative recombination; it has no
+                 ! recombination of ions on grain surfaces. Those are written
+                 ! with the grain marker '#' as a reactant and product:
+                 !   330,He+,e-,#,He,#     alpha 5.20E-17
+                 !   331,C+ ,e-,#,C ,#     alpha 5.20E-17
+                 ! and they belong with charge exchange and cosmic rays as
+                 ! physics only the network carries. Requiring PHOTON among the
+                 ! products separates the two - the radiative channels are
+                 ! written 242,H+,e-,,H,PHOTON and 244,C+,e-,,C,PHOTON.
                  if (any(adjustl(pdrReactant(iR,:)) == sIon) .and. &
                       & any(adjustl(pdrReactant(iR,:)) == 'e-') .and. &
-                      & any(adjustl(pdrProduct(iR,:)) == sNeut)) lgDupRec = .true.
+                      & any(adjustl(pdrProduct(iR,:)) == sNeut) .and. &
+                      & any(adjustl(pdrProduct(iR,:)) == 'PHOTON') .and. &
+                      & .not. any(adjustl(pdrReactant(iR,:)) == '#')) lgDupRec = .true.
               end do
               if (lgDupPhot .or. lgDupRec) then
                  if (taskid == 0) print*, "!   reaction", iR, " ", &
