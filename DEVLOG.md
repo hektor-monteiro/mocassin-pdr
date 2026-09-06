@@ -165,6 +165,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-156 | Ladder re-measured correctly: pdrAllCells and pdrCoolFeedback converge at 97.7% in 5 iterations; pdrTeFromMocassin collapses and removing the gating does not help. The transport defect blocks the whole self-consistent mode | Done | 2026-09-06 |
 | D-159 | **Not a transport bug.** Field is 86-100% stellar, no packet crosses tau>20, and the failing cells are nearly transparent (x(H0)=0.026). Two self-consistent branches - ionized/hot and neutral/cold. D-143's framing retracted | Open | 2026-09-06 |
 | D-160 | Not bistable either: a neutral start decays away, but the two starts end materially different (median Te 379 vs 1246 K). No stable fixed point under pdrTeFromMocassin. Adds initH0, previously hardcoded | Open | 2026-09-06 |
+| D-161 | **The codes were never disagreeing.** The reduced network has NO H photoionization - every H->H+ channel is charge exchange or cosmic rays - so its x(H+) is the cosmic-ray equilibrium. Cloudy's answer: shared storage for linked ion stages, network gives src/snk only | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8484,3 +8485,76 @@ framing it replaced. What survives measurement:
 That is a genuine physics disagreement between the two codes about hydrogen in
 partially ionized gas, and it is not a coupling defect, an initial-condition
 choice, or a transport bug. It is the thing the audit needs to settle.
+
+## 2026-09-06i - D-161: the two codes were never disagreeing, and what Cloudy does
+
+### Which code is right about hydrogen at x(H+) ~ 0.5
+
+Settled from the physics, not from either code's output. In equilibrium
+n(H0)*Gamma = n(H+)*n_e*alpha_B, so each answer implies a photoionization rate.
+For cell 93 (Te = 9648 K, nH = 100, A_V = 0.467):
+
+| | x(H+) | implied Gamma |
+|---|---|---|
+| MOCASSIN | 0.974 | 9.8e-10 s^-1 |
+| chemistry | 8.9e-4 | **2.4e-17 s^-1** |
+
+2.4e-17 is the cosmic-ray rate - this model sets `pdrZeta = 5.0e-17`. Confirmed
+in the network data: **every H -> H+ channel in the reduced network is either
+charge exchange or cosmic rays.**
+
+    155:  H + H2+ -> H2 + H+      charge exchange
+    156:  H + He+ -> He + H+      charge exchange
+    161:  H + O+  -> O  + H+      charge exchange
+    168:  H + CO+ -> CO + H+      charge exchange
+    293:  H + CRP -> H+ + e-      cosmic rays, 5.98e-18
+
+There is no `H + PHOTON -> H+ + e-`. **The network cannot photoionize hydrogen
+and never claimed to.**
+
+So the "3-38x disagreement" of D-152 was never a disagreement. MOCASSIN is right
+wherever ionizing photons reach; 3D-PDR is answering a different question - the
+cosmic-ray equilibrium of gas beyond the ionization front, which is its domain.
+Applying it inside the front is outside its validity, and no coupling
+architecture, damping, branch selection or initial condition could have
+reconciled two answers to different questions.
+
+### What Cloudy does (source read locally, c25.00)
+
+1. **Duplicated physics is deleted from the network data.** `mole_co_base.dat`
+   carries atomic photoionization and recombination written out as reactions
+   and all of them commented out: *"These would be double counted if included
+   in the molecular network"*.
+
+2. **The network contributes source and sink terms, never abundances**
+   (`mole_eval_balance.cpp:248`): for a linked stage,
+   `mole.source[nelem][ion] = species[ipMl[ion]].src`, and zero when
+   `ipMl == -1` - a stage the network does not carry contributes nothing. This
+   is what D-118 already implemented for us.
+
+3. **Ion stages are SHARED STORAGE, not two numbers to reconcile**
+   (`mole_species.cpp:1030`): `species[mole_index].location =
+   &(dense.xIonDense[nelem][ion])`. The network species and the ion solver's
+   density are literally the same memory. There is no handback, no blend
+   weight, no zone gate - the concepts do not arise.
+
+4. **They are iterated to consistency with an explicit metric**
+   (`mole_species.cpp:950-978`): the write-back accumulates the RMS fractional
+   change of the monatomic species and returns it, which `conv_base` drives to
+   convergence with 50% damping.
+
+### The contrast with what we built
+
+Ours reconciles two independently computed answers - blend weight, zone gate,
+`pdrZoneLim`, the D-153 imposition that the network relaxes straight back.
+Cloudy makes reconciliation impossible by construction: one storage location,
+each code contributing only the physics it owns, iterated with a convergence
+metric.
+
+The pieces we already have that match: D-118's src/snk into `ionBalance`, and
+Cloudy's `ipMl == -1` rule for stages the network lacks.
+
+The piece we do not: shared storage for the linked ion stages, so the chemistry
+cannot hold an independent opinion about x(H+) at all. That - not another
+coupling switch - is what the architecture needs, and it is what makes the
+question "which code is right" stop being askable.
