@@ -116,7 +116,18 @@ module iteration_mod
               if (lgGas) then
                  ! zero out PDF arrays
                  grid(iG)%recPDF(0:grid(iG)%nCells, 1:nbins) = 0.
-                 if (lgDebug) grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLines)    = 0.
+                 ! D-157: linePDF is allocated only under `if (nLines > 0)`
+                 ! (grid_mod:1571), but this zeroing was guarded on lgDebug
+                 ! alone - so enabling `debug` on a model with no line list
+                 ! wrote to an unallocated array and segfaulted. That is why
+                 ! debug mode has been unusable, and with it the only way to
+                 ! separate Jste from Jdif.
+                 ! ...and `nLines > 0` is not the right guard either: nLines is
+                 ! still 0 when the grid is built and is set later in hydro_mod,
+                 ! so the allocation guard and any use guard read different
+                 ! values. Test the allocation itself.
+                 if (lgDebug .and. allocated(grid(iG)%linePDF)) &
+                      & grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLines) = 0.
                  grid(iG)%totalLines(0:grid(iG)%nCells) = 0.
 
                  ! zero out Balmer jump
@@ -486,8 +497,13 @@ module iteration_mod
            do iG = 1, nGrids
 
               grid(iG)%Jste(0:grid(iG)%nCells, 1:nbins)    = 0.
+              ! D-158: Jdif is only reset under lgDebug, so mirroring the
+              ! diffuse packets into it without this let it accumulate across
+              ! every iteration - it read 8.8e7 against Jste's 0.038. Reset it
+              ! whenever it is being written.
+              if (lgDebug .or. pdrSplitField /= 0) &
+                   & grid(iG)%Jdif(0:grid(iG)%nCells, 1:nbins) = 0.
               if (lgDebug) then
-                 grid(iG)%Jdif(0:grid(iG)%nCells, 1:nbins) = 0.
                  grid(iG)%linePackets(0:grid(iG)%nCells, 1:nLines) = 0.
               end if
            end do
@@ -632,20 +648,20 @@ module iteration_mod
               end if
               JSteTemp           = 0.
 
-              if (lgDebug) then
+              if (lgDebug .or. pdrSplitField /= 0) then   ! D-158
                  allocate(JDifTemp(0:grid(iG)%nCells, nbins), stat = err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate array memory: JdifTemp "
                     stop
                  end if
-                 allocate(linePacketsTemp(0:grid(iG)%nCells, nLines), stat = err)
+                 if (lgDebug) allocate(linePacketsTemp(0:grid(iG)%nCells, nLines), stat = err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate array memory: linePacketsTemp "
                     stop
                  end if
 
                  JDifTemp           = 0.
-                 linePacketsTemp    = 0.
+                 if (lgDebug) linePacketsTemp    = 0.
               end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -698,7 +714,7 @@ module iteration_mod
 
               size =  (grid(iG)%nCells+1)*nbins
 
-              if (lgDebug) then
+              if (lgDebug .or. pdrSplitField /= 0) then   ! D-158
                  call mpi_allreduce(grid(iG)%JDif, JDifTemp, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
               end if
@@ -709,7 +725,7 @@ module iteration_mod
               size =  (grid(iG)%nCells+1)*nLines
 
               if (lgDebug) then
-                 call mpi_allreduce(grid(iG)%linePackets, linePacketsTemp, size, &
+                 if (lgDebug) call mpi_allreduce(grid(iG)%linePackets, linePacketsTemp, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
               end if
 
@@ -732,8 +748,10 @@ module iteration_mod
                           end do
                           if (lgDebug) then
                              do freq = 1, nLines
+                                if (lgDebug) then
                                 grid(iG)%linePackets(grid(iG)%active(i,j,k),freq) &
                                      & = linePacketsTemp(grid(iG)%active(i,j,k),freq)
+                                end if
                                 if (lg2D) grid(iG)%JDif(grid(iG)%active(i,j,k),freq) = &
                                      & grid(iG)%JDif(grid(iG)%active(i,j,k),freq)/&
                                      & TwoDscaleJ(grid(iG)%active(i,j,k))
@@ -759,7 +777,11 @@ module iteration_mod
               do i = 0, grid(iG)%nCells
                  grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:) * 1.e-9
 
-                 if (lgDebug) grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:) * 1.e-9
+                 ! D-158: Jdif needs the same unit conversion and octant
+                 ! division as Jste, or the diagnostic compares a scaled array
+                 ! against an unscaled one - a factor ~1e10.
+                 if (lgDebug .or. pdrSplitField /= 0) &
+                      & grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:) * 1.e-9
                  do ifreq = 1, nbins
                     totalEscaped = totalEscaped+&
                          & nint(grid(iG)%escapedPackets(i,ifreq, 0))
@@ -772,7 +794,8 @@ module iteration_mod
                     grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:)/8.
                     grid(iG)%escapedPackets(i,:,:) = grid(iG)%escapedPackets(i,:,:)/8.
                     totalEscaped = nint(real(totalEscaped)/8.)
-                    if (lgDebug) grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:)/8.
+                    if (lgDebug .or. pdrSplitField /= 0) &
+                         & grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:)/8.
                  end if
 
               end do

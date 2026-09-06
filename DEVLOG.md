@@ -163,6 +163,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-153 | MOCASSIN owns ionization, chemistry returns molecules only, no gating. Implemented; does NOT fix convergence, and the network relaxes an imposed ratio back | Partial | 2026-09-06 |
 | D-155 | **Convergence criterion compared against the previous COUPLING PASS, not the previous iteration** - a D-119 regression. Reported 100% where the truth was 0%. Fixed | Done | 2026-09-06 |
 | D-156 | Ladder re-measured correctly: pdrAllCells and pdrCoolFeedback converge at 97.7% in 5 iterations; pdrTeFromMocassin collapses and removing the gating does not help. The transport defect blocks the whole self-consistent mode | Done | 2026-09-06 |
+| D-159 | **Not a transport bug.** Field is 86-100% stellar, no packet crosses tau>20, and the failing cells are nearly transparent (x(H0)=0.026). Two self-consistent branches - ionized/hot and neutral/cold. D-143's framing retracted | Open | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8354,3 +8355,74 @@ handover will make it.
 
 **The transport defect is therefore not one open item among several - it is the
 blocker for the entire self-consistent configuration.**
+
+## 2026-09-06g - D-159: not a transport bug - the coupled system is bistable
+
+### The two measurements that force the reframing
+
+**The deep-cell field is stellar.** `Jdif` now mirrors the diffuse packets while
+`Jste` carries both, so `Jste - Jdif` is the stellar part. In the cells that
+matter it is **86-100% stellar** - so this is not diffuse emission miscredited
+to `Jste`, which had been the leading explanation since D-145.
+
+**No stellar packet crosses a cell with tau > 20.** A probe on exactly that
+event, over two iterations and millions of packets, fired **zero** times.
+
+Those two are only consistent if the cells in question are not optically thick
+at that frequency. And they are not. The tau = 175 figure came from the D-143
+probe, which selected cells with `n(H0) > 50`. The cells that actually fail
+convergence carry `ionDen H0 = 0.026-0.36` (D-152), and tau scales with it:
+
+    x(H0)=0.026  n(H0)= 2.60  tau/cell =   6.4
+    x(H0)=0.160  n(H0)=16.00  tau/cell =  39.4
+    x(H0)=0.360  n(H0)=36.00  tau/cell =  88.6
+    x(H0)=0.830  n(H0)=83.00  tau/cell = 204.4
+
+At x(H0) = 0.026 the cell is nearly transparent. Stellar photons reach it
+legitimately, and the photoionization heating they deposit is real.
+
+### What this means: two self-consistent solutions
+
+- **MOCASSIN's branch:** ionized -> transparent at 1.79 Ryd -> stellar photons
+  penetrate -> photoionization heating -> ~8000 K -> stays ionized.
+- **The chemistry's branch:** neutral -> opaque -> nothing penetrates -> ~50 K
+  -> stays neutral.
+
+Both close on themselves. The two codes sit in different ones. D-152's
+"disagreement of 3-38x" is not an error by either code - it is two valid
+solutions of the same cell.
+
+This accounts for everything that resisted explanation:
+
+- why `pdrTeFromMocassin` alone breaks convergence (D-156): it removes the PDR
+  temperature that was holding those cells on the neutral branch;
+- why removing the gate changed nothing (D-153): the gate was reacting to the
+  disagreement, not causing it;
+- why 8x packets did nothing (D-149): the field is right, it belongs to a
+  different branch;
+- why one cell read 146 K in one run and 2475 K in another: realisation-
+  dependent branch selection.
+
+### Retraction
+
+From D-143 onward I described this as "spurious heating from photons that
+cannot arrive", and built D-139, D-144, D-146 and D-158 on it. It is neither
+spurious nor impossible: the heating is real, the photons do arrive, and the
+opacity that would stop them exists only in the other solution. The chain of
+probes was sound; the framing on top of it was not, and it survived four
+rounds of contradicting evidence because each round only tested a mechanism,
+never the premise.
+
+### Established vs inferred
+
+Measured: the stellar fraction; the zero crossings above tau = 20; the
+ionization disagreement; the temperatures; tau as a function of x(H0).
+
+Inferred, and NOT yet tested: that these are genuinely two stable fixed points
+rather than one solution and one transient. **The test is to start the same
+model from a fully neutral initial condition** - `H0in` at grid_mod:1652 - and
+see whether MOCASSIN's own balance stays on the neutral branch. If it does, the
+system is bistable and the coupling must choose a branch deliberately. If it
+collapses to the ionized state regardless, the ionized branch is the only
+solution MOCASSIN's physics admits and the disagreement is a physics gap, not a
+branch-selection problem.

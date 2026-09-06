@@ -734,6 +734,12 @@ module common_mod
     ! tmpfs overnight - i.e. into RAM - and took the machine down. The warning
     ! is worth keeping (it detects a NaN nothing else catches) but it has to be
     ! bounded. Cap the prints and report the total once.
+    ! D-158: mirror diffuse packets into Jdif as a diagnostic. Declared OUTSIDE
+    ! the #ifdef PDR block because photon_mod, which reads it, compiles in both
+    ! flavours - the sixth time in this project that a PDR-scoped declaration
+    ! has broken the plain build (D-096, D-109, D-119, D-138, D-143).
+    integer             :: pdrSplitField = 0
+    integer             :: nXProbe = 0     ! D-159: surviving-packet probe
     integer             :: nInsaneEta = 0
     integer             :: nDustNaN = 0   ! D-120 one-shot probe
     ! D-122: the "all grains sublimed" hard stop is NOT driven by a NaN. The

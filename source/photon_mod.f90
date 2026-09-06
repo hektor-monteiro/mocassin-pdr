@@ -1627,6 +1627,17 @@ module photon_mod
                    else
                       grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                            & grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dlLoc*deltaE(iStar) *(enPacket%weight) / dV
+                      ! D-158: Jste holds stellar AND diffuse when lgDebug is
+                      ! off, so nothing downstream can tell them apart - and
+                      ! MOCASSIN's debug mode, the only other way to split them,
+                      ! segfaults on an array sized before nLines is known.
+                      ! Jdif is allocated unconditionally and simply unused
+                      ! here, so mirror the diffuse part into it as a pure
+                      ! diagnostic. Nothing reads Jdif unless lgDebug, so this
+                      ! changes no result.
+                      if (pdrSplitField /= 0) &
+                           & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
+                           & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dlLoc*deltaE(iStar) *(enPacket%weight) / dV
                    end if
                 end if
 
@@ -1893,9 +1904,25 @@ module photon_mod
                    else
                       grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                            & grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaE(iStar) *(enPacket%weight) / dV
+                      ! D-158: same split on the cell-crossing branch.
+                      if (pdrSplitField /= 0) &
+                           & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
+                           & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaE(iStar) *(enPacket%weight) / dV
                    end if
                 end if
 
+                ! D-159: a stellar packet crossing a cell at tau = 175 without
+                ! being absorbed is the transport defect itself. Report the
+                ! survivors: which cell, what optical depth it just crossed,
+                ! what it has accumulated, and what budget it was given.
+                if (pdrSplitField /= 0 .and. enPacket%lgStellar .and. &
+                     & nXProbe < 30 .and. tauCell > 20. .and. taskid == 0) then
+                   nXProbe = nXProbe + 1
+                   print*, "! [D159] crossed cell", grid(gP)%active(xP,yP,zP), &
+                        & " nuP", enPacket%nuP, " tauCell", tauCell, &
+                        & " absTau(before)", absTau, " passProb", passProb, &
+                        & " weight", enPacket%weight, " scaInt", scaInt
+                end if
                 ! update absTau
                 absTau = absTau+tauCell
 

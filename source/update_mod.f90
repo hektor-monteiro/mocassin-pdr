@@ -1551,6 +1551,19 @@ end subroutine iterateT
                          & grid%pdrZone(cellP) == 1 .and. grid%AVeff(cellP) > 1.0 &
                          & .and. nIterateMC >= 6 .and. taskid == 0) then
                        nIonProbe = nIonProbe + 1
+                       ! D-158: Jdif now carries the diffuse part alone while
+                       ! Jste carries both, so the difference is the genuinely
+                       ! stellar contribution. That decides whether these
+                       ! photons travelled from the star through tau = 175 per
+                       ! cell, or were emitted locally.
+                       if (pdrSplitField /= 0 .and. ion == 1) &
+                            & print*, "! [D158] cell", cellP, &
+                            & " Jste(both) =", sum(grid%Jste(cellP,IPnuP:highNuP)), &
+                            & " Jdif(diffuse) =", sum(grid%Jdif(cellP,IPnuP:highNuP)), &
+                            & " stellar-only =", &
+                            & sum(grid%Jste(cellP,IPnuP:highNuP)) &
+                            & - sum(grid%Jdif(cellP,IPnuP:highNuP)), &
+                            & " heat =", heatIonSte
                        ! D-145: with lgDebug the stellar and diffuse fields are
                        ! kept apart, so this says which one is actually feeding
                        ! the heating. Without it Jste holds BOTH (photon_mod
