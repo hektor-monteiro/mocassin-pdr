@@ -701,6 +701,9 @@ module set_input_mod
             case ("pdrTmax")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTmax
+            case ("initH0")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, initH0
             case ("pdrSplitField")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrSplitField

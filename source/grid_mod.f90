@@ -1644,7 +1644,7 @@ module grid_mod
 
           if (lgGas) then
 
-             H0in  = 1.e-5
+             H0in  = initH0   ! D-160
 
              do i = 1, grid%nx
                 do j = 1, yTop
@@ -2537,7 +2537,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
 
               if (lgGas) then
 
-                 H0in  = 1.e-5
+                 H0in  = initH0   ! D-160
 
                  do ix = 1, grid(iG)%nx
                     do iy = 1, grid(iG)%ny

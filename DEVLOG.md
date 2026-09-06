@@ -164,6 +164,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-155 | **Convergence criterion compared against the previous COUPLING PASS, not the previous iteration** - a D-119 regression. Reported 100% where the truth was 0%. Fixed | Done | 2026-09-06 |
 | D-156 | Ladder re-measured correctly: pdrAllCells and pdrCoolFeedback converge at 97.7% in 5 iterations; pdrTeFromMocassin collapses and removing the gating does not help. The transport defect blocks the whole self-consistent mode | Done | 2026-09-06 |
 | D-159 | **Not a transport bug.** Field is 86-100% stellar, no packet crosses tau>20, and the failing cells are nearly transparent (x(H0)=0.026). Two self-consistent branches - ionized/hot and neutral/cold. D-143's framing retracted | Open | 2026-09-06 |
+| D-160 | Not bistable either: a neutral start decays away, but the two starts end materially different (median Te 379 vs 1246 K). No stable fixed point under pdrTeFromMocassin. Adds initH0, previously hardcoded | Open | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8426,3 +8427,60 @@ system is bistable and the coupling must choose a branch deliberately. If it
 collapses to the ionized state regardless, the ionized branch is the only
 solution MOCASSIN's physics admits and the disagreement is a physics gap, not a
 branch-selection problem.
+
+## 2026-09-06h - D-160: not bistable either - no stable fixed point
+
+Two runs of the same configuration (`pdrTeFromMocassin` on), differing only in
+the initial neutral fraction. `H0in` was hardcoded to 1.e-5 in three places in
+grid_mod - every MOCASSIN model has always started 99.999% ionized with no way
+to change it - so this needed a keyword, `initH0`, defaulting to the old value.
+
+| iter | ionized start | neutral start |
+|---|---|---|
+| 1 | 0.00% | 99.93% |
+| 2 | 17.34% | 84.14% |
+| 3 | 91.44% | 22.74% |
+| 4 (PDR on) | 0.059% | 0.033% |
+| final | 0.066% | 0.039% |
+
+### The result is neither outcome I predicted
+
+**Not bistable.** The neutral start does not hold - it decays 99.93 -> 84.14 ->
+22.74 as radiation penetrates. There are not two stable solutions to choose
+between, so nothing about initial conditions, damping or branch selection will
+fix this.
+
+**But not a single solution either.** The two runs end in materially different
+states:
+
+| | ionized start | neutral start |
+|---|---|---|
+| gas cells (Ne > 1e-3) | 14258 | 12545 |
+| cells > 5000 K | 674 | 335 |
+| median T_e | **379 K** | **1246 K** |
+
+**So there is no stable fixed point at all under `pdrTeFromMocassin`.** The
+model wanders, never settles, and where it wanders depends on where it started.
+
+### Correction
+
+I reported "by iteration 4 they are in the same collapsed state" from the
+convergence percentage alone. The percentages are near-identical while the
+underlying models are not - 379 K against 1246 K median. Reading a scalar
+summary as if it described the state was the same error as trusting the
+convergence figure itself before D-155.
+
+### Where this leaves it
+
+The D-159 bistability framing is withdrawn along with the D-143 transport
+framing it replaced. What survives measurement:
+
+- MOCASSIN's ionization balance and 3D-PDR's chemistry disagree by 3-38x on
+  x(H0) in the front cells (D-152), and neither is reachable from the other;
+- with the PDR owning the temperature, the coupled model converges (97.7%,
+  D-156) - the disagreement is suppressed, not resolved;
+- with MOCASSIN owning it, no stable solution exists.
+
+That is a genuine physics disagreement between the two codes about hydrogen in
+partially ionized gas, and it is not a coupling defect, an initial-condition
+choice, or a transport bug. It is the thing the audit needs to settle.

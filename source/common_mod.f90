@@ -740,6 +740,11 @@ module common_mod
     ! has broken the plain build (D-096, D-109, D-119, D-138, D-143).
     integer             :: pdrSplitField = 0
     integer             :: nXProbe = 0     ! D-159: surviving-packet probe
+    ! D-160: the initial neutral-hydrogen fraction every cell starts from.
+    ! It was hardcoded to 1.e-5 in two places in grid_mod, i.e. every model
+    ! starts essentially fully ionized. If the coupled system is bistable
+    ! (D-159) that hardcoded value silently selects the ionized branch.
+    real                :: initH0 = 1.e-5
     integer             :: nInsaneEta = 0
     integer             :: nDustNaN = 0   ! D-120 one-shot probe
     ! D-122: the "all grains sublimed" hard stop is NOT driven by a NaN. The
