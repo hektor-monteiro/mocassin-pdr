@@ -1542,8 +1542,20 @@ end subroutine iterateT
                          & grid%pdrZone(cellP) == 1 .and. grid%AVeff(cellP) > 1.0 &
                          & .and. nIterateMC >= 6 .and. taskid == 0) then
                        nIonProbe = nIonProbe + 1
-                       print*, "! [D138] cell", cellP, " elem", elem, " ion", ion, &
-                            & " heat =", heatIonSte, "  IP(Ryd) =", nuArray(IPnuP)
+                       ! D-145: with lgDebug the stellar and diffuse fields are
+                       ! kept apart, so this says which one is actually feeding
+                       ! the heating. Without it Jste holds BOTH (photon_mod
+                       ! 1592-1603), which is why every earlier probe here was
+                       ! reading a total field and calling it stellar.
+                       ! D-146: the heating falls with radius as if tau were
+                       ! ~0.9 per cell, while the opacity array holds 9e-17
+                       ! cm^-1 -> tau = 175 per cell. Read the STORED opacity
+                       ! the transport actually uses, at the bin that carries
+                       ! the flux, to see which of the two is real.
+                       print*, "! [D146] cell", cellP, " heat =", heatIonSte, &
+                            & "  stored opacity at 465 =", grid%opacity(cellP,465), &
+                            & "  at IPnuP =", grid%opacity(cellP,IPnuP), &
+                            & "  Jste(465) =", grid%Jste(cellP,465)
                     end if
 #endif
                     if (lgDebug) &

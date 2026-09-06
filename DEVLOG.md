@@ -154,6 +154,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-141 | Yan/Sadeghpour/Dalgarno H2 photoionization cross section ported from Cloudy, replacing D-107's power law - which was 2.5x low across the 18 eV peak | Done | 2026-09-05 |
 | D-143 | Deep-PDR H I heating is not transported light: one bin in 171 carries flux, the same bin in 31/31 cells, where tau = 175 per cell. Points at the boundary treatment (D-049) | Open | 2026-09-06 |
 | D-144 | Mirror hypothesis REJECTED: 90% of the heating is away from the boundaries and all three planes show the same ~3x geometric enhancement. The 31/31 result was a probe sampling artifact | Done | 2026-09-06 |
+| D-145 | Jste holds stellar AND diffuse when lgDebug is false; MOCASSIN's debug mode segfaults on its own, so the two fields cannot currently be separated | Open | 2026-09-06 |
+| D-146 | Stored opacity gives tau=388/cell, the field decays as tau~0.9/cell. Forced-skip weight exp(-tau) underflows to exact zero above tau~87, explaining why 170/171 bins are exactly zero | Open | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8089,3 +8091,68 @@ accumulated into the stellar field - or something specific to how packets at
 that frequency are initialised. Neither has been tested.
 
 `pdrTeFromMocassin` stays off. The shipped default masks this entirely.
+
+## 2026-09-06c - D-146: the attenuation is ~200x too weak, and a mechanism
+
+### Measured
+
+| quantity | value |
+|---|---|
+| stored `grid%opacity` at bin 465, deep PDR cell | 1.3-2.3e-16 cm^-1 |
+| implied tau per cell (dS = 1.94e18 cm) | **250-450** |
+| tau implied by the radial falloff of the heating | **~0.9 per cell** |
+
+The heating falls with radius as median 8.9e-25 -> 1.9e-26 -> 3.0e-28 ->
+1.2e-28 across shells, i.e. a factor ~7000 over ~10 cells. That is an
+exponential decay with tau_eff ~ 0.9, against an opacity array that says 388.
+**The stored opacity is correct and the transport is not applying it.**
+
+The falloff being exponential and steep also argues against diffuse
+contamination: diffuse emission tracks local emissivity, it does not decay like
+an attenuated beam.
+
+### The mechanism, photon_mod.f90:1535
+
+    ! force skip for high tau cells
+    if ( i == 1 .and. tauCell > 20.0) then
+       passProb = tauCell+1.0e-6
+       enPacket%weight = enPacket%weight / weightFactor * exp(-passProb)
+    endif
+
+A variance-reduction scheme: rather than absorb a packet in an optically thick
+first cell, force it through and reduce its weight by exp(-tau). `weightFactor`
+is 1.0 (the alternatives are commented out), and `passProb`, normally sampled
+once per packet as `-log(1-random)`, is overwritten with tau+1e-6.
+
+**`exp(-tau)` underflows to exactly zero in single precision for tau > ~87.**
+With tau = 250-450 the weight is not small, it is 0. Such a packet then deposits
+nothing anywhere - including in the first cell, where it should have deposited
+before being absorbed.
+
+That predicts precisely what is observed: **170 of the 171 bins above the Lyman
+edge hold exact zeros**, not small numbers. Bin 465 is the exception because it
+sits in the He I transparency window (1.7922 Ryd, just below the 1.807 Ryd
+edge) where H I's cross section has fallen furthest, so its first-cell tau stays
+below the 20 threshold, it never enters this branch, and it keeps weight 1.
+
+### Status of the claim
+
+The underflow explains the exact zeros, and that part is solid - an exact zero
+in a Monte Carlo estimator is not a small number, it means no weight was
+deposited. Whether it ALSO explains bin 465's too-shallow attenuation is not
+established: that bin escapes the branch entirely, so its transport should be
+ordinary. Two possibilities remain and neither is tested - that the same
+underflow is corrupting the absTau bookkeeping for surviving packets, or that
+bin 465's shallow decay has a separate cause.
+
+### Side findings
+
+- **`Jste` is not the stellar field.** With `lgDebug` false, diffuse packets
+  accumulate into it (photon_mod.f90:1592-1603); `Jdif` is used only in debug
+  mode. Every "stellar" quantity in this investigation has been the total field.
+- **MOCASSIN's `debug` mode segfaults.** Verified with a binary whose probes
+  never touch `Jdif`, so it is pre-existing. It is the only way to separate the
+  two fields and it is currently unusable.
+- `Jdif` is allocated unconditionally - the `if (lgDebug)` guards around its
+  allocation are commented out - so memory is spent on an array that is only
+  filled in a mode that crashes.
