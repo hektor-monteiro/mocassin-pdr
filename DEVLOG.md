@@ -166,6 +166,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-159 | **Not a transport bug.** Field is 86-100% stellar, no packet crosses tau>20, and the failing cells are nearly transparent (x(H0)=0.026). Two self-consistent branches - ionized/hot and neutral/cold. D-143's framing retracted | Open | 2026-09-06 |
 | D-160 | Not bistable either: a neutral start decays away, but the two starts end materially different (median Te 379 vs 1246 K). No stable fixed point under pdrTeFromMocassin. Adds initH0, previously hardcoded | Open | 2026-09-06 |
 | D-161 | **The codes were never disagreeing.** The reduced network has NO H photoionization - every H->H+ channel is charge exchange or cosmic rays - so its x(H+) is the cosmic-ray equilibrium. Cloudy's answer: shared storage for linked ion stages, network gives src/snk only | Done | 2026-09-06 |
+| D-162 | **One x(H+), owned by MOCASSIN.** Ratio re-imposed after the solve as well as before, for all five linked elements. Chemistry and MOCASSIN now agree to 7-8 figures where they were 3-38x apart. 97.76% vs 97.74% - costs nothing | Done | 2026-09-06 |
+| D-163 | Duplicated channels removed from the network as Cloudy does: C and Mg photoionization, and recombination of all five ions. Charge exchange and cosmic rays kept. Every suppression printed | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8558,3 +8560,68 @@ The piece we do not: shared storage for the linked ion stages, so the chemistry
 cannot hold an independent opinion about x(H+) at all. That - not another
 coupling switch - is what the architecture needs, and it is what makes the
 question "which code is right" stop being askable.
+
+## 2026-09-06j - D-162/D-163: one x(H+), owned by MOCASSIN
+
+The user's requirement, stated repeatedly across this project and finally
+implemented as stated: *"There is just one reality for x(H+) period."* Not a
+blend weight, not a zone gate, not two answers to reconcile.
+
+### What was wrong with D-153
+
+It imposed MOCASSIN's ionization ratio on the network BEFORE the solve and let
+CVODE evolve it. The network has no `H + PHOTON -> H+ + e-` reaction at all
+(D-161), so it relaxed the ratio straight back to the cosmic-ray equilibrium
+every time. Imposing an initial condition does not constrain a quantity the ODE
+system is free to evolve.
+
+### D-162: the ratio is MOCASSIN's on both sides of the solve
+
+Re-imposed after `calculate_abundances` as well as before, for every linked
+element - H, He, C, O and Mg, not just hydrogen. The chemistry keeps what it
+legitimately owns, how much of each element is locked in molecules, returned
+through `elemAvail`. No quantity is determined by both codes.
+
+Measured in the front cells that were 3-38x apart (D-152):
+
+    chemistry x(H)        MOCASSIN ionDen H0
+    2.49704272E-02        2.49704290E-02
+    0.365551472           0.365551502
+    0.165114492           0.165114492
+    8.88847560E-02        8.88847485E-02
+
+Agreement to 7-8 significant figures - single-precision round-trip only.
+
+### D-163: and the duplicated channels come out of the network
+
+Following the rule to its conclusion, and matching what Cloudy does in
+`mole_co_base.dat`. Suppressed, identified by structure rather than index:
+
+- `C + PHOTON -> C+ + e-` and `Mg + PHOTON -> Mg+ + e-` (the only two the
+  network could photoionize at all)
+- radiative recombination of H+, He+, C+, O+, Mg+
+
+KEPT, because MOCASSIN has none of it and it reaches the ion solver as
+source/sink through D-118: charge exchange, and `H + CRP -> H+ + e-`.
+
+Every suppression prints at startup. Silently deleting reactions from a
+chemical network should never be invisible in a run log.
+
+### Result
+
+| config | converged |
+|---|---|
+| PDR owns T, one x(H+) | **97.76%** |
+| PDR owns T, blend and gate (D-156) | 97.74% |
+| MOCASSIN owns T, one x(H+) | 0.079% |
+
+**The architecture costs nothing where the model already worked** - 97.76%
+against 97.74% - so it is adoptable on its own merits. It also removes a real
+incoherence: the chemistry was computing an ionization state it has no physics
+for, and every mechanism built to reconcile that (blend weight, zone gate,
+D-153's imposition) was machinery for a problem that should not have existed.
+
+**It does not fix the MOCASSIN-owned thermal balance**, which still collapses.
+That is a temperature instability (D-160: no stable fixed point from either
+initial condition), and it is now cleanly separated from the ionization
+question rather than entangled with it.

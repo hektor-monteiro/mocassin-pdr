@@ -108,6 +108,9 @@ module pdr_mod
         character(len=200) :: dataDir
         character(len=250) :: fname
         character(len=50)  :: cname        ! D-131: coolant species, isotope stripped
+        character(len=10)  :: sNeut, sIon  ! D-163: linked neutral / ion labels
+        integer            :: iR, iLnk, jLnk   ! D-163
+        logical            :: lgDupPhot, lgDupRec
         integer            :: ios, iS, iC
         logical            :: lgAtomic
         ! D-131. Element symbols, lower case. Cobalt is deliberately ABSENT -
@@ -328,6 +331,61 @@ module pdr_mod
              & count(pdrLinkSpec > 0), "of", pdrNlink
         call READ_RATES(pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
              &          pdrGamma, pdrRate, pdrDuplicate, pdrRtmin, pdrRtmax)
+
+        ! D-163: MOCASSIN owns every ion stage, so the network must not compute
+        ! them too. These are exactly the reactions Cloudy deletes from its own
+        ! network data (`mole_co_base.dat`, "These would be double counted if
+        ! included in the molecular network"): photoionization of a linked
+        ! neutral, and radiative recombination of a linked ion.
+        !
+        ! Identified by structure, not by index, so a network change does not
+        ! silently leave a duplicate behind: {X, PHOTON} -> {X+, e-} and
+        ! {X+, e-} -> {X} for any X in the link table. Charge exchange and
+        ! cosmic-ray channels are KEPT - MOCASSIN has no cosmic-ray ionization
+        ! (D-035) and no charge exchange, so those are real physics only the
+        ! network carries, and they reach the ion solver as source/sink terms
+        ! through D-118.
+        !
+        ! Every suppression is printed, because silently deleting reactions from
+        ! a chemical network is exactly the kind of change that should never be
+        ! invisible in a run log.
+        if (pdrIonFromMocassin /= 0 .and. taskid == 0) &
+             & print*, "! initPDR: MOCASSIN owns the ion stages - suppressing &
+             &duplicated network channels:"
+        if (pdrIonFromMocassin /= 0) then
+           do iR = 1, pdrNreacMod
+              lgDupPhot = .false.; lgDupRec = .false.
+              do iLnk = 1, pdrNlink
+                 if (pdrLinkSpec(iLnk) <= 0) cycle
+                 sNeut = ''; sIon = ''
+                 if (pdrLinkIon(iLnk) == 1) then
+                    sNeut = adjustl(pdrSpecies(pdrLinkSpec(iLnk)))
+                    do jLnk = 1, pdrNlink
+                       if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
+                            & pdrLinkIon(jLnk) == 2 .and. pdrLinkSpec(jLnk) > 0) &
+                            & sIon = adjustl(pdrSpecies(pdrLinkSpec(jLnk)))
+                    end do
+                 end if
+                 if (len_trim(sNeut) == 0 .or. len_trim(sIon) == 0) cycle
+                 ! photoionization of the neutral
+                 if (any(adjustl(pdrReactant(iR,:)) == sNeut) .and. &
+                      & any(adjustl(pdrReactant(iR,:)) == 'PHOTON') .and. &
+                      & any(adjustl(pdrProduct(iR,:)) == sIon)) lgDupPhot = .true.
+                 ! radiative recombination of the ion
+                 if (any(adjustl(pdrReactant(iR,:)) == sIon) .and. &
+                      & any(adjustl(pdrReactant(iR,:)) == 'e-') .and. &
+                      & any(adjustl(pdrProduct(iR,:)) == sNeut)) lgDupRec = .true.
+              end do
+              if (lgDupPhot .or. lgDupRec) then
+                 if (taskid == 0) print*, "!   reaction", iR, " ", &
+                      & trim(adjustl(pdrReactant(iR,1))), " + ", &
+                      & trim(adjustl(pdrReactant(iR,2))), " -> ", &
+                      & trim(adjustl(pdrProduct(iR,1))), &
+                      & merge("  (photoionization)", "  (recombination)  ", lgDupPhot)
+                 pdrAlpha(iR) = 0.d0
+              end if
+           end do
+        end if
 
         ! Identify the exothermic chemical-heating reactions in this network.
         ! 3DPDR.F90 does this immediately after READ_RATES; omitting it leaves
@@ -1615,6 +1673,44 @@ module pdr_mod
 
            call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
                 & pdrNspecMod, pdrNreacMod)
+           ! D-162: THERE IS ONE x(H+), AND MOCASSIN COMPUTES IT.
+           !
+           ! D-153 imposed MOCASSIN's ionization ratio before the solve and let
+           ! CVODE evolve it. The network has no H + PHOTON -> H+ + e- reaction
+           ! at all (D-161) - every H -> H+ channel in it is charge exchange or
+           ! cosmic rays - so it relaxes the ratio straight back to the
+           ! cosmic-ray equilibrium, x(H+) ~ 9e-4, whatever it was handed. That
+           ! is not a second opinion about the same quantity; it is the answer
+           ! to a different question, and letting it stand was the reason no
+           ! blend weight, zone gate or initial condition could reconcile the
+           ! two codes.
+           !
+           ! So re-impose the ratio afterwards as well. The chemistry keeps what
+           ! it legitimately owns - how much of each element is locked in
+           ! molecules, which is returned through elemAvail - and MOCASSIN keeps
+           ! the ionization state, which is the only physics that can compute
+           ! it here. Neither overrides the other's domain, and there is no
+           ! quantity that both determine.
+           if (pdrIonFromMocassin /= 0) then
+              do iLnk = 1, pdrNlink
+                 if (pdrLinkSpec(iLnk) <= 0) cycle
+                 if (pdrLinkIon(iLnk) /= 1) cycle
+                 iSpN = pdrLinkSpec(iLnk)
+                 iSpI = 0
+                 do jLnk = 1, pdrNlink
+                    if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
+                         & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
+                 end do
+                 if (iSpI <= 0) cycle
+                 availTot = abun(iSpN) + abun(iSpI)
+                 if (availTot <= 0.d0) cycle
+                 mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
+                 mocIon  = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 2))
+                 if (mocNeut + mocIon <= 0.d0) cycle
+                 abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
+                 abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
+              end do
+           end if
 
            ! shielding columns follow the abundances between passes
            ! columns follow the abundances between passes, scaled from the
