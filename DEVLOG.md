@@ -145,6 +145,10 @@ reasoning that led to the wrong turn is part of the history.
 | D-128 | Ladder re-run clean: fronts unchanged to MC scatter, D-123 stands. My prediction that the garbage shifted results everywhere was wrong - it was negligible or catastrophic, never in between | Done | 2026-09-05 |
 | D-129 | Sticking coefficient units fixed (grams vs amu, 1.7e-25 -> 0.091). Invisible in the coupled fixtures by construction; in plain MOCASSIN the coldest dust warms 10%, groups fully separated | Done | 2026-09-05 |
 | D-130 | Multi-component dust segfaults on unmodified code - species index offset twice. Fixed, plus local/global grainPot reads and the whole-array grainPotP assignment | Done | 2026-09-05 |
+| D-131 | pdrAllCells: chemistry in every cell, so H2/CO emerge instead of being seeded (0.3 -> 1e-8 in ionized gas). pdrCoolFeedback: molecular cooling and the six missing heating terms into MOCASSIN's balance | Done | 2026-09-05 |
+| D-133 | Atomic coolants REPLACE rather than are excluded inside the PDR - MOCASSIN excites [C II]/[O I] with electrons alone, 3D-PDR carries H/H+/He/H2 | Done | 2026-09-05 |
+| D-135 | The handed-over terms were divided by 4pi as well as Hden, making them 12.6x too small - which is why two successive hypotheses each moved the deep PDR by ~1 K | Fixed | 2026-09-05 |
+| D-136 | **Policy: 3D-PDR is a reference, not a benchmark. MOCASSIN owns the dust and everything following from it** | Standing | 2026-09-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -7863,3 +7867,50 @@ source/update_mod.f90` while building a comparison binary, and had to
 reconstruct them. Re-applied by unique context rather than line numbers, and
 verified by rebuilding to a binary **byte-identical** to the one that had
 already run the test model clean. Commit before building variants, not after.
+
+## 2026-09-05i - D-136: 3D-PDR is a reference, not a benchmark; MOCASSIN owns the dust
+
+A project-level ruling, and it changes how every comparison in this log should
+be read from here on.
+
+1. **3D-PDR models are references, not benchmarks to be reproduced.**
+   Divergence from 3D-PDR stops being automatically a defect. Numbers are still
+   compared, but agreement is no longer the success criterion, and a
+   disagreement is to be reported with its cause rather than closed by tuning.
+
+2. **MOCASSIN owns the dust, and everything that follows from it.** Where the
+   codes disagree because they assume different grains, MOCASSIN's answer wins:
+   it is computed from the grain population actually in the model. If PAH
+   physics is wanted, PAH particles go into MOCASSIN's dust composition - a
+   PAH formula is not imported into a silicate inventory.
+
+### What this settles
+
+D-134 measured MOCASSIN's photoelectric heating at ~6x 3D-PDR's, and since that
+term is ~96% of the PDR heating budget, whichever value is used sets the
+temperature. The question of which is "right" is now answered by policy rather
+than by which reproduces the reference: **MOCASSIN's**, because it follows from
+the dust the model actually has. `pdrPEfromPDR` stays off, and exists only to
+quantify the gap against the reference.
+
+This also means the deep-PDR temperature under a MOCASSIN-owned thermal balance
+is not required to land on 3D-PDR's ~47 K. If it settles elsewhere with every
+term correctly normalised and correctly attributed, that is a result about this
+model's dust, not an error to be removed.
+
+### What it does NOT settle
+
+The distinction that matters is *why* the codes disagree:
+
+- **Different dust assumptions** -> MOCASSIN wins, by the rule above.
+- **Incomplete physics in MOCASSIN** -> the term must still be taken from
+  3D-PDR, because this is not a modelling choice. The live case is D-133:
+  MOCASSIN excites [C II] 158um and [O I] 63um with electrons alone, while
+  3D-PDR carries H, H+, He and H2 partners, and in neutral gas the electron
+  fraction is ~1e-4. That is a gap in MOCASSIN, not a different assumption, and
+  handing the term across stays correct. The long-term fix is to give MOCASSIN
+  the neutral collision partners.
+
+The rule is therefore: hand over what MOCASSIN lacks or computes with
+incomplete physics; never hand over what it computes differently because it
+models different dust.

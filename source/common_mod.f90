@@ -605,6 +605,32 @@ module common_mod
     ! balance can own the temperature in molecular gas too.
     integer             :: pdrAllCells = 0
     integer             :: pdrCoolFeedback = 0
+    ! D-132: one thermal balance, and it is MOCASSIN's. The PDR stops solving
+    ! for temperature entirely - it evaluates the chemistry, the level
+    ! populations and its heating/cooling AT MOCASSIN's electron temperature and
+    ! reports them back, and handBackPDR no longer overwrites Te. Requires
+    ! pdrCoolFeedback, since without the molecular coolant and the six heating
+    ! terms MOCASSIN has no way to reach a PDR temperature at all.
+    integer             :: pdrTeFromMocassin = 0
+    ! D-134/D-136: who owns the photoelectric heating inside the PDR. MOCASSIN
+    ! computes it from its own grain population and grain charge (Baldwin et al.
+    ! 1991); 3D-PDR uses a PAH formula. They differ by ~6x, and photoelectric
+    ! heating is ~96% of the PDR's heating budget, so the choice sets the
+    ! temperature outright.
+    !
+    ! THE ANSWER IS MOCASSIN'S, AND THIS STAYS OFF. The project's rule is that
+    ! MOCASSIN owns the dust and everything that follows from it: its value is
+    ! computed from the grains actually in the model, while 3D-PDR's assumes a
+    ! PAH population this dust inventory does not contain. Wanting PAH physics
+    ! means adding PAH particles to the dust composition, not importing a
+    ! formula the grains cannot support.
+    !
+    ! Turning this on does not make the model more correct - it makes it agree
+    ! with 3D-PDR. Since 3D-PDR is a reference and not a benchmark to
+    ! reproduce, that is a diagnostic, not a goal. Kept solely to quantify the
+    ! difference against the reference.
+    integer             :: pdrPEfromPDR = 0
+    integer             :: nBalProbe = 0   ! D-135 one-shot balance probe
     real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants
     ! D-131: which coolants MOCASSIN does NOT already compute for itself.
@@ -615,6 +641,17 @@ module common_mod
     ! Only species MOCASSIN has no line data for - CO and the other molecules -
     ! may be added. Set in initPDR, printed there so the choice is visible.
     logical             :: pdrCoolIsMol(30) = .false.
+    ! D-133: for an ATOMIC coolant, which MOCASSIN ion it corresponds to, so
+    ! its forbidden-line contribution can be removed and 3D-PDR's used instead.
+    ! MOCASSIN drives forLines with NeUsed alone; 3D-PDR carries seven collision
+    ! partners (H, H+, e-, He, H2, para-H2, ortho-H2). In neutral gas the
+    ! electron fraction is ~1e-4, so MOCASSIN's [C II] 158um and [O I] 63um are
+    ! computed with a collider that barely contributes and it under-cools by
+    ! orders of magnitude. Excluding 3D-PDR's version to avoid double counting
+    ! is therefore formally right and physically wrong: whichever code has the
+    ! correct excitation physics must own the term.
+    integer             :: pdrCoolElem(30) = 0
+    integer             :: pdrCoolIon(30)  = 0
     character(len=50)   :: pdrCoolant(30) = ''     ! coolant datafile names
 #endif
 

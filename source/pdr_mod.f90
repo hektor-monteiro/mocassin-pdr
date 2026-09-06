@@ -112,6 +112,10 @@ module pdr_mod
         logical            :: lgAtomic
         ! D-131. Element symbols, lower case. Cobalt is deliberately ABSENT -
         ! see the note where this is used.
+        integer            :: nCharge
+        ! atomic numbers matching elemSym, cobalt omitted (see the note there)
+        integer, parameter :: elemZ(29) = (/ 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12, &
+             & 13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30 /)
         character(len=2), parameter :: elemSym(29) = (/ &
              & 'h ','he','li','be','b ','c ','n ','o ','f ','ne','na','mg', &
              & 'al','si','p ','s ','cl','ar','k ','ca','sc','ti','v ','cr', &
@@ -236,9 +240,14 @@ module pdr_mod
            ! drop an ionization sign and any '-suffix' (cn-hfs -> cn)
            iC = index(cname, '-')
            if (iC > 1) cname = cname(1:iC-1)
+           nCharge = 0
            iC = len_trim(cname)
            if (iC > 1) then
-              if (cname(iC:iC) == '+' .or. cname(iC:iC) == '-') cname = cname(1:iC-1)
+              if (cname(iC:iC) == '+') then
+                 nCharge = 1; cname = cname(1:iC-1)
+              else if (cname(iC:iC) == '-') then
+                 cname = cname(1:iC-1)
+              end if
            end if
            ! Decide by structure, not by a hand-kept list of molecules.
            ! MOCASSIN cools every heavy it has CEL data for, and that data is
@@ -253,12 +262,24 @@ module pdr_mod
            ! element list below with this note attached.
            lgAtomic = .false.
            do iC = 1, 29
-              if (trim(cname) == trim(elemSym(iC))) lgAtomic = .true.
+              if (trim(cname) == trim(elemSym(iC))) then
+                 lgAtomic = .true.
+                 pdrCoolElem(iS) = elemZ(iC)
+                 pdrCoolIon(iS)  = nCharge + 1     ! neutral -> stage 1
+              end if
            end do
            pdrCoolIsMol(iS) = .not. lgAtomic
-           if (taskid == 0) print*, "! initPDR: coolant ", trim(cname), &
-                & merge("  -> added to MOCASSIN's balance", &
-                &       "  -> already in coolColl        ", pdrCoolIsMol(iS))
+           if (taskid == 0) then
+              if (pdrCoolIsMol(iS)) then
+                 print*, "! initPDR: coolant ", trim(cname), &
+                      & " molecular -> added to MOCASSIN's balance"
+              else
+                 print*, "! initPDR: coolant ", trim(cname), &
+                      & " atomic -> REPLACES MOCASSIN's forbidden lines for ", &
+                      & "elem", pdrCoolElem(iS), " stage", pdrCoolIon(iS), &
+                      & " (MOCASSIN excites them with electrons alone)"
+              end if
+           end if
         end do
         pdrCooMod = pdrNcool
         if (pdrNcool > 0) call readcoolants
@@ -1392,6 +1413,8 @@ module pdr_mod
         ! authority - it is photoionized gas, which is what that balance is for
         ! - so take its temperature and do not iterate on it below.
         if (lgChemOnly) Tg = dble(grid%Te(cellP))
+        ! D-132: MOCASSIN owns the thermal balance in every cell.
+        if (pdrTeFromMocassin /= 0) Tg = dble(grid%Te(cellP))
         ! ---- dust temperature (DEVLOG D-033, D-036) ----------------------
         ! MOCASSIN solves dust equilibrium against the local radiation field
         ! with no floor, so a deeply shielded cell has almost nothing heating
@@ -1685,7 +1708,8 @@ module pdr_mod
         Tlo = 0.d0
         Thi = 0.d0
 
-        do itherm = 1, merge(1, max(pdrThermIter,1), lgChemOnly)
+        do itherm = 1, merge(1, max(pdrThermIter,1), &
+             & lgChemOnly .or. pdrTeFromMocassin /= 0)
 
            ! PDR heating budget for this cell: 12 terms, total in slot 12. The
            ! photoelectric part is kept separately because it is the term
@@ -1931,7 +1955,8 @@ module pdr_mod
               Tg = Tg*0.5d0
            end if
            ! D-131: a chemistry-only cell keeps MOCASSIN's temperature.
-           if (lgChemOnly) then
+           ! D-132: under pdrTeFromMocassin, so does every other cell.
+           if (lgChemOnly .or. pdrTeFromMocassin /= 0) then
               Tg = dble(grid%Te(cellP))
            else
               Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
@@ -2042,7 +2067,11 @@ module pdr_mod
                        cycle
                     end if
 
-                    grid(iG)%Te(cellP) = real( &
+                    ! D-132: with MOCASSIN owning the balance there is nothing
+                    ! to hand back - its own thermBalance now carries the
+                    ! molecular coolant and the six heating terms it lacked.
+                    if (pdrTeFromMocassin == 0) &
+                         & grid(iG)%Te(cellP) = real( &
                          & w*dble(grid(iG)%pdrTgas(cellP)) + &
                          & (1.d0-w)*dble(grid(iG)%Te(cellP)))
 

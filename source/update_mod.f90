@@ -1255,7 +1255,7 @@ end subroutine iterateT
             real                   :: coolRec       ! cool due to recombination[erg/s/Hden]
             real                   :: fcool
             real                   :: pdrCoolMol    ! D-131: molecular coolants only
-            integer                :: iCool
+            integer                :: iCool, iLevJ, iLevK
             real                   :: heatIonSte    ! heat due to this ion stellar phot
             real                   :: heatIonDif    ! heat due to this ion diffuse phot
             real                   :: heatSte       ! tot heat gain due to stellar phot
@@ -1567,11 +1567,18 @@ end subroutine iterateT
             ! chemistry already computes those rates per cell; supplying them
             ! here lets MOCASSIN own the temperature in molecular gas too.
             !
-            ! grid%pdrCool is volumetric [erg/s/cm^3]. The terms above are per
-            ! hydrogen nucleus and carry the balance's missing 4pi (see the
-            ! comment at the end of setDustGasCollHeatCool), so match that
-            ! convention rather than assuming it - the ratio is checked against
-            ! 3D-PDR's own converged heat/cool before this is trusted.
+            ! grid%pdrCool is volumetric [erg/s/cm^3]; coolInt is per hydrogen
+            ! nucleus, so the conversion is /Hden and nothing else.
+            !
+            ! D-135. This originally also divided by 4pi, reasoned from
+            ! gasDustColl_g a few lines above - which does carry a 4pi, but for
+            ! reasons specific to how that term is built, not as a property of
+            ! coolInt. Measured instead: at T_e = 9348 K with n_H = 100,
+            ! coolColl = 7.4e-23, and a standard H II cooling rate of ~1e-20
+            ! erg/cm^3/s is 1e-22 per H nucleus - the same order. The 4pi made
+            ! every handed-over term 12.6x too small, which is why swapping the
+            ! coolants and then the photoelectric heating each moved the deep
+            ! PDR by about 1 K.
             if (lgPDR .and. pdrCoolFeedback /= 0) then
                if (grid%Hden(cellP) > 0.) then
                   ! Only the coolants MOCASSIN has no line data for. C, C+, O
@@ -1581,10 +1588,56 @@ end subroutine iterateT
                   ! coolants. pdrCoolIsMol is decided once in initPDRnetwork.
                   pdrCoolMol = 0.
                   do iCool = 1, pdrNcool
-                     if (pdrCoolIsMol(iCool)) &
-                          & pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                     if (pdrCoolIsMol(iCool)) then
+                        ! MOCASSIN has no line data for this carrier at all.
+                        pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                     else if (pdrCoolElem(iCool) > 0 .and. &
+                          &   grid%pdrZone(cellP) == 1) then
+                        ! D-133: an ATOMIC coolant inside the PDR. MOCASSIN has
+                        ! these lines but excites them with electrons alone,
+                        ! while 3D-PDR carries H, H+, He and H2 as well - and in
+                        ! neutral gas the electron fraction is ~1e-4, so
+                        ! MOCASSIN's version under-cools by orders of magnitude.
+                        ! Measured: leaving MOCASSIN to own [C II] and [O I] put
+                        ! the deep PDR at 157 K where 3D-PDR's own balance, at
+                        ! that same temperature, said cooling exceeded heating
+                        ! 3.2 to 1.
+                        !
+                        ! So REPLACE rather than exclude: take MOCASSIN's
+                        ! contribution for this ion back out of coolColl and use
+                        ! 3D-PDR's in its place. Outside the PDR the electron
+                        ! treatment is the right one and MOCASSIN keeps the term.
+                        do iLevJ = 1, 10
+                           do iLevK = 1, 10
+                              coolInt = coolInt - &
+                                   & real(forbiddenLines(pdrCoolElem(iCool), &
+                                   &                     pdrCoolIon(iCool), iLevJ, iLevK))
+                           end do
+                        end do
+                        pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                     end if
                   end do
-                  coolInt = coolInt + pdrCoolMol/(grid%Hden(cellP)*fourPi)
+                  ! D-135 probe: two hypotheses about this discrepancy have now
+                  ! failed, and both assumed these terms actually move coolInt.
+                  ! Report the sizes once, for a deep PDR cell, before guessing
+                  ! a third time.
+                  if (nBalProbe < 3 .and. grid%pdrZone(cellP) == 1 .and. &
+                       & grid%AVeff(cellP) > 1.0) then
+                     nBalProbe = nBalProbe + 1
+                     print*, "! [D135] cell", cellP, " Te =", TeUsed, &
+                          & " Hden =", grid%Hden(cellP)
+                     print*, "! [D135]   MOCASSIN coolInt so far =", coolInt, &
+                          & "  heatInt =", heatInt
+                     print*, "! [D135]   coolFF =", coolFF, " coolRec =", coolRec, &
+                          & " coolColl =", coolColl
+                     print*, "! [D135]   photoelHeat_g =", photoelHeat_g, &
+                          & " gasDustColl_g =", gasDustColl_g
+                     print*, "! [D135]   PDR cool volumetric =", grid%pdrCool(cellP), &
+                          & " -> contributes", pdrCoolMol/grid%Hden(cellP)
+                     print*, "! [D135]   PDR heatXtra =", grid%pdrHeatXtra(cellP), &
+                          & " -> contributes", grid%pdrHeatXtra(cellP)/grid%Hden(cellP)
+                  end if
+                  coolInt = coolInt + pdrCoolMol/grid%Hden(cellP)
                   ! The heating side needs the same treatment, and for the same
                   ! reason. Adding a coolant MOCASSIN lacks without the heating
                   ! it also lacks would bias molecular gas cold - cosmic-ray
@@ -1592,7 +1645,15 @@ end subroutine iterateT
                   ! already the PDR total minus the three terms MOCASSIN
                   ! computes for itself.
                   heatInt = heatInt + grid%pdrHeatXtra(cellP)/&
-                       & (grid%Hden(cellP)*fourPi)
+                       & grid%Hden(cellP)
+                  ! D-134: optionally let the PDR own the photoelectric term
+                  ! too, inside the PDR. Take MOCASSIN's out and put 3D-PDR's
+                  ! in - the same replace-don't-exclude rule as the atomic
+                  ! coolants, applied to the one term that dominates the budget.
+                  if (pdrPEfromPDR /= 0 .and. grid%pdrZone(cellP) == 1) then
+                     heatInt = heatInt - photoelHeat_g &
+                          & + grid%pdrHeatPE(cellP)/grid%Hden(cellP)
+                  end if
                end if
             end if
 #endif

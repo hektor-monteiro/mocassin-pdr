@@ -704,6 +704,12 @@ module set_input_mod
             case ("pdrAllCells")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrAllCells
+            case ("pdrPEfromPDR")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrPEfromPDR
+            case ("pdrTeFromMocassin")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrTeFromMocassin
             case ("pdrCoolFeedback")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolFeedback
