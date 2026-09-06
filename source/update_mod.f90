@@ -1538,36 +1538,12 @@ end subroutine iterateT
                     ! cell, and from which part of the spectrum. Three
                     ! hypotheses about this balance had been wrong from
                     ! inference; name the contributor before adding opacity.
-                    if (nIonProbe < 240 .and. heatIonSte > 0. .and. &
+                    if (nIonProbe < 20000 .and. heatIonSte > 0. .and. elem == 1 .and. &
                          & grid%pdrZone(cellP) == 1 .and. grid%AVeff(cellP) > 1.0 &
                          & .and. nIterateMC >= 6 .and. taskid == 0) then
                        nIonProbe = nIonProbe + 1
                        print*, "! [D138] cell", cellP, " elem", elem, " ion", ion, &
                             & " heat =", heatIonSte, "  IP(Ryd) =", nuArray(IPnuP)
-                       ! D-140: atomic hydrogen alone gives tau = 230 per cell at
-                       ! the Lyman edge here, so no stellar photon can survive to
-                       ! this depth. Print the field that the heating integral is
-                       ! actually seeing, and the H0 density the opacity is built
-                       ! from, at the edge and just above it.
-                       if (elem == 1 .and. ion == 1) then
-                          ! D-142: the sum runs IPnuP..highNuP; sampling only
-                          ! its first bins showed Jste = 0 while the integral
-                          ! was 4e-24, which just meant the flux is elsewhere in
-                          ! the range. Report the whole band.
-                          print*, "! [D142]   max Jste over IPnuP..highNuP =", &
-                               & maxval(grid%Jste(cellP,IPnuP:highNuP)), &
-                               & "  at bin", &
-                               & IPnuP-1+maxloc(grid%Jste(cellP,IPnuP:highNuP),1), &
-                               & " of", IPnuP, "..", highNuP
-                          print*, "! [D142]   nu at that bin =", &
-                               & nuArray(IPnuP-1+maxloc(grid%Jste(cellP,IPnuP:highNuP),1)), &
-                               & " Ryd ;  sum Jste =", sum(grid%Jste(cellP,IPnuP:highNuP))
-                          print*, "! [D140]   ionDen H0 =", &
-                               & grid%ionDen(cellP,elementXref(1),1), &
-                               & "  H+ =", grid%ionDen(cellP,elementXref(1),2), &
-                               & "  Hden =", grid%Hden(cellP), &
-                               & "  elemAvail =", grid%elemAvail(cellP,1)
-                       end if
                     end if
 #endif
                     if (lgDebug) &

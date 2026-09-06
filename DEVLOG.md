@@ -153,6 +153,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-139 | Added an H2 continuum at 13.6-15.4 eV, then REVERTED: Cloudy puts zero there, and x(H)=0.189 gives tau=230 per cell so nothing was leaking | Reverted | 2026-09-05 |
 | D-141 | Yan/Sadeghpour/Dalgarno H2 photoionization cross section ported from Cloudy, replacing D-107's power law - which was 2.5x low across the 18 eV peak | Done | 2026-09-05 |
 | D-143 | Deep-PDR H I heating is not transported light: one bin in 171 carries flux, the same bin in 31/31 cells, where tau = 175 per cell. Points at the boundary treatment (D-049) | Open | 2026-09-06 |
+| D-144 | Mirror hypothesis REJECTED: 90% of the heating is away from the boundaries and all three planes show the same ~3x geometric enhancement. The 31/31 result was a probe sampling artifact | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8031,3 +8032,60 @@ call and before the He I and heavy-element calls, so its "total opacity" column
 is partial. It is valid for H I, which is what was under test; the absence of a
 jump at the He I edge in that column is an artifact of the print position, not
 a result.
+
+## 2026-09-06b - D-144: the mirror hypothesis is not supported
+
+D-143 proposed the boundary treatment as the route by which stellar photons
+reach cells at tau = 175 per cell. Tested and rejected.
+
+### Two false starts, both mine
+
+**D-049's defect is real but latent here.** `photon_mod.f90:2316` assigns
+`rVec%z = grid(gP)%yAxis(1)` in the z-min mirror where it should be
+`zAxis(1)`. This model has `edges 6.0e19 6.0e19 6.0e19` on a 31^3 grid, so
+those two hold the same number and the bug cannot express itself. It bites only
+on non-cubic grids. Worth fixing on its own account; irrelevant to this symptom.
+
+**"31 of 31 affected cells lie on the mirror plane" was a sampling artifact.**
+Cells are distributed as `mod(iCell-(taskid+1), numtasks)==0`, so rank 0 takes
+every 14th cell in raster order - i=1 first, working through j and k before
+reaching i=2. The probe's 240-line cap was exhausted inside the i=1 slab, so
+"every affected cell is on the mirror" meant only "every cell I sampled was on
+the mirror". The tell was visible in the output: the cell indices marched
+monotonically upward, which is raster order rather than a scattered subset.
+
+### The actual measurement
+
+Re-run with a 20000-cell cap, 3025 sampled cells carrying H I heating:
+
+| plane | cells at index 1 | share of heat at 1 | within 2 |
+|---|---|---|---|
+| i (x-mirror) | 145 / 3025 | 9.80% | 16.09% |
+| j (y-mirror) | 170 / 3025 | 9.56% | 16.00% |
+| k (z-mirror) | 135 / 3025 | 9.82% | 16.60% |
+
+Uniform expectation for one plane of 31 is 3.23% of cells. So each boundary
+carries a ~2-3x enhancement - but **90% of the heating is not at any mirror
+plane**, and the enhancement is identical across all three (9.80/9.56/9.82).
+That equality is what a corner source on symmetric axes predicts geometrically,
+not what a defect in one mirror would produce. The hottest cells come in
+cyclic permutations - (7,11,1) and (1,7,11) - which is the octant symmetry
+expressing itself correctly.
+
+**The mirrors are cleared.** The heating is distributed through the volume.
+
+### What still stands
+
+- H I photoionization is 99.5% of the heating in deep PDR cells (D-138)
+- `Jste` is exactly zero at the Lyman edge; one bin of 171 carries flux, bin
+  465 at 1.7922 Ryd, in every cell sampled (D-142)
+- the opacity there is smooth and gives tau = 175 per cell (D-143)
+- the flux is not concentrated at the boundaries (this entry)
+
+Photons are being counted in `Jste` in cells they cannot reach by attenuated
+transport, at one frequency, spread through the volume. The remaining
+candidates are the estimator itself - a diffuse or re-emitted packet being
+accumulated into the stellar field - or something specific to how packets at
+that frequency are initialised. Neither has been tested.
+
+`pdrTeFromMocassin` stays off. The shipped default masks this entirely.
