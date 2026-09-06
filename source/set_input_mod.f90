@@ -701,6 +701,12 @@ module set_input_mod
             case ("pdrTmax")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTmax
+            case ("pdrIonFromMocassin")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrIonFromMocassin
+            case ("pdrTrackCell")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrTrackCell
             case ("pdrAllCells")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrAllCells

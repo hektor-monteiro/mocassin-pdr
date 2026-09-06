@@ -1587,6 +1587,11 @@ module grid_mod
              print*, "Can't allocate memory to lgConverged array"
              stop
           end if
+          allocate(grid%xHIiterStart(0:grid%nCells), stat = err)
+          if (err /= 0) then
+             print*, "Can't allocate memory to xHIiterStart array"
+             stop
+          end if
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then

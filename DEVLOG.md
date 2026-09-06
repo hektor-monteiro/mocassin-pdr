@@ -159,6 +159,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-147 | Forced skip removed on instruction. Moves the shipped default's front 0.9150 -> 0.8534, so it had been materially affecting results | Done | 2026-09-06 |
 | D-148 | RETRACTED: the convergence criterion was never wrong - gas models always used x(H0) (iterateT:777); the dust-T test is the dust-only branch, as it should be | Retracted | 2026-09-06 |
 | D-149 | Convergence collapse is caused by pdrTeFromMocassin alone (97.7% -> 0.13%) and is indifferent to 8x packets. Structural, not statistical | Open | 2026-09-06 |
+| D-152 | Failing cells are at the ionization front where the two codes disagree 3-38x on x(H0), and the blend gate keys on the disputed quantity | Superseded by D-155 | 2026-09-06 |
+| D-153 | MOCASSIN owns ionization, chemistry returns molecules only, no gating. Implemented; does NOT fix convergence, and the network relaxes an imposed ratio back | Partial | 2026-09-06 |
+| D-155 | **Convergence criterion compared against the previous COUPLING PASS, not the previous iteration** - a D-119 regression. Reported 100% where the truth was 0%. Fixed | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8240,3 +8243,65 @@ cooling term is then a constant with respect to T, so the solver has no
 restoring force, the gas temperature wanders, and x(H0) follows it. That
 predicts precisely what is measured: a collapse triggered by
 `pdrTeFromMocassin` alone, indifferent to packet count. Untested.
+
+## 2026-09-06e - D-155: the convergence criterion was measuring the wrong interval
+
+Flagged by the user: 100% convergence in the first three iterations is not
+credible for a photoionization model with gas and dust. It was not.
+
+### The defect
+
+`iterateT` tests the fractional change in x(H0) against `XOldHI`, captured at
+entry to `updateCell`. With the D-119 coupling loop, `updateCell` runs
+`pdrCoupleIter` times per MC iteration - so `XOldHI` is the previous COUPLING
+PASS, not the previous iteration. Measured directly:
+
+    iter 1 call 1:  entry 1.0e-05 -> final 0.5348   delta 53478
+    iter 1 call 5:  entry 0.5361  -> final 0.5358   delta 0.00053   "converged"
+    iter 2 call 1:  entry 0.5358  -> final 0.9719   delta 0.814
+    iter 2 call 5:  entry 0.9716  -> final 0.9719   delta 0.00027   "converged"
+
+The inner loop always settles, so every cell reported converged while x(H0) was
+moving **81% between iterations**.
+
+**This is a regression I introduced with D-119.** At `pdrCoupleIter = 1` the
+call and the iteration coincide and the test is correct; it only breaks once
+the loop runs more than one pass, which became the default in D-123.
+
+### The correction
+
+`grid%xHIiterStart` snapshots x(H0) once per MC iteration, before the coupling
+loop (iteration_mod, beside the `lgConverged` reset). The test compares against
+that.
+
+Reference configuration, before and after:
+
+| iter | corrected | old |
+|---|---|---|
+| 1 | **0.00%** | 100% |
+| 2 | **17.21%** | 100% |
+| 3 | **91.58%** | 100% |
+| 4 | **84.18%** (PDR engages) | 100% |
+| 5 | **99.36%** | 100% |
+
+The model builds its ionization structure over three iterations, dips seven
+points when the PDR switches on, and settles - which is what such a model
+should do. The old test reported 100% at iteration 1 where the true figure is
+zero.
+
+### What this invalidates
+
+Every convergence number in this session, in both directions:
+
+- **False passes.** "100% converged" for the reference configuration, used
+  repeatedly here as evidence that a change was safe.
+- **False fails.** The 0.13% collapse under `pdrTeFromMocassin` means the inner
+  loop stopped settling within five passes once the chemistry was active - not
+  that the model was unstable. The whole D-149 to D-153 investigation was
+  chasing a number that did not mean what it appeared to.
+- **D-123's ladder** chose `pdrCoupleIter = 5` partly on convergence behaviour
+  measured this way. Its front positions came from completed runs so they may
+  survive, but that needs checking rather than assuming.
+
+The autoPackets escalation is also driven by `totPercent`, so packet counts were
+being increased on a signal that did not mean what it claimed.

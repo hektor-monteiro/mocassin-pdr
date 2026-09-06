@@ -20,6 +20,7 @@ module update_mod
         real, parameter :: Y0 = 0.5, Y1 = 0.2          ! see Baldwin et al. 1991
 
         real                           :: deltaXHI        ! delta ionDen of H0
+        real                           :: convRef         ! D-155 iteration-start x(H0)
                                                        ! H0 2 is from He0 and 3 is
                                                        ! is for He+)
         real                           :: phXSec      ! ph xSec of ion M at freqency bin j
@@ -745,8 +746,16 @@ subroutine iterateT()
         grid%lgBlack(cellP) = 1 ! Flag cell if ionization balance failed
     end if
 
-    ! Determine if the entire cell model has converged by checking H ionization
-    deltaXHI = (grid%ionDen(cellP, elementXref(1), 1) - XOldHI) / XOldHI
+    ! Determine if the entire cell model has converged by checking H ionization.
+    ! D-155: against the value at the start of the MC ITERATION, not at entry to
+    ! this call. updateCell runs pdrCoupleIter times per iteration, so comparing
+    ! with XOldHI measured the inner coupling loop settling - which it always
+    ! does - and reported convergence while the model was still moving 81% per
+    ! iteration.
+    convRef = XOldHI
+    if (allocated(grid%xHIiterStart)) convRef = grid%xHIiterStart(cellP)
+    if (convRef <= 0.) convRef = XOldHI
+    deltaXHI = (grid%ionDen(cellP, elementXref(1), 1) - convRef) / convRef
     if (abs(deltaXHI) <= XHILimit) then
         grid%lgConverged(cellP) = 1
     else

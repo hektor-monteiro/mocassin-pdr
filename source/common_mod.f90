@@ -255,6 +255,12 @@ module common_mod
         integer, allocatable :: resLinePackets(:)       ! extraPackets to be generated cell (cell)
         integer, allocatable :: abFileIndex(:,:,:)      ! abundance file index axxay
         integer, allocatable :: lgConverged(:)          ! has the model converged at this grid cell?
+        ! D-155: x(H0) at the START of the MC iteration. The convergence test
+        ! used the value at entry to updateCell, which with the D-119 coupling
+        ! loop is the previous COUPLING PASS, not the previous iteration - so it
+        ! measured the inner loop settling and reported 100% while x(H0) was
+        ! still moving 81% between iterations.
+        real, allocatable    :: xHIiterStart(:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;
@@ -604,6 +610,19 @@ module common_mod
     ! than MOCASSIN solving for it. With the coolant supplied, MOCASSIN's
     ! balance can own the temperature in molecular gas too.
     integer             :: pdrAllCells = 0
+    integer             :: pdrTrackCell = 0   ! D-150: follow this cell across iterations
+    integer             :: nTrackHit = 0      ! D-152: cap on failing-cell reports
+    ! D-153. The self-consistent division of labour: MOCASSIN owns the
+    ! ionization state and hands it TO the chemistry; the chemistry returns the
+    ! molecular fractions MOCASSIN cannot compute. Nothing is blended, and there
+    ! is no zone gate deciding whose answer to take.
+    !
+    ! The deadlock this removes (D-152): in cells at the ionization front the
+    ! chemistry said x(H) = 0.999 while MOCASSIN's ionBalance said x(H+) = 0.97,
+    ! and handBackPDR keys its blend weight on MOCASSIN's x(H+) - which was
+    ! above pdrZoneLim, so the handback hit `cycle` and the chemistry's answer
+    ! was never applied. Neither side moved and x(H0) never settled.
+    integer             :: pdrIonFromMocassin = 0
     integer             :: pdrCoolFeedback = 0
     ! D-132: one thermal balance, and it is MOCASSIN's. The PDR stops solving
     ! for temperature entirely - it evaluates the chemistry, the level

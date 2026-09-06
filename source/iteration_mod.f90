@@ -896,6 +896,12 @@ module iteration_mod
 
 
               grid(iG)%lgConverged(0:grid(iG)%nCells) = 0
+              ! D-155: the state this MC iteration starts from. The convergence
+              ! test must compare against THIS, not against the previous
+              ! coupling pass - see the note on xHIiterStart in common_mod.
+              if (allocated(grid(iG)%xHIiterStart)) &
+                   & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
+                   & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
               grid(iG)%lgBlack(0:grid(iG)%nCells)     = 0
               grid(iG)%noHit       = 0.
               grid(iG)%noIonBal    = 0.

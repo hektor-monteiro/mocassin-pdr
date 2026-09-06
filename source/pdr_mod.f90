@@ -1387,6 +1387,8 @@ module pdr_mod
         double precision   :: chiHeat
         double precision   :: AVfacL, RfuvL          ! this cell's own dust (D-109)
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
+        integer            :: iLnk, jLnk, iSpN, iSpI      ! D-153
+        double precision   :: availTot, mocNeut, mocIon   ! D-153
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
@@ -1548,6 +1550,35 @@ module pdr_mod
         ! slab-equivalent shielding columns (see header)
         NHcol = av/AVfacL
         abun  = grid%pdrAbun(cellP, 1:pdrNspec)
+        ! D-153: impose MOCASSIN's ionization on the network before solving.
+        !
+        ! MOCASSIN owns the ionization state; the chemistry owns what is locked
+        ! in molecules. So for each linked element take the atomic+ionic total
+        ! the chemistry currently holds - which already excludes its molecular
+        ! content - and redistribute THAT total according to MOCASSIN's
+        ! ionization ratio. The element is conserved, MOCASSIN sets the ratio,
+        ! and the molecular fractions are left untouched for the chemistry to
+        ! evolve.
+        if (pdrIonFromMocassin /= 0) then
+           do iLnk = 1, pdrNlink
+              if (pdrLinkSpec(iLnk) <= 0) cycle
+              if (pdrLinkIon(iLnk) /= 1) cycle       ! handle each element once
+              iSpN = pdrLinkSpec(iLnk)               ! neutral stage species
+              iSpI = 0
+              do jLnk = 1, pdrNlink
+                 if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
+                      & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
+              end do
+              if (iSpI <= 0) cycle
+              availTot = abun(iSpN) + abun(iSpI)     ! non-molecular part
+              if (availTot <= 0.d0) cycle
+              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
+              mocIon  = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 2))
+              if (mocNeut + mocIon <= 0.d0) cycle
+              abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
+              abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
+           end do
+        end if
 
         ! D-078: true integrated columns, not local abundance x total column
         sH2 = dble(grid%pdrColH2(cellP))
@@ -1981,6 +2012,32 @@ module pdr_mod
         ! and chemical heating - none of which exist anywhere in MOCASSIN.
         grid%pdrHeatXtra(cellP) = real(heat(5) + heat(6) + heat(7) + &
              & heat(8) + heat(9) + heat(10))
+        ! D-150: is the MOCASSIN <-> PDR pair an oscillating fixed point?
+        ! MOCASSIN solves T with pdrCool held constant, the PDR then recomputes
+        ! pdrCool at the new T, and so on. If that is the instability, Te in a
+        ! given cell should swing between MC iterations rather than settle.
+        ! Track a few fixed deep cells across iterations before building any
+        ! machinery to fix a mechanism that has not been shown to exist.
+        ! D-152: track cells that FAIL the convergence test, not cells picked
+        ! by index. The previous probe followed cells 13/133/253 and found them
+        ! comfortably converged - x(H0) moving ~0.04% against a 5% tolerance -
+        ! which says nothing about the 99.9% that do not.
+        if (pdrTrackCell > 0 .and. taskid == 0 .and. nIterateMC > pdrStartIter &
+             & .and. grid%lgConverged(cellP) == 0 .and. nTrackHit < 40) then
+           nTrackHit = nTrackHit + 1
+           ! D-151: Te is pinned to 7 figures while pdrCool swings 2x, so the
+           ! coolant abundances are moving at constant temperature. Report the
+           ! chemistry and the field that drives it, to see which is the source.
+           print*, "! [D151] iter", nIterateMC, " cell", cellP, &
+                & " Te =", grid%Te(cellP), " chi =", grid%chiFUV(cellP), &
+                & " cool =", grid%pdrCool(cellP), &
+                & " x(C+) =", real(abun(NCx)), " x(C) =", real(abun(NC)), &
+                & " x(CO) =", real(abun(NCO)), " x(H2) =", real(abun(NH2))
+           print*, "! [D152]      x(H) =", real(abun(pdrNHsp)), &
+                & " x(H+) =", real(abun(NPROTON)), &
+                & " ionDen H0 =", grid%ionDen(cellP,elementXref(1),1), &
+                & " AV =", grid%AVeff(cellP), " nH =", grid%Hden(cellP)
+        end if
         grid%pdrHeatGG(cellP) = real(heat(11))
         grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
         grid%H2den(cellP)     = real(abun(NH2)*nH)         ! D-107
@@ -2053,11 +2110,25 @@ module pdr_mod
                  do k = 1, grid(iG)%nz
                     cellP = grid(iG)%active(i,j,k)
                     if (cellP <= 0) cycle
-                    if (grid(iG)%pdrTgas(cellP) <= 0.) cycle
+                    ! D-153: with MOCASSIN owning the temperature the PDR does
+                    ! not publish one, so this guard would skip every cell and
+                    ! elemAvail - the molecular content, which is the whole
+                    ! point of the handback - would never be updated.
+                    if (pdrIonFromMocassin == 0 .and. &
+                         & grid(iG)%pdrTgas(cellP) <= 0.) cycle
 
                     xHII = dble(grid(iG)%ionDen(cellP, elementXref(1), 2))
 
-                    if (xHII <= dble(pdrBlendLo)) then
+                    ! D-153: under pdrIonFromMocassin there is nothing to blend
+                    ! and nothing to gate. MOCASSIN already owns the ionization
+                    ! state - it was imposed on the network before the solve -
+                    ! so the only thing coming back is the molecular content,
+                    ! via elemAvail below. The weight is irrelevant and the
+                    ! zone test, which used to reject the chemistry precisely
+                    ! where the two codes disagreed (D-152), is not applied.
+                    if (pdrIonFromMocassin /= 0) then
+                       w = 0.d0            ! no ionization or temperature handback
+                    else if (xHII <= dble(pdrBlendLo)) then
                        w = 1.d0
                     else if (xHII < dble(pdrZoneLim)) then
                        ! blend band: w = 1 at the neutral edge, 0 at the ionised one
