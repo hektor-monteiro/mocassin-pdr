@@ -1254,6 +1254,8 @@ end subroutine iterateT
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
             real                   :: coolRec       ! cool due to recombination[erg/s/Hden]
             real                   :: fcool
+            real                   :: pdrCoolMol    ! D-131: molecular coolants only
+            integer                :: iCool
             real                   :: heatIonSte    ! heat due to this ion stellar phot
             real                   :: heatIonDif    ! heat due to this ion diffuse phot
             real                   :: heatSte       ! tot heat gain due to stellar phot
@@ -1558,6 +1560,42 @@ end subroutine iterateT
                coolInt = coolInt+gasDustColl_g
                heatInt = heatInt+photoelHeat_g
             end if
+#ifdef PDR
+            ! D-131. MOCASSIN carries no molecular or fine-structure coolant -
+            ! no CO, C, C+ or O - which is precisely why the PDR's temperature
+            ! had to be handed back instead of this balance solving for it. The
+            ! chemistry already computes those rates per cell; supplying them
+            ! here lets MOCASSIN own the temperature in molecular gas too.
+            !
+            ! grid%pdrCool is volumetric [erg/s/cm^3]. The terms above are per
+            ! hydrogen nucleus and carry the balance's missing 4pi (see the
+            ! comment at the end of setDustGasCollHeatCool), so match that
+            ! convention rather than assuming it - the ratio is checked against
+            ! 3D-PDR's own converged heat/cool before this is trusted.
+            if (lgPDR .and. pdrCoolFeedback /= 0) then
+               if (grid%Hden(cellP) > 0.) then
+                  ! Only the coolants MOCASSIN has no line data for. C, C+, O
+                  ! and O+ are already summed into coolColl above from ci.dat,
+                  ! cii.dat, oi.dat and oii.dat, so handing 3D-PDR's values for
+                  ! them across would double count three of the four standard
+                  ! coolants. pdrCoolIsMol is decided once in initPDRnetwork.
+                  pdrCoolMol = 0.
+                  do iCool = 1, pdrNcool
+                     if (pdrCoolIsMol(iCool)) &
+                          & pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                  end do
+                  coolInt = coolInt + pdrCoolMol/(grid%Hden(cellP)*fourPi)
+                  ! The heating side needs the same treatment, and for the same
+                  ! reason. Adding a coolant MOCASSIN lacks without the heating
+                  ! it also lacks would bias molecular gas cold - cosmic-ray
+                  ! heating alone is absent entirely (D-035). pdrHeatXtra is
+                  ! already the PDR total minus the three terms MOCASSIN
+                  ! computes for itself.
+                  heatInt = heatInt + grid%pdrHeatXtra(cellP)/&
+                       & (grid%Hden(cellP)*fourPi)
+               end if
+            end if
+#endif
 
 
         end subroutine thermBalance

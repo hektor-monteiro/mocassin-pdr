@@ -107,7 +107,15 @@ module pdr_mod
         character(len=20)  :: builtNetwork
         character(len=200) :: dataDir
         character(len=250) :: fname
-        integer            :: ios, iS
+        character(len=50)  :: cname        ! D-131: coolant species, isotope stripped
+        integer            :: ios, iS, iC
+        logical            :: lgAtomic
+        ! D-131. Element symbols, lower case. Cobalt is deliberately ABSENT -
+        ! see the note where this is used.
+        character(len=2), parameter :: elemSym(29) = (/ &
+             & 'h ','he','li','be','b ','c ','n ','o ','f ','ne','na','mg', &
+             & 'al','si','p ','s ','cl','ar','k ','ca','sc','ti','v ','cr', &
+             & 'mn','fe','ni','cu','zn' /)
         double precision   :: dummy
 
         ! ---- which network is actually compiled in? ---------------------
@@ -207,6 +215,50 @@ module pdr_mod
               stop
            end if
            pdrCoolfile(iS) = trim(adjustl(pdrChemPath))//trim(adjustl(pdrCoolant(iS)))
+        end do
+        ! D-131. Decide, once, which coolants may be handed to MOCASSIN's
+        ! thermal balance. MOCASSIN cools every heavy it has CEL data for, and
+        ! that includes C I, C II, O I and O II - three of 3D-PDR's four
+        ! standard coolants. Only molecules it has no line data for may be
+        ! added. Anything unrecognised is EXCLUDED and reported: under-counting
+        ! a coolant is recoverable, silently double counting one is not.
+        do iS = 1, pdrNcool
+           cname = trim(adjustl(pdrCoolant(iS)))
+           iC = index(cname, '.')
+           if (iC > 1) cname = cname(1:iC-1)
+           ! strip an isotope prefix: 12co -> co, 13co -> co, 16o -> o
+           iC = 1
+           do while (iC <= len_trim(cname))
+              if (cname(iC:iC) < '0' .or. cname(iC:iC) > '9') exit
+              iC = iC + 1
+           end do
+           cname = cname(iC:)
+           ! drop an ionization sign and any '-suffix' (cn-hfs -> cn)
+           iC = index(cname, '-')
+           if (iC > 1) cname = cname(1:iC-1)
+           iC = len_trim(cname)
+           if (iC > 1) then
+              if (cname(iC:iC) == '+' .or. cname(iC:iC) == '-') cname = cname(1:iC-1)
+           end if
+           ! Decide by structure, not by a hand-kept list of molecules.
+           ! MOCASSIN cools every heavy it has CEL data for, and that data is
+           ! per ION of a single element - so a coolant duplicates MOCASSIN if
+           ! and only if its carrier is one atom. Anything with two or more
+           ! atoms (CO, OH, HCN, HCO+, CN, CH+, N2H+, C2H, HNC, SiO...) has no
+           ! counterpart anywhere in MOCASSIN and must be added.
+           !
+           ! The one ambiguity is 'co': carbon monoxide, or cobalt. No PDR uses
+           ! cobalt as a coolant and every 3D-PDR distribution ships 12co.dat,
+           ! so 'co' is read as the molecule and cobalt is left out of the
+           ! element list below with this note attached.
+           lgAtomic = .false.
+           do iC = 1, 29
+              if (trim(cname) == trim(elemSym(iC))) lgAtomic = .true.
+           end do
+           pdrCoolIsMol(iS) = .not. lgAtomic
+           if (taskid == 0) print*, "! initPDR: coolant ", trim(cname), &
+                & merge("  -> added to MOCASSIN's balance", &
+                &       "  -> already in coolColl        ", pdrCoolIsMol(iS))
         end do
         pdrCooMod = pdrNcool
         if (pdrNcool > 0) call readcoolants
@@ -1299,6 +1351,7 @@ module pdr_mod
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
         double precision   :: Flo, Fhi, Fratio, Fden, xlo, xhi, xnewT, denom
         logical            :: doChop
+        logical            :: lgChemOnly   ! D-131: outside the zone, chemistry only
         character(len=1)   :: prevChange, illLast
         double precision   :: TdMoc, TdHTT, T0HTT
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
@@ -1316,7 +1369,16 @@ module pdr_mod
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
-        if (grid%pdrZone(cellP) == 0) return
+        ! D-131. The zone test used to return here, so the network was never
+        ! called in ionized gas and H2/CO were zero there because nothing had
+        ! computed them - not because the chemistry said so. With pdrAllCells
+        ! the solver runs in every cell; outside the zone it solves the
+        ! chemistry only, at MOCASSIN's temperature, and hands nothing back.
+        lgChemOnly = .false.
+        if (grid%pdrZone(cellP) == 0) then
+           if (pdrAllCells == 0) return
+           lgChemOnly = .true.
+        end if
 
         nH  = dble(grid%Hden(cellP))
         if (nH <= 0.d0) return
@@ -1326,6 +1388,10 @@ module pdr_mod
         ! measured it at 30-3550 K where a PDR belongs at 10-100 K.
         Tg  = dble(grid%pdrTgas(cellP))
         if (Tg <= 0.d0) Tg = dble(grid%Te(cellP))
+        ! D-131: in chemistry-only cells MOCASSIN's thermal balance is the
+        ! authority - it is photoionized gas, which is what that balance is for
+        ! - so take its temperature and do not iterate on it below.
+        if (lgChemOnly) Tg = dble(grid%Te(cellP))
         ! ---- dust temperature (DEVLOG D-033, D-036) ----------------------
         ! MOCASSIN solves dust equilibrium against the local radiation field
         ! with no floor, so a deeply shielded cell has almost nothing heating
@@ -1619,7 +1685,7 @@ module pdr_mod
         Tlo = 0.d0
         Thi = 0.d0
 
-        do itherm = 1, max(pdrThermIter,1)
+        do itherm = 1, merge(1, max(pdrThermIter,1), lgChemOnly)
 
            ! PDR heating budget for this cell: 12 terms, total in slot 12. The
            ! photoelectric part is kept separately because it is the term
@@ -1662,7 +1728,14 @@ module pdr_mod
               ! and the transition matrix goes singular - solvlevpop's
               ! Gauss-Jordan then hits a zero pivot, returns NaN, and the NaN
               ! rides the cooling into T_gas and out into MOCASSIN (D-041).
-              if (nSpec <= pdrNspecFloor*nH) cycle
+              if (nSpec <= pdrNspecFloor*nH) then
+                 ! D-131: zero it, do not just skip. pdrCoolSp is now read by
+                 ! MOCASSIN's thermal balance, and leaving the previous MC
+                 ! iteration's value in place would feed a cell the cooling of
+                 ! a carrier the chemistry has since destroyed.
+                 grid%pdrCoolSp(cellP, ik) = 0.
+                 cycle
+              end if
 
               lpop(1:nlev) = grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
 
@@ -1857,7 +1930,12 @@ module pdr_mod
            else
               Tg = Tg*0.5d0
            end if
-           Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
+           ! D-131: a chemistry-only cell keeps MOCASSIN's temperature.
+           if (lgChemOnly) then
+              Tg = dble(grid%Te(cellP))
+           else
+              Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
+           end if
 
         end do
 
@@ -1870,13 +1948,26 @@ module pdr_mod
              & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
         grid%pdrHeat(cellP)   = real(heat(12))
         grid%pdrHeatPE(cellP) = real(heat(2))   ! D-095: heat(2) alone, see above
+        ! D-131: the part of the PDR heating MOCASSIN has no term for. Excluded
+        ! because MOCASSIN already computes them: heat(2) PAH photoelectric
+        ! (photoelHeat_g), heat(4) carbon photoionization (its own heatSte sum
+        ! over ions), heat(11) gas-grain (gasDustColl_g). What remains is H2
+        ! formation, H2 photodissociation, FUV pumping, cosmic-ray, turbulent
+        ! and chemical heating - none of which exist anywhere in MOCASSIN.
+        grid%pdrHeatXtra(cellP) = real(heat(5) + heat(6) + heat(7) + &
+             & heat(8) + heat(9) + heat(10))
         grid%pdrHeatGG(cellP) = real(heat(11))
         grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
         grid%H2den(cellP)     = real(abun(NH2)*nH)         ! D-107
 
-        grid%pdrTgas(cellP)  = real(Tg)
-        grid%pdrTlow(cellP)  = real(Tlo)
-        grid%pdrThigh(cellP) = real(Thi)
+        ! D-131: leave pdrTgas at zero outside the zone. handBackPDR skips any
+        ! cell with pdrTgas <= 0, so a chemistry-only cell publishes abundances
+        ! without also publishing a temperature MOCASSIN did not ask for.
+        if (.not. lgChemOnly) then
+           grid%pdrTgas(cellP)  = real(Tg)
+           grid%pdrTlow(cellP)  = real(Tlo)
+           grid%pdrThigh(cellP) = real(Thi)
+        end if
 
         ! Fold PDR thermal balance into MOCASSIN's convergence test (D-032).
         !

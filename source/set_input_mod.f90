@@ -701,6 +701,12 @@ module set_input_mod
             case ("pdrTmax")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTmax
+            case ("pdrAllCells")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrAllCells
+            case ("pdrCoolFeedback")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolFeedback
             case ("pdrZoneLimit")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrZoneLim, pdrBlendLo

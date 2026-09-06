@@ -340,6 +340,15 @@ module common_mod
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
         real, allocatable         :: pdrHeatGG(:)    ! gas-grain collisional term alone (D-093);
+        ! D-131: the PDR heating MOCASSIN does not compute for itself, summed
+        ! per cell. heat(12) is the PDR total, but MOCASSIN already has three of
+        ! its terms - PAH photoelectric (heat 2) via photoelHeat_g, carbon
+        ! photoionization (heat 4) in its own heatSte sum over ions, and
+        ! gas-grain (heat 11) via gasDustColl_g. Handing the total across would
+        ! double count all three. What is left, and genuinely absent from
+        ! MOCASSIN, is H2 formation (5), H2 photodissociation (6), FUV pumping
+        ! (7), cosmic-ray (8), turbulent (9) and chemical (10) heating.
+        real, allocatable         :: pdrHeatXtra(:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
@@ -580,8 +589,32 @@ module common_mod
     integer             :: pdrDiagRates = 0      ! print the D-113 exported form/loss
     real                :: pdrDiagAV  = 1.0        ! A_V at which to print them
     real                :: pdrZoneLim = 0.3        ! x(H+) below which PDR chemistry runs (TORUS-3DPDR, D-055)
+    ! D-131: the two switches that remove the PDR barrier.
+    !
+    ! pdrAllCells - run the chemistry in EVERY cell instead of only where
+    ! x(H+) < pdrZoneLim. Outside the traditional zone the network is solved at
+    ! MOCASSIN's own electron temperature with the thermal bisection skipped,
+    ! so H2 and CO are computed from the local field, density and temperature
+    ! everywhere and fall to zero in ionized gas because the chemistry says so,
+    ! not because the solver was never called there.
+    !
+    ! pdrCoolFeedback - add 3D-PDR's molecular line cooling to MOCASSIN's own
+    ! thermal balance. MOCASSIN has no CO, C, C+ or O fine-structure coolant,
+    ! which is the reason the PDR's temperature had to be handed back rather
+    ! than MOCASSIN solving for it. With the coolant supplied, MOCASSIN's
+    ! balance can own the temperature in molecular gas too.
+    integer             :: pdrAllCells = 0
+    integer             :: pdrCoolFeedback = 0
     real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants
+    ! D-131: which coolants MOCASSIN does NOT already compute for itself.
+    ! thermBalance sums forbidden lines over every heavy element and ion for
+    ! which there is CEL data, and data/ carries ci.dat, cii.dat, oi.dat and
+    ! oii.dat - so C, C+, O and O+ are ALREADY in coolColl. Adding 3D-PDR's
+    ! values for them would double count three of the four standard coolants.
+    ! Only species MOCASSIN has no line data for - CO and the other molecules -
+    ! may be added. Set in initPDR, printed there so the choice is visible.
+    logical             :: pdrCoolIsMol(30) = .false.
     character(len=50)   :: pdrCoolant(30) = ''     ! coolant datafile names
 #endif
 

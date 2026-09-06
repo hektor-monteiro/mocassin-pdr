@@ -1414,6 +1414,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeatPE memory"; stop
                 end if
+                allocate(grid%pdrHeatXtra(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrHeatXtra memory"; stop
+                end if
                 allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
@@ -1457,6 +1461,7 @@ module grid_mod
                 grid%pdrIonRate = 0.
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
+                grid%pdrHeatXtra = 0.
                 grid%pdrHeatGG = 0.
                 grid%pdrLevPop = 0.d0
                 grid%pdrTgas  = 0.
