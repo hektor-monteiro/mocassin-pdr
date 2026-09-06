@@ -156,6 +156,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-144 | Mirror hypothesis REJECTED: 90% of the heating is away from the boundaries and all three planes show the same ~3x geometric enhancement. The 31/31 result was a probe sampling artifact | Done | 2026-09-06 |
 | D-145 | Jste holds stellar AND diffuse when lgDebug is false; MOCASSIN's debug mode segfaults on its own, so the two fields cannot currently be separated | Open | 2026-09-06 |
 | D-146 | Stored opacity gives tau=388/cell, the field decays as tau~0.9/cell. Forced-skip weight exp(-tau) underflows to exact zero above tau~87, explaining why 170/171 bins are exactly zero | Open | 2026-09-06 |
+| D-147 | Forced skip removed on instruction. Moves the shipped default's front 0.9150 -> 0.8534, so it had been materially affecting results | Done | 2026-09-06 |
+| D-148 | RETRACTED: the convergence criterion was never wrong - gas models always used x(H0) (iterateT:777); the dust-T test is the dust-only branch, as it should be | Retracted | 2026-09-06 |
+| D-149 | Convergence collapse is caused by pdrTeFromMocassin alone (97.7% -> 0.13%) and is indifferent to 8x packets. Structural, not statistical | Open | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8156,3 +8159,84 @@ bin 465's shallow decay has a separate cause.
 - `Jdif` is allocated unconditionally - the `if (lgDebug)` guards around its
   allocation are commented out - so memory is spent on an array that is only
   filled in a mode that crashes.
+
+## 2026-09-06d - D-147/D-148: convergence is structural, not statistical
+
+### The forced skip is gone (D-147)
+
+Removed on instruction, with the block and the reasoning kept as a comment so
+it can be restored deliberately. Measured consequences on the shipped default:
+the H -> 2H2 front moved 0.9150 -> 0.8534 and deep T_dust 46.91 -> 49.52 K,
+both far outside Monte Carlo scatter. So the branch had been materially
+affecting results. Convergence stayed at 100% and heat/cool at 1.000.
+
+What it gives up: a source embedded in an optically thick cell now has every
+packet absorbed in cell 1 and the outer grid goes unsampled. No fixture here
+exercises that geometry, so nothing we run will warn us - it would present as a
+suspiciously dark model, not an error.
+
+### Retraction: the convergence criterion was never wrong (D-148)
+
+I reported that convergence was gated on the mean DUST temperature, from a
+block in update_mod carrying ionization-fraction variable names and an
+in-code admission of "laziness". That block is in the `else` of
+`if (lgGas)` - it runs for **dust-only models**, which is exactly right.
+
+The gas path has always used the ionization fraction, at iterateT:777:
+
+    deltaXHI = (grid%ionDen(cellP, elementXref(1), 1) - XOldHI) / XOldHI
+    if (abs(deltaXHI) <= XHILimit) grid%lgConverged(cellP) = 1
+
+The commented-out copy at 507-520 that I took for the disabled original is a
+stale duplicate, 460 lines from the live one in the same file. I read one
+branch of a conditional without checking which branch executes, and did not
+grep every assignment to `lgConverged` before claiming the criterion had been
+swapped. The rewrite built on that was reverted; it had placed the ionization
+test in the dust-only branch, where `convXold` is never set - an uninitialised
+read of exactly the kind this project keeps finding elsewhere.
+
+**The consequence is that the measurements mean MORE, not less.** They were
+already the ionization fraction: x(H0) genuinely moves by >5% between
+iterations in 99.9% of cells once MOCASSIN owns the thermal balance. That sits
+consistently with `0 % Ion balance not reached`, which counts something else -
+cells where the ion-balance solver failed internally. The solver works; its
+answer keeps moving because the temperature underneath it does.
+
+### Which switch, and whether packets matter
+
+Isolation at identical packet count:
+
+| config | converged on x(H0) |
+|---|---|
+| none | 100% |
+| `pdrAllCells` | 97.8% |
+| `+ pdrCoolFeedback` | 97.7% |
+| `+ pdrTeFromMocassin` | **0.13%** |
+
+Chemistry everywhere costs 2%. The molecular cooling and the six heating terms
+cost nothing further. Handing MOCASSIN the thermal balance collapses it.
+
+Packet count tested properly - 8x packets fixed from iteration 1, same config,
+compared iteration for iteration (the earlier autoPackets ladder was
+confounded: the PDR starts at iteration 4 and packets only began doubling at
+iteration 5):
+
+| iter | 48e6 | 6e6 |
+|---|---|---|
+| 1-3 | 100.0000 | 100.0000 |
+| 4 | 0.1118 | 0.0592 |
+| 5 | 0.0658 | 0.0855 |
+| 6 | 0.0658 | 0.0723 |
+
+Means over the post-PDR iterations: 0.081% against 0.072%. Eight times the
+packets cuts field noise ~2.8x and changes nothing; the two runs cross over
+each other. **Not a statistics problem.**
+
+### Standing candidate
+
+`grid%pdrCool` and `grid%pdrHeatXtra` are computed once per PDR pass and held
+fixed while MOCASSIN's thermal solver iterates on temperature. The dominant
+cooling term is then a constant with respect to T, so the solver has no
+restoring force, the gas temperature wanders, and x(H0) follows it. That
+predicts precisely what is measured: a collapse triggered by
+`pdrTeFromMocassin` alone, indifferent to packet count. Untested.

@@ -492,20 +492,6 @@ module ionization_mod
 
        ! hydrogen lyman continuum photoelectric opacity
        call inOpacity(HlevXSecP(1), HlevNuP(1), nbins, density(1,1), 0.)
-       ! D-143: 31 of 31 deep cells had their only surviving stellar flux in
-       ! bin 465 (1.7922 Ryd), just below the He I edge. Density and range check
-       ! out, so print the opacity actually built there against its neighbours -
-       ! a dip at one bin would explain the whole pattern.
-       if (nOpacProbe == 0 .and. density(1,1) > 50.) then
-          nOpacProbe = 1
-          print*, "! [D143] n(H0) =", density(1,1), "  n(He0) =", density(2,1)
-          do iOpP = 460, 470
-             print*, "! [D143]   bin", iOpP, " nu =", nuArray(iOpP), &
-                  & " Ryd   HI xSec =", &
-                  & xSecArray(iOpP + HlevXSecP(1) - HlevNuP(1)), &
-                  & "   total opacity =", opacity(iOpP)
-          end do
-       end if
 
        ! NOTE: the opacity due to the excited levels of HI, HeI and HeII is
        ! neglected for now as it requires calculations of the densities of

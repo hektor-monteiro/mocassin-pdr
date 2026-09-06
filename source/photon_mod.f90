@@ -1536,12 +1536,39 @@ module photon_mod
              dV = cell_volumes(gP)%v(xP,yP,zP)
              
              !=============================================================
-             ! force skip for high tau cells
-             if ( i == 1 .and. tauCell > 20.0) then 
-                passProb = tauCell+1.0e-6
-                enPacket%weight = enPacket%weight / weightFactor * exp(-passProb)
-                !print*, tauCell, enPacket%weight
-             endif
+             ! D-147 (removed). A forced-skip variance reduction lived here:
+             !
+             !   if ( i == 1 .and. tauCell > 20.0) then
+             !      passProb = tauCell+1.0e-6
+             !      enPacket%weight = enPacket%weight / weightFactor * exp(-passProb)
+             !   endif
+             !
+             ! It pushed a packet through an optically thick FIRST cell instead
+             ! of absorbing it there, compensating with weight = exp(-tau), so
+             ! that a source embedded in thick gas would still sample the outer
+             ! grid.
+             !
+             ! Measured problem: exp(-tau) underflows to EXACTLY zero in single
+             ! precision above tau ~ 87, and first-cell tau reaches 250-450 in
+             ! these models. The packet was then tracked onward carrying zero
+             ! weight - depositing nothing anywhere, including in the cell where
+             ! it should have deposited before being absorbed. In the regime the
+             ! branch was written for it did the opposite of its purpose: not
+             ! variance reduction but photon deletion. The signature was 170 of
+             ! the 171 bins above the Lyman edge holding exact zeros (D-146).
+             !
+             ! Without it, passProb = -log(1-random) means a packet meeting
+             ! tau > 20 interacts almost surely - P(passProb > 20) = 2e-9 - so
+             ! it is absorbed a short way into the cell and deposits correctly
+             ! there. That is the physically right answer.
+             !
+             ! What this gives up: a source sitting inside an optically thick
+             ! cell now has every packet absorbed in cell 1, and the outer grid
+             ! goes unsampled. No fixture here exercises that geometry. Restore
+             ! the block if it appears, but bounded (20 < tau < 80) so the
+             ! weight stays representable, and check the deposit: the scheme
+             ! contributes dS*exp(-tau) where the expected path-length estimator
+             ! is (1-exp(-tau))/kappa.
 
              ! check if the packet interacts within this cell
              if ((absTau+tauCell > passProb) .and. (grid(gP)%active(xP,yP,zP)>0)) then
