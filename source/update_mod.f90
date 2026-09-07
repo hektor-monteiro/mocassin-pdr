@@ -549,6 +549,7 @@ subroutine iterateT()
     logical :: lgIBConv             ! Ionization balance converged?
     logical :: lgPDRcell
     logical :: lgTConverged         ! Thermal balance converged?
+    logical :: lgTOk                ! D-165: this step passes every test
 
     real :: coolInt                 ! Total cooling rate [erg/s/Hden]
     real :: heatInt                 ! Total heating rate [erg/s/Hden]
@@ -556,6 +557,14 @@ subroutine iterateT()
     real :: thResidualLow           ! Residual at Tlow
     real :: thResidualHigh          ! Residual at Thigh
     real :: deltaXHI                ! Fractional change in neutral Hydrogen
+
+    ! D-165 probe: instrument the temperature solve itself.
+    integer :: nStallHit, nUsed, iBin, iTr
+    integer :: lastSide, nRestart      ! D-165 Illinois / restart state
+    real    :: brkStep, TeNext
+    real    :: TeBest, resBest       ! D-165: best point seen, for the no-bracket exit
+    real    :: relRes, brkW, TeEntry
+    real    :: teTrail(maxIterateT), resTrail(maxIterateT)
 
     !================================================================!
     ! INITIALIZATION
@@ -566,6 +575,16 @@ subroutine iterateT()
     Thigh = 0.0
     thResidualLow = 0.0
     thResidualHigh = 0.0
+    nStallHit = 0
+    nUsed     = maxIterateT
+    lastSide  = 0
+    nRestart  = 0
+    brkStep   = 0.2
+    TeBest    = TeUsed
+    resBest   = huge(1.)
+    TeEntry   = TeUsed
+    teTrail   = 0.
+    resTrail  = 0.
 
     ! D-072: cells the PDR owns keep the PDR's temperature. MOCASSIN's
     ! thermal balance is built for photoionised gas: its [CII] and [OI]
@@ -581,7 +600,23 @@ subroutine iterateT()
     ! populated consistently; only the temperature update is skipped.
     lgPDRcell = .false.
 #ifdef PDR
-    if (lgPDR) then
+    ! D-165. THE SWITCH NEVER REACHED HERE. pdrTeFromMocassin was written to
+    ! stop the PDR handing its temperature back (pdr_mod, handBackPDR) and to
+    ! make the chemistry evaluate at MOCASSIN's Te - but this short circuit, the
+    ! one that decides whether MOCASSIN solves for a temperature at all, was
+    ! never taught about it. So with the switch on, a PDR cell still ran ONE
+    ! pass at the temperature it already had and exited flagged converged. The
+    ! temperature in PDR cells was not a solution to anything; it was the last
+    ! value MOCASSIN's H II-region balance produced before pdrZone flipped to 1,
+    ! carried forward untouched thereafter.
+    !
+    ! That is the whole of D-160's "no stable fixed point": nothing was solving
+    ! for the fixed point. It also explains why the answer depended on the
+    ! initial condition (median Te 379 K from an ionized start, 1246 K from a
+    ! neutral one) - a frozen relic of the trajectory is exactly what depends on
+    ! where the trajectory began. Every measurement in the "MOCASSIN owns T"
+    ! column - 0.079%, 0.099%, 0.217% converged - was made with this defect.
+    if (lgPDR .and. pdrTeFromMocassin == 0) then
        if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
           lgPDRcell = .true.
           ! D-081: use grid%Te, NOT grid%pdrTgas. pdrToMocassin has already
@@ -647,9 +682,50 @@ subroutine iterateT()
         call thermBalance(heatInt, coolInt)
         thResidual = heatInt - coolInt
 
+        if (teProbe /= 0) then
+            teTrail(nIterateT)  = TeUsed
+            resTrail(nIterateT) = thResidual
+        end if
+
         ! Convergence condition: Is the residual smaller than a fraction of the heating?
-        if (abs(thResidual) < thLimit * heatInt) then
+        ! D-165: with teSolver, the bracket must also be narrow relative to Te.
+        ! Cloudy requires both, because where H-C is a shallow function of T -
+        ! which is the PDR - the residual test passes at a temperature the
+        ! solver has not actually determined, and it then returns a different
+        ! one every pass. thResidual == 0 exactly is accepted regardless: the
+        ! root has been found and no bracket can improve on it.
+        ! D-165: the original test is against thLimit*heatInt, not
+        ! thLimit*|heatInt|, so a cell with net negative heating can never pass
+        ! it. Corrected under teSolver only, to keep the comparison clean.
+        if (teSolver >= 1) then
+           lgTOk = abs(thResidual) < thLimit * abs(heatInt)
+           ! Remember the best point. Without this the strict test below can
+           ! return the SECOND probe - a full 20% step away from a temperature
+           ! that already passed the residual test - and inject a 20% drift per
+           ! pass into exactly the cells that were fine.
+           if (abs(thResidual) < resBest) then
+              resBest = abs(thResidual)
+              TeBest  = TeUsed
+           end if
+        else
+           lgTOk = abs(thResidual) < thLimit * heatInt
+        end if
+        if (teSolver >= 2 .and. lgTOk .and. thResidual /= 0.) then
+           if (Tlow > 0. .and. Thigh > 0.) then
+              lgTOk = abs(Thigh - Tlow) <= (thLimit/3.)*TeUsed
+           else
+              ! No bracket yet: one endpoint of the interval is unknown, so
+              ! the width test cannot be applied. Take one more step to try to
+              ! close it; if the sign never flips within 20% of T on either
+              ! side, the residual is flat and small there and the best point
+              ! seen is the answer.
+              lgTOk = nIterateT > 1
+              if (lgTOk) TeUsed = TeBest
+           end if
+        end if
+        if (lgTOk) then
             lgTConverged = .true.
+            nUsed = nIterateT
             if (lgTalk) print*, "! iterateT: [talk] Convergence achieved after ", &
                 & nIterateT, " steps. (cell, T)", xP, yP, zP, TeUsed
             exit ! Exit the loop, we found the temperature
@@ -658,6 +734,7 @@ subroutine iterateT()
         ! D-072: the PDR owns this cell's temperature - one pass, no update.
         if (lgPDRcell) then
             lgTConverged = .true.
+            nUsed = nIterateT
             exit
         end if
 
@@ -666,6 +743,80 @@ subroutine iterateT()
         !----------------------------------------------------------------
         ! If not converged, calculate a better temperature for the next iteration.
         ! This method uses the last two points to extrapolate to the root (thResidual = 0).
+
+        if (teSolver >= 1) then
+
+            ! ============================================================ D-165
+            ! Cloudy-shaped search. Three changes, each with its own reason.
+            !
+            ! (1) ILLINOIS. Plain regula falsi keeps whichever endpoint the
+            !     function does not cross, so on a convex residual one bound
+            !     never moves and the bracket stops shrinking - which is what
+            !     the D-165 histogram showed: |H-C|/H passing while the bracket
+            !     sat at 1-100% of Te. Halving the retained endpoint's residual
+            !     after a repeat forces the interval down.
+            !
+            ! (2) RELATIVE STALL KICK. The old breaker added +/-100 K. That is
+            !     1% of an H II region and 200% of a PDR cell, and it reset the
+            !     bracket, so a cell whose interval had closed was thrown back
+            !     out of it. A narrow bracket with a large residual means H-C
+            !     jumps discontinuously - the ionization moved with T - so the
+            !     answer is to restart the search from the midpoint with a wider
+            !     step, which is what Cloudy's outer n-loop does, at most twice.
+            !
+            ! (3) BOUNDED FALSI. If the interpolant leaves the bracket or is not
+            !     finite, bisect. The old formula was applied unguarded.
+            ! ==================================================================
+
+            if (thResidual < 0.0) then
+                ! Too hot: this is the new upper bound.
+                if (lastSide == 2 .and. Tlow > 0.) thResidualLow = 0.5*thResidualLow
+                thResidualHigh = thResidual
+                Thigh    = TeUsed
+                lastSide = 2
+            else
+                if (lastSide == 1 .and. Thigh > 0.) thResidualHigh = 0.5*thResidualHigh
+                thResidualLow = thResidual
+                Tlow     = TeUsed
+                lastSide = 1
+            end if
+
+            if (Tlow > 0.0 .and. Thigh > 0.0) then
+
+                ! Narrow bracket, residual still large: H-C is discontinuous
+                ! here. Restart rather than kick by a fixed number of kelvin.
+                if (abs(Thigh - Tlow) <= 0.002*(Thigh + Tlow) .and. nRestart < 2) then
+                    nStallHit = nStallHit + 1
+                    nRestart  = nRestart + 1
+                    TeUsed    = 0.5*(Tlow + Thigh)
+                    Tlow      = 0.0
+                    Thigh     = 0.0
+                    lastSide  = 0
+                    brkStep   = min(0.5, 2.*brkStep)
+                else
+                    if (thResidualHigh /= thResidualLow) then
+                        TeNext = Tlow - (Thigh - Tlow)*thResidualLow / &
+                             &          (thResidualHigh - thResidualLow)
+                    else
+                        TeNext = 0.5*(Tlow + Thigh)
+                    end if
+                    if (.not. (TeNext > min(Tlow,Thigh) .and. TeNext < max(Tlow,Thigh))) &
+                         & TeNext = 0.5*(Tlow + Thigh)
+                    TeUsed = TeNext
+                end if
+
+            else
+                ! No bracket yet. Step by a fixed FRACTION of the current
+                ! temperature, exactly as Cloudy caps its step at 0.2*T, so the
+                ! search rate is the same at 20 K as at 20000 K.
+                if (thResidual < 0.0) then
+                    TeUsed = TeUsed*(1. - brkStep)
+                else
+                    TeUsed = TeUsed*(1. + brkStep)
+                end if
+            end if
+
+        else
 
         if (thResidual < 0.0) then  ! Net cooling: Current temp is too high, it becomes the new upper bound 'Thigh'
             thResidualHigh = thResidual
@@ -693,6 +844,7 @@ subroutine iterateT()
         ! nudge the temperature to break out of the stall.
         if (nIterateT >= 6) then
             if (abs(Thigh - Tlow) <= (0.002*(Thigh+Tlow))) then
+                nStallHit = nStallHit + 1
                 if (thResidual < 0.0) then
                     TeUsed = Tlow + 100. ! Nudge up from the lower bound
                     Tlow = 0.0          ! Reset the bracket
@@ -703,8 +855,14 @@ subroutine iterateT()
             end if
         end if
 
-        ! Ensure temperature doesn't become non-physical
-        if (TeUsed < 10.) TeUsed = 10.
+        end if
+
+        ! Ensure temperature doesn't become non-physical. D-165: teFloor was
+        ! hardcoded at 10 K. Cloudy's limit is the CMB, 2.8 K, and reaching it
+        ! is a reported failure rather than a silent clamp - a cell parked on
+        ! the floor is not a solved cell, and 1864 of them were being counted
+        ! as one at iteration 3.
+        if (TeUsed < teFloor) TeUsed = teFloor
         ! Ensure temperature doesn't go beyond atomic data limit for H
         if (TeUsed > 30000.) TeUsed = 30000.
         
@@ -737,6 +895,70 @@ subroutine iterateT()
     end if
     
     if (TeUsed >= 30000.) grid%lgBlack(cellP) = 1 ! Flag this cell as problematic
+
+    ! ---------------------------------------------------------------- D-165
+    ! What the temperature solve actually did in this cell. The question is not
+    ! only "did |H-C| get small" but "is Te pinned down" - Cloudy requires both,
+    ! because where H-C is a shallow function of T the residual test passes at a
+    ! temperature the solver has not determined. In a PDR the thermostat IS
+    ! shallow, so a solver that tests the residual alone returns a different
+    ! temperature every pass and nothing downstream can converge.
+    if (teProbe /= 0) then
+       teN     = teN + 1
+       ! D-166: relative spread of the residual across the scan.
+       if (nUsed >= 3) then
+          resBest = 0.; brkW = huge(1.)
+          do iTr = 1, min(nUsed, maxIterateT)
+             if (teTrail(iTr) <= 0.) cycle
+             resBest = max(resBest, abs(resTrail(iTr)))
+             brkW    = min(brkW,    abs(resTrail(iTr)))
+          end do
+          if (resBest > 0.) then
+             if ((resBest - brkW)/resBest < 0.01) then
+                teNflat = teNflat + 1
+                if (TeUsed <= teFloor*1.00001 .or. TeUsed >= 29999.) &
+                     & teNflatClamp = teNflatClamp + 1
+             end if
+          end if
+       end if
+       teNsteps = teNsteps + nUsed
+       if (lgTConverged) teNconv = teNconv + 1
+       if (nStallHit > 0) teNstall = teNstall + 1
+       if (TeUsed <= teFloor*1.00001) teNloclamp = teNloclamp + 1
+       if (TeUsed >= 29999.) then
+          teNhiclamp = teNhiclamp + 1
+          ! D-168: updateCell runs BEFORE pdrStep in every coupling pass
+          ! (iteration_mod:978 against :1075), so at the iteration where the PDR
+          ! first engages MOCASSIN solves the balance with no PDR coolant at
+          ! all. Split the ceiling clamps by whether this cell has ever had a
+          ! coolant computed for it, which separates that ordering effect from
+          ! a cell that runs hot with the cooling present.
+#ifdef PDR
+          if (grid%pdrCoolTref(cellP) <= 0.) teNhiNoPdr = teNhiNoPdr + 1
+#endif
+       end if
+       if (Tlow > 0. .and. Thigh > 0. .and. TeUsed > 0.) then
+          brkW = abs(Thigh - Tlow)/TeUsed
+          ! Cloudy's test is bracket_width/Te <= HeatCoolRelErrorAllowed/3,
+          ! i.e. ~1/3 of the residual tolerance. thLimit is 0.01 here.
+          if (brkW > thLimit/3.) teNwide = teNwide + 1
+          iBin = min(teNbin, max(1, 7 + int(log10(max(brkW,1.e-30)))))
+          teBrkHist(iBin) = teBrkHist(iBin) + 1
+       else
+          teNnobrack = teNnobrack + 1
+       end if
+       ! Per-cell trajectories for the first few cells rank 0 touches.
+       if (teProbe > 1 .and. taskid == 0 .and. teN <= teProbe) then
+          write(*,'(a,i8,a,i4,a,l2,a,es11.4,a,es11.4)') &
+               & ' TEPROBE cell', cellP, ' steps', nUsed, ' conv', lgTConverged, &
+               & ' Tin', TeEntry, ' Tout', TeUsed
+          do iTr = 1, maxIterateT
+             if (teTrail(iTr) <= 0.) cycle
+             write(*,'(a,i3,a,es11.4,a,es11.4)') '   step', iTr, &
+                  & ' Te', teTrail(iTr), ' H-C', resTrail(iTr)
+          end do
+       end if
+    end if
     
     ! --- Update grid values and check overall model convergence ---
     grid%Te(cellP) = TeUsed
@@ -1264,6 +1486,11 @@ end subroutine iterateT
             real                   :: coolRec       ! cool due to recombination[erg/s/Hden]
             real                   :: fcool
             real                   :: pdrCoolMol    ! D-131: molecular coolants only
+            real                   :: pdrTfac       ! D-166: C(T)/C(Tref)
+            real                   :: mocCool       ! D-167: MOCASSIN's term for this ion
+            real                   :: hMaxV         ! D-168: largest per-ion heating
+            integer                :: hMaxE, hMaxI  ! D-168: and which ion it was
+            integer                :: iH1nuP        ! D-168: H0's own threshold bin
             integer                :: iCool, iLevJ, iLevK
             real                   :: heatIonSte    ! heat due to this ion stellar phot
             real                   :: heatIonDif    ! heat due to this ion diffuse phot
@@ -1437,6 +1664,7 @@ end subroutine iterateT
 
              ! re-initialize heatSte and heatDif
              heatSte = 0.
+             hMaxV = 0.; hMaxE = 0; hMaxI = 0; iH1nuP = 0    ! D-168
              if (lgDebug) heatDif = 0.
 
              do elem = 1, nElements  ! begin element loop
@@ -1542,6 +1770,18 @@ end subroutine iterateT
                          &grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)
 
                     heatSte    = heatSte + heatIonSte
+                    ! D-168: hydrogen's OWN threshold index, saved. IPnuP is a
+                    ! loop variable and by the time the budget prints it holds
+                    ! whichever ion came last - reading it there was a mislabelled
+                    ! probe, and the "no ionizing flux" it appeared to show was an
+                    ! artifact of that.
+                    if (elem == 1 .and. ion == 1) iH1nuP = IPnuP
+                    ! D-168: which ion is depositing it. The hot cells' balance
+                    ! is heatSte against everything else by a factor 1500, so
+                    ! the single largest contributor is the whole question.
+                    if (heatIonSte > hMaxV) then
+                       hMaxV = heatIonSte; hMaxE = elem; hMaxI = ion
+                    end if
 #ifdef PDR
                     ! D-138: which ion is depositing the heat in a deep PDR
                     ! cell, and from which part of the spectrum. Three
@@ -1654,14 +1894,32 @@ end subroutine iterateT
                         ! contribution for this ion back out of coolColl and use
                         ! 3D-PDR's in its place. Outside the PDR the electron
                         ! treatment is the right one and MOCASSIN keeps the term.
+                        !
+                        ! D-167: ONLY if there is something to replace it with.
+                        ! pdr_mod zeroes pdrCoolSp for any coolant whose carrier
+                        ! has fallen below pdrNspecFloor - and in a hot cell the
+                        ! carbon is ionized past C+, so [C I] and [C II] are
+                        ! exactly the coolants that vanish. Subtracting
+                        ! MOCASSIN's term and adding zero deletes the cooling
+                        ! outright, which makes the cell hotter, which ionizes
+                        ! more carbon. A self-reinforcing runaway, and the
+                        ! reason 20261 cells sat on the 30000 K ceiling with a
+                        ! residual that did not respond to temperature.
+                        mocCool = 0.
                         do iLevJ = 1, 10
                            do iLevK = 1, 10
-                              coolInt = coolInt - &
+                              mocCool = mocCool + &
                                    & real(forbiddenLines(pdrCoolElem(iCool), &
                                    &                     pdrCoolIon(iCool), iLevJ, iLevK))
                            end do
                         end do
-                        pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                        if (grid%pdrCoolSp(cellP,iCool) > 0.) then
+                           coolInt = coolInt - mocCool
+                           pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                        else if (mocCool > 0.) then
+                           ! Nothing to replace it with: keep MOCASSIN's.
+                           nCoolNull = nCoolNull + 1
+                        end if
                      end if
                   end do
                   ! D-135 probe: two hypotheses about this discrepancy have now
@@ -1700,7 +1958,88 @@ end subroutine iterateT
                      print*, "! [D137]   Tdust =", grid%Tdust(0,0,cellP), &
                           & "  AVeff =", grid%AVeff(cellP), "  chi =", grid%chiFUV(cellP)
                   end if
+                  ! D-166. Evaluate the coolant at the temperature the solver
+                  ! is currently trying, not at the one the chemistry last used.
+                  ! Without this pdrCoolMol is a constant inside iterateT, and
+                  ! in neutral gas it is the ONLY coolant that matters - every
+                  ! term MOCASSIN computes for itself carries a factor n_e,
+                  ! which is ~1e-4 there. H-C then has no temperature
+                  ! dependence, there is no root, and the search can only run to
+                  ! a rail: measured at iteration 4, 20261 cells pinned at
+                  ! 30000 K and 13968 at 10 K, 45% of the model.
+                  !
+                  ! C(T) = C(Tref) * (T/Tref)^p, with p measured from a second
+                  ! coolant evaluation each coupling pass. Cloudy re-solves the
+                  ! whole cooling function at every trial temperature; this is
+                  ! the two-point version, and the power law is clamped because
+                  ! extrapolating a fine-structure exponential over three
+                  ! decades of T is not defensible.
+                  if (pdrCoolTdep /= 0 .and. grid%pdrCoolTref(cellP) > 0.) then
+                     pdrTfac = (TeUsed/grid%pdrCoolTref(cellP))**grid%pdrCoolSlope(cellP)
+                     pdrTfac = min(max(pdrTfac, 1.e-8), 1.e8)
+                     pdrCoolMol = pdrCoolMol*pdrTfac
+                  end if
                   coolInt = coolInt + pdrCoolMol/grid%Hden(cellP)
+                  ! D-168 probe: the budget of a cell sitting on the 30000 K
+                  ! ceiling. D-135 printed this for a DEEP cell; the cells that
+                  ! do not converge are the hot ones, and nothing has yet looked
+                  ! at what is on each side of their balance at the rail.
+                  if (teProbe /= 0 .and. TeUsed >= 29999. .and. nHotProbe < 8 &
+                       & .and. taskid == 0 .and. grid%pdrCoolTref(cellP) > 0.) then
+                     nHotProbe = nHotProbe + 1
+                     print*, "! [D168] cell", cellP, " zone", grid%pdrZone(cellP), &
+                          & " nH", grid%Hden(cellP), " AV", grid%AVeff(cellP)
+                     print*, "! [D168]   x(H+)", grid%ionDen(cellP,elementXref(1),2), &
+                          & " Ne", NeUsed, " Tref", grid%pdrCoolTref(cellP), &
+                          & " p", grid%pdrCoolSlope(cellP)
+                     print*, "! [D168]   HEAT ste", heatSte, " PE", photoelHeat_g, &
+                          & " pdrXtra", grid%pdrHeatXtra(cellP)/grid%Hden(cellP), &
+                          & " total", heatInt
+                     print*, "! [D168]   COOL ff", coolFF, " rec", coolRec, &
+                          & " coll", coolColl, " gasDust", gasDustColl_g, &
+                          & " pdrMol", pdrCoolMol/grid%Hden(cellP), " total", coolInt
+                     print*, "! [D168]   top heating ion: elem", hMaxE, " stage", hMaxI, &
+                          & " = ", hMaxV, " (", 100.*hMaxV/max(heatSte,1.e-30), "% of ste)"
+                     ! D-169: energy deposited per photoionization, in the SAME
+                     ! cell and the same call, from the two integrals that read
+                     ! the same Jste and the same cross section. It is bounded:
+                     ! the excess energy cannot exceed nuMax - nu0, 14 Ryd here.
+                     ! Anything larger means the two integrals disagree about
+                     ! the field they are both reading.
+                     print*, "! [D169]   nPhotoSte(H0)", nPhotoSte(1,1), &
+                          & "  heat/H0", hMaxV/max(grid%ionDen(cellP,elementXref(1),1),1.e-30), &
+                          & "  eV per event", &
+                          & hMaxV/max(grid%ionDen(cellP,elementXref(1),1),1.e-30) &
+                          & /max(nPhotoSte(1,1),1.e-30)/1.602e-12
+                     ! The field and the opacity AT HYDROGEN'S THRESHOLD, which
+                     ! is where the heating is coming from. tau per cell decides
+                     ! whether this flux can physically be here: with n(H0) ~ 100
+                     ! and sigma ~ 6e-18 a cell should be tau ~ 1e3 at threshold.
+                     if (iH1nuP > 0) then
+                        print*, "! [D168]   at H0 threshold: bin", iH1nuP, &
+                             & " nu", nuArray(iH1nuP), " Jste", grid%Jste(cellP,iH1nuP), &
+                             & " opacity", grid%opacity(cellP,iH1nuP)
+                        print*, "! [D168]   Jste above H0 thr", &
+                             & sum(grid%Jste(cellP,iH1nuP:nbins)), &
+                             & "  below", sum(grid%Jste(cellP,1:max(iH1nuP-1,1))), &
+                             & "  chiFUV", grid%chiFUV(cellP), &
+                             & "  n(H0)", grid%Hden(cellP)*grid%ionDen(cellP,elementXref(1),1)
+                        ! D-158/D-168: with pdrSplitField the diffuse packets are
+                        ! mirrored into Jdif while Jste carries both, so the
+                        ! difference is the genuinely stellar part. tau per cell
+                        ! at threshold is ~1e3, so a stellar origin for this flux
+                        ! is arithmetically impossible; this says whether the
+                        ! code agrees.
+                        print*, "! [D168]   Jdif above H0 thr", &
+                             & sum(grid%Jdif(cellP,iH1nuP:nbins)), &
+                             & "  stellar-only", &
+                             & sum(grid%Jste(cellP,iH1nuP:nbins)) &
+                             & - sum(grid%Jdif(cellP,iH1nuP:nbins)), &
+                             & "  dx", grid%xAxis(min(xP+1,size(grid%xAxis)))-grid%xAxis(xP), &
+                             & "  tau/cell", grid%opacity(cellP,iH1nuP)* &
+                             & (grid%xAxis(min(xP+1,size(grid%xAxis)))-grid%xAxis(xP))
+                     end if
+                  end if
                   ! The heating side needs the same treatment, and for the same
                   ! reason. Adding a coolant MOCASSIN lacks without the heating
                   ! it also lacks would bias molecular gas cold - cosmic-ray
@@ -2228,6 +2567,35 @@ end subroutine iterateT
                      ionMat(ic,ic) = ionMat(ic,ic) - chemSnk(ir)*ionScal(ir)
                      ionRHS(ic)    = ionRHS(ic)    - chemSrc(ir)
                   end do
+#ifdef PDR
+                  ! D-169: MOCASSIN's own rates against the chemistry's, for
+                  ! hydrogen, in a deep cell. thermBalance's heating integral
+                  ! implies Gamma ~ 1e-9 /s while the same cell reports
+                  ! x(H+) = 0.02, which needs ~1e-15. Both cannot be right, and
+                  ! the injected source/sink is the only thing that enters this
+                  ! matrix from outside MOCASSIN's own physics.
+                  ! D-169: fire on a CEILING cell, not merely a deep one. The
+                  ! previous version caught a well-behaved 101 K cell and its
+                  ! rates were then compared against a hot cell's heating - two
+                  ! different cells, which is how the "59 keV per event" came
+                  ! about. Everything here must come from one cell, one call.
+                  if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
+                       & nRateProbe < 6 .and. grid%pdrZone(cellP) == 1 .and. &
+                       & TeUsed >= 29999.) then
+                     nRateProbe = nRateProbe + 1
+                     print*, "! [D169] cell", cellP, " AV", grid%AVeff(cellP), &
+                          & " Te", TeUsed, " x(H+)", grid%ionDen(cellP,elementXref(1),2)
+                     print*, "! [D169]   MOCASSIN up(H0->H+)", ionUp(1,1), &
+                          & "  dn(H+->H0)", ionDn(1,1)
+                     print*, "! [D169]   chemistry src(H+)", chemSrc(min(2,nst)), &
+                          & "  snk(H+)", chemSnk(min(2,nst)), &
+                          & "  src(H0)", chemSrc(1), "  snk(H0)", chemSnk(1)
+                     print*, "! [D169]   up/dn implies x(H+)/x(H0) =", &
+                          & ionUp(1,1)/max(ionDn(1,1),1.d-30), &
+                          & "  availFrac(H)", availFrac(1), &
+                          & "  Ne", NeUsed, "  iLo", iLo, " iHi", iHi
+                  end if
+#endif
 
                   ! close on the largest stage in the range, and conserve only
                   ! what the range holds
@@ -2317,7 +2685,28 @@ end subroutine iterateT
                     ! answer with Gamma/(Ne alpha) evaluated in a regime that
                     ! expression was never meant for, and feeds a self-sustaining
                     ! ionization/recombination loop (D-104).
-                    if (lgPDR .and. pdrOwnIon /= 0) then
+                    ! D-169: ...unless MOCASSIN owns the ionization, in which
+                    ! case this gate is the exact opposite policy and the two
+                    ! cancel. pdrIonFromMocassin (D-162) imposes MOCASSIN's ratio
+                    ! ON the network, before and after the solve; pdrOwnIon then
+                    ! discards MOCASSIN's own answer in the same cells, so what
+                    ! propagates is whatever handBackPDR wrote - the chemistry's
+                    ! cosmic-ray equilibrium (D-161). x(H+) was bit-identical
+                    ! across every temperature step because nothing was writing
+                    ! it, while MOCASSIN's own up/dn implied 0.9998 against the
+                    ! 0.0298 on the grid.
+                    !
+                    ! That is the hot runaway. thermBalance builds the heating
+                    ! from a photoionization rate of 2.7e-9 /s times a neutral
+                    ! fraction of 0.97 - but that rate, allowed to act, removes
+                    ! the neutral hydrogen doing the absorbing. The heating is
+                    ! computed against an ionization state the same field
+                    ! forbids, and pinned there by the other code, so no
+                    ! temperature can balance it.
+                    !
+                    ! Same shape as D-165: a switch added later that never
+                    ! reached an older gate.
+                    if (lgPDR .and. pdrOwnIon /= 0 .and. pdrIonFromMocassin == 0) then
                        if (grid%pdrZone(cellP) == 1 .and. &
                             & (elem==1 .or. elem==2 .or. elem==6 .or. elem==8 .or. elem==12)) cycle
                     end if
@@ -2376,6 +2765,24 @@ end subroutine iterateT
                         & grid%ionDen(cellP,elementXref(elem),ion) = xMax
                    if (grid%ionDen(cellP,elementXref(elem),ion) < 1.e-20) &
                         & grid%ionDen(cellP,elementXref(elem),ion) = 1.e-20
+#ifdef PDR
+                   ! D-169: what the solve actually returned, AFTER the write.
+                   ! The build-time print shows the previous call's value by
+                   ! construction; this one shows whether a write landed at all.
+                   ! ionSolve is pre-seeded with the old column at the top of
+                   ! this block and the elimination skips a zero pivot, so a
+                   ! singular system leaves the previous answer in place and
+                   ! looks exactly like a converged one.
+                   if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
+                        & nSolProbe < 12 .and. grid%pdrZone(cellP) == 1 .and. &
+                        & TeUsed >= 29999.) then
+                      nSolProbe = nSolProbe + 1
+                      print*, "! [D169b] cell", cellP, " ion", ion, &
+                           & " ionSolve", ionSolve(elem,ion), &
+                           & " -> grid", grid%ionDen(cellP,elementXref(elem),ion), &
+                           & " lgIonMatrix", lgIonMatrix, " xMax", xMax
+                   end if
+#endif
 
 
                    ! D-121: the ionization hand-off, checked before the

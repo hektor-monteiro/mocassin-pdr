@@ -341,6 +341,15 @@ module common_mod
         ! them into its matrix. Indexed (cell, 1:2*pdrNlink) as
         ! form(1..n) then loss(1..n), one entry per linked (element, stage).
         real, allocatable         :: pdrIonRate(:,:)
+        ! D-166. pdrCoolSp is a NUMBER, evaluated once per coupling pass. In
+        ! iterateT it does not move when TeUsed moves - and in neutral gas it is
+        ! the only coolant that matters, because every term MOCASSIN computes
+        ! for itself is proportional to n_e. So H-C has no temperature
+        ! dependence there and the solver can only run to a rail. Store the
+        ! local power-law index d ln C / d ln T and the temperature it was
+        ! measured at, so thermBalance can evaluate C(T) instead of reading C.
+        real, allocatable         :: pdrCoolSlope(:) ! d ln(cool) / d ln(T)
+        real, allocatable         :: pdrCoolTref(:)  ! T the coolants were solved at
         real, allocatable         :: pdrCoolSp(:,:)  ! per-coolant cooling [erg/s/cm^3] (D-096),
                                                      ! in the order pdrCoolants lists them
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
@@ -624,6 +633,11 @@ module common_mod
     ! was never applied. Neither side moved and x(H0) never settled.
     integer             :: pdrIonFromMocassin = 0
     integer             :: pdrCoolFeedback = 0
+    ! D-166: evaluate the PDR coolants at a second temperature each coupling
+    ! pass and hand thermBalance the local power law, so the balance has a
+    ! thermostat. Cloudy re-evaluates the whole cooling function at every trial
+    ! temperature inside its solver (CoolHeatError -> ConvEdenIoniz); two points
+    ! and a power law is the affordable version of the same thing.
     ! D-132: one thermal balance, and it is MOCASSIN's. The PDR stops solving
     ! for temperature entirely - it evaluates the chemistry, the level
     ! populations and its heating/cooling AT MOCASSIN's electron temperature and
@@ -740,6 +754,60 @@ module common_mod
     ! has broken the plain build (D-096, D-109, D-119, D-138, D-143).
     integer             :: pdrSplitField = 0
     integer             :: nXProbe = 0     ! D-159: surviving-packet probe
+    ! D-165: instrument iterateT itself. Cloudy's temperature solver
+    ! (conv_temp_eden_ioniz.cpp) brackets first, then runs Brent, and declares
+    ! convergence only when BOTH |H-C|/H is small AND the bracket is narrow
+    ! relative to Te - "this assures that the temperature is also well
+    ! determined if H-C is a shallow function of T". MOCASSIN tests |H-C| alone,
+    ! so where the thermostat is weak it accepts a temperature that is not
+    ! pinned down. That is exactly the PDR regime. Record, per call: whether it
+    ! converged, at what step, the residual, the bracket width, whether the
+    ! +/-100 K stall breaker fired, and whether it exited on a clamp.
+    ! Declared outside the #ifdef PDR block - iterateT compiles in both flavours.
+    ! D-166/167/168/169. Declared OUTSIDE the #ifdef PDR block: set_input_mod
+    ! and iteration_mod read them and both compile in either flavour. The
+    ! SEVENTH time a PDR-scoped declaration has broken the plain build
+    ! (D-096, D-109, D-119, D-138, D-143, D-158) - and the third caught only
+    ! because the plain build is checked before anything reaches dev.
+    integer             :: pdrCoolTdep = 0
+    real                :: pdrCoolTfac = 1.6   ! second evaluation at this x T
+    integer             :: pdrNslopeChk = 0    ! D-166: cap on power-law checks
+    integer(kind=8)     :: nCoolNull = 0       ! D-167: replacement with nothing to replace
+    integer             :: nHotProbe = 0       ! D-168: budget at the 30000 K rail
+    integer(kind=8)     :: teNhiNoPdr = 0      ! D-168: ceiling clamps with no PDR data yet
+    integer             :: nRateProbe = 0      ! D-169: MOCASSIN vs chemistry H rates
+    integer             :: nSolProbe = 0       ! D-169: what ionBalance wrote back
+    integer             :: teProbe = 0
+    ! D-165. Cloudy's temperature solver, for comparison with MOCASSIN's:
+    !   * bracket with a step capped at 20% of T, then van Wijngaarden-Dekker-
+    !     Brent INSIDE the bracket, which therefore always shrinks;
+    !   * convergence needs |H-C|/H small AND the bracket narrow relative to Te,
+    !     "this assures that the temperature is also well determined if H-C is a
+    !     shallow function of T" (conv_temp_eden_ioniz.cpp, lgConvTemp);
+    !   * on failure, restart the whole search up to five times with a growing
+    !     iteration budget, explicitly to survive hysteresis in the ionization;
+    !   * the low limit is 2.8 K - the CMB - and reaching it is a hard error
+    !     with a diagnostic, not a silent clamp.
+    ! MOCASSIN's search matches Cloudy on the 20% bracketing step and nothing
+    ! else: plain regula falsi (one endpoint sticks, so the bracket stops
+    ! shrinking), a convergence test on the residual alone, a stall breaker that
+    ! adds +/-100 K - 1% of an H II region and 200% of a PDR - and resets the
+    ! bracket, and a silent floor at 10 K.
+    ! teSolver 1 selects the Cloudy-shaped search so the two can be compared in
+    ! one build. teFloor exposes the floor, which has never been a parameter.
+    integer             :: teSolver = 0
+    real                :: teFloor  = 10.
+    integer(kind=8)     :: teN = 0, teNconv = 0, teNstall = 0
+    integer(kind=8)     :: teNloclamp = 0, teNhiclamp = 0, teNsteps = 0
+    integer(kind=8)     :: teNwide = 0, teNnobrack = 0
+    ! D-166: is H-C a function of T at all in this cell? grid%pdrCoolSp and
+    ! grid%pdrHeatXtra are stored once per coupling pass, so they do not move
+    ! when iterateT changes TeUsed - and in neutral gas every term that DOES
+    ! move is proportional to n_e, which is ~1e-4. If the residual is flat the
+    ! cell has no root and the solver can only run to a rail.
+    integer(kind=8)     :: teNflat = 0, teNflatClamp = 0
+    integer, parameter  :: teNbin = 12
+    integer(kind=8)     :: teBrkHist(teNbin) = 0   ! log10 bracket width / Te
     ! D-160: the initial neutral-hydrogen fraction every cell starts from.
     ! It was hardcoded to 1.e-5 in two places in grid_mod, i.e. every model
     ! starts essentially fully ionized. If the coupled system is bistable

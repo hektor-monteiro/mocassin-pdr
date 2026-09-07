@@ -1458,6 +1458,8 @@ module pdr_mod
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
         integer            :: iLnk, jLnk, iSpN, iSpI      ! D-153
         double precision   :: availTot, mocNeut, mocIon   ! D-153
+        integer            :: iTpass                     ! D-166
+        double precision   :: Tc, coolTot2, coolTot3     ! D-166
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
@@ -1880,7 +1882,32 @@ module pdr_mod
            ! One pass per MC iteration, not an inner convergence loop: the outer
            ! loop carries level-population convergence exactly as it carries the
            ! chemistry (D-008).
-           coolTot = 0.d0
+           ! ---- D-166: two evaluations, one power law ----------------------
+           ! The coolants are solved at Tg and again at pdrCoolTfac*Tg. Only the
+           ! first stores anything; the second exists so thermBalance can be
+           ! handed d ln C / d ln T and evaluate C(T) inside its temperature
+           ! loop instead of reading a constant. Cloudy re-evaluates the entire
+           ! cooling function at every trial temperature; this is the two-point
+           ! version of the same requirement, at twice the level-population cost
+           ! per coupling pass rather than thirty times.
+           coolTot  = 0.d0
+           coolTot2 = 0.d0
+           coolTot3 = 0.d0
+           ! pdrCoolTdep 2 adds a THIRD evaluation, at 1/pdrCoolTfac * Tg, used
+           ! only to check the power law against a real solve on the other side
+           ! of Tref. An extrapolation is worth nothing until someone has looked
+           ! at how far it misses.
+           do iTpass = 1, 3
+              if (iTpass == 1) then
+                 Tc = Tg
+              else if (iTpass == 2) then
+                 if (pdrCoolTdep == 0) exit
+                 Tc = dble(pdrCoolTfac)*Tg
+              else
+                 if (pdrCoolTdep < 2) exit
+                 Tc = Tg/dble(pdrCoolTfac)
+              end if
+
            do ik = 1, pdrNcool
               nlev = pdrCoolant2(ik)%cnlev
               nSpec = abun(pdrCoolant2(ik)%cspec)*nH
@@ -1895,7 +1922,7 @@ module pdr_mod
                  ! MOCASSIN's thermal balance, and leaving the previous MC
                  ! iteration's value in place would feed a cell the cooling of
                  ! a carrier the chemistry has since destroyed.
-                 grid%pdrCoolSp(cellP, ik) = 0.
+                 if (iTpass == 1) grid%pdrCoolSp(cellP, ik) = 0.
                  cycle
               end if
 
@@ -1904,17 +1931,17 @@ module pdr_mod
               ! First visit to this cell: start from LTE, as 3D-PDR does.
               if (all(lpop(1:nlev) <= 0.d0)) then
                  call calculate_partition_function(Zpart, nlev, &
-                      & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, Tg)
+                      & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, Tc)
                  call calculate_lte_populations(nlev, lpop(1:nlev), &
                       & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, &
-                      & Zpart, nSpec, Tg)
+                      & Zpart, nSpec, Tc)
               else
                  ! rescale to the abundance the chemistry just produced
                  lsum = sum(lpop(1:nlev))
                  if (lsum > 0.d0) lpop(1:nlev) = lpop(1:nlev)*nSpec/lsum
               end if
 
-              call FIND_CCOEFF(pdrCoolant2(ik)%cntemp, nlev, Tg, &
+              call FIND_CCOEFF(pdrCoolant2(ik)%cntemp, nlev, Tc, &
                    & pdrCoolant2(ik)%temperatures, pdrCoolant2(ik)%H_COL, &
                    & pdrCoolant2(ik)%HP_COL, pdrCoolant2(ik)%EL_COL, &
                    & pdrCoolant2(ik)%HE_COL, pdrCoolant2(ik)%H2_COL, &
@@ -1929,7 +1956,7 @@ module pdr_mod
                     Ccoef(jl,il) = Ccoef(il,jl) &
                          & *pdrCoolant2(ik)%weights(il)/pdrCoolant2(ik)%weights(jl) &
                          & *exp(-(pdrCoolant2(ik)%energies(il) &
-                         &       -pdrCoolant2(ik)%energies(jl))/(KB*Tg))
+                         &       -pdrCoolant2(ik)%energies(jl))/(KB*Tc))
                  end do
               end do
 
@@ -2003,7 +2030,7 @@ module pdr_mod
               call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
                    & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
                    & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
-                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tg, dble(pdrVturb)*1.d5, jjr, &
+                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
                    & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
                    & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
                    & pdrCoolant2(ik)%molweight, plen)
@@ -2011,7 +2038,7 @@ module pdr_mod
               call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
                    & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
                    & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
-                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tg, dble(pdrVturb)*1.d5, jjr, &
+                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
                    & lpop(1:nlev), evpt, pdrCoolant2(ik)%weights, coolK, &
                    & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
                    & pdrCoolant2(ik)%molweight)
@@ -2041,22 +2068,52 @@ module pdr_mod
               if (lsum < dble(pdrLevTol)) exit
               end do
 
-              grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
-              coolTot = coolTot + coolK
-              grid%pdrCoolSp(cellP, ik) = real(coolK)   ! D-096
+              if (iTpass == 1) grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
+              if (iTpass == 1) then
+                 coolTot  = coolTot  + coolK
+              else if (iTpass == 2) then
+                 coolTot2 = coolTot2 + coolK
+              else
+                 coolTot3 = coolTot3 + coolK
+              end if
+              if (iTpass == 1) grid%pdrCoolSp(cellP, ik) = real(coolK)   ! D-096
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0) then
+              if (pdrDiagCool > 0 .and. taskid == 0 .and. iTpass == 1) then
                  if (pdrNdiag < 400000) then
                     pdrNdiag = pdrNdiag + 1
                     print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
                        & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " Td=", Td, " T=", Tg, " pop=", lsol(1), lsol(2), &
+                       & " cool=", coolK, " Td=", Td, " T=", Tc, " pop=", lsol(1), lsol(2), &
                        & " nSpec=", nSpec, " ne=", abun(pdrNelect)*nH, " nH0=", abun(pdrNHsp)*nH
                  end if
               end if
            end do
+           end do
+           ! Local power law, clamped: below the excitation temperature a
+           ! fine-structure coolant rises nearly exponentially, above it the
+           ! line saturates and the index goes to zero. Extrapolating an
+           ! unclamped index over three decades is not defensible.
+           if (pdrCoolTdep /= 0 .and. coolTot > 0.d0 .and. coolTot2 > 0.d0) then
+              grid%pdrCoolSlope(cellP) = real(min(max( &
+                   & log(coolTot2/coolTot)/log(dble(pdrCoolTfac)), -2.d0), 12.d0))
+           else
+              grid%pdrCoolSlope(cellP) = 0.
+           end if
+           grid%pdrCoolTref(cellP) = real(Tg)
+           ! Power law against a real solve, on the far side of Tref.
+           if (pdrCoolTdep >= 2 .and. taskid == 0 .and. coolTot > 0.d0 .and. &
+                & coolTot3 > 0.d0 .and. pdrNslopeChk < 30 .and. .not. lgChemOnly) then
+              pdrNslopeChk = pdrNslopeChk + 1
+              print '(a,i8,a,f9.2,a,f7.3,a,es11.3,a,es11.3,a,f8.3)', &
+                   & " [D166] cell", cellP, " Tref=", Tg, " p=", grid%pdrCoolSlope(cellP), &
+                   & "  C(Tref/f) true=", coolTot3, " pred=", &
+                   & coolTot*(1.d0/dble(pdrCoolTfac))**dble(grid%pdrCoolSlope(cellP)), &
+                   & "  ratio=", real(coolTot3/max(coolTot*(1.d0/dble(pdrCoolTfac)) &
+                   & **dble(grid%pdrCoolSlope(cellP)),1.d-99))
+           end if
+
 
            grid%pdrCool(cellP) = real(coolTot)
 

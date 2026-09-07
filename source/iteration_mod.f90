@@ -59,6 +59,8 @@ module iteration_mod
            real, allocatable :: pdrThTmp(:), pdrThSum(:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
            real, allocatable :: pdrHeatGGTmp(:), pdrHeatGGSum(:)      ! D-096
+           real, allocatable :: pdrCoolSlTmp(:), pdrCoolSlSum(:)      ! D-166
+           real, allocatable :: pdrCoolTrTmp(:), pdrCoolTrSum(:)      ! D-166
            real, allocatable :: NePDRTmp(:), NePDRSum(:)              ! D-105
            real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
            real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
@@ -89,6 +91,8 @@ module iteration_mod
            integer                :: ifreq, ian      ! counters
            integer                :: ios,iG          ! I/O error status
            integer(kind=8)        :: load,rest       !
+           integer(kind=8)        :: teNsum(8), teBrkSum(teNbin)  ! D-165
+           integer(kind=8)        :: teNsum2(4)                 ! D-166/D-167/D-168
            integer(kind=int64)    :: size            ! size for mpi
            integer                :: iCell           ! cell index including non-active
            integer                :: iStar           ! star index
@@ -1009,6 +1013,10 @@ module iteration_mod
                  allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrHeatGGTmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrHeatGGSum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrCoolSlTmp(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrCoolSlSum(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrCoolTrTmp(0:grid(iG)%nCells), stat=err)
+                 allocate(pdrCoolTrSum(0:grid(iG)%nCells), stat=err)
                  allocate(NePDRTmp(0:grid(iG)%nCells), stat=err)
                  allocate(NePDRSum(0:grid(iG)%nCells), stat=err)
                  allocate(H2denTmp(0:grid(iG)%nCells), stat=err)
@@ -1040,6 +1048,8 @@ module iteration_mod
                  pdrHeatSum   = 0.
                  pdrHeatPETmp = 0.
                  pdrHeatGGTmp = 0.
+                 pdrCoolSlTmp = 0.
+                 pdrCoolTrTmp = 0.
                  NePDRTmp = 0.
                  H2denTmp = 0.
                  pdrCoolSpTmp = 0.
@@ -1074,6 +1084,10 @@ module iteration_mod
                                      & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
                                 pdrHeatGGTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%pdrHeatGG(grid(iG)%active(i,j,k))
+                                pdrCoolSlTmp(grid(iG)%active(i,j,k)) = &
+                                     & grid(iG)%pdrCoolSlope(grid(iG)%active(i,j,k))
+                                pdrCoolTrTmp(grid(iG)%active(i,j,k)) = &
+                                     & grid(iG)%pdrCoolTref(grid(iG)%active(i,j,k))
                                 NePDRTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%NePDR(grid(iG)%active(i,j,k))
                                 H2denTmp(grid(iG)%active(i,j,k)) = &
@@ -1109,6 +1123,12 @@ module iteration_mod
                  call mpi_allreduce(pdrCoolTmp, pdrCoolSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrCool(1:grid(iG)%nCells) = pdrCoolSum(1:grid(iG)%nCells)
+                 call mpi_allreduce(pdrCoolSlTmp, pdrCoolSlSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrCoolSlope(1:grid(iG)%nCells) = pdrCoolSlSum(1:grid(iG)%nCells)
+                 call mpi_allreduce(pdrCoolTrTmp, pdrCoolTrSum, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 grid(iG)%pdrCoolTref(1:grid(iG)%nCells) = pdrCoolTrSum(1:grid(iG)%nCells)
                  call mpi_allreduce(pdrHeatGGTmp, pdrHeatGGSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrHeatGG(1:grid(iG)%nCells) = pdrHeatGGSum(1:grid(iG)%nCells)
@@ -1166,6 +1186,7 @@ module iteration_mod
                  deallocate(pdrLevTmp)
                  deallocate(pdrLevSum)
                  deallocate(pdrTgTmp, pdrTgSum, pdrTlTmp, pdrTlSum, pdrThTmp, pdrThSum)
+                 deallocate(pdrCoolSlTmp, pdrCoolSlSum, pdrCoolTrTmp, pdrCoolTrSum)  ! D-166
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)
@@ -1466,6 +1487,46 @@ module iteration_mod
            end do
 
            totPercent      = 100.*totPercent / totCells
+
+           ! -------------------------------------------------------- D-165
+           ! Report what the temperature solver did this iteration, summed over
+           ! ranks. The bracket-width histogram is the point: Cloudy declares Te
+           ! converged only when the bracket is narrow relative to Te as well as
+           ! |H-C|/H being small, because a shallow thermostat lets the residual
+           ! test pass at a temperature that is not determined.
+           if (teProbe /= 0) then
+              call mpi_reduce(teN, teNsum(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNconv, teNsum(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNstall, teNsum(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNloclamp, teNsum(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNhiclamp, teNsum(5), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNsteps, teNsum(6), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNwide, teNsum(7), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNnobrack, teNsum(8), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teBrkHist, teBrkSum, teNbin, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNflat, teNsum2(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNflatClamp, teNsum2(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(nCoolNull, teNsum2(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(teNhiNoPdr, teNsum2(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              if (taskid == 0 .and. teNsum(1) > 0) then
+                 print*, "! TEPROBE iter", nIterateMC, " calls", teNsum(1), &
+                      & " conv", teNsum(2), " (", 100.*real(teNsum(2))/real(teNsum(1)), "%)"
+                 print*, "! TEPROBE   mean steps", real(teNsum(6))/real(teNsum(1)), &
+                      & " stalled", teNsum(3), " loclamp", teNsum(4), " hiclamp", teNsum(5)
+                 print*, "! TEPROBE   no bracket", teNsum(8), &
+                      & " bracket wider than thLimit/3", teNsum(7), &
+                      & " (", 100.*real(teNsum(7))/real(teNsum(1)), "%)"
+                 print*, "! TEPROBE   log10(bracket/Te) histogram -6..+5:", teBrkSum
+                 print*, "! TEPROBE   flat residual (<1% over the scan)", teNsum2(1), &
+                      & " of which clamped", teNsum2(2)
+                 print*, "! TEPROBE   D-167 atomic coolant with no PDR replacement", teNsum2(3)
+                 print*, "! TEPROBE   D-168 of the ceiling clamps, no PDR coolant yet:", teNsum2(4)
+              end if
+              teN = 0; teNconv = 0; teNstall = 0; teNloclamp = 0
+              teNhiclamp = 0; teNsteps = 0; teNwide = 0; teNnobrack = 0
+              teNflat = 0; teNflatClamp = 0; nCoolNull = 0; teNhiNoPdr = 0
+              teBrkHist = 0
+           end if
 
            if (taskid==0) then
               print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; Total:  ', &

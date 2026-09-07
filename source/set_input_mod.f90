@@ -710,6 +710,15 @@ module set_input_mod
             case ("pdrIonFromMocassin")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrIonFromMocassin
+            case ("teSolver")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, teSolver
+            case ("teFloor")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, teFloor
+            case ("teProbe")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, teProbe
             case ("pdrTrackCell")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTrackCell
@@ -722,6 +731,12 @@ module set_input_mod
             case ("pdrTeFromMocassin")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTeFromMocassin
+            case ("pdrCoolTdep")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolTdep
+            case ("pdrCoolTfac")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolTfac
             case ("pdrCoolFeedback")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolFeedback

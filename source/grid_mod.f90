@@ -1382,6 +1382,16 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
                 end if
+                allocate(grid%pdrCoolSlope(0:grid%nCells), stat = err)   ! D-166
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrCoolSlope memory"; stop
+                end if
+                allocate(grid%pdrCoolTref(0:grid%nCells), stat = err)    ! D-166
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrCoolTref memory"; stop
+                end if
+                grid%pdrCoolSlope = 0.
+                grid%pdrCoolTref  = 0.
                 allocate(grid%pdrIonRate(0:grid%nCells, 1:2*pdrNlink), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrIonRate memory"; stop
@@ -3534,6 +3544,16 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
                end if
+               allocate(grid(iG)%pdrCoolSlope(0:grid(iG)%nCells), stat = err)  ! D-166
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolSlope memory"; stop
+               end if
+               allocate(grid(iG)%pdrCoolTref(0:grid(iG)%nCells), stat = err)   ! D-166
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolTref memory"; stop
+               end if
+               grid(iG)%pdrCoolSlope = 0.
+               grid(iG)%pdrCoolTref  = 0.
                allocate(grid(iG)%pdrIonRate(0:grid(iG)%nCells, 1:2*pdrNlink), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrIonRate memory"; stop

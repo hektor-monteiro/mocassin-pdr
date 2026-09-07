@@ -169,6 +169,11 @@ reasoning that led to the wrong turn is part of the history.
 | D-162 | **One x(H+), owned by MOCASSIN.** Ratio re-imposed after the solve as well as before, for all five linked elements. Chemistry and MOCASSIN now agree to 7-8 figures where they were 3-38x apart. 97.76% vs 97.74% - costs nothing | Done | 2026-09-06 |
 | D-163 | Duplicated channels removed from the network as Cloudy does: C and Mg photoionization, and recombination of all five ions. Charge exchange and cosmic rays kept. Every suppression printed | Done | 2026-09-06 |
 | D-164 | Suppression corrected: reactions 330/331 are recombination ON GRAINS ('#' marker), which MOCASSIN lacks - now kept. Nine channels suppressed, not eleven. 97.74% | Done | 2026-09-06 |
+| D-165 | **pdrTeFromMocassin never reached iterateT.** The D-072 short circuit that skips the temperature solve in PDR cells was never taught about the switch, so MOCASSIN has never once solved the thermal balance in a PDR cell. Every "MOCASSIN owns T" number - 0.079/0.099/0.217% - measured a frozen temperature | In progress | 2026-09-06 |
+| D-166 | **The PDR coolant is a stored constant inside iterateT.** With the solve finally running, 45% of cells run to a rail and 23% have a residual flat to <1% across the whole scan - 100% of those clamped. In neutral gas it is the only coolant that matters. Made T-dependent by a two-point power law | In progress | 2026-09-06 |
+| D-167 | The atomic coolant replacement subtracted MOCASSIN's term and added zero whenever pdr_mod had floored the carrier. Real, fires 1.26M times per iteration, and **changes nothing measurable** - the deleted term is electron-excited, which is why D-133 replaced it in the first place. Guard kept | Done, null | 2026-09-06 |
+| D-168 | The hot runaway is 99.7% H0 photoionization heating. The flux is STELLAR, not diffuse, behind tau = 1270 per cell. 4028 of 20024 ceiling clamps are the updateCell-before-pdrStep ordering; the rest are not | Done | 2026-09-06 |
+| D-169 | **pdrOwnIon and pdrIonFromMocassin are opposite policies and both were on.** ionBalance `cycle`s the writeback for H/He/C/O/Mg in every PDR cell, so MOCASSIN's answer was discarded in the same cells D-162 imposes it from. Fixed: **ceiling clamps 20024 -> 0**, Te convergence 55% -> 97%. Structure correct: IF at A_V 0.5, deep x(H2) = 0.495 | Done | 2026-09-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -8670,3 +8675,552 @@ not to move the result, but that is a measurement rather than an assumption now.
 
 The ionization architecture is settled and free. The thermal instability is
 untouched by any of it, and is now cleanly separated as its own problem.
+
+## 2026-09-06j - D-165: MOCASSIN has never solved the thermal balance in a PDR cell
+
+The remaining open item was the thermal instability: with `pdrTeFromMocassin`
+the model converges 0.08-0.22% of cells in every architecture tried, from either
+initial condition, and D-160 concluded there was no stable fixed point. The
+instruction was to work on it with Cloudy as the reference.
+
+### What Cloudy does
+
+`conv_temp_eden_ioniz.cpp`, the `vWDB` solver:
+
+1. **Bracket, then solve.** An explicit bracketing phase steps until
+   `error1*error2 <= 0`, with the step sized from the remembered derivative
+   `conv.dCmHdT`, capped at `0.2*T`, grown by sqrt(2) per failed step, up to 100
+   steps. Only then does van Wijngaarden-Dekker-Brent run, and it runs INSIDE
+   the bracket, so the interval always shrinks.
+2. **Convergence needs two things.** `lgConvTemp` requires
+   `|H-C|/H <= HeatCoolRelErrorAllowed` (0.005) **and**
+   `bracket_width/Te <= HeatCoolRelErrorAllowed/3` - *"this assures that the
+   temperature is also well determined if H-C is a shallow function of T"*.
+3. **Restart on failure.** An outer `for n=0..4` loop restarts the whole search,
+   ignoring the first n bracketing steps, explicitly to survive hysteresis in
+   the ionization ("e.g. O-H charge transfer"), with the Brent budget doubling
+   as n grows.
+4. **The low limit is the CMB, 2.8 K**, and reaching it is a `cloudy_abort` with
+   a diagnostic, not a silent clamp.
+5. It reports `thermal.lgUnstable` when `dCmHdT + 2*sigma < 0` - a thermally
+   unstable solution is *named*, not hidden.
+
+### What MOCASSIN's iterateT does
+
+It matches Cloudy on exactly one point - the 20% bracketing step (`*1.2`,
+`/1.2`) - and differs on every other:
+
+| | Cloudy | MOCASSIN |
+|---|---|---|
+| root find | Brent inside the bracket | plain regula falsi, one endpoint sticks |
+| convergence | residual **and** bracket width | residual alone |
+| residual test | `\|H-C\|/H` | `\|H-C\| < thLimit*heatInt` - unpassable if heatInt < 0 |
+| stall | restart the search, up to 5x | add **+/-100 K** and reset the bracket |
+| low limit | 2.8 K, hard error | 10 K, silent clamp |
+| budget | 100 bracketing + up to 5x(10..40) Brent | 50 total |
+
+The +/-100 K kick is the sharpest of these: it is 1% of an H II region and 200%
+of a PDR cell. It is a routine written for photoionized gas being run in a PDR.
+
+### The probe (teProbe)
+
+`iterateT` instrumented to report, per MC iteration summed over ranks: calls,
+convergences, mean steps, stall-breaker firings, floor and ceiling clamps, and a
+histogram of `bracket_width/Te` at exit. V1 slab, 31^3, full self-consistent
+configuration (`pdrAllCells`, `pdrCoolFeedback`, `pdrIonFromMocassin`,
+`pdrTeFromMocassin`).
+
+| iter | Te conv | mean steps | stalls | at 10 K floor | bracket wider than thLimit/3 | global conv |
+|---|---|---|---|---|---|---|
+| 1 | 100% | 1.62 | 1 | 0 | 15327 of 15327 bracketed | 0.00% |
+| 2 | 98.5% | 4.84 | 3188 | 172 | 19405 | 17.52% |
+| 3 | 96.4% | 7.31 | 4299 | **1864** | 19769 | 91.61% |
+| 4 (PDR on) | **98.8%** | **2.59** | 878 | 2199 | 5019 | **0.296%** |
+
+Two things fall out. Every cell that ever formed a bracket exited with it wider
+than Cloudy's criterion - the residual test was passing at temperatures the
+solver had not determined. And 1864 cells at iteration 3 were parked on the 10 K
+floor and counted as converged.
+
+But the fourth row is the one that mattered. At the iteration where the PDR
+engages and global convergence collapses to 0.296%, the temperature solver gets
+*better*: 98.8% converged, mean steps down from 7.31 to 2.59, 93% of cells
+needing no bracket at all because the entry temperature already satisfied the
+residual test.
+
+That is not what a struggling solver looks like. It is what a solver that is not
+running looks like.
+
+### The defect
+
+`update_mod.f90:600`, the D-072 short circuit:
+
+```fortran
+if (lgPDR) then
+   if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
+      lgPDRcell = .true.
+      TeUsed    = grid%Te(cellP)
+```
+
+and, 100 lines later:
+
+```fortran
+if (lgPDRcell) then
+    lgTConverged = .true.
+    exit
+end if
+```
+
+**It never tests `pdrTeFromMocassin`.** The switch was implemented in `pdr_mod`
+- it stops `handBackPDR` writing the PDR temperature into `grid%Te` (D-132) and
+makes the chemistry evaluate at MOCASSIN's `Te` (line 1488) - and never wired
+into the one place that decides whether MOCASSIN solves for a temperature at
+all. `pdrTgas` is written unconditionally at `pdr_mod:2156`, and under the
+switch it is written from `grid%Te`, so the `> 0.` guard passes too.
+
+So with the switch on, a PDR cell runs one pass of `calcalpha`, `ionBalance`,
+the grain terms and `thermBalance` at the temperature it already had, and exits
+flagged converged. `TeUsed = grid%Te(cellP)` in, `grid%Te(cellP) = TeUsed` out.
+The molecular coolant and the six PDR heating terms - D-131 through D-146, the
+whole reason the switch exists - were being computed into a residual that was
+thrown away.
+
+**MOCASSIN has never solved the thermal balance in a PDR cell.** The temperature
+there is the last value its H II-region balance produced before `pdrZone` flipped
+to 1, carried forward untouched for the rest of the model.
+
+### What this retracts
+
+D-160's "no stable fixed point" is withdrawn. Nothing was solving for a fixed
+point. And its most puzzling result - that the answer depended on the initial
+condition, median Te 379 K from an ionized start against 1246 K from a neutral
+one - is exactly what a frozen relic of the trajectory does.
+
+Every number in the "MOCASSIN owns T" column is void:
+
+| | PDR owns T | MOCASSIN owns T |
+|---|---|---|
+| blend + zone gate (D-156) | 97.74% | ~~0.099%~~ |
+| one x(H+), no gate (D-162) | 97.76% | ~~0.079%~~ |
+| + duplicates suppressed (D-163) | 97.72% | ~~0.217%~~ |
+
+None of them measured what the row claims. They measured a code that skips the
+solve. The ionization-architecture column is unaffected - those runs had the PDR
+owning the temperature, which is the path that works.
+
+D-149's framing ("convergence collapse is caused by pdrTeFromMocassin alone")
+survives, and is now explained: the switch does not enable MOCASSIN's thermal
+balance, it *disables* the PDR's without enabling anything in its place.
+
+### Fixes
+
+1. `lgPDRcell` is set only when `pdrTeFromMocassin == 0`.
+2. `teSolver` (0 = as-is, 1 = Cloudy-shaped search, 2 = + strict convergence)
+   and `teFloor` (default 10., the old hardcoded value) added, so the solver
+   change can be measured against the old one in a single build:
+   - **Illinois** regula falsi - halve the retained endpoint's residual after a
+     repeat, so the bracket actually shrinks;
+   - the +/-100 K kick replaced by a restart from the bracket midpoint with a
+     widened relative step, at most twice, which is Cloudy's outer loop;
+   - the falsi step bisects if the interpolant leaves the bracket;
+   - bracketing steps are a fixed *fraction* of T, so the search rate is the
+     same at 20 K as at 20000 K;
+   - at `teSolver >= 2`, convergence also requires
+     `(Thigh-Tlow) <= (thLimit/3)*Te`, Cloudy's second test;
+   - the residual test uses `|heatInt|`, so a cell with net negative heating can
+     pass it (`teSolver >= 1` only, to keep the comparison clean).
+
+Runs D165A (fix, old solver) and D165B (fix, Cloudy-shaped solver) measure
+whether the thermal balance converges now that it is being solved.
+
+### Note on the scratchpad filesystem
+
+`cp -r` on the session scratchpad produced three run directories whose `input`
+subdirectories shared an inode - writes to one appeared in all three, and in the
+source directory. Caught before any run started, by a `stat` after the inputs
+came back identical. Run directories are built with `mkdir` and explicit file
+writes from here on. The D-119/D-123/D-128 ladder directories were built by
+`ladder.py`, which writes files directly, and are confirmed distinct.
+
+## 2026-09-06k - D-166: the thermal balance in a PDR cell has no root
+
+D-165 removed the short circuit, so `iterateT` now solves for a temperature in
+PDR cells. It does not go well.
+
+| iter | Te conv | mean steps | at 10 K | at 30000 K | flat residual | global conv |
+|---|---|---|---|---|---|---|
+| 3 (no PDR) | 96.5% | 7.3 | 1847 | 0 | 0 | 91.48% |
+| **4 (PDR on)** | **55.0%** | **31.5** | **14391** | **19927** | **17612** | **0.072%** |
+
+45% of cells run off one rail or the other, and the mean call burns 31.5 of its
+50-step budget doing it. That is not a root finder failing to locate a root; it
+is a root finder correctly reporting there isn't one.
+
+The `flat residual` column settles it. It counts cells whose `|H-C|` varied by
+less than **1%** across the entire scan - a scan that spans three decades of
+temperature - and **every single one of them ended clamped**. 17612 cells, 23%
+of the model, where the thermal balance is not a function of temperature at all.
+
+### Why
+
+`grid%pdrCoolSp` is written once per coupling pass, at `pdr_mod:2046`, and
+`thermBalance` reads the stored number. Inside `iterateT` it does not move when
+`TeUsed` moves. Neither does `pdrHeatXtra`.
+
+Everything MOCASSIN computes for itself *is* a function of T - `coolColl`,
+`coolRec`, `coolFF` - and every one of them carries a factor n_e. In neutral gas
+x(e) ~ 1e-4, so they contribute nothing. What is left is a constant heating term
+minus a constant cooling term: a residual with a fixed sign, and a search that
+can only run to whichever rail that sign points at.
+
+The bimodal split is the signature. 19927 cells run hot and 14391 run cold, and
+which way a cell goes depends on nothing but whether its frozen coolant was
+measured above or below the temperature it now wants. The other half of the
+clamped cells - 34318 clamped against 17612 flat - had residuals that moved but
+never changed sign: the n_e-weighted terms were not enough to overcome the
+constant.
+
+### This also explains D-150 and D-151
+
+D-150 asked exactly the right question - *"is the MOCASSIN <-> PDR pair an
+oscillating fixed point? MOCASSIN solves T with pdrCool held constant, the PDR
+then recomputes pdrCool at the new T"* - and D-151 answered it with *"Te is
+pinned to 7 figures while pdrCool swings 2x, so the coolant abundances are
+moving at constant temperature."*
+
+Te pinned to seven significant figures **was the D-165 bug**. The temperature was
+not being solved, so of course it did not move. That probe was reading the
+defect's fingerprint and concluding something about the chemistry.
+
+### The fix, and what Cloudy does
+
+Cloudy re-evaluates the entire cooling function at every trial temperature:
+`CoolHeatError(temp)` calls `TempChange` then `ConvEdenIoniz`, which re-solves
+the ionization, the electron density and every coolant including the H2 and CO
+level populations. There is no stored cooling rate to go stale.
+
+Doing that here means 30+ level-population solves per cell per coupling pass.
+The affordable version of the same requirement, `pdrCoolTdep`:
+
+* solve the coolants at `Tg` and again at `pdrCoolTfac*Tg` (1.6) each coupling
+  pass, the second starting from the first's converged populations;
+* store `p = d ln C / d ln T`, clamped to [-2, 12], and the reference `Tg`;
+* `thermBalance` evaluates `C(T) = C(Tref)*(T/Tref)^p` inside the temperature
+  loop instead of reading `C`.
+
+Cost is 2x the level-population work per coupling pass rather than 30x.
+
+The clamp is not cosmetic: below its excitation temperature a fine-structure
+coolant rises nearly exponentially and above it the line saturates, so an
+unclamped index extrapolated over three decades is not defensible.
+
+`pdrCoolTdep 2` adds a third solve at `Tg/1.6` and prints the power law against
+it - a real evaluation on the far side of `Tref`. An extrapolation is worth
+nothing until someone has looked at how far it misses, so that check runs
+alongside the convergence measurement rather than after it.
+
+### The power law holds
+
+30 cells, predicting C at `Tref/1.6` from a slope measured between `Tref` and
+`1.6*Tref` - an extrapolation to the *opposite* side of the anchor, a 2.56x
+temperature span - against a genuine third solve:
+
+**median error 6.3%, 90th percentile 33%, worst 38.5%.**
+
+Ample for a thermostat. The balance needs the sign and rough magnitude to
+bracket a root, and the coupling loop re-anchors `Tref` every pass, which is
+exactly how Cloudy uses `conv.dCmHdT`.
+
+### Result
+
+| | frozen coolant | C(T) power law |
+|---|---|---|
+| Te converged (iter 4) | 55.0% | **70.3%** |
+| mean steps | 31.5 | 20.4 |
+| clamped at 10 K | 14391 | **2467** |
+| clamped at 30000 K | 19927 | 20261 |
+| flat residual | 17612 | 16484 |
+| global convergence | 0.072% | 0.026% |
+
+**The cold runaway is 83% gone** - cooling now falls as T falls, so it stops
+winning at the floor. **The hot runaway does not move at all**, and 16484 cells
+still have a residual flat to 1%. Scaling a coolant by a power law cannot help a
+cell whose coolant is zero, which is what D-167 turned out to be.
+
+### Incidental
+
+`pdr_mod:1616` clamps `Tg` to `[pdrTmin, pdrTmax]` = [1, 20000] K
+unconditionally, *"keep the chemistry inside the temperature range it was fitted
+over"*. Under `pdrTeFromMocassin`, MOCASSIN's `iterateT` has a 30000 K ceiling,
+so it asks for temperatures the chemistry will not evaluate - a third of the
+sampled cells report `Tref` sitting exactly on 20000. Not a defect; the clamp is
+protecting fitted data. But it means the coolant above 20000 K is now a power-law
+extrapolation rather than a solve, which is worth knowing when reading a hot
+cell's budget.
+
+### Note
+
+`pdrHeatGGTmp/Sum`, `NePDRTmp`, `H2denTmp` and `pdrCoolSpTmp` are allocated
+every MC iteration and never deallocated. The `allocate` carries `stat=err` and
+the status is not checked, so the second allocation silently fails and the array
+keeps its previous contents - which happens to be the right size, so it works.
+Pre-existing. The two D-166 arrays are deallocated properly rather than joining
+them.
+
+## 2026-09-06l - D-167: replacing a coolant with nothing
+
+D-166 fixed the cold runaway and left the hot one exactly where it was: 20261
+cells on the 30000 K ceiling, 16484 with a residual flat to better than 1%. A
+power law cannot rescue a coolant that is zero, so the question was why it was
+zero.
+
+### The loop
+
+D-133 established that inside the PDR the atomic coolants are *replaced* rather
+than excluded: MOCASSIN's [C I], [C II] and [O I] come out of `coolColl` and
+3D-PDR's go in, because MOCASSIN excites those lines with electrons alone and
+x(e) ~ 1e-4 in neutral gas. Correct, and measured at the time.
+
+What was never checked is whether 3D-PDR supplies a replacement. `pdr_mod:1898`
+sets `grid%pdrCoolSp(cellP, ik) = 0.` and cycles for any coolant whose carrier
+has fallen below `pdrNspecFloor` - deliberately, so a stale value from the
+previous MC iteration cannot be fed to a carrier the chemistry has since
+destroyed (that guard is itself D-131).
+
+In a hot cell the carbon is ionized past C+. So [C I] and [C II] are precisely
+the coolants that fall below the floor, and the replacement then subtracts
+MOCASSIN's term and adds zero:
+
+```
+coolInt = coolInt - forbiddenLines(C, I..II, :, :)     ! removed
+pdrCoolMol = pdrCoolMol + 0.                           ! nothing put back
+```
+
+The cell loses its carbon cooling outright, so it heats, so more carbon ionizes,
+so the coolant stays below the floor. Self-reinforcing, and it starts from
+whichever cells happened to be hottest.
+
+That is why the residual is flat in those cells: with the carbon cooling deleted
+and the oxygen cooling deleted the same way, what remains is `coolFF + coolRec +
+coolColl + gasDustColl_g`, all proportional to n_e, against a constant heating
+term.
+
+### Fix
+
+Sum MOCASSIN's contribution for the ion first, and do the swap only when there
+is something to swap in:
+
+```fortran
+if (grid%pdrCoolSp(cellP,iCool) > 0.) then
+   coolInt    = coolInt - mocCool
+   pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+else if (mocCool > 0.) then
+   nCoolNull = nCoolNull + 1     ! keep MOCASSIN's term
+end if
+```
+
+Note the asymmetry this restores is the right one: D-133's argument for
+preferring 3D-PDR is that MOCASSIN under-cools *in neutral gas*. In a cell hot
+enough to have ionized its carbon away, x(e) is not 1e-4 and MOCASSIN's electron
+treatment is the appropriate one anyway.
+
+`nCoolNull` counts and reports how often this fires, so the size of what was
+being deleted is on the record rather than inferred.
+
+### Result: real, frequent, and immaterial
+
+| | no guard (D-166C) | guard (D-167) |
+|---|---|---|
+| Te converged (iter 4) | 70.3% | 70.1% |
+| clamped at 30000 K | 20261 | 20249 |
+| flat residual | 16484 | 16484 |
+| global convergence | 0.0263% | 0.0263% |
+| `nCoolNull` firings | - | **1,264,809** |
+
+It fires 1.26 million times in one iteration and moves nothing. The reason is
+D-133's own premise: the term being deleted is MOCASSIN's *electron-excited*
+[C II] and [O I], which in neutral gas is orders of magnitude too small to
+matter either way. Deleting a negligible term is still wrong and the guard
+stays, but D-167 is not the hot runaway.
+
+The index line is updated to say so rather than leaving it reading as a fix.
+
+## 2026-09-06m - D-168/D-169: the hot runaway, and one x(H+) for real this time
+
+### What is heating the ceiling cells
+
+The budget of a cell sitting on the 30000 K rail, with the PDR data present
+(the probe was first fired too early and caught cells before `pdrStep` had ever
+run - that ordering is a finding in its own right, below):
+
+```
+cell 134  zone 1  nH 100  A_V 1.54   x(H+) 0.0233  Ne 2.40  n(H0) 97.7
+HEAT  ste 2.577e-20   PE 9.40e-26   pdrXtra 1.62e-28
+COOL  ff 1.87e-26  rec 1.43e-26  coll 2.282e-20  gasDust 6.4e-25  pdrMol 1.66e-23
+top heating ion: elem 1 stage 1 = 2.568e-20  (99.67% of ste)
+```
+
+Neutral hydrogen photoionization is **99.7%** of the heating, six orders above
+the photoelectric term and above the entire PDR heating budget.
+
+### The flux is stellar, and cannot be
+
+With `pdrSplitField` separating the two:
+
+```
+at H0 threshold: bin 430, 0.9994 Ryd   Jste 0.0   opacity 6.35e-16 cm^-1
+Jste above H0 thr 2.07e-3   below 5.96e-2
+Jdif above H0 thr 0.0       stellar-only 2.07e-3
+dx 2.0e18 cm    tau/cell 1269.8
+```
+
+`Jdif = 0` exactly: none of it is locally produced diffuse radiation. It is
+stellar, in a cell behind tau = 1270 *per cell*, many cells deep. The surviving
+flux is the hard tail where sigma ~ nu^-3 makes the gas thin, which is real
+physics - but it does not close the gap.
+
+D-159 concluded "not a transport bug" from *"no packet crosses tau > 20"*. That
+measurement was taken while the temperature was frozen by D-165, and it answers
+a different question anyway: a packet absorbed INSIDE a cell still deposits path
+length into Lucy's estimator.
+
+### Two wrong turns, recorded
+
+1. **A mislabelled probe.** I printed `sum(Jste(IPnuP:nbins))` as "above 1 Ryd".
+   `IPnuP` is a loop variable and by then holds the LAST ion's threshold, so the
+   "Jste > 1 Ryd = 0 exactly" that looked decisive meant nothing. Re-measured
+   with hydrogen's own saved index.
+2. **Two cells compared as one.** I took Gamma from a cold cell's probe and heat
+   from a hot cell's and derived "59 keV per photoionization", which would have
+   been damning. Measured properly in ONE cell in ONE call: **10.79 eV per
+   event**, entirely physical. The two integrals agree; they were never the
+   problem.
+
+### The actual defect
+
+`ionBalance`'s writeback loop opens with the D-106 gate:
+
+```fortran
+if (lgPDR .and. pdrOwnIon /= 0) then
+   if (grid%pdrZone(cellP) == 1 .and. &
+        & (elem==1 .or. elem==2 .or. elem==6 .or. elem==8 .or. elem==12)) cycle
+end if
+```
+
+In every PDR-zone cell MOCASSIN's ionization answer for H, He, C, O and Mg is
+`cycle`d past and never written. `pdrOwnIon` defaults to 1 (fb4049a).
+
+So two exactly opposite policies were both live:
+
+| | policy |
+|---|---|
+| D-106 `pdrOwnIon` (default ON) | the chemistry owns H/He/C/O/Mg in PDR cells; discard MOCASSIN's answer |
+| D-162 `pdrIonFromMocassin` | MOCASSIN owns the ionization and imposes it ON the chemistry |
+
+They cancel. D-162 pushes MOCASSIN's ratio into the network; D-106 then throws
+MOCASSIN's own answer away in the same cells, so what propagates is whatever
+`handBackPDR` wrote - the chemistry's cosmic-ray equilibrium (D-161).
+
+Measured in one cell, one call:
+
+```
+cell 13  A_V 1.38  Te 30000
+up(H0->H+) 2.744e-9    dn(H+->H0) 5.620e-13    ratio 4883  ->  x(H+) = 0.9998
+chemistry src/snk = 0        availFrac(H) = 1.0        iLo 1  iHi 2
+grid ionDen x(H+)  =  0.0298      (bit-identical across every temperature step)
+```
+
+Nothing locked in molecules, no chemistry terms in the matrix, both stages in
+the system - and the grid holds 0.0298 while the rates say 0.9998, unchanged to
+the last bit across four successive steps because **nothing was writing it**.
+A writeback probe placed after the store never fired at all, while the
+build-time probe fired 32 times: proof the `cycle` is taken.
+
+**That is the hot runaway.** `thermBalance` builds the heating from a
+photoionization rate of 2.7e-9 /s times a neutral fraction of 0.97 - but that
+rate, allowed to act, removes the neutral hydrogen doing the absorbing. The
+heating is computed against an ionization state the same radiation field
+forbids, and pinned there by the other code. No temperature can balance it.
+
+The user's instruction was *"there is just one reality for x(H+) period"*. D-162
+implemented that in one direction and this gate quietly undid it in the other.
+
+### Fix
+
+`pdrOwnIon`'s gate applies only when `pdrIonFromMocassin == 0`. Same shape as
+D-165: a switch added later that never reached an older gate.
+
+### Also found
+
+* **`updateCell` runs before `pdrStep`** (iteration_mod:978 against :1075), so
+  at the iteration where the PDR first engages MOCASSIN solves the balance with
+  no PDR coolant at all, then `pdrStep` solves the chemistry at whatever
+  temperature that produced. Measured: **4028 of 20024** ceiling clamps are
+  cells the PDR has never reported for. Real, but a fifth of the effect.
+* `ionBalance` sets `phXSec = 0.` and continues when the cross section
+  underflows; `thermBalance` does `exit` on the same condition. The two
+  integrate over different ranges. Not the cause here - it makes the heating
+  integral shorter, not longer - but they should agree.
+* The plain build broke for the **seventh** time on a PDR-scoped declaration.
+  The D-166/167/168/169 counters now sit outside the `#ifdef PDR` block with a
+  note. This wants a CI check, as D-109 already said.
+
+### Result
+
+Full 12 iterations, V1 slab, `pdrTeFromMocassin` + `pdrIonFromMocassin` +
+`pdrCoolTdep` + `pdrAllCells` + `pdrCoolFeedback`:
+
+| iteration 4 | frozen ion | + D-166 coolant | + D-169 |
+|---|---|---|---|
+| Te converged | 55.0% | 70.1% | **95.7%** |
+| mean steps | 31.5 | 20.1 | **9.96** |
+| clamped at 10 K | 14391 | 2842 | 2305 |
+| clamped at 30000 K | 19927 | 20024 | **0** |
+
+and it holds, improving, across every later iteration - by iteration 12 the
+thermal solve is at **97.2%** in 6.4 mean steps with zero ceiling clamps.
+**MOCASSIN now owns the thermal balance in PDR cells**, which it has never
+actually done before.
+
+The structure it produces is right:
+
+| A_V | x(H+) | x(H) | x(H2) |
+|---|---|---|---|
+| 0.00-0.10 | 0.9999 | 9.5e-5 | 0 |
+| 0.10-0.50 | 0.997 | 3.1e-3 | 0 |
+| 0.50-1.00 | 0.045 | 0.952 | 6.8e-7 |
+| 1.00-2.00 | 7.8e-3 | 0.775 | 4.3e-4 |
+| 2.00-4.00 | 2.1e-3 | 8.2e-3 | **0.495** |
+
+Ionization front at A_V ~ 0.5, atomic zone, H/H2 transition, deep x(H2) = 0.495
+against the 0.494 D-098 verified against TORUS-3DPDR.
+
+### RETRACTED: the transport claim
+
+Mid-investigation I argued that Gamma = 2.7e-9 /s at A_V = 1.38 was ten orders
+too large for the column, that MOCASSIN's transport was delivering stellar flux
+that could not arrive, and that D-159's "not a transport bug" had been decided
+from the D-165-contaminated state.
+
+**Withdrawn.** That rested entirely on cells sitting on the 30000 K ceiling in
+the broken configuration - a pathological state, not a sample of the model. With
+D-169 fixed those cells do not exist, and the ionization front sits exactly where
+it should. x(H+) at A_V 1-2 is 7.8e-3, not 1. D-159 stands.
+
+The tau/cell = 1270 and Jdif = 0 measurements are real and still on the record;
+what was wrong was inferring a transport defect from them while the cells
+carrying them were in a state the fix removes.
+
+### What is still open
+
+Global convergence is **~0%** through all twelve iterations (0.072, 0.039,
+0.066, 0.013, 0.026, 0.033, 0.000, 0.046, 0.0066) while the thermal solve is at
+97% and the structure is correct. So the model is physically sensible and the
+x(H0) criterion never passes.
+
+That is now the whole of the remaining problem, and it is not thermal. Note what
+the profile implies for the test: in the molecular zone x(H0) is 8e-3 and set by
+the H/H2 balance, so a small absolute change is a large relative one - and the
+criterion is relative. Whether that is a real instability or a criterion that is
+unreasonable in molecular gas is the next thing to measure, not to assume.
+
