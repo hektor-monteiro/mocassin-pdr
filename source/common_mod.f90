@@ -261,6 +261,12 @@ module common_mod
         ! measured the inner loop settling and reported 100% while x(H0) was
         ! still moving 81% between iterations.
         real, allocatable    :: xHIiterStart(:)
+        ! D-173: the temperature this MC iteration started from, so the
+        ! branch a cell sits on can be compared with the branch it sat on
+        ! last iteration. Frozen (each cell picked a branch once and kept it)
+        ! and flipping (cells swap every iteration) need different fixes:
+        ! seeding selects an initial guess and only helps the frozen case.
+        real, allocatable    :: TeIterStart(:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;
@@ -718,7 +724,13 @@ module common_mod
     ! straddled the reference. 5 is converged at ~2.5-3x the cost of 1; 3 is
     ! within 2.2% of converged at ~40% of that cost.
     integer             :: pdrCoupleIter = 5
-    real(kind=8)        :: pdrCoupleDamp = 0.5   ! Cloudy's 50% averaging
+    ! D-174: CONVENTION UNIFIED. This was the weight on the NEW value (0.5 =
+    ! half and half); it is now the weight on the PREVIOUS value, matching
+    ! iterDamp, so both read as "how much of the old answer is retained".
+    ! 0.5 is identical under either reading, which is why the change is safe -
+    ! it was the default and no fixture overrode it. Any other value now means
+    ! the complement of what it used to.
+    real(kind=8)        :: pdrCoupleDamp = 0.25  ! fraction of the PREVIOUS pass retained
     real(kind=8)        :: pdrCoupleResid = 0.
     ! The linked (element, stage) pairs: which MOCASSIN ion each network species
     ! is. Set in initPDRnetwork once the species indices are known.
@@ -777,6 +789,70 @@ module common_mod
     integer(kind=8)     :: teNhiNoPdr = 0      ! D-168: ceiling clamps with no PDR data yet
     integer             :: nRateProbe = 0      ! D-169: MOCASSIN vs chemistry H rates
     integer             :: nSolProbe = 0       ! D-169: what ionBalance wrote back
+    ! D-170. Where do the convergence failures actually live? Cloudy judges
+    ! ITERATION-level convergence (ConvIterCheck) on model-integrated
+    ! quantities - outward Hbeta, Lya/Halpha optical depths, molecular column
+    ! densities - each SIGNIFICANCE-GATED (`TauIn > 0.5`,
+    ! `colden[i]/colden[HTOT] > 1e-5`) so a quantity too small to matter cannot
+    ! block convergence, at a tolerance of autocv = 0.20. It also records WHY,
+    ! in conv.chNotConverged.
+    !
+    ! MOCASSIN tests the relative change in x(H0) in every cell with no gate at
+    ! XHILimit = 0.05, and reports a bare percentage. In a PDR x(H0) runs from
+    ! ~1e-5 in the ionized zone, where the MC noise on a small number dominates
+    ! the RELATIVE change, through 0.95 atomic to ~8e-3 molecular. Measure the
+    ! distribution before changing the test.
+    integer(kind=8)     :: cvN = 0, cvFail = 0
+    integer(kind=8)     :: cvHist(12) = 0       ! log10 |dx/x|, -8..+3
+    integer(kind=8)     :: cvFailByX(9) = 0     ! failures by log10 x(H0), -8..0
+    integer(kind=8)     :: cvFailByAV(7) = 0    ! failures by A_V band
+    integer(kind=8)     :: cvFailSmallX = 0     ! failures with x(H0) < 1e-3
+    integer(kind=8)     :: cvPassGated = 0      ! would pass a Cloudy-style gate
+    ! D-172. Cloudy never reports a bare "not converged": conv.chNotConverged
+    ! carries the reason, drChoice records which criterion set the zone
+    ! thickness, and thermal.lgUnstable names a cell whose solution is on the
+    ! unstable branch. MOCASSIN printed a percentage and nothing else, so every
+    ! convergence discussion in this log has been an argument about a scalar.
+    !
+    ! cvNear/cvFar split the failures by how far past tolerance they are: a
+    ! model sitting just outside XHILimit is a criterion question, one moving
+    ! 100% per iteration is not. cvUnstable is Cloudy's lgUnstable test,
+    ! d(H-C)/dT > 0 at the solution (its dCmHdT < 0, opposite sign convention).
+    integer(kind=8)     :: cvNear = 0, cvFar = 0
+    integer(kind=8)     :: cvHot2Cold = 0, cvCold2Hot = 0
+    integer(kind=8)     :: cvStayHot = 0, cvStayCold = 0
+    real                :: cvTsplit = 1000.   ! hot/cold boundary [K]
+    ! D-174. Damping ACROSS MC iterations. pdrCoupleDamp already applies
+    ! Cloudy's 50% averaging across the inner coupling passes
+    ! (iteration_mod:1243) - but never across the interval the convergence test
+    ! actually measures (D-155), which is the MC iteration. D-173 measured
+    ! 44-76% of cells crossing the 1000 K branch boundary EVERY iteration, in
+    ! both directions at once: a limit cycle, not divergence. Damping a flip is
+    ! the only thing in the code that can break one.
+    !
+    ! CONVENTION: the weight on the PREVIOUS iteration's value.
+    !   Te = (1 - iterDamp)*Te_new + iterDamp*Te_previous
+    ! so 0.25 mixes in a quarter of the old value - lighter than
+    ! pdrCoupleDamp's half-and-half. 0 disables.
+    real                :: iterDamp = 0.25
+    ! D-176. The reported convergence is the AND of TWO tests, and only one
+    ! of them was instrumented. iterateT sets lgConverged from the x(H0)
+    ! change; pdrStep then CLEARS it (D-032, pdr_mod:2232) for any cell whose
+    ! PDR heat/cool balance is off by more than pdrFcrit - and pdrStep runs
+    ! after updateCell in every coupling pass, so it has the last word.
+    !
+    ! D-032 was written when the PDR solved its own thermal balance, so
+    ! heat(12) == coolTot was what it had converged to. Under pdrTeFromMocassin
+    ! the temperature comes from MOCASSIN's balance, which carries MOCASSIN's
+    ! photoelectric heating, its gas-grain term and its atomic coolants - so
+    ! 3D-PDR's own heating and cooling have no reason to match at it. The test
+    ! is asking whether a balance nothing is solving happens to hold, at 0.5%.
+    !
+    ! pdrFcritConv 1 keeps the test (the behaviour every number so far was
+    ! measured with), 0 skips it where MOCASSIN owns the balance.
+    integer             :: pdrFcritConv = 1
+    integer(kind=8)     :: cvPdrCleared = 0
+    integer(kind=8)     :: cvUnstable = 0, cvDeriv = 0
     integer             :: teProbe = 0
     ! D-165. Cloudy's temperature solver, for comparison with MOCASSIN's:
     !   * bracket with a step capped at 20% of T, then van Wijngaarden-Dekker-

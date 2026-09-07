@@ -30,6 +30,7 @@ module iteration_mod
         ! has been sprung in this file - see D-096 and D-109.
         real, allocatable :: ionDenPrev(:,:,:)
         integer           :: iCouple, iDum, jDum, kDum
+        integer           :: nCv1                      ! D-175
         double precision  :: wNew, fWt
 
        ! To perform message spliting in mpi
@@ -93,6 +94,11 @@ module iteration_mod
            integer(kind=8)        :: load,rest       !
            integer(kind=8)        :: teNsum(8), teBrkSum(teNbin)  ! D-165
            integer(kind=8)        :: teNsum2(4)                 ! D-166/D-167/D-168
+           integer(kind=8)        :: cvS(4), cvHS(12), cvXS(9), cvAS(7)  ! D-170
+           integer(kind=8)        :: cvS2(4)                             ! D-172
+           integer(kind=8)        :: cvS3(4)                             ! D-173
+           integer(kind=8)        :: cvS4                                ! D-176
+           character(len=80)      :: chNotConv                           ! D-172
            integer(kind=int64)    :: size            ! size for mpi
            integer                :: iCell           ! cell index including non-active
            integer                :: iStar           ! star index
@@ -929,6 +935,10 @@ module iteration_mod
               if (allocated(grid(iG)%xHIiterStart)) &
                    & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
                    & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
+              ! D-173: same snapshot for the temperature.
+              if (allocated(grid(iG)%TeIterStart)) &
+                   & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
+                   & grid(iG)%Te(0:grid(iG)%nCells)
               grid(iG)%lgBlack(0:grid(iG)%nCells)     = 0
               grid(iG)%noHit       = 0.
               grid(iG)%noIonBal    = 0.
@@ -1237,8 +1247,10 @@ module iteration_mod
                     end do
                  end do
                  if (fWt > 0.d0) pdrCoupleResid = pdrCoupleResid/fWt
-                 grid(iG)%ionDen = real(pdrCoupleDamp*dble(grid(iG)%ionDen) &
-                      &          + (1.d0-pdrCoupleDamp)*dble(ionDenPrev))
+                 ! D-174: pdrCoupleDamp is now the weight on the PREVIOUS
+                 ! pass, matching iterDamp. The arithmetic is flipped with it.
+                 grid(iG)%ionDen = real((1.d0-pdrCoupleDamp)*dble(grid(iG)%ionDen) &
+                      &          + pdrCoupleDamp*dble(ionDenPrev))
                  if (taskid == 0) print*, "! [D119] coupling pass", iCouple, &
                       & " abundance-weighted mean ion-fraction change:", &
                       & real(pdrCoupleResid)
@@ -1268,8 +1280,33 @@ module iteration_mod
 
               size =  (grid(iG)%nCells+1)
 
+              ! D-175 probe: lgConverged is MPI_SUM'd here and the GLOBAL
+              ! result is copied back into grid%lgConverged a few lines below -
+              ! inside the coupling loop. After the first pass every rank holds
+              ! the full global array, so the next pass's sum adds each cell's
+              ! value once per rank. If that is what happens, the flag stops
+              ! being 0/1 and the headline convergence percentage stops meaning
+              ! what it says. Measure it rather than argue about it.
+              if (teProbe /= 0 .and. taskid == 0) then
+                 nCv1 = 0
+                 do iDum = 1, grid(iG)%nCells
+                    if (grid(iG)%lgConverged(iDum) == 1) nCv1 = nCv1 + 1
+                 end do
+                 print*, "! [D175] pass", iCouple, " rank0 pre-reduce: ==1", nCv1, &
+                      & " max", maxval(grid(iG)%lgConverged(1:grid(iG)%nCells)), &
+                      & " sum", sum(grid(iG)%lgConverged(1:grid(iG)%nCells))
+              end if
               call mpi_allreduce(grid(iG)%lgConverged, lgConvergedTemp, size, &
                    & mpi_integer, mpi_sum, mpi_comm_world, ierr)
+              if (teProbe /= 0 .and. taskid == 0) then
+                 nCv1 = 0
+                 do iDum = 1, grid(iG)%nCells
+                    if (lgConvergedTemp(iDum) == 1) nCv1 = nCv1 + 1
+                 end do
+                 print*, "! [D175] pass", iCouple, " post-reduce:     ==1", nCv1, &
+                      & " max", maxval(lgConvergedTemp(1:grid(iG)%nCells)), &
+                      & " sum", sum(lgConvergedTemp(1:grid(iG)%nCells))
+              end if
               call mpi_allreduce(grid(iG)%lgBlack, lgBlackTemp, size, &
                    & mpi_integer, mpi_sum, mpi_comm_world, ierr)
 
@@ -1356,6 +1393,29 @@ module iteration_mod
               end if
 
            end do
+
+           ! ------------------------------------------------------- D-174
+           ! Damp the temperature across the MC iteration. The coupling loop
+           ! above is damped pass to pass (pdrCoupleDamp); this interval - the
+           ! one the convergence criterion is defined on - was not damped at
+           ! all, and D-173 measured 44-76% of cells crossing the branch
+           ! boundary on every one of them, in both directions at once.
+           !
+           ! Applied after the coupling loop and after Te has been reduced
+           ! across ranks, so every rank damps the same complete array against
+           ! the same iteration-start snapshot. Te only, for now: it is the
+           ! bistable variable, and one change at a time is the point.
+           if (iterDamp > 0.) then
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%TeIterStart)) cycle
+                 do iDum = 1, grid(iG)%nCells
+                    if (grid(iG)%TeIterStart(iDum) > 0.) &
+                         & grid(iG)%Te(iDum) = &
+                         &   (1.-iterDamp)*grid(iG)%Te(iDum) &
+                         & + iterDamp*grid(iG)%TeIterStart(iDum)
+                 end do
+              end do
+           end if
 
 !******************************************************************************
 
@@ -1508,6 +1568,22 @@ module iteration_mod
               call mpi_reduce(teNflatClamp, teNsum2(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(nCoolNull, teNsum2(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(teNhiNoPdr, teNsum2(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvN,          cvS(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFail,       cvS(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailSmallX, cvS(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvPassGated,  cvS(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvHist,     cvHS, 12, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailByX,  cvXS,  9, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailByAV, cvAS,  7, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvNear,     cvS2(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFar,      cvS2(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvUnstable, cvS2(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvDeriv,    cvS2(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvStayHot,  cvS3(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvStayCold, cvS3(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvHot2Cold, cvS3(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvCold2Hot, cvS3(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvPdrCleared, cvS4, 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               if (taskid == 0 .and. teNsum(1) > 0) then
                  print*, "! TEPROBE iter", nIterateMC, " calls", teNsum(1), &
                       & " conv", teNsum(2), " (", 100.*real(teNsum(2))/real(teNsum(1)), "%)"
@@ -1521,10 +1597,67 @@ module iteration_mod
                       & " of which clamped", teNsum2(2)
                  print*, "! TEPROBE   D-167 atomic coolant with no PDR replacement", teNsum2(3)
                  print*, "! TEPROBE   D-168 of the ceiling clamps, no PDR coolant yet:", teNsum2(4)
+                 if (cvS(1) > 0) then
+                    print*, "! CVPROBE  cells", cvS(1), " failing", cvS(2), &
+                         & " (", 100.*real(cvS(2))/real(cvS(1)), "%)"
+                    print*, "! CVPROBE   log10|dx/x| histogram -8..+3:", cvHS
+                    print*, "! CVPROBE   failures by log10 x(H0) -8..0:", cvXS
+                    print*, "! CVPROBE   failures by A_V <.1 <.5 <1 <2 <4 >4:", cvAS(1:6)
+                    print*, "! CVPROBE   failures with x(H0)<1e-3:", cvS(3), &
+                         & "  would pass Cloudy-shaped gate (20% or x<1e-3):", &
+                         & 100.*real(cvS(4))/real(cvS(1)), "%"
+                    print*, "! CVPROBE   of the failures:", cvS2(1), &
+                         & "within 2x tolerance,", cvS2(2), "moving >100%"
+                    if (cvS2(4) > 0) print*, "! CVPROBE   thermally unstable ", &
+                         & "d(H-C)/dT > 0 at solution:", cvS2(3), " of", cvS2(4), &
+                         & " (", 100.*real(cvS2(3))/real(cvS2(4)), "%)"
+                    ! ------------------------------------------------ D-172
+                    ! Name the dominant reason, as Cloudy's chNotConverged
+                    ! does. A bare percentage has been the whole of this
+                    ! code's convergence reporting, and every argument about
+                    ! convergence in the log has been an argument about a
+                    ! scalar with no attribution.
+                    if (cvS3(1)+cvS3(2)+cvS3(3)+cvS3(4) > 0) then
+                       print*, "! CVPROBE   branch vs last iteration (split", &
+                            & cvTsplit, "K): stayed hot", cvS3(1), " stayed cold", cvS3(2), &
+                            & "  HOT->COLD", cvS3(3), "  COLD->HOT", cvS3(4), &
+                            & "  flipped", 100.*real(cvS3(3)+cvS3(4))/ &
+                            & real(cvS3(1)+cvS3(2)+cvS3(3)+cvS3(4)), "%"
+                    end if
+                    if (cvS(2) > 0) then
+                       if (cvS2(3)*2 > cvS2(4) .and. cvS2(4) > 0) then
+                          chNotConv = "thermally unstable solution (d(H-C)/dT > 0)"
+                       else if (cvS(3)*2 > cvS(2)) then
+                          chNotConv = "x(H0) too small to matter (< 1e-3); relative test is MC noise"
+                       else if (cvS2(2)*2 > cvS(2)) then
+                          chNotConv = "x(H0) moving >100% per iteration; model genuinely not settling"
+                       else if (cvS2(1)*2 > cvS(2)) then
+                          chNotConv = "just outside XHILimit; tolerance may be below the MC noise floor"
+                       else if (maxval(cvAS(1:6)) == cvAS(4) .or. maxval(cvAS(1:6)) == cvAS(5)) then
+                          chNotConv = "concentrated at A_V 1-4, the H/H2 transition"
+                       else
+                          chNotConv = "spread across depth, no single dominant band"
+                       end if
+                       print*, "! CVPROBE   NOT CONVERGED: ", trim(chNotConv)
+                    end if
+                    ! D-176: the OTHER test. pdrStep clears lgConverged after
+                    ! updateCell has set it, so this is what actually decides
+                    ! the headline number whenever it is large.
+                    if (cvS4 > 0) then
+                       print*, "! CVPROBE   PDR heat/cool test cleared", cvS4, &
+                            & " cells that had passed the x(H0) test", &
+                            & " (pdrFcritConv", pdrFcritConv, ")"
+                    end if
+                 end if
               end if
               teN = 0; teNconv = 0; teNstall = 0; teNloclamp = 0
               teNhiclamp = 0; teNsteps = 0; teNwide = 0; teNnobrack = 0
               teNflat = 0; teNflatClamp = 0; nCoolNull = 0; teNhiNoPdr = 0
+              cvN = 0; cvFail = 0; cvFailSmallX = 0; cvPassGated = 0
+              cvHist = 0; cvFailByX = 0; cvFailByAV = 0
+              cvNear = 0; cvFar = 0; cvUnstable = 0; cvDeriv = 0
+              cvStayHot = 0; cvStayCold = 0; cvHot2Cold = 0; cvCold2Hot = 0
+              cvPdrCleared = 0
               teBrkHist = 0
            end if
 

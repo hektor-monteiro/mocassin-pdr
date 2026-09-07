@@ -716,6 +716,12 @@ module set_input_mod
             case ("teFloor")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teFloor
+            case ("pdrFcritConv")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrFcritConv
+            case ("iterDamp")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, iterDamp
             case ("teProbe")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teProbe

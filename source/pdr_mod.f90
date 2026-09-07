@@ -2227,9 +2227,17 @@ module pdr_mod
         ! lgConverged uses the same owner-contributes reduction as Te and Ne and
         ! is exchanged after this loop, so clearing it here for an unbalanced
         ! cell is enough; no change to the counting logic is needed.
+        ! D-176: count it, and let it be switched off where it is meaningless.
+        ! Under pdrTeFromMocassin the PDR does not solve for the temperature,
+        ! so its own heat and cool are evaluated at MOCASSIN's answer and need
+        ! not balance; and with pdrAllCells this ran in ionized cells too,
+        ! where the PDR chemistry is not what the model is converging.
         if (max(abs(heat(12)), coolTot) > 0.d0) then
            if (abs(heat(12)-coolTot)/max(abs(heat(12)), coolTot) > dble(pdrFcrit)) then
-              grid%lgConverged(cellP) = 0
+              if (grid%lgConverged(cellP) == 1) cvPdrCleared = cvPdrCleared + 1
+              if (pdrFcritConv /= 0 .or. &
+                   & (pdrTeFromMocassin == 0 .and. .not. lgChemOnly)) &
+                   & grid%lgConverged(cellP) = 0
            end if
         end if
 

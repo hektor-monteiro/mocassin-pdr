@@ -174,6 +174,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-167 | The atomic coolant replacement subtracted MOCASSIN's term and added zero whenever pdr_mod had floored the carrier. Real, fires 1.26M times per iteration, and **changes nothing measurable** - the deleted term is electron-excited, which is why D-133 replaced it in the first place. Guard kept | Done, null | 2026-09-06 |
 | D-168 | The hot runaway is 99.7% H0 photoionization heating. The flux is STELLAR, not diffuse, behind tau = 1270 per cell. 4028 of 20024 ceiling clamps are the updateCell-before-pdrStep ordering; the rest are not | Done | 2026-09-06 |
 | D-169 | **pdrOwnIon and pdrIonFromMocassin are opposite policies and both were on.** ionBalance `cycle`s the writeback for H/He/C/O/Mg in every PDR cell, so MOCASSIN's answer was discarded in the same cells D-162 imposes it from. Fixed: **ceiling clamps 20024 -> 0**, Te convergence 55% -> 97%. Structure correct: IF at A_V 0.5, deep x(H2) = 0.495 | Done | 2026-09-06 |
+| D-171 | **The self-consistent mode is spatially bistable on ALL THREE fixtures.** V1 shows 55 hot/cold transitions along an 801-cell sightline (a front gives 1-2), cells at identical A_V sitting at 17 K and 11036 K. Cloudy prevents this by continuation + adaptive zoning, which MOCASSIN has neither of | Open | 2026-09-07 |
+| D-176 | **The reported convergence was measuring the wrong test.** pdrStep clears lgConverged on the PDR heat/cool balance (D-032) after updateCell sets it - a balance nothing solves under pdrTeFromMocassin. ~74500 pass-events cleared per iteration. Gated: 0.03% -> 98.2% on the same physical model | Done | 2026-09-07 |
+| D-177 | Full audit of the code against the self-consistent mode. Seven leftovers found; two already fixed, one in test, four new | In progress | 2026-09-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -9223,4 +9226,337 @@ the profile implies for the test: in the molecular zone x(H0) is 8e-3 and set by
 the H/H2 balance, so a small absolute change is a large relative one - and the
 criterion is relative. Whether that is a real instability or a criterion that is
 unreasonable in molecular gas is the next thing to measure, not to assume.
+
+## 2026-09-07a - D-171: the benchmarks in the self-consistent mode, and why they fail
+
+All three fixtures rerun on the D-169 build with the full self-consistent set
+(`pdrTeFromMocassin`, `pdrIonFromMocassin`, `pdrCoolTdep`, `pdrAllCells`,
+`pdrCoolFeedback`). The thermal solver is healthy everywhere - zero ceiling
+clamps on every fixture, Te convergence 85-97% - and the slabs are nonetheless
+badly wrong.
+
+| | D-128 (PDR owns T) | self-consistent |
+|---|---|---|
+| V1 H->2H2 front | 0.956 | **23.86** |
+| V2 H->2H2 front | 0.882 | **1.288** |
+| V1 median T ratio | ~1 | **149.6** |
+| V2 median T ratio | ~1 | **3.68** |
+
+Section 5.4 fails the same way. Its radial profile oscillates - 4118, 6484,
+43.8, 43.9, 7702, 5048, 4297, 285, 25.0 K - while 3D-PDR's x(H2) climbs
+smoothly from 1.6e-6 to 0.486 and ours reaches the right value only at the last
+point. Over its 15053 PDR-zone cells with A_V > 0.3: **25.4% above 1000 K,
+15.8% above 5000 K, 17.6% below 100 K**, spanning 10 K to 14206 K where a PDR
+belongs at 20-200 K throughout.
+
+**Correction.** I first reported section 5.4 as structurally sound in this mode
+(front at A_V ~ 0.5, deep x(H2) = 0.495) and used that to argue the failure was
+slab-specific. That was wrong: I had binned by A_V and taken medians, which
+smooths over the very oscillation that IS the defect. The same error as reading
+a scalar - which is what D-172 exists to stop.
+
+### The failure is spatial, not thermal
+
+V1's temperature along the sightline is not a monotonic profile with a hot
+offset. It is interleaved:
+
+| A_V | n | median Te | min | max | median x(H2) |
+|---|---|---|---|---|---|
+| 2-3 | 100 | 8411 | **17** | 11036 | 1.1e-7 |
+| 3-4 | 76 | 10804 | 1313 | 10941 | 2.9e-8 |
+| 4-5 | 63 | 10689 | **19** | 10818 | 3.0e-8 |
+| 6.8-7.5 | 29 | 9640 | **10** | 10161 | 5.1e-8 |
+| **7.5-9** | 38 | **10.4** | 10.2 | 9353 | **0.4986** |
+
+The deepest 38 cells are *correct* - 10.4 K, x(H2) = 0.4986. Between A_V 2 and
+7.5 there is a hot atomic bubble with cold molecular gas on both sides of it,
+and within any single A_V bin cells range over three decades in temperature.
+
+Counting hot/cold transitions along the sightline settles it:
+
+| | above 1000 K | transitions |
+|---|---|---|
+| V1 (801 cells) | 51.7% | **55** |
+| V2 (401 cells) | 4.7% | **25** |
+
+A single thermal front gives 1-2. Adjacent cells at identical A_V, density and
+field are landing on different branches.
+
+### The loop
+
+With MOCASSIN owning the temperature AND the H2 cooling feeding back into it:
+hot -> H2 collisionally destroyed -> H2 cooling lost -> hotter; cold -> H2 forms
+-> more cooling -> colder. Two attractors. This is D-112's H2 bistability
+reappearing in the temperature rather than in the front position.
+
+V2 is 100x denser and 10x less affected, which is the mechanism's own
+prediction: cooling per hydrogen scales with n, photoionization heating per
+hydrogen does not.
+
+### What Cloudy does about it
+
+Not a solver trick - three architectural things, none of which MOCASSIN has.
+
+1. **Continuation in space.** Each zone's temperature solve starts from the
+   PREVIOUS ZONE's converged answer, with the bracketing step capped at 0.2*T
+   (`conv_temp_eden_ioniz.cpp`). The solution is tracked along a branch; a zone
+   is never allowed to look far enough to find the other attractor.
+
+2. **Adaptive zoning that forbids jumps.** `radius_next.cpp` - 1451 lines - sets
+   the next zone thickness to the minimum over a long list of "do not let X
+   change by more than this per zone" criteria:
+   * temperature: target dT/T = 0.03 per zone, shrink floored at 0.5, commented
+     *"from 0.7 to 0.5 stop from punching through thermal front"* - changed
+     twice (97 May, 04 Mar) for exactly that;
+   * H2 heating/cooling: if H2 carries >10% of heating, limit its fractional
+     change to 0.05 per zone;
+   * H2 abundance: keys on d(H2)/H, tightened repeatedly in the change log -
+     *"limit from 0.01 to 0.001, some models fell over H2 front"*, then
+     *"1e-4 to 1e-6"*, then *"from >1e-6 to >1e-8, some pdr's had too large a
+     change in H2"*;
+   * plus relative ionization, dust optical depth per zone, the Draine field.
+   Each candidate goes into a `drChoice` object that records WHICH criterion set
+   the step - the same discipline as `chNotConverged`.
+
+3. **It names instability.** `thermal.lgUnstable = (dCmHdT + 2*sigma < 0)`,
+   counted in `thermal.nUnstable`, printed per zone and in the closing
+   commentary. Cloudy does not try to suppress an unstable solution; it reports
+   one.
+
+MOCASSIN's grid is fixed before the run, every cell is solved independently from
+its own previous-iteration value, and the field carries Monte Carlo noise.
+Nothing ties cell j's branch to cell j-1's, so noise alone selects the attractor.
+That is the whole of the 55 transitions.
+
+This is the deeper form of D-080/D-081 ("uniform grids cannot resolve a front -
+TORUS-3DPDR uses AMR here"): Cloudy's zoning is driven by SOLUTION change, not
+by geometry, which is something AMR-on-density would not supply either.
+
+### Sequenced next steps
+
+1. Port `lgUnstable` - evaluate d(H-C)/dT at the converged temperature per cell
+   and count it. Distinguishes genuine bistability from noise amplifying a stiff
+   response. ~10 lines, and it is a measurement rather than a fix.
+2. Neighbour seeding - start each cell's solve from the converged temperature of
+   the neighbour toward the source. The essential half of Cloudy's continuation,
+   cheap on a slab.
+3. Per-iteration damping - Cloudy damps ionization 50% per pass in `ConvBase`;
+   MOCASSIN damps nothing anywhere.
+4. Solution-driven adaptive zoning: the real fix, and the large one.
+
+## 2026-09-07b - D-172: convergence reporting that names a reason
+
+The user's instruction, after D-171: fix the convergence *reporting* before
+touching the criterion. That is Cloudy's discipline exactly - `chNotConverged`
+carries the reason an iteration failed, `drChoice` records which criterion set
+the zone thickness, `lgUnstable` names a cell on the unstable branch. MOCASSIN
+printed one percentage and nothing else, so every convergence argument in this
+log - including two of mine that turned out wrong - has been an argument about a
+scalar with no attribution.
+
+Instrumentation only. Nothing about the test changes, so the next decision on
+`XHILimit` is made on measurement.
+
+Per iteration, summed over ranks:
+
+* failure count and fraction;
+* histogram of log10 |dx(H0)/x(H0)|;
+* failures binned by x(H0) magnitude and by A_V band;
+* **near/far split** - within 2x tolerance, versus moving >100% per iteration.
+  That single line separates "the tolerance is below our Monte Carlo noise
+  floor" from "the model is not settling";
+* **thermally unstable count** - Cloudy's `thermal.lgUnstable` ported. It tests
+  d(C-H)/dT < 0; the residual here is H-C, so the unstable sign is
+  d(H-C)/dT > 0 - raising T increases net heating, a runaway rather than a
+  thermostat. Estimated from the last two distinct evaluations of the scan, as
+  `iter_track::deriv` does;
+* the fraction that would pass a Cloudy-shaped **gated** test (20% tolerance,
+  skipped where x(H0) < 1e-3, the analogue of
+  `colden[i]/colden[HTOT] > 1e-5`);
+* and a named dominant reason:
+
+```
+! CVPROBE   NOT CONVERGED: thermally unstable solution (d(H-C)/dT > 0)
+! CVPROBE   NOT CONVERGED: x(H0) too small to matter (< 1e-3); relative test is MC noise
+! CVPROBE   NOT CONVERGED: x(H0) moving >100% per iteration; model genuinely not settling
+! CVPROBE   NOT CONVERGED: just outside XHILimit; tolerance may be below the MC noise floor
+! CVPROBE   NOT CONVERGED: concentrated at A_V 1-4, the H/H2 transition
+```
+
+### Why the tolerance is suspect on its own
+
+`XHILimit = 0.05` is a **5%** per-cell relative test with no significance gate,
+against Cloudy's `autocv = 0.20` on gated, model-integrated quantities. And
+MOCASSIN is a Monte Carlo code: 6e6 packets over 20025 cells is ~300 per cell,
+so the Poisson noise on a cell's mean intensity is ~1/sqrt(300) = **6%** -
+larger than the tolerance being demanded of it. A Monte Carlo code cannot
+satisfy a per-cell relative tolerance below its own noise floor. That is exactly
+why a deterministic code can afford to test integrated quantities at 20%.
+
+D-149 reported convergence "indifferent to 8x packets", but that was measured in
+the D-165-contaminated state and needs re-testing once the reporting is in.
+
+## 2026-09-07c - D-177: audit of the code against the self-consistent mode
+
+Three defects this session shared one shape: a switch added later that never
+reached an older gate (D-165 `pdrTeFromMocassin` vs the D-072 short circuit,
+D-169 `pdrIonFromMocassin` vs the D-106 `pdrOwnIon` gate, D-176
+`pdrTeFromMocassin` vs the D-032 convergence override). Each was found by
+tripping over it. This is the systematic sweep instead: for every switch that
+defines the self-consistent mode, every consumer of the quantity it governs.
+
+### Findings
+
+| # | site | status |
+|---|---|---|
+| 1 | `pdrOwnIon` discards MOCASSIN's ionization in PDR cells | **fixed** D-169 |
+| 2 | `lgPDRcell` skips the thermal solve in PDR cells | **fixed** D-165 |
+| 3 | `pdrStep` clears `lgConverged` on the PDR heat/cool balance | **in test** D-176 |
+| 4 | `elemAvail` stands down, and the rates that replace it measure ZERO for H | **open** |
+| 5 | x(H0) - the convergence variable - is written by `handBackPDR` from the chemistry's x(H2) | **understood** |
+| 6 | `pdrTmin`/`pdrTmax` clamp the chemistry to [1, 20000] K while `iterateT` allows 30000 | **open** |
+| 7 | `pdrAtomicH` default ON is the configuration D-099 warned about | **understood** |
+
+Verified consistent and needing no change: `handBackPDR`'s ionization writeback
+(w = 0 under `pdrIonFromMocassin`, so `ionDen(H,2)` is untouched);
+`pdrUseNePDR` (off by default, and D-105 measured that turning it on makes the
+runaway worse); the D-133 atomic-coolant replacement's `pdrZone` gate (outside
+the zone the electron treatment is the right one); the `lgConverged` MPI
+reduction (`max = 1` throughout, `convPercent` faithful - measured in D-176, my
+double-counting hypothesis was wrong); the `nst` bound on the rate injection
+(set at the top of the element loop, not stale).
+
+### 4. elemAvail stands down for rates that are zero
+
+`update_mod:2492`, D-118's rule: *"elemAvail and the per-stage chemical rates
+are two descriptions of the same physics ... where the rates are supplied
+elemAvail must stand down"*. So in any PDR-zone cell with `lgIonChemRates`
+(default true), `availFrac(elem) = 1.0` - ionBalance normalises the ion stages
+as if no molecules existed.
+
+That is correct only if the rates actually arrive. D-169 measured, in a PDR-zone
+cell, `chemSrc(H+) = chemSnk(H+) = chemSrc(H0) = chemSnk(H0) = 0`, with all ten
+ion links resolved at startup and the export code plainly present
+(`pdr_mod:1789`). So for hydrogen the molecular locking is represented by
+*neither* mechanism inside ionBalance: elemAvail stood down and nothing took its
+place.
+
+The composition is rescued afterwards by finding 5 - `handBackPDR` overwrites
+`ionDen(H,1)` - so the model does not obviously misbehave. But ionBalance is
+solving the wrong system, and whether the same holds for C, O and Mg (which have
+no equivalent rescue) is not yet measured.
+
+### 5. The convergence variable is a molecular quantity
+
+With `pdrAtomicH` on (default), `handBackPDR` writes
+
+```fortran
+ionDen(H,1) = max(w*x_chem(H) + (1-w)*(1 - x(H+) - 2*x(H2)), 0)
+```
+
+and under `pdrIonFromMocassin` w = 0, so **x(H0) = 1 - x(H+) - 2 x(H2)** with
+x(H+) MOCASSIN's and x(H2) the chemistry's.
+
+The convergence test is defined on x(H0). So when a cell flips branch and x(H2)
+goes 0.49 -> 5e-8, x(H0) goes ~0.02 -> ~1: a fiftyfold change, reported as
+"moving >100%". **"x(H0) moving >100% per iteration" has been the H2 bistability
+all along, seen through the composition identity.** The variable is well chosen -
+it does track the real instability - but D-172's named reason should say so
+rather than implying an ionization problem.
+
+Note also the comment above that line describes the OPPOSITE of what the code
+now does: it explains that this is deliberately *not* the atomic fraction
+("every nucleus not in H+, the molecular ones included"), which describes the
+`else` branch. The `pdrAtomicH` branch subtracts the molecular hydrogen. The
+comment predates D-101 defaulting the switch on.
+
+### 6. Two temperature ranges
+
+`pdr_mod:1616` clamps `Tg` to `[pdrTmin, pdrTmax]` = [1, 20000] K
+unconditionally - *"keep the chemistry inside the temperature range it was
+fitted over"* - while `iterateT` solves up to 30000 K. Under
+`pdrTeFromMocassin` the chemistry and the coolants are therefore evaluated at a
+temperature up to 1.5x below the one the thermal balance is using, and D-166's
+power law extrapolates the rest. Measured in D-168: a third of the sampled cells
+report `pdrCoolTref` sitting exactly on 20000.
+
+### 7. pdrAtomicH is on in the configuration D-099 warned about
+
+D-099 measured that handing the true atomic fraction to MOCASSIN makes the
+molecular interior transparent to the Lyman continuum, and D-101 guarded it
+behind `pdrAtomicH` for *"a source that emits no ionizing photons"*. It was
+later defaulted on (fb4049a). Every benchmark fixture uses a full blackbody with
+**11.6% of its energy above 1 Ryd** - precisely the case the guard excluded. The
+proper fix went in as D-107 (H2 photoionization opacity), so this is probably
+fine, but the switch is being used outside the condition it was justified under,
+and the pure-FUV fixtures built earlier today are the way to check.
+
+## 2026-09-07d - D-176: the convergence number was reporting the wrong test
+
+CV7 (criterion as-is) against CV8 (criterion skipped where MOCASSIN owns the
+balance), identical in every other respect:
+
+| iteration | CV7 | CV8 |
+|---|---|---|
+| 4 | 0.033% | **98.24%** |
+| 5 | 0.0066% | **98.22%** |
+
+The two runs are physically identical - x(H0) failures 1454 vs 1463 at iteration
+4, 1444 vs 1433 at iteration 5, flip rates 45.3/45.8% and 5.2/5.2%. Only the
+flag differs. `pdrStep` was clearing ~74500 pass-events per iteration, cells
+that had *passed* the x(H0) test.
+
+### Why the criterion is meaningless here
+
+D-032 added it when the PDR solved its own thermal balance, so
+`heat(12) == coolTot` was exactly what it had converged to. Under
+`pdrTeFromMocassin` the temperature comes from MOCASSIN's balance, which carries
+MOCASSIN's photoelectric heating, its gas-grain term and its atomic coolants -
+3D-PDR's own heating and cooling have no reason to match at it. The test asks,
+at 0.5%, whether a balance nothing is solving happens to hold. With
+`pdrAllCells` it ran in ionized cells too.
+
+### What this voids, and what it does not
+
+**Void:** the `conv` column in every run of this session, and every statement
+leaning on it - including "the model never settles" (D-171) and D-149's original
+"convergence collapses when pdrTeFromMocassin is on", which was partly this.
+
+**Unaffected:** every probe-based measurement, because D-170/D-172/D-173
+instrument the x(H0) test directly rather than the flag. The packet null result
+(D-172), the flip rates, the damping effect, the pdrStartIter comparison, and
+D-171's profile bistability all stand - 55 hot/cold transitions along a sightline
+is a physical measurement of the state, not an artifact of a convergence flag.
+
+### The model is not in a limit cycle
+
+CV8 exited at iteration 5 on hitting the convergence limit - inside the same
+quiet window that CV4 and CV7 both show ending in a blow-up at iteration 6. The
+code made the error I had made three times today: calling convergence from
+inside a transient. CV9, forced to run ten iterations:
+
+| iter | x(H0) fail | flip | conv |
+|---|---|---|---|
+| 4 | 1449 | 45.5% | 98.24% |
+| 5 | 1414 | 5.2% | 98.22% |
+| 6 | 52158 | 68.4% | 32.44% |
+| 7 | 53161 | 70.3% | 29.37% |
+| 8 | 54968 | 74.5% | 29.86% |
+| 9 | 50982 | **27.2%** | 36.90% |
+| 10 | 41043 | **19.8%** | **53.70%** |
+
+The 98.2% was premature. But iteration 6 is an excursion, not a new steady
+state: from iteration 8 the model recovers monotonically in both measures and
+was still improving when the run hit its ceiling. A damped oscillation, not a
+sustained one - consistent with iterDamp working, slowly. CV10 runs 22
+iterations to see whether it reaches the limit.
+
+### The early-exit rule needs revisiting
+
+`maxIterateMC n pct` stops the run the first time `convPercent` crosses `pct`.
+Nothing requires the model to have *stayed* there, and the one place we have
+looked, it exited one iteration before a 3x excursion. Cloudy's
+`ConvIterCheck` has the same shape but tests several independent integrated
+quantities and records which one failed; a single-shot threshold on one number
+is weaker than that. Worth requiring two consecutive iterations, at least.
 

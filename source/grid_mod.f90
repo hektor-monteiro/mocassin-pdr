@@ -1602,6 +1602,12 @@ module grid_mod
              print*, "Can't allocate memory to xHIiterStart array"
              stop
           end if
+          allocate(grid%TeIterStart(0:grid%nCells), stat = err)   ! D-173
+          if (err /= 0) then
+             print*, "Can't allocate memory to TeIterStart array"
+             stop
+          end if
+          grid%TeIterStart = 0.
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then

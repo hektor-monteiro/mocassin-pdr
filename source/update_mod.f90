@@ -559,10 +559,11 @@ subroutine iterateT()
     real :: deltaXHI                ! Fractional change in neutral Hydrogen
 
     ! D-165 probe: instrument the temperature solve itself.
-    integer :: nStallHit, nUsed, iBin, iTr
+    integer :: nStallHit, nUsed, iBin, iTr, jTr
     integer :: lastSide, nRestart      ! D-165 Illinois / restart state
     real    :: brkStep, TeNext
     real    :: TeBest, resBest       ! D-165: best point seen, for the no-bracket exit
+    real    :: xHInow                ! D-170
     real    :: relRes, brkW, TeEntry
     real    :: teTrail(maxIterateT), resTrail(maxIterateT)
 
@@ -982,6 +983,86 @@ subroutine iterateT()
         grid%lgConverged(cellP) = 1
     else
         grid%lgConverged(cellP) = 0
+    end if
+
+    ! ---------------------------------------------------------------- D-170
+    ! Where the failures live. Nothing here changes the test; it records the
+    ! distribution so "real instability" and "criterion unreasonable in this
+    ! regime" can be told apart by measurement rather than argued.
+    if (teProbe /= 0) then
+       cvN = cvN + 1
+       ! D-173: frozen or flipping? Compare the branch this cell is on now
+       ! against the branch it was on at the start of the previous iteration.
+       ! Seeding a cell from a neighbour only settles anything if branches are
+       ! frozen; if cells swap every iteration the neighbour is swapping too.
+       if (allocated(grid%TeIterStart)) then
+          if (grid%TeIterStart(cellP) > 0.) then
+             if (grid%TeIterStart(cellP) >= cvTsplit) then
+                if (TeUsed >= cvTsplit) then
+                   cvStayHot = cvStayHot + 1
+                else
+                   cvHot2Cold = cvHot2Cold + 1
+                end if
+             else
+                if (TeUsed >= cvTsplit) then
+                   cvCold2Hot = cvCold2Hot + 1
+                else
+                   cvStayCold = cvStayCold + 1
+                end if
+             end if
+          end if
+       end if
+       ! D-172: Cloudy's thermal.lgUnstable. It tests d(C-H)/dT < 0; the
+       ! residual here is H-C, so the unstable sign is d(H-C)/dT > 0 - raising
+       ! the temperature increases the net heating, which is a runaway rather
+       ! than a thermostat. Estimated from the last two distinct evaluations of
+       ! the scan, which is how Cloudy does it too (iter_track::deriv).
+       jTr = 0
+       do iTr = min(nUsed, maxIterateT), 2, -1
+          if (teTrail(iTr) > 0. .and. teTrail(iTr-1) > 0. .and. &
+               & teTrail(iTr) /= teTrail(iTr-1)) then
+             jTr = iTr; exit
+          end if
+       end do
+       if (jTr > 1) then
+          cvDeriv = cvDeriv + 1
+          if ((resTrail(jTr)-resTrail(jTr-1))/(teTrail(jTr)-teTrail(jTr-1)) > 0.) &
+               & cvUnstable = cvUnstable + 1
+       end if
+       xHInow = grid%ionDen(cellP, elementXref(1), 1)
+       iBin = min(12, max(1, 9 + int(log10(max(abs(deltaXHI), 1.e-30)))))
+       cvHist(iBin) = cvHist(iBin) + 1
+       if (abs(deltaXHI) > XHILimit) then
+          cvFail = cvFail + 1
+          ! How far past tolerance: just outside, or genuinely moving?
+          if (abs(deltaXHI) <= 2.*XHILimit) cvNear = cvNear + 1
+          if (abs(deltaXHI) > 1.0)          cvFar  = cvFar  + 1
+          iBin = min(9, max(1, 9 + int(log10(max(xHInow, 1.e-30)))))
+          cvFailByX(iBin) = cvFailByX(iBin) + 1
+          if (xHInow < 1.e-3) cvFailSmallX = cvFailSmallX + 1
+#ifdef PDR
+          if (lgPDR) then
+             if (grid%AVeff(cellP) < 0.1) then
+                cvFailByAV(1) = cvFailByAV(1) + 1
+             else if (grid%AVeff(cellP) < 0.5) then
+                cvFailByAV(2) = cvFailByAV(2) + 1
+             else if (grid%AVeff(cellP) < 1.) then
+                cvFailByAV(3) = cvFailByAV(3) + 1
+             else if (grid%AVeff(cellP) < 2.) then
+                cvFailByAV(4) = cvFailByAV(4) + 1
+             else if (grid%AVeff(cellP) < 4.) then
+                cvFailByAV(5) = cvFailByAV(5) + 1
+             else
+                cvFailByAV(6) = cvFailByAV(6) + 1
+             end if
+          end if
+#endif
+       end if
+       ! Cloudy's shape: a 20% tolerance, and only where the quantity is large
+       ! enough to matter. x(H0) < 1e-3 of the hydrogen is the analogue of
+       ! colden[i]/colden[HTOT] > 1e-5 - too little to hold up the model.
+       if (abs(deltaXHI) <= 0.20 .or. xHInow < 1.e-3) &
+            & cvPassGated = cvPassGated + 1
     end if
 
     if (lgTalk) print*, "iterateT: [talk] cell", xP, yP, zP, "; converged?", &
