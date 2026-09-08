@@ -180,6 +180,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-178 | Per-species total content reported per iteration - Cloudy's column-density test, geometry-free. At the iteration reporting 98% converged, H2 was changing **+594%** and mean Te -53% | Done | 2026-09-07 |
 | D-179 | Convergence requires x(H0) AND x(H2) when the PDR is on, significance-gated. At the iteration the PDR engages the failures are **18x more x(H2) than x(H0)** - the molecular content was what the old test could not see | Done | 2026-09-07 |
 | D-180 | **`convLimit` sets the PER-CELL tolerance, not the converged-cell fraction.** Every fixture carried `convLimit 0.90`, so a cell passed if x(H0) changed by less than 90%. Every convergence number this project has ever reported was measured against that | Done | 2026-09-07 |
+| D-181 | **First benchmark numbers on a converged model.** V2 converges (all species <=0.7%): CO front **1.017**, H2 front 1.32. V1 does not (H0 -27%, Te -33%). Bistability largely resolves - V1 transitions 55->15, V2 25->**1**. Gas 3-7x too warm in all three | Done | 2026-09-08 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -9652,3 +9653,73 @@ about 18-22 iterations; every fixture was too short.
   measurements of the state reached, but they were not measured on a converged
   model and need re-running.
 \n
+
+## 2026-09-08a - D-181: the benchmarks, on a converged model at last
+
+All three fixtures re-run at 24 iterations with `convLimit 0.10`, both x(H0) and
+x(H2) tested, and the PDR heat/cool criterion gated off. Every previous
+benchmark number in this log was taken at 8-12 iterations, at a 90% per-cell
+tolerance, judged by a balance nothing solves.
+
+| fixture | converged? | H->2H2 | C->CO | median T ratio |
+|---|---|---|---|---|
+| V1 (n 1e3) | **no** - H0 -27%, Te -33% | 2.31 | 0.48 | 8.70 |
+| V2 (n 1e5) | **yes** - all <=0.7%, Te 2.1% | 1.32 | **1.017** | 6.90 |
+| sec 5.4 | mostly - Te 13.5% | - | - | ~3x |
+
+### How far the numbers moved
+
+V1, same fixture, 8 iterations against 24:
+
+| | 8 iters | 24 iters |
+|---|---|---|
+| median T ratio | 149.6 | **8.70** |
+| H->2H2 front | 23.86 | **2.31** |
+| C->CO front | 0.168 | 0.48 |
+
+An order of magnitude on both, which is the measure of how meaningless the
+earlier comparison was.
+
+### The bistability largely resolves with convergence
+
+| | before | after |
+|---|---|---|
+| V1 hot/cold transitions along the sightline | 55 | **15** |
+| V1 cells above 1000 K | 51.7% | **10%** |
+| V2 transitions | 25 | **1** |
+| V2 cells above 1000 K | 4.7% | **1%** |
+
+V2 now shows a single clean thermal front, which is what a correct PDR looks
+like. What remains is a systematic warm offset, not a checkerboard. D-171's
+framing - "the self-consistent mode is spatially bistable" - was measured before
+convergence and overstated: the bistability is a transient the model works its
+way out of, given enough iterations.
+
+sec 5.4's radial profile is the clearest demonstration. Before: x(H2) of 2.6e-7,
+5.4e-5, 3.0e-7, 4.8e-5, 0.493 with temperatures oscillating 4118, 6484, 43.8,
+43.9, 7702, 5048 K. After: a smooth rise to x(H2) = **0.495** against the
+reference's 0.493, with a coherent 310-390 K through the PDR.
+
+### What is now the disagreement
+
+**The chemistry is close and the temperature is not.** V2's CO front is 1.017
+and its H2 front 1.32; sec 5.4's molecular profile matches to three digits deep.
+The gas is 3-7x too warm in all three fixtures - systematic, not bimodal.
+
+Part of that is D-089, the scattered FUV the reference has no term for, but
+D-089 measured 2.4x and this is 6.9x on V2's median. The residual hot cells
+inflate a median, so the distribution rather than the median is the next thing
+to look at.
+
+### V2 converges and V1 does not
+
+Same code, same criterion, same iteration count. V2 is 100x denser, and cooling
+per hydrogen scales with n while photoionization heating per hydrogen does not -
+the same argument that ordered the severity when the bistability was first
+measured.
+
+V1 also still receives the full 25000 K blackbody with 11.6% of its energy above
+1 Ryd, which the Roellig specification excludes (D-101) and which a pure-PDR
+slab has no business absorbing. The pure-FUV fixtures were built during D-171
+and have never been run; that is the obvious next test for V1.
+
