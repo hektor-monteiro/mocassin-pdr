@@ -423,6 +423,14 @@ module set_input_mod
                 allocate(TStellar(0:1))
                 read(unit=10, fmt=*, iostat=ios) keyword, TStellar(1)
                 !print*, keyword, TStellar(1)
+            ! D-180. WARNING: this sets the PER-CELL relative tolerance
+            ! (XHILimit), NOT the fraction of cells that must converge - that
+            ! is the second number on maxIterateMC. Every fixture in this
+            ! project carried `convLimit 0.90`, so a cell counted as converged
+            ! if x(H0) changed by less than 90% in one iteration, and every
+            ! convergence number ever reported here was measured against that.
+            ! The 0.05 default in this file is overridden by it and was never
+            ! what ran.
             case ("convLimit")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword,  XHILimit
@@ -719,6 +727,12 @@ module set_input_mod
             case ("pdrFcritConv")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrFcritConv
+            case ("cvUseH2")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, cvUseH2
+            case ("cvH2floor")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, cvH2floor
             case ("iterDamp")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, iterDamp

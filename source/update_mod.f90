@@ -564,6 +564,8 @@ subroutine iterateT()
     real    :: brkStep, TeNext
     real    :: TeBest, resBest       ! D-165: best point seen, for the no-bracket exit
     real    :: xHInow                ! D-170
+    real    :: xH2now                ! D-179
+    logical :: lgCvH0, lgCvH2       ! D-179
     real    :: relRes, brkW, TeEntry
     real    :: teTrail(maxIterateT), resTrail(maxIterateT)
 
@@ -979,10 +981,47 @@ subroutine iterateT()
     if (allocated(grid%xHIiterStart)) convRef = grid%xHIiterStart(cellP)
     if (convRef <= 0.) convRef = XOldHI
     deltaXHI = (grid%ionDen(cellP, elementXref(1), 1) - convRef) / convRef
-    if (abs(deltaXHI) <= XHILimit) then
+    ! ---------------------------------------------------------------- D-179
+    ! Both x(H0) AND x(H2) must have settled when the PDR is running.
+    !
+    ! x(H0) = 1 - x(H+) - 2 x(H2) (D-177 finding 5), so at the iteration the
+    ! PDR switches on - H2 not yet formed - it still equals the converged
+    ! photoionization answer and this test passed at 98% while the molecular
+    ! content was only starting to move. Measured: 98.2% at iterations 4-5,
+    ! then 32% at iteration 6 when H2 formed in bulk.
+    !
+    ! Cloudy tests molecular column densities alongside its other convergence
+    ! quantities, significance-gated at colden[i]/colden[HTOT] > 1e-5, and
+    ! names the species that failed (conv_itercheck.cpp). cvH2floor is that
+    ! gate: below it the cell holds no molecules worth converging, and a change
+    ! from 1e-30 to 1e-28 must not be allowed to block the model.
+    lgCvH0 = abs(deltaXHI) <= XHILimit
+    lgCvH2 = .true.
+#ifdef PDR
+    if (lgPDR .and. cvUseH2 /= 0 .and. allocated(grid%xH2iterStart)) then
+       xH2now = 0.
+       if (grid%Hden(cellP) > 0.) xH2now = grid%H2den(cellP)/grid%Hden(cellP)
+       ! Gate on either end being significant, so a cell that has just formed
+       ! its molecules - the interesting case - is tested rather than skipped.
+       if (max(xH2now, grid%xH2iterStart(cellP)) > cvH2floor) then
+          if (grid%xH2iterStart(cellP) > 0.) then
+             lgCvH2 = abs(xH2now - grid%xH2iterStart(cellP)) &
+                  & / grid%xH2iterStart(cellP) <= XHILimit
+          else
+             lgCvH2 = .false.   ! appeared from nothing this iteration
+          end if
+       end if
+    end if
+#endif
+    if (lgCvH0 .and. lgCvH2) then
         grid%lgConverged(cellP) = 1
     else
         grid%lgConverged(cellP) = 0
+    end if
+    if (teProbe /= 0) then
+       if (.not.lgCvH0 .and.      lgCvH2) cvFailH0   = cvFailH0   + 1
+       if (     lgCvH0 .and. .not.lgCvH2) cvFailH2   = cvFailH2   + 1
+       if (.not.lgCvH0 .and. .not.lgCvH2) cvFailBoth = cvFailBoth + 1
     end if
 
     ! ---------------------------------------------------------------- D-170

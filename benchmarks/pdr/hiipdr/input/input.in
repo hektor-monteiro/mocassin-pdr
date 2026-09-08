@@ -16,7 +16,7 @@ nuMin 1.001e-5
 Rin 30.e17
 Rout 6.0e19
 edges 6.0e19 6.0e19 6.0e19
-convLimit 0.90
+convLimit 0.10
 dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
 MdMg constant 0.011295
 pdr 1

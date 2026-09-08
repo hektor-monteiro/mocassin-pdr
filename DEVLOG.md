@@ -177,6 +177,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-171 | **The self-consistent mode is spatially bistable on ALL THREE fixtures.** V1 shows 55 hot/cold transitions along an 801-cell sightline (a front gives 1-2), cells at identical A_V sitting at 17 K and 11036 K. Cloudy prevents this by continuation + adaptive zoning, which MOCASSIN has neither of | Open | 2026-09-07 |
 | D-176 | **The reported convergence was measuring the wrong test.** pdrStep clears lgConverged on the PDR heat/cool balance (D-032) after updateCell sets it - a balance nothing solves under pdrTeFromMocassin. ~74500 pass-events cleared per iteration. Gated: 0.03% -> 98.2% on the same physical model | Done | 2026-09-07 |
 | D-177 | Full audit of the code against the self-consistent mode. Seven leftovers found; two already fixed, one in test, four new | In progress | 2026-09-07 |
+| D-178 | Per-species total content reported per iteration - Cloudy's column-density test, geometry-free. At the iteration reporting 98% converged, H2 was changing **+594%** and mean Te -53% | Done | 2026-09-07 |
+| D-179 | Convergence requires x(H0) AND x(H2) when the PDR is on, significance-gated. At the iteration the PDR engages the failures are **18x more x(H2) than x(H0)** - the molecular content was what the old test could not see | Done | 2026-09-07 |
+| D-180 | **`convLimit` sets the PER-CELL tolerance, not the converged-cell fraction.** Every fixture carried `convLimit 0.90`, so a cell passed if x(H0) changed by less than 90%. Every convergence number this project has ever reported was measured against that | Done | 2026-09-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -9560,3 +9563,92 @@ looked, it exited one iteration before a 3x excursion. Cloudy's
 quantities and records which one failed; a single-shot threshold on one number
 is weaker than that. Worth requiring two consecutive iterations, at least.
 
+
+
+## 2026-09-07e - D-178/D-179/D-180: the convergence criterion, rebuilt
+
+### D-180: the tolerance was 90%
+
+```fortran
+case ("convLimit")
+    read(unit=10, fmt=*, iostat=ios) keyword,  XHILimit
+```
+
+and every fixture in this project carries `convLimit 0.90`. The keyword reads
+like "the fraction of cells that must converge" - and such a threshold does
+exist, as the second number on `maxIterateMC` - but it sets the PER-CELL
+relative tolerance. `XHILimit`'s 0.05 default in set_input_mod was overridden in
+every run and was never what executed.
+
+So a cell counted as converged if x(H0) changed by less than **90%** in one
+iteration. Every convergence number this project has ever reported, including
+all of today's, was measured against that.
+
+This also retracts my own analysis from D-172: I argued at length that
+`XHILimit = 5%` sat below the ~6% Monte Carlo noise floor and motivated a
+packet-count experiment on it. The real tolerance was 90%, far above the noise.
+I read the default out of the source instead of checking what the input set.
+
+Parser annotated. All four fixtures moved to `convLimit 0.10`.
+
+### D-179: x(H2) belongs in the test
+
+x(H0) = 1 - x(H+) - 2 x(H2) (D-177 finding 5). At the iteration the PDR
+switches on, H2 has not formed, so x(H0) still equals the converged
+photoionization answer and the test passes - while the molecules, the only thing
+still moving, are untested. Cloudy tests molecular column densities alongside
+its other quantities, gated at `colden[i]/colden[HTOT] > 1e-5`, naming the
+species that failed (`conv_itercheck.cpp`).
+
+Both x(H0) and x(H2) must now settle, with `cvH2floor` as the significance gate
+so a cell going 1e-30 -> 1e-28 cannot block the model. Measured on the first run
+- at iteration 4, the exact iteration that used to report 98%:
+
+| | x(H0) only | **x(H2) only** | both |
+|---|---|---|---|
+| failures | 2956 | **52249** | 6368 |
+
+Eighteen times more molecular failures than atomic. The criterion now sees what
+it was blind to.
+
+**The ordering inverts as the model settles**: by iteration 8 it is 45736 x(H0)
+against 7728 x(H2), and stays that way. Molecules form on a grain-surface
+timescale and lock in; the atomic fraction keeps responding to the field. Only
+visible because the two are tested separately.
+
+### The model converges
+
+22 iterations, `convLimit 0.10`, both criteria, `pdrFcritConv 0`:
+
+| iter | 4 | 8 | 12 | 15 | 18 | 22 |
+|---|---|---|---|---|---|---|
+| converged | 0.51% | 11.6% | 60.7% | 80.8% | 85.7% | **86.4%** |
+
+and by Cloudy's own standard it is converged - per-species total content at the
+final iteration:
+
+| H0 | H+ | H2 | CO | C+ | C | e- | <Te> |
+|---|---|---|---|---|---|---|---|
+| +0.92% | +0.67% | **-0.14%** | -0.94% | +0.03% | +0.01% | +0.67% | **+7.85%** |
+
+Every species stable to ~1%, far inside `autocv = 0.20`. H2 - changing +594% at
+the iteration the old criterion called 98% converged - now moves 0.14%.
+
+**The model was always converging.** It was stopped at 8-12 iterations and
+judged by the PDR heat/cool balance (D-176) at a 90% per-cell tolerance (D-180)
+with molecules untested (D-179). Three defects stacked to hide it. It needs
+about 18-22 iterations; every fixture was too short.
+
+### What is still open
+
+* **~14% of cells churn between branches.** Real, and it averages out globally -
+  which is why the integrated quantities look clean while the per-cell test says
+  86%. Cloudy's criterion would call this done; both are true and they measure
+  different things.
+* **Mean Te still moves 7.85% per iteration**, the largest residual by far and
+  the next thing to chase.
+* Every benchmark comparison in the log and the artifacts was run at
+  `convLimit 0.90` and at 8-12 iterations. The front positions remain valid
+  measurements of the state reached, but they were not measured on a converged
+  model and need re-running.
+\n

@@ -98,6 +98,8 @@ module iteration_mod
            integer(kind=8)        :: cvS2(4)                             ! D-172
            integer(kind=8)        :: cvS3(4)                             ! D-173
            integer(kind=8)        :: cvS4                                ! D-176
+           real(kind=8)           :: wDum                                ! D-178
+           integer(kind=8)        :: cvS5(3)                             ! D-179
            character(len=80)      :: chNotConv                           ! D-172
            integer(kind=int64)    :: size            ! size for mpi
            integer                :: iCell           ! cell index including non-active
@@ -939,6 +941,20 @@ module iteration_mod
               if (allocated(grid(iG)%TeIterStart)) &
                    & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
                    & grid(iG)%Te(0:grid(iG)%nCells)
+#ifdef PDR
+              ! D-179: and x(H2), the quantity that is actually moving when the
+              ! PDR first engages.
+              if (allocated(grid(iG)%xH2iterStart) .and. allocated(grid(iG)%H2den)) then
+                 do iDum = 0, grid(iG)%nCells
+                    if (grid(iG)%Hden(iDum) > 0.) then
+                       grid(iG)%xH2iterStart(iDum) = &
+                            & grid(iG)%H2den(iDum)/grid(iG)%Hden(iDum)
+                    else
+                       grid(iG)%xH2iterStart(iDum) = 0.
+                    end if
+                 end do
+              end if
+#endif
               grid(iG)%lgBlack(0:grid(iG)%nCells)     = 0
               grid(iG)%noHit       = 0.
               grid(iG)%noIonBal    = 0.
@@ -1426,6 +1442,43 @@ module iteration_mod
            end if
 
 
+           ! ------------------------------------------------------- D-178
+           ! Total content per species, the geometry-free analogue of Cloudy's
+           ! column-density test. Every rank has the full reduced grid here, so
+           ! this is a plain sum, no communication needed.
+#ifdef PDR
+           if (lgPDR .and. teProbe /= 0 .and. taskid == 0) then
+              cvSpNow = 0.d0
+              do iG = 1, nGrids
+                 do iDum = 1, grid(iG)%nCells
+                    wDum = dble(grid(iG)%Hden(iDum))
+                    if (wDum <= 0.d0) cycle
+                    cvSpNow(1) = cvSpNow(1) + wDum*dble(grid(iG)%ionDen(iDum,elementXref(1),1))
+                    cvSpNow(2) = cvSpNow(2) + wDum*dble(grid(iG)%ionDen(iDum,elementXref(1),2))
+                    if (allocated(grid(iG)%pdrAbun) .and. pdrIdxH2 > 0) then
+                       cvSpNow(3) = cvSpNow(3) + wDum*grid(iG)%pdrAbun(iDum,pdrIdxH2)
+                       cvSpNow(4) = cvSpNow(4) + wDum*grid(iG)%pdrAbun(iDum,pdrIdxCO)
+                       cvSpNow(5) = cvSpNow(5) + wDum*grid(iG)%pdrAbun(iDum,pdrIdxCp)
+                       cvSpNow(6) = cvSpNow(6) + wDum*grid(iG)%pdrAbun(iDum,pdrIdxC)
+                    end if
+                    cvSpNow(7) = cvSpNow(7) + dble(grid(iG)%Ne(iDum))
+                    cvSpNow(8) = cvSpNow(8) + dble(grid(iG)%Te(iDum))
+                 end do
+              end do
+              if (any(cvSpOld > 0.d0)) then
+                 print*, "! CVSPEC  iteration-to-iteration change in total content:"
+                 do iDum = 1, nCvSp
+                    if (cvSpOld(iDum) > 0.d0) then
+                       print '(a,a6,a,es11.4,a,f9.3,a)', "! CVSPEC   ", cvSpName(iDum), &
+                            & "  total ", cvSpNow(iDum), "   change ", &
+                            & 100.d0*(cvSpNow(iDum)-cvSpOld(iDum))/cvSpOld(iDum), " %"
+                    end if
+                 end do
+              end if
+              cvSpOld = cvSpNow
+           end if
+#endif
+
            ! decide over final convergence of the model
 
            ! reinitialize convPercent and totCells
@@ -1584,6 +1637,9 @@ module iteration_mod
               call mpi_reduce(cvHot2Cold, cvS3(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvCold2Hot, cvS3(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvPdrCleared, cvS4, 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailH0,   cvS5(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailH2,   cvS5(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailBoth, cvS5(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               if (taskid == 0 .and. teNsum(1) > 0) then
                  print*, "! TEPROBE iter", nIterateMC, " calls", teNsum(1), &
                       & " conv", teNsum(2), " (", 100.*real(teNsum(2))/real(teNsum(1)), "%)"
@@ -1617,6 +1673,10 @@ module iteration_mod
                     ! code's convergence reporting, and every argument about
                     ! convergence in the log has been an argument about a
                     ! scalar with no attribution.
+                    if (cvS5(1)+cvS5(2)+cvS5(3) > 0) then
+                       print*, "! CVPROBE   which test failed: x(H0) only", cvS5(1), &
+                            & "  x(H2) only", cvS5(2), "  both", cvS5(3)
+                    end if
                     if (cvS3(1)+cvS3(2)+cvS3(3)+cvS3(4) > 0) then
                        print*, "! CVPROBE   branch vs last iteration (split", &
                             & cvTsplit, "K): stayed hot", cvS3(1), " stayed cold", cvS3(2), &
@@ -1658,6 +1718,7 @@ module iteration_mod
               cvNear = 0; cvFar = 0; cvUnstable = 0; cvDeriv = 0
               cvStayHot = 0; cvStayCold = 0; cvHot2Cold = 0; cvCold2Hot = 0
               cvPdrCleared = 0
+              cvFailH0 = 0; cvFailH2 = 0; cvFailBoth = 0
               teBrkHist = 0
            end if
 

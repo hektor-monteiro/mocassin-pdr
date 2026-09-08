@@ -14,7 +14,7 @@ nuMax 15.
 nuMin 1.001e-5
 Rin 0.
 Rout 0.
-convLimit 0.90
+convLimit 0.10
 dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
 MdMg constant 0.011295
 pdr 1

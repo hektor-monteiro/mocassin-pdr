@@ -267,6 +267,12 @@ module common_mod
         ! and flipping (cells swap every iteration) need different fixes:
         ! seeding selects an initial guess and only helps the frozen case.
         real, allocatable    :: TeIterStart(:)
+        ! D-179: x(H2) at the start of the MC iteration. The convergence test
+        ! needs it for the same reason Cloudy tests molecular columns: at the
+        ! iteration the PDR switches on, H2 has not formed, so x(H0) still
+        ! equals the converged photoionization answer and the test passes at
+        ! 98% while the molecules are only starting to move.
+        real, allocatable    :: xH2iterStart(:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;
@@ -852,6 +858,38 @@ module common_mod
     ! measured with), 0 skips it where MOCASSIN owns the balance.
     integer             :: pdrFcritConv = 1
     integer(kind=8)     :: cvPdrCleared = 0
+    ! D-178. Cloudy decides ITERATION-level convergence on several
+    ! independent, model-integrated quantities - the outward Hbeta fraction,
+    ! the Lya/Halpha optical depths, and MOLECULAR COLUMN DENSITIES - each
+    ! significance-gated and each recording which one failed
+    ! (conv_itercheck.cpp, autocv = 0.20). MOCASSIN tests one composite
+    ! per-cell number, x(H0) = 1 - x(H+) - 2x(H2), which is only incidentally
+    ! molecular: at the iteration the PDR switches on, H2 has not formed yet,
+    ! so x(H0) still equals the converged photoionization answer and the test
+    ! passes at 98% while the molecules are only just starting to move.
+    !
+    ! Total content per species, summed over the model - the geometry-free
+    ! analogue of Cloudy's column test. Reported per iteration as a relative
+    ! change, so "which quantity has converged and which has not" is a
+    ! measurement rather than an inference.
+    ! Species indices, published by initPDRnetwork so iteration_mod can sum
+    ! them: the chemistry_module names are private to pdr_mod.
+    integer             :: pdrIdxH2 = 0, pdrIdxCO = 0, pdrIdxCp = 0, pdrIdxC = 0
+    ! D-179: include x(H2) in the convergence test when the PDR is on.
+    !   cvUseH2  1 = require BOTH x(H0) and x(H2) to have settled (default)
+    !            0 = x(H0) alone, the pre-D-179 behaviour
+    !   cvH2floor  significance gate: below this molecular fraction the cell
+    !            carries no molecules worth converging and the H2 test is not
+    !            applied - Cloudy's colden[i]/colden[HTOT] > 1e-5 in spirit.
+    !            Without it a cell going 1e-30 -> 1e-28 is a 100x "change".
+    integer             :: cvUseH2   = 1
+    real                :: cvH2floor = 1.e-5
+    integer(kind=8)     :: cvFailH0 = 0, cvFailH2 = 0, cvFailBoth = 0
+    integer, parameter  :: nCvSp = 8
+    real(kind=8)        :: cvSpNow(nCvSp) = 0.d0, cvSpOld(nCvSp) = 0.d0
+    character(len=6)    :: cvSpName(nCvSp) = &
+         & (/ 'H0    ', 'H+    ', 'H2    ', 'CO    ', &
+         &    'C+    ', 'C     ', 'e-    ', '<Te>  ' /)
     integer(kind=8)     :: cvUnstable = 0, cvDeriv = 0
     integer             :: teProbe = 0
     ! D-165. Cloudy's temperature solver, for comparison with MOCASSIN's:

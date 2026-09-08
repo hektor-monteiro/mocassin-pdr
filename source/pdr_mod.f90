@@ -323,6 +323,7 @@ module pdr_mod
         call linkIon( 4, NHEx,     2, 2)   ! He+   -> He II
         call linkIon( 5, NC,       6, 1)   ! C     -> C I
         call linkIon( 6, NCx,      6, 2)   ! C+    -> C II
+        pdrIdxH2 = NH2; pdrIdxCO = NCO; pdrIdxCp = NCx; pdrIdxC = NC   ! D-178
         call linkIon( 7, NO,       8, 1)   ! O     -> O I
         call linkIon( 8, NOx,      8, 2)   ! O+    -> O II
         call linkIon( 9, NMG,     12, 1)   ! Mg    -> Mg I
