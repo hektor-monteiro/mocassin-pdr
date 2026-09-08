@@ -10108,6 +10108,68 @@ This will change the benchmark numbers, because the reference starts from the
 network seed. That is a real difference in what is being compared and has to be
 stated when the fixtures are next run.
 
+### Measured: it changes almost nothing, and Hektor's question explains why
+
+I raised `pdrEndTime` as a risk - that starting from zero H2 might leave the
+deep gas under-molecular within a 1e7 yr integration. Hektor asked whether we
+are not running the steady-state option. We are. `CHEMSTEADY` is defined in the
+Makefile and `calculate_abundances.c` is explicit:
+
+> *Continue the integration in doubling time blocks until the composition is
+> steady. Up to 7 doublings (128 x end_time); a particle is steady when no
+> species changes by more than 1% over a full doubling.*
+
+So `pdrEndTime` is the initial block size, not a stopping time, and the solver
+is driven to equilibrium. **The seed cannot leave anything under-formed** - it
+can only select WHICH steady state, where more than one exists. My concern is
+withdrawn.
+
+That sharpens the prediction, and the run confirms it. Section 5.4 at 24
+iterations, identical to D185hii but for the seed:
+
+| | network seed | MOCASSIN seed |
+|---|---|---|
+| final convergence | 87.45% | 87.86% |
+| deep x(H2) | 0.4963 | **0.4962** |
+| H2 total | 6.5365e5 | 6.5487e5 |
+| CO total | 6.4028 | 6.4622 |
+
+The convergence trajectory tracks the previous run within 1-2 points at every
+iteration. Deep x(H2) is unchanged, exactly as expected where the molecular
+solution is the only one available.
+
+**The two-cell oscillation survives**:
+
+```
+1.4e19  T=10680  x(H+)=0.9987
+1.6e19  T= 7961  x(H+)=0.0367
+1.8e19  T=10570  x(H+)=0.9971
+2.0e19  T= 7842  x(H+)=0.0333
+2.2e19  T=  414  x(H+)=2.0e-5    <- ends here (was 2.4e19)
+```
+
+One cell shorter, which is within the run-to-run variation seen elsewhere. **The
+seed is not what drives it.**
+
+### Three candidate causes now excluded by measurement
+
+| candidate | test | result |
+|---|---|---|
+| Monte Carlo noise | 8x packets (D-172) | >100% movers 45554 -> 43667: **no** |
+| ionizing contamination | pure-FUV V1 (D-101) | identical oscillation: **no** |
+| the H2 seed | D-188 | oscillation survives: **no** |
+
+What remains is the structural one Cloudy addresses: **no continuation between
+neighbouring cells.** Each cell solves independently from its own previous
+value, so nothing ties cell j's branch to cell j-1's, and adjacent cells at the
+same depth settle on different branches. Cloudy prevents this by starting each
+zone's solve from the previous zone's converged answer with the step capped at
+0.2 T, and by adaptive zoning that forbids large per-zone changes (D-171).
+
+The seeding change stands on its own merits regardless: it removed an initial
+condition that contradicted MOCASSIN's own solution in every ionized cell, and
+the audit it prompted (D-189) found three real restart inconsistencies.
+
 ## 2026-09-08i - D-189: audit for the same class of error
 
 Hektor: *"since you have made this mistake before, I want you to audit the code
