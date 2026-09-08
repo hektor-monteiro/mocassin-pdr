@@ -273,6 +273,10 @@ module common_mod
         ! equals the converged photoionization answer and the test passes at
         ! 98% while the molecules are only starting to move.
         real, allocatable    :: xH2iterStart(:)
+        ! D-188: has the chemistry ever run in this cell? Until it has, the
+        ! cell is seeded from MOCASSIN's ionization state rather than from the
+        ! network file's defaults.
+        integer, allocatable :: pdrSeeded(:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;

@@ -187,6 +187,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-185 | **elemAvail stands down where the rates ARE, not where a zone flag says they should be.** The old test asserted delivery rather than checking it; pdrStep writes the rates AFTER updateCell, so on the first PDR pass they are identically zero and the molecular locking was carried by neither mechanism. Keyed per element on the rates themselves; both zone gates removed | Done | 2026-09-08 |
 | D-186 | **Atomic-data inconsistency, flagged for future work.** [C II]/[C I]/[O I] are taken from 3D-PDR because MOCASSIN excites them with electrons alone. Correct physics today, but two codes hold line data for the same transitions. The endpoint is MOCASSIN owning them with H/H2/He colliders added, and 3D-PDR supplying only rates MOCASSIN does not have | Deferred | 2026-09-08 |
 | D-187 | **The two atomic datasets measured.** MOCASSIN (CHIANTI v10) vs LAMDA: energies agree to <=0.1% and weights are identical, but the A-coefficients differ by **1.3% ([C II] 158um)** to **6.1% ([O I] 145um)**. Too small to matter today, but a silent dependency on which code computed the cooling | Measured | 2026-09-08 |
+| D-188 | **Every cell was seeded x(H2)=0.300, x(H)=0.400 - the network file's dark-cloud defaults - including cells in the H II region at 9000 K.** Now seeded from MOCASSIN's own ionization state on first visit, molecules zero, chemistry forms them | Done | 2026-09-08 |
+| D-189 | Restart audit: elemAvail reset to 1.0 ("no molecules") and H2den to 0 while pdrAbun was restored full of them. Both are functions of pdrAbun - now DERIVED from the restored state instead of defaulted | Done | 2026-09-08 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10067,4 +10069,95 @@ are relatable by q = 8.629e-6/(g_u sqrt(T)) * Omega, so a like-for-like
 comparison of the ELECTRON rates is possible and has not been done. That is the
 other half of this measurement and is the thing that would actually have to be
 reconciled when MOCASSIN takes the coolants over.
+
+## 2026-09-08h - D-188: the chemistry was seeded from a dark cloud
+
+Hektor asked what n(H2) is when the chemistry first runs. The answer:
+
+| species | seed |
+|---|---|
+| **H2** | **0.300** |
+| **H** | **0.400** |
+| C+ | 1.40e-4 (rescaled to MOCASSIN's per cell) |
+| O | 3.00e-4 (rescaled) |
+| all else | 0 |
+
+`seedPDR` wrote `species_reduced.d`'s own initial values into **every** cell,
+identically, and `syncSeed` then adjusted only the *elemental* budgets for He,
+C, O and Mg. Hydrogen's split was never touched. So every cell began with 60% of
+its hydrogen NUCLEI molecular - including cells sitting inside the H II region
+at 9000 K - and the first chemistry call had to destroy all of it.
+
+That is not an initial condition. It is the network file's starting point for a
+standalone dark-cloud run, carried into a coupled model where MOCASSIN already
+knows the ionization structure.
+
+D-112 had already measured that this choice is not neutral: V1's H2 front ratio
+is 1.109 from the network seed against 1.679 fully dissociated, and the second
+does not relax into the first even with a hundredfold longer integration. So the
+seed selects an attractor, and it was selecting one that contradicts MOCASSIN's
+own solution.
+
+**Fixed**: on the first visit to a cell, `pdrStep` seeds from MOCASSIN's
+ionization - each linked element distributed over its atomic and ionic carriers
+in MOCASSIN's ratio, electrons from MOCASSIN's Ne, every molecule zero - and the
+chemistry forms the molecules from there. Hektor's ruling was no switch: the old
+behaviour is simply wrong.
+
+This will change the benchmark numbers, because the reference starts from the
+network seed. That is a real difference in what is being compared and has to be
+stated when the fixtures are next run.
+
+## 2026-09-08i - D-189: audit for the same class of error
+
+Hektor: *"since you have made this mistake before, I want you to audit the code
+and find other places where inconsistencies like this one may be present. The
+golden rule is to favor self consistency."*
+
+The pattern: **a default or file value standing in for something the model
+computes.** Swept the per-cell PDR state, with the restart path as the sharpest
+test - a checkpoint restores some arrays and not others, so any quantity that
+is *derived* from a restored one but left at its fresh-grid value is this bug.
+
+| array | in checkpoint? | on restart | verdict |
+|---|---|---|---|
+| pdrAbun | yes | restored | ok |
+| pdrZone, chiFUV, AVeff | yes | restored | ok |
+| **pdrSeeded** (new) | no | 0 | **would have wiped the restored chemistry** - fixed |
+| **elemAvail** | no | **1.0 = "no molecules"** | **inconsistent with restored pdrAbun** - fixed |
+| **H2den** | no | **0 = "no H2 opacity"** | **inconsistent with restored pdrAbun** - fixed |
+| pdrIonRate | no | 0 | safe - D-185 keys elemAvail on rate presence |
+| pdrCoolSlope, pdrCoolTref | no | 0 | safe - guarded by `> 0` |
+| pdrLevPop | no | LTE | known, already on the status page |
+| NePDR | no | 0 | inert, pdrUseNePDR off by default |
+
+**The first one I introduced myself, an hour earlier.** D-188's first-visit seed
+keys on `pdrSeeded`, which a restart leaves at zero - so a warm restart would
+have overwritten the restored molecular abundances with MOCASSIN's ionization
+and zero molecules, destroying exactly what the restart exists to preserve. That
+is the same mistake in a new place, found by looking for it.
+
+**The fix is the principle, not the patch**: elemAvail and H2den are *functions*
+of pdrAbun, so they are now recomputed from the restored state rather than
+checkpointed separately or left at a default. Deriving beats storing twice -
+two copies can disagree, a derivation cannot.
+
+### Also found, not yet fixed
+
+`pdrGrid.out`'s write record carries **12** fields and the read consumes **9**:
+`pdrTgas`, `pdrTlow`, `pdrThigh` are written twice. List-directed reads skip the
+remainder of a record, so it works by accident. The asymmetry is fragile and
+should be tidied.
+
+### Checked and found sound
+
+* `pdrDustModel = 0` (default) takes MOCASSIN's own dust temperature floored at
+  the CMB, not HTT91's parametrisation - self-consistent already.
+* Level populations seed from LTE at the local temperature on first visit. That
+  is a physical starting point for an iterative solve, not an arbitrary default,
+  and the solver moves off it.
+* `initH0` and `TeStart` are initial guesses for iterative solves that converge
+  away from them - the same category as LTE, not the D-188 category. `initH0`
+  became a keyword at D-160 precisely so its influence could be measured.
+* `pdrTseed` is declared but never used. Dead parameter.
 

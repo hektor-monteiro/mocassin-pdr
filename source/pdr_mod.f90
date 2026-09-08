@@ -455,7 +455,11 @@ module pdr_mod
               yTop = 1
            end if
 
-           ! default seed for cells the loop below does not reach (inactive)
+           ! D-188: this is now only a fallback for inactive cells and for the
+           ! shielding columns computed before the chemistry first runs. Every
+           ! active cell is re-seeded from MOCASSIN's ionization state on its
+           ! first visit in pdrStep, so the network file's x(H2) = 0.3 never
+           ! reaches a cell the chemistry actually solves.
            do iCell = 0, grid(iG)%nCells
               grid(iG)%pdrAbun(iCell,:) = pdrInitAbun(1:pdrNspec)
            end do
@@ -1460,6 +1464,7 @@ module pdr_mod
         integer            :: iLnk, jLnk, iSpN, iSpI      ! D-153
         double precision   :: availTot, mocNeut, mocIon   ! D-153
         integer            :: iTpass                     ! D-166
+        integer            :: iEl                        ! D-188
         double precision   :: Tc, coolTot2, coolTot3     ! D-166
 
         cellP = grid%active(xP,yP,zP)
@@ -1622,6 +1627,49 @@ module pdr_mod
         ! slab-equivalent shielding columns (see header)
         NHcol = av/AVfacL
         abun  = grid%pdrAbun(cellP, 1:pdrNspec)
+
+        ! ---------------------------------------------------------- D-188
+        ! FIRST VISIT: seed from MOCASSIN's ionization state, not from the
+        ! network file.
+        !
+        ! seedPDR wrote species_reduced.d's defaults into every cell -
+        ! x(H2) = 0.300 and x(H) = 0.400, i.e. 60% of the hydrogen NUCLEI
+        ! molecular - identically everywhere, including cells sitting in the
+        ! H II region at 9000 K. That is not an initial condition, it is the
+        ! network file's own starting point for a standalone dark-cloud run,
+        ! and the first chemistry call had to destroy all of it. D-112 measured
+        ! that this choice is not neutral: V1's H2 front ratio is 1.109 from
+        ! the network seed against 1.679 fully dissociated, and the second does
+        ! not relax into the first even with a hundredfold longer integration.
+        !
+        ! MOCASSIN has a converged ionization structure by the time the
+        ! chemistry first runs (pdrStartIter), so the self-consistent seed is
+        ! that structure with no molecules yet formed: each element sits in its
+        ! atomic and ionic carriers in MOCASSIN's ratio, everything else zero,
+        ! and the chemistry forms the molecules from there.
+        if (grid%pdrSeeded(cellP) == 0) then
+           abun = 0.d0
+           do iLnk = 1, pdrNlink
+              if (pdrLinkSpec(iLnk) <= 0) cycle
+              iEl = pdrLinkElem(iLnk)
+              if (iEl < 1 .or. iEl > nElements) cycle
+              if (.not.lgElementOn(iEl)) cycle
+              ! elemAbun is relative to hydrogen; ionDen is the fraction of the
+              ! element in that stage. Hydrogen's elemAbun is 1 by definition.
+              if (iEl == 1) then
+                 abun(pdrLinkSpec(iLnk)) = &
+                      & dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+              else
+                 abun(pdrLinkSpec(iLnk)) = &
+                      & dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), iEl)) &
+                      & * dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+              end if
+           end do
+           ! electrons: MOCASSIN's own, per hydrogen nucleus
+           if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
+                & abun(pdrNelect) = max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+           grid%pdrSeeded(cellP) = 1
+        end if
         ! D-153: impose MOCASSIN's ionization on the network before solving.
         !
         ! MOCASSIN owns the ionization state; the chemistry owns what is locked

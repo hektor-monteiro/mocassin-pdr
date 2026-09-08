@@ -1614,6 +1614,12 @@ module grid_mod
              stop
           end if
           grid%xH2iterStart = 0.
+          allocate(grid%pdrSeeded(0:grid%nCells), stat = err)     ! D-188
+          if (err /= 0) then
+             print*, "Can't allocate memory to pdrSeeded array"
+             stop
+          end if
+          grid%pdrSeeded = 0
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then
@@ -3186,6 +3192,8 @@ end function getVolume
       integer                        :: pdrNspecRead  ! species count in the checkpoint
       logical                        :: lgPDRrestart  ! checkpoint carries PDR state?
       character(len=20)              :: pdrNetRead    ! network name in the checkpoint
+      integer                        :: iLnkR, jLnkR  ! D-189
+      double precision               :: availR        ! D-189
 #endif
       integer                        :: i,j,k ! counters
       integer                        :: elem,&!
@@ -3556,6 +3564,11 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
                end if
+               allocate(grid(iG)%pdrSeeded(0:grid(iG)%nCells), stat = err)     ! D-188
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrSeeded memory"; stop
+               end if
+               grid(iG)%pdrSeeded = 0
                allocate(grid(iG)%pdrCoolSlope(0:grid(iG)%nCells), stat = err)  ! D-166
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSlope memory"; stop
@@ -3861,6 +3874,47 @@ end function getVolume
                           & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
                           & grid(iG)%pdrThigh(cellP)
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
+                     ! D-188: a restored cell has already been seeded and has
+                     ! real chemistry in it. Without this the first-visit seed
+                     ! in pdrStep would overwrite the restored abundances with
+                     ! MOCASSIN's ionization and zero molecules - destroying
+                     ! exactly the state the restart exists to preserve.
+                     if (allocated(grid(iG)%pdrSeeded)) grid(iG)%pdrSeeded(cellP) = 1
+
+                     ! D-189: DERIVE, do not default. pdrAbun is restored above,
+                     ! but elemAvail and H2den are not in the checkpoint and were
+                     ! left at their fresh-grid values - elemAvail = 1.0 ("no
+                     ! molecules") and H2den = 0 ("no H2 opacity") - in a cell
+                     ! whose restored chemistry says otherwise. Both are
+                     ! functions of pdrAbun, so recompute them from the state
+                     ! that WAS restored rather than storing them twice or
+                     ! letting a default stand in.
+                     if (allocated(grid(iG)%H2den) .and. pdrIdxH2 > 0) &
+                          & grid(iG)%H2den(cellP) = &
+                          & real(grid(iG)%pdrAbun(cellP,pdrIdxH2)*dble(grid(iG)%Hden(cellP)))
+                     if (allocated(grid(iG)%elemAvail)) then
+                        do iLnkR = 1, pdrNlink
+                           if (pdrLinkSpec(iLnkR) <= 0) cycle
+                           if (pdrLinkIon(iLnkR) /= 1) cycle   ! once per element
+                           availR = grid(iG)%pdrAbun(cellP, pdrLinkSpec(iLnkR))
+                           do jLnkR = 1, pdrNlink
+                              if (pdrLinkSpec(jLnkR) <= 0) cycle
+                              if (pdrLinkElem(jLnkR) /= pdrLinkElem(iLnkR)) cycle
+                              if (pdrLinkIon(jLnkR) /= 2) cycle
+                              availR = availR + grid(iG)%pdrAbun(cellP, pdrLinkSpec(jLnkR))
+                           end do
+                           if (pdrLinkElem(iLnkR) == 1) then
+                              grid(iG)%elemAvail(cellP,1) = &
+                                   & real(min(max(availR, 0.d0), 1.d0))
+                           else if (grid(iG)%elemAbun(grid(iG)%abFileIndex(i,j,k), &
+                                &                     pdrLinkElem(iLnkR)) > 0.) then
+                              grid(iG)%elemAvail(cellP, pdrLinkElem(iLnkR)) = &
+                                   & real(min(max(availR/dble(grid(iG)%elemAbun( &
+                                   &   grid(iG)%abFileIndex(i,j,k), &
+                                   &   pdrLinkElem(iLnkR))), 0.d0), 1.d0))
+                           end if
+                        end do
+                     end if
                   end if
 #endif
                   if (lgDust) then
