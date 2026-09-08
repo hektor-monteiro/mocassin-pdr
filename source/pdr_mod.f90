@@ -1122,6 +1122,117 @@ module pdr_mod
 
       end subroutine computeAVradial
 
+#ifdef RAYTHEIA
+      !-----------------------------------------------------------------
+      ! D-190: per-ray shielding columns, ray-traced through the grid.
+      !
+      ! The 3D build gives every HEALPix ray a real path length, but every
+      ! ray's COLUMN still came from the plane-parallel closed form, and all
+      ! twelve shielding columns were filled with the single source-ward scalar
+      ! computeAVradial had traced. That is a slab answer inside a 3D model,
+      ! and the shielding column is what sets the molecular content.
+      !
+      ! Here each ray is walked outward from the cell centre to the grid
+      ! boundary through the actual grid. Twelve traces per cell, once per MC
+      ! iteration - the work computeAVradial already does, times twelve.
+      !
+      ! Directions are the twelve HEALPix nside=1 pixel centres in RING order,
+      ! constructed directly: the vendored pix2vec_nest is never called and its
+      ! pix2x/pix2y tables are never initialised. RING keeps the convention the
+      ! rest of pdr_mod assumes - rays 0-3 at mu = +2/3, 4-7 at 0, 8-11 at -2/3.
+      !-----------------------------------------------------------------
+      subroutine computeRayColumns(grid)
+        implicit none
+        type(grid_type), intent(inout) :: grid(*)
+
+        integer :: iG, i, j, k, kray, istep, nstep, ix, iy, iz, cP, cellP
+        double precision :: vx(0:11), vy(0:11), vz(0:11)
+        double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
+        double precision :: cH2, cC, cCO, cAV, nd, kap
+
+        do kray = 0, 11
+           if (kray < 4) then
+              zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
+           else if (kray < 8) then
+              zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
+           else
+              zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+           end if
+           sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+           vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
+        end do
+
+        do iG = 1, nGrids
+           if (.not.allocated(grid(iG)%colRayH2)) cycle
+           ds = abs(dble(grid(iG)%xAxis(min(2,grid(iG)%nx))) &
+                & - dble(grid(iG)%xAxis(1)))
+           if (grid(iG)%ny > 1) ds = min(ds, abs(dble(grid(iG)%yAxis(2)) &
+                & - dble(grid(iG)%yAxis(1))))
+           if (grid(iG)%nz > 1) ds = min(ds, abs(dble(grid(iG)%zAxis(2)) &
+                & - dble(grid(iG)%zAxis(1))))
+           if (ds <= 0.d0) cycle
+           dmax = sqrt( dble(grid(iG)%xAxis(grid(iG)%nx))**2 &
+                &     + dble(grid(iG)%yAxis(grid(iG)%ny))**2 &
+                &     + dble(grid(iG)%zAxis(grid(iG)%nz))**2 )
+           nstep = max(4, min(2000, int(dmax/ds) + 1))
+
+           do i = 1, grid(iG)%nx
+            do j = 1, grid(iG)%ny
+             do k = 1, grid(iG)%nz
+              cellP = grid(iG)%active(i,j,k)
+              if (cellP <= 0) cycle
+              if (mod(cellP-(taskid+1), numtasks) /= 0) cycle
+              do kray = 0, 11
+                 cH2 = 0.d0; cC = 0.d0; cCO = 0.d0; cAV = 0.d0
+                 do istep = 1, nstep
+                    rr = (dble(istep)-0.5d0)*ds
+                    px = dble(grid(iG)%xAxis(i)) + vx(kray)*rr
+                    py = dble(grid(iG)%yAxis(j)) + vy(kray)*rr
+                    pz = dble(grid(iG)%zAxis(k)) + vz(kray)*rr
+                    if (px < dble(grid(iG)%xAxis(1)) .or. &
+                      & px > dble(grid(iG)%xAxis(grid(iG)%nx)) .or. &
+                      & py < dble(grid(iG)%yAxis(1)) .or. &
+                      & py > dble(grid(iG)%yAxis(grid(iG)%ny)) .or. &
+                      & pz < dble(grid(iG)%zAxis(1)) .or. &
+                      & pz > dble(grid(iG)%zAxis(grid(iG)%nz))) exit
+                    ix = nearestAxG(grid(iG)%xAxis, grid(iG)%nx, real(px))
+                    iy = nearestAxG(grid(iG)%yAxis, grid(iG)%ny, real(py))
+                    iz = nearestAxG(grid(iG)%zAxis, grid(iG)%nz, real(pz))
+                    cP = grid(iG)%active(ix,iy,iz)
+                    if (cP <= 0) cycle
+                    nd  = dble(grid(iG)%Hden(cP))
+                    cH2 = cH2 + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxH2))*ds
+                    cC  = cC  + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxC ))*ds
+                    cCO = cCO + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxCO))*ds
+                    kap = dble(grid(iG)%absOpac(cP,VbandP)) &
+                        & + dble(grid(iG)%scaOpac(cP,VbandP))
+                    cAV = cAV + kap*ds
+                 end do
+                 grid(iG)%colRayH2(cellP,kray) = real(cH2)
+                 grid(iG)%colRayC (cellP,kray) = real(cC)
+                 grid(iG)%colRayCO(cellP,kray) = real(cCO)
+                 grid(iG)%colRayAV(cellP,kray) = real(1.0857d0*cAV)
+              end do
+             end do
+            end do
+           end do
+        end do
+
+      end subroutine computeRayColumns
+
+      integer function nearestAxG(ax, n, v)
+        implicit none
+        real, intent(in) :: ax(*)
+        integer, intent(in) :: n
+        real, intent(in) :: v
+        integer :: m
+        nearestAxG = 1
+        do m = 1, n
+           if (abs(ax(m)-v) < abs(ax(nearestAxG)-v)) nearestAxG = m
+        end do
+      end function nearestAxG
+#endif
+
 
       subroutine computeAVdust(grid)
         implicit none
@@ -1405,6 +1516,13 @@ module pdr_mod
            ! geometric column stands (D-043).
         end do
 
+
+#ifdef RAYTHEIA
+        ! D-190: with the grid's abundances current, retrace the per-ray
+        ! shielding columns before the chemistry consumes them.
+        call computeRayColumns(grid)
+#endif
+
       end subroutine mocassinToPDR
 
 
@@ -1465,6 +1583,7 @@ module pdr_mod
         double precision   :: availTot, mocNeut, mocIon   ! D-153
         integer            :: iTpass                     ! D-166
         integer            :: iEl                        ! D-188
+        integer            :: iRay                       ! D-190
         double precision   :: Tc, coolTot2, coolTot3     ! D-166
 
         cellP = grid%active(xP,yP,zP)
@@ -1716,10 +1835,28 @@ module pdr_mod
         sH2 = max(sH2, 0.d0)
         sCO = max(sCO, 0.d0)
         sC  = max(sC , 0.d0)
+        ! D-190: per-ray traced columns where they exist, the single
+        ! source-ward scalar otherwise.
+        !
+        ! sH2/sCO/sC come from computeAVradial, which traces ONE direction -
+        ! source to cell - and is the right shielding column for the stellar
+        ! FUV. Assigning it to all twelve rays says every direction is as
+        ! shielded as the line back to the star, which in a 3D model it is not:
+        ! a ray pointing out of the cloud sees almost no column at all. The
+        ! traced values give each ray its own.
         colH2 = sH2
         colCO = sCO
         colC  = sC
         colHD = 0.d0
+#ifdef RAYTHEIA
+        if (allocated(grid%colRayH2)) then
+           do iRay = 0, nraysLoc-1
+              colH2(iRay) = dble(grid%colRayH2(cellP,iRay))
+              colCO(iRay) = dble(grid%colRayCO(cellP,iRay))
+              colC (iRay) = dble(grid%colRayC (cellP,iRay))
+           end do
+        end if
+#endif
         colS  = 0.d0
 
         abun0 = abun
@@ -1777,9 +1914,11 @@ module pdr_mod
            ! shielding columns follow the abundances between passes
            ! columns follow the abundances between passes, scaled from the
            ! integrated value so the depth weighting is preserved (D-078)
-           if (abun0(NH2) > 0.d0) colH2 = sH2*abun(NH2)/abun0(NH2)
-           if (abun0(NCO) > 0.d0) colCO = sCO*abun(NCO)/abun0(NCO)
-           if (abun0(NC ) > 0.d0) colC  = sC *abun(NC )/abun0(NC )
+           ! D-190: rescale in PLACE so a traced per-ray column keeps its own
+           ! value; the old form overwrote all twelve with the scalar again.
+           if (abun0(NH2) > 0.d0) colH2 = colH2*abun(NH2)/abun0(NH2)
+           if (abun0(NCO) > 0.d0) colCO = colCO*abun(NCO)/abun0(NCO)
+           if (abun0(NC ) > 0.d0) colC  = colC *abun(NC )/abun0(NC )
         end do
 
         ! Make a silent solver failure visible. calculate_abundances copies the
@@ -2040,20 +2179,33 @@ module pdr_mod
               ! per-ray columns ray-traced through the grid, as 3D-PDR does in
               ! columndensity.F90. Until that exists, a 3D run using this is
               ! approximating every ray's column by the plane-parallel result.
+              ! D-190: the ray-traced A_V, not the slab closed form. Every ray
+              ! now carries the extinction actually accumulated along it through
+              ! the grid; the old version assigned A_V/|mu| or A_Vback/mu from a
+              ! plane-parallel argument, which is a slab answer inside a 3D
+              ! model. Falls back to the closed form only if the trace has not
+              ! run yet (first iteration, before mocassinToPDR).
               do kray = 0, nraysLoc-1
-                 if (kray < 4) then
-                    mu =  2.d0/3.d0
-                 else if (kray < 8) then
-                    mu =  0.d0
+                 if (allocated(grid%colRayAV)) then
+                    colA = dble(grid%colRayAV(cellP,kray))
                  else
-                    mu = -2.d0/3.d0
+                    colA = -1.d0
                  end if
-                 if (mu > 1.d-6) then
-                    colA = avBack/mu
-                 else if (mu < -1.d-6) then
-                    colA = av/abs(mu)
-                 else
-                    colA = 1.d30
+                 if (colA < 0.d0) then
+                    if (kray < 4) then
+                       mu =  2.d0/3.d0
+                    else if (kray < 8) then
+                       mu =  0.d0
+                    else
+                       mu = -2.d0/3.d0
+                    end if
+                    if (mu > 1.d-6) then
+                       colA = avBack/mu
+                    else if (mu < -1.d-6) then
+                       colA = av/abs(mu)
+                    else
+                       colA = 1.d30
+                    end if
                  end if
                  jjr(kray)    = 1
                  plen(kray,0) = 0.d0

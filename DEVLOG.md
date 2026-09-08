@@ -189,6 +189,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-187 | **The two atomic datasets measured.** MOCASSIN (CHIANTI v10) vs LAMDA: energies agree to <=0.1% and weights are identical, but the A-coefficients differ by **1.3% ([C II] 158um)** to **6.1% ([O I] 145um)**. Too small to matter today, but a silent dependency on which code computed the cooling | Measured | 2026-09-08 |
 | D-188 | **Every cell was seeded x(H2)=0.300, x(H)=0.400 - the network file's dark-cloud defaults - including cells in the H II region at 9000 K.** Now seeded from MOCASSIN's own ionization state on first visit, molecules zero, chemistry forms them | Done | 2026-09-08 |
 | D-189 | Restart audit: elemAvail reset to 1.0 ("no molecules") and H2den to 0 while pdrAbun was restored full of them. Both are functions of pdrAbun - now DERIVED from the restored state instead of defaulted | Done | 2026-09-08 |
+| D-190 | **PDRGEOM=3D with ray-traced per-ray columns.** A 3D photoionization code had been coupled to a 1D PDR: 11 of 12 rays blanked, escape probability undivided, all 12 shielding columns filled with one source-ward scalar. Mean Te **-23%**, its per-iteration change **26.8% -> 6.9%**, and **the two-cell ionization oscillation at the front is gone** | Done | 2026-09-08 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10222,4 +10223,102 @@ should be tidied.
   away from them - the same category as LTE, not the D-188 category. `initH0`
   became a keyword at D-160 precisely so its influence could be measured.
 * `pdrTseed` is declared but never used. Dead parameter.
+
+## 2026-09-08j - D-190: the geometry inconsistency was doing real damage
+
+Hektor: *"We have not yet used PDRGEOM=3D. So we are essentially using a 3D
+photoionization code coupled with a 1D PDR code."* Then, on being told the 3D
+build still took its columns from the plane-parallel closed form: *"we should
+use the per-ray column densities ray-traced through the grid since the
+shielding-column is an important parameter in determining molecular content."*
+
+Both correct, and the fix is the largest single physics result of this session.
+
+### What was wrong
+
+Two things, both in `escape_probability.F90` and `pdr_mod`:
+
+1. **The escape probability.** `#ifdef ONEDIMENSIONAL` blanks eleven of the
+   twelve HEALPix rays and takes `beta_ij = beta_ij_sum` **undivided**. Correct
+   for a slab. Section 5.4 is a sphere with a central source, where photons have
+   far more solid angle to escape into, so a slab beta understates the escape
+   and therefore understates the line cooling.
+2. **The shielding columns.** Even in the 3D build, every ray's column was the
+   plane-parallel `A_V/|mu|` or `A_Vback/mu`, and all twelve of `colH2`,
+   `colCO`, `colC` were filled with the single source-ward scalar
+   `computeAVradial` traces. A ray pointing out of the cloud was being told it
+   was as shielded as the line back to the star.
+
+### The fix
+
+`computeRayColumns` walks each of the twelve rays outward from every cell to the
+grid boundary through the actual grid, accumulating n(H2), n(C), n(CO) columns
+and the V-band extinction. Called once per MC iteration from `mocassinToPDR`.
+Directions are the twelve nside=1 pixel centres constructed directly in RING
+order - the vendored `pix2vec_nest` is never called anywhere and its pix2x/pix2y
+tables are never initialised.
+
+Two things had to be corrected on the way. The rescale
+`colH2 = sH2*abun/abun0` recomputed all twelve from the scalar on every
+chemistry iteration, so traced values would have been overwritten immediately -
+it now rescales in place. And the new grid fields had to be declared
+unconditionally rather than under `#ifdef RAYTHEIA`, because PDRGEOMFLAG is not
+applied to common_mod's compilation: the eighth flag-scope build break in this
+project.
+
+### Result: section 5.4, 24 iterations, identical but for the geometry
+
+| | 1D slab | 3D ray-traced |
+|---|---|---|
+| convergence | 87.58% | **89.31%** |
+| **mean Te** | 1.4712e7 | **1.1343e7  (-23%)** |
+| **Te change/iter** | **26.8%** | **6.9%** |
+| H0 change/iter | -11.2% | -3.5% |
+| H+ change/iter | 4.1% | 1.1% |
+| H2 total | 6.5487e5 | 6.7367e5 (+2.9%) |
+| CO total | 6.4622 | 6.9698 (+7.9%) |
+| runtime | ~95 min | **84 min** |
+
+**The mean temperature falls 23%** - the predicted direction: more escape, more
+cooling, colder gas - and it eats into the 3-13x warm bias.
+
+**The temperature finally converges.** Te was the one quantity that would not
+settle: 26.8% per iteration at the end of every run in this session. It is now
+6.9%, with H0 and H+ tightening 3-4x as well. A slab escape probability inside a
+spherical model was a significant part of why the thermal state kept moving.
+
+The twelve traces per cell per iteration cost **nothing** - the run is faster
+than the 1D one, because it converges better.
+
+### The two-cell oscillation at the front is gone
+
+| r | T 1D | T 3D | x(H+) 1D | x(H+) 3D | x(H2) 1D | x(H2) 3D |
+|---|---|---|---|---|---|---|
+| 1.4e19 | 10682 | **58.8** | **0.999** | **4.0e-3** | 1.6e-8 | 6.1e-7 |
+| 1.6e19 | 7961 | **148.5** | **0.037** | **3.6e-3** | 5.3e-8 | 4.4e-4 |
+| 1.8e19 | 10570 | **1866** | **0.997** | **1.6e-2** | 2.0e-8 | 1.5e-2 |
+| 2.0e19 | 7842 | 1791 | **0.033** | 1.2e-2 | 6.1e-8 | 7.0e-3 |
+
+x(H+) alternated 0.999 / 0.037 / 0.997 / 0.033 in adjacent cells and now runs
+4.0e-3 / 3.6e-3 / 1.6e-2 / 1.2e-2 - **no alternation**. H2 forms at the front
+(1.5e-2) where the 1D run suppressed it to ~2e-8. Cells above 1000 K fall from
+38% to 31%.
+
+**Not fully cured**: a weaker disturbance remains further out, at 2.2-3.0e19,
+where T spikes to 3561 K and x(H2) dips to 9e-6 between 2.4e-2 and 0.415. So the
+pathology is reduced and displaced rather than eliminated. Deep beyond 3.4e19
+the two runs are identical and both correct, x(H2) -> 0.495.
+
+### What this retires and what it does not
+
+Three candidates for the oscillation were excluded by measurement (packets,
+ionizing contamination, the H2 seed). This is the fourth thing tried and the
+first to move it - so the front oscillation was substantially a **geometry**
+artifact, not the H2 bistability alone. The residual disturbance further out may
+still be the bistability, and the continuation argument (D-171) is untouched.
+
+The V1/V2 slab benchmarks are genuinely 1D and unaffected: for them the
+ONEDIMENSIONAL branch is the correct geometry. This only bites on models that
+are actually 3D, which is exactly why it survived every slab benchmark in the
+project.
 

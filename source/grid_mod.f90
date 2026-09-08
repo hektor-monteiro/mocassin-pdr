@@ -1620,6 +1620,18 @@ module grid_mod
              stop
           end if
           grid%pdrSeeded = 0
+#ifdef RAYTHEIA
+          allocate(grid%colRayH2(0:grid%nCells,0:11), stat = err)  ! D-190
+          if (err == 0) allocate(grid%colRayC (0:grid%nCells,0:11), stat = err)
+          if (err == 0) allocate(grid%colRayCO(0:grid%nCells,0:11), stat = err)
+          if (err == 0) allocate(grid%colRayAV(0:grid%nCells,0:11), stat = err)
+          if (err /= 0) then
+             print*, "Can't allocate memory to per-ray column arrays"
+             stop
+          end if
+          grid%colRayH2 = 0.; grid%colRayC = 0.
+          grid%colRayCO = 0.; grid%colRayAV = 0.
+#endif
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then
@@ -3569,6 +3581,17 @@ end function getVolume
                   print*, "! resetGrid: can't allocate pdrSeeded memory"; stop
                end if
                grid(iG)%pdrSeeded = 0
+#ifdef RAYTHEIA
+               allocate(grid(iG)%colRayH2(0:grid(iG)%nCells,0:11), stat = err)  ! D-190
+               if (err == 0) allocate(grid(iG)%colRayC (0:grid(iG)%nCells,0:11), stat = err)
+               if (err == 0) allocate(grid(iG)%colRayCO(0:grid(iG)%nCells,0:11), stat = err)
+               if (err == 0) allocate(grid(iG)%colRayAV(0:grid(iG)%nCells,0:11), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate per-ray column arrays"; stop
+               end if
+               grid(iG)%colRayH2 = 0.; grid(iG)%colRayC = 0.
+               grid(iG)%colRayCO = 0.; grid(iG)%colRayAV = 0.
+#endif
                allocate(grid(iG)%pdrCoolSlope(0:grid(iG)%nCells), stat = err)  ! D-166
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSlope memory"; stop

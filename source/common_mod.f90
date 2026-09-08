@@ -277,6 +277,17 @@ module common_mod
         ! cell is seeded from MOCASSIN's ionization state rather than from the
         ! network file's defaults.
         integer, allocatable :: pdrSeeded(:)
+        ! D-190: per-ray shielding columns and extinction, ray-traced through
+        ! the grid rather than taken from the plane-parallel closed form.
+        !   (cell, ray): H2, C and CO columns [cm^-2] and A_V [mag] outward
+        !   along each HEALPix ray to the grid boundary.
+        ! Declared unconditionally, NOT under #ifdef RAYTHEIA: PDRGEOMFLAG is
+        ! not applied to common_mod's compilation, so a RAYTHEIA-guarded field
+        ! here is invisible to the rest of the build. That is the eighth time a
+        ! flag-scoped declaration has broken this build. Allocated only in the
+        ! 3D flavour; 192 bytes per cell if it ever were allocated in 1D.
+        real, allocatable    :: colRayH2(:,:), colRayC(:,:)
+        real, allocatable    :: colRayCO(:,:), colRayAV(:,:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;
