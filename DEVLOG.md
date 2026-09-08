@@ -185,6 +185,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-183 | H2 cooling: **neither code has an explicit H2 line coolant.** H2 enters as a collider exciting CO/C+/C/O, as three heating terms, and via the critical-density suppression of FUV pumping. Cloudy computes it explicitly; we match the reference by construction | Understood | 2026-09-08 |
 | D-184 | **cmp_sph defaulted to the wrong reference.** hii1dv2 carries C = 1.4e-4, sec54 and our fixture carry 2.2e-4 - a spurious uniform 1.571x carbon offset in every sec 5.4 comparison this project has made. Fixed | Done | 2026-09-08 |
 | D-185 | **elemAvail stands down where the rates ARE, not where a zone flag says they should be.** The old test asserted delivery rather than checking it; pdrStep writes the rates AFTER updateCell, so on the first PDR pass they are identically zero and the molecular locking was carried by neither mechanism. Keyed per element on the rates themselves; both zone gates removed | Done | 2026-09-08 |
+| D-186 | **Atomic-data inconsistency, flagged for future work.** [C II]/[C I]/[O I] are taken from 3D-PDR because MOCASSIN excites them with electrons alone. Correct physics today, but two codes hold line data for the same transitions. The endpoint is MOCASSIN owning them with H/H2/He colliders added, and 3D-PDR supplying only rates MOCASSIN does not have | Deferred | 2026-09-08 |
+| D-187 | **The two atomic datasets measured.** MOCASSIN (CHIANTI v10) vs LAMDA: energies agree to <=0.1% and weights are identical, but the A-coefficients differ by **1.3% ([C II] 158um)** to **6.1% ([O I] 145um)**. Too small to matter today, but a silent dependency on which code computed the cooling | Measured | 2026-09-08 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -9940,4 +9942,129 @@ Expected impact: small. Mg is 2.7e-6 of hydrogen and contributes negligibly to
 the cooling and the electron budget, so no benchmark number should move. That is
 a prediction to test, not an assumption - and the value of the change is that
 the behaviour is now correct by construction rather than by accident.
+
+## 2026-09-08f - D-186: the one place we take what MOCASSIN already provides
+
+Hektor's rule, stated while reviewing the coolant path: *"We should use from
+3D-PDR only what Mocassin does not provide. We should not delete MOCASSIN's
+cooling if it was not calculated elsewhere."*
+
+The second sentence settles an open design question and I withdrew a change I
+had just offered because of it. I had proposed making `pdrCoolSp = 0`
+distinguishable between "carrier destroyed, not computed" and "computed to be
+zero", so that a genuine zero could be substituted. That is precisely the thing
+the rule forbids: it would let 3D-PDR's zero delete MOCASSIN's cooling. D-167's
+guard stands as written - replace only where there IS a replacement.
+
+### Audit against the rule
+
+| quantity | MOCASSIN provides? | what we do |
+|---|---|---|
+| CO cooling | no line data | take 3D-PDR's |
+| molecular abundances | no chemistry | take 3D-PDR's |
+| H2 formation / photodissociation / FUV pumping / cosmic-ray / turbulent / chemical heating | none exist in MOCASSIN | take 3D-PDR's (`pdrHeatXtra`) |
+| photoelectric heating | yes, from its own grains | excluded, MOCASSIN's stands |
+| carbon photoionization heating | yes, in `heatSte` | excluded |
+| gas-grain heating | yes, `gasDustColl_g` | excluded |
+| ionization state | yes | MOCASSIN owns it (D-162) |
+| temperature | yes | MOCASSIN owns it (D-165) |
+| **[C II], [C I], [O I] cooling** | **yes, but electron-excited only** | **replaced (D-133)** |
+
+Everything obeys the rule except the last row.
+
+### Why it stays for now, and what the endpoint is
+
+MOCASSIN does have the lines - `ci.dat`, `cii.dat`, `oi.dat` - but excites them
+with electrons alone. In neutral gas x(e-) ~ 1e-4, so its [C II] and [O I]
+under-cool by orders of magnitude: D-133 measured that leaving MOCASSIN to own
+them put the deep PDR at 157 K, where 3D-PDR's own balance at that same
+temperature said cooling exceeded heating 3.2 to 1. So 3D-PDR's value is the
+physically correct one today and Hektor's ruling is to keep it.
+
+**But two codes now hold line data for the same transitions**, which is exactly
+the duplication this project has spent D-161 to D-169 removing everywhere else.
+It is an atomic-data inconsistency waiting to bite: if the two datasets ever
+disagree - different A-coefficients, different level energies, different
+collision fits - the model's cooling depends on which code happened to compute
+it, and nothing would flag the discrepancy.
+
+**The endpoint** is that MOCASSIN owns these coolants outright, with H, H2 and
+He added as colliders, and 3D-PDR supplies only collision rates MOCASSIN does
+not have. That is not a data-sourcing problem: the rates are already in the
+LAMDA files the PDR reads - `12c+.dat` carries `H_COL`, `H2_COL`, `PH2_COL` and
+`OH2_COL` alongside `EL_COL`. The work is extending MOCASSIN's `forbiddenLines`
+to accept non-electron colliders, then deleting the substitution.
+
+Until then the substitution is a **known, deliberate, physically justified
+duplication**, recorded here and on the status page so it is not mistaken for
+an oversight.
+
+## 2026-09-08g - D-187: how far apart the two atomic datasets actually are
+
+D-186 flagged that two codes hold line data for the same transitions and that
+the cooling therefore depends on which one computed it. That was a statement of
+risk; this measures it, so the future work has a baseline rather than a
+suspicion.
+
+MOCASSIN reads CHIANTI v10 files (`data/ci.dat`, `cii.dat`, `oi.dat` - level
+energies, statistical weights, electron collision strengths Omega(T), and
+A-values, all in one file). The PDR reads LAMDA (`dataPDR/12c.dat`,
+`12c+.dat`, `16o.dat` - energies, weights, A-values, and collision RATE
+coefficients for e-, H, H+, He, para-H2 and ortho-H2).
+
+### Level energies and weights: no disagreement
+
+| | MOCASSIN | LAMDA | difference |
+|---|---|---|---|
+| C II 2P3/2 | 63.4 | 63.395087 | 0.008% |
+| C II 4P1/2 | 43003.2 | 43003.291 | 0.0002% |
+| C II 4P3/2 | 43024.2 | 43025.285 | 0.0025% |
+| C I 3P1 | 16.4 | 16.4167122 | 0.10% |
+| C I 3P2 | 43.4 | 43.4134544 | 0.03% |
+| O I 3P1 | 158.3 | 158.2687410 | 0.02% |
+| O I 3P0 | 227.0 | 226.9852492 | 0.006% |
+
+Statistical weights are identical throughout - C II (2,4,2,4,6), C I (1,3,5),
+O I (5,3,1). MOCASSIN's energies are simply stored to fewer decimals. Nothing
+here is a physical disagreement.
+
+### Einstein A-coefficients: 1 to 6 percent apart
+
+| line | MOCASSIN (CHIANTI v10) | LAMDA | difference |
+|---|---|---|---|
+| [C II] 158 um | 2.290e-06 | 2.321e-06 | **1.3%** |
+| [C I] 609 um (2->1) | 7.93e-08 | 7.880e-08 | 0.6% |
+| [C I] 370 um (3->2) | 2.65e-07 | 2.650e-07 | 0.0% |
+| [O I] 63 um | 8.542e-05 | 8.910e-05 | **4.1%** |
+| [O I] 145 um | 1.643e-05 | 1.750e-05 | **6.1%** |
+| [O I] 3->1 | 1.380e-10 | 1.340e-10 | 3.0% |
+
+### What it means, and what it does not
+
+In the optically thin limit the cooling rate scales linearly with A, so the 6.1%
+on [O I] 145 um propagates directly into the cooling wherever that line
+dominates. **It is far too small to bear on the 3-7x temperature excess** and is
+not a candidate for it.
+
+Its significance is the one D-186 named: the two codes hold genuinely different
+numbers for the same transitions, so which code computes a coolant changes the
+answer by a per-cent or two. Today that is invisible against everything else.
+It matters because it is a **silent dependency** - if either dataset is updated
+independently, the model moves and nothing reports it.
+
+That strengthens the case for the D-186 endpoint. When MOCASSIN owns these
+coolants with H, H2 and He added as colliders, there is one dataset and the
+question disappears. Until then the numbers above are the measured size of the
+inconsistency, and a regression check worth having: if these differences ever
+grow, something has been updated on one side only.
+
+### Note on the collision data
+
+The two codes store collisions in different forms - CHIANTI gives Omega(T)
+(dimensionless collision strengths, electrons only, on a 23-point temperature
+grid for C II); LAMDA gives rate coefficients in cm^3/s for six partners. They
+are relatable by q = 8.629e-6/(g_u sqrt(T)) * Omega, so a like-for-like
+comparison of the ELECTRON rates is possible and has not been done. That is the
+other half of this measurement and is the thing that would actually have to be
+reconciled when MOCASSIN takes the coolants over.
 
