@@ -1442,6 +1442,36 @@ module iteration_mod
            end if
 
 
+           ! ------------------------------------------------------- D-183
+           ! Are the chemistry's per-stage rates actually being delivered?
+           ! D-118 stands elemAvail down wherever they are supplied, so if they
+           ! are zero the molecular locking is represented by NEITHER mechanism.
+           ! D-169 measured zero for hydrogen - but that probe fired inside
+           ! updateCell, which runs BEFORE pdrStep in every coupling pass, so on
+           ! the first PDR pass pdrIonRate has never been written. Report the
+           ! populated fraction and magnitude here, after the pass, where the
+           ! question is answerable.
+#ifdef PDR
+           if (lgPDR .and. teProbe /= 0 .and. taskid == 0 .and. &
+                & nIterateMC >= pdrStartIter) then
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%pdrIonRate)) cycle
+                 do iDum = 1, min(2*pdrNlink, 10)
+                    wDum = 0.d0; nCv1 = 0
+                    do jDum = 1, grid(iG)%nCells
+                       if (grid(iG)%pdrIonRate(jDum,iDum) /= 0.) then
+                          nCv1 = nCv1 + 1
+                          wDum = wDum + abs(dble(grid(iG)%pdrIonRate(jDum,iDum)))
+                       end if
+                    end do
+                    print '(a,i3,a,i8,a,i8,a,es11.4)', "! [D183] pdrIonRate slot", &
+                         & iDum, ": nonzero in", nCv1, " of", grid(iG)%nCells, &
+                         & " cells, mean |rate| ", wDum/max(nCv1,1)
+                 end do
+              end do
+           end if
+#endif
+
            ! ------------------------------------------------------- D-178
            ! Total content per species, the geometry-free analogue of Cloudy's
            ! column-density test. Every rank has the full reduced grid here, so

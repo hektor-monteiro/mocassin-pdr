@@ -727,6 +727,9 @@ module set_input_mod
             case ("pdrFcritConv")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrFcritConv
+            case ("pdrCoolZoneGate")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolZoneGate
             case ("cvUseH2")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, cvUseH2

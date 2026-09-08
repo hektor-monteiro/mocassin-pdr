@@ -181,6 +181,10 @@ reasoning that led to the wrong turn is part of the history.
 | D-179 | Convergence requires x(H0) AND x(H2) when the PDR is on, significance-gated. At the iteration the PDR engages the failures are **18x more x(H2) than x(H0)** - the molecular content was what the old test could not see | Done | 2026-09-07 |
 | D-180 | **`convLimit` sets the PER-CELL tolerance, not the converged-cell fraction.** Every fixture carried `convLimit 0.90`, so a cell passed if x(H0) changed by less than 90%. Every convergence number this project has ever reported was measured against that | Done | 2026-09-07 |
 | D-181 | **First benchmark numbers on a converged model.** V2 converges (all species <=0.7%): CO front **1.017**, H2 front 1.32. V1 does not (H0 -27%, Te -33%). Bistability largely resolves - V1 transitions 55->15, V2 25->**1**. Gas 3-7x too warm in all three | Done | 2026-09-08 |
+| D-182 | **Zone gates removed.** The coolant substitution and the dust feedback no longer key on pdrZone: 3D-PDR's coolants carry electrons AND H/H+/He/H2, so they are the more complete physics everywhere and reduce to the electron case by themselves in ionized gas | Done | 2026-09-08 |
+| D-183 | H2 cooling: **neither code has an explicit H2 line coolant.** H2 enters as a collider exciting CO/C+/C/O, as three heating terms, and via the critical-density suppression of FUV pumping. Cloudy computes it explicitly; we match the reference by construction | Understood | 2026-09-08 |
+| D-184 | **cmp_sph defaulted to the wrong reference.** hii1dv2 carries C = 1.4e-4, sec54 and our fixture carry 2.2e-4 - a spurious uniform 1.571x carbon offset in every sec 5.4 comparison this project has made. Fixed | Done | 2026-09-08 |
+| D-185 | **elemAvail stands down where the rates ARE, not where a zone flag says they should be.** The old test asserted delivery rather than checking it; pdrStep writes the rates AFTER updateCell, so on the first PDR pass they are identically zero and the molecular locking was carried by neither mechanism. Keyed per element on the rates themselves; both zone gates removed | Done | 2026-09-08 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -9722,4 +9726,218 @@ V1 also still receives the full 25000 K blackbody with 11.6% of its energy above
 1 Ryd, which the Roellig specification excludes (D-101) and which a pure-PDR
 slab has no business absorbing. The pure-FUV fixtures were built during D-171
 and have never been run; that is the obvious next test for V1.
+
+## 2026-09-08b - D-182: the zone gates come out
+
+Hektor's ruling, and it restates a principle already settled twice in this log
+(D-152's blend gate, D-169's pdrOwnIon gate): *"we should not have the zone
+gate. this should emerge naturally from the self consistent solution."*
+
+I had defended this one an hour earlier as "right rather than a leftover". That
+was wrong, and the argument against it is short. 3D-PDR's coolants are solved
+with electrons **and** H, H+, He, H2 as colliders (`FIND_CCOEFF` receives all
+five densities, and splits H2 ortho/para at the equilibrium ratio
+`FPARA = 1/(1+9exp(-170.5/T))`). MOCASSIN's `forbiddenLines` carry electrons
+alone. So the PDR value is strictly the more complete physics in **every** cell:
+in ionized gas it reduces to the electron-dominated case by itself, because
+FIND_CCOEFF is handed the same n(e) MOCASSIN would use. Gating it on
+`pdrZone == 1` bought nothing and put a discontinuity at `pdrZoneLim`.
+
+Removed for the coolant substitution and for `pdrDustFeedback`, both behind
+`pdrCoolZoneGate` (default 0 = no gate) so the old behaviour stays measurable.
+
+Surveyed and left alone, with reasons:
+
+* `pdrPEfromPDR`, `pdrUseNePDR` - default off, so their gates are inert.
+* the D-072 short circuit - now gated on `pdrTeFromMocassin == 0`, so it never
+  fires in the self-consistent mode; its zone test *is* the definition of the
+  legacy mode.
+* **`elemAvail` / rate injection - the same anti-pattern, deliberately not
+  touched yet.** See D-185.
+
+## 2026-09-08c - D-183: how H2 cooling is handled, in both codes
+
+Hektor asked. The answer is that **neither 3D-PDR nor our coupling has an
+explicit H2 line coolant**, and that is a deliberate match rather than an
+oversight.
+
+H2 enters 3D-PDR in three ways:
+
+1. **As a collision partner.** `coolingfunctions.F90` passes `H2_COL`,
+   `PH2_COL`, `OH2_COL` and n(H2) into `FIND_CCOEFF`, so H2 excites CO, C+, C
+   and O. This is the D-072/D-133 point - it is why the PDR's [C II] and [O I]
+   are orders of magnitude stronger than MOCASSIN's electron-only versions.
+2. **As three heating terms** of the twelve in `heatingfunctions.F90`: H2
+   formation (1.5 eV), H2 photodissociation (0.4 eV), FUV pumping (2.2 eV x 9).
+3. **Radiative loss implicitly.** `FUVPUMPING_HEATING` carries
+   `1/(1 + NCR_H2/DENSITY)`: below the critical density pumped H2 de-excites
+   radiatively and the energy leaves the gas, accounted for by suppressing the
+   heating rather than by adding a cooling term.
+
+The cooling proper is the four coolants (CO, C+, C, O) through escape
+probability, plus gas-grain when Td < Tg. Our coupling carries all of that: the
+same four coolant files, and all three H2 heating terms in `pdrHeatXtra`.
+
+**Cloudy differs.** It runs a full H2 level model (`mole_h2.cpp`) and computes
+H2 heating and cooling explicitly from the populations - `radius_next.cpp` even
+limits the zone thickness on "change in H2 heating/cooling" once H2 carries more
+than 10% of the heating.
+
+Worth watching but not a candidate for our warm bias on its own: the reference
+lacks the term too, so it cannot explain us being warmer *than the reference*.
+It could only amplify an existing offset, and only where our H2 differs from
+theirs.
+
+## 2026-09-08d - D-184: sec 5.4 was being compared against the wrong reference
+
+Chasing whether carbon showed the elemAvail signature turned up something else.
+`cmp_sph.py` defaulted to `hii1dv2`, and there are two spherical references:
+
+| | C+ | O |
+|---|---|---|
+| `hii1dv2` | 1.4e-4 | 3.0e-4 |
+| `sec54` (and the hiipdr fixture) | **2.2e-4** | **3.3e-4** |
+
+So every sec 5.4 comparison in this project carried a spurious uniform
+**1.571x** carbon offset. Against the correct reference the surface C+ matches
+exactly, 2.20e-4 both sides.
+
+What that leaves is more informative than what it removes:
+
+| A_V | x(C+) ours | ref | T ours | T ref | chi ours/ref |
+|---|---|---|---|---|---|
+| 0.00 | 2.20e-4 | 2.20e-4 | 362 | 182 | 1.55 |
+| 1.14 | 1.85e-4 | 2.20e-4 | 325 | 91 | 1.54 |
+| 2.21 | 1.04e-4 | 1.92e-4 | 389 | 30 | **6.19** |
+
+The temperature excess grows with depth - 2.0x at the front, **13x** deep - and
+tracks chi_ours/chi_ref, which grows the same way. That is D-089/D-090:
+MOCASSIN transports scattered FUV that the reference's `exp(-3.02 A_V)` has no
+term for, giving gamma_eff = 1.85 against 3.02, and the difference compounds
+exponentially in A_V. So the deep temperature disagreement is largely a known
+and understood difference in the radiation field, not a missing coolant.
+
+Our C+ also converts to C and CO faster than the reference at depth
+(1.04e-4 against 1.92e-4), which is now a real physical difference to examine
+rather than an abundance artifact.
+
+The script's default is corrected, with the reason in a comment.
+
+## 2026-09-08e - D-185: the rate matrix becomes the standard
+
+Hektor's instruction: make the rate matrix the self-consistent path throughout,
+and remove the leftover gates. This is the deepest of them.
+
+### The two descriptions
+
+`ionBalance` normalises ion stages to sum to one, which asserts the whole
+element is atomic or ionic - false wherever CO or H2 holds some. Two ways to
+say otherwise:
+
+* **elemAvail (D-102)**, in *abundance* space: only fraction f of the element is
+  available to the stages, f = (neutral + ionized)/total from the chemistry.
+* **Per-stage rates (D-118)**, in *rate* space and Cloudy's design
+  (`ion_solver.cpp:765`): a formation rate into the RHS and a specific
+  destruction rate onto the diagonal, so "C+ is consumed into CO this fast and
+  released that fast" appears in the balance equations directly.
+
+D-118's rule that only one may apply is correct - both would count the same CO
+twice.
+
+### What was wrong
+
+The test for which applies was `grid%pdrZone(cellP) == 1`. That **asserts** the
+rates are present rather than checking. They are written by `pdrStep`, which
+runs after `updateCell` in every coupling pass (iteration_mod:978 against
+:1075), so on the first PDR pass `pdrIonRate` is identically zero - and D-169
+measured zero for hydrogen in a zone cell with all ten links resolved.
+
+Wherever that happens, `availFrac` is forced to 1.0 **and** the rates contribute
+nothing: the locking is carried by neither, and ionBalance solves as if no
+hydrogen were molecular in cells that are 98% H2.
+
+It does not visibly break for hydrogen because `handBackPDR`'s `pdrAtomicH`
+branch afterwards overwrites `ionDen(H,1)` with `1 - x(H+) - 2 x(H2)`, restoring
+the composition the solve got wrong. **C, O and Mg have no such rescue.**
+
+### The fix
+
+Key the stand-down per element on whether that element's rates are actually
+non-zero in this cell:
+
+```fortran
+lgHaveRates = .false.
+do ik = 1, pdrNlink
+   ...
+   if (pdrIonRate(cellP, ik) /= 0. .or. pdrIonRate(cellP, pdrNlink+ik) /= 0.) &
+        lgHaveRates(pdrLinkElem(ik)) = .true.
+end do
+...
+if (lgIonChemRates .and. lgHaveRates(elem)) then
+   availFrac(elem) = 1.d0        ! the rates carry it
+else
+   availFrac(elem) = elemAvail   ! the abundance carries it
+end if
+```
+
+Three cases, exhaustive, and none double-counts:
+
+| | carried by |
+|---|---|
+| rates present | the rate matrix |
+| rates absent | elemAvail |
+| neither | impossible by construction |
+
+The zone gate disappears from the stand-down and from the injection, which is
+the point of D-182 applied here. It is also robust to the ordering problem
+rather than papering over it: on the first PDR pass the rates are zero, the test
+sees that, and elemAvail correctly stays in force.
+
+### Correctness is independent of the open question
+
+D-183's measurement - whether the rates are delivered at all from pass 2 onward,
+or genuinely zero throughout - is still running. The fix is right either way,
+which is why it did not wait for it:
+
+* if the rates arrive, the test picks them up and the rate matrix is the
+  standard path, as intended;
+* if they never arrive, elemAvail stays in force and the locking is represented
+  rather than lost.
+
+What the measurement changes is the *interpretation* - whether D-118's design
+has been working since it was written, or has never fired - not whether this
+code is correct.
+
+### The measurement, and a correction to D-177
+
+D-183's probe, per iteration over 15204 cells:
+
+| slot | link | non-zero cells | mean \|rate\| |
+|---|---|---|---|
+| 1, 2 | H, H+ | 15105 | 4.07e-14, 3.40e-14 |
+| 3, 4 | He, He+ | 15081, 15204 | 2.5e-18 |
+| 5, 6 | C, C+ | 15042 | 8.4e-19, 1.0e-18 |
+| 7, 8 | O, O+ | 15105 | 3.4e-14 |
+| **9, 10** | **Mg, Mg+** | **0** | **0** |
+
+**D-118's design has been working.** Hydrogen's rates are non-zero in 99.3% of
+cells, so D-169's measured zero was the first-pass artifact suspected above -
+`ionBalance` runs before `pdrStep`, and that probe sampled the one pass where
+`pdrIonRate` has never been written.
+
+**D-177 finding 4 was over-stated by me** and is corrected here. The claim was
+that the molecular locking is carried by neither mechanism. That is true for one
+coupling pass out of ~105, and permanently true only for **magnesium**.
+
+Magnesium is the case the fix was actually needed for. Its rates are zero in
+every cell, so the old `pdrZone == 1` test forced `availFrac(Mg) = 1.0` on the
+assumption of a delivery that never happens: magnesium's ion stages have been
+normalised as if no magnesium were ever locked in a molecule, in every PDR cell,
+for the life of this project. Under D-185 `lgHaveRates(12)` is false and
+elemAvail carries it.
+
+Expected impact: small. Mg is 2.7e-6 of hydrogen and contributes negligibly to
+the cooling and the electron budget, so no benchmark number should move. That is
+a prediction to test, not an assumption - and the value of the change is that
+the behaviour is now correct by construction rather than by accident.
 

@@ -1999,7 +1999,8 @@ end subroutine iterateT
                         ! MOCASSIN has no line data for this carrier at all.
                         pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
                      else if (pdrCoolElem(iCool) > 0 .and. &
-                          &   grid%pdrZone(cellP) == 1) then
+                          &   (pdrCoolZoneGate == 0 .or. &
+                          &    grid%pdrZone(cellP) == 1)) then
                         ! D-133: an ATOMIC coolant inside the PDR. MOCASSIN has
                         ! these lines but excites them with electrons alone,
                         ! while 3D-PDR carries H, H+, He and H2 as well - and in
@@ -2274,6 +2275,7 @@ end subroutine iterateT
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
             real(kind=8), dimension(nElements) :: availFrac   ! D-102
+            logical, dimension(nElements)      :: lgHaveRates ! D-185
 
 
             real, dimension(nElements, nstages) :: &
@@ -2526,9 +2528,39 @@ end subroutine iterateT
                ! It is kept, not deleted, for the cells the rates do not reach:
                ! outside the PDR zone there are no rates, and elemAvail is 1.0
                ! there anyway, so the two agree by construction.
+               ! ---------------------------------------------------- D-185
+               ! elemAvail stands down where the RATES ARE ACTUALLY THERE, not
+               ! where a zone flag says they ought to be.
+               !
+               ! D-118's rule is right: elemAvail and the per-stage rates are
+               ! two descriptions of the same locking and applying both counts
+               ! it twice. But the old test was `pdrZone == 1`, which asserts
+               ! the rates are present rather than checking. They are written by
+               ! pdrStep, which runs AFTER updateCell in every coupling pass, so
+               ! on the first PDR pass they are identically zero - and D-169
+               ! measured zero for hydrogen in a zone cell. Wherever that
+               ! happens the locking was carried by NEITHER mechanism and
+               ! ionBalance solved as if no hydrogen were molecular, in cells
+               ! that are 98% H2. Hydrogen is rescued afterwards by
+               ! handBackPDR's pdrAtomicH writeback; C, O and Mg are not.
+               !
+               ! Keyed per element on the rates themselves, the three cases are
+               ! exhaustive and none of them double-counts:
+               !   rates present -> they carry it, elemAvail stands down
+               !   rates absent  -> elemAvail carries it
+               !   neither       -> impossible by construction
+               ! and the zone gate disappears, which is the point (D-182).
+               lgHaveRates = .false.
+               do ik = 1, pdrNlink
+                  if (pdrLinkSpec(ik) <= 0) cycle
+                  if (pdrLinkElem(ik) < 1 .or. pdrLinkElem(ik) > nElements) cycle
+                  if (grid%pdrIonRate(cellP, ik) /= 0. .or. &
+                       & grid%pdrIonRate(cellP, pdrNlink+ik) /= 0.) &
+                       & lgHaveRates(pdrLinkElem(ik)) = .true.
+               end do
                do elem = 1, nElements
                   if (.not.lgElementOn(elem)) cycle
-                  if (lgIonChemRates .and. grid%pdrZone(cellP) == 1) then
+                  if (lgIonChemRates .and. lgHaveRates(elem)) then
                      availFrac(elem) = 1.d0
                   else
                      availFrac(elem) = &
@@ -2658,17 +2690,19 @@ end subroutine iterateT
                   ! is left entirely to the ion solver.
                   chemSrc = 0.d0; chemSnk = 0.d0
 #ifdef PDR
+                  ! D-185: no zone gate. The rates are computed in every cell
+                  ! under pdrAllCells; a stage the network does not carry keeps
+                  ! zero for both and is left entirely to the ion solver, which
+                  ! is the correct behaviour without any threshold.
                   if (lgPDR .and. lgIonChemRates) then
-                     if (grid%pdrZone(cellP) == 1) then
-                        do ik = 1, pdrNlink
-                           if (pdrLinkSpec(ik) <= 0) cycle
-                           if (pdrLinkElem(ik) /= elem) cycle
-                           ir = pdrLinkIon(ik)
-                           if (ir < 1 .or. ir > nst) cycle
-                           chemSrc(ir) = dble(grid%pdrIonRate(cellP, ik))
-                           chemSnk(ir) = dble(grid%pdrIonRate(cellP, pdrNlink+ik))
-                        end do
-                     end if
+                     do ik = 1, pdrNlink
+                        if (pdrLinkSpec(ik) <= 0) cycle
+                        if (pdrLinkElem(ik) /= elem) cycle
+                        ir = pdrLinkIon(ik)
+                        if (ir < 1 .or. ir > nst) cycle
+                        chemSrc(ir) = dble(grid%pdrIonRate(cellP, ik))
+                        chemSnk(ir) = dble(grid%pdrIonRate(cellP, pdrNlink+ik))
+                     end do
                   end if
 #endif
                   do ir = iLo, iHi-1
@@ -3615,8 +3649,13 @@ end subroutine iterateT
             lgPDRcell = .false.
             xsecTot   = 0.
             if (lgPDR) then
-               if (pdrDustFeedback /= 0 .and. grid%pdrZone(cellP) == 1 &
-                    & .and. grid%Ndust(cellP) > 0.) then
+               ! D-182: no zone gate here either. The PDR's grain-surface
+               ! rates are computed in every cell under pdrAllCells; outside
+               ! the molecular gas they are negligible on their own and need no
+               ! threshold to switch them off. Gating introduced a step at
+               ! pdrZoneLim for no physical gain.
+               if (pdrDustFeedback /= 0 .and. grid%Ndust(cellP) > 0. &
+                    & .and. (pdrCoolZoneGate == 0 .or. grid%pdrZone(cellP) == 1)) then
                   do nS2 = 1, nSpeciesPart(nspU)
                      if (grainAbun(nspU, nS2) <= 1.e-20) cycle
                      do ai2 = 1, nSizes

@@ -882,6 +882,19 @@ module common_mod
     !            carries no molecules worth converging and the H2 test is not
     !            applied - Cloudy's colden[i]/colden[HTOT] > 1e-5 in spirit.
     !            Without it a cell going 1e-30 -> 1e-28 is a 100x "change".
+    ! D-182. No zone gate on the coolant substitution. 3D-PDR's coolants are
+    ! solved with electrons AND H, H+, He, H2 as colliders; MOCASSIN's
+    ! forbiddenLines carry electrons alone. The PDR value is therefore strictly
+    ! the more complete physics in EVERY cell - in ionized gas it reduces to the
+    ! electron-dominated case by itself, because FIND_CCOEFF is handed the same
+    ! n(e) MOCASSIN would use. Gating it on pdrZone == 1 bought nothing and
+    ! introduced a discontinuity at pdrZoneLim, which is the same anti-pattern
+    ! as the D-152 blend gate and the D-169 pdrOwnIon gate: a threshold on a
+    ! quantity the model computes, deciding whose answer to believe.
+    !   pdrCoolZoneGate 0 = substitute wherever the chemistry supplied a
+    !                       coolant (default; no gate)
+    !                   1 = the old pdrZone == 1 restriction, for comparison
+    integer             :: pdrCoolZoneGate = 0
     integer             :: cvUseH2   = 1
     real                :: cvH2floor = 1.e-5
     integer(kind=8)     :: cvFailH0 = 0, cvFailH2 = 0, cvFailBoth = 0
