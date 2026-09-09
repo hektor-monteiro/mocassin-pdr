@@ -95,6 +95,10 @@ module iteration_mod
            ! Te against f_mol can be measured instead of inferred.
            integer                   :: nUpd1, nUpd1Hot, nStHot
            real(kind=8)              :: teUpd1Sum, teStSum, molStSum
+           ! D-205: the same snapshot on EVERY coupling pass, with the cooling
+           ! terms, because the runaway happens inside the loop and the loop's
+           ! own residual cannot see it.
+           real(kind=8)              :: molUpdSum, pcSum, phSum, ppeSum
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1075,8 +1079,9 @@ module iteration_mod
               ! the counts are formed per rank over owned cells and reduced.
               ! Every rank runs all three collectives unconditionally: a
               ! collective a subset of ranks skips is a deadlock.
-              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple == 1) then
+              if (lgPDR .and. nIterateMC >= pdrStartIter) then
                  nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
+                 molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1091,6 +1096,21 @@ module iteration_mod
                           nUpd1 = nUpd1 + 1
                           teUpd1Sum = teUpd1Sum + dble(grid(iG)%Te(iDum))
                           if (grid(iG)%Te(iDum) > 3000.) nUpd1Hot = nUpd1Hot + 1
+                          ! f_mol as the thermal balance just saw it, and the
+                          ! PDR terms it was handed. All four per H nucleus so
+                          ! the heating and cooling are directly comparable.
+                          if (allocated(grid(iG)%H2den)) molUpdSum = molUpdSum &
+                               & + 2.d0*dble(grid(iG)%H2den(iDum)) &
+                               &   /dble(grid(iG)%Hden(iDum))
+                          if (allocated(grid(iG)%pdrCool)) pcSum = pcSum &
+                               & + dble(grid(iG)%pdrCool(iDum)) &
+                               &   /dble(grid(iG)%Hden(iDum))
+                          if (allocated(grid(iG)%pdrHeat)) phSum = phSum &
+                               & + dble(grid(iG)%pdrHeat(iDum)) &
+                               &   /dble(grid(iG)%Hden(iDum))
+                          if (allocated(grid(iG)%pdrHeatPE)) ppeSum = ppeSum &
+                               & + dble(grid(iG)%pdrHeatPE(iDum)) &
+                               &   /dble(grid(iG)%Hden(iDum))
                        end do
                     end do
                  end do
@@ -1100,11 +1120,39 @@ module iteration_mod
                       & mpi_sum, mpi_comm_world, ierr)
                  call mpi_allreduce(MPI_IN_PLACE, teUpd1Sum, 1, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 if (taskid == 0 .and. nUpd1 > 0) print '(a,es11.4,a,i7,a,f6.2,a)', &
-                      & " ! [D204]   pass-1 updateCell done, chemistry not yet run:&
-                      &  mean Te ", teUpd1Sum/dble(nUpd1), &
-                      & "  Te>3000 K in", nUpd1Hot, " (", &
-                      & 100.d0*dble(nUpd1Hot)/dble(nUpd1), "%)"
+                 call mpi_allreduce(MPI_IN_PLACE, molUpdSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, pcSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, phSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, ppeSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 ! D-205. The pass-1 line is the D-204 ordering probe and keeps
+                 ! its label; passes 2..n are the same numbers inside the loop,
+                 ! where the runaway actually happens. The [D119] residual
+                 ! beside these decays monotonically through an excursion that
+                 ! takes the hot fraction from 5% to 77% - it measures ion
+                 ! fractions and cannot see this, which is why the loop looked
+                 ! like it was settling.
+                 if (taskid == 0 .and. nUpd1 > 0) then
+                    if (iCouple == 1) then
+                       print '(a,es11.4,a,i7,a,f6.2,a)', &
+                            & " ! [D204]   pass-1 updateCell done, chemistry not&
+                            & yet run:  mean Te ", teUpd1Sum/dble(nUpd1), &
+                            & "  Te>3000 K in", nUpd1Hot, " (", &
+                            & 100.d0*dble(nUpd1Hot)/dble(nUpd1), "%)"
+                    end if
+                    print '(a,i2,a,es11.4,a,f6.2,a,f7.4)', &
+                         & " ! [D205]   pass", iCouple, " after updateCell:  mean Te ", &
+                         & teUpd1Sum/dble(nUpd1), "  hot ", &
+                         & 100.d0*dble(nUpd1Hot)/dble(nUpd1), " %   f_mol ", &
+                         & molUpdSum/dble(nUpd1)
+                    print '(a,3(es11.4,a))', &
+                         & " ! [D205]            per H:  PDR cool ", &
+                         & pcSum/dble(nUpd1), "  PDR heat ", phSum/dble(nUpd1), &
+                         & "  of which PE ", ppeSum/dble(nUpd1)
+                 end if
               end if
 #endif
 

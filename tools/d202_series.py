@@ -31,6 +31,7 @@ CHI = re.compile(r"\[D203\]\s+chiFUV\s+p10\s+([-\d.eE+]+)\s+median\s+([-\d.eE+]+
                  r"\s+p90\s+([-\d.eE+]+)")
 AVE = re.compile(r"\[D203\]\s+AVeff\s+p10\s+([-\d.eE+]+)\s+median\s+([-\d.eE+]+)"
                  r"\s+p90\s+([-\d.eE+]+)")
+WARM = re.compile(r"\[D202\]\s+Te > 3000 K:\s*(\d+)\s+\(\s*([-\d.]+)%\)")
 UPD1 = re.compile(r"\[D204\]\s+pass-1 updateCell done.*?mean Te\s+([-\d.eE+]+)"
                   r"\s+Te>3000 K in\s*(\d+)\s+\(\s*([-\d.]+)%\)")
 STRT = re.compile(r"\[D204\]\s+iteration start, for comparison.*?mean Te\s+([-\d.eE+]+)"
@@ -60,6 +61,9 @@ def parse(path):
             m = rx.search(line)
             if m:
                 d[key] = [float(m.group(i + 1)) for i in range(n)]
+        m = WARM.search(line)
+        if m:
+            d["warm"] = [int(m.group(1)), float(m.group(2))]
         m = MOVE.search(line)
         if m:
             d["move"] = [int(m.group(1)), float(m.group(2)),
@@ -102,19 +106,26 @@ def report(path, data):
               % (i, f[1], f[3], dm[0], dm[1], mv[1], te[1], ch[1], av[1],
                  d.get("conv", float("nan"))))
     if any("upd1" in data[i] for i in its):
-        print("  ordering: Te across one iteration, and where f_mol sits")
-        print("   it   Te_start   Te_afterUpd1   Te_end    hot%_start  "
-              "hot%_upd1  hot%_end   f_mol_start   f_mol_end")
+        print("  ordering (D-204): three points in one MC iteration")
+        print("    start   = iteration start")
+        print("    upd1    = after pass-1 updateCell; thermal balance done, "
+              "chemistry NOT yet run")
+        print("    end     = end of iteration; chemistry has run")
+        print("  A jump already present at upd1, with f_mol still at its start")
+        print("  value, means Te leads and the chemistry follows a hot cell.")
+        print()
+        print("   it   | cells with Te > 3000 K, %  |  mean Te, K        "
+              "|   mean f_mol")
+        print("        |  start    upd1     end    |  start     upd1    "
+              "|  start     end")
         for i in its:
             d = data[i]
-            st = d.get("strt")
-            u1 = d.get("upd1")
-            ms = d.get("mstr")
+            st, u1, ms = d.get("strt"), d.get("upd1"), d.get("mstr")
             if not (st and u1 and ms):
                 continue
-            te = d.get("te", [float("nan")] * 3)
-            print("  %3d  %9.1f  %13.1f  %8.1f  %10.2f  %9.2f  %8s  %11.4f  %10.4f"
-                  % (i, st[0], u1[0], te[1], st[2], u1[2], "-", ms[0], ms[1]))
+            wm = d.get("warm", [0, float("nan")])
+            print("  %3d   | %6.2f  %6.2f  %6.2f   | %8.1f %8.1f   | %7.4f  %7.4f"
+                  % (i, st[2], u1[2], wm[1], st[0], u1[0], ms[0], ms[1]))
         print()
 
 

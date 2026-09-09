@@ -201,7 +201,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-201 | **The D-200 damping created a second x(H2), and the damping's own diagnostic caught it.** `pdrAbun` was damped but `H2den`, which `pdrStep` derives from it, was not - so the H2 opacity, the convergence test and the branch census read an undamped molecular fraction while the chemistry used a damped one. Measured: the same census gave 27.6% hot from `H2den` and 1.6% from `pdrAbun` on the same cells. `H2den` now follows. With it single-valued the hot-branch eruptions vanish (76% -> 0%, flips 78% -> 0%), but the molecular-fraction swing at iterations 6 and 11 is identical in both runs - it is not the damping and not the split | Done | 2026-09-09 |
 | D-202 | **The branch census was blind to the swing it was built to watch.** D-200's instrument labelled each cell hot / cold / between and counted changes of the HOT label; the collapse runs between the cold and middle labels and never crosses the hot threshold, so the flip count read 0-1.8% while three quarters of the grid moved. Replaced with the molecular fraction's own distribution - an eight-bin histogram of f_mol = 2x(H2), its quantiles, and |df_mol| since the iteration start - so no threshold decides what counts as a change of state. The new census reproduces the collapse and shows it is a broad multi-modal distribution, not two clean branches | Done | 2026-09-09 |
 | D-203 | **The collapse is not the radiative transfer's: measured.** chi_FUV and A_V are now reported as quantiles every iteration beside f_mol and Te. Across the iteration-6 collapse the median f_mol falls 0.765 -> 0.196 and the median Te rises 79 K -> 8006 K while the median chi moves +1.0% and A_V -0.3%. The FUV field and the extinction are exonerated; the instability is inside the chemistry / thermal-balance loop. The inner coupling loop is exonerated too - its ion-fraction change decays 8.6e-3 -> 1.6e-3 over four passes within that same iteration | Done | 2026-09-09 |
-| D-204 | **Measure whether Te leads f_mol or follows it.** D-203 exonerated the FUV field and the coupling loop but could not order the two quantities that move together at iteration 6, and reasoned from the pass order that Te probably leads. That is inference from code order, and inference of this kind has been wrong three times here. Te is now sampled after the FIRST updateCell of each iteration - thermal balance done, chemistry not yet run - so a flip at unchanged f_mol says the temperature leads and the chemistry follows | Running | 2026-09-09 |
+| D-204 | **Neither leads: the collapse is a coupled runaway, and the D-203 inference was wrong.** Te sampled after the first updateCell of each iteration - thermal balance done, chemistry not yet run. At iteration 6 that takes the hot fraction from 2.25% to 5.08% at f_mol still 0.70; it ends the iteration at 76.74%. So the thermal balance alone contributes one fourteenth of the excursion and the rest appears across the five coupling passes. D-203 reasoned from the pass order that Te probably leads; measuring it says otherwise | Done | 2026-09-09 |
+| D-205 | **The coupling loop's own residual is blind to the runaway inside it.** Within iteration 6 the [D119] abundance-weighted ion-fraction change decays monotonically 8.56e-3 -> 1.46e-3 across the five passes while the hot fraction goes 5.08% -> 76.74% in those same passes. It measures ion fractions, so the thermal/molecular runaway is invisible to it - the third instrument in this audit to report quiet on a moving model (D-196, D-202). The D-204 snapshot now fires on every pass, with the PDR cooling and heating the balance was handed | Running | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11476,18 +11477,115 @@ rank over owned PDR-zone cells and reduced with three scalar collectives that
 every rank executes unconditionally. The census prints the iteration-start
 values over the same cell set, so the three columns share a denominator.
 
-**What is NOT known.** The answer. `runs/d204-order` was started as the full 12
-iterations of `hiipdr-contract` and stopped by the operator during iteration 4,
-about a minute after `updateCell` returned and before the probe's first print -
-so it produced no D-204 data. Iterations 1-3 ran at normal cadence (16:11:55,
-16:12:44, 16:15:28) and there is no evidence of a stall.
+**A note on getting the run to complete.** Three consecutive runs were killed
+mid-iteration, all reported as stopped by the operator. No OOM entry in the
+kernel log, no MPI abort banner, no stall - iterations ran at normal cadence up
+to each cut, and in every case the MPI job and an unrelated polling task died
+in the same instant, which is a task-group kill rather than a process failure.
+The job is now launched detached (`setsid`, its own session, reparented to
+init) so that whatever reaps the background tasks takes the poller and leaves
+the run alone. That worked: `runs/d204-order` ran through.
 
-**The probe is therefore compiled but not yet exercised.** It contains three
-MPI collectives on a path no run has entered. They are guarded on `lgPDR`,
-`nIterateMC` and `iCouple`, all of which are rank-uniform, so they should not
-deadlock - but "should not" is the status, not "measured", and that is worth
-saying plainly about a collective. The next run of this fixture settles both
-the ordering question and whether the probe itself is sound.
+**The answer: neither leads.**
 
-The run also needs to reach iteration 11, the second collapse, which no run has
-yet seen through the new census.
+     it   | cells with Te > 3000 K, %  |  mean Te, K       |  mean f_mol
+          |  start    upd1     end     |  start     upd1   |  start     end
+      4   |   4.17    0.04    0.00     |  1168.0     51.9  |  0.0000   0.2335
+      5   |   0.74    0.66    1.94     |   363.9    122.0  |  0.2322   0.7066
+      6   |   2.25    5.08   76.74     |   211.7    970.1  |  0.7003   0.2950
+
+All three temperature columns are the same statistic - the percentage of PDR
+cells above 3000 K - because the first version of the reporting tool paired
+D-204's means against the census median, and a three-point series whose points
+are different statistics is the mismatched comparison this project keeps
+finding.
+
+At iteration 6 the thermal balance runs on gas that is still 70% molecular and
+takes the hot fraction from 2.25% to 5.08%, with the mean temperature up by a
+factor 4.6. That is a real push. It is also one fourteenth of the 76.74% the
+iteration ends at. The remaining 71.7 points appear across the five coupling
+passes, so the collapse is a coupled runaway and not a lead-follow.
+
+**D-203's inference was wrong, and this is why it was measured.** D-203 argued
+from the pass order - `updateCell` before `pdrStep` - that Te probably leads.
+It does not. That is the fourth time in this project that reasoning from code
+order about which quantity moves first has been wrong (D-135, D-137, D-191,
+here), and the first time it was checked before being written down as a result.
+
+**The sign flip, which is the lead worth following.** The thermal balance's
+response at pass 1, against the molecular content it was handed:
+
+     it   f_mol at start   mean Te: start -> upd1
+      4       0.0000        1168.0 ->    51.9   (x 0.04, cools)
+      5       0.2322         363.9 ->   122.0   (x 0.34, cools)
+      6       0.7003         211.7 ->   970.1   (x 4.58, WARMS)
+
+Monotonic in f_mol, and it changes sign. MOCASSIN's thermal balance cools
+atomic gas and warms molecular gas in this model, at fixed f_mol within the
+pass - so it is attributable to the balance, not to the chemistry. Three points
+from one run: a strong lead, not a settled law.
+
+The obvious candidate mechanism is that `elemAvail = 1 - 2x(H2)` cuts x(H0) and
+with it MOCASSIN's collisional cooling, while the molecular cooling meant to
+replace it is not arriving at the same size. That is a hypothesis. It is not
+measured, and D-205 is where the terms get reported.
+
+**What is NOT known.** Whether iteration 11 behaves the same way. The run is
+still going.
+
+
+---
+
+## D-205 - the loop's convergence monitor cannot see the runaway (2026-09-09)
+
+Against `93fd747`. Found in the same log block as the D-204 answer, and it is
+the more consequential half.
+
+Inside iteration 6 of `runs/d204-order`:
+
+    [D204]  pass-1 updateCell done, chemistry not yet run: mean Te 9.70E+02, hot 5.08%
+    [D119]  coupling pass 2   abundance-weighted mean ion-fraction change: 8.56e-3
+    [D119]  coupling pass 3                                               7.00e-3
+    [D119]  coupling pass 4                                               3.86e-3
+    [D119]  coupling pass 5                                               1.46e-3
+    [D204]  iteration start:  mean Te 2.12E+02, hot 2.25%
+    [D204]  mean f_mol at iteration start 0.7003   now 0.2950
+
+The residual decays monotonically, by a factor 5.9 across the four passes it
+covers. Read on its own it says the coupling loop is settling. In those same
+passes the hot fraction goes from 5.08% to 76.74% and the mean molecular
+fraction more than halves.
+
+`[D119]` measures an abundance-weighted change in ION FRACTIONS. The runaway is
+in the temperature and the molecular fraction. It is not that the monitor is
+badly built - D-119 fixed a genuine defect in it, and it correctly reports that
+the ionization/chemistry handshake converges within the iteration. It is that
+the quantity it watches is not the quantity that is moving, so it reports quiet
+through an excursion of a factor 15 in the hot fraction.
+
+That is the third time in this audit. D-196: the convergence percentage counted
+cells whose x(H0) was pinned by a clamp. D-202: the branch census counted
+transitions of a label the swing never crossed. Here: the coupling residual
+watches ion fractions while the thermal state runs away beside it. The common
+shape is that each number was correct about its own quantity and was read as a
+statement about the model.
+
+**The change.** The D-204 snapshot fired only on pass 1, because the ordering
+question only needed pass 1. It now fires on every pass and carries, per H
+nucleus over the same PDR-zone cells:
+
+    mean Te, the hot fraction, mean f_mol
+    PDR cooling, PDR heating, and the photoelectric part of the heating
+
+so the runaway can be watched building across the passes, with the two terms
+that would drive it printed beside it. Six scalar collectives per pass, every
+rank, unconditionally.
+
+The D-137 probe measured MOCASSIN's photoelectric heating at 1.8e-2 of
+3D-PDR's on one deep cell. Reporting `pdrHeatPE` next to `pdrCool` every pass
+turns that single-cell observation into a population.
+
+**What is NOT known.** Whether the PDR cooling handed back is too small to
+replace the atomic cooling that `elemAvail` removes - that is the D-204
+hypothesis and these are the numbers that test it. Nothing about the mechanism
+is being asserted before the run.
