@@ -205,6 +205,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-205 | **The coupling loop's own residual is blind to the runaway inside it.** Within iteration 6 the [D119] abundance-weighted ion-fraction change decays monotonically 8.56e-3 -> 1.46e-3 across the five passes while the hot fraction goes 5.08% -> 76.74% in those same passes. It measures ion fractions, so the thermal/molecular runaway is invisible to it - the third instrument in this audit to report quiet on a moving model (D-196, D-202). The D-204 snapshot now fires on every pass, with the PDR cooling and heating the balance was handed | Running | 2026-09-09 |
 | D-206 | **Twelve iterations: a relaxation oscillation, not a bistability - and the D-204 sign flip is withdrawn.** The model relaxes toward cold molecular gas over four iterations (|df_mol| p90 0.62 -> 0.13, converged fraction reaching its run maximum at iteration 9) and then discharges to 77% hot in one. Iteration 8 starts at f_mol 0.662, within 6% of iteration 6's, and its pass-1 balance cools by x0.15 where 6 warmed by x4.58 - so the sign flip flagged from three points was the initial transient read as a trend. chi_FUV jumps 45% the iteration AFTER each collapse, confirming the field follows the molecules | Done | 2026-09-09 |
 | D-208 | **The network file's x(H2)=0.300 was never removed, only routed around - and it was setting the H2 shielding column the first chemistry call consumed.** D-188 re-seeded each cell from MOCASSIN on its first `pdrStep` visit, but `seedPDR` went on writing `species_reduced.d`'s x(H)=0.400 / x(H2)=0.300 into every cell, and `computeAVdust` and `computeRayColumns` run BEFORE the coupling loop - so at the first PDR iteration the columns were integrated over a grid uniformly 60% molecular, order 1e21 cm^-2, which saturates self-shielding outright. One seeding rule now: `seedAbunFromMocassin`, molecules zero, every carrier from `elemAbun` and `ionDen`. `syncSeed` and `pdrSyncAbun` retire with it | Done | 2026-09-09 |
+| D-207 | **The D-205 budget columns reported quantities that never enter the balance.** They printed `pdrCool`, `pdrHeat` and `pdrHeatPE` - 3D-PDR's own totals. `pdrHeatPE` reaches `heatInt` only when `pdrPEfromPDR` is set, which is 0 by default and in no fixture, and `pdrHeat` is the PDR total of which MOCASSIN computes three terms itself. The heating column read ~1.9e-25 per H where the true contribution is ~1.4e-26. Replaced by `pdrHeatUsed` and `pdrCoolUsed`, captured as `heatInt`/`coolInt` after the PDR block minus before it - the substitution's net effect and nothing else | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11785,3 +11786,61 @@ one.
 "the cause". D-112 says the seed selects a branch; a branch change is not the
 same as removing an instability, and the run-to-run comparison has to show the
 oscillation gone rather than moved.
+
+
+---
+
+## D-207 - measuring the wrong side of the substitution (2026-09-09)
+
+Against `164798f`. Caught before it was reported as a result, but only just:
+the sentence naming 3D-PDR's photoelectric heating as the driver of the
+runaway was written and then deleted.
+
+**What the D-205 columns printed.** `pdrCool`, `pdrHeat` and `pdrHeatPE`, per
+H nucleus. At iteration 6 pass 1 that reads heat 1.94e-25 against cool
+8.02e-26 - net heating by a factor 2.4 in gas at 929 K, with 99% of the
+heating photoelectric. Next to the D-137 probe's finding that 3D-PDR's
+photoelectric term is 9 to 25 times MOCASSIN's own on the same cell, same
+field, same A_V and same Tdust, the conclusion looked obvious.
+
+**Why it was wrong.** `pdrHeatPE` reaches `heatInt` only inside
+
+    if (pdrPEfromPDR /= 0 .and. grid%pdrZone(cellP) == 1) then
+       heatInt = heatInt - photoelHeat_g + grid%pdrHeatPE(cellP)/grid%Hden(cellP)
+    end if
+
+and `pdrPEfromPDR` is 0 in `common_mod` and set by no fixture. What actually
+reaches the balance in a PDR cell is MOCASSIN's own `photoelHeat_g`, measured
+at 1.40e-26 per H, plus `pdrHeatXtra` at 1.42e-26 - together about 2.8e-26,
+an order of magnitude below what the column was printing.
+
+So the instrument was reporting 3D-PDR's own budget rather than the
+substitution's effect on MOCASSIN's. Both are real numbers about real things.
+Only one of them is the one the sentence was about.
+
+**Fourth in this audit, and the first that is mine.** D-196: a convergence
+percentage counting cells whose x(H0) was pinned by a clamp. D-202: a census
+counting transitions of a label the swing never crossed. D-205: a coupling
+residual watching ion fractions while the temperature ran away. D-207: a
+budget column reading the neighbouring budget. The first three were inherited;
+this one was written two commits earlier in this same session, by me, while
+writing the entry that names the pattern.
+
+**The fix removes the possibility rather than correcting the number.**
+`grid%pdrHeatUsed` and `grid%pdrCoolUsed` are set in `thermBalance` as
+
+    heatUsed = heatInt(after the PDR block) - heatInt(before it)
+    coolUsed = coolInt(after)              - coolInt(before)
+
+so they are the substitution's net effect by construction and cannot drift
+from the budget however the substitution is later changed. `pdrHeatXtra` is
+still reported alongside, since it is the one PDR term that always enters.
+
+**What is NOT known.** What flips the balance between pass 1 and pass 2. The
+per-pass series shows Te going 489 K to 2273 K at iteration 11 pass 2 while
+f_mol moves only 0.855 to 0.834, so it is not the molecular content. The
+candidates are the coolants re-evaluated at a new reference temperature
+(D-166) and coolants zeroed when their carrier falls below the floor (D-167,
+which describes this runaway shape exactly). `runs/d207-budget` is the
+measurement - and note it was launched before D-208, so it carries the old
+hardcoded seed.

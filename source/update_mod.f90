@@ -1606,6 +1606,7 @@ end subroutine iterateT
                  & ex12, ex13,&                     ! hydrogen data
                  & th12, th13                       ! (Mathis, Ly alpha, beta)
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
+            real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
             real                   :: coolRec       ! cool due to recombination[erg/s/Hden]
             real                   :: fcool
@@ -1972,6 +1973,9 @@ end subroutine iterateT
                heatInt = heatInt+photoelHeat_g
             end if
 #ifdef PDR
+            ! D-207: the budget as MOCASSIN built it, before any substitution.
+            heatPreP = heatInt
+            coolPreP = coolInt
             ! D-131. MOCASSIN carries no molecular or fine-structure coolant -
             ! no CO, C, C+ or O - which is precisely why the PDR's temperature
             ! had to be handed back instead of this balance solving for it. The
@@ -2191,6 +2195,15 @@ end subroutine iterateT
                           & + grid%pdrHeatPE(cellP)/grid%Hden(cellP)
                   end if
                end if
+            end if
+            ! D-207: what the block above actually did to the budget, per H.
+            ! Recorded at whatever Te the balance last evaluated, which after
+            ! the search has converged is the cell's answer.
+            if (lgPDR) then
+               if (allocated(grid%pdrHeatUsed)) &
+                    & grid%pdrHeatUsed(cellP) = heatInt - heatPreP
+               if (allocated(grid%pdrCoolUsed)) &
+                    & grid%pdrCoolUsed(cellP) = coolInt - coolPreP
             end if
 #endif
 

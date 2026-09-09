@@ -391,6 +391,17 @@ module common_mod
         ! MOCASSIN, is H2 formation (5), H2 photodissociation (6), FUV pumping
         ! (7), cosmic-ray (8), turbulent (9) and chemical (10) heating.
         real, allocatable         :: pdrHeatXtra(:)
+        ! D-207. What the PDR block ACTUALLY changed in the thermal balance,
+        ! per H nucleus: heatInt and coolInt after it, minus before it. The
+        ! arrays above are 3D-PDR's own totals, and most of what they hold
+        ! never reaches MOCASSIN's balance - pdrHeatPE only enters when
+        ! pdrPEfromPDR is set, which it is not by default, and pdrHeat is the
+        ! PDR total of which MOCASSIN computes three terms itself. Reporting
+        ! those as "the heating" overstated it by an order of magnitude
+        ! (D-207). These two are the substitution's net effect and nothing
+        ! else, so a diagnostic built on them cannot drift from the budget.
+        real, allocatable         :: pdrHeatUsed(:)
+        real, allocatable         :: pdrCoolUsed(:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.

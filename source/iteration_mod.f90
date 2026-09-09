@@ -1102,14 +1102,23 @@ module iteration_mod
                           if (allocated(grid(iG)%H2den)) molUpdSum = molUpdSum &
                                & + 2.d0*dble(grid(iG)%H2den(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
-                          if (allocated(grid(iG)%pdrCool)) pcSum = pcSum &
-                               & + dble(grid(iG)%pdrCool(iDum)) &
-                               &   /dble(grid(iG)%Hden(iDum))
-                          if (allocated(grid(iG)%pdrHeat)) phSum = phSum &
-                               & + dble(grid(iG)%pdrHeat(iDum)) &
-                               &   /dble(grid(iG)%Hden(iDum))
-                          if (allocated(grid(iG)%pdrHeatPE)) ppeSum = ppeSum &
-                               & + dble(grid(iG)%pdrHeatPE(iDum)) &
+                          ! D-207. These are what the substitution actually
+                          ! did to MOCASSIN's budget, not 3D-PDR's own totals.
+                          ! The first version of this line reported pdrCool,
+                          ! pdrHeat and pdrHeatPE, and pdrHeatPE does not enter
+                          ! the balance at all unless pdrPEfromPDR is set - it
+                          ! is 0 by default and no fixture sets it - so the
+                          ! heating column was ~1.9e-25 per H where the true
+                          ! contribution is ~1.4e-26. An instrument reporting a
+                          ! quantity adjacent to the one that matters is the
+                          ! fourth of these in this audit, and the first I
+                          ! built myself (D-196, D-202, D-205, here).
+                          if (allocated(grid(iG)%pdrCoolUsed)) pcSum = pcSum &
+                               & + dble(grid(iG)%pdrCoolUsed(iDum))
+                          if (allocated(grid(iG)%pdrHeatUsed)) phSum = phSum &
+                               & + dble(grid(iG)%pdrHeatUsed(iDum))
+                          if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
+                               & + dble(grid(iG)%pdrHeatXtra(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
                        end do
                     end do
@@ -1149,9 +1158,9 @@ module iteration_mod
                          & 100.d0*dble(nUpd1Hot)/dble(nUpd1), " %   f_mol ", &
                          & molUpdSum/dble(nUpd1)
                     print '(a,3(es11.4,a))', &
-                         & " ! [D205]            per H:  PDR cool ", &
-                         & pcSum/dble(nUpd1), "  PDR heat ", phSum/dble(nUpd1), &
-                         & "  of which PE ", ppeSum/dble(nUpd1)
+                         & " ! [D205]      per H, as USED by the balance:  cool ", &
+                         & pcSum/dble(nUpd1), "  heat ", phSum/dble(nUpd1), &
+                         & "  (heatXtra ", ppeSum/dble(nUpd1), ")"
                  end if
               end if
 #endif
