@@ -69,9 +69,18 @@ module iteration_mod
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
+           ! D-200: iteration-start snapshots for the damping below. Local
+           ! rather than grid arrays: they are needed only between the top and
+           ! the bottom of one iterateMC call, and keeping them off the grid
+           ! keeps them out of the checkpoint and out of resetGrid.
+           double precision, allocatable :: pdrAbunIter(:,:)
+           real,             allocatable :: ionDenIter(:,:,:)
            ! D-196: is the convergence test measuring anything?
            real(kind=8), allocatable :: cvBud(:), cvXH0(:), cvDlt(:), cvRat(:)
            integer                   :: nBud, nPin, nBad, nRat, nZero
+           integer                   :: nHotBr, nColdBr, nMidBr, nFlip
+           logical                   :: lgHotNow, lgHotWas
+           real                      :: xH2now
            real(kind=8)              :: avSum, bMin, bMax, bMed, xMed, dMed
            real(kind=8)              :: h2Sum, xHp, xHpChem
 #endif
@@ -947,6 +956,26 @@ module iteration_mod
                    & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
                    & grid(iG)%Te(0:grid(iG)%nCells)
 #ifdef PDR
+              ! D-200: and for the two state vectors the bistability actually
+              ! lives in - the molecular abundances and the ion fractions.
+              ! D-174 damped Te across the MC iteration and said so explicitly:
+              ! "Te only, for now: it is the bistable variable". Measured at
+              ! D-198, it is not the only one. A cell on the hot branch is
+              ! atomic AND ionized AND hot; the three move together, and
+              ! damping one of them while the other two are free lets the pair
+              ! that is free carry the flip.
+              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iterDamp > 0.) then
+                 if (allocated(grid(iG)%pdrAbun)) then
+                    if (.not.allocated(pdrAbunIter)) &
+                         & allocate(pdrAbunIter(0:grid(iG)%nCells, 1:pdrNspec), stat=err)
+                    if (err == 0) pdrAbunIter = grid(iG)%pdrAbun(0:grid(iG)%nCells, 1:pdrNspec)
+                 end if
+                 if (.not.allocated(ionDenIter)) &
+                      & allocate(ionDenIter(0:grid(iG)%nCells, 1:nElementsUsed, 1:nstages), stat=err)
+                 if (err == 0) ionDenIter = grid(iG)%ionDen(0:grid(iG)%nCells, :, :)
+              end if
+#endif
+#ifdef PDR
               ! D-179: and x(H2), the quantity that is actually moving when the
               ! PDR first engages.
               if (allocated(grid(iG)%xH2iterStart) .and. allocated(grid(iG)%H2den)) then
@@ -1466,6 +1495,86 @@ module iteration_mod
               end do
            end if
 
+           ! ------------------------------------------------------- D-200
+           ! Damp the MOLECULAR and IONIC state across the MC iteration too.
+           !
+           ! D-174 damped Te here and recorded the restriction: "Te only, for
+           ! now: it is the bistable variable, and one change at a time is the
+           ! point." D-198 measured the state the contract settles into and Te
+           ! is not the only bistable variable. The two branches differ in all
+           ! three quantities at once - hot cells are atomic, ionized and hot;
+           ! cold cells are molecular, neutral and cold - and damping one of
+           ! the three while the other two are free lets the free pair carry
+           ! the flip and drag the damped one after it.
+           !
+           ! The molecular abundances matter for a reason specific to this
+           ! chemistry: under CHEMSTEADY the network integrates to a steady
+           ! state, so its starting point does not set the answer EXCEPT where
+           ! more than one steady state exists - which is precisely the
+           ! bistable regime (D-112 measured that a seed can select between
+           ! them and that the two do not relax into each other). pdrAbun
+           ! carries over from the previous iteration as that starting point,
+           ! undamped until now.
+           !
+           ! WHAT THIS CAN AND CANNOT DO. Damping is a relaxation on the path,
+           ! not a change to the fixed point: if the coupled system has one
+           ! root and was oscillating around it, this finds it; if the thermal
+           ! balance genuinely has two roots, this does NOT remove the second
+           ! one - it freezes each cell on whichever branch it is nearest and
+           ! the profile stays bimodal but stops moving. Those two outcomes
+           ! look different and the difference is the measurement: a single
+           ! smooth profile means the oscillation was a coupling artifact; a
+           ! static bimodal one means the roots are real and damping has hidden
+           ! the symptom rather than fixed the cause. Reported either way.
+           !
+           ! Applied after the coupling loop and after the reductions, so every
+           ! rank damps the same complete arrays against the same snapshot.
+#ifdef PDR
+           if (lgPDR .and. iterDamp > 0. .and. nIterateMC >= pdrStartIter) then
+              do iG = 1, nGrids
+                 if (allocated(pdrAbunIter) .and. allocated(grid(iG)%pdrAbun)) then
+                    grid(iG)%pdrAbun(0:grid(iG)%nCells, 1:pdrNspec) = &
+                         &   (1.d0-dble(iterDamp)) &
+                         &   *grid(iG)%pdrAbun(0:grid(iG)%nCells, 1:pdrNspec) &
+                         & + dble(iterDamp)*pdrAbunIter
+                 end if
+                 if (allocated(ionDenIter)) then
+                    grid(iG)%ionDen(0:grid(iG)%nCells, :, :) = &
+                         &   (1.-iterDamp)*grid(iG)%ionDen(0:grid(iG)%nCells, :, :) &
+                         & + iterDamp*ionDenIter
+                 end if
+              end do
+              ! H2den is DERIVED from pdrAbun too - pdrStep writes it as
+              ! abun(NH2)*nH - so it has to follow the damped abundances or the
+              ! model carries two x(H2). It is not a diagnostic: MOCASSIN's H2
+              ! opacity reads it (D-107, addOpacity), the convergence test
+              ! reads it against xH2iterStart (D-179), and the D-200 branch
+              ! census reads it. Leaving it undamped is exactly the "one
+              ! reality per quantity" failure this project keeps finding, and
+              ! the damping introduced it: measured on the first D-200 run, the
+              ! in-code census (H2den, undamped) put 27.6% of cells on the hot
+              ! branch at iteration 12 while the same census recomputed from
+              ! pdrAbun (damped) put 1.6% there. Same cells, same threshold,
+              ! two different molecular fractions.
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%H2den)) cycle
+                 if (pdrIdxH2 <= 0) cycle
+                 do iDum = 0, grid(iG)%nCells
+                    grid(iG)%H2den(iDum) = &
+                         & real(grid(iG)%pdrAbun(iDum,pdrIdxH2))*grid(iG)%Hden(iDum)
+                 end do
+              end do
+              ! elemAvail is DERIVED from pdrAbun, so republish it from the
+              ! damped abundances. Without this the next iteration's first
+              ! coupling pass normalises the ion stages to a molecular fraction
+              ! that no longer matches the abundances it sits beside - the
+              ! D-199 lag, reintroduced by the damping itself.
+              if (nIterateMC >= pdrStartIter) call pdrToMocassin(grid(1:nGrids))
+           end if
+           if (allocated(pdrAbunIter)) deallocate(pdrAbunIter)
+           if (allocated(ionDenIter))  deallocate(ionDenIter)
+#endif
+
 !******************************************************************************
 
            if (nGrids>1) then
@@ -1604,6 +1713,7 @@ module iteration_mod
                  end if
                  nBud = 0; nPin = 0; nBad = 0; nRat = 0; nZero = 0
                  avSum = 0.d0; h2Sum = 0.d0
+                 nHotBr = 0; nColdBr = 0; nMidBr = 0; nFlip = 0
                  do iDum = 1, grid(iG)%nCells
                     if (grid(iG)%pdrZone(iDum) /= 1) cycle
                     if (grid(iG)%Hden(iDum) <= 0.) cycle
@@ -1638,6 +1748,31 @@ module iteration_mod
                     if (cvXH0(nBud) <= 0.d0) nZero = nZero + 1
                     if (allocated(grid(iG)%elemAvail)) &
                          & avSum = avSum + dble(grid(iG)%elemAvail(iDum,1))
+                    ! ------------------------------------------- D-200
+                    ! Which branch is this cell on, and did it change branch
+                    ! since the iteration started? Two populations with an
+                    ! empty gap is a thermal balance with two roots; the flip
+                    ! count says whether cells are still moving between them.
+                    ! Damping that WORKS drives nFlip to zero and leaves one
+                    ! population. Damping that merely HIDES the problem drives
+                    ! nFlip to zero and leaves two.
+                    xH2now = 0.
+                    if (allocated(grid(iG)%H2den)) &
+                         & xH2now = 2.*grid(iG)%H2den(iDum)/grid(iG)%Hden(iDum)
+                    lgHotNow = (xH2now < 0.01 .and. grid(iG)%Te(iDum) > 3000.)
+                    if (lgHotNow) then
+                       nHotBr = nHotBr + 1
+                    else if (xH2now > 0.5) then
+                       nColdBr = nColdBr + 1
+                    else
+                       nMidBr = nMidBr + 1
+                    end if
+                    if (allocated(grid(iG)%xH2iterStart) .and. &
+                         & allocated(grid(iG)%TeIterStart)) then
+                       lgHotWas = (2.*grid(iG)%xH2iterStart(iDum) < 0.01 .and. &
+                            &      grid(iG)%TeIterStart(iDum) > 3000.)
+                       if (lgHotNow .neqv. lgHotWas) nFlip = nFlip + 1
+                    end if
                  end do
                  if (nBud > 0) then
                     call cvSortD(cvXH0, nBud)
@@ -1676,6 +1811,14 @@ module iteration_mod
                          & nBad, " cells;", nZero, " with x(H0) exactly 0 (D-192 clamp)"
                     print '(a,f8.4,a,f8.4)', "! [D196]   mean 2x(H2) ", &
                          & h2Sum/dble(nBud), "   mean elemAvail(H) ", avSum/dble(nBud)
+                    print '(a,i7,a,f5.1,a,i7,a,f5.1,a,i7,a,f5.1,a)', &
+                         & "! [D200]   branches: hot", nHotBr, " (", &
+                         & 100.d0*dble(nHotBr)/dble(nBud), "%)  cold", nColdBr, " (", &
+                         & 100.d0*dble(nColdBr)/dble(nBud), "%)  between", nMidBr, " (", &
+                         & 100.d0*dble(nMidBr)/dble(nBud), "%)"
+                    print '(a,i7,a,f6.2,a)', &
+                         & "! [D200]   changed branch this iteration:", nFlip, " (", &
+                         & 100.d0*dble(nFlip)/dble(nBud), "%)"
                     if (nRat > 0) then
                        call cvSortD(cvRat, nRat)
                        print '(a,3(es11.4,a),i8)', &

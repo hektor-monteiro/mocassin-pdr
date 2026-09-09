@@ -197,6 +197,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-197 | **Reverted to D-190** (recorded as D-191 at the time, colliding with the damping entry that already held that ID). **Undone at D-198.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Superseded by D-198 | 2026-09-09 |
 | D-198 | **D-193 restored on D-196's evidence.** The revert at D-197 compared a convergence number that counts frozen cells against one that does not; D-196 measured that directly. MOCASSIN owns ionization, thermal equilibrium and molecular bookkeeping again, unconditionally, and `ionChemRates` retires with the other ownership keywords | Done | 2026-09-09 |
 | D-199 | **`elemAvail` was one MC iteration stale.** `pdrToMocassin`, its only writer, sat outside the coupling loop while `updateCell` read it 5 times per iteration. Harmless until D-193 stopped writing `ionDen` directly; after that it rang the ion/chemistry ratio 1.05 -> 19.5 -> 0.166 with nothing converging. Moved inside the loop: the ratio holds 1.0000 with p90 1.01 and budget failures fall 9670 -> 29 | Done | 2026-09-09 |
+| D-200 | **Damping extended from the temperature to the molecular and ionic state.** D-174 damped Te across the MC iteration and recorded "Te only, for now: it is the bistable variable"; D-198 measured that it is not - a hot cell is atomic AND ionized AND hot. `pdrAbun` and `ionDen` are now damped on the same interval, and `elemAvail` republished from the damped abundances. Whether this resolves the bistability or only freezes it is the measurement | Running | 2026-09-09 |
+| D-201 | **The D-200 damping created a second x(H2), and the damping's own diagnostic caught it.** `pdrAbun` was damped but `H2den`, which `pdrStep` derives from it, was not - so the H2 opacity, the convergence test and the branch census read an undamped molecular fraction while the chemistry used a damped one. Measured: the same census gave 27.6% hot from `H2den` and 1.6% from `pdrAbun` on the same cells. `H2den` now follows. With it single-valued the hot-branch eruptions vanish (76% -> 0%, flips 78% -> 0%), but the molecular-fraction swing at iterations 6 and 11 is identical in both runs - it is not the damping and not the split | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11094,3 +11096,190 @@ carriers exist and hold some hydrogen; they are not 1.25%.
   - Whether it contributes to the bistability of D-198. Not tested.
 
 All four flavours rebuilt clean.
+
+
+---
+
+## D-200 - damping the state the bistability actually lives in (2026-09-09)
+
+Against `13641c9`. D-198 left the contract correct and the model bistable:
+23.5% of PDR cells hot and atomic, 70.1% cold and molecular, zero converged on
+either branch, adjacent axis cells at 85 K and 9418 K.
+
+### What was damped, and what was not
+
+  - `pdrCoupleDamp` (0.25) damps `ionDen` **between coupling passes**, inside
+    the loop.
+  - `iterDamp` (0.25) damps `Te` **between MC iterations**, after the loop -
+    the interval the convergence criterion is defined on.
+  - `pdrAbun`, the molecular abundances, were damped on **neither** interval.
+  - `ionDen` was damped pass-to-pass but **not** across the MC iteration.
+
+D-174 added the Te damping and stated the restriction plainly: *"Te only, for
+now: it is the bistable variable, and one change at a time is the point."*
+That was the right discipline at the time and D-198 measured it wrong. The two
+branches differ in all three quantities at once - a hot cell is atomic AND
+ionized AND hot - so damping one while the other two run free lets the free
+pair carry the flip and drag the damped one after it.
+
+### Why the molecular abundances specifically
+
+Under `CHEMSTEADY` the network integrates to a steady state, so the starting
+abundances do not set the answer EXCEPT where more than one steady state
+exists - which is exactly the bistable regime. D-112 already measured that
+part: V1's H2 front ratio is 1.109 from the network seed against 1.679 fully
+dissociated, and the second does not relax into the first even with a
+hundredfold longer integration. `pdrAbun` carries over from the previous
+iteration as that starting point, and was undamped.
+
+`elemAvail` is derived from `pdrAbun`, so it is republished from the damped
+abundances. Without that the next iteration's first coupling pass would
+normalise the ion stages to a molecular fraction that no longer matches the
+abundances beside it - the D-199 lag, reintroduced by the damping itself.
+
+### What this can and cannot do
+
+Damping is a relaxation on the path, not a change to the fixed point.
+
+  - If the coupled system has ONE root and was oscillating around it, this
+    finds it: the flip rate goes to zero and one population is left.
+  - If the thermal balance genuinely has TWO roots, this does NOT remove the
+    second. Each cell freezes on whichever branch it is nearest, the flip rate
+    ALSO goes to zero, and two populations are left.
+
+Both outcomes zero the flip rate, so the flip rate alone cannot distinguish
+them and must not be reported as if it could. The `[D200]` census therefore
+reports the branch populations alongside it. A single smooth profile means the
+oscillation was a coupling artifact; a static bimodal one means the roots are
+real and the damping has hidden the symptom rather than fixed the cause -
+which would be exactly the "tune it away" failure CLAUDE.md warns against, and
+would have to be reported as such rather than kept.
+
+### What is NOT known
+
+  - Which of the two outcomes this produces. Running as this is written.
+  - Whether `iterDamp` = 0.25 is the right strength for the abundances. It is
+    reused rather than given its own keyword, on the grounds that one
+    relaxation parameter for one interval is a design and three would be
+    knobs. If the abundances need a different constant, that is a finding.
+  - The residual one-PASS lag from D-199 is untouched: within a coupling pass
+    `updateCell` still runs before `pdrStep`.
+  - Nothing here addresses the ionized region running 9173-15660 K against a
+    benchmark of 7927-9420 K (D-198).
+
+
+---
+
+## D-201 - the damping introduced a second x(H2) (2026-09-09)
+
+Against `13641c9` plus D-200. Self-inflicted, found within the hour, recorded
+because the class of defect is the one this project keeps rediscovering.
+
+### What happened
+
+D-200 damps `pdrAbun` across the MC iteration. `H2den` is DERIVED from it -
+`pdrStep` writes `H2den = abun(NH2)*nH` - and was not damped with it. From that
+point the model carried two molecular fractions:
+
+  - `pdrAbun(NH2)`, damped, which the chemistry and `elemAvail` use;
+  - `H2den`, undamped, which MOCASSIN's H2 opacity reads (D-107,
+    `addOpacity`), which the convergence test compares against
+    `xH2iterStart` (D-179), and which the D-200 branch census reads.
+
+### How it was caught
+
+Not by inspection. The D-200 census is computed twice by different code on
+different arrays - in-line during the run from `H2den`, and afterwards from
+`pdrGrid.out`, which carries `pdrAbun`. At iteration 12 of the first D-200 run
+they disagreed:
+
+      same cells, same thresholds, iteration 12
+        from H2den   (undamped)   hot branch 27.6%
+        from pdrAbun (damped)     hot branch  1.6%
+
+*measured*. Two numbers for one quantity is the signature, and the only reason
+it surfaced is that the quantity was being computed twice from different
+sources. A single implementation would have been self-consistent and wrong.
+
+### What it costs
+
+The whole D-200 measurement is suspect and is NOT being reported as a result.
+Its branch classification used the undamped array while the physics ran on the
+damped one, so the trace
+
+      hot fraction, iterations 4-12
+      0.0  2.0  76.1  18.4  7.7  6.0  3.9  77.1  27.6
+
+cannot be attributed to the damping. It may be the bistability, it may be the
+split, it is most likely both. Rerun with `H2den` following.
+
+One D-200 result does survive, because it does not touch x(H2): the coupling
+consistency improved sharply. `x(H+)_ion/x(H+)_chem` p90 went 1.21 -> 1.0005
+and its maximum 82 -> 1.35 against the undamped contract run.
+
+### The rule this breaks
+
+CLAUDE.md, "one reality per quantity": *"There is one x(H+), one T_e, one A_V.
+If two arrays hold the same physical thing they will diverge, and the
+divergence will be found late and in the deep, quiet part of the model."* The
+divergence here was found early only by luck of double instrumentation.
+
+Anything derived from a damped array has to be damped or recomputed with it.
+In this coupling that is `H2den` and `elemAvail` from `pdrAbun`; both now are.
+`NePDR` is derived from `abun(NELECT)` and is not, but nothing reads it
+(`pdrUseNePDR` = 0, audit P5) so it cannot yet diverge into anything.
+
+### Measured, after the fix
+
+Same fixture, same damping, `H2den` following the damped abundances. The two
+runs differ in that one line.
+
+      it   D-200 hot%  D-201 hot%   D-200 cold%  D-201 cold%   D-200 flip%  D-201 flip%
+       5      2.0         0.0          92.4        90.6           2.73        0.00
+       6     76.1         0.0          16.5        15.2          78.51        0.00
+       7     18.4         0.3          76.4        82.0          84.79        0.41
+      11     77.1         1.6          18.5        17.0          77.52        1.78
+      12     27.6         1.4          65.4        74.5          70.98        1.52
+
+*measured*. Two separate results, and they point in different directions.
+
+**The hot branch was mine.** The eruptions to 76-77% and the flip rates of
+78-85% do not occur when x(H2) is single-valued. The hot population never
+exceeds 1.6% and flips never exceed 1.78%. So D-200's "period-2 global
+oscillation" was a description of the split, not of the model, and is
+withdrawn.
+
+**The molecular-fraction swing is not mine, and damping does not touch it.**
+The cold fraction collapses at iteration 6 and again at iteration 11 in BOTH
+runs, at the same iterations and with the same amplitude: 92.4 -> 16.5 against
+90.6 -> 15.2, and 90.8 -> 18.5 against 89.8 -> 17.0. Identical to within a
+point and a half. Whatever drives it is upstream of both the damping and the
+x(H2) split.
+
+The flip counter reports 0.00-1.78% through all of that, because it tests
+`hot` against `not-hot` and this swing is cold <-> between. **That is a defect
+in the instrument, not a quiet model**, and it nearly got reported as one.
+
+### What this says about damping
+
+  - It does NOT resolve the instability. Convergence ends at 0.0066%, against
+    0.0197% undamped: no better, and arguably worse.
+  - It DOES improve the coupling consistency sharply, and that survives:
+    `x(H+)_ion/x(H+)_chem` p90 1.21 -> 1.0021, maximum 82 -> 1.80.
+  - The question it was meant to answer - one root or two - is not answered.
+    The hot/cold split it was testing turned out to be an artifact, so the
+    two-root hypothesis it came from has no measurement behind it either way.
+
+### What is NOT known
+
+  - **What drives the swing at iterations 6 and 11.** Photon count is constant
+    at 6e6 throughout, so it is not `lgAutoPackets`. Two events is not a
+    period; calling it one on this evidence would be the same error as the two
+    premature calls made while D-200 was running.
+  - Whether a heavier `iterDamp` changes it. Untested, and worth testing only
+    with a census that can see the cold <-> between axis.
+  - The census thresholds are the immediate work: `hot` = 2x(H2) < 0.01 and
+    T > 3000 K, `cold` = 2x(H2) > 0.5, and a swing between 0.5 and 0.01 is
+    invisible to the flip count. It should report the molecular fraction's
+    distribution, not a three-way label.
+  - The ionized region still runs 9173-15660 K against 7927-9420 K (D-198).
