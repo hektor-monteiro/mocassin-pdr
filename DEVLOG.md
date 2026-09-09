@@ -190,6 +190,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-188 | **Every cell was seeded x(H2)=0.300, x(H)=0.400 - the network file's dark-cloud defaults - including cells in the H II region at 9000 K.** Now seeded from MOCASSIN's own ionization state on first visit, molecules zero, chemistry forms them | Done | 2026-09-08 |
 | D-189 | Restart audit: elemAvail reset to 1.0 ("no molecules") and H2den to 0 while pdrAbun was restored full of them. Both are functions of pdrAbun - now DERIVED from the restored state instead of defaulted | Done | 2026-09-08 |
 | D-190 | **PDRGEOM=3D with ray-traced per-ray columns.** A 3D photoionization code had been coupled to a 1D PDR: 11 of 12 rays blanked, escape probability undivided, all 12 shielding columns filled with one source-ward scalar. Mean Te **-23%**, its per-iteration change **26.8% -> 6.9%**, and **the two-cell ionization oscillation at the front is gone** | Done | 2026-09-08 |
+| D-191 | **Reverted to D-190.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10322,3 +10323,75 @@ ONEDIMENSIONAL branch is the correct geometry. This only bites on models that
 are actually 3D, which is exactly why it survived every slab benchmark in the
 project.
 
+
+---
+
+## D-191 - reverted to D-190 (2026-09-09)
+
+D-193, D-194 and D-195 are discarded and the tree is back at `4dfcb25`. Kept
+recoverable as the annotated tag `d193-d195-reverted` (tip `f6da2dd`); nothing
+is on a branch.
+
+### Why
+
+The three of them together made the model worse, and the clearest single
+number is the convergence fraction:
+
+      D-190  (G3Dhii)    89.31%   at iteration 24
+      D-193  (D193hii)    5.01%
+      D-195  (D195hii)    5.77%   36-45% of cells flipping across 1000 K
+                                  on every one of the last ten passes
+
+Neither post-D-190 run settles. The axis profiles swing by two orders of
+magnitude in T between neighbouring cells and between the two runs, in both
+directions, which made D-195's actual target - the H/H2 front position -
+unmeasurable. On that state no further item from the D-194 port list could have
+been measured either.
+
+### What is being given back
+
+Recorded here so it does not have to be rediscovered:
+
+  - **The D-192 hydrogen-budget defect returns.** `x(HI)+2x(H2)+x(HII)` is
+    1.28-1.64 in 16 of 29 axis cells at D-190, with `ionDen(H0)` clamped to
+    exactly zero past the H2 front and `ionDen(H+)` at 5.8e-1 where the
+    chemistry says 4.5e-2. MOCASSIN's opacity, photoionization heating and n_e
+    in the molecular interior all read that array. This is a real defect at
+    D-190 and it is now open again.
+  - **H2 formation is back on the hardcoded cross sections**, 8.473e-22 /
+    7.908e-22 cm^2/H, with no dependence on MdMg, the size distribution or the
+    composition. The measurement that replaced them is worth keeping on record:
+    this model carries **1.0165e-21 cm^2/H, all silicate, zero graphite** -
+    20% MORE area than Cazaux & Tielens assume, but a 0.62x rate at cold dust
+    and 0.24x at 60 K, because CT02's graphite channel was carrying the rate
+    and this model has no graphite. That number is independent of the coupling
+    and will still be true whenever this is picked up again.
+  - **The D-194 port list** (photorate gammas on Savage & Mathis when this
+    model implies UV_fac 3.83 vs 3.02; WD01 grain recombination not compiled
+    in; network abundances C=1.4e-4 against the model's 2.2e-4; charge exchange
+    reactions 178 and 185) is discarded as a file but the findings stand. It is
+    in the tag.
+
+### The open question this leaves
+
+Why the convergence fraction collapsed is NOT settled, and the leading
+explanation was arrived at only after a wrong one was discarded:
+
+  - **Wrong**: the D-169 `ionDen` writeback gate. It is guarded by
+    `pdrIonFromMocassin == 0` and every fixture here sets that keyword to 1, so
+    the gate was never active in any of these runs. Not the cause.
+  - **Leading, inferred from the diff and not measured**: before D-193,
+    `availFrac` stood down wherever the chemistry supplied per-stage rates -
+    under `pdrAllCells 1` that is everywhere - so the ion stages in PDR cells
+    normalised to 1.0 regardless of how much hydrogen was molecular.
+    x(H0), which is what the convergence test measures, then had almost nothing
+    to move it between passes. D-193 ties it to the molecular fraction, which
+    changes every pass. The failure breakdown fits: 41261 cells fail on x(H0)
+    alone against 2772 on x(H2), concentrated at A_V 1-4.
+
+If that reading is right then D-190's 89.31% is measuring a quantity that
+cannot move, and the honest convergence of the D-190 state is unknown rather
+than high. That is worth settling before the number is trusted again, and it
+needs a build with only that one edit reverted. Not done.
+
+All four flavours rebuilt clean at D-190.
