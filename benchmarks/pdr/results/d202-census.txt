@@ -1,0 +1,53 @@
+==============================================================================
+runs/d202-census/run.log
+==============================================================================
+
+  f_mol = 2x(H2) distribution, % of PDR cells
+   it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+    4      0.00    0.00   75.33   24.00    0.67    0.00    0.00    0.00
+    5      0.00    4.32    1.41    3.34   12.19   78.74    0.00    0.00
+    6      2.25    0.05   81.23    2.24    1.19    5.77    7.26    0.00
+
+  drivers and movement
+   it   f_mol_med  f_mol_mean   |df|_med   |df|_p90   mv>0.1%   Te_med     chi_med      AV_med    conv%
+    4      0.1888      0.2335     0.1888     0.3976    100.00      265.5   2.909e-01   2.371e+00   0.0000
+    5      0.7645      0.7085     0.5353     0.5864     99.79       79.1   2.785e-01   2.361e+00   0.0000
+    6      0.1957      0.2865     0.5704     0.6206     94.77     8005.9   2.812e-01   2.355e+00   0.0000
+
+ ! [D119] coupling pass           2  abundance-weighted mean ion-fraction change:   8.63427855E-03
+ ! [D119] coupling pass           3  abundance-weighted mean ion-fraction change:   7.14534475E-03
+ ! [D119] coupling pass           4  abundance-weighted mean ion-fraction change:   3.90496524E-03
+ ! [D119] coupling pass           5  abundance-weighted mean ion-fraction change:   1.56844023E-03
+ ! [D119] coupling pass           2  abundance-weighted mean ion-fraction change:   5.49101131E-03
+ ! [D202]   f_mol = 2x(H2) distribution, % of PDR cells
+ ! [D202]      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+ ! [D202]       0.00    0.00   75.33   24.00    0.67    0.00    0.00    0.00
+ ! [D202]   f_mol      p10   0.1501  median   0.1888  p90   0.3976  mean   0.2335
+ ! [D202]   |df_mol| since iter start  median   0.1888  p90   0.3976  max   0.5994
+ ! [D202]   moved >0.10:  14542 (100.00%)    >0.50:     98 (  0.67%)
+ ! [D202]   Te         p10  1.4916E+02  median  2.6553E+02  p90  4.8644E+02
+ ! [D202]   Te > 3000 K:      1 (  0.01%)    and f_mol<.01 (the D-200 'hot' label):      0 (  0.00%)
+ ! [D203]   chiFUV     p10  7.0534E-02  median  2.9089E-01  p90  3.5805E+00
+ ! [D203]   AVeff      p10  1.4254E+00  median  2.3706E+00  p90  2.9028E+00
+--
+ ! [D202]   f_mol = 2x(H2) distribution, % of PDR cells
+ ! [D202]      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+ ! [D202]       0.00    4.32    1.41    3.34   12.19   78.74    0.00    0.00
+ ! [D202]   f_mol      p10   0.5535  median   0.7645  p90   0.8252  mean   0.7085
+ ! [D202]   |df_mol| since iter start  median   0.5353  p90   0.5864  max   0.6264
+ ! [D202]   moved >0.10:  14747 ( 99.79%)    >0.50:   9179 ( 62.11%)
+ ! [D202]   Te         p10  5.0502E+01  median  7.9110E+01  p90  1.5636E+02
+ ! [D202]   Te > 3000 K:    252 (  1.71%)    and f_mol<.01 (the D-200 'hot' label):      0 (  0.00%)
+ ! [D203]   chiFUV     p10  6.5776E-02  median  2.7848E-01  p90  3.9744E+00
+ ! [D203]   AVeff      p10  1.3643E+00  median  2.3605E+00  p90  2.9015E+00
+--
+ ! [D202]   f_mol = 2x(H2) distribution, % of PDR cells
+ ! [D202]      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+ ! [D202]       2.25    0.05   81.23    2.24    1.19    5.77    7.26    0.00
+ ! [D202]   f_mol      p10   0.1742  median   0.1957  p90   0.8069  mean   0.2865
+ ! [D202]   |df_mol| since iter start  median   0.5704  p90   0.6206  max   0.6920
+ ! [D202]   moved >0.10:  14141 ( 94.77%)    >0.50:  11368 ( 76.19%)
+ ! [D202]   Te         p10  1.2418E+02  median  8.0059E+03  p90  8.6566E+03
+ ! [D202]   Te > 3000 K:  11655 ( 78.11%)    and f_mol<.01 (the D-200 'hot' label):      0 (  0.00%)
+ ! [D203]   chiFUV     p10  6.5125E-02  median  2.8117E-01  p90  4.4417E+00
+ ! [D203]   AVeff      p10  1.3267E+00  median  2.3547E+00  p90  2.8998E+00

@@ -78,11 +78,18 @@ module iteration_mod
            ! D-196: is the convergence test measuring anything?
            real(kind=8), allocatable :: cvBud(:), cvXH0(:), cvDlt(:), cvRat(:)
            integer                   :: nBud, nPin, nBad, nRat, nZero
-           integer                   :: nHotBr, nColdBr, nMidBr, nFlip
-           logical                   :: lgHotNow, lgHotWas
-           real                      :: xH2now
            real(kind=8)              :: avSum, bMin, bMax, bMed, xMed, dMed
            real(kind=8)              :: h2Sum, xHp, xHpChem
+           ! D-202: the molecular fraction's own distribution and movement,
+           ! which is what the D-200 three-way branch label was standing in for.
+           real(kind=8), allocatable :: cvMol(:), cvDMl(:), cvTe(:)
+           ! D-203: the field the chemistry was handed, alongside the answer
+           ! it gave, so a swing in f_mol can be attributed to the radiative
+           ! transfer or ruled out of it.
+           real(kind=8), allocatable :: cvChi(:), cvAv(:)
+           integer                   :: molHist(8), iBin, nMv10, nMv50
+           integer                   :: nWarm, nHotBr
+           real(kind=8)              :: fMol, fMolWas, molSum
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1707,13 +1714,17 @@ module iteration_mod
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%pdrZone)) cycle
                  allocate(cvBud(grid(iG)%nCells), cvXH0(grid(iG)%nCells), &
-                      &   cvDlt(grid(iG)%nCells), cvRat(grid(iG)%nCells), stat=err)
+                      &   cvDlt(grid(iG)%nCells), cvRat(grid(iG)%nCells), &
+                      &   cvMol(grid(iG)%nCells), cvDMl(grid(iG)%nCells), &
+                      &   cvTe(grid(iG)%nCells), cvChi(grid(iG)%nCells), &
+                      &   cvAv(grid(iG)%nCells), stat=err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate D-196 work arrays"; stop
                  end if
                  nBud = 0; nPin = 0; nBad = 0; nRat = 0; nZero = 0
                  avSum = 0.d0; h2Sum = 0.d0
-                 nHotBr = 0; nColdBr = 0; nMidBr = 0; nFlip = 0
+                 molHist = 0; nMv10 = 0; nMv50 = 0; nWarm = 0; nHotBr = 0
+                 molSum = 0.d0
                  do iDum = 1, grid(iG)%nCells
                     if (grid(iG)%pdrZone(iDum) /= 1) cycle
                     if (grid(iG)%Hden(iDum) <= 0.) cycle
@@ -1748,30 +1759,60 @@ module iteration_mod
                     if (cvXH0(nBud) <= 0.d0) nZero = nZero + 1
                     if (allocated(grid(iG)%elemAvail)) &
                          & avSum = avSum + dble(grid(iG)%elemAvail(iDum,1))
-                    ! ------------------------------------------- D-200
-                    ! Which branch is this cell on, and did it change branch
-                    ! since the iteration started? Two populations with an
-                    ! empty gap is a thermal balance with two roots; the flip
-                    ! count says whether cells are still moving between them.
-                    ! Damping that WORKS drives nFlip to zero and leaves one
-                    ! population. Damping that merely HIDES the problem drives
-                    ! nFlip to zero and leaves two.
-                    xH2now = 0.
+                    ! ------------------------------------------- D-202
+                    ! The D-200 census labelled each cell hot / cold / between
+                    ! and counted changes of the HOT label. That instrument
+                    ! read 0-1.8% straight through an iteration in which three
+                    ! quarters of the grid moved, because the swing ran
+                    ! between the cold and middle labels and never crossed the
+                    ! hot threshold. A label whose transitions the motion
+                    ! avoids reports a settled model on a moving one - the
+                    ! same failure as a convergence test on a quantity that
+                    ! cannot move (CLAUDE.md; D-176..D-181, D-191, D-196).
+                    !
+                    ! So report the molecular fraction itself: its whole
+                    ! distribution over the PDR cells, and how far each cell
+                    ! moved since the iteration started. No threshold decides
+                    ! what counts as a change of state; the one count that
+                    ! remains labelled (nHotBr) is kept only so the D-200 and
+                    ! D-201 tables stay comparable.
+                    !
+                    ! f_mol = 2 x(H2) comes from H2den, which D-201 ties to
+                    ! pdrAbun. If those two ever separate again, this line and
+                    ! the mean 2x(H2) above are computed from opposite sides
+                    ! of the split and will disagree - which is how D-201 was
+                    ! caught in the first place.
+                    fMol = 0.d0
                     if (allocated(grid(iG)%H2den)) &
-                         & xH2now = 2.*grid(iG)%H2den(iDum)/grid(iG)%Hden(iDum)
-                    lgHotNow = (xH2now < 0.01 .and. grid(iG)%Te(iDum) > 3000.)
-                    if (lgHotNow) then
-                       nHotBr = nHotBr + 1
-                    else if (xH2now > 0.5) then
-                       nColdBr = nColdBr + 1
-                    else
-                       nMidBr = nMidBr + 1
-                    end if
-                    if (allocated(grid(iG)%xH2iterStart) .and. &
-                         & allocated(grid(iG)%TeIterStart)) then
-                       lgHotWas = (2.*grid(iG)%xH2iterStart(iDum) < 0.01 .and. &
-                            &      grid(iG)%TeIterStart(iDum) > 3000.)
-                       if (lgHotNow .neqv. lgHotWas) nFlip = nFlip + 1
+                         & fMol = 2.d0*dble(grid(iG)%H2den(iDum)) &
+                         &        /dble(grid(iG)%Hden(iDum))
+                    cvMol(nBud) = fMol
+                    cvTe(nBud)  = dble(grid(iG)%Te(iDum))
+                    molSum      = molSum + fMol
+                    cvChi(nBud) = 0.d0
+                    if (allocated(grid(iG)%chiFUV)) &
+                         & cvChi(nBud) = dble(grid(iG)%chiFUV(iDum))
+                    cvAv(nBud) = 0.d0
+                    if (allocated(grid(iG)%AVeff)) &
+                         & cvAv(nBud) = dble(grid(iG)%AVeff(iDum))
+                    if (grid(iG)%Te(iDum) > 3000.) nWarm = nWarm + 1
+                    if (fMol < 0.01d0 .and. grid(iG)%Te(iDum) > 3000.) &
+                         & nHotBr = nHotBr + 1
+                    iBin = 1
+                    if (fMol >= 0.01d0) iBin = 2
+                    if (fMol >= 0.10d0) iBin = 3
+                    if (fMol >= 0.30d0) iBin = 4
+                    if (fMol >= 0.50d0) iBin = 5
+                    if (fMol >= 0.70d0) iBin = 6
+                    if (fMol >= 0.90d0) iBin = 7
+                    if (fMol >= 0.99d0) iBin = 8
+                    molHist(iBin) = molHist(iBin) + 1
+                    cvDMl(nBud) = 0.d0
+                    if (allocated(grid(iG)%xH2iterStart)) then
+                       fMolWas     = 2.d0*dble(grid(iG)%xH2iterStart(iDum))
+                       cvDMl(nBud) = abs(fMol - fMolWas)
+                       if (cvDMl(nBud) > 0.10d0) nMv10 = nMv10 + 1
+                       if (cvDMl(nBud) > 0.50d0) nMv50 = nMv50 + 1
                     end if
                  end do
                  if (nBud > 0) then
@@ -1811,14 +1852,48 @@ module iteration_mod
                          & nBad, " cells;", nZero, " with x(H0) exactly 0 (D-192 clamp)"
                     print '(a,f8.4,a,f8.4)', "! [D196]   mean 2x(H2) ", &
                          & h2Sum/dble(nBud), "   mean elemAvail(H) ", avSum/dble(nBud)
-                    print '(a,i7,a,f5.1,a,i7,a,f5.1,a,i7,a,f5.1,a)', &
-                         & "! [D200]   branches: hot", nHotBr, " (", &
-                         & 100.d0*dble(nHotBr)/dble(nBud), "%)  cold", nColdBr, " (", &
-                         & 100.d0*dble(nColdBr)/dble(nBud), "%)  between", nMidBr, " (", &
-                         & 100.d0*dble(nMidBr)/dble(nBud), "%)"
-                    print '(a,i7,a,f6.2,a)', &
-                         & "! [D200]   changed branch this iteration:", nFlip, " (", &
-                         & 100.d0*dble(nFlip)/dble(nBud), "%)"
+                    call cvSortD(cvMol, nBud)
+                    call cvSortD(cvDMl, nBud)
+                    call cvSortD(cvTe,  nBud)
+                    print '(a)', " ! [D202]   f_mol = 2x(H2) distribution, % of PDR cells"
+                    print '(a)', " ! [D202]      <.01  .01-.1   .1-.3   .3-.5&
+                         &   .5-.7   .7-.9  .9-.99   >=.99"
+                    print '(a,8f8.2)', " ! [D202]   ", &
+                         & (100.d0*dble(molHist(iBin))/dble(nBud), iBin = 1, 8)
+                    print '(a,4(f8.4,a))', " ! [D202]   f_mol      p10 ", &
+                         & cvMol(max(1,nBud/10)), "  median ", cvMol((nBud+1)/2), &
+                         & "  p90 ", cvMol(min(nBud,max(1,(9*nBud)/10))), &
+                         & "  mean ", molSum/dble(nBud)
+                    print '(a,3(f8.4,a))', &
+                         & " ! [D202]   |df_mol| since iter start  median ", &
+                         & cvDMl((nBud+1)/2), "  p90 ", &
+                         & cvDMl(min(nBud,max(1,(9*nBud)/10))), "  max ", cvDMl(nBud)
+                    print '(a,i7,a,f6.2,a,i7,a,f6.2,a)', &
+                         & " ! [D202]   moved >0.10:", nMv10, " (", &
+                         & 100.d0*dble(nMv10)/dble(nBud), "%)    >0.50:", nMv50, &
+                         & " (", 100.d0*dble(nMv50)/dble(nBud), "%)"
+                    print '(a,3(es11.4,a))', " ! [D202]   Te         p10 ", &
+                         & cvTe(max(1,nBud/10)), "  median ", cvTe((nBud+1)/2), &
+                         & "  p90 ", cvTe(min(nBud,max(1,(9*nBud)/10)))
+                    print '(a,i7,a,f6.2,a,i7,a,f6.2,a)', &
+                         & " ! [D202]   Te > 3000 K:", nWarm, " (", &
+                         & 100.d0*dble(nWarm)/dble(nBud), &
+                         & "%)    and f_mol<.01 (the D-200 'hot' label):", nHotBr, &
+                         & " (", 100.d0*dble(nHotBr)/dble(nBud), "%)"
+                    ! D-203. f_mol is the chemistry's ANSWER; chi and A_V are
+                    ! most of its input. Printed on the same line every
+                    ! iteration so the two time series can be read against
+                    ! each other: a collapse in f_mol with chi and A_V steady
+                    ! is internal to the chemistry-thermal loop, and one that
+                    ! follows a jump in chi is the radiative transfer's.
+                    call cvSortD(cvChi, nBud)
+                    call cvSortD(cvAv,  nBud)
+                    print '(a,3(es11.4,a))', " ! [D203]   chiFUV     p10 ", &
+                         & cvChi(max(1,nBud/10)), "  median ", cvChi((nBud+1)/2), &
+                         & "  p90 ", cvChi(min(nBud,max(1,(9*nBud)/10)))
+                    print '(a,3(es11.4,a))', " ! [D203]   AVeff      p10 ", &
+                         & cvAv(max(1,nBud/10)), "  median ", cvAv((nBud+1)/2), &
+                         & "  p90 ", cvAv(min(nBud,max(1,(9*nBud)/10)))
                     if (nRat > 0) then
                        call cvSortD(cvRat, nRat)
                        print '(a,3(es11.4,a),i8)', &
@@ -1830,7 +1905,8 @@ module iteration_mod
                             & " 1/(1-2x(H2)) = it normalised to unity"
                     end if
                  end if
-                 deallocate(cvBud, cvXH0, cvDlt, cvRat)
+                 deallocate(cvBud, cvXH0, cvDlt, cvRat, cvMol, cvDMl, cvTe, &
+                      &      cvChi, cvAv)
               end do
            end if
 #endif

@@ -199,6 +199,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-199 | **`elemAvail` was one MC iteration stale.** `pdrToMocassin`, its only writer, sat outside the coupling loop while `updateCell` read it 5 times per iteration. Harmless until D-193 stopped writing `ionDen` directly; after that it rang the ion/chemistry ratio 1.05 -> 19.5 -> 0.166 with nothing converging. Moved inside the loop: the ratio holds 1.0000 with p90 1.01 and budget failures fall 9670 -> 29 | Done | 2026-09-09 |
 | D-200 | **Damping extended from the temperature to the molecular and ionic state.** D-174 damped Te across the MC iteration and recorded "Te only, for now: it is the bistable variable"; D-198 measured that it is not - a hot cell is atomic AND ionized AND hot. `pdrAbun` and `ionDen` are now damped on the same interval, and `elemAvail` republished from the damped abundances. Whether this resolves the bistability or only freezes it is the measurement | Running | 2026-09-09 |
 | D-201 | **The D-200 damping created a second x(H2), and the damping's own diagnostic caught it.** `pdrAbun` was damped but `H2den`, which `pdrStep` derives from it, was not - so the H2 opacity, the convergence test and the branch census read an undamped molecular fraction while the chemistry used a damped one. Measured: the same census gave 27.6% hot from `H2den` and 1.6% from `pdrAbun` on the same cells. `H2den` now follows. With it single-valued the hot-branch eruptions vanish (76% -> 0%, flips 78% -> 0%), but the molecular-fraction swing at iterations 6 and 11 is identical in both runs - it is not the damping and not the split | Done | 2026-09-09 |
+| D-202 | **The branch census was blind to the swing it was built to watch.** D-200's instrument labelled each cell hot / cold / between and counted changes of the HOT label; the collapse runs between the cold and middle labels and never crosses the hot threshold, so the flip count read 0-1.8% while three quarters of the grid moved. Replaced with the molecular fraction's own distribution - an eight-bin histogram of f_mol = 2x(H2), its quantiles, and |df_mol| since the iteration start - so no threshold decides what counts as a change of state. The new census reproduces the collapse and shows it is a broad multi-modal distribution, not two clean branches | Done | 2026-09-09 |
+| D-203 | **The collapse is not the radiative transfer's: measured.** chi_FUV and A_V are now reported as quantiles every iteration beside f_mol and Te. Across the iteration-6 collapse the median f_mol falls 0.765 -> 0.196 and the median Te rises 79 K -> 8006 K while the median chi moves +1.0% and A_V -0.3%. The FUV field and the extinction are exonerated; the instability is inside the chemistry / thermal-balance loop. The inner coupling loop is exonerated too - its ion-fraction change decays 8.6e-3 -> 1.6e-3 over four passes within that same iteration | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11283,3 +11285,150 @@ in the instrument, not a quiet model**, and it nearly got reported as one.
     invisible to the flip count. It should report the molecular fraction's
     distribution, not a three-way label.
   - The ionized region still runs 9173-15660 K against 7927-9420 K (D-198).
+
+
+---
+
+## D-202 - the census could not see the swing (2026-09-09)
+
+Against `8563528`. A defect in my own instrument, found by reading its output
+against the axis data rather than by any test.
+
+**What the instrument said.** The D-200 census gives each PDR cell one of three
+labels - `hot` (2x(H2) < 0.01 and T > 3000 K), `cold` (2x(H2) > 0.5), `between`
+- and counts the cells whose HOT label changed since the iteration started.
+Across the whole D-201 run that count never exceeded 1.78%.
+
+**What was actually happening.** In the same iterations the cold population
+went 90.6% -> 15.2% and back to 74.5%. Three quarters of the grid moved. The
+flip count did not see it because the motion ran from `cold` into `between` and
+back, and neither end of that path crosses the `hot` threshold. The label was
+constructed so that the swing is invisible to it.
+
+This is the project's recurring failure in a new place. D-176..D-181 measured
+convergence on a quantity that could not move; D-191 did it again; D-196 found
+the convergence percentage counting frozen cells. Here it is a *census* rather
+than a convergence test, but the shape is identical: a number that cannot
+respond to the thing it is watching reports quiet, and quiet is the answer
+everyone wants, so it is believed.
+
+**The fix.** No labels. The census now reports
+
+  - an eight-bin histogram of f_mol = 2x(H2) over the PDR cells, spanning
+    <0.01 through >=0.99, as a percentage of cells;
+  - f_mol at p10 / median / p90, and its mean;
+  - |df_mol| since the iteration start at median / p90 / max, and the count of
+    cells that moved by more than 0.10 and by more than 0.50;
+  - Te at p10 / median / p90, and the count above 3000 K.
+
+A distribution has no threshold to be blind at. The one labelled count kept is
+`f_mol < 0.01 .and. Te > 3000`, the old `hot`, and it is kept only so the D-200
+and D-201 tables remain comparable to what follows.
+
+**One property of the old census is deliberately preserved.** f_mol is taken
+from `H2den`, and the `mean 2x(H2)` line a few lines above it is taken from
+`pdrAbun`. D-201 was caught precisely because two code paths computed the same
+physical quantity from different arrays and disagreed. Collapsing them to one
+array would be tidier and would have hidden that defect, so they stay separate:
+here the redundancy is the test, not the bug.
+
+**What it shows.** Run `runs/d202-census`, the `hiipdr-contract` fixture at
+`8563528` plus this census. Stopped by the operator during iteration 7, which
+is after the collapse and so leaves the measurement intact.
+
+    f_mol = 2x(H2) distribution, % of PDR cells
+     it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+      4      0.00    0.00   75.33   24.00    0.67    0.00    0.00    0.00
+      5      0.00    4.32    1.41    3.34   12.19   78.74    0.00    0.00
+      6      2.25    0.05   81.23    2.24    1.19    5.77    7.26    0.00
+
+The collapse reproduces: the cells above f_mol = 0.5 go 90.9% -> 14.2% at
+iteration 6, matching the 90.6% -> 15.2% the D-201 run reported for the same
+iteration with the old labels. So the new instrument is measuring the same
+event, and the D-200/D-201 tables are not invalidated - they were incomplete,
+not wrong.
+
+What the labels could not show is the shape. This is not two clean branches
+with an empty gap between them, which is what "bistable" was asserting from
+D-198 onward. At iteration 6 the population is spread across four separated
+bins - 2.25% fully atomic, 81.2% at f_mol ~ 0.2, 7.0% between 0.5 and 0.9, and
+7.26% at 0.9-0.99 - with the mode sitting in the MIDDLE of the range, not at
+either end. A cell at f_mol = 0.2 is not on a branch; it is somewhere between
+them. The word "bistability" should be treated as unproven from here on.
+
+**What is NOT known.** Whether f_mol falls because Te rises or Te rises because
+f_mol falls. Both move within one MC iteration and the medians cannot order
+them. See D-203.
+
+---
+
+## D-203 - measuring the input, not just the answer (2026-09-09)
+
+Against D-202, same build. The bistability has survived the contract (D-198),
+damping (D-200) and the x(H2) split (D-201), and none of those measurements
+looked at what the chemistry was handed.
+
+f_mol is an *output*. Its two dominant inputs in this model are the FUV field
+the cell sees, chi_FUV in Draine units, and the effective A_V the MC transfer
+built for it. Both already exist per cell (`grid%chiFUV`, `grid%AVeff`) and
+both are written to `pdrGrid.out`, but neither was reported per iteration, so
+the time series that would separate the two candidate causes was never formed.
+
+The census now prints chi_FUV and A_V at p10 / median / p90 on the same lines
+as f_mol and Te, every iteration. The discrimination is direct:
+
+  - f_mol collapses while chi and A_V hold steady -> the cause is inside the
+    chemistry / thermal-balance loop, and the field is exonerated;
+  - f_mol collapses *after* chi jumps or A_V drops -> the cause is upstream, in
+    the radiative transfer, and the chemistry is doing what it was told.
+
+Neither outcome is assumed. The photon count is constant at 6e6 across the run,
+so `lgAutoPackets` is already ruled out as a source of a step change in the
+field; that is the only candidate eliminated so far.
+
+**Measured, and the discrimination is clean.** Same run as D-202:
+
+     it   f_mol_med   Te_med      chi_med      AV_med
+      4      0.1888     265.5   2.909e-01   2.371e+00
+      5      0.7645      79.1   2.785e-01   2.361e+00
+      6      0.1957    8005.9   2.812e-01   2.355e+00
+
+Across the collapse the median molecular fraction falls by a factor 3.9 and the
+median temperature rises by a factor 101, while the median FUV field moves
++1.0% and the median A_V moves -0.3%. The field the chemistry was handed is
+flat to a per cent across an event that moves its answer by two orders of
+magnitude.
+
+**So the FUV field and the extinction are exonerated.** The instability is
+inside the chemistry / thermal-balance loop. The `lgAutoPackets` candidate was
+already dead (photon count constant at 6e6), and the two `nIterateMC >= 6`
+branches in `update_mod.f90` - which fire at exactly the iteration of the
+collapse, and were checked for that reason - are the D-135 and D-138 print
+probes and change no state.
+
+**The inner coupling loop is exonerated too, and that was not expected.**
+Within iteration 6 the `[D119]` abundance-weighted mean ion-fraction change
+decays 8.63e-3 -> 7.15e-3 -> 3.90e-3 -> 1.57e-3 over the four passes. The
+ionization/chemistry coupling settles inside the iteration; the state then
+swings by a factor 100 in Te between iterations. The instability lives in the
+MC iteration loop, not in the coupling loop that was built to close it.
+
+**A limit on the claim, stated because it decides the next measurement.**
+"the field is flat" is established for chi_FUV and for A_V. It is NOT
+established for the rest of the radiation field: the MC transfer also sets the
+local heating rates and the dust temperature, and those are what MOCASSIN's
+thermal balance actually solves against. The one number in hand there is from
+the D-137 probe at iteration 6, on deep cell 14: MOCASSIN's photoelectric
+heating is 7.6e-27 per H against 3D-PDR's 4.19e-25, a ratio of 1.8e-2. That is
+a 55-fold disagreement in the dominant PDR heating term, and it is the obvious
+place to look next - but it is one cell, on a cell that is cooling smoothly
+(130 -> 108 -> 90 -> 75 K across the balance solve) rather than one of the
+collapsing ones, so it is a lead and not a result.
+
+**What is NOT known, and is not being guessed.** Whether Te leads f_mol or
+f_mol leads Te. The coupling pass order (updateCell before pdrStep) means the
+thermal balance at iteration 6 ran on iteration 5's abundances, which would
+favour Te leading - but that is inference from code order, not measurement, and
+inference of exactly this kind has been wrong three times in this project
+(D-135, D-137, D-191). The measurement that settles it is the heating and
+cooling budget in the census, per iteration, next to f_mol and Te.
