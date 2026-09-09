@@ -11476,7 +11476,18 @@ rank over owned PDR-zone cells and reduced with three scalar collectives that
 every rank executes unconditionally. The census prints the iteration-start
 values over the same cell set, so the three columns share a denominator.
 
-**What is NOT known.** The answer. The run is `runs/d204-order`, the full 12
-iterations of `hiipdr-contract`, restarted after the operator stopped
-`runs/d202-census` during iteration 7. It also picks up iteration 11, the
-second collapse, which no run has yet seen through the new census.
+**What is NOT known.** The answer. `runs/d204-order` was started as the full 12
+iterations of `hiipdr-contract` and stopped by the operator during iteration 4,
+about a minute after `updateCell` returned and before the probe's first print -
+so it produced no D-204 data. Iterations 1-3 ran at normal cadence (16:11:55,
+16:12:44, 16:15:28) and there is no evidence of a stall.
+
+**The probe is therefore compiled but not yet exercised.** It contains three
+MPI collectives on a path no run has entered. They are guarded on `lgPDR`,
+`nIterateMC` and `iCouple`, all of which are rank-uniform, so they should not
+deadlock - but "should not" is the status, not "measured", and that is worth
+saying plainly about a collective. The next run of this fixture settles both
+the ordering question and whether the probe itself is sound.
+
+The run also needs to reach iteration 11, the second collapse, which no run has
+yet seen through the new census.
