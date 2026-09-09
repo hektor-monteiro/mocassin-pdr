@@ -203,6 +203,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-203 | **The collapse is not the radiative transfer's: measured.** chi_FUV and A_V are now reported as quantiles every iteration beside f_mol and Te. Across the iteration-6 collapse the median f_mol falls 0.765 -> 0.196 and the median Te rises 79 K -> 8006 K while the median chi moves +1.0% and A_V -0.3%. The FUV field and the extinction are exonerated; the instability is inside the chemistry / thermal-balance loop. The inner coupling loop is exonerated too - its ion-fraction change decays 8.6e-3 -> 1.6e-3 over four passes within that same iteration | Done | 2026-09-09 |
 | D-204 | **Neither leads: the collapse is a coupled runaway, and the D-203 inference was wrong.** Te sampled after the first updateCell of each iteration - thermal balance done, chemistry not yet run. At iteration 6 that takes the hot fraction from 2.25% to 5.08% at f_mol still 0.70; it ends the iteration at 76.74%. So the thermal balance alone contributes one fourteenth of the excursion and the rest appears across the five coupling passes. D-203 reasoned from the pass order that Te probably leads; measuring it says otherwise | Done | 2026-09-09 |
 | D-205 | **The coupling loop's own residual is blind to the runaway inside it.** Within iteration 6 the [D119] abundance-weighted ion-fraction change decays monotonically 8.56e-3 -> 1.46e-3 across the five passes while the hot fraction goes 5.08% -> 76.74% in those same passes. It measures ion fractions, so the thermal/molecular runaway is invisible to it - the third instrument in this audit to report quiet on a moving model (D-196, D-202). The D-204 snapshot now fires on every pass, with the PDR cooling and heating the balance was handed | Running | 2026-09-09 |
+| D-206 | **Twelve iterations: a relaxation oscillation, not a bistability - and the D-204 sign flip is withdrawn.** The model relaxes toward cold molecular gas over four iterations (|df_mol| p90 0.62 -> 0.13, converged fraction reaching its run maximum at iteration 9) and then discharges to 77% hot in one. Iteration 8 starts at f_mol 0.662, within 6% of iteration 6's, and its pass-1 balance cools by x0.15 where 6 warmed by x4.58 - so the sign flip flagged from three points was the initial transient read as a trend. chi_FUV jumps 45% the iteration AFTER each collapse, confirming the field follows the molecules | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11530,8 +11531,38 @@ with it MOCASSIN's collisional cooling, while the molecular cooling meant to
 replace it is not arriving at the same size. That is a hypothesis. It is not
 measured, and D-205 is where the terms get reported.
 
-**What is NOT known.** Whether iteration 11 behaves the same way. The run is
-still going.
+**The sign flip does not survive the full run. It is withdrawn.**
+`runs/d204-order` completed all 12 iterations (49:46, clean exit):
+
+     it  f_mol_start   Te_start   Te_upd1    ratio
+      4     0.0000     1168.0      51.9   x 0.04
+      5     0.2322      363.9     122.0   x 0.34
+      6     0.7003      211.7     970.1   x 4.58
+      7     0.2938     6150.5    1606.4   x 0.26
+      8     0.6617     2597.8     393.6   x 0.15
+      9     0.7934     1109.5     231.2   x 0.21
+     10     0.8282      629.4     144.6   x 0.23
+     11     0.8559      428.2     488.5   x 1.14
+     12     0.3413     6464.3    1792.7   x 0.28
+
+Iteration 8 starts at f_mol 0.662, within 6% of iteration 6's 0.700, and its
+pass-1 balance COOLS by a factor 0.15 where iteration 6 warmed by 4.58. The
+relation is not monotonic in f_mol and there is no sign flip keyed to the
+molecular content. The three points that suggested one were iterations 4, 5
+and 6, which are the model's initial transient off the atomic seed - a
+monotonic sequence read as a trend.
+
+It was recorded as "a strong lead, not a settled law", and the full run says it
+was not even that. Six more iterations cost nothing to wait for and would have
+prevented the claim; that is the lesson, not the arithmetic.
+
+**What replaced it.** Iteration 11 collapses just as hard as 6 - the hot
+fraction ends at 77.57% - but its pass-1 balance does essentially nothing: the
+hot fraction goes DOWN, 4.13% to 2.89%, and the mean temperature moves only
+428 K to 489 K. So at iteration 11 the entire runaway happens inside the
+coupling passes, with the thermal balance at fixed f_mol contributing nothing
+at all. That strengthens D-205 rather than D-204: the unwatched part of the
+loop is where this lives.
 
 
 ---
@@ -11589,3 +11620,71 @@ turns that single-cell observation into a population.
 replace the atomic cooling that `elemAvail` removes - that is the D-204
 hypothesis and these are the numbers that test it. Nothing about the mechanism
 is being asserted before the run.
+
+
+---
+
+## D-206 - the full 12 iterations: a relaxation oscillation, not a bistability (2026-09-09)
+
+`runs/d204-order`, `hiipdr-contract` at `93fd747`, 12 iterations, 14 ranks,
+49:46, clean exit. The first complete run of this fixture through the D-202
+census.
+
+    f_mol = 2x(H2) distribution, % of PDR cells
+     it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+      4      0.00    0.00   75.46   23.82    0.71    0.00    0.00    0.00
+      5      0.00    4.34    1.75    3.21   12.25   78.46    0.00    0.00
+      6      2.25    0.05   79.99    2.21    1.34    5.96    8.20    0.00
+      7      1.72    6.55   10.10    0.20    1.91   75.42    4.10    0.00
+      8      2.02    4.38    4.94    1.31    1.78   18.52   67.05    0.00
+      9      2.74    3.26    4.20    2.18    2.11    8.29   77.21    0.00
+     10      2.32    2.30    3.74    1.74    2.41    6.51   80.97    0.01
+     11      2.46    3.14   75.57    1.42    1.98    3.59   11.83    0.01
+     12      2.46   13.25   10.23    0.95    1.85   66.25    5.00    0.01
+
+**It is not settling and it is not stuck. It relaxes and breaks.** Read the
+movement column: |df_mol| at p90 falls 0.62, 0.60, 0.55, 0.16, 0.13 across
+iterations 6 to 10, and the fraction of cells moving by more than 0.1 falls
+94.8%, 92.8%, 89.3%, 19.6%, 12.3%. The model is converging - the converged
+fraction even reaches 0.0066% at iteration 9, its highest anywhere. Then
+iteration 11 puts 83.6% of cells back into motion and the hot fraction to
+77.57%, and the whole approach starts again: iteration 12 reproduces iteration
+7 closely (start hot 77.57% vs 76.59%, end f_mol 0.619 vs 0.663).
+
+That is the shape of a relaxation oscillation: a slow approach to a state, a
+threshold, a fast discharge, repeat. It is NOT the two-branch bistability this
+has been called since D-198, and D-202 already flagged that the distribution
+has its mode in the middle rather than at either end.
+
+**Two collapses, five iterations apart, with the same recovery shape.** That is
+one interval, not a period. It is worth saying precisely: two events give one
+gap, and this project has twice called an oscillation's character from too few
+points and been wrong (D-200, twice in the same run). What can be said is that
+the shape repeated once, in detail.
+
+**The FUV field responds one iteration LATE, which confirms D-203.** chi
+medians: 0.282, 0.411, 0.322, 0.321, 0.316, 0.293, 0.411 across iterations 6 to
+12. It jumps ~45% at iterations 7 and 12 - the iterations AFTER each collapse,
+when the H2 that was shielding the gas has already gone. The field follows the
+molecules; it does not drive them. D-203 exonerated it from a flat series
+across one collapse, and the full run shows why the series was flat there and
+where the field's response actually appears.
+
+**A_V drifts down monotonically**, 2.371 to 2.337 over the nine PDR iterations,
+about 1.4% in total, unaffected by the collapses. Nothing in the oscillation
+comes from the extinction.
+
+**What triggers the discharge is not yet known.** The two collapsing iterations
+are the two whose starting state is coldest and most molecular relative to the
+run's trend (iteration 6 at mean Te 212 K after 364 K; iteration 11 at 428 K
+after 629 K, with f_mol 0.856, the highest anywhere). But iteration 10 is also
+cold and molecular and does not collapse, so "cold and molecular" is a
+correlate, not a threshold, and no threshold is being asserted from two events.
+
+**What is NOT known, and what measures it.** The discharge happens inside the
+coupling passes - D-205 shows the loop's own residual cannot see it, and the
+D-204 pass-1 probe shows the thermal balance at fixed f_mol contributes
+one fourteenth of it at iteration 6 and nothing at all at iteration 11. The
+per-pass instrument built at D-205 (mean Te, hot fraction, f_mol, and per H
+nucleus the PDR cooling, PDR heating and its photoelectric part, on every pass)
+has not yet been run. That is the next measurement.
