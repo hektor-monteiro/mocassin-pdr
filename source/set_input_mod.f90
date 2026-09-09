@@ -689,6 +689,10 @@ module set_input_mod
             case ("pdrSyncAbun")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrSyncAbun
+                if (taskid == 0) print*, "! setInput: pdrSyncAbun is retired &
+                     &(D-208) - the PDR seed is built from MOCASSIN's elemAbun &
+                     &and ionDen, so there is no network seed to rescale; the &
+                     &keyword is ignored"
             case ("pdrCoupleIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoupleIter

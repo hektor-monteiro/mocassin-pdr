@@ -204,6 +204,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-204 | **Neither leads: the collapse is a coupled runaway, and the D-203 inference was wrong.** Te sampled after the first updateCell of each iteration - thermal balance done, chemistry not yet run. At iteration 6 that takes the hot fraction from 2.25% to 5.08% at f_mol still 0.70; it ends the iteration at 76.74%. So the thermal balance alone contributes one fourteenth of the excursion and the rest appears across the five coupling passes. D-203 reasoned from the pass order that Te probably leads; measuring it says otherwise | Done | 2026-09-09 |
 | D-205 | **The coupling loop's own residual is blind to the runaway inside it.** Within iteration 6 the [D119] abundance-weighted ion-fraction change decays monotonically 8.56e-3 -> 1.46e-3 across the five passes while the hot fraction goes 5.08% -> 76.74% in those same passes. It measures ion fractions, so the thermal/molecular runaway is invisible to it - the third instrument in this audit to report quiet on a moving model (D-196, D-202). The D-204 snapshot now fires on every pass, with the PDR cooling and heating the balance was handed | Running | 2026-09-09 |
 | D-206 | **Twelve iterations: a relaxation oscillation, not a bistability - and the D-204 sign flip is withdrawn.** The model relaxes toward cold molecular gas over four iterations (|df_mol| p90 0.62 -> 0.13, converged fraction reaching its run maximum at iteration 9) and then discharges to 77% hot in one. Iteration 8 starts at f_mol 0.662, within 6% of iteration 6's, and its pass-1 balance cools by x0.15 where 6 warmed by x4.58 - so the sign flip flagged from three points was the initial transient read as a trend. chi_FUV jumps 45% the iteration AFTER each collapse, confirming the field follows the molecules | Done | 2026-09-09 |
+| D-208 | **The network file's x(H2)=0.300 was never removed, only routed around - and it was setting the H2 shielding column the first chemistry call consumed.** D-188 re-seeded each cell from MOCASSIN on its first `pdrStep` visit, but `seedPDR` went on writing `species_reduced.d`'s x(H)=0.400 / x(H2)=0.300 into every cell, and `computeAVdust` and `computeRayColumns` run BEFORE the coupling loop - so at the first PDR iteration the columns were integrated over a grid uniformly 60% molecular, order 1e21 cm^-2, which saturates self-shielding outright. One seeding rule now: `seedAbunFromMocassin`, molecules zero, every carrier from `elemAbun` and `ionDen`. `syncSeed` and `pdrSyncAbun` retire with it | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11688,3 +11689,99 @@ one fourteenth of it at iteration 6 and nothing at all at iteration 11. The
 per-pass instrument built at D-205 (mean Te, hot fraction, f_mol, and per H
 nucleus the PDR cooling, PDR heating and its photoelectric part, on every pass)
 has not yet been run. That is the next measurement.
+
+
+---
+
+## D-208 - the hardcoded seed was still there (2026-09-09)
+
+Against `164798f`. Raised by the operator, who was right: this was supposed to
+have been removed and was not.
+
+**What the file says.** `dataPDR/species_reduced.d`:
+
+    11,C+,1.40E-04,12.0
+    26,He,1.00E-01,4.0
+    30,O,3.00E-04,16.0
+    31,H2,3.00E-01,2.0
+    32,H,4.00E-01,1.0
+
+x(H) = 0.400 and x(H2) = 0.300: sixty per cent of the hydrogen NUCLEI
+molecular. These are `species_reduced.d`'s starting values for a standalone
+dark-cloud run, not an initial condition for an H II region model.
+
+**What D-188 did, and where its claim stopped being true.** D-188 made
+`pdrStep` re-seed each cell from MOCASSIN's ionization state on its first
+visit, and recorded that "the network file's x(H2) = 0.3 never reaches a cell
+the chemistry actually solves". That is true of the ABUNDANCES the solver
+starts from. It is false of what those abundances feed, and the call order says
+so plainly:
+
+    iteration_mod.f90:864   call computeAVdust(grid)      <- integrates pdrAbun
+    iteration_mod.f90:865   call mocassinToPDR(grid)      <- computeRayColumns, ditto
+    iteration_mod.f90:1029  do iCouple = 1, ...
+    iteration_mod.f90:1258       call pdrStep(...)        <- the re-seed happens HERE
+
+Both column routines sit in the `nIterateMC >= pdrStartIter` block, above the
+coupling loop. So at the first PDR iteration the H2, C and CO shielding columns
+are integrated over a grid that still holds the network defaults in every cell.
+At n_H = 100 with 2e18 cm cells that is 6e19 cm^-2 of fictitious H2 per cell
+and order 1e21 cm^-2 across the grid - H2 self-shielding saturates far below
+that, so the first chemistry call solved a fully self-shielded cloud.
+
+D-112 already measured that this is not a transient the model forgets: the H2
+front ratio is 1.109 from the network seed against 1.679 fully dissociated, and
+the two do not relax into each other with a hundredfold longer integration.
+
+**Three more places the defaults survived.**
+
+  - `computeRayColumns` has NO zone guard - it sums `pdrAbun(cP,pdrIdxH2)` over
+    every active cell on the ray, H II region included. That is the RAYTHEIA
+    path, which is `PDRGEOM=3D`, the default test build. `computeAVradial`
+    guards with `pdrZone(cP) == 1`, and the comment explaining why the ionized
+    gas must be excluded lives only in the radial routine.
+  - `pdrAbun(0:nCells,:) = pdrInitAbun` ran over every cell including cell 0 and
+    the inactive ones; only active cells were then overwritten, and nothing
+    re-seeds an inactive cell ever.
+  - `syncSeed` rescaled He, C, O and Mg to MOCASSIN's `elemAbun` and left
+    hydrogen alone. So 0.400 and 0.300 were the vendored numbers exactly, while
+    four other elements were MOCASSIN's - two rules for one quantity.
+
+**The fix.** One seeding rule, `seedAbunFromMocassin`, called by `seedPDR` at
+startup and by `pdrStep` on a cell's first visit:
+
+    abun = 0                                   ! molecules included
+    linked species <- elemAbun(elem) * ionDen(elem, stage)
+    electrons      <- Ne / Hden
+
+Nothing is read from the network file. Inactive cells and cell 0 get zeros
+rather than dark-cloud abundances. `seedPDR` runs after `fillGrid`, so `ionDen`
+is MOCASSIN's initial ionization rather than a converged one - but it is
+MOCASSIN's, which is the whole point, and by the time the columns are consumed
+at `pdrStartIter` the ionization has been through three MC iterations.
+
+`syncSeed` and the `pdrSyncAbun` keyword retire with it - there is nothing to
+rescale when the seed is built from MOCASSIN's numbers in the first place.
+`pdrSyncAbun` becomes the eighth retired keyword. The network-vs-MOCASSIN
+abundance comparison is still printed at startup, now as a report of what was
+NOT used.
+
+**A defect introduced and caught in the same edit.** Removing `syncSeed` by
+walking back to the preceding comment header also deleted `linkIon`, the
+routine that builds the very species-to-ion-stage table the new seeding rule
+depends on. It failed at link time (`undefined reference to linkion_`) rather
+than silently, and was restored. Recorded because "the cleanup deleted a
+neighbour" is a failure mode worth having written down once.
+
+**What is NOT known.** What this changes. Every result in this session -
+D-202 through D-207, including the relaxation oscillation and its period -
+was measured with the 0.300 seed in the first-iteration columns. The oscillation
+may be unaffected, damped, or gone; nothing is being predicted. `runs/d207-budget`
+was launched before this change and still carries the old seed, so its budget
+numbers stand as a measurement of the OLD model and must not be read as the new
+one.
+
+**What must NOT be concluded if the oscillation improves.** That the seed was
+"the cause". D-112 says the seed selects a branch; a branch change is not the
+same as removing an instability, and the run-to-run comparison has to show the
+oscillation gone rather than moved.

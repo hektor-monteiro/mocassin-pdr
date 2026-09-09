@@ -445,11 +445,15 @@ module pdr_mod
            call reportAbun( 6, NCx,  grid(1)%elemAbun(1, 6), 'C ')
            call reportAbun( 8, NO,   grid(1)%elemAbun(1, 8), 'O ')
            call reportAbun(12, NMGx, grid(1)%elemAbun(1,12), 'Mg')
-           if (pdrSyncAbun /= 0) then
-              print*, "!   rescaling the network to MOCASSIN's values (pdrSyncAbun)"
-           else
-              print*, "!   [warning] pdrSyncAbun=0: the two are left inconsistent"
-           end if
+           ! D-208: the comparison above is still worth printing - the two
+           ! files genuinely disagree, C/H is 1.4e-4 against 2.2e-4 - but it
+           ! is now a report, not a choice. Every cell is seeded from
+           ! MOCASSIN's elemAbun and ionDen, so the network's column is
+           ! documentation of what was NOT used.
+           print*, "!   MOCASSIN's values are used; the network column is what &
+                &was not used (D-208)"
+           if (pdrSyncAbun == 0) print*, "!   pdrSyncAbun is retired (D-208) &
+                &and ignored - the seed is always MOCASSIN's"
         end if
 
         do iG = 1, nGrids
@@ -459,13 +463,16 @@ module pdr_mod
               yTop = 1
            end if
 
-           ! D-188: this is now only a fallback for inactive cells and for the
-           ! shielding columns computed before the chemistry first runs. Every
-           ! active cell is re-seeded from MOCASSIN's ionization state on its
-           ! first visit in pdrStep, so the network file's x(H2) = 0.3 never
-           ! reaches a cell the chemistry actually solves.
+           ! D-208: zero, not the network file's defaults. A cell with no
+           ! gas has no species; a cell with gas is filled from MOCASSIN
+           ! below. The old line wrote x(H) = 0.400 and x(H2) = 0.300 into
+           ! every cell including cell 0 and the inactive ones, which nothing
+           ! ever re-seeded, and D-188's claim that the defaults never reach a
+           ! solved cell held only for the abundances - the shielding columns
+           ! at the first PDR iteration were integrated over exactly these
+           ! values. See seedAbunFromMocassin.
            do iCell = 0, grid(iG)%nCells
-              grid(iG)%pdrAbun(iCell,:) = pdrInitAbun(1:pdrNspec)
+              grid(iG)%pdrAbun(iCell,:) = 0.d0
            end do
 
            do i = 1, grid(iG)%nx
@@ -475,20 +482,18 @@ module pdr_mod
                     if (iCell <= 0) cycle
                     iAb = grid(iG)%abFileIndex(i,j,k)
 
-                    seed = pdrInitAbun(1:pdrNspec)
-
-                    ! At initialisation each element sits in exactly one carrier
-                    ! species, so matching MOCASSIN's elemental abundance is a
-                    ! single assignment per element. Done per cell so that
-                    ! multiChemistry models with different abundance files get
-                    ! the right budget in each region.
-                    if (pdrSyncAbun /= 0) then
-                       call syncSeed(seed, NHe,  grid(iG)%elemAbun(iAb, 2))
-                       call syncSeed(seed, NCx,  grid(iG)%elemAbun(iAb, 6))
-                       call syncSeed(seed, NO,   grid(iG)%elemAbun(iAb, 8))
-                       call syncSeed(seed, NMGx, grid(iG)%elemAbun(iAb,12))
-                    end if
-
+                    ! D-208. Molecules zero, every carrier from MOCASSIN -
+                    ! the same rule pdrStep applies on a cell's first visit.
+                    !
+                    ! This replaces `seed = pdrInitAbun` followed by syncSeed
+                    ! on He, C, O and Mg. That construction rescaled four
+                    ! elements to MOCASSIN's abundances and left hydrogen at
+                    ! the network file's x(H) = 0.400 and x(H2) = 0.300, and
+                    ! left every molecule at its dark-cloud value. syncSeed
+                    ! and the pdrSyncAbun keyword go with it: there is nothing
+                    ! left to synchronise when the seed is built from
+                    ! MOCASSIN's own numbers in the first place.
+                    call seedAbunFromMocassin(grid(iG), iCell, iAb, seed)
                     grid(iG)%pdrAbun(iCell,:) = seed
                  end do
               end do
@@ -511,6 +516,9 @@ module pdr_mod
       ! ipMl == -1 rule, and what lets a singly-ionized network couple to a
       ! seven-stage ion solver with no special case anywhere.
       !-----------------------------------------------------------------
+      ! Record that a network species carries one ionization stage of one
+      ! MOCASSIN element.
+      !-----------------------------------------------------------------
       subroutine linkIon(slot, iSp, elem, ion)
         implicit none
         integer, intent(in) :: slot, iSp, elem, ion
@@ -523,17 +531,10 @@ module pdr_mod
       end subroutine linkIon
 
 
-      subroutine syncSeed(seed, iSp, abunMoc)
-        implicit none
-        double precision, intent(inout) :: seed(:)
-        integer, intent(in)             :: iSp
-        real, intent(in)                :: abunMoc
-
-        if (iSp <= 0) return
-        if (abunMoc <= 0.) return
-        seed(iSp) = dble(abunMoc)
-
-      end subroutine syncSeed
+      ! D-208: syncSeed is gone. It rescaled four elements of the network
+      ! file's seed to MOCASSIN's abundances and left hydrogen and every
+      ! molecule at the file's dark-cloud values. seedAbunFromMocassin builds
+      ! the whole seed from MOCASSIN instead, so there is nothing to rescale.
 
 
       subroutine reportAbun(elem, iSp, abunMoc, label)
@@ -1531,6 +1532,71 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
+      ! D-208. The ONE seeding rule, used by seedPDR at startup and by
+      ! pdrStep on a cell's first visit.
+      !
+      ! Molecules start at zero and every elemental carrier comes from
+      ! MOCASSIN: elemAbun for how much of the element there is, ionDen for
+      ! how it is split between stages, Ne/Hden for the electrons. Nothing
+      ! here is read from the network file.
+      !
+      ! This existed as an inline block in pdrStep (D-188) while seedPDR went
+      ! on writing species_reduced.d's dark-cloud defaults - x(H) = 0.400,
+      ! x(H2) = 0.300, sixty per cent of the hydrogen nuclei molecular,
+      ! uniformly, H II region included. D-188 argued those defaults never
+      ! reached a cell the chemistry solved, and that was true of the
+      ! ABUNDANCES and false of what they feed: computeAVdust and
+      ! computeRayColumns run at iteration_mod:864-865, inside the
+      ! nIterateMC >= pdrStartIter block, and the coupling loop that calls
+      ! pdrStep does not start until line 1029. So at the first PDR iteration
+      ! the H2, C and CO shielding columns were integrated over a grid still
+      ! holding x(H2) = 0.300 everywhere - about 6e19 cm^-2 of fictitious H2
+      ! per cell at n_H = 100 with 2e18 cm cells, order 1e21 cm^-2 across the
+      ! grid, which saturates H2 self-shielding outright. The first chemistry
+      ! call therefore solved a fully self-shielded cloud, and D-112 measured
+      ! that this choice does not wash out: 1.109 against 1.679 for the H2
+      ! front ratio, still apart after a hundredfold longer integration.
+      !
+      ! syncSeed rescaled He, C, O and Mg to MOCASSIN's abundances and left
+      ! hydrogen alone, so 0.400 and 0.300 were the vendored numbers exactly.
+      !
+      ! Two rules for one quantity is the failure this project keeps finding.
+      ! There is now one.
+      !-----------------------------------------------------------------
+      subroutine seedAbunFromMocassin(grid, cellP, iAb, abun)
+        implicit none
+
+        type(grid_type), intent(in)   :: grid
+        integer,         intent(in)   :: cellP, iAb
+        double precision, intent(out) :: abun(:)
+
+        integer :: iLnk, iEl
+
+        abun = 0.d0
+        do iLnk = 1, pdrNlink
+           if (pdrLinkSpec(iLnk) <= 0) cycle
+           iEl = pdrLinkElem(iLnk)
+           if (iEl < 1 .or. iEl > nElements) cycle
+           if (.not.lgElementOn(iEl)) cycle
+           ! elemAbun is relative to hydrogen; ionDen is the fraction of the
+           ! element in that stage. Hydrogen's elemAbun is 1 by definition.
+           if (iEl == 1) then
+              abun(pdrLinkSpec(iLnk)) = &
+                   & dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+           else
+              abun(pdrLinkSpec(iLnk)) = &
+                   & dble(grid%elemAbun(iAb, iEl)) &
+                   & * dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+           end if
+        end do
+        ! electrons: MOCASSIN's own, per hydrogen nucleus
+        if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
+             & abun(pdrNelect) = max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+
+      end subroutine seedAbunFromMocassin
+
+
+      !-----------------------------------------------------------------
       ! One cell of PDR chemistry (DEVLOG D-027).
       !
       ! Takes pdrChemIter passes and returns; the outer MC loop carries the
@@ -1787,27 +1853,10 @@ module pdr_mod
         ! that structure with no molecules yet formed: each element sits in its
         ! atomic and ionic carriers in MOCASSIN's ratio, everything else zero,
         ! and the chemistry forms the molecules from there.
+        ! D-208: one rule, shared with seedPDR. Was an inline block here.
         if (grid%pdrSeeded(cellP) == 0) then
-           abun = 0.d0
-           do iLnk = 1, pdrNlink
-              if (pdrLinkSpec(iLnk) <= 0) cycle
-              iEl = pdrLinkElem(iLnk)
-              if (iEl < 1 .or. iEl > nElements) cycle
-              if (.not.lgElementOn(iEl)) cycle
-              ! elemAbun is relative to hydrogen; ionDen is the fraction of the
-              ! element in that stage. Hydrogen's elemAbun is 1 by definition.
-              if (iEl == 1) then
-                 abun(pdrLinkSpec(iLnk)) = &
-                      & dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
-              else
-                 abun(pdrLinkSpec(iLnk)) = &
-                      & dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), iEl)) &
-                      & * dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
-              end if
-           end do
-           ! electrons: MOCASSIN's own, per hydrogen nucleus
-           if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
-                & abun(pdrNelect) = max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+           call seedAbunFromMocassin(grid, cellP, &
+                & grid%abFileIndex(xP,yP,zP), abun)
            grid%pdrSeeded(cellP) = 1
         end if
         ! D-153: impose MOCASSIN's ionization on the network before solving.
