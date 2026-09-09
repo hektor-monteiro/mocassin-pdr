@@ -890,6 +890,9 @@ module common_mod
     ! Species indices, published by initPDRnetwork so iteration_mod can sum
     ! them: the chemistry_module names are private to pdr_mod.
     integer             :: pdrIdxH2 = 0, pdrIdxCO = 0, pdrIdxCp = 0, pdrIdxC = 0
+    ! D-196: atomic and ionized hydrogen, so the chemistry's x(H+) can be
+    ! compared against the ion solver's on the same per-nucleus basis.
+    integer             :: pdrIdxH = 0, pdrIdxHp = 0
     ! D-179: include x(H2) in the convergence test when the PDR is on.
     !   cvUseH2  1 = require BOTH x(H0) and x(H2) to have settled (default)
     !            0 = x(H0) alone, the pre-D-179 behaviour

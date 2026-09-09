@@ -20,6 +20,7 @@ module set_input_mod
         integer             :: iPdrC            ! coolant-list counter (i is the outer loop index)
 #endif
         integer             :: ios              ! I/O error status
+        integer             :: iDumChemRates    ! D-196: ionChemRates as 0/1
         integer             :: maxLim = 1000    ! max limit for reading loop
 
         character(len=50)   :: cValue           ! character value corresponding to keyword
@@ -679,6 +680,30 @@ module set_input_mod
             case ("ionMatrix")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, lgIonMatrix
+            ! D-196: the P3 lever. lgIonChemRates decides whether elemAvail
+            ! stands down where the chemistry supplied per-stage rates. It had
+            ! no keyword, so D-191's open question - is x(H0) able to move at
+            ! all at D-190? - could not be asked from an input file, and the
+            ! run that would answer it was never made. Exposed so the two
+            ! configurations differ by an input line and not by a rebuild.
+            ! Read as an INTEGER and convert, matching pdrOwnIon,
+            ! pdrAllCells and every other switch in this block. Written as a
+            ! logical first, which silently did nothing: list-directed logical
+            ! input rejects "0" (iostat 5010), ios is discarded here, and the
+            ! default .true. stood - so a fixture asking for 0 ran as 1 and the
+            ! paired run was an exact duplicate of its control. The failure
+            ! leaves no trace in the log, hence the echo below.
+            case ("ionChemRates")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, iDumChemRates
+                if (ios == 0) then
+                   lgIonChemRates = (iDumChemRates /= 0)
+                   print*, "! readInput: ionChemRates ", iDumChemRates, &
+                        & " -> lgIonChemRates = ", lgIonChemRates
+                else
+                   print*, "! readInput: [warning] could not parse ionChemRates;", &
+                        & " leaving lgIonChemRates = ", lgIonChemRates
+                end if
             case ("pdrDiagRates")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagRates

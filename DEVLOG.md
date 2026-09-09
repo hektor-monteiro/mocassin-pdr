@@ -191,6 +191,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-189 | Restart audit: elemAvail reset to 1.0 ("no molecules") and H2den to 0 while pdrAbun was restored full of them. Both are functions of pdrAbun - now DERIVED from the restored state instead of defaulted | Done | 2026-09-08 |
 | D-190 | **PDRGEOM=3D with ray-traced per-ray columns.** A 3D photoionization code had been coupled to a 1D PDR: 11 of 12 rays blanked, escape probability undivided, all 12 shielding columns filled with one source-ward scalar. Mean Te **-23%**, its per-iteration change **26.8% -> 6.9%**, and **the two-cell ionization oscillation at the front is gone** | Done | 2026-09-08 |
 | D-191 | **Reverted to D-190.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Done | 2026-09-09 |
+| D-196 | **The convergence percentage was counting frozen cells.** 97.0% of the converged PDR cells have x(H0) clamped to exactly zero by the D-192 handback, because ionBalance's conservation row normalises hydrogen to the TOTAL rather than the available fraction and over-states x(H+) by ~99x. D-191's mechanism was right and its direction wrong: x(H0) is pinned at 0, not near 1. D-190's 89.31% is not trustworthy. Correcting it (`ionChemRates 0`) sends the ratio to exactly 1, eliminates the clamp entirely, and raises convergence to 92.28% at iteration 12 with 0.0% of converged cells frozen | Measured | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10395,3 +10396,232 @@ than high. That is worth settling before the number is trusted again, and it
 needs a build with only that one edit reverted. Not done.
 
 All four flavours rebuilt clean at D-190.
+
+
+---
+
+## D-196 - the convergence percentage was counting frozen cells (2026-09-09)
+
+Against `17a1508`. Answers the question D-191 left open, and finds that the
+question could not previously have been asked from this repository at all.
+
+### What D-191 left open
+
+> If that reading is right then D-190's 89.31% is measuring a quantity that
+> cannot move, and the honest convergence of the D-190 state is unknown rather
+> than high. That is worth settling before the number is trusted again, and it
+> needs a build with only that one edit reverted. Not done.
+
+That build could not be made: `lgIonChemRates` - the D-118 switch that stands
+`elemAvail` down wherever the chemistry supplied per-stage rates - had **no
+input keyword**. It could only be changed by editing `common_mod.f90` and
+recompiling, which is why the run was never made.
+
+### The premise D-191 recorded is false against the repository
+
+D-191 dismisses the D-169 `ionDen` writeback gate on the grounds that "every
+fixture here sets that keyword to 1". No file under `benchmarks/pdr/` sets
+`pdrIonFromMocassin`, or any other ownership keyword - `hiipdr`, `v1slab`,
+`v2slab` and `ifront` all stop at `pdrStartIter`, and there is no tracked
+`input/input.in`. Every fixture therefore runs on the compiled defaults, which
+are the opposite policy: `pdrOwnIon 1`, `pdrIonFromMocassin 0`,
+`pdrTeFromMocassin 0`, `pdrCoolFeedback 0`, `pdrAllCells 0`.
+
+So the D-190, D-193 and D-195 runs were made against an input that was never
+committed, and nothing in the tree reproduces them. Two further signs of the
+same gap: D-191 quotes 89.31% **at iteration 24**, while every fixture sets
+`maxIterateMC 12`.
+
+Three fixtures added so measurements are reproducible from the repository:
+
+  - `benchmarks/pdr/hiipdr-d190/` - `hiipdr` + `pdrIonFromMocassin 1`,
+    reconstructing the only ownership keyword D-191 names. A reconstruction,
+    not a recovery.
+  - `benchmarks/pdr/hiipdr-d190-noavail/` - identical but `ionChemRates 0`.
+  - `benchmarks/pdr/hiipdr-contract/` - the full ownership contract
+    (MOCASSIN owns ionization, thermal equilibrium and molecular bookkeeping),
+    each keyword annotated with the contract line it states.
+
+### The diagnostic, and a correction made before it produced a number
+
+`[D196]`, in `iteration_mod.f90`, reported every iteration rather than behind a
+probe flag. Its first version reported `x(H0) + 2x(H2) + x(H+)` as the budget
+test. **That test was tautological and was replaced before it was believed.**
+`pdrToMocassin` (line 1353) runs after `updateCell` (1008) and writes
+
+    ionDen(H0) = max(1 - ionDen(H+) - 2 x(H2), 0)
+
+so the sum is 1 by construction and departs from it only where the `max`
+clamps. It is a clamp counter, and is now labelled as one.
+
+The replacement is `ionDen(H+) / pdrAbun(H+)`, both per hydrogen nucleus.
+`ionDen(H+)` is untouched by the handback under `pdrIonFromMocassin` (w = 0),
+so it is the ion solver's own answer; the chemistry re-imposes MOCASSIN's ratio
+on its non-molecular total, so
+
+    x(H+)_chem = (1 - 2x(H2)) * ionDen(H+) / (ionDen(H0) + ionDen(H+))
+
+If the conservation row normalises to the available fraction the denominator is
+1 - 2x(H2) and the ratio is exactly 1. If it normalises to unity - the D-118
+stand-down - the denominator is 1 and the ratio is 1/(1 - 2x(H2)). The ratio
+**is** the defect.
+
+### Run A measured - `hiipdr-d190`, `ionChemRates 1`, 49m46s on 14 ranks
+
+| iter | mean 2x(H2) | x(H+)_ion/chem | cells clamped | converged |
+|------|-------------|----------------|---------------|-----------|
+| 4    | 0.127       | 1.07           | 0             | 0.50%     |
+| 5    | 0.875       | 71.6           | 0             | 5.99%     |
+| 6    | 0.913       | 93.7           | 219           | 0.83%     |
+| 7    | 0.910       | 94.2           | 1054          | 6.85%     |
+| 8    | 0.911       | 95.2           | 3407          | 11.8%     |
+| 9    | 0.910       | 96.4           | 6884          | 29.7%     |
+| 10   | 0.911       | 98.1           | 9847          | 51.0%     |
+| 11   | 0.910       | 99.0           | 11671         | 71.7%     |
+| 12   | 0.911       | 99.3           | 12596         | 81.7%     |
+
+*measured*. The ratio tracks 1/(1 - 2x(H2)) throughout: at iteration 4 the
+median 1.065 implies 2x(H2) = 0.061, at iteration 12 the median 99.3 implies
+0.9899. Over 14854 PDR-zone cells out of 15204 active - **97.7% of the model
+is PDR**, so nothing here is an ionized-region effect.
+
+Cross-tabulating `lgConverged` (grid0.out) against the clamp (grid2.out) at
+iteration 12, via `tools/d196_zoneconv.py`:
+
+                              converged   not converged      total
+    x(H0) clamped to 0            11760             889      12649
+    x(H0) > 0                       367            1838       2205
+
+A clamped cell is counted converged 93.0% of the time; an unclamped one 16.6%.
+**97.0% of the converged PDR-zone cells have x(H0) pinned at exactly zero.**
+
+### The chain
+
+One defect with three reported symptoms, not three defects:
+
+    availFrac -> 1               (D-118 stand-down, update_mod.f90:2564)
+      -> the conservation row asserts x(H0) + x(H+) = 1 in gas that is 99%
+         molecular                                    (update_mod.f90:2756)
+      -> ionDen(H+) over-stated by 1/(1-2x(H2)), measured 99x
+      -> 1 - x(H+) - 2x(H2) goes negative
+      -> the D-192 handback clamps x(H0) to exactly 0  (pdr_mod.f90:2577)
+      -> x(H0) cannot move
+      -> the convergence test on x(H0) passes for free
+
+D-191's hypothesis was right about the mechanism's origin and wrong about its
+direction: it predicted x(H0) pinned just under **1**; it is pinned at **0**.
+Recorded because the wrong direction is what made it look unfalsifiable - a
+value near 1 is what one expects in neutral gas and would not draw attention.
+
+### What this says about D-190's 89.31%
+
+The clamp count and the convergence percentage rise together across iterations
+9-12 (46.4% -> 85.2% clamped, 29.7% -> 81.7% converged). Extrapolated to the
+iteration 24 at which D-190 was measured, the clamp saturates and the
+convergence figure approaches the high 80s. **89.31% is consistent with being
+the clamp count, not a physical result.** Not proven - it needs the
+reconstruction run to 24 - but it is the leading explanation and no longer an
+inference from the diff alone.
+
+### Two silent-failure defects found on the way
+
+  - **`ionChemRates` as a logical.** Added first as
+    `read(...) keyword, lgIonChemRates` against a `LOGICAL`. Fortran
+    list-directed logical input rejects `0` (iostat 5010), `ios` is discarded
+    in this block, and the default `.true.` stood - so run B ran as an exact
+    duplicate of run A and reproduced it to three digits. Caught because the
+    duplication was too exact to be physical. Now read as an integer, like
+    `pdrOwnIon` and every other switch there, and it echoes what it applied.
+  - **`ionMatrix` has the same shape.** `lgIonMatrix` is also a `LOGICAL` read
+    list-directed, so `ionMatrix 0` in any input silently leaves the matrix
+    solver on. No result in the repository depends on it. Not fixed.
+  - More generally, ~40 keywords in `set_input_mod.f90` read with `iostat=ios`
+    and never test it. Any typo or type mismatch fails silently.
+
+### Run B measured - `hiipdr-d190-noavail`, `ionChemRates 0`, 50m01s
+
+One input line different. The chain breaks at the root.
+
+| iter | x(H+)_ion/chem A | B | clamped A | B | converged A | B |
+|------|------------------|---|-----------|---|-------------|---|
+| 4    | 1.065 | 1.065 | 0     | 0 | 0.50%  | 0.51%  |
+| 5    | 71.6  | 53.86 | 0     | 1 | 5.99%  | 6.17%  |
+| 6    | 93.71 | 1.286 | 219   | 0 | 0.83%  | 45.10% |
+| 7    | 94.19 | 0.990 | 1054  | 0 | 6.85%  | 79.97% |
+| 8    | 95.21 | 0.997 | 3407  | 0 | 11.8%  | 85.45% |
+| 9    | 96.42 | 0.993 | 6884  | 0 | 29.7%  | 87.92% |
+| 10   | 98.06 | 1.000 | 9847  | 0 | 51.0%  | 90.33% |
+| 11   | 98.98 | 0.994 | 11671 | 0 | 71.7%  | 90.87% |
+| 12   | 99.32 | 1.000 | 12596 | 0 | 81.7%  | 92.28% |
+
+*measured*. Three things, each predicted by the derivation above:
+
+  - **The ratio goes to exactly 1.** With the conservation row normalising to
+    the available fraction, MOCASSIN's x(H+) and the chemistry's are the same
+    number, to four figures. In A they differ by a factor of 99.
+  - **The D-192 clamp never fires.** Zero clamped cells at every iteration
+    against A's 12596. D-192 is not an independent defect; it is a consequence
+    of D-118's stand-down, which is what the chain predicted.
+  - **Convergence is higher AND honest.** 92.28% against 81.7%, and the
+    cross-tab inverts completely:
+
+                                  converged   not converged      total
+        A   x(H0) clamped to 0        11760             889      12649
+        A   x(H0) > 0                   367            1838       2205
+        B   x(H0) clamped to 0             2               5          7
+        B   x(H0) > 0                  13736            1112      14848
+
+    97.0% of A's converged cells are frozen; **0.0% of B's are**.
+
+The sharpest single line is `|dx(H0)|/x`. In A the median falls to *exactly
+zero* by iteration 11 - the quantity has stopped existing. In B it settles at
+0.0465, just inside the 0.05 tolerance, and the p90 falls 0.99 -> 0.264. That
+is what convergence looks like when the tested quantity can move.
+
+**The transient at iteration 5 is real and diagnostic.** B's ratio reads 53.86
+there rather than 1, because `elemAvail` is written by `pdrToMocassin` at the
+end of an iteration and read by `updateCell` during the next - it is one MC
+iteration stale. Harmless once 2x(H2) plateaus, but during the 0.127 -> 0.875
+formation jump the stale value is badly wrong. Worth fixing on its own account.
+
+### Consequences for D-191
+
+D-191 reverted D-193/D-195 on the grounds that they "made the model worse", the
+evidence being a convergence fraction of 5.01%/5.77% against D-190's 89.31%.
+This measurement says the comparison was between a number that counts frozen
+cells and a number that does not. Correcting the same bookkeeping here raises
+convergence to 92.28% at iteration 12 - past D-190's 89.31%, at less than half
+the iterations, with zero clamped cells. Whatever destabilised D-193/D-195, it
+was not the act of tying the ion budget to the molecular fraction. The revert
+should be revisited on this basis; the `d193-d195-reverted` tag still holds it.
+
+### Confound, recorded
+
+`lgIonChemRates` is **not** the single lever D-191 asked for. It gates the
+`availFrac` stand-down (`update_mod.f90:2564`) *and* the injection of the
+chemistry's per-stage source/sink terms into the ion matrix (2697). B therefore
+differs from A in two ways. The ratio going to exactly 1 is explained by the
+first alone - it is the arithmetic of the conservation row - but the
+convergence improvement cannot be attributed between them without a second
+switch. Not built.
+
+### What is NOT known
+
+  - How the convergence gain splits between the two things `lgIonChemRates`
+    gates. Needs the switches separated.
+  - The residual tail: B's median ratio is 1.000 and p90 1.18, but max is 127.
+    A few hundred cells are still mis-normalised. Unexplained.
+  - What else the lost D-190 input set. `pdrAtomicH 0` would produce the
+    pinning D-191 actually describes - x(H0) near 1 rather than at 0 - so it
+    is a candidate, untested.
+  - Whether 89.31% is reproducible from the reconstruction at iteration 24.
+  - Nothing here tests the rest of the contract: run B still has 3D-PDR
+    owning the temperature (`pdrTeFromMocassin 0`) and `thermBalance` still
+    receiving no PDR budget (`pdrCoolFeedback 0`). `hiipdr-contract` exists
+    and has not been run.
+  - MC/MPI scatter on this fixture: runs of an identical configuration
+    diverged by 0.22 pp in convergence at iteration 3, before the PDR engages.
+    That is the noise floor for the percentage; the clamp counts and the ratio
+    differ by factors and are far above it.
+
+All four flavours rebuilt clean.

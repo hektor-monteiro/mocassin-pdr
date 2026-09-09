@@ -1,0 +1,85 @@
+! ---------------------------------------------------------------------
+! Bisbas et al. (2015) sec 5.4 H II region + PDR at the OWNERSHIP CONTRACT.
+!
+!   MOCASSIN -> 3D-PDR   ion densities, Ne, Te, dust temperature, dust opacity
+!   3D-PDR -> MOCASSIN   molecular content + the heating/cooling that follows
+!   MOCASSIN owns        ionization, thermal equilibrium, molecular bookkeeping
+!
+! D-196. Every keyword below states a piece of that contract that the
+! compiled defaults get backwards. They are keywords here because that is
+! what the code currently offers; under the contract most of them have
+! exactly one correct value and should become the design, not an input
+! line (CLAUDE.md: "ownership is a design decision and belongs in the
+! design, not in an input keyword"). This fixture is the bridge - it makes
+! the target state reproducible from the repository before the switches
+! are collapsed, so the collapse can be verified against something.
+! ---------------------------------------------------------------------
+TStellar 40000.
+contShape blackbody
+LPhot 4.26e13
+symmetricXYZ
+Hdensity 100.
+nebComposition "input/abunV1.in"
+TeStart 8000.
+maxIterateMC 12 95.
+nPhotons 6000000
+nx 31
+ny 31
+nz 31
+nbins 600
+nuMax 15.
+nuMin 1.001e-5
+Rin 30.e17
+Rout 6.0e19
+edges 6.0e19 6.0e19 6.0e19
+convLimit 0.10
+dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
+MdMg constant 0.011295
+pdr 1
+pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
+pdrNetwork "reduced"
+pdrZeta 5.0e-17
+pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4
+
+! ---- MOCASSIN owns the ionization ------------------------------------
+! Its ratio is imposed on the network before and after each solve (D-162).
+! This also disables the pdrOwnIon gate (D-169), which otherwise makes
+! ionBalance skip H, He, C, O and Mg outright in every PDR-zone cell.
+pdrIonFromMocassin 1
+! Explicit, though redundant while the line above is set: MOCASSIN solves
+! the ionization of every element, everywhere.
+pdrOwnIon 0
+
+! ---- MOCASSIN owns the thermal equilibrium ---------------------------
+! The PDR stops solving for T and stops writing grid%Te; MOCASSIN's
+! thermBalance solves it, which it can only do honestly if it also
+! receives the PDR's budget - the next two lines are not separable from
+! this one.
+pdrTeFromMocassin 1
+! The molecular coolants MOCASSIN has no line data for, and the six
+! heating terms it has no expression for, reach thermBalance.
+pdrCoolFeedback 1
+! ...and reach it as a FUNCTION of T, not a constant. In neutral gas the
+! PDR coolant is the only term without a factor n_e, so held constant
+! inside iterateT it leaves H-C with no root and the search runs to a
+! rail - D-166 measured 45% of the model pinned at 30000 K or 10 K.
+pdrCoolTdep 1
+
+! ---- MOCASSIN owns the molecular bookkeeping -------------------------
+! elemAvail - the fraction of each element NOT locked in molecules -
+! carries the locking, instead of standing down wherever the chemistry
+! supplied per-stage rates (D-118). The rates enter the ion matrix as a
+! source and a sink; they do not constrain the conservation row, so with
+! the stand-down active that row asserts x(H0) + x(H+) = 1 in gas that is
+! 98% molecular. See D-196.
+ionChemRates 0
+! MOCASSIN's own electron density is what ionBalance uses.
+pdrUseNePDR 0
+
+! ---- no zone --------------------------------------------------------
+! The chemistry runs in every cell. Outside the molecular gas it answers
+! "no molecules here" by itself and needs no threshold to be switched off;
+! with the gate in place H2 and CO were zero in ionized gas because
+! nothing had computed them, not because the chemistry said so (D-131).
+pdrAllCells 1

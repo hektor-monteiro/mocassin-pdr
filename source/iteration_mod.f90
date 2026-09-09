@@ -69,6 +69,11 @@ module iteration_mod
            integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
+           ! D-196: is the convergence test measuring anything?
+           real(kind=8), allocatable :: cvBud(:), cvXH0(:), cvDlt(:), cvRat(:)
+           integer                   :: nBud, nPin, nBad, nRat, nZero
+           real(kind=8)              :: avSum, bMin, bMax, bMed, xMed, dMed
+           real(kind=8)              :: h2Sum, xHp, xHpChem
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1509,6 +1514,143 @@ module iteration_mod
            end if
 #endif
 
+           ! ------------------------------------------------------- D-196
+           ! CAN THE TESTED QUANTITY MOVE?
+           !
+           ! The model's convergence percentage is dominated by a test on
+           ! x(H0) (D-155, D-179). ionBalance closes its matrix on a
+           ! conservation row that reads sum(stages) = availFrac(elem), and
+           ! D-118 sets availFrac to 1.0 wherever the chemistry supplied
+           ! per-stage rates - which, after the first coupling pass, is every
+           ! cell it touched. In those cells the row asserts
+           !
+           !     x(H0) + x(H+) = 1
+           !
+           ! in gas that may be 98% molecular, so x(H0) is pinned just below
+           ! unity no matter what the chemistry does and |dx(H0)|/x(H0) has
+           ! almost nothing to move it. A test on a quantity that cannot move
+           ! passes for free (CLAUDE.md; D-176..D-181, and again at D-191).
+           !
+           ! Three numbers settle it, reported every iteration rather than
+           ! behind a probe flag, because this is the measurement that says
+           ! whether any other convergence number in the run means anything:
+           !
+           !   x(H0) spread      - pinned at ~1 in the molecular gas, or not
+           !   |dx(H0)| spread   - what the test actually sees
+           !   x(H+) ratio       - the ion solver's answer over the chemistry's
+           !
+           ! That last one is the non-tautological test, and it needs saying
+           ! why the obvious one is not. pdrToMocassin runs AFTER updateCell in
+           ! every coupling pass and writes
+           !     ionDen(H0) = max(1 - ionDen(H+) - 2x(H2), 0)
+           ! so x(H0) + 2x(H2) + x(H+) is 1 BY CONSTRUCTION here and departs
+           ! from it only where that max() clamps. Reported, but as what it is
+           ! - a clamp counter, which is the D-192 symptom (budget 1.28-1.64
+           ! with ionDen(H0) pinned at exactly zero) and not an independent
+           ! check of the budget.
+           !
+           ! ionDen(H+) is untouched by the handback under pdrIonFromMocassin
+           ! (w = 0), so it is the ion solver's own answer, while pdrAbun(H+)
+           ! is the chemistry's - both fractions per hydrogen NUCLEUS. Under
+           ! pdrIonFromMocassin the chemistry is handed MOCASSIN's ratio and
+           ! re-imposes it on its non-molecular total, so
+           !
+           !   x(H+)_chem = (1 - 2x(H2)) * ionDen(H+)/(ionDen(H0)+ionDen(H+))
+           !
+           ! If the conservation row normalises to the available fraction the
+           ! denominator is 1 - 2x(H2) and the ratio is exactly 1. If it
+           ! normalises to unity - the D-118 stand-down - the denominator is 1
+           ! and the ratio is 1/(1 - 2x(H2)). So the ratio IS the defect: 1
+           ! when the bookkeeping is right, rising without bound as the gas
+           ! turns molecular when it is not.
+           !
+           ! Rank 0 only, on the fully reduced grid, so no communication.
+#ifdef PDR
+           if (lgPDR .and. taskid == 0 .and. nIterateMC >= pdrStartIter) then
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%pdrZone)) cycle
+                 allocate(cvBud(grid(iG)%nCells), cvXH0(grid(iG)%nCells), &
+                      &   cvDlt(grid(iG)%nCells), cvRat(grid(iG)%nCells), stat=err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate D-196 work arrays"; stop
+                 end if
+                 nBud = 0; nPin = 0; nBad = 0; nRat = 0; nZero = 0
+                 avSum = 0.d0; h2Sum = 0.d0
+                 do iDum = 1, grid(iG)%nCells
+                    if (grid(iG)%pdrZone(iDum) /= 1) cycle
+                    if (grid(iG)%Hden(iDum) <= 0.) cycle
+                    nBud = nBud + 1
+                    cvXH0(nBud) = dble(grid(iG)%ionDen(iDum,elementXref(1),1))
+                    xHp         = dble(grid(iG)%ionDen(iDum,elementXref(1),2))
+                    cvBud(nBud) = cvXH0(nBud) + xHp
+                    if (allocated(grid(iG)%pdrAbun) .and. pdrIdxH2 > 0) then
+                       cvBud(nBud) = cvBud(nBud) &
+                            & + 2.d0*grid(iG)%pdrAbun(iDum,pdrIdxH2)
+                       h2Sum = h2Sum + 2.d0*grid(iG)%pdrAbun(iDum,pdrIdxH2)
+                    end if
+                    cvDlt(nBud) = 0.d0
+                    if (allocated(grid(iG)%xHIiterStart)) then
+                       if (grid(iG)%xHIiterStart(iDum) > 0.) &
+                            & cvDlt(nBud) = abs(cvXH0(nBud) &
+                            & - dble(grid(iG)%xHIiterStart(iDum))) &
+                            & / dble(grid(iG)%xHIiterStart(iDum))
+                    end if
+                    ! the ion solver's x(H+) over the chemistry's, both per
+                    ! hydrogen nucleus - 1 if the conservation row normalised
+                    ! to the available fraction, 1/(1-2x(H2)) if it did not
+                    if (allocated(grid(iG)%pdrAbun) .and. pdrIdxHp > 0) then
+                       xHpChem = grid(iG)%pdrAbun(iDum,pdrIdxHp)
+                       if (xHpChem > 1.d-30 .and. xHp > 1.d-30) then
+                          nRat = nRat + 1
+                          cvRat(nRat) = xHp/xHpChem
+                       end if
+                    end if
+                    if (cvXH0(nBud) > 0.99d0) nPin = nPin + 1
+                    if (abs(cvBud(nBud)-1.d0) > 0.01d0) nBad = nBad + 1
+                    if (cvXH0(nBud) <= 0.d0) nZero = nZero + 1
+                    if (allocated(grid(iG)%elemAvail)) &
+                         & avSum = avSum + dble(grid(iG)%elemAvail(iDum,1))
+                 end do
+                 if (nBud > 0) then
+                    call cvSortD(cvXH0, nBud)
+                    call cvSortD(cvBud, nBud)
+                    call cvSortD(cvDlt, nBud)
+                    xMed = cvXH0((nBud+1)/2)
+                    bMed = cvBud((nBud+1)/2)
+                    dMed = cvDlt((nBud+1)/2)
+                    bMin = cvBud(1); bMax = cvBud(nBud)
+                    print*, "! [D196] can the convergence test move? grid", iG
+                    print '(a,i8,a,i8,a,f6.2,a)', "! [D196]   PDR-zone cells", &
+                         & nBud, ",  x(H0) > 0.99 in", nPin, "  (", &
+                         & 100.d0*dble(nPin)/dble(nBud), " %)"
+                    print '(a,3(es11.4,a))', "! [D196]   x(H0)      min ", &
+                         & cvXH0(1), "  median ", xMed, "  max ", cvXH0(nBud)
+                    print '(a,3(es11.4,a))', "! [D196]   |dx(H0)|/x median ", &
+                         & dMed, "  p90 ", cvDlt(min(nBud,max(1,(9*nBud)/10))), &
+                         & "  max ", cvDlt(nBud)
+                    print '(a,3(es11.4,a))', "! [D196]   x(H0)+2x(H2)+x(H+)  min ", &
+                         & bMin, "  median ", bMed, "  max ", bMax
+                    print '(a,i8,a,i8,a)', &
+                         & "! [D196]   (1 by construction; departures are the D-192 clamp)", &
+                         & nBad, " clamped,", nZero, " with x(H0) exactly 0"
+                    print '(a,f8.4,a,f8.4)', "! [D196]   mean 2x(H2) ", &
+                         & h2Sum/dble(nBud), "   mean elemAvail(H) ", avSum/dble(nBud)
+                    if (nRat > 0) then
+                       call cvSortD(cvRat, nRat)
+                       print '(a,3(es11.4,a),i8)', &
+                            & "! [D196]   x(H+)_ion / x(H+)_chem  median ", &
+                            & cvRat((nRat+1)/2), "  p90 ", &
+                            & cvRat(min(nRat,max(1,(9*nRat)/10))), "  max ", &
+                            & cvRat(nRat), "   over cells ", nRat
+                       print*, "! [D196]   1.0 = row used the available fraction;", &
+                            & " 1/(1-2x(H2)) = it normalised to unity"
+                    end if
+                 end if
+                 deallocate(cvBud, cvXH0, cvDlt, cvRat)
+              end do
+           end if
+#endif
+
            ! decide over final convergence of the model
 
            ! reinitialize convPercent and totCells
@@ -1910,6 +2052,50 @@ module iteration_mod
            end if
 
          end subroutine iterateMC
+
+         ! ------------------------------------------------------- D-196
+         ! In-place ascending sort, used only to take medians and percentiles
+         ! of a per-cell distribution on rank 0. Heapsort: the array is in cell
+         ! order, not value order, so this is n log n on ~30k elements rather
+         ! than the n^2 an insertion sort would pay here. Non-recursive and
+         ! allocation-free, so it costs nothing to call every iteration.
+         subroutine cvSortD(a, n)
+           implicit none
+           real(kind=8), intent(inout) :: a(:)
+           integer, intent(in)         :: n
+           integer                     :: i, ir, j, l
+           real(kind=8)                :: v
+
+           if (n < 2) return
+           l  = n/2 + 1
+           ir = n
+           do
+              if (l > 1) then
+                 l = l - 1
+                 v = a(l)
+              else
+                 v     = a(ir)
+                 a(ir) = a(1)
+                 ir    = ir - 1
+                 if (ir == 1) then
+                    a(1) = v
+                    return
+                 end if
+              end if
+              i = l
+              j = l + l
+              do while (j <= ir)
+                 if (j < ir) then
+                    if (a(j) < a(j+1)) j = j + 1
+                 end if
+                 if (v >= a(j)) exit
+                 a(i) = a(j)
+                 i    = j
+                 j    = j + j
+              end do
+              a(i) = v
+           end do
+         end subroutine cvSortD
 
        end subroutine MCIterationDriver
 

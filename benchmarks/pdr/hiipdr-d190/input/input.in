@@ -1,0 +1,52 @@
+! ---------------------------------------------------------------------
+! Bisbas et al. (2015) sec 5.4 H II region + PDR, at the ownership
+! configuration D-190 is DOCUMENTED as having been run with.
+!
+! D-196. The D-190/D-193/D-195 runs were made against an input file that
+! was never committed - no fixture under benchmarks/pdr/ sets a single
+! ownership keyword, so `hiipdr` runs on the compiled defaults, which are
+! NOT what D-191 describes ("every fixture here sets that keyword to 1").
+! This fixture reconstructs the documented configuration so D-191's open
+! question can be asked of a state that is in the repository.
+!
+! It is a RECONSTRUCTION, not a recovery: pdrIonFromMocassin is the only
+! ownership keyword D-191 names, so it is the only one set here. If other
+! switches were also set in that lost input, this will differ from D-190
+! and the difference is itself worth knowing.
+! ---------------------------------------------------------------------
+TStellar 40000.
+contShape blackbody
+LPhot 4.26e13
+symmetricXYZ
+Hdensity 100.
+nebComposition "input/abunV1.in"
+TeStart 8000.
+maxIterateMC 12 95.
+nPhotons 6000000
+nx 31
+ny 31
+nz 31
+nbins 600
+nuMax 15.
+nuMin 1.001e-5
+Rin 30.e17
+Rout 6.0e19
+edges 6.0e19 6.0e19 6.0e19
+convLimit 0.10
+dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
+MdMg constant 0.011295
+pdr 1
+pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
+pdrNetwork "reduced"
+pdrZeta 5.0e-17
+pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4
+! MOCASSIN's ionization ratio is imposed on the network before and after
+! each solve (D-162). This also disables the pdrOwnIon gate, whose test is
+! `pdrOwnIon /= 0 .and. pdrIonFromMocassin == 0` (D-169), so ionBalance
+! writes H/He/C/O/Mg in PDR cells again - which is the configuration in
+! which the availFrac question below has any effect at all.
+pdrIonFromMocassin 1
+! D-118's stand-down, left AS IT IS AT D-190. The paired run flips this to
+! 0 and changes nothing else.
+ionChemRates 1

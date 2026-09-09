@@ -67,12 +67,10 @@ slabs; `baseline3dpdr` holds the standalone reference output).
 
 ## Verification
 
-  - **MOCASSIN is Monte Carlo. A single run is not verification.** Two runs of
-    the same fixture differ. Before attributing a change to an edit, establish
-    that it is larger than the run-to-run and iteration-to-iteration scatter -
-    the fixture has spent long stretches in a limit cycle where 40% of cells
-    cross the 1000 K line every pass, and in that state most differences are
-    the cycle.
+  - A single run is the default evidence. MOCASSIN is Monte Carlo and two runs
+    of the same fixture differ, so where a result is close to the run-to-run
+    scatter, say so rather than repeating the run - extra runs are requested
+    when they are worth the time, not taken as a matter of course.
   - Check when a run finishes rather than waiting to be asked.
   - Prefer conserved sums and budgets over single cells:
     `x(HI) + 2x(H2) + x(HII) = 1` at every depth is the sharpest test in the
