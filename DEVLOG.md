@@ -190,8 +190,13 @@ reasoning that led to the wrong turn is part of the history.
 | D-188 | **Every cell was seeded x(H2)=0.300, x(H)=0.400 - the network file's dark-cloud defaults - including cells in the H II region at 9000 K.** Now seeded from MOCASSIN's own ionization state on first visit, molecules zero, chemistry forms them | Done | 2026-09-08 |
 | D-189 | Restart audit: elemAvail reset to 1.0 ("no molecules") and H2den to 0 while pdrAbun was restored full of them. Both are functions of pdrAbun - now DERIVED from the restored state instead of defaulted | Done | 2026-09-08 |
 | D-190 | **PDRGEOM=3D with ray-traced per-ray columns.** A 3D photoionization code had been coupled to a 1D PDR: 11 of 12 rays blanked, escape probability undivided, all 12 shielding columns filled with one source-ward scalar. Mean Te **-23%**, its per-iteration change **26.8% -> 6.9%**, and **the two-cell ionization oscillation at the front is gone** | Done | 2026-09-08 |
-| D-191 | **Reverted to D-190.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Done | 2026-09-09 |
+| D-191 | **Damping 0.50 removes the residual hot spike near the front** (2024 K -> 202 K, median T ratio 6.56 -> 4.77) **and exposes an H2 error the spike was masking**: x(H2) overshoots 12x once the spurious heat is gone. Not settled at 24 iterations; fixtures keep 0.25 | Open | 2026-09-08 |
+| D-192 | **MOCASSIN's ionDen(H) and the chemistry's x(H) disagree by 100-200x past the H2 front**, in both runs: x(H+) 5.8e-1 against 4.5e-2, x(H0) clamped to exactly 0, budget 1.50 instead of 1.00 in 16 of 29 axis cells. Opacity, heating and n_e in the molecular interior all read the broken array | Open | 2026-09-08 |
+| D-193 | **One reality: ownership is no longer an input.** MOCASSIN owns ionization and thermal equilibrium in every cell; 3D-PDR returns molecular content plus heating/cooling and nothing else. Fixes D-192 (elemAvail now always constrains the ion sum), drops the rate injection, **adds cosmic-ray ionization to MOCASSIN's own ionBalance**, retires pdrAtomicH / pdrOwnIon / pdrIonFromMocassin / pdrTeFromMocassin | Done | 2026-09-08 |
 | D-196 | **The convergence percentage was counting frozen cells.** 97.0% of the converged PDR cells have x(H0) clamped to exactly zero by the D-192 handback, because ionBalance's conservation row normalises hydrogen to the TOTAL rather than the available fraction and over-states x(H+) by ~99x. D-191's mechanism was right and its direction wrong: x(H0) is pinned at 0, not near 1. D-190's 89.31% is not trustworthy. Correcting it (`ionChemRates 0`) sends the ratio to exactly 1, eliminates the clamp entirely, and raises convergence to 92.28% at iteration 12 with 0.0% of converged cells frozen | Measured | 2026-09-09 |
+| D-197 | **Reverted to D-190** (recorded as D-191 at the time, colliding with the damping entry that already held that ID). **Undone at D-198.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Superseded by D-198 | 2026-09-09 |
+| D-198 | **D-193 restored on D-196's evidence.** The revert at D-197 compared a convergence number that counts frozen cells against one that does not; D-196 measured that directly. MOCASSIN owns ionization, thermal equilibrium and molecular bookkeeping again, unconditionally, and `ionChemRates` retires with the other ownership keywords | Done | 2026-09-09 |
+| D-199 | **`elemAvail` was one MC iteration stale.** `pdrToMocassin`, its only writer, sat outside the coupling loop while `updateCell` read it 5 times per iteration. Harmless until D-193 stopped writing `ionDen` directly; after that it rang the ion/chemistry ratio 1.05 -> 19.5 -> 0.166 with nothing converging. Moved inside the loop: the ratio holds 1.0000 with p90 1.01 and budget failures fall 9670 -> 29 | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10325,9 +10330,240 @@ are actually 3D, which is exactly why it survived every slab benchmark in the
 project.
 
 
+## 2026-09-08k - D-191: damping 0.50 - the hot spike was compensating for an H2 error
+
+Hektor asked to test pdrCoupleDamp = iterDamp = 0.50 against the 0.25 that
+D-190 was measured with. Both parameters are, since D-174, the fraction of the
+PREVIOUS value retained, so 0.50 is HEAVIER damping - Cloudy's original 50/50
+coupling average. Run D05hii: sec 5.4 fixture, 3D build, 24 iterations, 90 min,
+identical to G3Dhii in every other respect.
+
+The convergence percentage is NOT evidence here and was not used as such.
+iterDamp shrinks the very iteration-to-iteration change the criterion measures,
+so heavier damping mechanically flatters the number (89.31% -> 90.67%). Every
+conclusion below rests on state measurements instead.
+
+State comparison, 0.25 -> 0.50:
+
+  <Te>                     1.134e7  ->  7.752e6   (-32%)
+  <Te> change per pass       +6.88%  ->   -0.51%
+  thermally unstable cells       40  ->       14
+  hot/cold branch flips        5.42%  ->    3.50%
+  cells that stayed hot        2544  ->     1189
+  median T ratio vs 3D-PDR     6.56  ->     4.77
+  H0 total                  1.133e5  ->  1.008e5
+  H2 total                  6.737e5  ->  6.880e5
+
+The residual disturbance flagged at the end of D-190 is gone. Near the front,
+at A_V_rel 0.19 and 0.50, the gas ran 1866 K and 2024 K at damping 0.25
+against a reference of 154 K and 119 K. At 0.50 it runs 345 K and 202 K. That
+is the spike, not a smoothed version of it.
+
+But it exposed something. The H2 front moved the WRONG way:
+
+  H -> 2H2 front (A_V)   ours 0.736 (damp 0.25)   0.461 (damp 0.50)   3D-PDR 0.892
+  x(H2) at A_V_rel 0.497        2.4e-2                3.96e-1          3.28e-2
+
+At 0.25 our x(H2) near the front sat at 2.4e-2 against the reference 3.3e-2 -
+apparently good agreement. It was not agreement. It was 2000 K gas
+collisionally destroying H2 down to roughly the right number for the wrong
+reason. Take the spurious heat away and H2 overshoots by a factor of 12.
+
+So the correct reading of D-191 is not "0.50 is better". It is:
+
+  - on temperature, 0.50 is substantially closer to the reference and removes
+    a thermal artifact that D-190 left behind;
+  - the H2 formation/destruction balance near the front has an error of its own
+    that the artifact was masking. Suspects, in order: H2 self-shielding column
+    at low A_V, the formation rate on grains, and the seeding transient.
+
+One caveat that blocks a verdict: at iteration 24 the 0.50 run had NOT settled.
+<Te> was still descending (-2.29, -7.44, -5.45, -5.16, -0.51 over the last five
+passes) and decelerating but not flat. The 0.25 run by contrast limit-cycles
+around 1.1e7 with no trend. A longer 0.50 run is needed before the H2 overshoot
+is attributed to chemistry rather than to an unfinished descent.
+
+Not committed as a default. The fixtures keep 0.25 until the endpoint is known.
+
+## 2026-09-08l - D-192: MOCASSIN's hydrogen and the chemistry's disagree past the H2 front
+
+Found while rebuilding the sec 5.4 artifact for D-191, by reading hydrogen out
+of MOCASSIN's ionDen array instead of out of pdrGrid and noticing the two do
+not agree. Present in BOTH damping runs, so it is not a D-191 side effect.
+
+On the +x axis, at r = 3.0e19 cm:
+
+                        chemistry      MOCASSIN ionDen
+  x(H)                  3.25e-2        0.000, exactly
+  x(H+)                 4.51e-2        5.81e-1
+  x(HI)+2x(H2)+x(HII)   1.0000         1.5032
+
+Inside r = 2.6e19 the two agree to every digit printed. The break is AT the
+H/H2 front and follows it outward: 16 of 29 axis cells at damping 0.25, 15 of
+29 at 0.50, budget running 1.28 to 1.64.
+
+Mechanism, read off handBackPDR (pdr_mod.f90, the pdrAtomicH branch):
+
+  ionDen(H,1) = max( w*x(H)_chem + (1-w)*(1 - ionDen(H,2) - 2*x(H2)), 0 )
+
+Deep in the cloud 1 - 2*x(H2) is about 0.01, so ANY ionDen(H,2) above that
+drives the bracket negative and the clamp writes exactly zero - which is the
+0.000 above. Nothing renormalises the pair afterwards, so the ionised stage
+keeps a value the neutral stage has already been zeroed to accommodate.
+
+Why ionDen(H,2) is 0.58 in the first place is not yet measured. The leading
+hypothesis is the blend's own memory: it mixes w*(chemistry) with
+(1-w)*(previous value), the previous value in these cells descends from when
+they were ionised, and nothing in the expression forces it to the chemistry's
+answer in finite time. Note also that update_mod's D-169 gate makes ionBalance
+skip the writeback for H in PDR cells when pdrOwnIon is on, so this blend is
+the ONLY thing writing hydrogen there - a single unchecked path.
+
+Why it matters beyond bookkeeping: MOCASSIN's opacity, its photoionisation
+heating and its electron density in the molecular interior all read ionDen,
+not the chemistry's arrays. In those cells they are computed with 100-200x too
+much ionised hydrogen, and those are the same cells where the gas runs warmer
+than the reference. Whether the two are connected is a hypothesis, not a
+result - the deep warm bias has an independently measured cause in the
+scattered-FUV offset of D-089/D-090.
+
+This is the class of defect D-189 was an audit for, and it is the same shape:
+a quantity that is a FUNCTION of another (here, the split of non-molecular
+hydrogen between H0 and H+) carried as an independent variable, with no
+identity enforced. Nothing on the artifact is drawn from the affected array -
+hydrogen there is the chemistry's and closes the budget in all 29 cells - and
+the defect is plotted next to it so it can be inspected.
+
+Not fixed. Fixing it means deciding what ionDen(H,*) MEANS in a PDR cell:
+either the split of the available atomic pool (then both stages must be scaled
+by 1-2*x(H2) and forced to sum to it), or fractions of total hydrogen (then
+the sum is 1-2*x(H2), not 1). The two are currently mixed inside one
+expression, which is why it clamps.
+
+## 2026-09-08m - D-193: one reality. The contract, written into the code.
+
+Hektor, after D-192: "We have to have one reality. Mocassin should give 3DPDR
+code all ion densities, Ne, Te, dust temperature and opacity. 3D PDR should
+then calculate how much is converted to molecules and give that back to
+mocassin along with cooling/heating rates relative to them. Mocassin should
+keep track of the molecular abundance and solve the thermal equilibrium. There
+should be no ambiguity in this."
+
+That is now what the code does, unconditionally, with no switch able to change
+it. The contract:
+
+  MOCASSIN -> 3D-PDR   ion densities, Ne, Te, dust temperature, dust opacity
+  3D-PDR   -> MOCASSIN molecular content (elemAvail, H2den, pdrAbun), and the
+                       heating/cooling rates that follow from it
+  MOCASSIN owns        ionization, thermal equilibrium, molecular bookkeeping
+
+### What was actually wrong
+
+Not one bug. An architecture in which ownership was an INPUT PARAMETER. Four
+keywords - pdrAtomicH, pdrOwnIon, pdrIonFromMocassin, pdrTeFromMocassin -
+between them decided which code owned x(H+), x(C+) and Te. Different fixtures
+set them differently. Every "leftover from a previous design" of the last
+several days has been a path that was live under some combination of them.
+
+D-192 was what it cost. Two writers for grid%ionDen with two different
+normalisations:
+
+  * ionBalance wrote the stages summing to availFrac, which D-185 had set to
+    1.0 whenever the chemistry supplied rates - i.e. all hydrogen ionic, in gas
+    that is 99% H2;
+  * handBackPDR then recomputed the neutral stage by closure,
+    max(1 - ionDen(H+) - 2x(H2), 0), and clamped it to exactly zero because the
+    first writer's H+ had already used up more than the whole budget.
+
+Result: x(H+) = 0.58 where the chemistry said 0.045, x(H0) = 0, and the
+identity x(HI)+2x(H2)+x(HII) = 1 violated in 16 of 29 axis cells.
+
+### The specific error in D-185
+
+D-185's premise was "elemAvail and the per-stage rates are two descriptions of
+the same locking; applying both counts it twice." That is wrong, and it is the
+root of D-192.
+
+  elemAvail sets the SUM of the ion stages - how much of the element is not in
+  molecules. It is a conservation constraint.
+  The rates set RATIOS between stages.
+
+Dropping the constraint because the ratios are known leaves the stages
+normalised to 1.0 in gas that is almost entirely molecular. The constraint now
+applies unconditionally, and the rates are gone.
+
+### Changes
+
+update_mod.f90
+  * availFrac = elemAvail ALWAYS. The lgHaveRates branch that set it to 1.0 is
+    deleted. This is the D-192 fix.
+  * The chemistry's per-stage source/sink rates are no longer injected into the
+    ion matrix. pdrFormSp/pdrLossSp are the whole ODE RHS, molecular channels
+    included; injecting them alongside the elemAvail constraint double-counts
+    the molecular drain, and injecting them instead of it is what produced
+    D-192. Still published as diagnostics (D-113).
+  * COSMIC-RAY IONIZATION ADDED as MOCASSIN's own physics. MOCASSIN never had
+    it (D-035) and it had been arriving second-hand inside those injected
+    rates; removing them without this would have silently zeroed the ionization
+    of shielded gas. Coefficients are the network's own, so both codes ionize
+    at identical rates from an identical zeta:
+      rates_reduced.d:293  H  + CRP -> H+  + e   5.98e-18
+      rates_reduced.d:297  He + CRP -> He+ + e   6.50e-18
+    evaluated as calc_reac_rates.F90 does, RATE = ALPHA*(zeta/1.3e-17).
+  * The D-169 gate that made ionBalance skip H, He, C, O and Mg in PDR cells is
+    removed. One solution, every element, every cell.
+  * iterateT never pins a cell to a PDR temperature: there isn't one any more.
+
+pdr_mod.f90
+  * pdrToMocassin writes elemAvail and nothing else. The blended ionDen
+    writeback for H, He, C, O, Mg is deleted; the Te writeback is deleted; the
+    blend weight w and the pdrBlendLo/pdrZoneLim band go with them.
+  * setIonPair -> setElemAvail: same molecular bookkeeping, no ionDen writes.
+  * Helium's elemAvail is set explicitly to 1.0 - no helium-bearing molecule
+    exists in the network - so the array has one meaning everywhere.
+  * pdrStep takes Te from MOCASSIN unconditionally and runs ONE thermal pass
+    rather than pdrThermIter; it no longer marches a temperature of its own.
+  * MOCASSIN's ion ratios are imposed on the network before and after the
+    solve, unconditionally.
+  * The network's own photoionization/recombination channels for MOCASSIN-owned
+    stages are always suppressed as duplicates.
+  * The PDR's own heat/cool imbalance no longer fails a cell's convergence: it
+    is evaluated AT MOCASSIN's temperature and is not required to balance.
+
+set_input_mod.f90
+  * pdrAtomicH, pdrOwnIon, pdrIonFromMocassin, pdrTeFromMocassin are RETIRED.
+    Still parsed so existing input files run, but the value is ignored and the
+    run prints that it is ignored. Ownership is no longer an input.
+
+All four build flavours compile clean (3D, 1D, plain, warm).
+
+### What this is expected to change, and what it risks
+
+The molecular interior is where it bites: ionBalance there now solves for
+0.9% of the hydrogen rather than 100% of it, so n_e, the opacity and the
+photoionization heating in those cells all change. If the deep warm bias
+(D-089/D-090) had a contribution from the 100-200x excess ionized hydrogen,
+this is where it shows. That was a hypothesis in D-192 and it stays one until
+measured.
+
+The risk is the opposite sign: cosmic-ray ionization is now MOCASSIN's own
+term, and if the two codes' zeta conventions differ the deep x(H+) will move
+with it. The coefficients above are taken from the network file the run is
+actually using, and pdrZetaMod already normalises by 1.3e-17 the same way, so
+they should agree by construction - but it is asserted here, not yet measured.
+
+Running D193hii (sec 5.4, 3D, 24 iterations) to find out.
+
 ---
 
-## D-191 - reverted to D-190 (2026-09-09)
+---
+
+## D-197 - reverted to D-190 (2026-09-09)  [SUPERSEDED by D-198]
+
+Recorded as D-191 at the time, which collided with the damping entry that
+already held that ID. Relabelled D-197 when D-193 was restored at D-198, so
+that both entries keep a stable identifier and the references in the section
+5.4 artifact to "D-191 - two damping settings" stay correct.
 
 D-193, D-194 and D-195 are discarded and the tree is back at `4dfcb25`. Kept
 recoverable as the annotated tag `d193-d195-reverted` (tip `f6da2dd`); nothing
@@ -10623,5 +10859,238 @@ switch. Not built.
     diverged by 0.22 pp in convergence at iteration 3, before the PDR engages.
     That is the noise floor for the percentage; the clamp counts and the ratio
     differ by factors and are far above it.
+
+All four flavours rebuilt clean.
+
+
+---
+
+## D-198 - D-193 restored, and the contract finished (2026-09-09)
+
+Against `2b85f28`. D-197 reverted D-193 on evidence D-196 has since shown was
+misread; this restores it and completes the half it did not cover.
+
+### Why the revert is undone
+
+D-197's case was a convergence fraction: 89.31% at D-190 against 5.01% and
+5.77% after D-193/D-195. D-196 measured what those numbers count. At D-190,
+97.0% of the converged PDR cells have x(H0) clamped to exactly zero by the
+D-192 handback and therefore frozen; the correction sends the ion-solver /
+chemistry x(H+) ratio from 99.3 to 1.0000, removes the clamp entirely, and
+reaches 92.28% at iteration 12 with none frozen.
+
+So the comparison was between a number that counts frozen cells and a number
+that does not. That is not evidence D-193 made the model worse, and it was the
+whole of the case against it. `git cherry-pick 7015d4e`, one conflict, in
+DEVLOG.md only - the sources merged clean.
+
+D-194 (the port list) and D-195 (H2 formation on the measured grain area) are
+NOT restored here. D-195 is its own decision with its own measurement to make,
+and belongs after this one rather than inside it.
+
+### What D-193 supplies
+
+  - `availFrac` = `elemAvail`, always. The D-185 `lgHaveRates` branch is gone.
+    elemAvail constrains the SUM of the ion stages; the rates set RATIOS
+    between them. Dropping the sum because the ratios are known is what left
+    the stages normalised to 1.0 in gas that is 99% molecular.
+  - The chemistry's per-stage source/sink terms are no longer injected into
+    the ion matrix.
+  - Cosmic-ray ionization added as MOCASSIN's own physics, with the network's
+    own coefficients, so removing the injection does not silently zero the
+    ionization of shielded gas. MOCASSIN had none (D-035).
+  - `pdrToMocassin` writes `elemAvail` and nothing else: no ionDen, no Te, no
+    blend weight.
+  - `pdrStep` takes Te from MOCASSIN and runs one thermal pass.
+  - Four keywords retired: `pdrAtomicH`, `pdrOwnIon`, `pdrIonFromMocassin`,
+    `pdrTeFromMocassin`.
+
+### What this entry adds
+
+D-193 gave MOCASSIN the temperature but left the budget that makes it solvable
+behind a keyword, and left the zone gate in place. Three changes:
+
+  - **`pdrCoolFeedback` retired, the handback unconditional.** MOCASSIN cannot
+    own the thermal equilibrium while the molecular coolants and the six
+    heating terms it has no expression for default to off. Taking the
+    temperature from the PDR and then solving it here without the PDR's budget
+    leaves neutral gas with no coolant lacking a factor n_e, so H-C has no root
+    and the search runs to a rail - D-166 measured 45% of the model pinned at
+    30000 K or 10 K. The two halves are one decision.
+  - **`pdrCoolTdep` defaults to 1.** Same reason: a cooling rate held constant
+    inside `iterateT` has no temperature dependence and therefore no root.
+  - **`pdrAllCells` retired, the zone gate removed.** This was scheduled later
+    and is pulled forward because it causes a live defect that would corrupt
+    the verification below.
+
+### The defect that forced the zone gate out (measured, D-196)
+
+`pdrToMocassin` writes `elemAvail` for every cell from `pdrAbun`. In a cell the
+chemistry never ran, `pdrAbun` still holds `seedPDR`'s network defaults -
+x(H) = 0.400, x(H2) = 0.300, the reduced network's dark-cloud starting point.
+So `elemAvail(H)` was **0.400 across the whole H II region**, `ionBalance`
+normalised the hydrogen stages to 0.400, and 60% of the ionized hydrogen was
+simply absent. On the axis of the sec 5.4 reconstruction:
+
+      i    r          zone   T      ionDen(H0)   ionDen(H+)   sum
+      3    4.0e18       0    4597   2.06e-05     0.4000       0.4000
+      9    1.6e19       0    7242   0.0665       0.3335       0.4000
+
+*measured*. The ionized gas ran at 4600-7200 K against the 7927-9420 K this
+fixture is benchmarked at.
+
+The gate was buying almost nothing: 14854 of 15204 active cells are already
+inside the zone, so it skipped 2.3% of the model and broke their hydrogen
+entirely. Outside the molecular gas the chemistry answers "no molecules here"
+by itself and needs no threshold to be switched off.
+
+### Ownership is no longer expressible as an input
+
+Seven keywords are now parsed, reported and ignored: `pdrAtomicH`,
+`pdrOwnIon`, `pdrIonFromMocassin`, `pdrTeFromMocassin` (D-193),
+`ionChemRates` (D-196), `pdrAllCells`, `pdrCoolFeedback` (D-198). A fixture
+that sets one says so in the log and proceeds with the contract regardless.
+
+`benchmarks/pdr/hiipdr-contract/` states no ownership keyword at all, because
+there are none left to state.
+
+### DEVLOG ID collision, resolved
+
+D-197 was recorded as D-191, which the damping entry of 2026-09-08k already
+held and which the section 5.4 artifact cites by that name. The revert is
+relabelled D-197; D-191 keeps the damping entry. Both now have stable IDs.
+
+### The contract run, measured
+
+`hiipdr-contract`, 14 ranks, 12 iterations, 47m11s, on the D-199 fix below.
+**The contract works and the model does not settle.** Both halves are results.
+
+What the contract delivers, at iteration 12 over 15039 PDR-zone cells:
+
+  - `x(H+)_ion / x(H+)_chem` median **1.0000**, p90 1.0040-1.21. MOCASSIN and
+    the chemistry agree on the hydrogen ionization to four figures across the
+    PDR, against 99.3x apart at D-190.
+  - **Zero cells** with x(H0) clamped to exactly zero, at every iteration.
+    D-192 does not occur.
+  - The H II region has its hydrogen back: `ionDen(H0)+ionDen(H+)` = 1.0000
+    and `elemAvail` = 1 inside the front, against the 0.4000 the zone gate was
+    producing. The ionized gas runs 9173-15660 K.
+
+What it exposes:
+
+      hot branch  (2x(H2) < 0.01, T > 3000 K)    3530   23.5%   converged 0
+      cold branch (2x(H2) > 0.5)                10544   70.1%   converged 0
+      in between                                  965    6.4%
+      T over the zone: min 41.7  median 2081  max 10538
+
+*measured*. The model is **bistable**. Adjacent cells on the axis sit at 85 K
+fully molecular and 9418 K fully ionized:
+
+      i    r         T       ionDen(H+)   2x(H2)   budget
+      14   2.6e19      85.4   2.30e-05    0.7118   1.3011
+      18   3.4e19    9418.0   0.9580      0.0000   1.0000
+      19   3.6e19     101.7   0.0007      0.9774   0.9999
+      20   3.8e19    8957.0   0.9127      0.0000   1.0000
+
+Nothing converges on either branch, which is why the convergence fraction sits
+at 0.0197%. The median PDR temperature of 2081 K is an order of magnitude above
+the reference's 100-180 K.
+
+**A hypothesis raised and discarded in the same session.** Before the run
+finished, the flat convergence was attributed to the criterion becoming
+ill-conditioned: under the contract `ionDen(H0)` is normalised to
+`elemAvail ~ 1 - 2x(H2)`, which is ~0.011 deep in the cloud, so
+d x(H0)/x(H0) = -2 dx(H2)/(1-2x(H2)) amplifies a 0.05% change in x(H2) into 9%
+in x(H0). The arithmetic is right and the conclusion was wrong: the axis shows
+whole cells flipping between branches, not a sensitive quantity jittering. The
+amplification is real and may matter later; it is not what is happening here.
+
+**This partially vindicates D-197 (the revert).** Its observation that the
+model would not settle - "36-45% of cells flipping across the 1000 K line on
+every one of the last ten passes" - is confirmed. What was wrong was reading
+the convergence *percentage* as evidence the change was bad, when D-196 showed
+that number was counting frozen cells. The instability is real, predates the
+reading of it, and is now the open item.
+
+### What is NOT known
+
+  - **What drives the bistability.** Two branches with no cells between them is
+    the signature of a thermal balance with two roots, and the PDR temperature
+    is now MOCASSIN's to solve. Suspects, untested: the coolant power law
+    (`pdrCoolTdep`) extrapolating across the H/H2 transition; the ionization
+    and the chemistry each being consistent with their own branch; the residual
+    one-PASS lag below.
+  - D-195 is not restored. The grain-area measurement (1.0165e-21 cm^2/H, all
+    silicate, no graphite - 20% more area than Cazaux & Tielens assume but a
+    0.62x rate, because their graphite channel was carrying it) still stands
+    and is still not in the code.
+  - The `lgIonChemRates` flag survives in `common_mod` with no reader, so the
+    retired keyword has something to report against. Removing it is a tidy-up.
+  - The ionized region now runs **9173-15660 K** against the 7927-9420 K this
+    fixture is benchmarked at. It has its hydrogen back, but it is too hot at
+    the inner edge. The D-193 run measured the same thing (15590 K), so this is
+    a property of the restored contract rather than of D-198, and it is not
+    explained.
+  - A thin tail survives on the ratio: median 1.0000 and p90 1.0040, but the
+    maximum is 31-82 depending on the iteration. A few hundred cells out of
+    15039.
+
+All four flavours rebuilt clean.
+
+---
+
+## D-199 - elemAvail was one MC iteration stale (2026-09-09)
+
+Found by the first contract run, not by the D-196 pair.
+
+`pdrToMocassin` is the only writer of `elemAvail`, and it was called at
+`iteration_mod.f90:1354`, **outside** the coupling loop that closes at 1280.
+`updateCell` reads `elemAvail` and runs `pdrCoupleIter` (5) times per MC
+iteration, so every one of those passes normalised the ion stages to a
+molecular fraction a full iteration out of date.
+
+That was survivable while `pdrToMocassin` also wrote `ionDen` directly - the
+handback corrected its own lag. D-193 removed that write, so `ionDen` is
+`ionBalance`'s answer normalised to `elemAvail` and nothing else, and the lag
+goes straight into x(H0).
+
+Measured on the first contract run, which was stopped at iteration 6:
+
+      iter    x(H+)_ion/chem    budget off >1%     converged
+      4       1.05              9670               0.00%
+      5       19.5              14236              0.00%
+      6       0.166             14019              0.00%
+
+*measured*. Ringing around 1 with a period of one iteration.
+
+The fix is to publish `elemAvail` inside the coupling loop, after the `pdrAbun`
+reduction. The old call site carried a note that it had to follow the Te
+allreduce, which overwrites `grid%Te` wholesale; that no longer binds, because
+under D-193 `pdrToMocassin` writes `elemAvail` and nothing else.
+
+Same fixture, same everything else:
+
+      iter    x(H+)_ion/chem median   p90       max      budget off >1%
+      4       1.0013                  1.0119    1.0293   29
+      6       1.0000                  1.0001    76.2     1363
+      12      1.0000                  1.2108    81.8     1845
+
+*measured*. At iteration 4 the entire distribution including the maximum sits
+within 3% of 1, against a maximum of 2.23 with the lag.
+
+### A correction this forces
+
+D-196 attributed a ~1.25% shortfall in `elemAvail + 2x(H2)` to hydrogen held in
+the network's other carriers - H2O, OH, the CH_n chain, H3+. With the lag
+fixed, cells failing the 1% budget test fall from 9670 to 29 out of ~15000, so
+that shortfall was predominantly the lag and not other carriers. The other
+carriers exist and hold some hydrogen; they are not 1.25%.
+
+### What is NOT known
+
+  - A residual **one-pass** lag remains: within a coupling pass `updateCell`
+    still runs before `pdrStep`, so it reads the previous pass's `elemAvail`.
+    That is the likely source of the thin ratio tail, untested.
+  - Whether it contributes to the bistability of D-198. Not tested.
 
 All four flavours rebuilt clean.

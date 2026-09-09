@@ -351,10 +351,13 @@ module pdr_mod
         ! Every suppression is printed, because silently deleting reactions from
         ! a chemical network is exactly the kind of change that should never be
         ! invisible in a run log.
-        if (pdrIonFromMocassin /= 0 .and. taskid == 0) &
+        ! D-193: unconditional. MOCASSIN always owns the ion stages, so the
+        ! network's own photoionization and recombination channels for those
+        ! stages are always duplicates and are always suppressed.
+        if (taskid == 0) &
              & print*, "! initPDR: MOCASSIN owns the ion stages - suppressing &
              &duplicated network channels:"
-        if (pdrIonFromMocassin /= 0) then
+        if (.true.) then
            do iR = 1, pdrNreacMod
               lgDupPhot = .false.; lgDupRec = .false.
               do iLnk = 1, pdrNlink
@@ -1591,14 +1594,29 @@ module pdr_mod
         if (cellP <= 0) return
         ! D-131. The zone test used to return here, so the network was never
         ! called in ionized gas and H2/CO were zero there because nothing had
-        ! computed them - not because the chemistry said so. With pdrAllCells
-        ! the solver runs in every cell; outside the zone it solves the
-        ! chemistry only, at MOCASSIN's temperature, and hands nothing back.
-        lgChemOnly = .false.
-        if (grid%pdrZone(cellP) == 0) then
-           if (pdrAllCells == 0) return
-           lgChemOnly = .true.
-        end if
+        ! computed them - not because the chemistry said so.
+        !
+        ! D-198: the chemistry now runs in EVERY cell, with no keyword. Two
+        ! reasons, and the second is a defect the gate was causing.
+        !
+        ! The gate bought almost nothing: 14854 of 15204 active cells in the
+        ! sec 5.4 fixture are already inside the zone, so it skipped 2.3% of
+        ! the model. What it cost was those 2.3%. pdrToMocassin writes
+        ! elemAvail for every cell from pdrAbun, and in a cell the chemistry
+        ! never touched pdrAbun still holds seedPDR's network defaults -
+        ! x(H) = 0.400, x(H2) = 0.300, the reduced network's dark-cloud
+        ! starting point. So elemAvail(H) was 0.400 across the whole H II
+        ! region, ionBalance normalised the hydrogen stages to 0.400, and the
+        ! ionized gas ran at 4600-7200 K against the 7927-9420 K this fixture
+        ! is benchmarked at. Measured at D-196; 60% of the hydrogen was simply
+        ! missing.
+        !
+        ! Outside the molecular gas the chemistry answers "no molecules here"
+        ! by itself and needs no threshold to be switched off. lgChemOnly is
+        ! kept because it still means something - the cell publishes no PDR
+        ! temperature - but it is now decided by the zone flag alone, not by
+        ! whether the solver ran.
+        lgChemOnly = (grid%pdrZone(cellP) == 0)
 
         nH  = dble(grid%Hden(cellP))
         if (nH <= 0.d0) return
@@ -1612,8 +1630,10 @@ module pdr_mod
         ! authority - it is photoionized gas, which is what that balance is for
         ! - so take its temperature and do not iterate on it below.
         if (lgChemOnly) Tg = dble(grid%Te(cellP))
-        ! D-132: MOCASSIN owns the thermal balance in every cell.
-        if (pdrTeFromMocassin /= 0) Tg = dble(grid%Te(cellP))
+        ! D-132/D-193: MOCASSIN owns the thermal balance in every cell, with
+        ! no switch. The PDR evaluates its chemistry, level populations and
+        ! heating/cooling AT this temperature and reports them back.
+        Tg = dble(grid%Te(cellP))
         ! ---- dust temperature (DEVLOG D-033, D-036) ----------------------
         ! MOCASSIN solves dust equilibrium against the local radiation field
         ! with no floor, so a deeply shielded cell has almost nothing heating
@@ -1799,7 +1819,9 @@ module pdr_mod
         ! ionization ratio. The element is conserved, MOCASSIN sets the ratio,
         ! and the molecular fractions are left untouched for the chemistry to
         ! evolve.
-        if (pdrIonFromMocassin /= 0) then
+        ! D-193: unconditional. MOCASSIN's ionization is an input to the
+        ! chemistry, never an output of it.
+        if (.true.) then
            do iLnk = 1, pdrNlink
               if (pdrLinkSpec(iLnk) <= 0) cycle
               if (pdrLinkIon(iLnk) /= 1) cycle       ! handle each element once
@@ -1891,7 +1913,7 @@ module pdr_mod
            ! the ionization state, which is the only physics that can compute
            ! it here. Neither overrides the other's domain, and there is no
            ! quantity that both determine.
-           if (pdrIonFromMocassin /= 0) then
+           if (.true.) then                        ! D-193: unconditional
               do iLnk = 1, pdrNlink
                  if (pdrLinkSpec(iLnk) <= 0) cycle
                  if (pdrLinkIon(iLnk) /= 1) cycle
@@ -2037,8 +2059,8 @@ module pdr_mod
         Tlo = 0.d0
         Thi = 0.d0
 
-        do itherm = 1, merge(1, max(pdrThermIter,1), &
-             & lgChemOnly .or. pdrTeFromMocassin /= 0)
+        ! D-193: one pass. The PDR no longer marches a temperature of its own.
+        do itherm = 1, 1
 
            ! PDR heating budget for this cell: 12 terms, total in slot 12. The
            ! photoelectric part is kept separately because it is the term
@@ -2351,9 +2373,8 @@ module pdr_mod
            else
               Tg = Tg*0.5d0
            end if
-           ! D-131: a chemistry-only cell keeps MOCASSIN's temperature.
-           ! D-132: under pdrTeFromMocassin, so does every other cell.
-           if (lgChemOnly .or. pdrTeFromMocassin /= 0) then
+           ! D-131/D-193: every cell keeps MOCASSIN's temperature.
+           if (.true.) then
               Tg = dble(grid%Te(cellP))
            else
               Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
@@ -2437,9 +2458,10 @@ module pdr_mod
         if (max(abs(heat(12)), coolTot) > 0.d0) then
            if (abs(heat(12)-coolTot)/max(abs(heat(12)), coolTot) > dble(pdrFcrit)) then
               if (grid%lgConverged(cellP) == 1) cvPdrCleared = cvPdrCleared + 1
-              if (pdrFcritConv /= 0 .or. &
-                   & (pdrTeFromMocassin == 0 .and. .not. lgChemOnly)) &
-                   & grid%lgConverged(cellP) = 0
+              ! D-193: the PDR's heat and cool are evaluated at MOCASSIN's
+              ! temperature and are not required to balance - only MOCASSIN's
+              ! own thermal balance is. Left switchable purely as a probe.
+              if (pdrFcritConv /= 0) grid%lgConverged(cellP) = 0
            end if
         end if
 
@@ -2468,10 +2490,6 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, cellP, yTop, iAb
-        double precision :: xHII, w, lo, hi, xnew, heTot
-
-        lo = log10(max(dble(pdrBlendLo), 1.d-30))
-        hi = log10(max(dble(pdrZoneLim), 1.d-30))
 
         do iG = 1, nGrids
            if (iG > 1 .or. (.not.lg2D)) then
@@ -2484,135 +2502,57 @@ module pdr_mod
                  do k = 1, grid(iG)%nz
                     cellP = grid(iG)%active(i,j,k)
                     if (cellP <= 0) cycle
-                    ! D-153: with MOCASSIN owning the temperature the PDR does
-                    ! not publish one, so this guard would skip every cell and
-                    ! elemAvail - the molecular content, which is the whole
+                    ! D-193: no guard. The PDR does not publish a temperature
+                    ! at all now, so the old pdrTgas test would skip every cell
+                    ! and elemAvail - the molecular content, which is the whole
                     ! point of the handback - would never be updated.
-                    if (pdrIonFromMocassin == 0 .and. &
-                         & grid(iG)%pdrTgas(cellP) <= 0.) cycle
 
-                    xHII = dble(grid(iG)%ionDen(cellP, elementXref(1), 2))
-
-                    ! D-153: under pdrIonFromMocassin there is nothing to blend
-                    ! and nothing to gate. MOCASSIN already owns the ionization
-                    ! state - it was imposed on the network before the solve -
-                    ! so the only thing coming back is the molecular content,
-                    ! via elemAvail below. The weight is irrelevant and the
-                    ! zone test, which used to reject the chemistry precisely
-                    ! where the two codes disagreed (D-152), is not applied.
-                    if (pdrIonFromMocassin /= 0) then
-                       w = 0.d0            ! no ionization or temperature handback
-                    else if (xHII <= dble(pdrBlendLo)) then
-                       w = 1.d0
-                    else if (xHII < dble(pdrZoneLim)) then
-                       ! blend band: w = 1 at the neutral edge, 0 at the ionised one
-                       w = (hi - log10(max(xHII,1.d-30))) / max(hi-lo, 1.d-30)
-                       w = min(max(w, 0.d0), 1.d0)
-                    else
-                       cycle
-                    end if
-
-                    ! D-132: with MOCASSIN owning the balance there is nothing
-                    ! to hand back - its own thermBalance now carries the
-                    ! molecular coolant and the six heating terms it lacked.
-                    if (pdrTeFromMocassin == 0) &
-                         & grid(iG)%Te(cellP) = real( &
-                         & w*dble(grid(iG)%pdrTgas(cellP)) + &
-                         & (1.d0-w)*dble(grid(iG)%Te(cellP)))
-
-                    ! ---- ionization state (DEVLOG D-037) -----------------
-                    ! MOCASSIN has no cosmic-ray ionization (D-035), so in
-                    ! shielded gas its ionBalance drives x(H+) to zero while the
-                    ! true value is CR-maintained. The chemical network does have
-                    ! it, so hand H and He back the same way the temperature is
-                    ! handed back. This closes the loop: the ionization that sets
-                    ! the zone flag, the electron density and the proton density
-                    ! is now the one computed with the relevant physics.
+                    ! ------------------------------------------- D-193
+                    ! The handback is the MOLECULAR CONTENT and nothing else.
                     !
-                    ! D-102: publish, per element, the fraction NOT locked in
-                    ! molecules. ionBalance normalises the ion stages to sum to
-                    ! one, which is false wherever a molecule holds some of the
-                    ! element - and that normalisation silently undid both this
-                    ! routine's hydrogen handover and D-038's carbon one on the
-                    ! next pass. The available fraction is taken straight from
-                    ! the chemistry as (neutral + ionized)/total, which needs no
-                    ! enumeration of which molecules exist.
+                    ! 3D-PDR receives MOCASSIN's ion densities, Ne, Te, dust
+                    ! temperature and dust opacity, and reports back how much
+                    ! of each element it converted to molecules, plus the
+                    ! heating and cooling that follows from those molecules
+                    ! (published by pdrStep). It does not write an ionization
+                    ! state and it does not write a temperature. Those are
+                    ! MOCASSIN's, solved in ionBalance and thermBalance, and
+                    ! they have exactly one writer each.
+                    !
+                    ! Removed here as of D-193: the blended writeback of
+                    ! ionDen for H, He, C, O and Mg, and the Te writeback.
+                    ! Every one of them was a second author for a variable
+                    ! MOCASSIN already owned, reachable only through a switch
+                    ! (pdrIonFromMocassin, pdrTeFromMocassin, pdrAtomicH) - so
+                    ! which code owned the ionization depended on an input
+                    ! file. D-192 is what that cost: two writers with two
+                    ! different normalisations, one clamping the other's answer
+                    ! to zero in half the PDR.
+                    !
+                    ! elemAvail is the handback. Per element it is
+                    ! (neutral + ionized)/total from the chemistry - the
+                    ! fraction NOT locked in molecules - and ionBalance
+                    ! constrains its ion stages to sum to it (D-193 in
+                    ! update_mod). No enumeration of which molecules exist is
+                    ! needed, and carbon in CO simply does not appear in any
+                    ! atomic stage: it emits no atomic line and contributes no
+                    ! free electron, which is exactly right.
                     if (pdrNHsp > 0 .and. NPROTON > 0) &
                          & grid(iG)%elemAvail(cellP,1) = real(min(max( &
                          &   grid(iG)%pdrAbun(cellP,pdrNHsp) &
                          & + grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0))
 
-                    if (NPROTON > 0) then
-                       xnew = min(max(grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0)
-                       grid(iG)%ionDen(cellP,elementXref(1),2) = real( &
-                            & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(1),2)))
-                       ! D-099: this is NOT the atomic hydrogen fraction, and
-                       ! deliberately so. It is the total non-ionized hydrogen -
-                       ! every nucleus not in H+, the molecular ones included.
-                       !
-                       ! The chemistry's own x(H) is the physical atomic
-                       ! fraction and is what pdrGrid.out carries; handing it
-                       ! here instead was tried and reverted. MOCASSIN has no H2
-                       ! opacity at all, so the atomic hydrogen in this array is
-                       ! the only thing keeping the molecular interior opaque to
-                       ! the Lyman continuum. Replacing 1.0 with the true
-                       ! x(H) ~ 0.002 makes the medium transparent and
-                       ! MOCASSIN's own ionBalance then answers x(H+) ~ 0.17 at
-                       ! A_V = 0.45, where the chemistry gives 5e-7. That lands
-                       ! inside the blend band (pdrZoneLim = 0.3), drives w to
-                       ! 0.17 and discards 83% of the handover, temperature
-                       ! included: V1 deep T ratio went 1.06 -> 1.32.
-                       !
-                       ! Fixing it properly means giving MOCASSIN an H2 opacity,
-                       ! not changing this line.
-                       ! D-101: with a source that emits no ionizing photons
-                       ! this can be the true atomic fraction. Guarded so the
-                       ! two can be compared.
-                       if (pdrAtomicH /= 0 .and. pdrNHsp > 0) then
-                          grid(iG)%ionDen(cellP,elementXref(1),1) = real(max( &
-                               & w*min(max(dble(grid(iG)%pdrAbun(cellP,pdrNHsp)),0.d0),1.d0) &
-                               & + (1.d0-w)*(1.d0 &
-                               &   - dble(grid(iG)%ionDen(cellP,elementXref(1),2)) &
-                               &   - 2.d0*dble(grid(iG)%pdrAbun(cellP,NH2))), 0.d0))
-                       else
-                          grid(iG)%ionDen(cellP,elementXref(1),1) = &
-                               & 1.0 - grid(iG)%ionDen(cellP,elementXref(1),2)
-                       end if
-                    end if
+                    ! Helium: no helium-bearing molecule exists in the network,
+                    ! so its available fraction is 1 by construction. Written
+                    ! explicitly rather than left at whatever it held, so the
+                    ! array has one meaning everywhere.
+                    if (lgElementOn(2) .and. NHe > 0 .and. NHEx > 0) &
+                         & grid(iG)%elemAvail(cellP,2) = 1.0
 
-                    if (lgElementOn(2) .and. NHe > 0 .and. NHEx > 0 .and. nStages >= 3) then
-                       heTot = grid(iG)%pdrAbun(cellP,NHe) + grid(iG)%pdrAbun(cellP,NHEx)
-                       if (heTot > 0.d0) then
-                          xnew = min(max(grid(iG)%pdrAbun(cellP,NHEx)/heTot, 0.d0), 1.d0)
-                          grid(iG)%ionDen(cellP,elementXref(2),2) = real( &
-                               & w*xnew + (1.d0-w)*dble(grid(iG)%ionDen(cellP,elementXref(2),2)))
-                          grid(iG)%ionDen(cellP,elementXref(2),1) = &
-                               & 1.0 - grid(iG)%ionDen(cellP,elementXref(2),2)
-                          grid(iG)%ionDen(cellP,elementXref(2),3) = 1.e-20
-                       end if
-                    end if
-
-                    ! ---- metals (DEVLOG D-038) ---------------------------
-                    ! MOCASSIN tracks min(elem+1, nstages) stages per element -
-                    ! seven for carbon at the default nstages=7, not two. And
-                    ! every consumer uses ionDen MULTIPLICATIVELY:
-                    !   Np           = ionDen(...,1,2)*elemAbun(1)
-                    !   forbidden    = ...*elemAbun(elem)*ionDen(...,elem,ion)
-                    ! Nothing infers a stage by closure, so the stages summing to
-                    ! one is an OUTPUT property of ionBalance, not an input
-                    ! requirement.
-                    !
-                    ! That is what makes the molecular fraction easy rather than
-                    ! awkward: carbon locked in CO simply does not appear in any
-                    ! atomic stage. The fractions then sum to less than one, which
-                    ! is exactly right - that carbon emits no atomic line and
-                    ! contributes no free electron. Higher stages are set to
-                    ! MOCASSIN's own floor since C2+ and the like are negligible
-                    ! at PDR temperatures.
                     iAb = grid(iG)%abFileIndex(i,j,k)
-                    call setIonPair(grid(iG), cellP, iAb,  6, NC,  NCx,  w)
-                    call setIonPair(grid(iG), cellP, iAb,  8, NO,  NOx,  w)
-                    call setIonPair(grid(iG), cellP, iAb, 12, NMG, NMGx, w)
+                    call setElemAvail(grid(iG), cellP, iAb,  6, NC,  NCx)
+                    call setElemAvail(grid(iG), cellP, iAb,  8, NO,  NOx)
+                    call setElemAvail(grid(iG), cellP, iAb, 12, NMG, NMGx)
                  end do
               end do
            end do
@@ -2622,23 +2562,22 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
-      ! Write one element's neutral and singly-ionised fractions into
-      ! grid%ionDen, blended by w, and floor the higher stages.
+      ! Record how much of one element the chemistry did NOT lock into
+      ! molecules: (neutral + singly ionised)/total, from the network's own
+      ! abundances. D-193: this is the whole handback for an element. The
+      ! ion stages themselves are MOCASSIN's and are not written here.
       !
-      ! The fractions are taken relative to MOCASSIN's own elemAbun so that
-      ! ionDen*elemAbun reproduces the network's density directly. That is
+      ! The fractions are taken relative to MOCASSIN's own elemAbun, which is
       ! exact only if both codes use the same elemental abundances - the
       ! network's come from species_*.d and MOCASSIN's from its abundance
       ! file. They are clamped here, and reconciling them is an open item.
       !-----------------------------------------------------------------
-      subroutine setIonPair(grid, cellP, iAb, elem, iNeut, iIon, w)
+      subroutine setElemAvail(grid, cellP, iAb, elem, iNeut, iIon)
         implicit none
 
         type(grid_type), intent(inout) :: grid
         integer, intent(in)            :: cellP, iAb, elem, iNeut, iIon
-        double precision, intent(in)   :: w
 
-        integer          :: ion, nTop
         double precision :: tot, f0, f1
 
         if (elem > nElements) return
@@ -2657,18 +2596,7 @@ module pdr_mod
         ! is what had been quietly undoing this handover ever since D-038.
         grid%elemAvail(cellP, elem) = real(min(max(f0+f1, 0.d0), 1.d0))
 
-        grid%ionDen(cellP,elementXref(elem),1) = real( &
-             & w*f0 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),1)))
-        grid%ionDen(cellP,elementXref(elem),2) = real( &
-             & w*f1 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),2)))
-
-        nTop = min(elem+1, nStages)
-        do ion = 3, nTop
-           grid%ionDen(cellP,elementXref(elem),ion) = real( &
-                & w*1.d-20 + (1.d0-w)*dble(grid%ionDen(cellP,elementXref(elem),ion)))
-        end do
-
-      end subroutine setIonPair
+      end subroutine setElemAvail
 
 #endif
 end module pdr_mod

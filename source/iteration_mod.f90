@@ -1231,6 +1231,33 @@ module iteration_mod
                             & " cells (converged or stalled) - thermal balance still runs"
                     end if
                  end if
+
+                 ! ------------------------------------------------- D-199
+                 ! Publish elemAvail HERE, inside the coupling loop, not once
+                 ! per MC iteration after it.
+                 !
+                 ! pdrToMocassin is the only writer of elemAvail, and until now
+                 ! it ran after this loop closed. updateCell reads elemAvail and
+                 ! runs pdrCoupleIter times per iteration, so every one of those
+                 ! passes was normalising the ion stages to a molecular fraction
+                 ! a full MC iteration out of date.
+                 !
+                 ! That was survivable while pdrToMocassin also wrote ionDen
+                 ! directly - the handback corrected its own lag. D-193 removed
+                 ! that write: ionDen is now ionBalance's answer normalised to
+                 ! elemAvail and nothing else, so a stale elemAvail goes
+                 ! straight into x(H0), which is the quantity the convergence
+                 ! test measures. Measured at D-198: the ion/chemistry x(H+)
+                 ! ratio rang 1.05 -> 19.5 -> 0.166 across iterations 4-6 while
+                 ! the converged fraction sat at 0.00% for three passes.
+                 !
+                 ! The old call site carried a note that it had to follow the Te
+                 ! allreduce, which overwrites grid%Te wholesale. That no longer
+                 ! binds: under D-193 pdrToMocassin writes elemAvail and nothing
+                 ! else. It does need the pdrAbun reduction above, which is why
+                 ! it sits here rather than higher up.
+                 if (lgPDR .and. nIterateMC >= pdrStartIter) &
+                      & call pdrToMocassin(grid(1:nGrids))
               end if
 #endif
 
@@ -1347,11 +1374,12 @@ module iteration_mod
               end if
 
 #ifdef PDR
-              ! AFTER the Te exchange, not before: that allreduce overwrites
-              ! grid%Te wholesale from TeTemp, so a handover written earlier
-              ! would be silently discarded.
-              if (lgPDR .and. nIterateMC >= pdrStartIter) &
-                   & call pdrToMocassin(grid(1:nGrids))
+              ! D-199: pdrToMocassin now runs INSIDE the coupling loop, so that
+              ! elemAvail is current for each updateCell pass rather than one MC
+              ! iteration stale. See the note at that call site. The old comment
+              ! here - that the handover had to follow the Te allreduce, which
+              ! overwrites grid%Te wholesale - applied when pdrToMocassin still
+              ! wrote Te; D-193 removed that write.
 #endif
 
 
@@ -1630,9 +1658,22 @@ module iteration_mod
                          & "  max ", cvDlt(nBud)
                     print '(a,3(es11.4,a))', "! [D196]   x(H0)+2x(H2)+x(H+)  min ", &
                          & bMin, "  median ", bMed, "  max ", bMax
+                    ! D-199: this line used to be labelled a clamp counter,
+                    ! and that was right only while pdrToMocassin wrote
+                    ! ionDen(H0) = max(1 - x(H+) - 2x(H2), 0) - the budget was
+                    ! then 1 by construction and could only depart from it
+                    ! where that max() fired. D-193 removed the write, so the
+                    ! budget is now an INDEPENDENT test, and what it reports
+                    ! is hydrogen the sum does not account for: the network's
+                    ! other carriers (H2O, OH, the CH_n chain, H3+) plus any
+                    ! lag between elemAvail and the abundances it was built
+                    ! from. D-199 measured the split - fixing the lag took the
+                    ! count from 9670 cells to 29 - so it is mostly lag, and
+                    ! the other carriers are well under 1%. A non-zero nZero IS
+                    ! still the D-192 clamp.
                     print '(a,i8,a,i8,a)', &
-                         & "! [D196]   (1 by construction; departures are the D-192 clamp)", &
-                         & nBad, " clamped,", nZero, " with x(H0) exactly 0"
+                         & "! [D196]   off by >1% (H in other carriers, ~1.25%):", &
+                         & nBad, " cells;", nZero, " with x(H0) exactly 0 (D-192 clamp)"
                     print '(a,f8.4,a,f8.4)', "! [D196]   mean 2x(H2) ", &
                          & h2Sum/dble(nBud), "   mean elemAvail(H) ", avSum/dble(nBud)
                     if (nRat > 0) then

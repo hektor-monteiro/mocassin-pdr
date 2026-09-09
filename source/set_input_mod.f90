@@ -631,9 +631,18 @@ module set_input_mod
             case ("pdrFUVmode")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrFUVmode
+            ! D-193: RETIRED. Who owns the ionization and the temperature is
+            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
+            ! returns the molecular content and the heating/cooling that
+            ! follows from it. Still parsed so existing input files run, but
+            ! the value is ignored and the run says so.
             case ("pdrAtomicH")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrAtomicH
+                if (taskid == 0) print*, "! setInput: pdrAtomicH is retired &
+                     &(D-193) and has no effect - MOCASSIN owns the ionization &
+                     &and the temperature unconditionally"
+                pdrAtomicH = 1
             case ("pdrDustFeedback")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDustFeedback
@@ -643,9 +652,18 @@ module set_input_mod
             case ("pdrOwnDust")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnDust
+            ! D-193: RETIRED. Who owns the ionization and the temperature is
+            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
+            ! returns the molecular content and the heating/cooling that
+            ! follows from it. Still parsed so existing input files run, but
+            ! the value is ignored and the run says so.
             case ("pdrOwnIon")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnIon
+                if (taskid == 0) print*, "! setInput: pdrOwnIon is retired &
+                     &(D-193) and has no effect - MOCASSIN owns the ionization &
+                     &and the temperature unconditionally"
+                pdrOwnIon = 1
 
             case ("pdrDiagCool")
                 backspace 10
@@ -680,30 +698,22 @@ module set_input_mod
             case ("ionMatrix")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, lgIonMatrix
-            ! D-196: the P3 lever. lgIonChemRates decides whether elemAvail
-            ! stands down where the chemistry supplied per-stage rates. It had
-            ! no keyword, so D-191's open question - is x(H0) able to move at
-            ! all at D-190? - could not be asked from an input file, and the
-            ! run that would answer it was never made. Exposed so the two
-            ! configurations differ by an input line and not by a rebuild.
-            ! Read as an INTEGER and convert, matching pdrOwnIon,
-            ! pdrAllCells and every other switch in this block. Written as a
-            ! logical first, which silently did nothing: list-directed logical
-            ! input rejects "0" (iostat 5010), ios is discarded here, and the
-            ! default .true. stood - so a fixture asking for 0 ran as 1 and the
-            ! paired run was an exact duplicate of its control. The failure
-            ! leaves no trace in the log, hence the echo below.
+            ! D-196 added this as the lever that let D-191's open question be
+            ! asked from an input file: does elemAvail stand down where the
+            ! chemistry supplied per-stage rates? It was measured (it did, and
+            ! that is what froze x(H0) and made the convergence number free),
+            ! and D-198 restores D-193, under which elemAvail always carries
+            ! the locking and the rates are not injected at all. There is
+            ! nothing left for this to select, so it retires with the other
+            ! four ownership keywords rather than staying as a way to ask for
+            ! the defect back.
             case ("ionChemRates")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, iDumChemRates
-                if (ios == 0) then
-                   lgIonChemRates = (iDumChemRates /= 0)
-                   print*, "! readInput: ionChemRates ", iDumChemRates, &
-                        & " -> lgIonChemRates = ", lgIonChemRates
-                else
-                   print*, "! readInput: [warning] could not parse ionChemRates;", &
-                        & " leaving lgIonChemRates = ", lgIonChemRates
-                end if
+                if (taskid == 0) print*, "! setInput: ionChemRates is retired &
+                     &(D-196, D-198) - elemAvail always carries the molecular &
+                     &locking; the keyword is ignored"
+                lgIonChemRates = .true.
             case ("pdrDiagRates")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagRates
@@ -740,9 +750,18 @@ module set_input_mod
             case ("pdrSplitField")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrSplitField
+            ! D-193: RETIRED. Who owns the ionization and the temperature is
+            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
+            ! returns the molecular content and the heating/cooling that
+            ! follows from it. Still parsed so existing input files run, but
+            ! the value is ignored and the run says so.
             case ("pdrIonFromMocassin")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrIonFromMocassin
+                if (taskid == 0) print*, "! setInput: pdrIonFromMocassin is retired &
+                     &(D-193) and has no effect - MOCASSIN owns the ionization &
+                     &and the temperature unconditionally"
+                pdrIonFromMocassin = 1
             case ("teSolver")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teSolver
@@ -773,12 +792,25 @@ module set_input_mod
             case ("pdrAllCells")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrAllCells
+                if (taskid == 0) print*, "! setInput: pdrAllCells is retired &
+                     &(D-198) - the chemistry runs in every cell; the zone gate &
+                     &was leaving seed abundances in the H II region"
+                pdrAllCells = 1
             case ("pdrPEfromPDR")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrPEfromPDR
+            ! D-193: RETIRED. Who owns the ionization and the temperature is
+            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
+            ! returns the molecular content and the heating/cooling that
+            ! follows from it. Still parsed so existing input files run, but
+            ! the value is ignored and the run says so.
             case ("pdrTeFromMocassin")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTeFromMocassin
+                if (taskid == 0) print*, "! setInput: pdrTeFromMocassin is retired &
+                     &(D-193) and has no effect - MOCASSIN owns the ionization &
+                     &and the temperature unconditionally"
+                pdrTeFromMocassin = 1
             case ("pdrCoolTdep")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolTdep
@@ -788,6 +820,10 @@ module set_input_mod
             case ("pdrCoolFeedback")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolFeedback
+                if (taskid == 0) print*, "! setInput: pdrCoolFeedback is retired &
+                     &(D-198) - MOCASSIN owns the thermal equilibrium and always &
+                     &receives the PDR's heating and cooling"
+                pdrCoolFeedback = 1
             case ("pdrZoneLimit")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrZoneLim, pdrBlendLo

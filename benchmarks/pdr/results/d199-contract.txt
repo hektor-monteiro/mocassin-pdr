@@ -1,0 +1,94 @@
+ ! iterateMC: [Summary] Iteration            1 ; Total:     0.00000000     % converged cells over all grids
+ ! iterateMC: [Summary] Iteration            2 ; Total:     6.57721655E-03 % converged cells over all grids
+ ! iterateMC: [Summary] Iteration            3 ; Total:     72.2112579     % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   14547,  x(H0) > 0.99 in    4300  ( 29.56 %)
+! [D196]   x(H0)      min  4.4830E-01  median  9.4840E-01  max  9.9991E-01
+! [D196]   |dx(H0)|/x median  6.0244E-02  p90  3.2398E-01  max  5.5163E-01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  9.9365E-01  median  1.0013E+00  max  1.0218E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)      29 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.1112   mean elemAvail(H)   0.8888
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0013E+00  p90  1.0119E+00  max  1.0293E+00   over cells    14547
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            4 ; Total:     0.00000000     % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   14851,  x(H0) > 0.99 in    2185  ( 14.71 %)
+! [D196]   x(H0)      min  7.1893E-03  median  6.4949E-02  max  9.9993E-01
+! [D196]   |dx(H0)|/x median  9.3182E-01  p90  9.5803E-01  max  9.9038E-01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  9.2031E-01  median  1.0002E+00  max  1.9819E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    4473 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.8477   mean elemAvail(H)   0.1523
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0045E+00  p90  2.0672E+01  max  5.5786E+01   over cells    14851
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            5 ; Total:     0.00000000     % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   14972,  x(H0) > 0.99 in     565  (  3.77 %)
+! [D196]   x(H0)      min  3.0911E-03  median  2.2033E-01  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  9.8271E-01  p90  1.0677E+01  max  9.1910E+01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  3.0154E-02  median  1.0000E+00  max  1.8886E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    1363 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.2268   mean elemAvail(H)   0.7732
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.0001E+00  max  7.6200E+01   over cells    14972
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            6 ; Total:     6.57721655E-03 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15009,  x(H0) > 0.99 in     268  (  1.79 %)
+! [D196]   x(H0)      min  3.0770E-03  median  3.5439E-02  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  9.1458E-01  p90  6.3460E+00  max  1.0150E+02
+! [D196]   x(H0)+2x(H2)+x(H+)  min  7.2411E-02  median  1.0000E+00  max  1.7676E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    1479 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.6498   mean elemAvail(H)   0.3502
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.1715E+00  max  8.1830E+01   over cells    15009
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            7 ; Total:     1.97316501E-02 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15020,  x(H0) > 0.99 in     127  (  0.85 %)
+! [D196]   x(H0)      min  2.9393E-03  median  4.1255E-02  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  9.3535E-01  p90  1.2018E+01  max  9.6296E+01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  2.1332E-02  median  1.0000E+00  max  1.9656E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)     705 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.7520   mean elemAvail(H)   0.2480
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.0108E+00  max  3.1163E+01   over cells    15020
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            8 ; Total:     6.57721655E-03 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15021,  x(H0) > 0.99 in      48  (  0.32 %)
+! [D196]   x(H0)      min  2.2772E-03  median  4.2982E-02  max  9.9963E-01
+! [D196]   |dx(H0)|/x median  6.9381E-02  p90  1.3034E+00  max  7.7220E+01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  1.8787E-02  median  1.0000E+00  max  1.9809E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    2235 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.8078   mean elemAvail(H)   0.1922
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.0899E+00  max  5.3952E+01   over cells    15021
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration            9 ; Total:     1.97316501E-02 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15028,  x(H0) > 0.99 in     157  (  1.04 %)
+! [D196]   x(H0)      min  2.0930E-03  median  4.0051E-02  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  1.6773E-01  p90  8.8148E-01  max  9.1375E+01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  1.7994E-02  median  1.0000E+00  max  1.9834E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    1099 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.8660   mean elemAvail(H)   0.1340
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.1018E+00  max  6.0284E+01   over cells    15028
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration           10 ; Total:     1.97316501E-02 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15039,  x(H0) > 0.99 in     346  (  2.30 %)
+! [D196]   x(H0)      min  1.0935E-03  median  2.0715E-01  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  3.0507E+00  p90  1.4278E+01  max  1.0108E+02
+! [D196]   x(H0)+2x(H2)+x(H+)  min  1.7348E-02  median  1.0000E+00  max  1.9830E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    1485 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.2300   mean elemAvail(H)   0.7700
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.0040E+00  max  5.8858E+01   over cells    15039
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration           11 ; Total:     1.31544331E-02 % converged cells over all grids
+ ! [D196] can the convergence test move? grid           1
+! [D196]   PDR-zone cells   15039,  x(H0) > 0.99 in     207  (  1.38 %)
+! [D196]   x(H0)      min  2.2600E-03  median  3.7461E-02  max  9.9996E-01
+! [D196]   |dx(H0)|/x median  9.0998E-01  p90  8.5295E+00  max  9.3885E+01
+! [D196]   x(H0)+2x(H2)+x(H+)  min  1.6763E-02  median  1.0000E+00  max  1.9834E+00
+! [D196]   (1 by construction; departures are the D-192 clamp)    1845 clamped,       0 with x(H0) exactly 0
+! [D196]   mean 2x(H2)   0.6779   mean elemAvail(H)   0.3221
+! [D196]   x(H+)_ion / x(H+)_chem  median  1.0000E+00  p90  1.2108E+00  max  8.1831E+01   over cells    15039
+ ! [D196]   1.0 = row used the available fraction; 1/(1-2x(H2)) = it normalised to unity
+ ! iterateMC: [Summary] Iteration           12 ; Total:     1.97316501E-02 % converged cells over all grids
+total run time per processor  00:47:11 (HMS)

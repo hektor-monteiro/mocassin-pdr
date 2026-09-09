@@ -619,7 +619,11 @@ subroutine iterateT()
     ! neutral one) - a frozen relic of the trajectory is exactly what depends on
     ! where the trajectory began. Every measurement in the "MOCASSIN owns T"
     ! column - 0.079%, 0.099%, 0.217% converged - was made with this defect.
-    if (lgPDR .and. pdrTeFromMocassin == 0) then
+    ! D-193: never. MOCASSIN solves the thermal equilibrium in every cell,
+    ! so no cell is pinned to a temperature the PDR computed - the PDR does
+    ! not compute one. What it supplies is the molecular heating and cooling
+    ! that thermBalance solves WITH.
+    if (.false.) then
        if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
           lgPDRcell = .true.
           ! D-081: use grid%Te, NOT grid%pdrTgas. pdrToMocassin has already
@@ -1986,7 +1990,16 @@ end subroutine iterateT
             ! every handed-over term 12.6x too small, which is why swapping the
             ! coolants and then the photoelectric heating each moved the deep
             ! PDR by about 1 K.
-            if (lgPDR .and. pdrCoolFeedback /= 0) then
+            ! D-198: unconditional. MOCASSIN owns the thermal equilibrium
+            ! (D-193), and it cannot own it honestly while the molecular
+            ! coolants and the six heating terms it has no expression for are
+            ! behind a keyword that defaults to off. The two halves are one
+            ! decision: taking the temperature from the PDR and then solving
+            ! it here without the PDR's budget leaves neutral gas with no
+            ! coolant that lacks a factor n_e, so H-C has no root and the
+            ! search runs to a rail - D-166 measured 45% of the model pinned
+            ! at 30000 K or 10 K.
+            if (lgPDR) then
                if (grid%Hden(cellP) > 0.) then
                   ! Only the coolants MOCASSIN has no line data for. C, C+, O
                   ! and O+ are already summed into coolColl above from ci.dat,
@@ -2275,7 +2288,6 @@ end subroutine iterateT
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
             real(kind=8), dimension(nElements) :: availFrac   ! D-102
-            logical, dimension(nElements)      :: lgHaveRates ! D-185
 
 
             real, dimension(nElements, nstages) :: &
@@ -2454,6 +2466,31 @@ end subroutine iterateT
                     ! factor is bounded below by 1e-5. An earlier comment here
                     ! claimed otherwise; measured on two models, the numerator
                     ! is never negative. The clamps stay as cheap insurance.
+#ifdef PDR
+                    ! D-193: cosmic-ray ionization, as MOCASSIN's own physics.
+                    !
+                    ! MOCASSIN has never had it (D-035). Until now it arrived
+                    ! second-hand, inside the chemistry's injected source/sink
+                    ! rates; with those gone the ionization of shielded gas
+                    ! would otherwise fall to zero, which is wrong and would
+                    ! have been a silent loss rather than a visible one.
+                    !
+                    ! Coefficients are the network's own, so both codes ionize
+                    ! at identical rates from an identical zeta:
+                    !   rates_reduced.d:293  H  + CRP -> H+  + e   5.98e-18
+                    !   rates_reduced.d:297  He + CRP -> He+ + e   6.50e-18
+                    ! evaluated as calc_reac_rates.F90 evaluates them,
+                    ! RATE = ALPHA*(zeta/1.3e-17). Secondary ionization by the
+                    ! knock-on electrons is folded into those coefficients
+                    ! upstream, as it is in UMIST.
+                    if (lgPDR .and. ion == 1) then
+                       if (elem == 1) ionUp(elem,ion) = ionUp(elem,ion) &
+                            & + 5.98d-18*dble(pdrZeta)/1.3d-17
+                       if (elem == 2) ionUp(elem,ion) = ionUp(elem,ion) &
+                            & + 6.50d-18*dble(pdrZeta)/1.3d-17
+                    end if
+#endif
+
                     if (ionUp(elem,ion) < 0.d0) ionUp(elem,ion) = 0.d0
                     if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
 
@@ -2528,44 +2565,28 @@ end subroutine iterateT
                ! It is kept, not deleted, for the cells the rates do not reach:
                ! outside the PDR zone there are no rates, and elemAvail is 1.0
                ! there anyway, so the two agree by construction.
-               ! ---------------------------------------------------- D-185
-               ! elemAvail stands down where the RATES ARE ACTUALLY THERE, not
-               ! where a zone flag says they ought to be.
+               ! ---------------------------------------------------- D-193
+               ! elemAvail ALWAYS carries the molecular locking. It is not one
+               ! of two interchangeable descriptions - it is the conservation
+               ! constraint, and there is nothing for it to stand down in
+               ! favour of.
                !
-               ! D-118's rule is right: elemAvail and the per-stage rates are
-               ! two descriptions of the same locking and applying both counts
-               ! it twice. But the old test was `pdrZone == 1`, which asserts
-               ! the rates are present rather than checking. They are written by
-               ! pdrStep, which runs AFTER updateCell in every coupling pass, so
-               ! on the first PDR pass they are identically zero - and D-169
-               ! measured zero for hydrogen in a zone cell. Wherever that
-               ! happens the locking was carried by NEITHER mechanism and
-               ! ionBalance solved as if no hydrogen were molecular, in cells
-               ! that are 98% H2. Hydrogen is rescued afterwards by
-               ! handBackPDR's pdrAtomicH writeback; C, O and Mg are not.
+               ! D-185 stood it down wherever the chemistry supplied per-stage
+               ! rates, on the argument that rates and elemAvail describe the
+               ! same locking twice. They do not. elemAvail sets the SUM of the
+               ! ion stages - how much of the element is not in molecules. The
+               ! rates set RATIOS between stages. Dropping the sum because the
+               ! ratios are known leaves the stages normalised to 1.0 in gas
+               ! that is 99% molecular, which is what D-192 measured: hydrogen
+               ! at x(H+) = 0.58 where the chemistry said 0.045, in cells whose
+               ! non-molecular budget is 0.0094 in total.
                !
-               ! Keyed per element on the rates themselves, the three cases are
-               ! exhaustive and none of them double-counts:
-               !   rates present -> they carry it, elemAvail stands down
-               !   rates absent  -> elemAvail carries it
-               !   neither       -> impossible by construction
-               ! and the zone gate disappears, which is the point (D-182).
-               lgHaveRates = .false.
-               do ik = 1, pdrNlink
-                  if (pdrLinkSpec(ik) <= 0) cycle
-                  if (pdrLinkElem(ik) < 1 .or. pdrLinkElem(ik) > nElements) cycle
-                  if (grid%pdrIonRate(cellP, ik) /= 0. .or. &
-                       & grid%pdrIonRate(cellP, pdrNlink+ik) /= 0.) &
-                       & lgHaveRates(pdrLinkElem(ik)) = .true.
-               end do
+               ! The rates are gone as of D-193 (see the matrix assembly
+               ! below); the constraint stays, unconditionally.
                do elem = 1, nElements
                   if (.not.lgElementOn(elem)) cycle
-                  if (lgIonChemRates .and. lgHaveRates(elem)) then
-                     availFrac(elem) = 1.d0
-                  else
-                     availFrac(elem) = &
-                       & min(max(dble(grid%elemAvail(cellP, elem)), 1.d-10), 1.d0)
-                  end if
+                  availFrac(elem) = &
+                    & min(max(dble(grid%elemAvail(cellP, elem)), 1.d-10), 1.d0)
                end do
             end if
 #endif
@@ -2689,22 +2710,22 @@ end subroutine iterateT
                   ! A stage the network does not carry keeps zero for both and
                   ! is left entirely to the ion solver.
                   chemSrc = 0.d0; chemSnk = 0.d0
-#ifdef PDR
-                  ! D-185: no zone gate. The rates are computed in every cell
-                  ! under pdrAllCells; a stage the network does not carry keeps
-                  ! zero for both and is left entirely to the ion solver, which
-                  ! is the correct behaviour without any threshold.
-                  if (lgPDR .and. lgIonChemRates) then
-                     do ik = 1, pdrNlink
-                        if (pdrLinkSpec(ik) <= 0) cycle
-                        if (pdrLinkElem(ik) /= elem) cycle
-                        ir = pdrLinkIon(ik)
-                        if (ir < 1 .or. ir > nst) cycle
-                        chemSrc(ir) = dble(grid%pdrIonRate(cellP, ik))
-                        chemSnk(ir) = dble(grid%pdrIonRate(cellP, pdrNlink+ik))
-                     end do
-                  end if
-#endif
+                  ! D-193: the chemistry's per-stage source/sink rates are NO
+                  ! LONGER injected here. MOCASSIN owns the ionization; the one
+                  ! thing 3D-PDR reports about an element is how much of it is
+                  ! locked in molecules, and that arrives as elemAvail above.
+                  !
+                  ! pdrFormSp/pdrLossSp are the whole ODE right-hand side for
+                  ! the species, molecular channels included, so injecting them
+                  ! here while also constraining the sum to elemAvail counts the
+                  ! molecular drain twice - and injecting them INSTEAD of the
+                  ! constraint is what produced D-192. Neither is the design.
+                  ! The arrays are still published, as diagnostics (D-113).
+                  !
+                  ! What this would have dropped on its own is cosmic-ray
+                  ! ionization, which MOCASSIN lacks (D-035) and which reached
+                  ! it only through these rates. It is added below as
+                  ! MOCASSIN's own physics rather than imported as a rate.
                   do ir = iLo, iHi-1
                      ic = ir - iLo + 1
                      ionMat(ic,ic)     = ionMat(ic,ic)     - ionUp(elem,ir)*ionScal(ir)
@@ -2860,10 +2881,12 @@ end subroutine iterateT
                     !
                     ! Same shape as D-165: a switch added later that never
                     ! reached an older gate.
-                    if (lgPDR .and. pdrOwnIon /= 0 .and. pdrIonFromMocassin == 0) then
-                       if (grid%pdrZone(cellP) == 1 .and. &
-                            & (elem==1 .or. elem==2 .or. elem==6 .or. elem==8 .or. elem==12)) cycle
-                    end if
+                    ! D-193: removed. There is one ionization solution and it
+                    ! is MOCASSIN's, in every cell and for every element. This
+                    ! gate skipped the writeback for H, He, C, O and Mg in PDR
+                    ! cells, leaving those stages to whatever handBackPDR had
+                    ! blended in - a second writer for the same array. That
+                    ! second writer is gone too (pdrToMocassin, D-193).
 #endif
                     ! D-114 self-check: the chain answer for this same stage,
                     ! this same cell, this same call. With no molecular terms

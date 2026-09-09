@@ -727,9 +727,13 @@ module common_mod
     ! recursion. It exists so the chemistry can inject per-ion-stage source and
     ! sink terms (D-111), which a product of ratios cannot represent.
     logical             :: lgIonMatrix = .true.  ! matrix ionBalance
-    ! D-118: feed the chemistry's per-stage rates into the ion matrix, replacing
+    ! D-118 fed the chemistry's per-stage rates into the ion matrix, replacing
     ! elemAvail's scalar "this fraction is locked up" with "it is being locked
-    ! up this fast and released that fast". Cloudy's ion_solver.cpp:765.
+    ! up this fast and released that fast". D-193 removed the injection and
+    ! D-198 restored that: elemAvail is the conservation constraint on the SUM
+    ! of the stages and has nothing to stand down in favour of. The flag is
+    ! kept only so the retired `ionChemRates` keyword has something to report
+    ! against; nothing reads it. Its removal is a tidy-up, not a decision.
     logical             :: lgIonChemRates = .true.
     ! D-119: how many times to close the ionization <-> chemistry loop inside a
     ! single MC iteration. 1 reproduces the sequential behaviour exactly.
@@ -802,7 +806,12 @@ module common_mod
     ! SEVENTH time a PDR-scoped declaration has broken the plain build
     ! (D-096, D-109, D-119, D-138, D-143, D-158) - and the third caught only
     ! because the plain build is checked before anything reaches dev.
-    integer             :: pdrCoolTdep = 0
+    ! D-198: ON by default. With MOCASSIN owning the thermal equilibrium and
+    ! consuming the PDR's coolants, a cooling rate held CONSTANT inside
+    ! iterateT leaves H-C with no temperature dependence in neutral gas and
+    ! therefore no root. 1 = the two-point power law; 2 adds a third solve on
+    ! the far side of Tref purely to check the extrapolation.
+    integer             :: pdrCoolTdep = 1
     real                :: pdrCoolTfac = 1.6   ! second evaluation at this x T
     integer             :: pdrNslopeChk = 0    ! D-166: cap on power-law checks
     integer(kind=8)     :: nCoolNull = 0       ! D-167: replacement with nothing to replace
