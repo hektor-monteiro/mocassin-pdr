@@ -90,6 +90,11 @@ module iteration_mod
            integer                   :: molHist(8), iBin, nMv10, nMv50
            integer                   :: nWarm, nHotBr
            real(kind=8)              :: fMol, fMolWas, molSum
+           ! D-204: Te sampled after the first updateCell of the iteration -
+           ! thermal balance done, chemistry not yet run - so the ordering of
+           ! Te against f_mol can be measured instead of inferred.
+           integer                   :: nUpd1, nUpd1Hot, nStHot
+           real(kind=8)              :: teUpd1Sum, teStSum, molStSum
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1050,6 +1055,60 @@ module iteration_mod
               if(taskid==0) print*, 'iterateMC: updateCell out', iG
 
 #ifdef PDR
+              ! ---------------------------------------------------- D-204
+              ! Te at this point has been solved by updateCell against the
+              ! abundances the iteration STARTED with: pdrStep has not run yet
+              ! in this iteration. So this snapshot answers the ordering
+              ! question the per-iteration medians cannot. If the temperature
+              ! has already flipped here, at unchanged f_mol, the thermal
+              ! balance leads and the chemistry is following it; if it has not,
+              ! the collapse in f_mol comes first and the heating follows the
+              ! coolants it destroyed.
+              !
+              ! D-203 reasoned from the pass order that Te probably leads. That
+              ! is inference from code order, and inference of exactly this
+              ! kind has been wrong three times here (D-135, D-137, D-191), so
+              ! it gets measured.
+              !
+              ! grid%Te is NOT reduced inside the coupling loop - each rank
+              ! holds its own cells' new values and stale ones elsewhere - so
+              ! the counts are formed per rank over owned cells and reduced.
+              ! Every rank runs all three collectives unconditionally: a
+              ! collective a subset of ranks skips is a deadlock.
+              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple == 1) then
+                 nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
+                 iCell = 0
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yTop
+                       do k = 1, grid(iG)%nz
+                          iCell = iCell + 1
+                          if (mod(iCell-(taskid+1),numtasks) /= 0) cycle
+                          if (grid(iG)%active(i,j,k) <= 0) cycle
+                          iDum = grid(iG)%active(i,j,k)
+                          if (.not. allocated(grid(iG)%pdrZone)) cycle
+                          if (grid(iG)%pdrZone(iDum) /= 1) cycle
+                          if (grid(iG)%Hden(iDum) <= 0.) cycle
+                          nUpd1 = nUpd1 + 1
+                          teUpd1Sum = teUpd1Sum + dble(grid(iG)%Te(iDum))
+                          if (grid(iG)%Te(iDum) > 3000.) nUpd1Hot = nUpd1Hot + 1
+                       end do
+                    end do
+                 end do
+                 call mpi_allreduce(MPI_IN_PLACE, nUpd1, 1, mpi_integer, &
+                      & mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, nUpd1Hot, 1, mpi_integer, &
+                      & mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, teUpd1Sum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 if (taskid == 0 .and. nUpd1 > 0) print '(a,es11.4,a,i7,a,f6.2,a)', &
+                      & " ! [D204]   pass-1 updateCell done, chemistry not yet run:&
+                      &  mean Te ", teUpd1Sum/dble(nUpd1), &
+                      & "  Te>3000 K in", nUpd1Hot, " (", &
+                      & 100.d0*dble(nUpd1Hot)/dble(nUpd1), "%)"
+              end if
+#endif
+
+#ifdef PDR
               ! PDR chemistry, distributed exactly as updateCell is: per-cell
               ! chemistry is embarrassingly parallel and needs no new MPI
               ! design (DEVLOG D-027). Runs in addition to updateCell for now -
@@ -1724,7 +1783,7 @@ module iteration_mod
                  nBud = 0; nPin = 0; nBad = 0; nRat = 0; nZero = 0
                  avSum = 0.d0; h2Sum = 0.d0
                  molHist = 0; nMv10 = 0; nMv50 = 0; nWarm = 0; nHotBr = 0
-                 molSum = 0.d0
+                 molSum = 0.d0; teStSum = 0.d0; molStSum = 0.d0; nStHot = 0
                  do iDum = 1, grid(iG)%nCells
                     if (grid(iG)%pdrZone(iDum) /= 1) cycle
                     if (grid(iG)%Hden(iDum) <= 0.) cycle
@@ -1759,6 +1818,10 @@ module iteration_mod
                     if (cvXH0(nBud) <= 0.d0) nZero = nZero + 1
                     if (allocated(grid(iG)%elemAvail)) &
                          & avSum = avSum + dble(grid(iG)%elemAvail(iDum,1))
+                    if (allocated(grid(iG)%TeIterStart)) then
+                       teStSum = teStSum + dble(grid(iG)%TeIterStart(iDum))
+                       if (grid(iG)%TeIterStart(iDum) > 3000.) nStHot = nStHot + 1
+                    end if
                     ! ------------------------------------------- D-202
                     ! The D-200 census labelled each cell hot / cold / between
                     ! and counted changes of the HOT label. That instrument
@@ -1811,6 +1874,7 @@ module iteration_mod
                     if (allocated(grid(iG)%xH2iterStart)) then
                        fMolWas     = 2.d0*dble(grid(iG)%xH2iterStart(iDum))
                        cvDMl(nBud) = abs(fMol - fMolWas)
+                       molStSum    = molStSum + fMolWas
                        if (cvDMl(nBud) > 0.10d0) nMv10 = nMv10 + 1
                        if (cvDMl(nBud) > 0.50d0) nMv50 = nMv50 + 1
                     end if
@@ -1880,6 +1944,18 @@ module iteration_mod
                          & 100.d0*dble(nWarm)/dble(nBud), &
                          & "%)    and f_mol<.01 (the D-200 'hot' label):", nHotBr, &
                          & " (", 100.d0*dble(nHotBr)/dble(nBud), "%)"
+                    ! D-204. The same two numbers at the START of the
+                    ! iteration, over the same cells, so the pass-1 line above
+                    ! and the end-of-iteration line below make a three-point
+                    ! series: start -> thermal balance only -> chemistry too.
+                    print '(a,es11.4,a,i7,a,f6.2,a)', &
+                         & " ! [D204]   iteration start, for comparison:      &
+                         &  mean Te ", teStSum/dble(nBud), &
+                         & "  Te>3000 K in", nStHot, " (", &
+                         & 100.d0*dble(nStHot)/dble(nBud), "%)"
+                    print '(a,f8.4,a,f8.4)', &
+                         & " ! [D204]   mean f_mol at iteration start ", &
+                         & molStSum/dble(nBud), "   now ", molSum/dble(nBud)
                     ! D-203. f_mol is the chemistry's ANSWER; chi and A_V are
                     ! most of its input. Printed on the same line every
                     ! iteration so the two time series can be read against

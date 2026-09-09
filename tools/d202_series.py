@@ -31,6 +31,12 @@ CHI = re.compile(r"\[D203\]\s+chiFUV\s+p10\s+([-\d.eE+]+)\s+median\s+([-\d.eE+]+
                  r"\s+p90\s+([-\d.eE+]+)")
 AVE = re.compile(r"\[D203\]\s+AVeff\s+p10\s+([-\d.eE+]+)\s+median\s+([-\d.eE+]+)"
                  r"\s+p90\s+([-\d.eE+]+)")
+UPD1 = re.compile(r"\[D204\]\s+pass-1 updateCell done.*?mean Te\s+([-\d.eE+]+)"
+                  r"\s+Te>3000 K in\s*(\d+)\s+\(\s*([-\d.]+)%\)")
+STRT = re.compile(r"\[D204\]\s+iteration start, for comparison.*?mean Te\s+([-\d.eE+]+)"
+                  r"\s+Te>3000 K in\s*(\d+)\s+\(\s*([-\d.]+)%\)")
+MSTR = re.compile(r"\[D204\]\s+mean f_mol at iteration start\s+([-\d.eE+]+)"
+                  r"\s+now\s+([-\d.eE+]+)")
 RATIO = re.compile(r"\[D196\]\s+x\(H\+\)_ion / x\(H\+\)_chem\s+median\s+([-\d.eE+]+)"
                    r"\s+p90\s+([-\d.eE+]+)\s+max\s+([-\d.eE+]+)")
 
@@ -49,7 +55,8 @@ def parse(path):
         if m and "f_mol" not in line and "<.01" not in line:
             d["hist"] = [float(x) for x in m.group(1).split()]
         for key, rx, n in (("fmol", FMOL, 4), ("dmol", DMOL, 3), ("te", TEQ, 3),
-                           ("chi", CHI, 3), ("av", AVE, 3), ("ratio", RATIO, 3)):
+                           ("chi", CHI, 3), ("av", AVE, 3), ("ratio", RATIO, 3),
+                           ("upd1", UPD1, 3), ("strt", STRT, 3), ("mstr", MSTR, 2)):
             m = rx.search(line)
             if m:
                 d[key] = [float(m.group(i + 1)) for i in range(n)]
@@ -94,7 +101,21 @@ def report(path, data):
               "%10.3e  %7.4f"
               % (i, f[1], f[3], dm[0], dm[1], mv[1], te[1], ch[1], av[1],
                  d.get("conv", float("nan"))))
-    print()
+    if any("upd1" in data[i] for i in its):
+        print("  ordering: Te across one iteration, and where f_mol sits")
+        print("   it   Te_start   Te_afterUpd1   Te_end    hot%_start  "
+              "hot%_upd1  hot%_end   f_mol_start   f_mol_end")
+        for i in its:
+            d = data[i]
+            st = d.get("strt")
+            u1 = d.get("upd1")
+            ms = d.get("mstr")
+            if not (st and u1 and ms):
+                continue
+            te = d.get("te", [float("nan")] * 3)
+            print("  %3d  %9.1f  %13.1f  %8.1f  %10.2f  %9.2f  %8s  %11.4f  %10.4f"
+                  % (i, st[0], u1[0], te[1], st[2], u1[2], "-", ms[0], ms[1]))
+        print()
 
 
 def main():

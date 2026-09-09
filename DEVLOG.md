@@ -201,6 +201,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-201 | **The D-200 damping created a second x(H2), and the damping's own diagnostic caught it.** `pdrAbun` was damped but `H2den`, which `pdrStep` derives from it, was not - so the H2 opacity, the convergence test and the branch census read an undamped molecular fraction while the chemistry used a damped one. Measured: the same census gave 27.6% hot from `H2den` and 1.6% from `pdrAbun` on the same cells. `H2den` now follows. With it single-valued the hot-branch eruptions vanish (76% -> 0%, flips 78% -> 0%), but the molecular-fraction swing at iterations 6 and 11 is identical in both runs - it is not the damping and not the split | Done | 2026-09-09 |
 | D-202 | **The branch census was blind to the swing it was built to watch.** D-200's instrument labelled each cell hot / cold / between and counted changes of the HOT label; the collapse runs between the cold and middle labels and never crosses the hot threshold, so the flip count read 0-1.8% while three quarters of the grid moved. Replaced with the molecular fraction's own distribution - an eight-bin histogram of f_mol = 2x(H2), its quantiles, and |df_mol| since the iteration start - so no threshold decides what counts as a change of state. The new census reproduces the collapse and shows it is a broad multi-modal distribution, not two clean branches | Done | 2026-09-09 |
 | D-203 | **The collapse is not the radiative transfer's: measured.** chi_FUV and A_V are now reported as quantiles every iteration beside f_mol and Te. Across the iteration-6 collapse the median f_mol falls 0.765 -> 0.196 and the median Te rises 79 K -> 8006 K while the median chi moves +1.0% and A_V -0.3%. The FUV field and the extinction are exonerated; the instability is inside the chemistry / thermal-balance loop. The inner coupling loop is exonerated too - its ion-fraction change decays 8.6e-3 -> 1.6e-3 over four passes within that same iteration | Done | 2026-09-09 |
+| D-204 | **Measure whether Te leads f_mol or follows it.** D-203 exonerated the FUV field and the coupling loop but could not order the two quantities that move together at iteration 6, and reasoned from the pass order that Te probably leads. That is inference from code order, and inference of this kind has been wrong three times here. Te is now sampled after the FIRST updateCell of each iteration - thermal balance done, chemistry not yet run - so a flip at unchanged f_mol says the temperature leads and the chemistry follows | Running | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -11432,3 +11433,50 @@ favour Te leading - but that is inference from code order, not measurement, and
 inference of exactly this kind has been wrong three times in this project
 (D-135, D-137, D-191). The measurement that settles it is the heating and
 cooling budget in the census, per iteration, next to f_mol and Te.
+
+
+---
+
+## D-204 - which one moves first (2026-09-09)
+
+Against `dbfb882`. D-203 narrowed the iteration-6 collapse to the chemistry /
+thermal-balance loop and ruled out the FUV field, the extinction, the photon
+count and the inner coupling loop. What it could not do is order the two
+quantities inside it: the median f_mol falls by 3.9x and the median Te rises by
+101x in the same MC iteration, and iteration-end medians cannot say which drove
+which.
+
+Both directions are physically ordinary and they call for opposite fixes:
+
+  - **Te leads.** MOCASSIN's thermal balance flips to ~10^4 K on abundances
+    that are still molecular; the chemistry then dissociates H2 because it was
+    handed a hot cell. The defect is in the heating/cooling budget - and the
+    D-137 probe's 55-fold photoelectric disagreement is a live candidate.
+  - **f_mol leads.** The chemistry drops the molecular fraction first; the
+    molecular coolants go with it, and the thermal balance runs away hot
+    because its cooling was removed. The defect is in the chemistry or in what
+    it is handed.
+
+**The measurement.** Inside each MC iteration the coupling loop runs
+`updateCell` before `pdrStep`. So immediately after the FIRST `updateCell`,
+MOCASSIN's thermal balance has been solved against the abundances the iteration
+started with, and this iteration's chemistry has not run at all. Sampling Te
+there is a clean split:
+
+    Te at iteration start  ->  Te after pass-1 updateCell  ->  Te at iteration end
+                              (chemistry has NOT run yet)     (chemistry has run)
+
+If the jump to ~10^4 K is already present in the middle column, the thermal
+balance flipped at unchanged f_mol and Te leads. If the middle column still
+holds the cold value and the temperature only rises by the end, f_mol led.
+
+`grid%Te` is not reduced inside the coupling loop - each rank holds new values
+for the cells it owns and stale ones elsewhere - so the count is formed per
+rank over owned PDR-zone cells and reduced with three scalar collectives that
+every rank executes unconditionally. The census prints the iteration-start
+values over the same cell set, so the three columns share a denominator.
+
+**What is NOT known.** The answer. The run is `runs/d204-order`, the full 12
+iterations of `hiipdr-contract`, restarted after the operator stopped
+`runs/d202-census` during iteration 7. It also picks up iteration 11, the
+second collapse, which no run has yet seen through the new census.
