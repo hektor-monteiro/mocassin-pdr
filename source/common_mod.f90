@@ -405,6 +405,15 @@ module common_mod
         ! else, so a diagnostic built on them cannot drift from the budget.
         real, allocatable         :: pdrHeatUsed(:)
         real, allocatable         :: pdrCoolUsed(:)
+        ! D-210. pdrCoolUsed is the NET effect and it goes negative, which
+        ! means the substitution removes more of MOCASSIN's cooling than it
+        ! puts back. Two mechanisms give that and they need different fixes:
+        ! 3D-PDR's coolant is ZERO (D-167's case, guarded), or it is merely
+        ! SMALLER than MOCASSIN's (unguarded, and silent). Splitting the net
+        ! into the part removed and the number of coolants the guard saved
+        ! decides which, since added = used + removed.
+        real, allocatable         :: pdrCoolSub(:)   ! MOCASSIN cooling removed
+        real, allocatable         :: pdrCoolNul(:)   ! coolants the guard kept
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.

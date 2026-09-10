@@ -1607,6 +1607,8 @@ end subroutine iterateT
                  & th12, th13                       ! (Mathis, Ly alpha, beta)
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
+            real                   :: coolSubL             ! D-210: MOCASSIN cooling removed
+            integer                :: nNullL               ! D-210: coolants the guard kept
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
             real                   :: coolRec       ! cool due to recombination[erg/s/Hden]
             real                   :: fcool
@@ -1976,6 +1978,8 @@ end subroutine iterateT
             ! D-207: the budget as MOCASSIN built it, before any substitution.
             heatPreP = heatInt
             coolPreP = coolInt
+            coolSubL = 0.
+            nNullL   = 0
             ! D-131. MOCASSIN carries no molecular or fine-structure coolant -
             ! no CO, C, C+ or O - which is precisely why the PDR's temperature
             ! had to be handed back instead of this balance solving for it. The
@@ -2053,10 +2057,12 @@ end subroutine iterateT
                         end do
                         if (grid%pdrCoolSp(cellP,iCool) > 0.) then
                            coolInt = coolInt - mocCool
+                           coolSubL = coolSubL + mocCool          ! D-210
                            pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
                         else if (mocCool > 0.) then
                            ! Nothing to replace it with: keep MOCASSIN's.
                            nCoolNull = nCoolNull + 1
+                           nNullL    = nNullL + 1                 ! D-210
                         end if
                      end if
                   end do
@@ -2204,6 +2210,10 @@ end subroutine iterateT
                     & grid%pdrHeatUsed(cellP) = heatInt - heatPreP
                if (allocated(grid%pdrCoolUsed)) &
                     & grid%pdrCoolUsed(cellP) = coolInt - coolPreP
+               ! D-210: the two halves, so `added` is recoverable as
+               ! used + removed and the guard's activity is visible.
+               if (allocated(grid%pdrCoolSub)) grid%pdrCoolSub(cellP) = coolSubL
+               if (allocated(grid%pdrCoolNul)) grid%pdrCoolNul(cellP) = real(nNullL)
             end if
 #endif
 

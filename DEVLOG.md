@@ -209,6 +209,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-194 | **Port list: 3D-PDR's presuppositions about our dust and abundances.** H2 formation on a hardcoded 6.273e-22 cm2/H grain cross-section (MOCASSIN measures 4.92e-22 and tracks MdMg, CT02 does not); photorate gammas on Savage & Mathis when this model's grains imply UV_fac 3.83 vs 3.02; WD01 grain recombination not even compiled in; network abundances C=1.4e-4 vs the model's 2.2e-4 | Open | 2026-09-08 |
 | D-195 | **H2 formation on grains now runs on MOCASSIN's own dust.** Upstream hardcoded 8.473e-22 / 7.908e-22 cm2/H for silicate / graphite, with no dependence on MdMg, the size distribution or the composition, while the rate is LINEAR in them. MOCASSIN now measures the geometric grain area per H per cell and splits it by material. This model: **1.02e-21 cm2/H, all silicate, zero graphite** - 20% MORE area than CT02 assumes, but a **0.62x** rate at cold dust and **0.24x** at 60 K, because CT02's graphite channel was carrying the rate and this model has none | Done | 2026-09-08 |
 | D-209 | **H2 and CO seeded from MOCASSIN's photoionization state - and the oscillation does not care.** At `pdrStartIter` MOCASSIN has a converged x(H0), Te, Tdust and dust opacity, so the H/H2 balance is placed by formation-on-grains against photodissociation at equilibrium, closed form, hydrogen conserved, with the CT02 rate on MOCASSIN's measured grain area (D-195 restored) and the network's own photodissociation coefficient. The seed lifts iteration 4 from f_mol 0.23 to 0.77 - and from iteration 6 the run is identical to the zero-seed run, collapses at 6 and 11 in both. The cycle is an attractor with no memory of the seed | Done | 2026-09-09 |
+| D-210 | **The oscillation is the cooling substitution changing sign, measured at both collapses.** `pdrCoolUsed` - what the PDR block actually does to `coolInt` - is +2.4e-23 per H at pass 1 of iteration 6, where the gas is cold and molecular, and **-1.5e-24 at pass 2**, with Te going 542 K -> 4127 K and f_mol barely moving (0.809 -> 0.697). By pass 5 it is deleting 1.6e-23. Iteration 11 reproduces it: +2.0e-23, -1.3e-24, converging to the same -1.58e-23. The heating handback is ~1e-27 throughout, four orders down, and plays no part. D-167's guard covers only a ZERO 3D-PDR coolant, not a smaller one, and its `nCoolNull` counter is incremented and never printed | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12095,3 +12096,84 @@ form gives f_mol 2e-5 rather than the 0.4826 actually placed. That is not an
 inconsistency in the seed, it is a mean over two populations describing
 neither, and it is the D-202 failure in a new diagnostic. It should print
 quantiles.
+
+
+---
+
+## D-210 - the cooling substitution changes sign, and that is the oscillation (2026-09-09)
+
+`runs/d210-budget`, `hiipdr-contract` at `ea75caf`, 12 iterations, 45:33, clean
+exit. The first run carrying D-207's `pdrCoolUsed`/`pdrHeatUsed` on top of the
+D-208 and D-209 seed work.
+
+**The measurement.** `pdrCoolUsed` is `coolInt` after the PDR block minus
+`coolInt` before it, per H nucleus - the substitution's own effect on
+MOCASSIN's budget, by construction, which is the property D-207 built it for.
+Per coupling pass:
+
+    iteration 6                          iteration 11
+    pass  Te     f_mol   cool            pass  Te     f_mol   cool
+      1    542   0.809   +2.4345e-23       1    612   0.820   +1.9823e-23
+      2   4127   0.697   -1.4562e-24       2   3388   0.714   -1.2600e-24
+      3   8040   0.223   -1.3057e-23       3   8330   0.229   -1.1193e-23
+      4   8240   0.132   -1.5824e-23       4   8289   0.155   -1.6064e-23
+      5   8285   0.128   -1.5664e-23       5   8294   0.162   -1.5846e-23
+
+The heating column over the same passes runs 1.7e-27 down to 8.0e-28 - four
+orders of magnitude below the cooling - so the heating handback plays no part
+in this at all. That is worth stating plainly, because D-207 caught a version
+of this diagnostic that made 3D-PDR's photoelectric heating look like the
+driver; with the terms that actually enter the balance, the heating side is
+negligible and the whole event is in the cooling.
+
+**What it says.** While the gas is cold and molecular the substitution SUPPLIES
+essentially all the cooling: +2e-23 per H, against MOCASSIN's own coolColl of
+order 1e-25 at those temperatures. Once the gas warms past ~1000 K the sign
+flips and the substitution DELETES cooling instead, and keeps deleting more as
+the temperature rises - 1.6e-23 per H by pass 5. Hotter gas gives weaker PDR
+coolants, weaker PDR coolants delete more of MOCASSIN's, and that warms the gas
+further. A positive feedback with no fixed point until the gas reaches ~8300 K,
+which is where every collapse lands.
+
+**Reproduced, which is what makes it a mechanism rather than an event.** Both
+collapses show the same sign change at the same pass, at f_mol within 2% of
+each other (0.697 and 0.714), and converge to the same value by pass 5 to
+within 1%. Two independent discharges five iterations apart, one mechanism.
+
+**Why the sign flip is not the molecular content.** Between pass 1 and pass 2
+f_mol moves 0.809 to 0.697 at iteration 6 and 0.820 to 0.714 at iteration 11 -
+about 13%, while the cooling term moves by 2.6e-23, its whole magnitude and
+then some. The molecular fraction collapses AFTER, at pass 3. This is the
+D-204 result at finer grain: the chemistry follows.
+
+**Where the deletion comes from, and the guard that does not cover it.** The
+substitution is replace-not-exclude:
+
+    if (grid%pdrCoolSp(cellP,iCool) > 0.) then
+       coolInt = coolInt - mocCool                     ! remove MOCASSIN's
+       pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(...)   ! add 3D-PDR's
+    else if (mocCool > 0.) then
+       nCoolNull = nCoolNull + 1                       ! keep MOCASSIN's
+    end if
+
+D-167 added that guard against 3D-PDR's coolant being ZERO, having diagnosed
+exactly this runaway ("subtracting MOCASSIN's term and adding zero deletes the
+cooling outright, which makes the cell hotter, which ionizes more carbon"). It
+does nothing when 3D-PDR's coolant is merely SMALLER than MOCASSIN's, which is
+a silent net loss on the same path and grows with temperature.
+
+And `nCoolNull`, the one counter that separates the two cases, is incremented
+and never printed anywhere in the code. The guard's activity has been invisible
+since D-167 - a fifth instrument in this audit that cannot report what it
+measures.
+
+**What is NOT known.** Which of the two paths does the deleting. D-210 splits
+the net into `removed` (MOCASSIN's coolant taken out), `added` (3D-PDR's put
+in, recoverable as net + removed) and the guard's firing rate per cell, so the
+next run answers it directly. If `added` is far below `removed` while the guard
+is quiet, it is the unguarded smaller-coolant path and the fix is to guard on
+magnitude rather than on zero - though "take the larger of the two" would be
+choosing the answer rather than computing it, so what the right fix IS remains
+open until the split is measured.
+
+Nothing is being asserted about the fix before that run.

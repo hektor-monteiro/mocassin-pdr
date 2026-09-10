@@ -99,6 +99,7 @@ module iteration_mod
            ! terms, because the runaway happens inside the loop and the loop's
            ! own residual cannot see it.
            real(kind=8)              :: molUpdSum, pcSum, phSum, ppeSum
+           real(kind=8)              :: pcSubSum, pcNulSum   ! D-210
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1114,6 +1115,7 @@ module iteration_mod
               if (lgPDR .and. nIterateMC >= pdrStartIter) then
                  nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
                  molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
+                 pcSubSum = 0.d0; pcNulSum = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1149,6 +1151,10 @@ module iteration_mod
                                & + dble(grid(iG)%pdrCoolUsed(iDum))
                           if (allocated(grid(iG)%pdrHeatUsed)) phSum = phSum &
                                & + dble(grid(iG)%pdrHeatUsed(iDum))
+                          if (allocated(grid(iG)%pdrCoolSub)) pcSubSum = pcSubSum &
+                               & + dble(grid(iG)%pdrCoolSub(iDum))
+                          if (allocated(grid(iG)%pdrCoolNul)) pcNulSum = pcNulSum &
+                               & + dble(grid(iG)%pdrCoolNul(iDum))
                           if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
                                & + dble(grid(iG)%pdrHeatXtra(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
@@ -1168,6 +1174,10 @@ module iteration_mod
                  call mpi_allreduce(MPI_IN_PLACE, phSum, 1, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  call mpi_allreduce(MPI_IN_PLACE, ppeSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, pcSubSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, pcNulSum, 1, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
@@ -1193,6 +1203,20 @@ module iteration_mod
                          & " ! [D205]      per H, as USED by the balance:  cool ", &
                          & pcSum/dble(nUpd1), "  heat ", phSum/dble(nUpd1), &
                          & "  (heatXtra ", ppeSum/dble(nUpd1), ")"
+                    ! D-210. The net above goes NEGATIVE, meaning the
+                    ! substitution removes more of MOCASSIN's cooling than it
+                    ! puts back. These two say why: `removed` is MOCASSIN's own
+                    ! coolant taken out, `added` is 3D-PDR's put in (net +
+                    ! removed, by construction), and `guard kept` counts the
+                    ! coolants where 3D-PDR had nothing and MOCASSIN's was
+                    ! left alone (D-167). If added is well below removed while
+                    ! the guard is quiet, the loss is 3D-PDR's coolants being
+                    ! SMALLER, which nothing guards against.
+                    print '(a,2(es11.4,a),f8.3)', &
+                         & " ! [D210]      cooling: removed ", &
+                         & pcSubSum/dble(nUpd1), "  added ", &
+                         & (pcSum + pcSubSum)/dble(nUpd1), &
+                         & "   guard kept, per cell ", pcNulSum/dble(nUpd1)
                  end if
               end if
 #endif
