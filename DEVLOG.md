@@ -221,7 +221,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-219 | **The opacity was built from a hydrogen budget that did not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) - exactly what `ionizationDriver` reads to build the next opacity - ran at a median of 0.43-1.85 whenever one ionization solve was followed by chemistry that moved (D-216 and the one-pass runs); the five-pass loop held 1.000. The opacity followed that stale state (tau 1260 = x(H0) 1.0 at iteration 5). `seedMolecules` also never republished `elemAvail`. **Fixed by D-220**: budget 1.0000 at every iteration measured. Not the cause of the collapse - it persists with the budget closed | Fixed | 2026-09-10 |
 | D-220 | **The ion stages are rescaled to the chemistry's available fraction before the next opacity is built - verified, and the collapse survives it.** D-153's rule on MOCASSIN's side, applied after the D-200 damping, plus a `pdrToMocassin` after the seed. Before the rescale hydrogen was off by a mean 0.400 / 0.093 / 0.420 (93% / 78% / 89% of cells) at iterations 4-6; after it the budget reads 1.0000. The opacity follows: tau 281 per cell against 272 predicted at iteration 5, where it read 1260. Iteration 6 still collapses - median f_mol 0.239 against 0.238 without the fix, Te median 2160 K against 2525 K | Done | 2026-09-10 |
 | D-221 | **The heating that flips cells comes from above 15.43 eV, where H2 absorbs - not from the H2-transparent window.** At iteration 6, 7274 cells go cold -> hot (7270 of them cold at iteration 5): 99.9998% of their field and essentially all their H0 photoionization heating (4.94e-23 against 3.2e-29 in the window) lie above 15.43 eV, and H0 is 99.3% of their photoionization heating. Iterations 4 and 5 showed the same in 18 cells. So missing H2 line opacity between 13.6 and 15.4 eV is ruled out as the cause. The two bands reproduce D-218's total field to four figures | Done | 2026-09-10 |
-| D-222 | **What the hard photons cross: the band above 15.43 eV split by energy, and the opacity along it split by absorber.** D-221 put the heating that flips cells entirely above the H2 threshold, in gas that should be thick there (f_mol 0.90, tau ~900 per cell at 18 eV). Bands edged at physical thresholds - 13.6, 15.43 (H2), 24.59 (He0), 54.42 eV (He+) - with He+ to the top of the grid halved in log energy. Per band: field and H0 entry heating. At each hard band's centre: tau per cell of H2, free-free, H0, He0, He+, heavier elements and dust, captured in `addOpacity` as differences of the running total, with (gas+dust)/total as a built-in check | Running | 2026-09-10 |
+| D-222 | **The cells that flip are heated by photons they cannot transmit.** At every iteration 6-12 the flipping cells take their field and H0 heating only from 15.4-24.6 eV (24.6-54.4 eV is 5-8 orders weaker, nothing above 54.4 eV), where their tau per cell is 559-758 at the band centre, dominated by H2. The one place H2 does not absorb - `yanH2xSec` is clamped to zero from 15.43 to ~15.7 eV - is still held above ~78 per cell by the remaining H0. (gas+dust)/total = 1.0000 throughout. Opacity does not distinguish flipping from stayed-cold cells (it 10: 747 vs 703) while the field does (32x). No energy present lets photons cross one cell, so the field inside must enter a skin or be emitted locally | Done | 2026-09-10 |
+| D-223 | **Adjacency and the diffuse share.** D-222 left two ways a field could exist inside cells that cannot transmit it: entering a thin skin from a neighbour, or emitted locally. Per outcome group: the fraction of cells with at least one face-neighbour hot at the start of the iteration (Te > 3000 K), split upstream/downstream by A_V, with stayed-cold cells as the control; and the diffuse fraction of the field (Jdif/Jste) in the three bands that carry any. Fixture `hiipdr-split` = `hiipdr-couple1` + `pdrSplitField 1`, confirmed diagnostic-only in `iteration_mod` as well as `update_mod` | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13470,3 +13471,81 @@ statement "tau per cell below 100 nowhere" holds for iteration 5 and not quite
 for 6 - the minimum is 89 - but 89 is some 40 e-folds from transparent and the
 conclusion stands unchanged: no energy present in the field lets photons cross
 one of these cells.
+
+
+### Iterations 6 to 12: the same at every iteration (2026-09-10)
+
+`runs/d222-absorbers`, 12 iterations, 21:10, clean exit.
+
+     it  group        cells   J 15.4-24.6  J 24.6-54.4  J>54.4  H0 heat 15.4-24.6  tau@19.8 H2/H0 (tot)  tau@36.9 H2/H0/He0 (tot)
+      6  cold -> hot   7233    3.37e-3      3.3e-10       0         5.0e-23          713/ 43 (758)        118/ 7.4/73.8 (200)
+      6  stayed cold   7619    2.48e-4      8.3e-9        0         1.2e-24          583/114 (698)         97/19.4/73.7 (191)
+      7  cold -> hot   3285    1.08e-2      1.0e-8        0         1.1e-21          372/186 (559)         62/31.7/73.8 (168)
+      8  cold -> hot    696    9.42e-3      3.2e-8        0         7.5e-22          451/142 (594)         75/24.2/73.8 (174)
+      9  cold -> hot    925    3.44e-3      8.2e-9        0         1.7e-22          642/ 70 (714)        107/12.0/73.8 (194)
+     10  cold -> hot   5407    3.93e-3      1.9e-9        0         8.6e-23          707/ 38 (747)        117/ 6.5/73.8 (199)
+     10  stayed cold   8802    1.21e-4      8.6e-10       0         6.3e-25          613/ 89 (703)        102/15.1/73.8 (192)
+     11  cold -> hot   3178    3.92e-3      8.4e-10       0         9.3e-23          615/ 54 (670)        102/ 9.2/73.8 (186)
+     12  cold -> hot   1877    1.23e-2      1.2e-9        0         7.9e-22          439/153 (593)         73/26.0/73.8 (174)
+
+(gas + dust) / total is 1.0000 at every representative bin in every group at
+every iteration.
+
+The second collapse reproduces `runs/d220-fix`: iteration 10 median f_mol 0.305
+against 0.315, Te median 787 K against 762 K.
+
+**The clamped H2 sliver, per iteration.** Near 15.6 eV only H0 absorbs; from each
+iteration's flipping-cell H0 column that tau per cell is ~2.04 x the H0 value at
+19.8 eV: 88, 380, 290, 143, 78, 110, 312 at iterations 6-12. The minimum, 78 at
+iteration 10, is still some 34 e-folds from transparent.
+
+**The sharpest observation in the table.** The flipping and stayed-cold cells
+see almost the same opacity - 747 against 703 per cell at iteration 10, 758
+against 698 at iteration 6 - but the flipping cells receive 16-32x the field. It
+is not how thin the gas is that picks the cells that flip. It is how much field
+reaches them, in a band neither group can transmit.
+
+**Conclusion of D-222.** No energy present in the field lets photons cross one
+of these cells, at any iteration. The field recorded inside the flipping cells
+did not travel through them; it entered a skin from a neighbouring cell or was
+emitted locally, and MOCASSIN's volume-averaged J spreads it over the whole
+cell. D-223 distinguishes the two.
+
+---
+
+## D-223 - neighbours, and the diffuse share (2026-09-10)
+
+**What.** Two additions to the D-217 census, per outcome group, on pass 1.
+
+  - **Adjacency.** For each cell, its six face-neighbours; a neighbour counts as
+    hot if its iteration-start Te exceeds 3000 K. Reported: the percentage of
+    cells with at least one hot neighbour, the mean number, and the percentage
+    with at least one hot neighbour upstream (lower A_V) and downstream. The
+    stayed-cold group is the control: if flipping cells border hot cells no more
+    often than stayed-cold cells do, adjacency is not what selects them.
+
+    The neighbour's state is its `TeIterStart`, which every rank holds for every
+    cell because it is copied from the reduced grid. `budGrpLast` would have been
+    the natural "flipped last iteration" flag, but it is only valid on the rank
+    that owns a cell, and a neighbour is often owned by another rank. Upstream is
+    decided by A_V rather than by distance from the star, so nothing is assumed
+    about where the source sits in the symmetric grid.
+
+  - **Diffuse fraction.** With `pdrSplitField` set, `Jdif` holds the diffuse
+    packets alone while `Jste` holds both. Reported: Jdif/Jste summed over the
+    window, 15.4-24.6 eV and 24.6-54.4 eV (above 54.4 eV there is no field).
+    A skin fed by stellar photons arriving from the source side predicts a low
+    diffuse fraction; local or neighbour emission predicts a high one.
+
+**`pdrSplitField` is diagnostic-only, now checked in `iteration_mod` too.**
+D-218 found every `Jdif` read in `update_mod` behind `lgDebug`. In
+`iteration_mod` the switch only zeroes `Jdif` each iteration (line 577), sums
+it across ranks (790), applies the same 1e-9 unit scaling (856) and the same
+octant division (870) as `Jste`. Nothing there uses it for physics. A new
+fixture, `benchmarks/pdr/hiipdr-split`, is `hiipdr-couple1` with
+`pdrSplitField 1` and nothing else.
+
+**Run.** `runs/d223-adjacency`, built on all four flavours and launched
+automatically once `runs/d222-absorbers` released the cores.
+
+**What is NOT known.** Everything the run is for.

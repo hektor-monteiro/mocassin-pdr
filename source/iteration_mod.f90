@@ -112,6 +112,9 @@ module iteration_mod
            integer                   :: iNuD                        ! D-221
            real(kind=8)              :: budSum4(3,42)               ! D-222
            integer                   :: kBd, mBd, nOpaRep           ! D-222
+           real(kind=8)              :: budSum5(3,8)                ! D-223
+           integer                   :: iOffD, niD, njD, nkD, nbD   ! D-223
+           integer                   :: nHotD, nUpD, nDnD           ! D-223
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -1177,6 +1180,7 @@ module iteration_mod
                  budSum2 = 0.d0
                  budSum3 = 0.d0
                  budSum4 = 0.d0
+                 budSum5 = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1341,6 +1345,63 @@ module iteration_mod
                                         & + dble(grid(iG)%opacity(iDum,bandRepP(mBd)))*dxCell
                                 end do
                              end if
+                             ! ---------------------------------------- D-223
+                             ! Is each flipping cell next to a cell that was
+                             ! already hot? D-222 found no energy present in the
+                             ! field lets photons cross these cells (tau >= ~89
+                             ! per cell), so the field inside them must enter a
+                             ! skin from a neighbour or be emitted locally. A
+                             ! front advancing a cell per iteration predicts the
+                             ! flippers border hot cells, upstream in A_V;
+                             ! scattered heating predicts they do not. The
+                             ! stayed-cold group is the control.
+                             ! "Hot" is the NEIGHBOUR's iteration-start Te, which
+                             ! every rank holds for every cell (copied from the
+                             ! reduced grid) - budGrpLast is only valid on the
+                             ! rank that owns a cell, so it cannot be read for a
+                             ! neighbour. Upstream is decided by A_V, which needs
+                             ! no assumption about where the star sits.
+                             if (allocated(grid(iG)%TeIterStart)) then
+                                nHotD = 0; nUpD = 0; nDnD = 0
+                                do iOffD = 1, 6
+                                   niD = i; njD = j; nkD = k
+                                   select case (iOffD)
+                                   case (1); niD = i - 1
+                                   case (2); niD = i + 1
+                                   case (3); njD = j - 1
+                                   case (4); njD = j + 1
+                                   case (5); nkD = k - 1
+                                   case (6); nkD = k + 1
+                                   end select
+                                   if (niD < 1 .or. niD > grid(iG)%nx) cycle
+                                   if (njD < 1 .or. njD > yTop)        cycle
+                                   if (nkD < 1 .or. nkD > grid(iG)%nz) cycle
+                                   nbD = grid(iG)%active(niD,njD,nkD)
+                                   if (nbD <= 0) cycle
+                                   budSum5(iBudG,5) = budSum5(iBudG,5) + 1.d0
+                                   if (grid(iG)%TeIterStart(nbD) > 3000.) then
+                                      nHotD = nHotD + 1
+                                      if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) then
+                                         nUpD = nUpD + 1
+                                      else
+                                         nDnD = nDnD + 1
+                                      end if
+                                   end if
+                                end do
+                                if (nHotD > 0) budSum5(iBudG,1) = budSum5(iBudG,1) + 1.d0
+                                budSum5(iBudG,2) = budSum5(iBudG,2) + dble(nHotD)
+                                if (nUpD > 0)  budSum5(iBudG,3) = budSum5(iBudG,3) + 1.d0
+                                if (nDnD > 0)  budSum5(iBudG,4) = budSum5(iBudG,4) + 1.d0
+                             end if
+                             ! the diffuse part of the field in the three bands
+                             ! that carry any: Jdif holds the diffuse packets
+                             ! alone when pdrSplitField is set, Jste both
+                             if (pdrSplitField /= 0 .and. bandRepP(5) > 0) then
+                                do kBd = 1, 3
+                                   budSum5(iBudG,5+kBd) = budSum5(iBudG,5+kBd) &
+                                        & + dble(sum(grid(iG)%Jdif(iDum,bandP(kBd):bandP(kBd+1)-1)))
+                                end do
+                             end if
                              ! the same cell's group one MC iteration ago;
                              ! ownership is fixed per rank, so each rank
                              ! carries its own cells' history without a
@@ -1394,6 +1455,8 @@ module iteration_mod
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-221
                  if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum4, 126, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-222
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum5, 24, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-223
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
                  ! where the runaway actually happens. The [D119] residual
@@ -1515,6 +1578,19 @@ module iteration_mod
                                      & /max(budSum4(iBudG,10+(mBd-2)*8+8), 1.d-99)
                              end do
                           end if
+                          ! D-223: neighbours, and the diffuse share of the field
+                          print '(a,f7.2,a,f5.2,a,f7.2,a,f7.2,a)', &
+                               & " ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in", &
+                               & 100.d0*budSum5(iBudG,1)/budSum(iBudG,21), &
+                               & "%   mean", budSum5(iBudG,2)/budSum(iBudG,21), &
+                               & "   upstream (lower A_V) >=1 in", &
+                               & 100.d0*budSum5(iBudG,3)/budSum(iBudG,21), &
+                               & "%   downstream >=1 in", &
+                               & 100.d0*budSum5(iBudG,4)/budSum(iBudG,21), "%"
+                          if (pdrSplitField /= 0 .and. bandRepP(5) > 0) &
+                               & print '(a,3f9.4)', &
+                               & " ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4", &
+                               & (budSum5(iBudG,5+kBd)/max(budSum4(iBudG,kBd), 1.d-99), kBd = 1, 3)
                        end do
                     end if
                  end if
