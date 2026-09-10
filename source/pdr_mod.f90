@@ -2313,6 +2313,50 @@ module pdr_mod
               abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
               abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
            end do
+
+           ! ----------------------------------------------------- D-212
+           ! The electron density, on the same footing and for the same
+           ! reason. It is in the contract - MOCASSIN hands the chemistry ion
+           ! densities, Ne, Te, T_dust and the dust opacity - and it was the
+           ! one item of that list handed over exactly once.
+           !
+           ! Electrons are not an element, so they have no entry in the link
+           ! table and the loop above never reached them. abun(NELECT) was
+           ! written from grid%Ne only on a cell's first visit, in
+           ! seedAbunFromMocassin, and thereafter evolved under CVODE from the
+           ! 33-species reduced network's own electron balance.
+           !
+           ! That matters because of where abun(NELECT) is consumed. The
+           ! level-population solve that produces the substituted cooling is
+           ! called with five collision-partner densities:
+           !
+           !     H, H+, e-, He, H2
+           !
+           ! Four of those are re-imposed from MOCASSIN by the loop above,
+           ! every call. The fifth - the one that dominates the excitation of
+           ! [C II] and [O I] once the gas is warm and ionized - was the
+           ! chemistry's own, drifting. So MOCASSIN's coolant was removed and
+           ! replaced by one computed with a different electron density from
+           ! the one MOCASSIN's ionization solver had just produced.
+           !
+           ! Measured at D-210/D-211, iteration 6, per coupling pass, per H:
+           !
+           !     pass  Te      f_mol   removed     added
+           !       1     536   0.808   3.63e-25   2.524e-23
+           !       2    4120   0.700   2.08e-24   7.141e-25
+           !       3    8073   0.220   1.399e-23  8.537e-25
+           !       4    8263   0.129   1.810e-23  2.270e-24
+           !
+           ! The added term falls by a factor 35 between passes 1 and 2 for a
+           ! 13% change in f_mol, while the removed term grows with Te. Two
+           ! electron densities is the only quantity in that budget that can
+           ! move like this at nearly fixed molecular content.
+           !
+           ! One reality per quantity: there is one electron density and
+           ! MOCASSIN owns it.
+           if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
+                & abun(pdrNelect) = &
+                & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
         end if
 
         ! D-078: true integrated columns, not local abundance x total column

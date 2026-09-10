@@ -100,6 +100,9 @@ module iteration_mod
            ! own residual cannot see it.
            real(kind=8)              :: molUpdSum, pcSum, phSum, ppeSum
            real(kind=8)              :: pcSubSum, pcNulSum   ! D-210
+           real(kind=8)              :: tfacSum, trefSum, slopSum   ! D-213
+           real(kind=8)              :: spSum(4)                    ! D-213
+           integer                   :: iCoolD                      ! D-213
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -1116,6 +1119,7 @@ module iteration_mod
                  nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
                  molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
                  pcSubSum = 0.d0; pcNulSum = 0.d0
+                 tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1155,6 +1159,20 @@ module iteration_mod
                                & + dble(grid(iG)%pdrCoolSub(iDum))
                           if (allocated(grid(iG)%pdrCoolNul)) pcNulSum = pcNulSum &
                                & + dble(grid(iG)%pdrCoolNul(iDum))
+                          ! D-213: the two factors whose product is `added`
+                          if (allocated(grid(iG)%pdrTfacUsed)) tfacSum = tfacSum &
+                               & + dble(grid(iG)%pdrTfacUsed(iDum))
+                          if (allocated(grid(iG)%pdrCoolTref)) trefSum = trefSum &
+                               & + dble(grid(iG)%pdrCoolTref(iDum))
+                          if (allocated(grid(iG)%pdrCoolSlope)) slopSum = slopSum &
+                               & + dble(grid(iG)%pdrCoolSlope(iDum))
+                          if (allocated(grid(iG)%pdrCoolSp)) then
+                             do iCoolD = 1, min(4, pdrNcool)
+                                spSum(iCoolD) = spSum(iCoolD) &
+                                     & + dble(grid(iG)%pdrCoolSp(iDum,iCoolD)) &
+                                     &   /dble(grid(iG)%Hden(iDum))
+                             end do
+                          end if
                           if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
                                & + dble(grid(iG)%pdrHeatXtra(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
@@ -1178,6 +1196,14 @@ module iteration_mod
                  call mpi_allreduce(MPI_IN_PLACE, pcSubSum, 1, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  call mpi_allreduce(MPI_IN_PLACE, pcNulSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, tfacSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, trefSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, slopSum, 1, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 call mpi_allreduce(MPI_IN_PLACE, spSum, 4, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
@@ -1217,6 +1243,21 @@ module iteration_mod
                          & pcSubSum/dble(nUpd1), "  added ", &
                          & (pcSum + pcSubSum)/dble(nUpd1), &
                          & "   guard kept, per cell ", pcNulSum/dble(nUpd1)
+                    ! D-213. `added` is the product of these two. The raw
+                    ! coolants come straight from pdrCoolSp; the factor is
+                    ! D-166's (TeUsed/Tref)^slope, clamped to 1e-8..1e8,
+                    ! which extrapolates a cold-gas coolant to whatever
+                    ! temperature the solver is trying. If the coolants hold
+                    ! steady while the factor collapses, the loss is the
+                    ! extrapolation and not the chemistry.
+                    print '(a,4(es11.4,a))', &
+                         & " ! [D213]      coolants per H:  CO ", spSum(1)/dble(nUpd1), &
+                         & "  C+ ", spSum(2)/dble(nUpd1), "  C ", spSum(3)/dble(nUpd1), &
+                         & "  O ", spSum(4)/dble(nUpd1)
+                    print '(a,3(es11.4,a))', &
+                         & " ! [D213]      D-166 factor: mean (Te/Tref)^slope ", &
+                         & tfacSum/dble(nUpd1), "   Tref ", trefSum/dble(nUpd1), &
+                         & "   slope ", slopSum/dble(nUpd1)
                  end if
               end if
 #endif

@@ -210,6 +210,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-195 | **H2 formation on grains now runs on MOCASSIN's own dust.** Upstream hardcoded 8.473e-22 / 7.908e-22 cm2/H for silicate / graphite, with no dependence on MdMg, the size distribution or the composition, while the rate is LINEAR in them. MOCASSIN now measures the geometric grain area per H per cell and splits it by material. This model: **1.02e-21 cm2/H, all silicate, zero graphite** - 20% MORE area than CT02 assumes, but a **0.62x** rate at cold dust and **0.24x** at 60 K, because CT02's graphite channel was carrying the rate and this model has none | Done | 2026-09-08 |
 | D-209 | **H2 and CO seeded from MOCASSIN's photoionization state - and the oscillation does not care.** At `pdrStartIter` MOCASSIN has a converged x(H0), Te, Tdust and dust opacity, so the H/H2 balance is placed by formation-on-grains against photodissociation at equilibrium, closed form, hydrogen conserved, with the CT02 rate on MOCASSIN's measured grain area (D-195 restored) and the network's own photodissociation coefficient. The seed lifts iteration 4 from f_mol 0.23 to 0.77 - and from iteration 6 the run is identical to the zero-seed run, collapses at 6 and 11 in both. The cycle is an attractor with no memory of the seed | Done | 2026-09-09 |
 | D-210 | **The oscillation is the cooling substitution changing sign, measured at both collapses.** `pdrCoolUsed` - what the PDR block actually does to `coolInt` - is +2.4e-23 per H at pass 1 of iteration 6, where the gas is cold and molecular, and **-1.5e-24 at pass 2**, with Te going 542 K -> 4127 K and f_mol barely moving (0.809 -> 0.697). By pass 5 it is deleting 1.6e-23. Iteration 11 reproduces it: +2.0e-23, -1.3e-24, converging to the same -1.58e-23. The heating handback is ~1e-27 throughout, four orders down, and plays no part. D-167's guard covers only a ZERO 3D-PDR coolant, not a smaller one, and its `nCoolNull` counter is incremented and never printed | Done | 2026-09-09 |
+| D-211 | **D-167's guard covers the wrong case.** It protects against 3D-PDR's coolant being ZERO; measured, `guard kept` is 0.000 per cell in every pass after the first, so that case never fires. The loss is 3D-PDR's coolant being merely SMALLER than MOCASSIN's, on the same code path, unguarded and silent. At iteration 5 pass 4 MOCASSIN's removed coolant is 2.19e-25 against 5.10e-26 put back. `nCoolNull`, the one counter that separates the two, has been incremented and never printed since D-167 | Done | 2026-09-10 |
+| D-212 | **Ne re-imposed on the chemistry every call - correct, and not the bug.** Electrons are not an element, so D-153's link table never reached them: `abun(NELECT)` was written from MOCASSIN's Ne once per cell and then evolved under CVODE, while the four other collision partners feeding the substituted cooling were re-imposed every call. Fixed on contract grounds. Measured: iteration 6 is unchanged to within run-to-run scatter. The premise - that it drifts - was never measured; D-153 already re-imposes C+ and H+, which set the electron abundance | Done | 2026-09-10 |
+| D-213 | **The collapse is D-166's extrapolation decaying, not the chemistry.** `added` is `pdrCoolSp` times `(Te/Tref)^slope`. Split at iteration 6: the raw coolants RISE monotonically x22 across the passes, while the effective multiplier falls **229 -> 3.2 -> 1.2 -> 1.00**. At pass 1 `Tref` is 177 K from the previous iteration's cold chemistry and the mean slope is 2.71 (clamp ceiling 12), manufacturing a stiff artificial thermostat that holds the cell at 530 K; each pass re-anchors `Tref`, the slope flattens, the prop is removed and Te marches to ~8300 K. Separately, at multiplier 1.00 the substitution still replaces 1.81e-23 of MOCASSIN's cooling with 2.46e-24 of 3D-PDR's - a 7.4x net loss in hot gas | Done | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12177,3 +12180,143 @@ choosing the answer rather than computing it, so what the right fix IS remains
 open until the split is measured.
 
 Nothing is being asserted about the fix before that run.
+
+
+---
+
+## D-211 - the guard covers the case that never fires (2026-09-10)
+
+`runs/d211-split`, stopped after iteration 6 once the answer was in.
+
+D-210 measured that the cooling substitution goes net negative. Two mechanisms
+produce that and they need different fixes: 3D-PDR's coolant is ZERO (D-167's
+case, guarded) or merely SMALLER than MOCASSIN's (unguarded). Splitting the net
+into `removed`, `added` and the guard's firing rate settles it:
+
+    iteration 5      Te      f_mol   cool used   removed    added     guard kept
+      pass 1         39.4    0.758   +4.58e-26   0          0           3.000
+      pass 2         44.4    0.857   +1.48e-27   4.04e-26   2.58e-26    0.000
+      pass 3         99.5    0.869   -4.64e-26   3.65e-26   2.82e-26    0.000
+      pass 4        149.7    0.840   -1.68e-25   2.19e-25   5.10e-26    0.000
+
+`guard kept` is 0.000 per cell in every pass after the first. D-167's guard
+never fires. Every deletion goes through the unguarded path, where 3D-PDR's
+coolant is non-zero but smaller - at pass 4, by a factor 4.3.
+
+`nCoolNull`, the counter that would have shown this, is incremented at
+`update_mod.f90:2059` and printed nowhere. The guard's behaviour has been
+unobservable since the day it was added.
+
+**Iteration 5 does not collapse, and already shows the runaway.** Te goes 39 K
+to 150 K across its passes, x3.8, at frozen radiation field, with the
+substitution going negative from pass 3. The instability is in every iteration;
+the collapse iterations are where it escapes.
+
+---
+
+## D-212 - Ne on the same footing as the other partners (2026-09-10)
+
+The level-population solve that produces the substituted cooling takes five
+collision-partner densities: H, H+, e-, He, H2. D-153 re-imposes MOCASSIN's
+ionization on the linked species every call - but electrons are not an element,
+have no entry in the link table, and were never reached. `abun(NELECT)` was
+written from `grid%Ne` once, in `seedAbunFromMocassin`, and thereafter evolved
+under CVODE.
+
+That is a contract violation on its face: the operator's contract lists Ne
+among the things MOCASSIN hands the chemistry, and it was the one item on that
+list delivered once instead of every call. Fixed - four lines inside D-153's
+existing block, so all five partners now arrive by the same rule at the same
+moment.
+
+**It changes nothing measurable.** Iteration 6, against `runs/d211-split`:
+
+    pass   added (baseline)   added (Ne)     cool used (baseline)  cool used (Ne)
+      1      2.524e-23        2.546e-23       +2.4877e-23          +2.5093e-23
+      2      7.141e-25        6.960e-25       -1.3696e-24          -1.3958e-24
+      3      8.537e-25        8.415e-25       -1.3136e-23          -1.3143e-23
+      4      2.270e-24        2.270e-24       -1.5832e-23          -1.5956e-23
+
+Identical within run-to-run scatter. **The hypothesis was wrong**, and the
+reason it was wrong is instructive: D-153 already re-imposes C+ and H+, which
+are what set the electron abundance in this network, so CVODE's electron
+density was probably tracking MOCASSIN's all along. The argument ran from "it
+is handed over once" to "therefore it drifts" without ever measuring the drift.
+Third hypothesis withdrawn in this session; in each case the measurement was
+cheaper than the argument that preceded it.
+
+The change stays. It is right on contract grounds whether or not it moves a
+number.
+
+---
+
+## D-213 - the cold state was propped up by an extrapolation artefact (2026-09-10)
+
+`runs/d213-coolsplit`, stopped after iteration 6.
+
+`added` is not the coolant. It is `pdrCoolSp` times D-166's factor
+`(TeUsed/pdrCoolTref)^pdrCoolSlope`, clamped to [1e-8, 1e8] with the slope
+clamped to [-2, 12]. Aggregated, those two are indistinguishable. Split:
+
+    iteration 6   Te      raw coolants   added       effective    slope   Tref
+      pass 1       530    1.10e-25       2.515e-23   x229         2.71     177
+      pass 2      4129    2.21e-25       7.165e-25   x3.2         0.81     530
+      pass 3      8054    6.91e-25       8.322e-25   x1.2         1.02    4129
+      pass 4      8245    2.25e-24       2.258e-24   x1.00        1.46    8054
+      pass 5      8283    2.46e-24       2.461e-24   x1.00        1.47    8245
+
+**The coolants behave correctly.** CO, C+, C and O sum to 1.10e-25 at pass 1
+and rise monotonically to 2.46e-24 by pass 5 - x22 with temperature, which is
+what fine-structure cooling should do. Nothing is destroyed, and the CO
+hypothesis is dead.
+
+**The multiplier is the whole effect.** 229 at pass 1, 1.00 by pass 4. The x35
+collapse chased since D-210 is the extrapolation decaying.
+
+**The mechanism.** At pass 1 `Tref` is 177 K, inherited from the previous
+iteration's cold chemistry, and the mean slope is 2.71 with a clamp ceiling of
+12 - so some cells carry cooling scaling as T^12. That is a very stiff
+artificial thermostat: cooling rises so steeply with T that the solver finds a
+root at 530 K. `pdrStep` then re-anchors `Tref` to 530 K, the newly measured
+slope flattens to 0.81, the multiplier falls to 3.2, the prop is removed and Te
+jumps to 4129 K. Each pass repeats it until the multiplier reaches 1 and the
+march ends at ~8300 K.
+
+D-166 cited per-pass re-anchoring as the thing that makes the power law safe -
+"the coupling loop re-anchors Tref every pass, which is exactly how Cloudy uses
+conv.dCmHdT". Measured here, re-anchoring is the mechanism of the runaway: each
+re-anchor releases the temperature by the amount the previous extrapolation was
+holding it.
+
+D-166's own validation was a 2.56x span on both sides of the anchor, median
+error 6.3%. Nothing in it covers a multiplier of 229.
+
+**A second, independent defect, visible once the multiplier is 1.** At pass 5
+the substitution removes 1.81e-23 of MOCASSIN's cooling and puts back 2.46e-24
+- a 7.4x net loss at 8283 K. D-133's rationale for the replacement ("in neutral
+gas the electron fraction is ~1e-4, so MOCASSIN's version under-cools by orders
+of magnitude") holds in cold neutral gas and inverts in hot ionized gas, and
+the substitution carries no condition on either.
+
+So there are two defects and a structure that marches between them:
+
+  1. the extrapolation inflates PDR cooling by up to ~1e2-1e4 at low T,
+     manufacturing a cold state that is not physical;
+  2. the substitution deletes cooling at high T, by 7.4x, because a cold-gas
+     correction is applied unconditionally;
+  3. the coupling loop re-solves Te five times per MC iteration at frozen
+     radiation field, walking the cell from (1) to (2) in one iteration.
+
+**A caveat on the printed factor.** The `[D213]` line reports mean
+`(Te/Tref)^slope` = 1.16e4 at pass 1, far above the x229 quoted. Both are real:
+the mean of a product is not the product of means, the distribution is
+enormously heterogeneous, and some cells sit near the 1e8 clamp. The quoted
+figure is `added/raw`, the cell-weighted effective multiplier, because that is
+the one that acts on the budget. The diagnostic should report the effective
+ratio rather than the mean factor.
+
+**What is NOT known.** Which of the three to fix first, and whether fixing the
+pass structure alone is enough. The operator's design point - MOCASSIN solves Te
+once per MC iteration, the passes converge the molecular content at that Te -
+addresses (3) and needs no new physics. `pdrCoupleIter 1` approximates it with
+no code change and is the cheapest next measurement.

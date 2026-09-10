@@ -414,6 +414,11 @@ module common_mod
         ! decides which, since added = used + removed.
         real, allocatable         :: pdrCoolSub(:)   ! MOCASSIN cooling removed
         real, allocatable         :: pdrCoolNul(:)   ! coolants the guard kept
+        ! D-213. `added` is pdrCoolSp TIMES the D-166 extrapolation factor
+        ! (TeUsed/Tref)^slope, so a collapse in `added` is either the coolant
+        ! or the extrapolation and the aggregate cannot tell them apart.
+        ! pdrTfacUsed records the factor actually applied at the converged Te.
+        real, allocatable         :: pdrTfacUsed(:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.

@@ -2122,6 +2122,10 @@ end subroutine iterateT
                      pdrTfac = (TeUsed/grid%pdrCoolTref(cellP))**grid%pdrCoolSlope(cellP)
                      pdrTfac = min(max(pdrTfac, 1.e-8), 1.e8)
                      pdrCoolMol = pdrCoolMol*pdrTfac
+                     if (allocated(grid%pdrTfacUsed)) &          ! D-213
+                          & grid%pdrTfacUsed(cellP) = pdrTfac
+                  else if (allocated(grid%pdrTfacUsed)) then
+                     grid%pdrTfacUsed(cellP) = 1.
                   end if
                   coolInt = coolInt + pdrCoolMol/grid%Hden(cellP)
                   ! D-168 probe: the budget of a cell sitting on the 30000 K
