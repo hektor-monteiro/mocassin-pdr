@@ -216,7 +216,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-214 | **The coupling loop is a temperature-marching scheme, and the march is the amplifier.** Each pass runs a full `iterateT` at frozen radiation field, re-anchors `pdrCoolTref`, flattens the slope and releases the temperature the previous extrapolation was holding: 530 -> 4129 -> 8054 -> 8245 -> 8283 K inside iteration 6. With `pdrCoupleIter 1` both collapses vanish (f_mol 0.291 -> 0.759 at it 6, 0.327 -> 0.764 at it 11) and the run is 2.5x faster. **Partly retracted at D-215**: much of that was the extrapolation propping the gas cold | Done | 2026-09-10 |
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
-| D-217 | **MOCASSIN's own thermal budget, term by term - and the warm-start path had never been given the post-D-188 PDR arrays.** D-216 put the start of the collapse in the thermal solve on still-molecular gas, with the PDR side of the budget ruled out, so the diagnostic now reports photoionization, photoelectric and PDR heating against collisional, recombination, free-free, gas-dust and PDR cooling, per H, at the FIRST `thermBalance` call (iteration-start Te under the new field) and the LAST, grouped by outcome. Separately, `resetGrid` allocated none of `pdrHeatXtra`, `pdrCoolTab` or the D-207..D-217 diagnostics: `mocassinWarm` compiled and would have met unallocated arrays in `pdrStep`. Fixed; compiled, not yet exercised by a warm run | Running | 2026-09-10 |
+| D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 100-2000x that of the cells that stay cold and two orders above their own total cooling; photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
 | D-218 | **Is the heating a front advancing in pulses?** D-217 iteration 7: the 8336 cells that went hot at 6 enter 7 with photoionization heating 180x lower (2.53e-25), while 2835 OTHER cells take 25x more (1.13e-21) - the heating moves between cells. Heating per H goes as x(H0)*J, so ionized cells may turn transparent and pass the hard photons to the layer behind. The census now reports per group the mean A_V, x(H0), f_mol, J above hydrogen's threshold, tau per cell at threshold, and each cell's group ONE ITERATION AGO (per-cell `budGrpLast`, allocated on both the cold and warm paths). Also withdrawn: the 'two-iteration opacity lag' inferred for D-217 - the opacity is rebuilt at the top of every MC iteration | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -12608,6 +12608,66 @@ rather than ~59 for the same answer.
 separates the cells that go hot from those that stay cold at iteration 6 and 10,
 and whether it is a heating term appearing or a cooling term disappearing.
 
+
+
+### D-217 result (2026-09-10)
+
+`runs/d217-budget`, 12 iterations, 21:06, clean exit. Trajectory as D-215/D-216:
+collapses at iterations 6 and 10 (f_mol mean 0.393 and 0.484, Te median 2538
+and 1764 K).
+
+**The instrument is sound.** Its entry-slot temperatures, weighted by group
+size, reproduce the run's own iteration-start mean Te: 1160.4 against 1160.3 K
+at iteration 4, 367.5 against 367.5 at 5, 210.9 against 210.9 at 6 - so slot 1
+is the first balance call as intended. Heating minus cooling reproduces the
+printed H - C to rounding in every group checked. All three groups are
+populated at every iteration.
+
+**The result.** Per H nucleus, at entry to the thermal solve:
+
+     it   cells   entry Te   phot heat   phot heat    ratio    cold->hot   started-hot
+          c->h     c->h       c->h      stayed cold           total cool  phot heat
+      4       11     1683    2.66e-25    2.38e-27      112x    4.45e-26    4.22e-25
+      5       18      112    5.09e-24    7.44e-26       68x    1.48e-25    6.09e-25
+      6     8336       88    4.47e-23    9.90e-25       45x    3.79e-25    8.45e-25
+      7     2835      701    1.13e-21    7.87e-25     1436x    1.34e-24    2.53e-25
+      8      919      461    5.06e-22    2.92e-25     1733x    8.45e-25    7.42e-25
+      9      925      285    1.85e-22    1.10e-25     1682x    4.95e-25    5.94e-25
+     10     6649      133    6.64e-23    6.00e-25      111x    3.51e-25    9.41e-25
+     11     2671      663    1.02e-22    4.56e-25      224x    3.64e-25    3.59e-25
+     12     2117      474    7.55e-22    3.42e-25     2208x    9.03e-25    5.43e-25
+
+In EVERY iteration the cells that go cold -> hot enter the solve carrying
+photoionization heating orders of magnitude above the cells that stay cold, and
+about two orders above their own total cooling. The photoelectric term and the
+PDR heating are two orders below it throughout. The PDR cooling substitution is
+small and slightly negative for these cells at entry (-3.3e-25 at iteration 6)
+- nothing like the heating. So the collapse is not lost cooling. It is heating
+arriving.
+
+The two collapses have the same signature: 8336 cells at 88 K with 4.47e-23 at
+iteration 6, 6649 cells at 133 K with 6.64e-23 at iteration 10. The iterations
+between show the same process at small scale (925 cells at iteration 9 with
+1.85e-22). The collapses are the iterations where it catches most of the grid
+at once.
+
+**The heating moves.** The started-hot column is the previous iteration's
+flippers: they enter with photoionization heating of 2.5e-25 to 9.4e-25, one to
+three orders below what they carried as flippers, and cool. A different set of
+cells takes the heating each time. D-218 asks where those cells sit and where
+they came from.
+
+**Caveats.** Group means still average cells at different depths - the
+started-hot exit rows show collisional cooling of 5e-25 at mean Te of a few
+hundred K, which is a few still-hot cells carrying the mean. The exit slot is
+the solver's last trial temperature, recorded in term 10 so it can be checked.
+
+**Withdrawn during this entry.** A 13.6-15.4 eV "leak" through molecular gas
+was offered as the mechanism; D-139 had already tested and reverted exactly
+that, on tau = 230 per cell, and the H2 continuum does reach the transport
+above 15.43 eV. And a "two-iteration opacity lag" was offered for the period;
+the opacity is rebuilt at the top of every MC iteration and the lag that exists
+errs opaque while molecules form. Both recorded under D-218.
 
 ---
 
