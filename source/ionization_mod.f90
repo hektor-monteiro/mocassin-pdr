@@ -129,8 +129,14 @@ module ionization_mod
         ! caught in iteration_mod, and it had broken the plain build again).
 #ifdef PDR
         if (lgPDR) then
-           call addOpacity(grid%opacity(grid%active(ix, iy, iz), :), &
-                & grid%H2den(grid%active(ix, iy, iz)))
+           if (allocated(grid%opaRep)) then                          ! D-222
+              call addOpacity(grid%opacity(grid%active(ix, iy, iz), :), &
+                   & grid%H2den(grid%active(ix, iy, iz)), &
+                   & grid%opaRep(grid%active(ix, iy, iz), :, :))
+           else
+              call addOpacity(grid%opacity(grid%active(ix, iy, iz), :), &
+                   & grid%H2den(grid%active(ix, iy, iz)))
+           end if
         else
            call addOpacity(grid%opacity(grid%active(ix, iy, iz), :))
         end if
@@ -402,11 +408,15 @@ module ionization_mod
       xsec = xsec*1.e-24            ! barns -> cm^2
     end function yanH2xSec
 
-    subroutine addOpacity(opacity, H2density)
+    subroutine addOpacity(opacity, H2density, comp)
         implicit none
 
         real, dimension(:), intent(out) :: opacity                !  opacity
         real, intent(in), optional      :: H2density               ! n(H2) [cm^-3] (D-107)
+        ! D-222: each gas absorber's share at the four hard representative bins
+        real, dimension(:,:), intent(out), optional :: comp   ! (band 2-5 -> 1-4, absorber 1-6)
+        real    :: snapP(0:6, 2:5)
+        logical :: lgComp
 
        ! local variables
 
@@ -415,6 +425,10 @@ module ionization_mod
 
         ! (re) initialize opacity arrays
         opacity = 0.
+        lgComp = present(comp)
+        if (lgComp) call setHardBands()
+        if (lgComp) lgComp = (bandRepP(5) > 0)
+        snapP = 0.
 
         ! D-107: H2 photoionization continuum, threshold 15.43 eV = 1.1345 Ryd.
         ! MOCASSIN otherwise has no absorber below the Lyman edge but atomic
@@ -457,6 +471,7 @@ module ionization_mod
            end if
         end if
 
+        if (lgComp) snapP(1, 2:5) = opacity(bandRepP(2:5))      ! D-222: after H2
         ! hydrogen helium and heavy element brems (free-free) opacity,
         ! assuming hydrogen ff gaunt factors
         ! xSecArray is missing factor of 1.e-20 to avoid underflow.
@@ -491,7 +506,9 @@ module ionization_mod
         end do
 
        ! hydrogen lyman continuum photoelectric opacity
+       if (lgComp) snapP(2, 2:5) = opacity(bandRepP(2:5))       ! D-222: after free-free
        call inOpacity(HlevXSecP(1), HlevNuP(1), nbins, density(1,1), 0.)
+       if (lgComp) snapP(3, 2:5) = opacity(bandRepP(2:5))       ! D-222: after H0
 
        ! NOTE: the opacity due to the excited levels of HI, HeI and HeII is
        ! neglected for now as it requires calculations of the densities of
@@ -500,13 +517,29 @@ module ionization_mod
 
        ! helium singlets HeI (ground special because it extends to the high energy limit)
        call inOpacity(HeISingXSecP(1), HeIlevNuP(1), nbins, density(2, 1), 0.)
+       if (lgComp) snapP(4, 2:5) = opacity(bandRepP(2:5))       ! D-222: after He0
 
        ! ionized helium HeII (ground special because it extends to the high energy limit)
        call inOpacity(HeIIXSecP(1), HeIIlevNuP(1), nbins, density(2, 2), 0.)
+       if (lgComp) snapP(5, 2:5) = opacity(bandRepP(2:5))       ! D-222: after He+
 
        do i = 3, nElements
           if ( lgElementOn(i) ) call putOpacity(i)
        end do
+       ! D-222: each absorber's share, as the difference between successive
+       ! snapshots of the running total at the representative bins
+       if (lgComp) then
+          snapP(6, 2:5) = opacity(bandRepP(2:5))
+          comp = 0.
+          do i = 2, 5
+             comp(i-1, 1) = snapP(1, i)                    ! H2
+             comp(i-1, 2) = snapP(2, i) - snapP(1, i)      ! free-free
+             comp(i-1, 3) = snapP(3, i) - snapP(2, i)      ! H0
+             comp(i-1, 4) = snapP(4, i) - snapP(3, i)      ! He0
+             comp(i-1, 5) = snapP(5, i) - snapP(4, i)      ! He+
+             comp(i-1, 6) = snapP(6, i) - snapP(5, i)      ! heavier elements
+          end do
+       end if
 
        contains
 

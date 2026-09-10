@@ -110,6 +110,8 @@ module iteration_mod
            real(kind=8)              :: budSum3(3,4)                ! D-221
            integer, save             :: iH2thrC = 0                 ! D-221
            integer                   :: iNuD                        ! D-221
+           real(kind=8)              :: budSum4(3,42)               ! D-222
+           integer                   :: kBd, mBd, nOpaRep           ! D-222
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -210,6 +212,11 @@ module iteration_mod
 
 
               grid(iG)%opacity(0:grid(iG)%nCells, 1:nbins) = 0.
+#ifdef PDR
+              ! D-222: zeroed with the opacity, so the sum across ranks below
+              ! carries only this iteration's capture
+              if (allocated(grid(iG)%opaRep)) grid(iG)%opaRep = 0.
+#endif
 
               if (lgGas) then
                  if (taskid==0) print*, '! iterateMC: ionizationDriver in', iG
@@ -253,6 +260,17 @@ module iteration_mod
                     end do
                  end do
                  if ( allocated(opacityTemp) ) deallocate(opacityTemp)
+#ifdef PDR
+                 ! D-222: the absorber split is captured where ionizationDriver
+                 ! runs, which is not necessarily the rank the census counts a
+                 ! cell on (the iCell counters differ across grids), so it is
+                 ! summed across ranks exactly as the opacity is
+                 if (lgPDR .and. allocated(grid(iG)%opaRep)) then
+                    nOpaRep = (grid(iG)%nCells + 1)*4*6
+                    call mpi_allreduce(MPI_IN_PLACE, grid(iG)%opaRep, nOpaRep, &
+                         & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 end if
+#endif
 
               end if
 
@@ -1158,6 +1176,7 @@ module iteration_mod
                  budSum = 0.d0
                  budSum2 = 0.d0
                  budSum3 = 0.d0
+                 budSum4 = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1290,6 +1309,38 @@ module iteration_mod
                                 budSum3(iBudG,4) = budSum3(iBudG,4) &
                                      & + dble(grid(iG)%mocBand(iDum,2))
                              end if
+                             ! ---------------------------------------- D-222
+                             ! per band: the field and H0's entry heating; per
+                             ! representative bin of bands 2-5: tau per cell of
+                             ! each gas absorber, of dust, and of the total
+                             ! opacity the transport used, so the split can be
+                             ! checked against the total it should sum to
+                             call setHardBands()
+                             if (bandRepP(5) > 0) then
+                                do kBd = 1, 5
+                                   budSum4(iBudG,kBd) = budSum4(iBudG,kBd) &
+                                        & + dble(sum(grid(iG)%Jste(iDum,bandP(kBd):bandP(kBd+1)-1)))
+                                   if (allocated(grid(iG)%mocBand)) &
+                                        & budSum4(iBudG,5+kBd) = budSum4(iBudG,5+kBd) &
+                                        & + dble(grid(iG)%mocBand(iDum,2+kBd))
+                                end do
+                                do mBd = 2, 5
+                                   if (allocated(grid(iG)%opaRep)) then
+                                      do kBd = 1, 6
+                                         budSum4(iBudG,10+(mBd-2)*8+kBd) = &
+                                              & budSum4(iBudG,10+(mBd-2)*8+kBd) &
+                                              & + dble(grid(iG)%opaRep(iDum,mBd-1,kBd))*dxCell
+                                      end do
+                                   end if
+                                   if (lgDust) budSum4(iBudG,10+(mBd-2)*8+7) = &
+                                        & budSum4(iBudG,10+(mBd-2)*8+7) &
+                                        & + dble(grid(iG)%absOpac(iDum,bandRepP(mBd)) &
+                                        &      + grid(iG)%scaOpac(iDum,bandRepP(mBd)))*dxCell
+                                   budSum4(iBudG,10+(mBd-2)*8+8) = &
+                                        & budSum4(iBudG,10+(mBd-2)*8+8) &
+                                        & + dble(grid(iG)%opacity(iDum,bandRepP(mBd)))*dxCell
+                                end do
+                             end if
                              ! the same cell's group one MC iteration ago;
                              ! ownership is fixed per rank, so each rank
                              ! carries its own cells' history without a
@@ -1341,6 +1392,8 @@ module iteration_mod
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-218
                  if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum3, 12, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-221
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum4, 126, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-222
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
                  ! where the runaway actually happens. The [D119] residual
@@ -1444,6 +1497,24 @@ module iteration_mod
                                & "  H0 share", &
                                & (budSum3(iBudG,3)+budSum3(iBudG,4)) &
                                & /max(budSum(iBudG,1), 1.d-99)
+                          ! D-222: by band, then the absorber split at each hard
+                          ! band's representative energy, with (gas+dust)/total
+                          if (bandRepP(5) > 0) then
+                             print '(a,5es10.2,a,5es10.2)', &
+                                  & " ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top", &
+                                  & (budSum4(iBudG,kBd)/budSum(iBudG,21), kBd = 1, 5), &
+                                  & "   H0 heat by band", &
+                                  & (budSum4(iBudG,5+kBd)/budSum(iBudG,21), kBd = 1, 5)
+                             do mBd = 2, 5
+                                print '(a,f7.1,a,7es10.2,a,f8.4)', &
+                                     & " ! [D222]   tau/cell @", nuArray(bandRepP(mBd))*13.605693, &
+                                     & " eV  H2/ff/H0/He0/He+/Z/dust", &
+                                     & (budSum4(iBudG,10+(mBd-2)*8+kBd)/budSum(iBudG,21), kBd = 1, 7), &
+                                     & "  (gas+dust)/total", &
+                                     & sum(budSum4(iBudG,10+(mBd-2)*8+1:10+(mBd-2)*8+7)) &
+                                     & /max(budSum4(iBudG,10+(mBd-2)*8+8), 1.d-99)
+                             end do
+                          end if
                        end do
                     end if
                  end if

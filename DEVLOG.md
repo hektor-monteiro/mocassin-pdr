@@ -221,6 +221,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-219 | **The opacity was built from a hydrogen budget that did not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) - exactly what `ionizationDriver` reads to build the next opacity - ran at a median of 0.43-1.85 whenever one ionization solve was followed by chemistry that moved (D-216 and the one-pass runs); the five-pass loop held 1.000. The opacity followed that stale state (tau 1260 = x(H0) 1.0 at iteration 5). `seedMolecules` also never republished `elemAvail`. **Fixed by D-220**: budget 1.0000 at every iteration measured. Not the cause of the collapse - it persists with the budget closed | Fixed | 2026-09-10 |
 | D-220 | **The ion stages are rescaled to the chemistry's available fraction before the next opacity is built - verified, and the collapse survives it.** D-153's rule on MOCASSIN's side, applied after the D-200 damping, plus a `pdrToMocassin` after the seed. Before the rescale hydrogen was off by a mean 0.400 / 0.093 / 0.420 (93% / 78% / 89% of cells) at iterations 4-6; after it the budget reads 1.0000. The opacity follows: tau 281 per cell against 272 predicted at iteration 5, where it read 1260. Iteration 6 still collapses - median f_mol 0.239 against 0.238 without the fix, Te median 2160 K against 2525 K | Done | 2026-09-10 |
 | D-221 | **The heating that flips cells comes from above 15.43 eV, where H2 absorbs - not from the H2-transparent window.** At iteration 6, 7274 cells go cold -> hot (7270 of them cold at iteration 5): 99.9998% of their field and essentially all their H0 photoionization heating (4.94e-23 against 3.2e-29 in the window) lie above 15.43 eV, and H0 is 99.3% of their photoionization heating. Iterations 4 and 5 showed the same in 18 cells. So missing H2 line opacity between 13.6 and 15.4 eV is ruled out as the cause. The two bands reproduce D-218's total field to four figures | Done | 2026-09-10 |
+| D-222 | **What the hard photons cross: the band above 15.43 eV split by energy, and the opacity along it split by absorber.** D-221 put the heating that flips cells entirely above the H2 threshold, in gas that should be thick there (f_mol 0.90, tau ~900 per cell at 18 eV). Bands edged at physical thresholds - 13.6, 15.43 (H2), 24.59 (He0), 54.42 eV (He+) - with He+ to the top of the grid halved in log energy. Per band: field and H0 entry heating. At each hard band's centre: tau per cell of H2, free-free, H0, He0, He+, heavier elements and dust, captured in `addOpacity` as differences of the running total, with (gas+dust)/total as a built-in check | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13261,3 +13262,68 @@ its H0 photoionization heating from above 15.43 eV at iterations 7-12 as at 4-6:
 Nine iterations, every one with the heating that flips cells carried by photons
 above the H2 continuum threshold and hydrogen doing 99.5-99.9% of the absorbing.
 D-222 decomposes that band by energy and by absorber.
+
+
+---
+
+## D-222 - what the hard photons cross (2026-09-10)
+
+**Why.** D-221: the heating that flips cells arrives above 15.43 eV, at every
+iteration from 4 to 12, with hydrogen doing 99.5-99.9% of the absorbing. The
+cells it lands in are about 90% molecular - n(H2) ~ 45 cm^-3 - and yanH2xSec puts
+H2 at ~1e-17 cm^2 near 18 eV, so tau ~ 900 per cell there. For photons in that
+band to reach them the gas must be thin at their energy, and neither the energy
+nor what sets the path is measured.
+
+**The bands.** Edged at physical thresholds rather than chosen numbers:
+
+    1  13.6  - 15.43 eV   HlevNuP(1) to the H2 continuum threshold (the D-221 window)
+    2  15.43 - 24.59 eV   H2 continuum to He0 (HeIlevNuP(1))
+    3  24.59 - 54.42 eV   He0 to He+ (HeIIlevNuP(1))
+    4  54.42 - mid        He+ to the geometric middle of [He+ edge, top of grid]
+    5  mid   - top
+
+In this fixture the top of the grid is nuMax = 15 Ryd = 204 eV, so the split
+sits near 105 eV. Each band's representative bin is the one at its geometric
+centre. `setHardBands` in `common_mod` finds all of them once, from nuArray and
+the H0/He0/He+ pointers, and the heating loop, `addOpacity` and the census all
+read the same edges.
+
+**What is recorded.**
+
+  - Per band, per outcome group: the field (sum of Jste over the band) and H0's
+    photoionization heating at the entry call. The heating is accumulated inside
+    `thermBalance`'s frequency loop with exactly the scaling `heatIonSte` gets,
+    in `mocBand(cell, 3:7)`; D-221's two values stay in (cell, 1:2).
+
+  - At the representative bin of each hard band (2-5): tau per cell of each gas
+    absorber - H2, free-free, H0, He0, He+, heavier elements - plus dust
+    (absOpac + scaOpac), plus the total opacity the transport used.
+
+**How the absorber split is taken.** Not by recomputing cross sections in the
+census: by the time the census runs, `updateCell` has already moved `ionDen`, so
+a recomputation would describe a different state from the one the photons saw -
+the pitfall D-218's x(H0) column fell into. Instead `addOpacity` snapshots the
+running opacity total at the four bins after each stage it already performs in a
+fixed order (H2, free-free, H0, He0, He+, heavier elements), and each absorber's
+share is the difference between successive snapshots. That is the opacity as
+built, by construction.
+
+`ionizationDriver` runs on a rank chosen by an iCell counter that carries across
+grids, while the census's counter resets per grid - they agree for this
+single-grid fixture and would not in a multi-grid model. So the capture,
+`grid%opaRep(cell, 4, 6)`, is zeroed with the opacity at the top of each MC
+iteration and summed across ranks exactly as the opacity is, rather than relying
+on the two ownerships lining up.
+
+**The check built in.** The transport's tau is dS x `grid%opacity` and its
+scattering probability is scaOpac/opacity, so `grid%opacity` is the total with
+dust included. The census prints (gas components + dust) / total at each
+representative bin; it should read 1.
+
+Allocated in `setMotherGrid` and `resetGrid`.
+
+**Run.** `runs/d222-absorbers`, one-pass fixture, carrying D-220 (so the budget
+is closed) and D-221.
+
+**What is NOT known.** Everything the run is for.

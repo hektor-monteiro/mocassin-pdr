@@ -1620,6 +1620,8 @@ end subroutine iterateT
             real                   :: budL(10)             ! D-217: this call's budget
             real                   :: heatH0win, heatH0hi  ! D-221: H0 heating by band
             integer, save          :: iH2thrP = 0          ! D-221: first bin >= 15.43 eV
+            real                   :: heatH0b(5)           ! D-222: H0 heating by band
+            integer                :: kB                   ! D-222
             real                   :: coolSubL             ! D-210: MOCASSIN cooling removed
             integer                :: nNullL               ! D-210: coolants the guard kept
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
@@ -1809,6 +1811,8 @@ end subroutine iterateT
              ! starts, 15.43 eV = 1.1345 Ryd (addOpacity). The energy grid is
              ! fixed for the run, so the split bin is found once.
              heatH0win = 0.; heatH0hi = 0.
+             heatH0b = 0.                                   ! D-222
+             call setHardBands()
              if (iH2thrP == 0) then
                 iH2thrP = nbins + 1
                 do j = 1, nbins
@@ -1907,6 +1911,13 @@ end subroutine iterateT
                                       heatH0hi  = heatH0hi  + phXSec*grid%Jste(cellP,j)* &
                                            & (nuArray(j)-nuArray(IPNuP)) / (nuArray(j))
                                    end if
+                                   do kB = 1, 5                           ! D-222
+                                      if (j >= bandP(kB) .and. j < bandP(kB+1)) then
+                                         heatH0b(kB) = heatH0b(kB) + phXSec*grid%Jste(cellP,j)* &
+                                              & (nuArray(j)-nuArray(IPNuP)) / (nuArray(j))
+                                         exit
+                                      end if
+                                   end do
                                 end if
 
                              end if
@@ -1933,6 +1944,8 @@ end subroutine iterateT
                             & grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)
                        heatH0hi  = heatH0hi *ionDenUsed(elementXref(1),1)* &
                             & grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)
+                       heatH0b   = heatH0b  *ionDenUsed(elementXref(1),1)* &
+                            & grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)     ! D-222
                     end if
                     if (lgDebug) &
                          & heatIonDif = heatIonDif*ionDenUsed(elementXref(elem),ion)*&
@@ -2316,6 +2329,7 @@ end subroutine iterateT
                   if (allocated(grid%mocBand)) then           ! D-221: entry only
                      grid%mocBand(cellP, 1) = heatH0win
                      grid%mocBand(cellP, 2) = heatH0hi
+                     grid%mocBand(cellP, 3:7) = heatH0b             ! D-222
                   end if
                   lgBudEntry = .false.
                end if

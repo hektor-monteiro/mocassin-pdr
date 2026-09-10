@@ -458,7 +458,13 @@ module common_mod
         ! H2 absorbs (addOpacity, yanH2xSec). D-218 found threshold opacity
         ! does not decide where the field lands, so the photons carrying the
         ! heating must sit where the gas is thinner - this says which band.
-        real, allocatable         :: mocBand(:,:)
+        real, allocatable         :: mocBand(:,:)          ! (cell, 7): 1-2 D-221, 3-7 D-222 by band
+        ! D-222. Each gas absorber's share of the opacity the photons saw, at the
+        ! representative bin of each hard band (cell, band 2-5 -> 1-4, absorber):
+        ! 1 H2, 2 free-free, 3 H0, 4 He0, 5 He+, 6 heavier elements. Captured in
+        ! addOpacity as successive differences of the running total, so the
+        ! split is of the opacity actually built, not a recomputation of it.
+        real, allocatable         :: opaRep(:,:,:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
@@ -891,6 +897,14 @@ module common_mod
     ! two-point configuration the total is comparable.
     integer             :: pdrNtab = 16
     real                :: pdrTabT(64) = 0.        ! filled by initPDRcoolTab
+    ! D-222: bands above hydrogen's threshold, edged by physical thresholds -
+    ! 13.6 eV (H0), 15.43 eV (H2 continuum), 24.59 eV (He0), 54.42 eV (He+) -
+    ! with the band from He+ to the top of the grid split into two equal halves
+    ! in log energy. bandP(k) is the first bin of band k, bandP(6) = nbins+1;
+    ! bandRepP(k) the bin at the geometric centre of band k. Set once, by
+    ! setHardBands, so the heating loop, addOpacity and the census agree.
+    integer             :: bandP(6)    = 0
+    integer             :: bandRepP(5) = 0
     integer             :: pdrCoolTdep = 1
     real                :: pdrCoolTfac = 1.6   ! second evaluation at this x T
     integer             :: pdrNslopeChk = 0    ! D-166: cap on power-law checks
@@ -1185,6 +1199,52 @@ contains
 
   end function pdrCoolAt
 #endif
+
+  !-----------------------------------------------------------------
+  ! D-222. The hard bands. Unguarded: thermBalance's heating loop, which
+  ! reads them, compiles in every flavour.
+  !-----------------------------------------------------------------
+  subroutine setHardBands()
+    implicit none
+    integer :: i, k, nb, iHi
+    real    :: eMid
+
+    if (bandP(1) /= 0) return
+    if (.not. allocated(nuArray)) return
+    nb = size(nuArray)
+    if (HlevNuP(1) <= 0 .or. HeIlevNuP(1) <= 0 .or. HeIIlevNuP(1) <= 0) return
+    bandP(1) = HlevNuP(1)
+    bandP(2) = nb + 1
+    do i = 1, nb
+       if (nuArray(i) >= 1.1345) then
+          bandP(2) = i
+          exit
+       end if
+    end do
+    bandP(3) = HeIlevNuP(1)
+    bandP(4) = HeIIlevNuP(1)
+    eMid = sqrt(nuArray(bandP(4))*nuArray(nb))
+    bandP(5) = nb
+    do i = bandP(4), nb
+       if (nuArray(i) >= eMid) then
+          bandP(5) = i
+          exit
+       end if
+    end do
+    bandP(6) = nb + 1
+    bandRepP(1) = bandP(1)
+    do k = 2, 5
+       iHi = max(bandP(k+1) - 1, bandP(k))
+       eMid = sqrt(nuArray(bandP(k))*nuArray(iHi))
+       bandRepP(k) = bandP(k)
+       do i = bandP(k), iHi
+          if (nuArray(i) >= eMid) then
+             bandRepP(k) = i
+             exit
+          end if
+       end do
+    end do
+  end subroutine setHardBands
 
 
 end module common_mod

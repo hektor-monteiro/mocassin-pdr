@@ -1477,11 +1477,16 @@ module grid_mod
                    print*, "! setMotherGrid: can't allocate budGrpLast memory"; stop
                 end if
                 grid%budGrpLast = 0
-                allocate(grid%mocBand(0:grid%nCells, 1:2), stat = err)     ! D-221
+                allocate(grid%mocBand(0:grid%nCells, 1:7), stat = err)     ! D-221
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate mocBand memory"; stop
                 end if
                 grid%mocBand = 0.
+                allocate(grid%opaRep(0:grid%nCells, 1:4, 1:6), stat = err)   ! D-222
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate opaRep memory"; stop
+                end if
+                grid%opaRep = 0.
                 allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
@@ -3777,11 +3782,16 @@ end function getVolume
                   print*, "! resetGrid: can't allocate budGrpLast memory"; stop
                end if
                grid(iG)%budGrpLast = 0
-               allocate(grid(iG)%mocBand(0:grid(iG)%nCells, 1:2), stat = err)   ! D-221
+               allocate(grid(iG)%mocBand(0:grid(iG)%nCells, 1:7), stat = err)   ! D-221
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate mocBand memory"; stop
                end if
                grid(iG)%mocBand = 0.
+               allocate(grid(iG)%opaRep(0:grid(iG)%nCells, 1:4, 1:6), stat = err)   ! D-222
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate opaRep memory"; stop
+               end if
+               grid(iG)%opaRep = 0.
                grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.
