@@ -13440,3 +13440,33 @@ cannot transmit (here).
      (`pdrSplitField`, diagnostic-only per D-218's check).
   3. Resolution: the oscillation's amplitude, period and front speed at a
      finer grid. Most expensive; 58^3 is the memory ceiling at nbins = 600.
+
+
+### Iteration 6: the same, at scale (2026-09-10)
+
+     it 6               cells   J 15.4-24.6   J 24.6-54.4   J >54.4   H0 heat 15.4-24.6   H0 share
+     cold -> hot         7233     3.37e-3       3.3e-10        0          5.01e-23          0.993
+     stayed cold         7619     2.48e-4       8.3e-9         0          1.22e-24          0.979
+
+     tau/cell @ 19.8 eV    H2     H0     Z     dust    total
+     cold -> hot           713    43.4   1.1   0.40    ~758
+     stayed cold           583    114    1.0   0.40    ~698
+     tau/cell @ 36.9 eV    H2     H0     He0   dust    total
+     cold -> hot           118    7.4    73.8  0.29    ~200
+
+The collapse reproduces `runs/d220-fix`: median f_mol 0.239 (0.239 there), Te
+median 2144 K (2160 K). (gas + dust) / total is 1.0000 in every group.
+
+The 7233 cells that flip take 99.9999% of their field and essentially all their
+H0 photoionization heating from 15.4-24.6 eV, where their tau per cell is ~758
+at the band centre. The next band up is nine orders weaker and nothing arrives
+above 54.4 eV.
+
+**The minimum, recomputed for this iteration.** In the clamped H2 sliver near
+15.6 eV only H0 absorbs. From the flipping cells' H0 column at iteration 6 -
+n(H0)dx = 43.4 / sigma_H0(19.8 eV) = 2.1e19 cm^-2 - tau per cell there is ~89,
+against 116 at iteration 5; in the stayed-cold bulk ~233. So the iteration 5
+statement "tau per cell below 100 nowhere" holds for iteration 5 and not quite
+for 6 - the minimum is 89 - but 89 is some 40 e-folds from transparent and the
+conclusion stands unchanged: no energy present in the field lets photons cross
+one of these cells.
