@@ -13123,3 +13123,36 @@ H0 heating comes from that band (1.135e-25 against 2.9e-29 in the window). The
 window. If iteration 6's thousands of flipping cells show the same, the heating
 that flips cells comes from photons H2 does absorb, and missing H2 line opacity
 in the window is not the cause.
+
+
+### Iteration 5: the opacity follows the rescaled ionization (2026-09-10)
+
+First iteration whose transfer was built from the rescaled state.
+
+     it 5          cells   A_V    f_mol   tau@thr   J 13.6-15.4   J >15.4     H0 heat win   H0 heat >15.4   H0 share
+     cold -> hot     10    2.52   0.906     121       0.000       3.93e-4       0.000        4.78e-24       0.984
+     stayed cold  14700    2.25   0.775     281      3.85e-8      2.28e-6      1.15e-27      3.68e-26       0.965
+     started hot     79    0.90   0.006     966      3.78e-6      5.24e-7      3.88e-25      2.91e-25       0.991
+
+**Prediction met.** From the end-of-iteration-4 elemAvail(H) of 0.2160 the
+bulk of the cold gas should see tau ~ 0.216 x 1260 = 272 per cell at threshold;
+the 14,700 stayed-cold cells measure 281. `runs/d218-front` read 1262-1270 at
+this iteration. The rescale reaches the opacity, which is the path D-219 said
+was broken.
+
+**The band shifted, and not in the way the window hypothesis would predict.**
+In the stayed-cold cells the field above 15.43 eV rose from 3.0e-9 at
+iteration 4 to 2.28e-6 at iteration 5 - a factor ~760 - while the window field
+stayed near 3e-8. At iteration 4 the window carried 89% of their field; at 5
+the hard band carries 98%. Lowering the H0 opacity at threshold 4.5-fold did
+not bring in window photons; it coincided with the hard band arriving.
+
+**Flipping cells, two iterations running.** Iteration 5's ten flippers receive
+exactly zero field in the window and take all their H0 heating from above
+15.43 eV, as iteration 4's eight did (99.97%). Eighteen cells in total, so
+still not a result - iteration 6 is where thousands flip.
+
+**What is NOT known.** What absorbs the hard band on the way in - H0, H2 above
+its 15.43 eV threshold, He above 24.6 eV, or dust - and so why lowering the H0
+fraction moved it by ~760x. That is a question for a per-absorber opacity
+decomposition, and is only worth building if iteration 6 shows the same.
