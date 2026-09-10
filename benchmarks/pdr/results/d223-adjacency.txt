@@ -1,0 +1,446 @@
+==============================================================================
+runs/d223-adjacency/run.log
+==============================================================================
+
+  f_mol = 2x(H2) distribution, % of PDR cells
+   it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+    4      2.19    1.96    2.01    2.65    6.70   45.33   39.13    0.03
+    5      4.56    1.66    2.77    2.31    2.72   28.07   57.92    0.00
+    6      4.54    2.90   56.79    4.85    2.23    5.68   23.00    0.00
+    7      6.30   12.05   16.50    4.35    1.81   48.60   10.40    0.00
+    8      6.14    4.98    6.48    2.15    2.64   29.04   48.57    0.00
+    9      3.18    2.12    8.92    1.51    2.25   17.97   64.06    0.00
+   10      3.31    3.35   43.33    2.22    2.62   11.72   33.45    0.00
+   11      3.45   11.82   24.29    2.20    2.00   36.54   19.70    0.00
+   12      3.83    7.91   12.78    2.06    2.14   29.80   41.48    0.00
+
+  drivers and movement
+   it   f_mol_med  f_mol_mean   |df|_med   |df|_p90   mv>0.1%   Te_med     chi_med      AV_med    conv%
+    4      0.8312      0.7850     0.2433     0.6985     62.63      308.0   2.929e-01   2.371e+00   0.0066
+    5      0.9162      0.8198     0.0651     0.1645     39.58      101.5   2.808e-01   2.361e+00   0.0526
+    6      0.2391      0.4311     0.6415     0.7136     67.85     2201.1   2.855e-01   2.355e+00   0.1052
+    7      0.7888      0.5576     0.5581     0.6812     80.79     1059.7   3.963e-01   2.354e+00   0.0263
+    8      0.8886      0.7234     0.1379     0.6879     82.62      344.2   3.891e-01   2.352e+00   0.0460
+    9      0.9260      0.7874     0.0632     0.6844     45.87      126.9   3.451e-01   2.350e+00   0.0132
+   10      0.3002      0.5413     0.4473     0.7119     65.39      824.1   3.166e-01   2.350e+00   0.1381
+   11      0.7868      0.5625     0.5381     0.7149     76.67      819.5   3.837e-01   2.350e+00   0.0263
+   12      0.7992      0.6754     0.1428     0.6934     79.81      401.9   3.876e-01   2.345e+00   0.0723
+  ordering (D-204): three points in one MC iteration
+    start   = iteration start
+    upd1    = after pass-1 updateCell; thermal balance done, chemistry NOT yet run
+    end     = end of iteration; chemistry has run
+  A jump already present at upd1, with f_mol still at its start
+  value, means Te leads and the chemistry follows a hot cell.
+
+   it   | cells with Te > 3000 K, %  |  mean Te, K        |   mean f_mol
+        |  start    upd1     end    |  start     upd1    |  start     end
+    4   |   3.90    0.07    0.05   |   1152.1    121.8   |  0.5043   0.7850
+    5   |   0.52    0.11    0.01   |    412.4     79.8   |  0.7725   0.8198
+    6   |   0.46   49.23   31.88   |    188.3   2624.5   |  0.8123   0.4311
+    7   |  31.96   23.24   19.74   |   2019.7   1851.6   |  0.4293   0.5576
+    8   |  19.83    9.37    9.17   |   1896.9    626.8   |  0.5565   0.7234
+    9   |   9.18    7.01    5.50   |    945.0    440.0   |  0.7233   0.7874
+   10   |   5.56   36.98   23.38   |    570.4   1855.2   |  0.7868   0.5413
+   11   |  23.38   23.67   14.51   |   1534.0   1332.0   |  0.5413   0.5625
+   12   |  14.54   13.46   10.43   |   1385.0    979.0   |  0.5623   0.6754
+
+  MOCASSIN's own thermal budget (D-217), per H nucleus, group means
+    entry = first thermBalance call: iteration-start Te, NEW field
+    exit  = last call: where the solve left the cell
+   it  group        slot    cells       Te    h:phot      h:PE     h:PDR    c:coll     c:rec      c:ff      c:gd     c:PDR       H-C
+    4  cold -> hot  entry        7   2401.1   5.40e-26  5.96e-29  0.00e+00  3.94e-26  1.65e-27  7.22e-28  6.21e-28  0.00e+00  1.17e-26
+    4  cold -> hot  exit         7   3283.2   5.41e-26  6.19e-29  0.00e+00  5.13e-26  1.42e-27  6.87e-28  8.81e-28  0.00e+00 -7.95e-29
+    4  stayed cold  entry    13974   1011.9   2.25e-27  2.48e-27  0.00e+00  1.05e-25  1.04e-27  4.07e-28  1.22e-27  0.00e+00 -1.03e-25
+    4  stayed cold  exit     13974    120.7   2.63e-27  3.22e-27  0.00e+00  5.79e-27  2.23e-29  4.44e-30  2.89e-29  0.00e+00  3.37e-30
+    4  started hot  entry      567   4591.1   4.21e-25  7.14e-26  0.00e+00  2.43e-24  1.58e-25  8.97e-26  9.69e-26  0.00e+00 -2.28e-24
+    4  started hot  exit       567    108.3   4.61e-25  9.57e-26  0.00e+00  5.50e-25  3.23e-27  5.55e-28  1.20e-27  0.00e+00  1.47e-27
+
+    5  cold -> hot  entry       16    116.6   3.65e-24  1.19e-26  1.27e-27  3.79e-25  2.13e-27  3.97e-28  6.13e-29 -2.65e-25  3.55e-24
+    5  cold -> hot  exit        16   3391.2   1.89e-24  1.22e-26  1.27e-27  1.47e-24  2.59e-26  1.27e-26  5.28e-27  3.87e-25  7.50e-27
+    5  stayed cold  entry    14689    394.7   4.20e-26  3.89e-27  3.24e-27  8.67e-26  1.14e-27  4.31e-28  1.24e-27  2.65e-25 -3.06e-25
+    5  stayed cold  exit     14689     75.4   2.68e-26  6.01e-27  3.24e-27  3.75e-26  1.97e-28  6.65e-29  9.26e-29 -1.77e-27 -1.77e-29
+    5  started hot  entry       77   3836.0   6.46e-25  1.28e-25  3.97e-27  2.27e-24  2.44e-25  1.26e-25  1.48e-25  2.68e-25 -2.28e-24
+    5  started hot  exit        77    231.7   6.98e-25  1.78e-25  3.97e-27  1.58e-24  2.34e-26  5.64e-27  1.05e-26 -7.44e-25 -6.60e-28
+
+    6  cold -> hot  entry     7345     82.3   4.99e-23  2.20e-25  1.25e-27  7.08e-25  1.99e-26  3.45e-27  5.76e-28 -3.18e-25  4.97e-23
+    6  cold -> hot  exit      7345   4791.8   6.59e-24  2.05e-25  1.25e-27  4.99e-24  1.33e-25  7.93e-26  5.96e-26  1.51e-24  2.10e-26
+    6  stayed cold  entry     7506    258.8   1.22e-24  2.69e-26  2.39e-27  2.85e-25  2.43e-27  8.00e-28  1.77e-27  2.03e-25  7.60e-25
+    6  stayed cold  exit      7506    523.7   4.30e-25  2.96e-26  2.39e-27  3.90e-25  2.85e-27  1.12e-27  1.86e-27  6.67e-26 -4.22e-28
+    6  started hot  entry       68   3861.0   9.13e-25  1.59e-25  7.60e-28  2.63e-24  3.21e-25  1.66e-25  2.05e-25  1.46e-25 -2.39e-24
+    6  started hot  exit        68    432.0   9.82e-25  2.20e-25  7.60e-28  1.91e-24  5.32e-26  1.52e-26  2.66e-26 -8.04e-25 -2.42e-27
+
+    7  cold -> hot  entry     3177    630.2   1.09e-21  7.50e-25  3.16e-27  1.12e-24  5.28e-25  9.55e-26  3.85e-27 -4.75e-25  1.09e-21
+    7  cold -> hot  exit      3177   6815.3   1.01e-22  6.61e-25  3.15e-27  8.95e-23  3.79e-24  3.09e-24  5.21e-25  4.27e-24  4.10e-25
+    7  stayed cold  entry     7016   1199.1   1.06e-24  2.82e-26  1.14e-27  2.78e-25  1.02e-26  4.13e-27  2.58e-27 -3.00e-26  8.25e-25
+    7  stayed cold  exit      7016    590.3   2.76e-25  2.81e-26  1.14e-27  3.24e-25  4.12e-27  1.53e-27  2.11e-27 -2.63e-26 -4.86e-28
+    7  started hot  entry     4787   4144.5   2.73e-25  5.58e-27  1.60e-28  1.39e-24  7.47e-26  4.01e-26  1.45e-26 -5.79e-25 -6.65e-25
+    7  started hot  exit      4787    406.1   2.85e-25  5.33e-27  1.60e-28  3.70e-25  9.01e-27  3.89e-27  1.83e-27 -9.43e-26  3.19e-28
+
+    8  cold -> hot  entry      720    529.0   5.26e-22  5.00e-25  2.08e-27  9.27e-25  3.10e-25  5.87e-26  4.32e-27 -3.64e-25  5.26e-22
+    8  cold -> hot  exit       720   5205.6   5.88e-23  3.90e-25  2.08e-27  5.19e-23  2.19e-24  1.78e-24  3.57e-25  2.64e-24  2.96e-25
+    8  stayed cold  entry    11312   1007.8   3.38e-25  1.16e-26  1.14e-27  2.37e-25  5.19e-27  1.94e-27  1.39e-27  3.37e-26  7.15e-26
+    8  stayed cold  exit     11312    177.7   8.20e-26  1.13e-26  1.14e-27  1.18e-25  1.43e-27  5.02e-28  7.96e-28 -2.59e-26 -1.09e-28
+    8  started hot  entry     2977   5606.5   6.86e-25  4.02e-26  4.02e-28  1.12e-23  2.74e-25  1.87e-25  1.01e-25 -1.44e-24 -9.62e-24
+    8  started hot  exit      2977   1225.9   7.23e-25  3.90e-26  4.02e-28  1.17e-24  1.17e-25  5.81e-26  2.63e-26 -6.13e-25  1.50e-27
+
+    9  cold -> hot  entry      955    199.4   1.47e-22  2.49e-25  1.46e-27  7.90e-25  7.95e-26  1.49e-26  1.93e-27 -4.34e-25  1.47e-22
+    9  cold -> hot  exit       955   4933.0   1.95e-23  2.10e-25  1.46e-27  1.68e-23  6.37e-25  4.90e-25  1.38e-25  1.58e-24  7.92e-26
+    9  stayed cold  entry    12678    583.6   1.34e-25  6.26e-27  1.18e-27  1.67e-25  2.99e-27  1.16e-27  1.44e-27  4.08e-26 -7.17e-26
+    9  stayed cold  exit     12678     97.8   4.25e-26  7.10e-27  1.18e-27  7.79e-26  7.63e-28  2.60e-28  3.77e-28 -2.85e-26 -4.31e-29
+    9  started hot  entry     1378   4787.1   5.50e-25  5.87e-26  8.02e-28  5.97e-24  2.31e-25  1.48e-25  1.04e-25 -2.97e-25 -5.55e-24
+    9  started hot  exit      1378    474.3   5.88e-25  6.70e-26  8.02e-28  1.14e-24  7.77e-26  4.04e-26  2.16e-26 -6.23e-25  1.10e-27
+
+   10  cold -> hot  entry     5409    148.5   1.00e-22  2.60e-25  1.08e-27  6.38e-25  5.11e-26  9.49e-27  1.25e-27 -3.28e-25  1.00e-22
+   10  cold -> hot  exit      5409   4325.5   9.98e-24  2.18e-25  1.08e-27  8.13e-24  2.99e-25  2.27e-25  8.21e-26  1.43e-24  3.63e-26
+   10  stayed cold  entry     8777    476.0   6.46e-25  1.43e-26  1.60e-27  2.79e-25  2.40e-27  8.10e-28  1.85e-27 -3.11e-27  3.80e-25
+   10  stayed cold  exit      8777    409.4   2.34e-25  1.61e-26  1.60e-27  3.04e-25  2.34e-27  9.37e-28  1.33e-27 -5.64e-26 -2.50e-28
+   10  started hot  entry      835   4295.9   1.03e-24  3.80e-26  2.72e-28  3.57e-24  1.89e-25  1.19e-25  7.99e-26 -4.63e-25 -2.43e-24
+   10  started hot  exit       835   1052.3   1.05e-24  4.28e-26  2.72e-28  1.21e-24  9.51e-26  5.25e-26  3.75e-26 -3.10e-25  1.71e-27
+
+   11  cold -> hot  entry     3061    537.2   9.72e-23  2.68e-25  1.04e-27  5.89e-25  5.02e-26  1.04e-26  1.60e-27 -3.17e-25  9.71e-23
+   11  cold -> hot  exit      3061   4400.2   9.80e-24  2.21e-25  1.04e-27  8.63e-24  3.09e-25  2.32e-25  8.75e-26  7.21e-25  3.96e-26
+   11  stayed cold  entry     8448   1005.5   7.19e-25  2.01e-26  1.62e-27  3.44e-25  8.85e-27  3.62e-27  2.23e-27 -7.52e-26  4.58e-25
+   11  stayed cold  exit      8448    452.5   1.94e-25  2.07e-26  1.62e-27  2.91e-25  3.79e-27  1.45e-27  1.68e-27 -8.09e-26 -2.75e-28
+   11  started hot  entry     3512   3674.0   3.53e-25  1.16e-26  1.85e-28  2.24e-24  1.05e-25  6.38e-26  3.11e-26 -4.79e-25 -1.59e-24
+   11  started hot  exit      3512    773.5   3.69e-25  1.25e-26  1.85e-28  5.07e-25  4.48e-26  2.36e-26  1.14e-26 -2.06e-25  7.86e-28
+
+   12  cold -> hot  entry     1809    553.0   7.15e-22  7.12e-25  2.33e-27  8.88e-25  3.19e-25  5.76e-26  4.38e-27 -4.01e-25  7.15e-22
+   12  cold -> hot  exit      1809   5600.2   5.49e-23  5.31e-25  2.34e-27  4.72e-23  2.06e-24  1.68e-24  3.82e-25  3.81e-24  1.99e-25
+   12  stayed cold  entry    11033    985.3   5.01e-25  1.59e-26  1.29e-27  2.67e-25  6.68e-27  2.66e-27  1.48e-27 -7.52e-27  2.48e-25
+   12  stayed cold  exit     11033    281.2   1.32e-25  1.46e-26  1.29e-27  1.97e-25  2.50e-27  9.38e-28  1.34e-27 -5.42e-26 -1.97e-28
+   12  started hot  entry     2185   4092.2   4.73e-25  1.82e-26  5.17e-28  2.36e-24  1.19e-25  7.27e-26  4.22e-26 -1.14e-25 -1.99e-24
+   12  started hot  exit      2185    676.9   4.88e-25  1.88e-26  5.17e-28  7.10e-25  5.12e-26  2.64e-26  1.60e-26 -2.97e-25  8.34e-28
+
+ ! [D217] cold -> hot   cells       7
+ ! [D217]   entry  Te   2401.1  heat phot/PE/PDR  5.40E-26  5.96E-29  0.00E+00  cool coll/rec/ff/gd/PDR  3.94E-26  1.65E-27  7.22E-28  6.21E-28  0.00E+00  H-C  1.17E-26
+ ! [D217]   exit   Te   3283.2  heat phot/PE/PDR  5.41E-26  6.19E-29  0.00E+00  cool coll/rec/ff/gd/PDR  5.13E-26  1.42E-27  6.87E-28  8.81E-28  0.00E+00  H-C -7.95E-29
+ ! [D218]   A_V  2.553  x(H0) 4.493E-01  f_mol 0.5440  J>H0thr 1.718E-07  tau/cell@thr 1.259E+03   last it none/c->h/cold/hot      7      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 5.935E-10 1.712E-07  H0 phot heat 13.6-15.4 / >15.4 1.231E-28 5.365E-26  H0 share  0.9953
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  5.94E-10  1.13E-07  5.79E-08  0.00E+00  0.00E+00   H0 heat by band  1.23E-28  4.21E-26  1.15E-26  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  4.52E+02  0.00E+00  0.00E+00  1.27E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  7.69E+01  7.26E+01  0.00E+00  9.16E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  9.13E+00  1.58E+01  2.15E-01  3.18E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  1.10E+00  2.55E+00  3.08E-02  8.03E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   0.00%   mean 0.00   upstream (lower A_V) >=1 in   0.00%   downstream >=1 in   0.00%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0000   0.0000   0.0000
+ ! [D217] stayed cold   cells   13974
+ ! [D217]   entry  Te   1011.9  heat phot/PE/PDR  2.25E-27  2.48E-27  0.00E+00  cool coll/rec/ff/gd/PDR  1.05E-25  1.04E-27  4.07E-28  1.22E-27  0.00E+00  H-C -1.03E-25
+ ! [D217]   exit   Te    120.7  heat phot/PE/PDR  2.63E-27  3.22E-27  0.00E+00  cool coll/rec/ff/gd/PDR  5.79E-27  2.23E-29  4.44E-30  2.89E-29  0.00E+00  H-C  3.37E-30
+ ! [D218]   A_V  2.305  x(H0) 4.761E-01  f_mol 0.5230  J>H0thr 2.656E-08  tau/cell@thr 1.261E+03   last it none/c->h/cold/hot  13974      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.396E-08 2.602E-09  H0 phot heat 13.6-15.4 / >15.4 7.687E-28 1.331E-27  H0 share  0.9348
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.40E-08  6.96E-10  1.91E-09  0.00E+00  0.00E+00   H0 heat by band  7.69E-28  4.29E-28  9.02E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  4.53E+02  0.00E+00  0.00E+00  1.18E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  7.70E+01  7.38E+01  0.00E+00  9.12E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  9.15E+00  1.61E+01  1.09E-02  3.17E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  1.10E+00  2.59E+00  1.56E-03  8.04E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   4.61%   mean 0.06   upstream (lower A_V) >=1 in   3.30%   downstream >=1 in   1.70%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0690   0.0803   0.0650
+ ! [D217] started hot   cells     567
+ ! [D217]   entry  Te   4591.1  heat phot/PE/PDR  4.21E-25  7.14E-26  0.00E+00  cool coll/rec/ff/gd/PDR  2.43E-24  1.58E-25  8.97E-26  9.69E-26  0.00E+00  H-C -2.28E-24
+ ! [D217]   exit   Te    108.3  heat phot/PE/PDR  4.61E-25  9.57E-26  0.00E+00  cool coll/rec/ff/gd/PDR  5.50E-25  3.23E-27  5.55E-28  1.20E-27  0.00E+00  H-C  1.47E-27
+ ! [D218]   A_V  1.189  x(H0) 9.389E-01  f_mol 0.0421  J>H0thr 2.220E-06  tau/cell@thr 1.057E+03   last it none/c->h/cold/hot    567      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.941E-06 2.792E-07  H0 phot heat 13.6-15.4 / >15.4 2.574E-25 1.593E-25  H0 share  0.9909
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.94E-06  1.65E-07  1.15E-07  0.00E+00  0.00E+00   H0 heat by band  2.57E-25  1.03E-25  5.61E-26  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  3.79E+02  0.00E+00  0.00E+00  7.20E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  6.46E+01  7.25E+01  0.00E+00  8.92E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  7.67E+00  1.58E+01  2.41E-01  3.16E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  0.00E+00  0.00E+00  9.22E-01  2.54E+00  3.45E-02  8.04E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  87.48%   mean 4.14   upstream (lower A_V) >=1 in  86.07%   downstream >=1 in  73.37%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0705   0.0743   0.0607
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4017, off by >1% in   14205 ( 93.43%)
+ ! [D217] cold -> hot   cells      16
+ ! [D217]   entry  Te    116.6  heat phot/PE/PDR  3.65E-24  1.19E-26  1.27E-27  cool coll/rec/ff/gd/PDR  3.79E-25  2.13E-27  3.97E-28  6.13E-29 -2.65E-25  H-C  3.55E-24
+ ! [D217]   exit   Te   3391.2  heat phot/PE/PDR  1.89E-24  1.22E-26  1.27E-27  cool coll/rec/ff/gd/PDR  1.47E-24  2.59E-26  1.27E-26  5.28E-27  3.87E-25  H-C  7.50E-27
+ ! [D218]   A_V  2.440  x(H0) 8.376E-02  f_mol 0.8821  J>H0thr 1.744E-04  tau/cell@thr 1.505E+02   last it none/c->h/cold/hot      0      0     16      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 0.000E+00 1.744E-04  H0 phot heat 13.6-15.4 / >15.4 0.000E+00 3.587E-24  H0 share  0.9828
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  0.00E+00  1.74E-04  0.00E+00  0.00E+00  0.00E+00   H0 heat by band  0.00E+00  3.59E-24  0.00E+00  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.96E+02  0.00E+00  5.37E+01  0.00E+00  0.00E+00  1.17E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.16E+02  0.00E+00  9.13E+00  7.38E+01  0.00E+00  8.23E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.07E+01  0.00E+00  1.08E+00  1.61E+01  9.60E-03  2.88E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.30E+00  0.00E+00  1.30E-01  2.59E+00  1.37E-03  7.31E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   0.00%   mean 0.00   upstream (lower A_V) >=1 in   0.00%   downstream >=1 in   0.00%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0000   0.0393   0.0000
+ ! [D217] stayed cold   cells   14689
+ ! [D217]   entry  Te    394.7  heat phot/PE/PDR  4.20E-26  3.89E-27  3.24E-27  cool coll/rec/ff/gd/PDR  8.67E-26  1.14E-27  4.31E-28  1.24E-27  2.65E-25  H-C -3.06E-25
+ ! [D217]   exit   Te     75.4  heat phot/PE/PDR  2.68E-26  6.01E-27  3.24E-27  cool coll/rec/ff/gd/PDR  3.75E-26  1.97E-28  6.65E-29  9.26E-29 -1.77E-27  H-C -1.77E-29
+ ! [D218]   A_V  2.246  x(H0) 2.223E-01  f_mol 0.7764  J>H0thr 2.889E-06  tau/cell@thr 2.788E+02   last it none/c->h/cold/hot    164      3  13958    564
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.749E-08 2.851E-06  H0 phot heat 13.6-15.4 / >15.4 9.848E-28 3.966E-26  H0 share  0.9668
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  3.75E-08  2.85E-06  3.24E-09  0.00E+00  0.00E+00   H0 heat by band  9.85E-28  3.82E-26  1.51E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.13E+02  0.00E+00  9.98E+01  0.00E+00  0.00E+00  1.03E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.02E+02  0.00E+00  1.70E+01  7.37E+01  0.00E+00  8.24E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  9.45E+00  0.00E+00  2.02E+00  1.61E+01  1.32E-02  2.90E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.15E+00  0.00E+00  2.42E-01  2.59E+00  1.88E-03  7.39E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   1.23%   mean 0.02   upstream (lower A_V) >=1 in   1.08%   downstream >=1 in   0.29%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0721   0.0553   0.0724
+ ! [D217] started hot   cells      77
+ ! [D217]   entry  Te   3836.0  heat phot/PE/PDR  6.46E-25  1.28E-25  3.97E-27  cool coll/rec/ff/gd/PDR  2.27E-24  2.44E-25  1.26E-25  1.48E-25  2.68E-25  H-C -2.28E-24
+ ! [D217]   exit   Te    231.7  heat phot/PE/PDR  6.98E-25  1.78E-25  3.97E-27  cool coll/rec/ff/gd/PDR  1.58E-24  2.34E-26  5.64E-27  1.05E-26 -7.44E-25  H-C -6.60E-28
+ ! [D218]   A_V  0.910  x(H0) 9.480E-01  f_mol 0.0107  J>H0thr 4.218E-06  tau/cell@thr 9.632E+02   last it none/c->h/cold/hot     70      4      0      3
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.735E-06 4.832E-07  H0 phot heat 13.6-15.4 / >15.4 3.680E-25 2.726E-25  H0 share  0.9914
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  3.74E-06  2.77E-07  2.06E-07  0.00E+00  0.00E+00   H0 heat by band  3.68E-25  1.72E-25  1.00E-25  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  8.44E+00  0.00E+00  3.46E+02  0.00E+00  0.00E+00  6.78E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.40E+00  0.00E+00  5.89E+01  7.19E+01  0.00E+00  8.79E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.30E-01  0.00E+00  6.99E+00  1.57E+01  3.42E-01  3.13E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.58E-02  0.00E+00  8.40E-01  2.52E+00  4.90E-02  7.95E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  90.91%   mean 2.84   upstream (lower A_V) >=1 in  89.61%   downstream >=1 in  38.96%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0705   0.0694   0.0816
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.0920, off by >1% in   11811 ( 77.68%)
+ ! [D217] cold -> hot   cells    7345
+ ! [D217]   entry  Te     82.3  heat phot/PE/PDR  4.99E-23  2.20E-25  1.25E-27  cool coll/rec/ff/gd/PDR  7.08E-25  1.99E-26  3.45E-27  5.76E-28 -3.18E-25  H-C  4.97E-23
+ ! [D217]   exit   Te   4791.8  heat phot/PE/PDR  6.59E-24  2.05E-25  1.25E-27  cool coll/rec/ff/gd/PDR  4.99E-24  1.33E-25  7.93E-26  5.96E-26  1.51E-24  H-C  2.10E-26
+ ! [D218]   A_V  2.287  x(H0) 2.828E-02  f_mol 0.9011  J>H0thr 3.316E-03  tau/cell@thr 1.248E+02   last it none/c->h/cold/hot      0      2   7343      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 5.373E-09 3.316E-03  H0 phot heat 13.6-15.4 / >15.4 2.737E-29 4.952E-23  H0 share  0.9930
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  5.37E-09  3.32E-03  3.55E-10  0.00E+00  0.00E+00   H0 heat by band  2.74E-29  4.95E-23  7.76E-29  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  7.11E+02  0.00E+00  4.45E+01  0.00E+00  0.00E+00  1.13E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.18E+02  0.00E+00  7.57E+00  7.38E+01  0.00E+00  8.93E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.10E+01  0.00E+00  8.99E-01  1.61E+01  6.16E-03  3.12E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.33E+00  0.00E+00  1.08E-01  2.59E+00  8.82E-04  7.91E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   0.03%   mean 0.00   upstream (lower A_V) >=1 in   0.01%   downstream >=1 in   0.01%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.1123   0.0701   0.0748
+ ! [D217] stayed cold   cells    7506
+ ! [D217]   entry  Te    258.8  heat phot/PE/PDR  1.22E-24  2.69E-26  2.39E-27  cool coll/rec/ff/gd/PDR  2.85E-25  2.43E-27  8.00E-28  1.77E-27  2.03E-25  H-C  7.60E-25
+ ! [D217]   exit   Te    523.7  heat phot/PE/PDR  4.30E-25  2.96E-26  2.39E-27  cool coll/rec/ff/gd/PDR  3.90E-25  2.85E-27  1.12E-27  1.86E-27  6.67E-26  H-C -4.22E-28
+ ! [D218]   A_V  2.178  x(H0) 2.587E-01  f_mol 0.7328  J>H0thr 2.544E-04  tau/cell@thr 3.238E+02   last it none/c->h/cold/hot     70     13   7346     77
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.099E-07 2.543E-04  H0 phot heat 13.6-15.4 / >15.4 1.819E-27 1.196E-24  H0 share  0.9789
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.10E-07  2.54E-04  7.32E-09  0.00E+00  0.00E+00   H0 heat by band  1.82E-27  1.19E-24  3.59E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  5.78E+02  0.00E+00  1.16E+02  0.00E+00  0.00E+00  1.01E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  9.60E+01  0.00E+00  1.97E+01  7.37E+01  0.00E+00  8.57E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  8.92E+00  0.00E+00  2.34E+00  1.61E+01  1.20E-02  3.03E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.08E+00  0.00E+00  2.82E-01  2.59E+00  1.71E-03  7.69E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in   1.52%   mean 0.03   upstream (lower A_V) >=1 in   1.49%   downstream >=1 in   0.05%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0760   0.0724   0.0659
+ ! [D217] started hot   cells      68
+ ! [D217]   entry  Te   3861.0  heat phot/PE/PDR  9.13E-25  1.59E-25  7.60E-28  cool coll/rec/ff/gd/PDR  2.63E-24  3.21E-25  1.66E-25  2.05E-25  1.46E-25  H-C -2.39E-24
+ ! [D217]   exit   Te    432.0  heat phot/PE/PDR  9.82E-25  2.20E-25  7.60E-28  cool coll/rec/ff/gd/PDR  1.91E-24  5.32E-26  1.52E-26  2.66E-26 -8.04E-25  H-C -2.42E-27
+ ! [D218]   A_V  0.673  x(H0) 9.386E-01  f_mol 0.0033  J>H0thr 5.699E-06  tau/cell@thr 9.490E+02   last it none/c->h/cold/hot     67      1      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.951E-06 7.482E-07  H0 phot heat 13.6-15.4 / >15.4 4.975E-25 4.084E-25  H0 share  0.9918
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  4.95E-06  3.74E-07  3.74E-07  0.00E+00  0.00E+00   H0 heat by band  4.98E-25  2.29E-25  1.79E-25  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  2.61E+00  0.00E+00  3.41E+02  0.00E+00  0.00E+00  6.32E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  4.33E-01  0.00E+00  5.80E+01  7.18E+01  0.00E+00  8.84E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  4.02E-02  0.00E+00  6.89E+00  1.56E+01  3.61E-01  3.15E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  4.88E-03  0.00E+00  8.28E-01  2.52E+00  5.16E-02  8.02E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  98.53%   mean 3.25   upstream (lower A_V) >=1 in  98.53%   downstream >=1 in  52.94%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0729   0.0724   0.0513
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4222, off by >1% in   13601 ( 89.46%)
+ ! [D217] cold -> hot   cells    3177
+ ! [D217]   entry  Te    630.2  heat phot/PE/PDR  1.09E-21  7.50E-25  3.16E-27  cool coll/rec/ff/gd/PDR  1.12E-24  5.28E-25  9.55E-26  3.85E-27 -4.75E-25  H-C  1.09E-21
+ ! [D217]   exit   Te   6815.3  heat phot/PE/PDR  1.01E-22  6.61E-25  3.15E-27  cool coll/rec/ff/gd/PDR  8.95E-23  3.79E-24  3.09E-24  5.21E-25  4.27E-24  H-C  4.10E-25
+ ! [D218]   A_V  1.854  x(H0) 2.842E-01  f_mol 0.4697  J>H0thr 1.077E-02  tau/cell@thr 5.282E+02   last it none/c->h/cold/hot      0    549   2628      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.346E-07 1.077E-02  H0 phot heat 13.6-15.4 / >15.4 6.608E-27 1.094E-21  H0 share  0.9992
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.35E-07  1.08E-02  1.11E-08  0.00E+00  0.00E+00   H0 heat by band  6.61E-27  1.09E-21  4.80E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  3.71E+02  0.00E+00  1.89E+02  0.00E+00  0.00E+00  7.75E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  6.15E+01  0.00E+00  3.22E+01  7.38E+01  0.00E+00  8.45E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  5.72E+00  0.00E+00  3.83E+00  1.61E+01  4.55E-03  3.09E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  6.93E-01  0.00E+00  4.60E-01  2.59E+00  6.51E-04  7.86E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  41.86%   mean 0.89   upstream (lower A_V) >=1 in  28.61%   downstream >=1 in  30.63%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0693   0.0703   0.0594
+ ! [D217] stayed cold   cells    7016
+ ! [D217]   entry  Te   1199.1  heat phot/PE/PDR  1.06E-24  2.82E-26  1.14E-27  cool coll/rec/ff/gd/PDR  2.78E-25  1.02E-26  4.13E-27  2.58E-27 -3.00E-26  H-C  8.25E-25
+ ! [D217]   exit   Te    590.3  heat phot/PE/PDR  2.76E-25  2.81E-26  1.14E-27  cool coll/rec/ff/gd/PDR  3.24E-25  4.12E-27  1.53E-27  2.11E-27 -2.63E-26  H-C -4.86E-28
+ ! [D218]   A_V  2.485  x(H0) 4.333E-01  f_mol 0.5545  J>H0thr 3.464E-04  tau/cell@thr 2.820E+02   last it none/c->h/cold/hot     30   2040   4878     68
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.998E-07 3.460E-04  H0 phot heat 13.6-15.4 / >15.4 9.289E-27 1.028E-24  H0 share  0.9782
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  4.00E-07  3.46E-04  6.13E-09  0.00E+00  0.00E+00   H0 heat by band  9.29E-27  1.03E-24  2.85E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  4.37E+02  0.00E+00  1.01E+02  0.00E+00  0.00E+00  6.33E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  7.26E+01  0.00E+00  1.72E+01  7.38E+01  0.00E+00  7.53E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  6.75E+00  0.00E+00  2.04E+00  1.61E+01  5.90E-03  2.90E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  8.18E-01  0.00E+00  2.45E-01  2.59E+00  8.44E-04  7.33E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  43.74%   mean 1.08   upstream (lower A_V) >=1 in  37.51%   downstream >=1 in  28.06%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0716   0.0781   0.0632
+ ! [D217] started hot   cells    4787
+ ! [D217]   entry  Te   4144.5  heat phot/PE/PDR  2.73E-25  5.58E-27  1.60E-28  cool coll/rec/ff/gd/PDR  1.39E-24  7.47E-26  4.01E-26  1.45E-26 -5.79E-25  H-C -6.65E-25
+ ! [D217]   exit   Te    406.1  heat phot/PE/PDR  2.85E-25  5.33E-27  1.60E-28  cool coll/rec/ff/gd/PDR  3.70E-25  9.01E-27  3.89E-27  1.83E-27 -9.43E-26  H-C  3.19E-28
+ ! [D218]   A_V  2.068  x(H0) 7.621E-01  f_mol 0.2190  J>H0thr 1.638E-06  tau/cell@thr 3.671E+02   last it none/c->h/cold/hot     31   4756      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.275E-06 3.629E-07  H0 phot heat 13.6-15.4 / >15.4 1.161E-25 1.547E-25  H0 share  0.9926
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.28E-06  3.58E-07  4.77E-09  0.00E+00  0.00E+00   H0 heat by band  1.16E-25  1.53E-25  2.04E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  1.73E+02  0.00E+00  1.32E+02  0.00E+00  0.00E+00  3.00E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  2.87E+01  0.00E+00  2.24E+01  7.38E+01  0.00E+00  7.60E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  2.66E+00  0.00E+00  2.66E+00  1.61E+01  3.51E-03  3.16E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  3.23E-01  0.00E+00  3.20E-01  2.59E+00  5.02E-04  7.96E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  96.74%   mean 3.72   upstream (lower A_V) >=1 in  88.61%   downstream >=1 in  87.65%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0706   0.0659   0.0805
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4063, off by >1% in   13703 ( 90.13%)
+ ! [D217] cold -> hot   cells     720
+ ! [D217]   entry  Te    529.0  heat phot/PE/PDR  5.26E-22  5.00E-25  2.08E-27  cool coll/rec/ff/gd/PDR  9.27E-25  3.10E-25  5.87E-26  4.32E-27 -3.64E-25  H-C  5.26E-22
+ ! [D217]   exit   Te   5205.6  heat phot/PE/PDR  5.88E-23  3.90E-25  2.08E-27  cool coll/rec/ff/gd/PDR  5.19E-23  2.19E-24  1.78E-24  3.57E-25  2.64E-24  H-C  2.96E-25
+ ! [D218]   A_V  2.037  x(H0) 2.454E-01  f_mol 0.6015  J>H0thr 6.505E-03  tau/cell@thr 3.654E+02   last it none/c->h/cold/hot      0     83    637      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.959E-07 6.505E-03  H0 phot heat 13.6-15.4 / >15.4 8.690E-27 5.259E-22  H0 share  0.9991
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  3.96E-07  6.50E-03  2.70E-08  0.00E+00  0.00E+00   H0 heat by band  8.69E-27  5.26E-22  1.11E-26  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  4.75E+02  0.00E+00  1.31E+02  0.00E+00  0.00E+00  8.75E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  7.88E+01  0.00E+00  2.23E+01  7.38E+01  0.00E+00  8.46E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  7.32E+00  0.00E+00  2.65E+00  1.61E+01  8.23E-03  3.08E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  8.88E-01  0.00E+00  3.18E-01  2.59E+00  1.18E-03  7.82E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  51.67%   mean 0.82   upstream (lower A_V) >=1 in  25.69%   downstream >=1 in  33.33%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0614   0.0725   0.0415
+ ! [D217] stayed cold   cells   11312
+ ! [D217]   entry  Te   1007.8  heat phot/PE/PDR  3.38E-25  1.16E-26  1.14E-27  cool coll/rec/ff/gd/PDR  2.37E-25  5.19E-27  1.94E-27  1.39E-27  3.37E-26  H-C  7.15E-26
+ ! [D217]   exit   Te    177.7  heat phot/PE/PDR  8.20E-26  1.13E-26  1.14E-27  cool coll/rec/ff/gd/PDR  1.18E-25  1.43E-27  5.02E-28  7.96E-28 -2.59E-26  H-C -1.09E-28
+ ! [D218]   A_V  2.351  x(H0) 3.168E-01  f_mol 0.6766  J>H0thr 1.296E-04  tau/cell@thr 2.814E+02   last it none/c->h/cold/hot      9    493   6379   4431
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.874E-07 1.291E-04  H0 phot heat 13.6-15.4 / >15.4 4.178E-27 3.272E-25  H0 share  0.9793
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  4.87E-07  1.29E-04  2.32E-09  0.00E+00  0.00E+00   H0 heat by band  4.18E-27  3.26E-25  1.05E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  5.34E+02  0.00E+00  1.01E+02  0.00E+00  0.00E+00  8.06E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  8.86E+01  0.00E+00  1.72E+01  7.38E+01  0.00E+00  7.95E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  8.23E+00  0.00E+00  2.04E+00  1.61E+01  2.18E-03  2.95E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  9.98E-01  0.00E+00  2.45E-01  2.59E+00  3.12E-04  7.49E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  44.70%   mean 0.68   upstream (lower A_V) >=1 in  29.65%   downstream >=1 in  25.42%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0725   0.0686   0.0987
+ ! [D217] started hot   cells    2977
+ ! [D217]   entry  Te   5606.5  heat phot/PE/PDR  6.86E-25  4.02E-26  4.02E-28  cool coll/rec/ff/gd/PDR  1.12E-23  2.74E-25  1.87E-25  1.01E-25 -1.44E-24  H-C -9.62E-24
+ ! [D217]   exit   Te   1225.9  heat phot/PE/PDR  7.23E-25  3.90E-26  4.02E-28  cool coll/rec/ff/gd/PDR  1.17E-24  1.17E-25  5.81E-26  2.63E-26 -6.13E-25  H-C  1.50E-27
+ ! [D218]   A_V  1.739  x(H0) 8.599E-01  f_mol 0.0893  J>H0thr 3.328E-06  tau/cell@thr 6.573E+02   last it none/c->h/cold/hot     20   2601      0    356
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.855E-06 4.733E-07  H0 phot heat 13.6-15.4 / >15.4 4.490E-25 2.340E-25  H0 share  0.9959
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.85E-06  4.62E-07  1.13E-08  0.00E+00  0.00E+00   H0 heat by band  4.49E-25  2.29E-25  4.71E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  7.05E+01  0.00E+00  2.36E+02  0.00E+00  0.00E+00  5.12E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.17E+01  0.00E+00  4.01E+01  7.38E+01  0.00E+00  7.93E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.09E+00  0.00E+00  4.77E+00  1.61E+01  4.34E-03  3.14E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.32E-01  0.00E+00  5.73E-01  2.59E+00  6.20E-04  7.92E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  81.36%   mean 2.96   upstream (lower A_V) >=1 in  70.41%   downstream >=1 in  67.65%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0698   0.0695   0.0703
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.2681, off by >1% in   13963 ( 91.84%)
+ ! [D217] cold -> hot   cells     955
+ ! [D217]   entry  Te    199.4  heat phot/PE/PDR  1.47E-22  2.49E-25  1.46E-27  cool coll/rec/ff/gd/PDR  7.90E-25  7.95E-26  1.49E-26  1.93E-27 -4.34E-25  H-C  1.47E-22
+ ! [D217]   exit   Te   4933.0  heat phot/PE/PDR  1.95E-23  2.10E-25  1.46E-27  cool coll/rec/ff/gd/PDR  1.68E-23  6.37E-25  4.90E-25  1.38E-25  1.58E-24  H-C  7.92E-26
+ ! [D218]   A_V  2.379  x(H0) 9.615E-02  f_mol 0.8113  J>H0thr 3.347E-03  tau/cell@thr 1.987E+02   last it none/c->h/cold/hot      0     27    928      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.597E-07 3.346E-03  H0 phot heat 13.6-15.4 / >15.4 2.302E-27 1.469E-22  H0 share  0.9976
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.60E-07  3.35E-03  9.75E-09  0.00E+00  0.00E+00   H0 heat by band  2.30E-27  1.47E-22  4.62E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.40E+02  0.00E+00  7.10E+01  0.00E+00  0.00E+00  1.06E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.06E+02  0.00E+00  1.21E+01  7.38E+01  0.00E+00  8.77E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  9.87E+00  0.00E+00  1.44E+00  1.61E+01  4.19E-03  3.11E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.20E+00  0.00E+00  1.72E-01  2.59E+00  5.99E-04  7.88E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  21.57%   mean 0.30   upstream (lower A_V) >=1 in  10.16%   downstream >=1 in  13.51%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0540   0.0719   0.1168
+ ! [D217] stayed cold   cells   12678
+ ! [D217]   entry  Te    583.6  heat phot/PE/PDR  1.34E-25  6.26E-27  1.18E-27  cool coll/rec/ff/gd/PDR  1.67E-25  2.99E-27  1.16E-27  1.44E-27  4.08E-26  H-C -7.17E-26
+ ! [D217]   exit   Te     97.8  heat phot/PE/PDR  4.25E-26  7.10E-27  1.18E-27  cool coll/rec/ff/gd/PDR  7.79E-26  7.63E-28  2.60E-28  3.77E-28 -2.85E-26  H-C -4.31E-29
+ ! [D218]   A_V  2.292  x(H0) 2.062E-01  f_mol 0.7901  J>H0thr 3.960E-05  tau/cell@thr 2.117E+02   last it none/c->h/cold/hot      0    232  10384   2062
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.313E-07 3.927E-05  H0 phot heat 13.6-15.4 / >15.4 2.842E-27 1.283E-25  H0 share  0.9770
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  3.31E-07  3.93E-05  1.50E-09  0.00E+00  0.00E+00   H0 heat by band  2.84E-27  1.28E-25  6.67E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.23E+02  0.00E+00  7.57E+01  0.00E+00  0.00E+00  9.87E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.03E+02  0.00E+00  1.29E+01  7.38E+01  0.00E+00  8.55E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  9.61E+00  0.00E+00  1.53E+00  1.61E+01  1.29E-03  3.07E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.17E+00  0.00E+00  1.84E-01  2.59E+00  1.84E-04  7.77E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  20.37%   mean 0.34   upstream (lower A_V) >=1 in  13.60%   downstream >=1 in  11.40%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0708   0.0690   0.0755
+ ! [D217] started hot   cells    1378
+ ! [D217]   entry  Te   4787.1  heat phot/PE/PDR  5.50E-25  5.87E-26  8.02E-28  cool coll/rec/ff/gd/PDR  5.97E-24  2.31E-25  1.48E-25  1.04E-25 -2.97E-25  H-C -5.55E-24
+ ! [D217]   exit   Te    474.3  heat phot/PE/PDR  5.88E-25  6.70E-26  8.02E-28  cool coll/rec/ff/gd/PDR  1.14E-24  7.77E-26  4.04E-26  2.16E-26 -6.23E-25  H-C  1.10E-27
+ ! [D218]   A_V  1.387  x(H0) 9.167E-01  f_mol 0.0479  J>H0thr 3.046E-06  tau/cell@thr 8.181E+02   last it none/c->h/cold/hot      2    461      0    915
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.684E-06 3.613E-07  H0 phot heat 13.6-15.4 / >15.4 3.753E-25 1.720E-25  H0 share  0.9942
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.68E-06  3.48E-07  1.31E-08  0.00E+00  0.00E+00   H0 heat by band  3.75E-25  1.67E-25  5.23E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  3.78E+01  0.00E+00  2.94E+02  0.00E+00  0.00E+00  5.83E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  6.27E+00  0.00E+00  5.00E+01  7.38E+01  0.00E+00  8.33E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  5.83E-01  0.00E+00  5.93E+00  1.61E+01  5.83E-03  3.15E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  7.07E-02  0.00E+00  7.13E-01  2.59E+00  8.34E-04  7.98E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  77.94%   mean 2.48   upstream (lower A_V) >=1 in  66.18%   downstream >=1 in  62.70%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0729   0.0692   0.0602
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.1814, off by >1% in   13274 ( 87.31%)
+ ! [D217] cold -> hot   cells    5409
+ ! [D217]   entry  Te    148.5  heat phot/PE/PDR  1.00E-22  2.60E-25  1.08E-27  cool coll/rec/ff/gd/PDR  6.38E-25  5.11E-26  9.49E-27  1.25E-27 -3.28E-25  H-C  1.00E-22
+ ! [D217]   exit   Te   4325.5  heat phot/PE/PDR  9.98E-24  2.18E-25  1.08E-27  cool coll/rec/ff/gd/PDR  8.13E-24  2.99E-25  2.27E-25  8.21E-26  1.43E-24  H-C  3.63E-26
+ ! [D218]   A_V  2.388  x(H0) 3.823E-02  f_mol 0.8961  J>H0thr 3.857E-03  tau/cell@thr 1.088E+02   last it none/c->h/cold/hot      0    107   5292     10
+ ! [D221]   J 13.6-15.4 / >15.4 eV 8.339E-08 3.857E-03  H0 phot heat 13.6-15.4 / >15.4 1.266E-27 9.984E-23  H0 share  0.9968
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  8.34E-08  3.86E-03  1.92E-09  0.00E+00  0.00E+00   H0 heat by band  1.27E-27  9.98E-23  6.72E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  7.07E+02  0.00E+00  3.87E+01  0.00E+00  0.00E+00  1.15E+00  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.17E+02  0.00E+00  6.59E+00  7.38E+01  0.00E+00  8.98E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.09E+01  0.00E+00  7.82E-01  1.61E+01  3.27E-03  3.15E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.32E+00  0.00E+00  9.40E-02  2.59E+00  4.68E-04  7.98E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  20.19%   mean 0.25   upstream (lower A_V) >=1 in  10.78%   downstream >=1 in  11.92%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0812   0.0706   0.1053
+ ! [D217] stayed cold   cells    8777
+ ! [D217]   entry  Te    476.0  heat phot/PE/PDR  6.46E-25  1.43E-26  1.60E-27  cool coll/rec/ff/gd/PDR  2.79E-25  2.40E-27  8.10E-28  1.85E-27 -3.11E-27  H-C  3.80E-25
+ ! [D217]   exit   Te    409.4  heat phot/PE/PDR  2.34E-25  1.61E-26  1.60E-27  cool coll/rec/ff/gd/PDR  3.04E-25  2.34E-27  9.37E-28  1.33E-27 -5.64E-26  H-C -2.50E-28
+ ! [D218]   A_V  2.118  x(H0) 2.142E-01  f_mol 0.7786  J>H0thr 1.103E-04  tau/cell@thr 2.456E+02   last it none/c->h/cold/hot      0    135   7386   1256
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.706E-07 1.101E-04  H0 phot heat 13.6-15.4 / >15.4 1.668E-27 6.288E-25  H0 share  0.9765
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.71E-07  1.10E-04  9.73E-10  0.00E+00  0.00E+00   H0 heat by band  1.67E-27  6.28E-25  3.53E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.14E+02  0.00E+00  8.79E+01  0.00E+00  0.00E+00  9.83E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.02E+02  0.00E+00  1.50E+01  7.38E+01  0.00E+00  8.71E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  9.47E+00  0.00E+00  1.78E+00  1.61E+01  1.28E-03  3.10E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.15E+00  0.00E+00  2.14E-01  2.59E+00  1.83E-04  7.87E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  23.19%   mean 0.30   upstream (lower A_V) >=1 in  13.10%   downstream >=1 in  12.90%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0708   0.0731   0.0353
+ ! [D217] started hot   cells     835
+ ! [D217]   entry  Te   4295.9  heat phot/PE/PDR  1.03E-24  3.80E-26  2.72E-28  cool coll/rec/ff/gd/PDR  3.57E-24  1.89E-25  1.19E-25  7.99E-26 -4.63E-25  H-C -2.43E-24
+ ! [D217]   exit   Te   1052.3  heat phot/PE/PDR  1.05E-24  4.28E-26  2.72E-28  cool coll/rec/ff/gd/PDR  1.21E-24  9.51E-26  5.25E-26  3.75E-26 -3.10E-25  H-C  1.71E-27
+ ! [D218]   A_V  2.087  x(H0) 7.956E-01  f_mol 0.1664  J>H0thr 3.798E-06  tau/cell@thr 4.945E+02   last it none/c->h/cold/hot     10    713      0    112
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.215E-06 1.583E-06  H0 phot heat 13.6-15.4 / >15.4 2.896E-25 7.314E-25  H0 share  0.9944
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.21E-06  1.55E-06  2.87E-08  0.00E+00  0.00E+00   H0 heat by band  2.90E-25  7.23E-25  8.20E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  1.31E+02  0.00E+00  1.77E+02  0.00E+00  0.00E+00  3.96E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  2.18E+01  0.00E+00  3.02E+01  7.38E+01  0.00E+00  7.82E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  2.02E+00  0.00E+00  3.59E+00  1.61E+01  6.08E-03  3.15E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  2.46E-01  0.00E+00  4.31E-01  2.59E+00  8.70E-04  7.94E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  49.70%   mean 0.87   upstream (lower A_V) >=1 in  32.22%   downstream >=1 in  30.66%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0705   0.0663   0.0124
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3745, off by >1% in   14260 ( 93.79%)
+ ! [D217] cold -> hot   cells    3061
+ ! [D217]   entry  Te    537.2  heat phot/PE/PDR  9.72E-23  2.68E-25  1.04E-27  cool coll/rec/ff/gd/PDR  5.89E-25  5.02E-26  1.04E-26  1.60E-27 -3.17E-25  H-C  9.71E-23
+ ! [D217]   exit   Te   4400.2  heat phot/PE/PDR  9.80E-24  2.21E-25  1.04E-27  cool coll/rec/ff/gd/PDR  8.63E-24  3.09E-25  2.32E-25  8.75E-26  7.21E-25  H-C  3.96E-26
+ ! [D218]   A_V  2.323  x(H0) 1.565E-01  f_mol 0.7776  J>H0thr 4.005E-03  tau/cell@thr 1.581E+02   last it none/c->h/cold/hot      0    435   2619      7
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.573E-07 4.005E-03  H0 phot heat 13.6-15.4 / >15.4 7.445E-27 9.690E-23  H0 share  0.9972
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  2.57E-07  4.00E-03  8.77E-10  0.00E+00  0.00E+00   H0 heat by band  7.45E-27  9.69E-23  3.38E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  6.13E+02  0.00E+00  5.65E+01  0.00E+00  0.00E+00  9.60E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.02E+02  0.00E+00  9.61E+00  7.38E+01  0.00E+00  8.65E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  9.46E+00  0.00E+00  1.14E+00  1.61E+01  1.74E-03  3.13E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.15E+00  0.00E+00  1.37E-01  2.59E+00  2.49E-04  7.92E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  66.94%   mean 1.15   upstream (lower A_V) >=1 in  45.57%   downstream >=1 in  44.07%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0631   0.0714   0.0098
+ ! [D217] stayed cold   cells    8448
+ ! [D217]   entry  Te   1005.5  heat phot/PE/PDR  7.19E-25  2.01E-26  1.62E-27  cool coll/rec/ff/gd/PDR  3.44E-25  8.85E-27  3.62E-27  2.23E-27 -7.52E-26  H-C  4.58E-25
+ ! [D217]   exit   Te    452.5  heat phot/PE/PDR  1.94E-25  2.07E-26  1.62E-27  cool coll/rec/ff/gd/PDR  2.91E-25  3.79E-27  1.45E-27  1.68E-27 -8.09E-26  H-C -2.75E-28
+ ! [D218]   A_V  2.156  x(H0) 3.954E-01  f_mol 0.5943  J>H0thr 1.921E-04  tau/cell@thr 3.231E+02   last it none/c->h/cold/hot      0   1625   6158    665
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.634E-07 1.916E-04  H0 phot heat 13.6-15.4 / >15.4 8.640E-27 6.959E-25  H0 share  0.9795
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  4.63E-07  1.92E-04  7.94E-10  0.00E+00  0.00E+00   H0 heat by band  8.64E-27  6.96E-25  3.00E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  4.69E+02  0.00E+00  1.16E+02  0.00E+00  0.00E+00  7.23E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  7.78E+01  0.00E+00  1.97E+01  7.38E+01  0.00E+00  8.13E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  7.23E+00  0.00E+00  2.34E+00  1.61E+01  9.22E-04  3.04E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  8.77E-01  0.00E+00  2.81E-01  2.59E+00  1.32E-04  7.69E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  65.81%   mean 1.21   upstream (lower A_V) >=1 in  46.38%   downstream >=1 in  43.88%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0668   0.0701   0.0719
+ ! [D217] started hot   cells    3512
+ ! [D217]   entry  Te   3674.0  heat phot/PE/PDR  3.53E-25  1.16E-26  1.85E-28  cool coll/rec/ff/gd/PDR  2.24E-24  1.05E-25  6.38E-26  3.11E-26 -4.79E-25  H-C -1.59E-24
+ ! [D217]   exit   Te    773.5  heat phot/PE/PDR  3.69E-25  1.25E-26  1.85E-28  cool coll/rec/ff/gd/PDR  5.07E-25  4.48E-26  2.36E-26  1.14E-26 -2.06E-25  H-C  7.86E-28
+ ! [D218]   A_V  2.256  x(H0) 7.665E-01  f_mol 0.2081  J>H0thr 1.987E-06  tau/cell@thr 3.657E+02   last it none/c->h/cold/hot      0   3349      0    163
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.540E-06 4.469E-07  H0 phot heat 13.6-15.4 / >15.4 1.578E-25 1.925E-25  H0 share  0.9937
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.54E-06  4.39E-07  7.61E-09  0.00E+00  0.00E+00   H0 heat by band  1.58E-25  1.90E-25  2.49E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  1.64E+02  0.00E+00  1.31E+02  0.00E+00  0.00E+00  3.49E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  2.72E+01  0.00E+00  2.23E+01  7.38E+01  0.00E+00  7.58E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  2.53E+00  0.00E+00  2.65E+00  1.61E+01  1.76E-03  3.16E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  3.07E-01  0.00E+00  3.18E-01  2.59E+00  2.52E-04  7.94E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  84.65%   mean 1.90   upstream (lower A_V) >=1 in  64.24%   downstream >=1 in  62.36%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0702   0.0651   0.0452
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3757, off by >1% in   13652 ( 89.79%)
+ ! [D217] cold -> hot   cells    1809
+ ! [D217]   entry  Te    553.0  heat phot/PE/PDR  7.15E-22  7.12E-25  2.33E-27  cool coll/rec/ff/gd/PDR  8.88E-25  3.19E-25  5.76E-26  4.38E-27 -4.01E-25  H-C  7.15E-22
+ ! [D217]   exit   Te   5600.2  heat phot/PE/PDR  5.49E-23  5.31E-25  2.34E-27  cool coll/rec/ff/gd/PDR  4.72E-23  2.06E-24  1.68E-24  3.82E-25  3.81E-24  H-C  1.99E-25
+ ! [D218]   A_V  1.843  x(H0) 2.739E-01  f_mol 0.5718  J>H0thr 1.031E-02  tau/cell@thr 4.072E+02   last it none/c->h/cold/hot      0    225   1570     14
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.493E-07 1.031E-02  H0 phot heat 13.6-15.4 / >15.4 9.159E-27 7.144E-22  H0 share  0.9992
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  3.49E-07  1.03E-02  1.47E-09  0.00E+00  0.00E+00   H0 heat by band  9.16E-27  7.14E-22  6.12E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  4.51E+02  0.00E+00  1.46E+02  0.00E+00  0.00E+00  8.28E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  7.49E+01  0.00E+00  2.48E+01  7.38E+01  0.00E+00  8.55E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  6.96E+00  0.00E+00  2.95E+00  1.61E+01  1.34E-03  3.12E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  8.44E-01  0.00E+00  3.55E-01  2.59E+00  1.92E-04  7.91E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  50.08%   mean 0.74   upstream (lower A_V) >=1 in  33.33%   downstream >=1 in  28.03%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0766   0.0704   0.0501
+ ! [D217] stayed cold   cells   11033
+ ! [D217]   entry  Te    985.3  heat phot/PE/PDR  5.01E-25  1.59E-26  1.29E-27  cool coll/rec/ff/gd/PDR  2.67E-25  6.68E-27  2.66E-27  1.48E-27 -7.52E-27  H-C  2.48E-25
+ ! [D217]   exit   Te    281.2  heat phot/PE/PDR  1.32E-25  1.46E-26  1.29E-27  cool coll/rec/ff/gd/PDR  1.97E-25  2.50E-27  9.38E-28  1.34E-27 -5.42E-26  H-C -1.97E-28
+ ! [D218]   A_V  2.297  x(H0) 3.462E-01  f_mol 0.6458  J>H0thr 1.817E-04  tau/cell@thr 3.027E+02   last it none/c->h/cold/hot      0   1201   6878   2954
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.581E-07 1.812E-04  H0 phot heat 13.6-15.4 / >15.4 6.268E-27 4.847E-25  H0 share  0.9807
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  4.58E-07  1.81E-04  5.17E-10  0.00E+00  0.00E+00   H0 heat by band  6.27E-27  4.85E-25  1.75E-28  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  5.09E+02  0.00E+00  1.08E+02  0.00E+00  0.00E+00  8.21E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  8.46E+01  0.00E+00  1.85E+01  7.38E+01  0.00E+00  8.20E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  7.86E+00  0.00E+00  2.19E+00  1.61E+01  6.81E-04  3.03E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  9.53E-01  0.00E+00  2.63E-01  2.59E+00  9.74E-05  7.68E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  52.46%   mean 0.78   upstream (lower A_V) >=1 in  33.34%   downstream >=1 in  31.67%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0715   0.0705   0.1071
+ ! [D217] started hot   cells    2185
+ ! [D217]   entry  Te   4092.2  heat phot/PE/PDR  4.73E-25  1.82E-26  5.17E-28  cool coll/rec/ff/gd/PDR  2.36E-24  1.19E-25  7.27E-26  4.22E-26 -1.14E-25  H-C -1.99E-24
+ ! [D217]   exit   Te    676.9  heat phot/PE/PDR  4.88E-25  1.88E-26  5.17E-28  cool coll/rec/ff/gd/PDR  7.10E-25  5.12E-26  2.64E-26  1.60E-26 -2.97E-25  H-C  8.34E-28
+ ! [D218]   A_V  2.095  x(H0) 8.397E-01  f_mol 0.1328  J>H0thr 2.193E-06  tau/cell@thr 6.368E+02   last it none/c->h/cold/hot      6   1635      0    544
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.571E-06 6.216E-07  H0 phot heat 13.6-15.4 / >15.4 1.823E-25 2.872E-25  H0 share  0.9923
+ ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top  1.57E-06  6.00E-07  2.13E-08  0.00E+00  0.00E+00   H0 heat by band  1.82E-25  2.81E-25  6.02E-27  0.00E+00  0.00E+00
+ ! [D222]   tau/cell @   19.8 eV  H2/ff/H0/He0/He+/Z/dust  1.05E+02  0.00E+00  2.28E+02  0.00E+00  0.00E+00  5.55E-01  4.01E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   36.9 eV  H2/ff/H0/He0/He+/Z/dust  1.74E+01  0.00E+00  3.89E+01  7.38E+01  0.00E+00  7.98E-01  2.90E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @   75.4 eV  H2/ff/H0/He0/He+/Z/dust  1.62E+00  0.00E+00  4.62E+00  1.61E+01  2.73E-03  3.13E-01  2.46E-01  (gas+dust)/total  1.0000
+ ! [D222]   tau/cell @  149.5 eV  H2/ff/H0/He0/He+/Z/dust  1.96E-01  0.00E+00  5.55E-01  2.59E+00  3.91E-04  7.90E-02  2.12E-01  (gas+dust)/total  1.0000
+ ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in  69.89%   mean 1.22   upstream (lower A_V) >=1 in  47.87%   downstream >=1 in  46.45%
+ ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4   0.0732   0.0547   0.0279
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3005, off by >1% in   13990 ( 92.02%)

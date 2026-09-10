@@ -222,7 +222,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-220 | **The ion stages are rescaled to the chemistry's available fraction before the next opacity is built - verified, and the collapse survives it.** D-153's rule on MOCASSIN's side, applied after the D-200 damping, plus a `pdrToMocassin` after the seed. Before the rescale hydrogen was off by a mean 0.400 / 0.093 / 0.420 (93% / 78% / 89% of cells) at iterations 4-6; after it the budget reads 1.0000. The opacity follows: tau 281 per cell against 272 predicted at iteration 5, where it read 1260. Iteration 6 still collapses - median f_mol 0.239 against 0.238 without the fix, Te median 2160 K against 2525 K | Done | 2026-09-10 |
 | D-221 | **The heating that flips cells comes from above 15.43 eV, where H2 absorbs - not from the H2-transparent window.** At iteration 6, 7274 cells go cold -> hot (7270 of them cold at iteration 5): 99.9998% of their field and essentially all their H0 photoionization heating (4.94e-23 against 3.2e-29 in the window) lie above 15.43 eV, and H0 is 99.3% of their photoionization heating. Iterations 4 and 5 showed the same in 18 cells. So missing H2 line opacity between 13.6 and 15.4 eV is ruled out as the cause. The two bands reproduce D-218's total field to four figures | Done | 2026-09-10 |
 | D-222 | **The cells that flip are heated by photons they cannot transmit.** At every iteration 6-12 the flipping cells take their field and H0 heating only from 15.4-24.6 eV (24.6-54.4 eV is 5-8 orders weaker, nothing above 54.4 eV), where their tau per cell is 559-758 at the band centre, dominated by H2. The one place H2 does not absorb - `yanH2xSec` is clamped to zero from 15.43 to ~15.7 eV - is still held above ~78 per cell by the remaining H0. (gas+dust)/total = 1.0000 throughout. Opacity does not distinguish flipping from stayed-cold cells (it 10: 747 vs 703) while the field does (32x). No energy present lets photons cross one cell, so the field inside must enter a skin or be emitted locally | Done | 2026-09-10 |
-| D-223 | **Adjacency and the diffuse share.** D-222 left two ways a field could exist inside cells that cannot transmit it: entering a thin skin from a neighbour, or emitted locally. Per outcome group: the fraction of cells with at least one face-neighbour hot at the start of the iteration (Te > 3000 K), split upstream/downstream by A_V, with stayed-cold cells as the control; and the diffuse fraction of the field (Jdif/Jste) in the three bands that carry any. Fixture `hiipdr-split` = `hiipdr-couple1` + `pdrSplitField 1`, confirmed diagnostic-only in `iteration_mod` as well as `update_mod` | Running | 2026-09-10 |
+| D-223 | **Neither a hot neighbour nor local emission puts the field there - and D-146's open question is back.** At the iteration-6 collapse 0.03% of the 7345 flipping cells have a face-neighbour above 3000 K (control 1.52%); at iterations 7-12 flipping cells border hot cells no more often than stayed-cold cells. The field is ~93% stellar in every group. No `[D159]` crossing again, weights are 1, `Jste` is reset each iteration, and every `absTau` reset is paired with a `passProb` redraw. So stellar packets reach cells opaque at every energy with field without crossing a thick cell. The resolution-artefact hypothesis as stated is refuted; the Te criterion cannot see a neighbour that is transparent but cold | Done | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13549,3 +13549,77 @@ fixture, `benchmarks/pdr/hiipdr-split`, is `hiipdr-couple1` with
 automatically once `runs/d222-absorbers` released the cores.
 
 **What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-10)
+
+`runs/d223-adjacency`, 12 iterations, 23:19, clean exit. The collapse reproduces
+`runs/d222-absorbers` (median f_mol 0.239 at iteration 6 and 0.300 at 10,
+against 0.239 and 0.305), confirming empirically that `pdrSplitField` changes no
+result. Every diffuse fraction lies in [0, 1] and the upstream/downstream counts
+never exceed the at-least-one count.
+
+**Adjacency, by iteration-start Te > 3000 K:**
+
+     it    cold -> hot            stayed cold (control)     started hot
+           cells  >=1 hot  up     cells  >=1 hot  up        cells  >=1 hot
+      6     7345   0.03%   0.01%   7506   1.52%   1.49%        68   98.5%
+      7     3177   41.9    28.6    7016   43.7    37.5       4787   96.7
+      8      720   51.7    25.7   11312   44.7    29.7       2977   81.4
+      9      955   21.6    10.2   12678   20.4    13.6       1378   77.9
+     10     5409   20.2    10.8    8777   23.2    13.1        835   49.7
+     11     3061   66.9    45.6    8448   65.8    46.4       3512   84.7
+     12     1809   50.1    33.3   11033   52.5    33.3       2185   69.9
+
+At the collapse the flipping cells are not next to hot cells at all - fewer of
+them than of the control, and with only 68 hot PDR cells at iteration start
+there was nothing for a front to advance from. The count includes non-PDR
+neighbours, so the H II region's edge would have registered. At every later
+iteration the flipping cells border hot cells at the control's rate, upstream
+and downstream alike. Adjacency to a hot cell does not select the cells that
+flip.
+
+**Diffuse fraction.** Jdif/Jste is 0.05-0.12 in every group and band at every
+iteration - at iteration 6, 0.112 / 0.070 / 0.075 in the flipping cells against
+0.076 / 0.072 / 0.066 in the control. The field is ~93% stellar everywhere,
+flipping cells included. Local or neighbour emission does not put it there.
+
+**So both routes D-222 left open are closed**, and the resolution-artefact
+hypothesis recorded there - a front advancing one cell per iteration from hot
+neighbours - is refuted as stated.
+
+**What the transport is not doing.**
+  - **No thick-cell crossing.** Zero `[D159]` lines in twelve iterations: no
+    stellar packet on rank 0 crossed a cell with tau > 20 without interacting.
+  - **No importance weights.** `calculate_pass_prob_and_weight` keeps only the
+    analog draw, passProb = -log(1-random) with weightFactor = 1; every biased
+    scheme in it is commented out. New packets start at weight 1.0.
+  - **No forced skip.** The exp(-tau) branch D-146 found was removed at D-147.
+  - **No carried-over field.** `Jste` is zeroed before every transfer
+    (iteration_mod:575) and nothing blends it across iterations.
+  - **No fresh optical-depth budget mid-path.** `absTau` is reset in exactly
+    two places, each paired with a new passProb: at the start of a path
+    (photon_mod:1262, drawn at 1274) and after an interaction that re-launches
+    the packet (1861, drawn at 1870).
+
+**D-146's open question is back.** D-146 measured the field decaying as
+tau ~ 0.9 per cell against a stored 250-450 and recorded it Open; D-147 removed
+the forced skip, which explained the exact zeros but, as D-146 said itself, not
+the shallow attenuation. D-159 rebutted the framing on the grounds that the
+failing cells were nearly transparent - x(H0) = 0.026 giving tau ~ 6 per cell at
+1.79 Ryd, computed from H0 alone. That rebuttal does not reach the D-222 cells:
+their opacity was captured from `addOpacity` itself, includes H2, reproduces the
+transport's total exactly, and is at least ~80 per cell at every energy carrying
+field. Stellar packets are nevertheless being absorbed in them, at 16-32x the
+rate of neighbours with the same opacity, without any recorded crossing of a
+thick cell.
+
+**What the Te criterion cannot see.** The photons care about a neighbour's
+optical depth, not its temperature. A neighbour that is transparent in band 2
+but below 3000 K - a cell still ionized while it cools under iterDamp, for
+instance - is invisible to this census and is exactly the kind of channel that
+would let stellar packets reach a flipping cell's face. The next adjacency test
+should use the neighbour's tau per cell at the band's representative energy.
+Failing that, a packet-level trace - for band-2 stellar packets absorbed in PDR
+cells, the cells crossed and the optical depth accumulated - is the direct
+measurement.
