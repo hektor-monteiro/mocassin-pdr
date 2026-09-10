@@ -218,6 +218,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 45-2208x that of the cells that stay cold (45x and 111x at the two collapses) and 6-843x their own total cooling (above 100x from iteration 6 on); photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
 | D-218 | **Is the heating a front advancing in pulses?** D-217 iteration 7: the 8336 cells that went hot at 6 enter 7 with photoionization heating 180x lower (2.53e-25), while 2835 OTHER cells take 25x more (1.13e-21) - the heating moves between cells. Heating per H goes as x(H0)*J, so ionized cells may turn transparent and pass the hard photons to the layer behind. The census now reports per group the mean A_V, x(H0), f_mol, J above hydrogen's threshold, tau per cell at threshold, and each cell's group ONE ITERATION AGO (per-cell `budGrpLast`, allocated on both the cold and warm paths). Also withdrawn: the 'two-iteration opacity lag' inferred for D-217 - the opacity is rebuilt at the top of every MC iteration | Running | 2026-09-10 |
+| D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Not the collapse trigger - iteration 6 enters at 1.26 and the five-pass run still collapsed - but the largest heating follows the deficits (it 7 after 0.43). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12746,3 +12747,87 @@ iteration before. If they are not - if the heating lands in scattered cells
 with no progression in A_V - the pulsing-front picture is wrong, and patchy
 Monte Carlo sampling of a hard-tail field deep in the cloud becomes the
 leading alternative.
+
+
+---
+
+## D-219 - the opacity's hydrogen does not add up (2026-09-10)
+
+Found while checking the first D-218 block. Its stayed-cold group reported
+x(H0) = 0.9988 and f_mol = 0.5208 at iteration 4 - a hydrogen budget of 1.52,
+where `x(HI) + 2x(H2) + x(HII) = 1` is the sharpest test in the project.
+
+**Iteration 4 first, because it is a defect in D-209.** `seedMolecules` calls
+only `seedAbunFromMocassin`. `pdrToMocassin`, the only writer of `elemAvail`,
+runs inside the coupling loop (iteration_mod:1652) and after the D-200 damping
+(1944) - both after iteration 4's `updateCell` (1115). So at the first PDR
+iteration the ionization is normalised to the full hydrogen abundance while the
+seed has already made half of it molecular.
+
+**But the budget fails at every iteration, not only the first.** The census
+line `[D196] x(H0)+2x(H2)+x(H+)`, across four runs:
+
+     it   d210-budget        d215-cooltab       d216-restructure   d217-budget     
+          median (min-max)   median (min-max)   median (min-max)   median (min-max)
+      4   1.210 (0.98-1.73)   1.852 (1.00-1.99)   1.850 (1.00-1.99)   1.851 (1.00-1.99)
+      5   1.050 (0.32-1.41)   1.260 (0.52-1.73)   1.263 (0.52-1.73)   1.261 (0.52-1.73)
+      6   1.012 (0.18-1.43)   0.426 (0.34-1.51)   0.456 (0.34-1.49)   0.425 (0.34-1.59)
+      7   1.003 (0.42-1.58)   1.329 (0.29-1.72)   1.364 (0.29-1.62)   1.343 (0.29-1.72)
+      8   1.001 (0.27-1.70)   1.225 (0.28-1.73)   1.225 (0.28-1.72)   1.225 (0.28-1.73)
+      9   1.000 (0.17-1.72)   1.088 (0.28-1.74)   1.090 (0.28-1.72)   1.088 (0.28-1.74)
+     10   1.000 (0.14-1.71)   0.657 (0.28-1.72)   0.687 (0.27-1.73)   0.646 (0.27-1.72)
+     11   1.000 (0.13-1.72)   1.067 (0.28-1.70)   1.063 (0.28-1.72)   1.071 (0.28-1.72)
+     12   1.000 (0.23-1.56)   1.217 (0.27-1.72)   1.218 (0.27-1.68)   1.217 (0.27-1.72)
+
+**It is the state the opacity is built from.** The census takes x(H0) and x(H+)
+from `grid%ionDen` and 2x(H2) from `grid%pdrAbun` (iteration_mod:2099-2102) and
+prints at line 2196 - after the D-200 damping (1905) and the `elemAvail`
+republish (1944). At the top of the next MC iteration `ionizationDriver` reads
+`grid%ionDen` as-is - `density = ionDenUsed * elemAbun * Hden`, no
+renormalisation - and hands `addOpacity` `grid%H2den`, which follows `pdrAbun`
+(D-201). So this table is the hydrogen the photons of the next iteration see.
+
+**Why it happens.** The ionization is solved once and the chemistry then moves
+the molecular content. The ionization carries x(H0) normalised to the
+molecular fraction BEFORE that move; the molecules carry the fraction AFTER.
+When H2 forms, hydrogen is counted twice (median 1.85, 1.26, 1.36); when H2 is
+destroyed, it is missing (0.43 after iteration 6's collapse, 0.66-0.69 after
+iteration 10's).
+
+**It is not new with D-216, but D-216 made it permanent.** The pre-D-216
+one-pass run (`d215-cooltab`) gives the same series. The five-pass run
+(`d210-budget`) holds the median at 1.003, 1.0007 ... 1.0000 from iteration 7,
+because its last `updateCell` uses `elemAvail` from chemistry that had
+converged over the passes. D-216 moved `updateCell` out of the loop to stop the
+temperature march, and in doing so reinstated - at the scale of a whole MC
+iteration - the lag D-199 had removed at the scale of a pass. D-216 was
+committed without checking this budget. It is the test CLAUDE.md singles out,
+and it should have been run before calling D-216 done.
+
+Even at five passes individual cells span 0.13-1.72, so the median closing is
+not the same as every cell closing.
+
+**What it does and does not explain.**
+
+  - It is NOT the collapse trigger. Iteration 6 enters with a median of 1.26 -
+    an excess, which errs opaque - and `d210-budget`, with its median at 1.00,
+    still collapsed at iterations 6 and 11.
+  - It plausibly AMPLIFIES what follows a collapse. After iteration 6 the median
+    cell's opacity carries 0.43 of its hydrogen, and iteration 7 then carries
+    the largest photoionization heating in the run, 1.13e-21 per H in its
+    flipping cells (D-217). After iteration 10 it carries 0.65, and iteration
+    11's heating is elevated but less so (1.02e-22). Two cases in the same
+    direction, which is a correlation and not a mechanism.
+
+**What is NOT known.** Whether the cells that flip are the deficit cells - a
+per-cell question the group means cannot answer. And whether `updateCell` is
+itself consistent with the `elemAvail` it is handed at the start of an
+iteration: D-218's per-group x(H0) + f_mol at pass 1 measures exactly that, and
+decides where a fix must act.
+
+**The fix is not applied.** The candidate is D-153's rule applied on MOCASSIN's
+side: after the chemistry moves the molecular content, rescale the linked ion
+stages to the new `elemAvail` - MOCASSIN keeps the RATIO between stages, the
+chemistry sets the non-molecular TOTAL - before the opacity is built. Plus a
+`pdrToMocassin` after `seedMolecules`. It changes the D-216 design, so it is
+put to the operator rather than made.
