@@ -101,6 +101,9 @@ module iteration_mod
            real(kind=8)              :: molUpdSum, pcSum, phSum, ppeSum
            real(kind=8)              :: pcSubSum, pcNulSum   ! D-210
            real(kind=8)              :: tfacSum, trefSum, slopSum   ! D-213
+           real(kind=8)              :: budSum(3,21)                ! D-217
+           integer                   :: iBudG, iBudT                ! D-217
+           character(len=11)         :: budLab(3)                   ! D-217
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -1140,6 +1143,7 @@ module iteration_mod
                  molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
                  pcSubSum = 0.d0; pcNulSum = 0.d0
                  tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
+                 budSum = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1193,6 +1197,36 @@ module iteration_mod
                                      &   /dble(grid(iG)%Hden(iDum))
                              end do
                           end if
+                          ! ------------------------------------------ D-217
+                          ! MOCASSIN's own budget, grouped by what the thermal
+                          ! solve did to the cell: cold at the start of the
+                          ! iteration and hot after it, cold throughout, or
+                          ! hot from the start. Grouping by OUTCOME is what
+                          ! keeps each mean describing one population - the
+                          ! D-209 input line averaged a hot and a cold
+                          ! population together and described neither. 3000 K
+                          ! is the census's existing hot threshold and bins
+                          ! the report only; it decides nothing.
+                          ! updateCell runs once per MC iteration (D-216), so
+                          ! the budget is the same on every chemistry pass and
+                          ! is taken on pass 1.
+                          if (iCouple == 1 .and. allocated(grid(iG)%mocBud) &
+                               & .and. allocated(grid(iG)%TeIterStart)) then
+                             if (grid(iG)%TeIterStart(iDum) > 3000.) then
+                                iBudG = 3
+                             else if (grid(iG)%Te(iDum) > 3000.) then
+                                iBudG = 1
+                             else
+                                iBudG = 2
+                             end if
+                             do iBudT = 1, 10
+                                budSum(iBudG, iBudT) = budSum(iBudG, iBudT) &
+                                     & + dble(grid(iG)%mocBud(iDum, 1, iBudT))
+                                budSum(iBudG, 10+iBudT) = budSum(iBudG, 10+iBudT) &
+                                     & + dble(grid(iG)%mocBud(iDum, 2, iBudT))
+                             end do
+                             budSum(iBudG, 21) = budSum(iBudG, 21) + 1.d0
+                          end if
                           if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
                                & + dble(grid(iG)%pdrHeatXtra(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
@@ -1224,6 +1258,10 @@ module iteration_mod
                  call mpi_allreduce(MPI_IN_PLACE, slopSum, 1, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  call mpi_allreduce(MPI_IN_PLACE, spSum, 4, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 ! D-217: iCouple is the same on every rank, so this
+                 ! collective cannot be skipped by a subset of them.
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum, 63, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
@@ -1278,6 +1316,36 @@ module iteration_mod
                          & " ! [D213]      D-166 factor: mean (Te/Tref)^slope ", &
                          & tfacSum/dble(nUpd1), "   Tref ", trefSum/dble(nUpd1), &
                          & "   slope ", slopSum/dble(nUpd1)
+                    ! D-217. Per group, per H nucleus: at ENTRY (the cell's
+                    ! iteration-start Te under the new field - what changed)
+                    ! and at EXIT (where the solve left it). Heating is
+                    ! phot + PE + PDR, cooling is coll + rec + ff + gd + PDR,
+                    ! and H-C is their difference; the terms are additive, so
+                    ! the means are too.
+                    if (iCouple == 1) then
+                       budLab = (/ 'cold -> hot', 'stayed cold', 'started hot' /)
+                       do iBudG = 1, 3
+                          if (budSum(iBudG,21) <= 0.d0) cycle
+                          print '(a,a,a,i8)', " ! [D217] ", budLab(iBudG), &
+                               & "   cells", nint(budSum(iBudG,21))
+                          print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
+                               & " ! [D217]   entry  Te", &
+                               & budSum(iBudG,10)/budSum(iBudG,21), &
+                               & "  heat phot/PE/PDR", &
+                               & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
+                               & "  cool coll/rec/ff/gd/PDR", &
+                               & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
+                               & "  H-C", budSum(iBudG,9)/budSum(iBudG,21)
+                          print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
+                               & " ! [D217]   exit   Te", &
+                               & budSum(iBudG,20)/budSum(iBudG,21), &
+                               & "  heat phot/PE/PDR", &
+                               & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
+                               & "  cool coll/rec/ff/gd/PDR", &
+                               & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
+                               & "  H-C", budSum(iBudG,19)/budSum(iBudG,21)
+                       end do
+                    end if
                  end if
               end if
 #endif

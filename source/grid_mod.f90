@@ -1467,6 +1467,11 @@ module grid_mod
                 grid%pdrCoolSub  = 0.
                 grid%pdrCoolNul  = 0.
                 grid%pdrTfacUsed = 1.
+                allocate(grid%mocBud(0:grid%nCells, 1:2, 1:10), stat = err)   ! D-217
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate mocBud memory"; stop
+                end if
+                grid%mocBud = 0.
                 allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
@@ -3705,6 +3710,56 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrAbun memory"; stop
                end if
+               ! D-217: the warm-start path had not been given any per-cell
+               ! PDR array added after D-188. setMotherGrid allocates these and
+               ! resetGrid did not, so mocassinWarm compiled and then met them
+               ! unallocated at run time: pdrHeatXtra and pdrCoolTab are written
+               ! and read without an `allocated` test (pdrHeatXtra predates this
+               ! work; pdrCoolTab is D-215), and the D-207..D-217 diagnostics are
+               ! guarded, so on this path they would have read zero without
+               ! saying so. "All four flavours compile" is a necessary condition
+               ! and this is the case that shows it is not sufficient.
+               allocate(grid(iG)%pdrHeatXtra(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrHeatXtra memory"; stop
+               end if
+               allocate(grid(iG)%pdrHeatUsed(0:grid(iG)%nCells), stat = err)   ! D-207
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrHeatUsed memory"; stop
+               end if
+               allocate(grid(iG)%pdrCoolUsed(0:grid(iG)%nCells), stat = err)   ! D-207
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolUsed memory"; stop
+               end if
+               allocate(grid(iG)%pdrCoolSub(0:grid(iG)%nCells), stat = err)    ! D-210
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolSub memory"; stop
+               end if
+               allocate(grid(iG)%pdrCoolNul(0:grid(iG)%nCells), stat = err)    ! D-210
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolNul memory"; stop
+               end if
+               allocate(grid(iG)%pdrTfacUsed(0:grid(iG)%nCells), stat = err)   ! D-213
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrTfacUsed memory"; stop
+               end if
+               allocate(grid(iG)%pdrCoolTab(0:grid(iG)%nCells, 1:max(pdrNcool,1), &
+                    &                        1:max(pdrNtab,1)), stat = err)   ! D-215
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrCoolTab memory"; stop
+               end if
+               allocate(grid(iG)%mocBud(0:grid(iG)%nCells, 1:2, 1:10), stat = err) ! D-217
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate mocBud memory"; stop
+               end if
+               grid(iG)%pdrHeatXtra = 0.
+               grid(iG)%pdrHeatUsed = 0.
+               grid(iG)%pdrCoolUsed = 0.
+               grid(iG)%pdrCoolSub  = 0.
+               grid(iG)%pdrCoolNul  = 0.
+               grid(iG)%pdrTfacUsed = 1.
+               grid(iG)%pdrCoolTab  = 0.
+               grid(iG)%mocBud      = 0.
                grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.

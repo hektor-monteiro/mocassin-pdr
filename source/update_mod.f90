@@ -30,6 +30,9 @@ module update_mod
         real                           :: Thigh        ! T high limit [K]
         real                           :: Tlow         ! T low limit  [K]
         real                           :: XOldHI       ! old ionDen of H0 at this cell
+#ifdef PDR
+        logical                        :: lgBudEntry   ! D-217: next thermBalance is the first
+#endif
 
         ! dust-gas interaction heating and cooling process
         real                           :: grainEmi, grainRec ! grain emissions and recom
@@ -286,6 +289,13 @@ module update_mod
          end if
 
          ! call the recursive iteration procedure for the gas
+#ifdef PDR
+         ! D-217: the first thermBalance inside iterateT is at TeEntry, the
+         ! temperature this cell carried into the iteration, evaluated with
+         ! the radiation field the new MC transfer just built. Its budget is
+         ! what the new iteration did to a cell before the solver moved it.
+         lgBudEntry = .true.
+#endif
          call iterateT()
 
          ! call the non recursive itaration procedure for the dust
@@ -1607,6 +1617,7 @@ end subroutine iterateT
                  & th12, th13                       ! (Mathis, Ly alpha, beta)
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
+            real                   :: budL(10)             ! D-217: this call's budget
             real                   :: coolSubL             ! D-210: MOCASSIN cooling removed
             integer                :: nNullL               ! D-210: coolants the guard kept
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
@@ -2240,6 +2251,39 @@ end subroutine iterateT
                ! used + removed and the guard's activity is visible.
                if (allocated(grid%pdrCoolSub)) grid%pdrCoolSub(cellP) = coolSubL
                if (allocated(grid%pdrCoolNul)) grid%pdrCoolNul(cellP) = real(nNullL)
+            end if
+            ! D-217: MOCASSIN's own budget, term by term, mirroring exactly how
+            ! heatInt and coolInt were assembled above so the terms sum to
+            ! them. Slot 2 is overwritten on every call and so ends as the
+            ! last evaluation; slot 1 is written once, on the first call.
+            ! Like D-207's arrays, the last evaluation is at the solver's last
+            ! TRIAL temperature, which need not equal the TeUsed it finally
+            ! writes - term 10 records the temperature so that is visible.
+            if (allocated(grid%mocBud)) then
+               budL = 0.
+               if (lgDebug) then
+                  budL(1) = heatSte + heatDif
+               else
+                  budL(1) = heatSte
+               end if
+               if (lgDust .and. lgPhotoelectric) then
+                  budL(2) = photoelHeat_g
+                  budL(7) = gasDustColl_g
+               end if
+               if (lgPDR) then
+                  budL(3) = heatInt - heatPreP
+                  budL(8) = coolInt - coolPreP
+               end if
+               budL(4)  = coolColl
+               budL(5)  = coolRec
+               budL(6)  = coolFF
+               budL(9)  = heatInt - coolInt
+               budL(10) = TeUsed
+               grid%mocBud(cellP, 2, :) = budL
+               if (lgBudEntry) then
+                  grid%mocBud(cellP, 1, :) = budL
+                  lgBudEntry = .false.
+               end if
             end if
 #endif
 

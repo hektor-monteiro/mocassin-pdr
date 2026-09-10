@@ -426,6 +426,23 @@ module common_mod
         ! can be tabulated once per coupling pass and interpolated - never
         ! extrapolated. [erg/s/cm^3], same units as pdrCoolSp.
         real, allocatable         :: pdrCoolTab(:,:,:)
+        ! D-217. MOCASSIN's OWN thermal budget, term by term, per H nucleus.
+        ! Every PDR-side term has been instrumented (D-205..D-215) and the
+        ! residual oscillation is now shown to start in the thermal solve on
+        ! gas that is still molecular, with the PDR cooling adding cooling and
+        ! the PDR heating ~1e-27 (D-216) - so what jumps is in MOCASSIN's half
+        ! of the budget, which nothing reports.
+        !
+        ! (cell, slot, term). Slot 1 = the FIRST thermBalance call of the
+        ! updateCell, i.e. at the iteration-start temperature with the NEW
+        ! radiation field; slot 2 = the LAST call, the balance point. Terms:
+        !   1 photoionization heating  2 photoelectric heating  3 PDR heating
+        !   4 collisional cooling  5 recombination  6 free-free
+        !   7 gas-dust collisional  8 PDR cooling (net substitution)
+        !   9 heat - cool  10 the Te the balance was evaluated at
+        ! Heating = 1+2+3 and cooling = 4+..+8 exactly, so 9 is their
+        ! difference and the terms can be compared on one footing.
+        real, allocatable         :: mocBud(:,:,:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.

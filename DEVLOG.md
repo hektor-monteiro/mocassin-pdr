@@ -216,6 +216,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-214 | **The coupling loop is a temperature-marching scheme, and the march is the amplifier.** Each pass runs a full `iterateT` at frozen radiation field, re-anchors `pdrCoolTref`, flattens the slope and releases the temperature the previous extrapolation was holding: 530 -> 4129 -> 8054 -> 8245 -> 8283 K inside iteration 6. With `pdrCoupleIter 1` both collapses vanish (f_mol 0.291 -> 0.759 at it 6, 0.327 -> 0.764 at it 11) and the run is 2.5x faster. **Partly retracted at D-215**: much of that was the extrapolation propping the gas cold | Done | 2026-09-10 |
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
+| D-217 | **MOCASSIN's own thermal budget, term by term - and the warm-start path had never been given the post-D-188 PDR arrays.** D-216 put the start of the collapse in the thermal solve on still-molecular gas, with the PDR side of the budget ruled out, so the diagnostic now reports photoionization, photoelectric and PDR heating against collisional, recombination, free-free, gas-dust and PDR cooling, per H, at the FIRST `thermBalance` call (iteration-start Te under the new field) and the LAST, grouped by outcome. Separately, `resetGrid` allocated none of `pdrHeatXtra`, `pdrCoolTab` or the D-207..D-217 diagnostics: `mocassinWarm` compiled and would have met unallocated arrays in `pdrStep`. Fixed; compiled, not yet exercised by a warm run | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12532,3 +12533,76 @@ which carry x(H0) through `elemAvail` and n_e.
 
 **What is NOT known.** Which of those terms moves between iterations 5 and 6.
 The census reports the PDR side of the budget and none of MOCASSIN's own terms.
+
+
+---
+
+## D-217 - MOCASSIN's own budget, and a warm-start gap (2026-09-10)
+
+**Why this instrument.** D-216 made the ordering unambiguous: with one thermal
+solve per MC iteration, iteration 6's solve moves the mean Te from 131 K to
+2977 K while f_mol is still 0.796, and the chemistry follows. Every PDR-side
+term has been instrumented and cleared - the PDR cooling is evaluated at the
+trial temperature and ADDS cooling, the PDR heating is ~1e-27 - so what jumps
+is in MOCASSIN's own half of the budget, which no diagnostic reported.
+
+**What it records.** `grid%mocBud(cell, slot, term)`, per H nucleus:
+
+    1 photoionization heating (heatSte, + heatDif under lgDebug)
+    2 photoelectric heating (photoelHeat_g)
+    3 PDR heating (heatInt after the PDR block minus before - D-207's quantity)
+    4 collisional cooling (coolColl)   5 recombination (coolRec)   6 free-free (coolFF)
+    7 gas-dust collisional (gasDustColl_g)   8 PDR cooling (net substitution)
+    9 heat - cool   10 the Te the balance was evaluated at
+
+Mirrored exactly from how `thermBalance` assembles `heatInt` and `coolInt`, so
+heating = 1+2+3 and cooling = 4+...+8 with no remainder.
+
+**Two slots, because the question has two halves.** Slot 1 is the FIRST
+`thermBalance` call of the `updateCell` - `iterateT` sets `TeEntry = TeUsed`
+and evaluates there first - so it is the budget of a cell sitting at its
+iteration-start temperature under the radiation field the new MC transfer just
+built. That is what changed. Slot 2 is the last call, where the solve left the
+cell. A flag set in `updateCell` immediately before `iterateT`, and cleared by
+the first `thermBalance`, marks the entry. As with D-207's arrays, the last
+call is at the solver's last TRIAL temperature, which need not equal the TeUsed
+it finally writes; term 10 records the temperature so a mismatch is visible
+rather than assumed away.
+
+**Grouped by outcome.** The census bins PDR cells into cold at iteration start
+and hot after the solve, cold throughout, and hot from the start, using the
+existing 3000 K hot threshold to bin the report only. Grouping by outcome keeps
+each mean describing one population - the D-209 input line averaged a hot and
+a cold population together and described neither. Means within a group remain
+means over cells at different depths; the terms are additive, so the group
+means of the terms still sum to the group mean of H - C.
+
+**The warm-start gap.** Adding one more per-cell array prompted the question of
+whether `resetGrid` - the `mocassinWarm` path - allocates the per-cell PDR
+arrays that `setMotherGrid` does. It allocated `pdrCoolSp`, `pdrHeatPE`,
+`pdrLevPop`, `pdrAbun` and the rest of the older set, and D-195's `dustSigSil`
+and `dustSigGra`, but none of:
+
+    pdrHeatXtra                  - written unguarded in pdrStep, read unguarded
+                                   in thermBalance; predates this session
+    pdrCoolTab (D-215)           - written unguarded in pdrStep
+    pdrHeatUsed, pdrCoolUsed (D-207), pdrCoolSub, pdrCoolNul (D-210),
+    pdrTfacUsed (D-213), mocBud (D-217)
+                                 - every access guarded by `allocated`, so no
+                                   crash, and on this path they would have read
+                                   zero without saying so
+
+So `mocassinWarm` compiled - and CLAUDE.md's "all four flavours compile" held -
+while the warm path would have reached unallocated arrays the first time the
+chemistry ran. All eight are now allocated and initialised in `resetGrid`. This
+is compiled, not measured: no warm restart has been run, and one is the only
+thing that shows the path works.
+
+**Run.** `runs/d217-budget` on `benchmarks/pdr/hiipdr-couple1`, one chemistry
+pass. D-216 measured the one-pass and five-pass trajectories identical within
+scatter, and the budget is taken on pass 1 either way, so this costs ~22 minutes
+rather than ~59 for the same answer.
+
+**What is NOT known.** Everything the run is for: which of MOCASSIN's own terms
+separates the cells that go hot from those that stay cold at iteration 6 and 10,
+and whether it is a heating term appearing or a cooling term disappearing.
