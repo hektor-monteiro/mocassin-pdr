@@ -215,6 +215,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-213 | **The collapse is D-166's extrapolation decaying, not the chemistry.** `added` is `pdrCoolSp` times `(Te/Tref)^slope`. Split at iteration 6: the raw coolants RISE monotonically x22 across the passes, while the effective multiplier falls **229 -> 3.2 -> 1.2 -> 1.00**. At pass 1 `Tref` is 177 K from the previous iteration's cold chemistry and the mean slope is 2.71 (clamp ceiling 12), manufacturing a stiff artificial thermostat that holds the cell at 530 K; each pass re-anchors `Tref`, the slope flattens, the prop is removed and Te marches to ~8300 K. Separately, at multiplier 1.00 the substitution still replaces 1.81e-23 of MOCASSIN's cooling with 2.46e-24 of 3D-PDR's - a 7.4x net loss in hot gas | Done | 2026-09-10 |
 | D-214 | **The coupling loop is a temperature-marching scheme, and the march is the amplifier.** Each pass runs a full `iterateT` at frozen radiation field, re-anchors `pdrCoolTref`, flattens the slope and releases the temperature the previous extrapolation was holding: 530 -> 4129 -> 8054 -> 8245 -> 8283 K inside iteration 6. With `pdrCoupleIter 1` both collapses vanish (f_mol 0.291 -> 0.759 at it 6, 0.327 -> 0.764 at it 11) and the run is 2.5x faster. **Partly retracted at D-215**: much of that was the extrapolation propping the gas cold | Done | 2026-09-10 |
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
+| D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12439,3 +12440,95 @@ the remainder is a genuine thermal bistability, the one-pass configuration
 having removed the chemistry closure, or something not yet instrumented, is
 open. The proper restructure (one `updateCell`, N `pdrStep`) has not been
 built; D-214 only disabled the loop.
+
+
+---
+
+## D-216 - one thermal solve per MC iteration (2026-09-10)
+
+The operator's design, built properly rather than approximated by
+`pdrCoupleIter 1`: MOCASSIN solves the ionization and the thermal equilibrium
+once per MC iteration, and the chemistry converges the molecular content
+against that fixed state. The `updateCell` loop moves out of `do iCouple`;
+`pdrCoupleIter` keeps its name and now counts CHEMISTRY passes - a numerical
+convergence parameter that cannot move a quantity between the codes, so it is
+not an ownership switch. The count stays fixed because every rank must run the
+same number of passes or the collectives inside deadlock.
+
+D-119 put `updateCell` inside the loop to close the ionization/chemistry
+handshake, and that reasoning was sound. What it did not anticipate is that
+`updateCell` calls `iterateT`, a full temperature search, so the loop re-solved
+thermal equilibrium once per pass at frozen radiation field with nothing
+damping Te across passes. The `[D119]` residual is left in place; under the
+restructure it measures zero by construction, since `ionDen` is written only by
+`updateCell` and `pdrToMocassin` writes only `elemAvail`.
+
+`runs/d216-restructure`, `hiipdr-contract` (default `pdrCoupleIter` 5 = five
+chemistry passes), 12 iterations, 58:42, clean exit. The run survived a Claude
+Code session restart because it was launched detached.
+
+**The design does what it says.** Te is constant across all five passes -
+2977.4 K at every pass of iteration 6 - so the D-213 march cannot happen.
+
+**And the chemistry closure buys nothing.** Against `runs/d215-cooltab`, which
+differs only in running one chemistry pass instead of five:
+
+     it   d215 (1 pass): f_mol / Te     d216 (5 passes): f_mol / Te
+      6        0.398 / 2517 K                0.390 / 2558 K
+      7        0.578 /  998 K                0.587 / 1006 K
+     10        0.489 / 1677 K                0.492 / 1502 K
+     12        0.670 /  412 K                0.662 /  476 K
+
+Identical within run-to-run scatter: collapses at 6 and 10 in both, same
+amplitudes, same recovery. The confound D-214 carried - that `pdrCoupleIter 1`
+disabled D-119's closure along with the march - is closed. Convergence is at or
+below 0.0066% (one cell in 15204) at every iteration of both runs, which is
+scatter, not a difference.
+
+The five passes cost 2.7x in wall clock for no measurable effect. The table is
+rebuilt every pass, so it is 5 x 16 x 4 level-population solves per cell per
+iteration against 16 x 4.
+
+**A claim from the running commentary is withdrawn.** At iteration 6 the
+per-pass f_mol read 0.2538, 0.2665, 0.2543, 0.2662 - a period-2 alternation at
+fixed Te, field and columns - and it was offered as a possible sign of the
+D-112 bistability and "a candidate for the residual oscillation". The full run:
+
+     it   f_mol per pass (1 = state handed in)
+      5   0.7465  0.8250  0.8400  0.8211  0.8389
+      6   0.7959  0.2538  0.2665  0.2543  0.2662
+      7   0.3883  0.6566  0.6525  0.6528  0.6526
+      8   0.5855  0.7654  0.7462  0.7554  0.7481
+      9   0.7110  0.8009  0.7672  0.7877  0.7702
+     10   0.7669  0.4069  0.4049  0.4010  0.4084
+     11   0.4920  0.5464  0.5516  0.5440  0.5540
+     12   0.5306  0.7106  0.7053  0.7059  0.7059
+
+The alternation is real in some iterations (5, 6, 11), decays in others (8, 9)
+and is absent in others (7, 12). Its amplitude is at most 0.034 and usually
+0.005-0.01. The oscillation it was proposed to explain moves f_mol by about
+0.4. Two orders of magnitude too small - it is a minor non-convergence of the
+steady-state chemistry at fixed inputs, not the driver. It was a guess from
+one iteration presented with more weight than one iteration carries.
+
+**What the restructure does make unambiguous is the ordering.** With one
+thermal solve per iteration, pass 1 is that solve and pass 2 onward is the
+chemistry. At iteration 6 the thermal solve puts mean Te at 2977 K with 56.5%
+of cells above 3000 K while f_mol is still 0.796 - up from 131 K at iteration
+5. The chemistry then drops f_mol to 0.254. Iteration 10 repeats it: Te 2115 K
+at f_mol 0.767, then 0.407. D-204 could only say "neither leads" because the
+old passes interleaved the two; here they cannot interleave. Te leads, and
+across an MC iteration rather than within one.
+
+**Where that leaves the residual.** Every mechanism named so far is removed or
+refuted: the pass march (D-216), the cooling extrapolation (D-215), the
+hot-gas deletion (retracted at D-215), the seed (D-209), the FUV field and A_V
+(D-203), Ne (D-212). The PDR cooling is now evaluated at the temperature the
+solver tries and adds cooling (+8.5e-25 per H at iteration 6), and the PDR
+heating is ~1e-27. So a thermal solve on molecular gas jumps x23 between
+iterations 5 and 6 on something in MOCASSIN's own budget: its photoionization
+heating from the new MC field, its photoelectric term, or its own coolants,
+which carry x(H0) through `elemAvail` and n_e.
+
+**What is NOT known.** Which of those terms moves between iterations 5 and 6.
+The census reports the PDR side of the budget and none of MOCASSIN's own terms.

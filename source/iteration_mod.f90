@@ -1060,26 +1060,45 @@ module iteration_mod
               end if
 
 
-              ! D-119: close the ionization <-> chemistry loop inside one MC
-              ! iteration. Until now they ran once each in sequence, so the
-              ! loop closed only across MC iterations - the chemistry saw last
-              ! iteration's ionization and vice versa. Cloudy iterates them to
-              ! a joint solution within a zone (conv_base) with damping and
-              ! oscillation detection.
+              ! ---------------------------------------------------- D-216
+              ! MOCASSIN solves the thermal equilibrium and the ionization
+              ! ONCE per MC iteration; the chemistry then converges the
+              ! molecular content against that temperature.
               !
-              ! The count is FIXED, not convergence-tested, on purpose: every
-              ! rank must execute the same number of passes or the MPI
-              ! collectives inside deadlock. Convergence is measured and
-              ! reported instead, and the operator chooses the count.
-              do iCouple = 1, max(pdrCoupleIter, 1)
-#ifdef PDR
-              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple > 1) then
-                 ! remember the ionization this pass starts from, so the change
-                 ! across the pass can be measured and damped
-                 if (allocated(ionDenPrev)) ionDenPrev = grid(iG)%ionDen
-              end if
-#endif
-
+              ! This is the contract as stated: MOCASSIN hands 3D-PDR the ion
+              ! densities, Ne, Te, the dust temperature and the dust opacity;
+              ! 3D-PDR returns the molecular content and the heating and
+              ! cooling that follow from it. A pass is one exchange. Nothing
+              ! in that says MOCASSIN should re-solve its half five times
+              ! while the radiation field stands still.
+              !
+              ! D-119 put updateCell INSIDE this loop to close the
+              ! ionization/chemistry handshake within an MC iteration, and
+              ! that reasoning was sound. What it did not anticipate is that
+              ! updateCell calls iterateT, a full bracketed temperature search
+              ! - so the loop was re-solving the thermal equilibrium once per
+              ! pass at frozen radiation field, with nothing damping Te across
+              ! passes (iterDamp acts across MC iterations, pdrCoupleDamp acts
+              ! on ionDen). D-213/D-214 measured the consequence: each pass
+              ! re-anchored pdrCoolTref, flattened the measured slope, removed
+              ! part of the extrapolation holding the cell cold and let the
+              ! temperature step up - 530 -> 4129 -> 8054 -> 8245 -> 8283 K
+              ! inside one iteration.
+              !
+              ! The Te lag this reintroduces - the chemistry answering at a
+              ! temperature computed from the previous iteration's molecules -
+              ! now lives in the MC iteration loop, which is the right place
+              ! for it because that loop contains the radiation field: the leg
+              ! that pushes back when the gas ionizes and the opacity changes.
+              ! A lag closed by an unstable inner loop is worse than a lag.
+              !
+              ! pdrCoupleIter is now the number of CHEMISTRY passes. It is a
+              ! numerical convergence parameter, not an ownership switch: it
+              ! cannot move a quantity from one code to the other, only decide
+              ! how far the chemistry is iterated against a fixed MOCASSIN
+              ! state. The count stays FIXED rather than convergence-tested
+              ! because every rank must execute the same number of passes or
+              ! the MPI collectives inside deadlock.
               if(taskid==0) print*, 'iterateMC: updateCell in', iG
               iCell = 0
               do i = 1, grid(iG)%nx
@@ -1094,6 +1113,7 @@ module iteration_mod
               end do
               if(taskid==0) print*, 'iterateMC: updateCell out', iG
 
+              do iCouple = 1, max(pdrCoupleIter, 1)
 #ifdef PDR
               ! ---------------------------------------------------- D-204
               ! Te at this point has been solved by updateCell against the
@@ -1511,6 +1531,15 @@ module iteration_mod
 #endif
 
 #ifdef PDR
+              ! D-216: inert under the restructure and kept only so the
+              ! residual is still reported. ionDen is written by updateCell,
+              ! which now runs once per MC iteration, and pdrToMocassin writes
+              ! elemAvail and nothing else (D-193) - so ionDen does not change
+              ! across chemistry passes and this measures zero. It is left in
+              ! place rather than deleted because the [D119] line is how the
+              ! ionization/chemistry handshake was watched, and a line that
+              ! reads zero for a stated reason is better than a line that
+              ! disappears.
               if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple > 1 &
                   & .and. allocated(ionDenPrev)) then
                  ! Cloudy damps by averaging old and new rather than taking the
