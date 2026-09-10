@@ -13327,3 +13327,44 @@ Allocated in `setMotherGrid` and `resetGrid`.
 is closed) and D-221.
 
 **What is NOT known.** Everything the run is for.
+
+
+### Iteration 4: the instrument checks out (2026-09-10)
+
+`runs/d222-absorbers`, first D-222 block.
+
+**The split is complete.** (gas + dust) / total reads 1.0000 at all four
+representative energies in all three groups: the captured absorbers plus dust
+reproduce exactly the opacity the transport used.
+
+**The bands reproduce D-221.** Cold -> hot: window field 4.54e-9 against D-221's
+4.542e-9; the hard bands 9.51e-8 + 3.83e-8 + 0 + 0 against D-221's 1.334e-7 above
+15.43 eV. H0 heating 2.32e-26 + 1.00e-26 against 3.321e-26. Stayed cold
+1.37e-9 + 1.75e-9 against 3.116e-9; started hot 1.57e-7 + 1.04e-7 against
+2.607e-7.
+
+**H2's opacity is exactly zero at all four energies in every group - expected
+at this iteration, required to change at the next.** Iteration 4's opacity was
+built at the top of the iteration, before `seedMolecules` placed any H2. From
+iteration 5 on H2den is populated when the opacity is built, and H2 must
+appear; if it does not, H2 is not reaching `addOpacity` and the measurement
+cannot answer its question.
+
+**What iteration 4 shows, from five flipping cells.**
+
+     representative energy     19.8 eV   36.9 eV   75.4 eV   149.5 eV
+     tau/cell, H0                 452        77       9.1       1.1
+     tau/cell, He0                  -        73      16         2.6
+     tau/cell, heavier elements   1.3       0.9      0.3       0.08
+     tau/cell, dust               0.40      0.29     0.25      0.21
+
+  - No field above 54.4 eV reaches any PDR group: bands 4 and 5 are exactly
+    zero in field and heating in every group, while their opacity is finite. A
+    40,000 K blackbody emits very little beyond 4 Ryd and what it emits is
+    absorbed near the star.
+  - The flipping cells take 71% of their field and 70% of their H0 heating from
+    15.4-24.6 eV, the rest from 24.6-54.4 eV.
+  - Gas opacity is set by H0 and He0. Dust and heavier elements are one to three
+    orders below.
+
+Five cells; iteration 6 is where the split is measured across thousands.
