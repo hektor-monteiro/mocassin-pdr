@@ -217,7 +217,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 45-2208x that of the cells that stay cold (45x and 111x at the two collapses) and 6-843x their own total cooling (above 100x from iteration 6 on); photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
-| D-218 | **No single-variable story: which cells flip changes from iteration to iteration, and threshold opacity does not decide it.** Iterations 5-6 put the flippers deepest, most molecular and at the lowest tau per cell at H0 threshold (it 6: 8265 cells, A_V 2.34, f_mol 0.904, tau 466 vs 598, 16x the field). Iteration 7 reverses all three: 2835 flippers are the SHALLOWEST (A_V 1.73), LEAST molecular (0.417) and at the HIGHEST tau (591), yet take 54x the field - while iteration 6's flippers, at the lowest tau (167), receive the least (1.5e-6). A generalization from 5-6 was committed and is withdrawn. What holds: the opacity trails the ionization by one iteration (tau 1260 = x(H0) 1.0 at it 5; predicted 460, measured 466 at it 6) | Running | 2026-09-10 |
+| D-218 | **Two regularities hold at every iteration; no single variable decides which cells flip.** Twelve iterations (runs/d218-front, 21:33). At EVERY iteration 5-12 the flipping cells come overwhelmingly from last iteration's cold cells, and a cell that flips receives ~1000x LESS field the next iteration (started hot: J 1.5-5.3e-6; flippers 2e-4-1.1e-2). The two big collapses look alike - iteration 6 (8265 cells) and 10 (6587) put their flippers deep (A_V 2.34, 2.41), very molecular (f_mol 0.904, 0.905) and at the lowest threshold tau (466, 201) - but the follow-on iterations do not, and threshold tau does not predict where the field lands (at 7 and 11 the lowest-tau group gets the least). The opacity trails the ionization by one iteration (tau 1260 = x(H0) 1.0 at it 5; predicted 460, measured 466 at it 6) | Done | 2026-09-10 |
 | D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Whether it is the collapse trigger is OPEN: an early argument that iteration 6 'enters at an excess of 1.26' conflated total hydrogen with the H0 that absorbs at 13.6-15.4 eV, where H2 is transparent - the H0 fraction iteration 6's photons saw had fallen from 1.0 to 0.365 (see D-218). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -12850,6 +12850,87 @@ iterations were read as a law.
     the gas is far thinner than at 13.6 eV. That band is still unmeasured, and
     after iteration 7 it is the measurement that matters rather than one of
     several.
+
+
+### Full result - iterations 4 to 12 (2026-09-10)
+
+`runs/d218-front`, one-pass fixture, 12 iterations, 21:33, clean exit.
+
+      it  group        cells    A_V   f_mol  tau@thr   J>H0thr   phot heat   last: none c->h  cold  hot
+      4  cold -> hot      7   2.43   0.427   1260   1.32e-06   7.45e-25      7     0     0    0
+      4  stayed cold  13951   2.31   0.521   1261   2.66e-08   2.44e-27   13951     0     0    0
+      4  started hot    587   1.23   0.061   1064   2.18e-06   4.06e-25    587     0     0    0
+
+      5  cold -> hot     33   2.54   0.914   1270   2.24e-04   4.58e-24      0     0    33    0
+      5  stayed cold  14677   2.25   0.785   1262   4.79e-06   7.43e-26    169     5 13918  585
+      5  started hot     78   0.85   0.008    962   4.49e-06   6.78e-25     74     2     0    2
+
+      6  cold -> hot   8265   2.34   0.904    466   2.84e-03   4.48e-23      0     3  8262    0
+      6  stayed cold   6579   2.10   0.680    598   1.77e-04   1.00e-24     61    25  6415   78
+      6  started hot     77   0.77   0.015    919   5.32e-06   8.14e-25     72     5     0    0
+
+      7  cold -> hot   2835   1.73   0.417    592   1.14e-02   1.17e-21      0   560  2275    0
+      7  stayed cold   6890   2.50   0.518    248   2.12e-04   7.91e-25     23  2486  4304   77
+      7  started hot   5256   2.11   0.219    167   1.52e-06   2.61e-25     37  5219     0    0
+
+      8  cold -> hot    929   2.14   0.657    353   7.10e-03   5.38e-22      0    80   849    0
+      8  stayed cold  11158   2.36   0.699    626   1.01e-04   2.87e-25      7   272  6041 4838
+      8  started hot   2922   1.68   0.084    532   3.67e-06   7.58e-25     21  2483     0  418
+
+      9  cold -> hot    921   2.32   0.768    301   3.51e-03   1.58e-22      0    49   872    0
+      9  stayed cold  12524   2.30   0.797    529   2.84e-05   1.06e-25      0   288 10286 1950
+      9  started hot   1575   1.47   0.061    673   3.25e-06   6.23e-25     11   592     0  972
+
+     10  cold -> hot   6587   2.41   0.905    201   3.49e-03   6.91e-23      0   109  6470    8
+     10  stayed cold   7617   2.07   0.747    557   1.01e-04   6.01e-25      0   146  6054 1417
+     10  started hot    817   1.98   0.150    348   4.29e-06   9.29e-25      1   666     0  150
+
+     11  cold -> hot   2634   2.26   0.733    233   4.44e-03   1.37e-22      0   502  2116   16
+     11  stayed cold   7800   2.15   0.565    368   9.92e-05   4.48e-25      0  1753  5501  546
+     11  started hot   4591   2.29   0.211    130   2.52e-06   3.76e-25      4  4332     0  255
+
+     12  cold -> hot   2088   1.90   0.606    395   1.07e-02   7.69e-22      0   237  1843    8
+     12  stayed cold  10561   2.31   0.647    572   1.07e-04   3.59e-25      0   800  5957 3804
+     12  started hot   2380   2.07   0.119    467   2.47e-06   5.32e-25      4  1597     0  779
+
+(J is the plain sum of `Jste` over the bins from hydrogen's threshold; phot heat
+is the D-217 entry photoionization heating per H nucleus; "last" counts each
+group's cells by their group one iteration earlier. f_mol is valid at entry;
+D-218's x(H0), not shown, is post-solve and is not.)
+
+**What holds at every iteration from 5 to 12.**
+
+  1. **The cells that flip come from last iteration's cold cells** - 33 of 33,
+     8262 of 8265, 2275 of 2835, 849 of 929, 872 of 921, 6470 of 6587, 2116 of
+     2634, 1843 of 2088.
+  2. **A cell that flips receives about 1000x less field the next iteration.**
+     The started-hot group - last iteration's flippers - sits at J = 1.5e-6 to
+     5.3e-6 in every iteration, against 2.2e-4 to 1.1e-2 in that iteration's
+     flippers. This is the sharpest regularity in the run: whatever puts the
+     field into a cell stops the iteration after the cell heats.
+
+**What holds only at the two big collapses.** Iterations 6 and 10 put their
+flippers deep (A_V 2.34, 2.41), very molecular (f_mol 0.904, 0.905) and at the
+lowest threshold tau of any group (466, 201). The follow-on iterations do not
+share it: iteration 7's flippers are shallow (1.73), less molecular (0.417) and
+at the highest tau (592); iteration 12's are shallow again (1.90).
+
+**What does not hold.** Threshold tau does not predict the field. At iterations 7
+and 11 the lowest-tau group (started hot: 167, 130) receives the least field of
+any group. So the opacity at 13.6 eV is not what decides where the field lands,
+and the photons carrying it must sit where the gas is far thinner. The
+iteration 4-6 generalization withdrawn earlier in this entry stays withdrawn.
+
+**What holds about the opacity.** It trails the ionization by one iteration plus
+damping: tau 1260 at iteration 5 is x(H0) = 1.0 exactly, matching the
+end-of-iteration-4 median x(H0) of 0.998; the end-of-iteration-5 median of 0.365
+predicted tau ~ 460 at iteration 6, measured 466; iteration 7's started-hot group
+(tau 167) is consistent in magnitude with the end-of-6 median of 0.110.
+
+**What is NOT known.** Why the field in a cell collapses the iteration after the
+cell heats, and which energy band carries the field that does arrive. The first
+is a question about how the MC estimator responds to a cell's own state; the
+second is the measurement proposed alongside the D-219 fix.
 
 ---
 
