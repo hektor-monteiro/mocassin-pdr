@@ -13083,3 +13083,43 @@ of the group's entry photoionization heating.
 **Run.** `runs/d220-fix`, one-pass fixture, carrying both D-220 and D-221.
 
 **What is NOT known.** Everything the run is for.
+
+
+### D-220/D-221 verified at runtime - iteration 4 (2026-09-10)
+
+`runs/d220-fix`, one-pass fixture.
+
+**The rescale works as designed.** At the end of iteration 4:
+
+    [D220] rescaled ion stages to elemAvail in 15204 cells;
+           before: mean |x(H0)+x(H+)+2x(H2)-1| 0.4004, off by >1% in 14186 (93.30%)
+    census budget after the rescale: min 0.99996  median 1.0000  max 1.0000
+
+Before the rescale the defect is large and nearly universal - the chemistry
+moved the mean molecular fraction from the seed's 0.52 to 0.78 during the
+iteration, and 93% of cells carried an ionization normalised to the old value.
+After it the budget closes exactly. That the maximum departure is 4e-5 also
+bounds the network's other hydrogen carriers (H2O, OH, CH_n, H3+) below that
+here, so the ~1.25% D-196 once attributed to them was lag, as D-199 concluded.
+
+**The seed republish works.** At pass 1 of iteration 4, x(H0) + f_mol per group
+is 0.992, 0.999 and 0.981 (the last before x(H+)) - against 1.41 and 1.52 at
+the same point in `runs/d218-front`, where `elemAvail` was never republished
+after the seed. tau per cell at threshold is still 1260 at iteration 4, as it
+must be: iteration 4's opacity was built before the seed ran. The first opacity
+built from the rescaled state is iteration 5's, and should read ~272 per cell
+from the end-of-iteration-4 elemAvail(H) of 0.2160.
+
+**D-221 is internally consistent.** The two bands reproduce D-218's total field
+above threshold to four figures in every group (6.707e-9 + 2.463e-7 = 2.530e-7
+against 2.531e-7; 2.820e-8 against 2.820e-8; 2.198e-6 against 2.198e-6). H0's
+share of the photoionization heating is 0.9950, 0.9404 and 0.9913 - never above
+1, and matching D-138's 99.5% and D-168's 99.7% independently.
+
+**A first look at the band - eight cells, not a result.** Iteration 4's eight
+cold -> hot cells receive 97% of their field above 15.43 eV, and 99.97% of their
+H0 heating comes from that band (1.135e-25 against 2.9e-29 in the window). The
+13,980 cells that stay cold receive 89% of their field in the 13.6-15.4 eV
+window. If iteration 6's thousands of flipping cells show the same, the heating
+that flips cells comes from photons H2 does absorb, and missing H2 line opacity
+in the window is not the cause.
