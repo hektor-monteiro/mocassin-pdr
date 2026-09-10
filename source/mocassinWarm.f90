@@ -58,6 +58,7 @@ program MoCaSSiNwarm
 #ifdef PDR
     ! network before resetGrid: it sizes pdrAbun (D-022). Once, not per grid.
     if (lgPDR) call initPDRnetwork()
+    if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
 
     ! reset the 3D cartesian grid

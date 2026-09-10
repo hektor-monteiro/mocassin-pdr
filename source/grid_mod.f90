@@ -1454,6 +1454,12 @@ module grid_mod
                 end if
                 grid%pdrHeatUsed = 0.
                 grid%pdrCoolUsed = 0.
+                allocate(grid%pdrCoolTab(0:grid%nCells, 1:max(pdrNcool,1), &
+                     &                       1:max(pdrNtab,1)), stat = err)   ! D-215
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrCoolTab memory"; stop
+                end if
+                grid%pdrCoolTab = 0.
                 allocate(grid%pdrTfacUsed(0:grid%nCells), stat = err)   ! D-213
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrTfacUsed memory"; stop

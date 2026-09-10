@@ -1,0 +1,93 @@
+==============================================================================
+runs/d215-cooltab/run.log
+==============================================================================
+
+  f_mol = 2x(H2) distribution, % of PDR cells
+   it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+    4      2.23    1.99    1.98    1.14    5.78   45.34   41.53    0.01
+    5      4.57    1.68    3.84    3.21    2.94   26.53   57.22    0.00
+    6      4.30    3.37   61.83    3.69    1.93    7.04   17.84    0.00
+    7      6.27   12.49   13.40    2.94    1.37   52.45   11.07    0.00
+    8      6.23    5.27    7.34    1.87    2.35   25.00   51.94    0.00
+    9      3.38    2.78    8.64    1.38    2.34   18.57   62.92    0.00
+   10      3.27    4.50   49.48    1.99    2.68   10.80   27.27    0.00
+   11      3.55   15.39   20.40    1.94    2.03   39.53   17.15    0.00
+   12      4.04    7.69   13.31    1.72    1.82   30.05   41.36    0.00
+
+  drivers and movement
+   it   f_mol_med  f_mol_mean   |df|_med   |df|_p90   mv>0.1%   Te_med     chi_med      AV_med    conv%
+    4      0.8517      0.7948     0.2168     0.6982     60.04      261.4   2.930e-01   2.371e+00   0.0132
+    5      0.9148      0.8063     0.0639     0.1627     39.07       95.5   2.856e-01   2.361e+00   0.0000
+    6      0.2375      0.3977     0.6548     0.7138     72.10     2516.5   2.906e-01   2.355e+00   0.0066
+    7      0.7897      0.5775     0.5557     0.6408     80.97      997.8   3.370e-01   2.354e+00   0.0132
+    8      0.9037      0.7188     0.1351     0.6888     83.92      320.7   3.503e-01   2.352e+00   0.0000
+    9      0.9257      0.7810     0.0487     0.6735     41.85      112.2   3.189e-01   2.350e+00   0.0066
+   10      0.2414      0.4887     0.5645     0.7114     71.04     1676.5   2.995e-01   2.350e+00   0.0000
+   11      0.7748      0.5515     0.5196     0.7076     76.68      837.4   3.270e-01   2.345e+00   0.0066
+   12      0.7970      0.6703     0.1435     0.6943     81.83      412.3   3.573e-01   2.343e+00   0.0263
+  ordering (D-204): three points in one MC iteration
+    start   = iteration start
+    upd1    = after pass-1 updateCell; thermal balance done, chemistry NOT yet run
+    end     = end of iteration; chemistry has run
+  A jump already present at upd1, with f_mol still at its start
+  value, means Te leads and the chemistry follows a hot cell.
+
+   it   | cells with Te > 3000 K, %  |  mean Te, K        |   mean f_mol
+        |  start    upd1     end    |  start     upd1    |  start     end
+    4   |   3.86    0.05    0.03   |   1146.9     53.4   |  0.5040   0.7948
+    5   |   0.49    0.13    0.01   |    361.6    134.7   |  0.7816   0.8063
+    6   |   0.45   55.14   34.45   |    215.1   2806.8   |  0.7993   0.3977
+    7   |  34.53   21.76   19.48   |   2163.3   1745.7   |  0.3960   0.5775
+    8   |  19.57   11.30   10.40   |   1853.0    695.4   |  0.5764   0.7188
+    9   |  10.47    7.15    5.41   |    988.7    449.2   |  0.7183   0.7810
+   10   |   5.42   45.20   30.34   |    584.5   2154.9   |  0.7810   0.4887
+   11   |  30.36   22.81   15.88   |   1763.8   1308.6   |  0.4886   0.5515
+   12   |  15.91   16.07   11.62   |   1424.5   1061.2   |  0.5513   0.6703
+
+ ! initPDRcoolTab: cooling tabulated at 16 points from    1.00 K to   20000.0 K, ratio 1.935
+ ! initPDRcoolTab: D-166's power law is retired (D-215) - the balance interpolates this table and never extrapolates
+ ! [D205]   pass 1 after updateCell:  mean Te  5.3426E+01  hot   0.05 %   f_mol  0.5040
+ ! [D205]      per H, as USED by the balance:  cool  0.0000E+00  heat  0.0000E+00  (heatXtra  0.0000E+00)
+ ! [D210]      cooling: removed  0.0000E+00  added  0.0000E+00   guard kept, per cell    3.000
+ ! [D213]      coolants per H:  CO  0.0000E+00  C+  0.0000E+00  C  0.0000E+00  O  0.0000E+00
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  1.0000E+00   Tref  0.0000E+00   slope  0.0000E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  1.3472E+02  hot   0.13 %   f_mol  0.7816
+ ! [D205]      per H, as USED by the balance:  cool -4.9604E-27  heat  1.8908E-27  (heatXtra  1.8908E-27)
+ ! [D210]      cooling: removed  4.5327E-26  added  4.0367E-26   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  2.4239E-27  C+  3.2782E-26  C  2.5238E-27  O  1.6420E-26
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  8.6300E+01   Tref  7.0590E+01   slope  2.4425E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  2.8068E+03  hot  55.14 %   f_mol  0.7993
+ ! [D205]      per H, as USED by the balance:  cool  8.3563E-25  heat  1.7952E-27  (heatXtra  1.7952E-27)
+ ! [D210]      cooling: removed  3.3010E-25  added  1.1657E-24   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  1.8319E-26  C+  3.6983E-26  C  3.2729E-27  O  1.6551E-26
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  6.3449E+02   Tref  1.5880E+02   slope  2.2962E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  1.7457E+03  hot  21.76 %   f_mol  0.3960
+ ! [D205]      per H, as USED by the balance:  cool  8.2469E-25  heat  1.2454E-27  (heatXtra  1.2454E-27)
+ ! [D210]      cooling: removed  8.9149E-25  added  1.7162E-24   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  1.4203E-26  C+  1.8966E-25  C  1.0978E-26  O  6.6740E-26
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  3.9358E+01   Tref  2.7195E+03   slope  7.6410E-01
+ ! [D205]   pass 1 after updateCell:  mean Te  6.9536E+02  hot  11.30 %   f_mol  0.5764
+ ! [D205]      per H, as USED by the balance:  cool  1.5506E-26  heat  1.2321E-27  (heatXtra  1.2321E-27)
+ ! [D210]      cooling: removed  3.6550E-25  added  3.8101E-25   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  1.9159E-26  C+  1.2124E-25  C  2.9180E-26  O  2.1639E-25
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  2.3148E+01   Tref  1.7383E+03   slope  1.1921E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  4.4922E+02  hot   7.15 %   f_mol  0.7183
+ ! [D205]      per H, as USED by the balance:  cool  2.0837E-26  heat  1.2397E-27  (heatXtra  1.2397E-27)
+ ! [D210]      cooling: removed  2.2234E-25  added  2.4318E-25   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  8.4652E-27  C+  7.8922E-26  C  8.7800E-27  O  1.3528E-25
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  3.5891E+01   Tref  7.2254E+02   slope  1.5354E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  2.1549E+03  hot  45.20 %   f_mol  0.7810
+ ! [D205]      per H, as USED by the balance:  cool  5.4476E-25  heat  1.4404E-27  (heatXtra  1.4404E-27)
+ ! [D210]      cooling: removed  3.3031E-25  added  8.7507E-25   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  5.3022E-27  C+  5.3960E-26  C  5.6286E-27  O  4.7700E-26
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  3.2680E+02   Tref  4.7304E+02   slope  1.8683E+00
+ ! [D205]   pass 1 after updateCell:  mean Te  1.3086E+03  hot  22.81 %   f_mol  0.4886
+ ! [D205]      per H, as USED by the balance:  cool -1.9030E-26  heat  1.1396E-27  (heatXtra  1.1396E-27)
+ ! [D210]      cooling: removed  3.5463E-25  added  3.3560E-25   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  1.1225E-26  C+  1.2046E-25  C  1.4226E-26  O  8.0943E-26
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  3.8190E+01   Tref  2.3962E+03   slope  8.5914E-01
+ ! [D205]   pass 1 after updateCell:  mean Te  1.0612E+03  hot  16.07 %   f_mol  0.5513
+ ! [D205]      per H, as USED by the balance:  cool  4.8747E-25  heat  1.5536E-27  (heatXtra  1.5536E-27)
+ ! [D210]      cooling: removed  4.2071E-25  added  9.0818E-25   guard kept, per cell    0.000
+ ! [D213]      coolants per H:  CO  1.5776E-26  C+  8.8138E-26  C  2.9496E-26  O  1.8389E-25
+ ! [D213]      D-166 factor: mean (Te/Tref)^slope  4.4174E+01   Tref  1.3412E+03   slope  1.0962E+00

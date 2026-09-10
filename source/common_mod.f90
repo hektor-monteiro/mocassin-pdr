@@ -419,6 +419,13 @@ module common_mod
         ! or the extrapolation and the aggregate cannot tell them apart.
         ! pdrTfacUsed records the factor actually applied at the converged Te.
         real, allocatable         :: pdrTfacUsed(:)
+        ! D-215. The cooling function itself, tabulated per cell per coolant
+        ! on the fixed log-T grid pdrTabT, replacing D-166's two-point power
+        ! law. Inside iterateT the abundances and partner densities are frozen
+        ! and only T moves, so the coolant is a function of ONE variable and
+        ! can be tabulated once per coupling pass and interpolated - never
+        ! extrapolated. [erg/s/cm^3], same units as pdrCoolSp.
+        real, allocatable         :: pdrCoolTab(:,:,:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
@@ -839,6 +846,18 @@ module common_mod
     ! iterateT leaves H-C with no temperature dependence in neutral gas and
     ! therefore no root. 1 = the two-point power law; 2 adds a third solve on
     ! the far side of Tref purely to check the extrapolation.
+    ! D-215: the tabulation grid. 16 points log-spaced over [pdrTmin,pdrTmax]
+    ! = [1, 2e4] K gives a spacing of x1.94, so the root finder interpolates
+    ! over a factor of two at worst. D-166's power law was measured
+    ! extrapolating over x9.3 with a multiplier reaching x420 (D-213).
+    !
+    ! Cost: 16 level-population solves per coolant per coupling pass against
+    ! D-166's 2. That is 8x the level-population work per pass - but the same
+    ! measurement that condemned the extrapolation also showed the coupling
+    ! loop should run ONE pass, not five (D-214), so against the five-pass
+    ! two-point configuration the total is comparable.
+    integer             :: pdrNtab = 16
+    real                :: pdrTabT(64) = 0.        ! filled by initPDRcoolTab
     integer             :: pdrCoolTdep = 1
     real                :: pdrCoolTfac = 1.6   ! second evaluation at this x T
     integer             :: pdrNslopeChk = 0    ! D-166: cap on power-law checks
@@ -1078,5 +1097,61 @@ module common_mod
     end type aldropequidata
 
     type(aldropequidata), dimension(167) :: aldropequi_coeffs
+
+
+
+contains
+
+#ifdef PDR
+
+  !-----------------------------------------------------------------
+  ! One coolant, one cell, at an arbitrary temperature: log-log
+  ! interpolation on the D-215 table. Volumetric, [erg/s/cm^3], the same
+  ! units and meaning as pdrCoolSp.
+  !-----------------------------------------------------------------
+  double precision function pdrCoolAt(grid, cellP, iCool, T)
+    implicit none
+    type(grid_type), intent(in) :: grid
+    integer,         intent(in) :: cellP, iCool
+    real,            intent(in) :: T
+
+    integer          :: i
+    double precision :: f, c1, c2, t1, t2
+
+    pdrCoolAt = 0.d0
+    if (.not.allocated(grid%pdrCoolTab)) return
+    if (iCool < 1 .or. iCool > pdrNcool) return
+
+    ! clamped, not extrapolated - see the note on initPDRcoolTab
+    if (T <= pdrTabT(1)) then
+       pdrCoolAt = dble(grid%pdrCoolTab(cellP, iCool, 1));        return
+    end if
+    if (T >= pdrTabT(pdrNtab)) then
+       pdrCoolAt = dble(grid%pdrCoolTab(cellP, iCool, pdrNtab));  return
+    end if
+
+    ! the grid is uniform in log T, so the bracket is arithmetic
+    i = 1 + int(log(dble(T)/dble(pdrTabT(1))) &
+         &      /log(dble(pdrTabT(pdrNtab))/dble(pdrTabT(1))) &
+         &      *dble(pdrNtab-1))
+    i = min(max(i, 1), pdrNtab-1)
+    t1 = dble(pdrTabT(i)); t2 = dble(pdrTabT(i+1))
+    c1 = dble(grid%pdrCoolTab(cellP, iCool, i))
+    c2 = dble(grid%pdrCoolTab(cellP, iCool, i+1))
+    f  = log(dble(T)/t1)/log(t2/t1)
+
+    if (c1 > 0.d0 .and. c2 > 0.d0) then
+       ! log-log: a fine-structure coolant is a power law in pieces, so
+       ! this is exact where the two-point law was only ever a guess
+       pdrCoolAt = exp((1.d0-f)*log(c1) + f*log(c2))
+    else
+       ! one end is zero (carrier destroyed at that T) - linear, which
+       ! reaches zero honestly instead of taking log of it
+       pdrCoolAt = (1.d0-f)*c1 + f*c2
+    end if
+
+  end function pdrCoolAt
+#endif
+
 
 end module common_mod

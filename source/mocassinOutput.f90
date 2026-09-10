@@ -48,6 +48,7 @@ program MoCaSSiNoutput
 #ifdef PDR
     ! network before resetGrid: it sizes pdrAbun (D-022)
     if (lgPDR) call initPDRnetwork()
+    if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
     call resetGrid(grid3D)
 

@@ -213,6 +213,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-211 | **D-167's guard covers the wrong case.** It protects against 3D-PDR's coolant being ZERO; measured, `guard kept` is 0.000 per cell in every pass after the first, so that case never fires. The loss is 3D-PDR's coolant being merely SMALLER than MOCASSIN's, on the same code path, unguarded and silent. At iteration 5 pass 4 MOCASSIN's removed coolant is 2.19e-25 against 5.10e-26 put back. `nCoolNull`, the one counter that separates the two, has been incremented and never printed since D-167 | Done | 2026-09-10 |
 | D-212 | **Ne re-imposed on the chemistry every call - correct, and not the bug.** Electrons are not an element, so D-153's link table never reached them: `abun(NELECT)` was written from MOCASSIN's Ne once per cell and then evolved under CVODE, while the four other collision partners feeding the substituted cooling were re-imposed every call. Fixed on contract grounds. Measured: iteration 6 is unchanged to within run-to-run scatter. The premise - that it drifts - was never measured; D-153 already re-imposes C+ and H+, which set the electron abundance | Done | 2026-09-10 |
 | D-213 | **The collapse is D-166's extrapolation decaying, not the chemistry.** `added` is `pdrCoolSp` times `(Te/Tref)^slope`. Split at iteration 6: the raw coolants RISE monotonically x22 across the passes, while the effective multiplier falls **229 -> 3.2 -> 1.2 -> 1.00**. At pass 1 `Tref` is 177 K from the previous iteration's cold chemistry and the mean slope is 2.71 (clamp ceiling 12), manufacturing a stiff artificial thermostat that holds the cell at 530 K; each pass re-anchors `Tref`, the slope flattens, the prop is removed and Te marches to ~8300 K. Separately, at multiplier 1.00 the substitution still replaces 1.81e-23 of MOCASSIN's cooling with 2.46e-24 of 3D-PDR's - a 7.4x net loss in hot gas | Done | 2026-09-10 |
+| D-214 | **The coupling loop is a temperature-marching scheme, and the march is the amplifier.** Each pass runs a full `iterateT` at frozen radiation field, re-anchors `pdrCoolTref`, flattens the slope and releases the temperature the previous extrapolation was holding: 530 -> 4129 -> 8054 -> 8245 -> 8283 K inside iteration 6. With `pdrCoupleIter 1` both collapses vanish (f_mol 0.291 -> 0.759 at it 6, 0.327 -> 0.764 at it 11) and the run is 2.5x faster. **Partly retracted at D-215**: much of that was the extrapolation propping the gas cold | Done | 2026-09-10 |
+| D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12320,3 +12322,120 @@ pass structure alone is enough. The operator's design point - MOCASSIN solves Te
 once per MC iteration, the passes converge the molecular content at that Te -
 addresses (3) and needs no new physics. `pdrCoupleIter 1` approximates it with
 no code change and is the cheapest next measurement.
+
+
+---
+
+## D-214 - one coupling pass (2026-09-10)
+
+The operator's reading of the contract: MOCASSIN hands the chemistry Te, the
+chemistry returns molecular content, so the passes should solve for molecules
+and not re-solve the thermal equilibrium five times per MC iteration.
+
+Measured, that is exactly what a pass does. `updateCell` calls `ionBalance` and
+then `iterateT`, a full bracketed temperature search to convergence, and
+`pdrCoupleIter` defaults to 5. The radiation field is frozen across all five,
+so the inner loop is a closed molecules -> coolants -> Te -> molecules feedback
+with the one leg that pushes back - the field responding to changed opacity and
+ionization - cut out of it. And of the two damped quantities, `iterDamp` damps
+Te across MC iterations and `pdrCoupleDamp` damps `ionDen` across passes:
+**nothing damps Te across passes**, so the runaway variable is undamped in the
+one place the runaway happens.
+
+`runs/d214-couple1` (fixture `benchmarks/pdr/hiipdr-couple1`), 12 iterations,
+18:09 against 45:33:
+
+     it   f_mol mean 5-pass -> 1-pass    Te median 5-pass -> 1-pass
+      6        0.291 -> 0.759                7966 -> 288
+     11        0.327 -> 0.764                8153 -> 135
+
+Both collapses gone, f_mol held in 0.63-0.83 throughout, convergence reaching
+0.0526% at iteration 4 - the highest recorded anywhere in this project.
+
+**Partly retracted at D-215.** Much of that was the D-166 extrapolation, still
+running at x372-420 in this configuration, inflating the cooling and holding the
+gas cold. Removing the march and removing the prop are not additive, because
+one was masking the other. What survives is that the march is real, that it is
+an amplifier, and that `pdrCoupleIter 1` is 2.5x faster.
+
+`pdrCoupleIter 1` is a diagnostic and not the design: it removes the chemistry
+loop too, so whatever D-119's ionization/chemistry closure was buying is gone
+with it. The design is one `updateCell` and N `pdrStep`.
+
+---
+
+## D-215 - the cooling function, tabulated (2026-09-10)
+
+D-166 gave `thermBalance` a two-point power law because the alternative -
+Cloudy's re-evaluation of the whole cooling function at every trial temperature
+- looked like 30 level-population solves per cell per coupling pass. D-213
+measured what the power law does away from `Tref`: an effective multiplier of
+x229 at five passes and x420 at one, against a validation covering x2.56 with
+6.3% median error.
+
+**There is a third option between two points and thirty.** Inside `iterateT`
+the abundances, the partner densities and the dust temperature are frozen and
+only T moves. The coolant is therefore a function of ONE variable, and a
+function of one variable can be tabulated once per pass and interpolated.
+
+`pdrStep` now walks a 16-point grid log-spaced over [pdrTmin, pdrTmax] =
+[1, 2e4] K, warm-starting each level-population solve from the entry below it,
+and stores `pdrCoolTab(cell, coolant, T)`. `thermBalance` calls `pdrCoolAt`,
+which interpolates log-log - exact for a piecewise power law, which is what a
+fine-structure coolant is - and **clamps** at the ends. Successive entries are
+a factor 1.935 apart, so the root finder interpolates over a factor of two at
+worst and extrapolates never.
+
+Retired with the power law: `pdrCoolSlope` and `pdrCoolTref` as inputs to the
+balance, the [-2, 12] slope clamp, the [1e-8, 1e8] factor clamp, `pdrCoolTfac`,
+and the D-166 validation print. `pdrCoolSlope`/`pdrCoolTref` survive as
+diagnostics, now measured off the table.
+
+The substitution guard is also evaluated at `TeUsed` now. Under the power law
+it tested `pdrCoolSp`, a fixed number, while the value entering the budget was
+that number times an extrapolation - so guard and value could disagree about
+whether there was anything to substitute.
+
+**The multiplier is physical now.** x420 becomes x15.5, and x15.5 is the
+tabulated cooling function's own rise from Tg ~ 159 K to Te ~ 2807 K, a factor
+17.7 in temperature. It is bounded by the function rather than by a clamp.
+
+**D-213's second defect is RETRACTED.** That entry reported the substitution
+removing 1.81e-23 of MOCASSIN's cooling and returning 2.46e-24 at 8283 K, a
+7.4x net loss, and attributed it to D-133's cold-gas correction being applied
+unconditionally. It was an artefact of the first defect: `added` was the
+coolant evaluated at the chemistry's cold Tg and merely scaled, so the
+comparison was MOCASSIN's hot-gas cooling against 3D-PDR's cold-gas cooling.
+Evaluated at the same temperature the substitution is net POSITIVE:
+
+     it   removed     added      net
+      5   4.53e-26   4.04e-26   -5.0e-27
+      6   3.30e-25   1.166e-24  +8.4e-25
+      7   8.91e-25   1.716e-24  +8.2e-25
+
+against -1.58e-23 in the five-pass baseline. One defect, not two.
+
+**Result: damped, not cured.** `runs/d215-cooltab`, 12 iterations, 21:53, clean
+exit, on the one-pass fixture so it isolates the table against D-214.
+
+     it   f_mol mean   Te median          baseline Te median
+      6      0.398        2517                  7966
+     10      0.489        1677                  (it 11) 8153
+
+The oscillation survives - collapses at 6 and 10, period 4 rather than 5 - with
+the temperature excursion 4.8x smaller and f_mol dipping to 0.40/0.49 instead
+of 0.29/0.33. Convergence still does not exceed 0.0263%.
+
+**And D-166's cost argument was wrong, which is worth recording.** The table is
+8x the level-population work of the two-point law, and the run is 21% slower in
+wall clock (21:53 against 18:09). Level populations are not the bottleneck.
+The 30x Cloudy-style evaluation D-166 rejected on cost would very likely have
+been affordable, and the two-point law was never necessary.
+
+**What is NOT known.** What drives the residual oscillation. The three
+candidates D-213 named are now down to one - the march is removed, the
+extrapolation is removed, and the "deletion in hot gas" was never real. Whether
+the remainder is a genuine thermal bistability, the one-pass configuration
+having removed the chemistry closure, or something not yet instrumented, is
+open. The proper restructure (one `updateCell`, N `pdrStep`) has not been
+built; D-214 only disabled the loop.

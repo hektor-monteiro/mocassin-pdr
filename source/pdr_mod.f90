@@ -94,6 +94,7 @@ module pdr_mod
 
     private
     public :: initPDRnetwork, seedPDR, seedMolecules, calibratePDRdust, dustPerCell, computeAVdust, &
+             & initPDRcoolTab, &
             & mocassinToPDR, pdrStep, pdrToMocassin
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
@@ -1720,6 +1721,62 @@ module pdr_mod
 
 
 
+
+      !-----------------------------------------------------------------
+      ! D-215. The tabulation grid, and lookup on it.
+      !
+      ! D-166 gave thermBalance a two-point power law C(T) = C(Tref)*
+      ! (T/Tref)^p because the alternative - Cloudy's re-evaluation of the
+      ! whole cooling function at every trial temperature - looked like 30
+      ! level-population solves per cell per coupling pass. D-213 measured
+      ! what the power law does when the solver leaves the neighbourhood of
+      ! Tref: an effective multiplier of x229 at iteration 6 pass 1, x420 in
+      ! the one-pass configuration, against a validation that covered x2.56
+      ! and a median error of 6.3%. The inflated cooling manufactured a cold
+      ! state that was not physical, and each re-anchoring of Tref removed
+      ! part of the prop and let the temperature march.
+      !
+      ! There is a third option between two points and thirty. Inside
+      ! iterateT the abundances, the partner densities and the dust
+      ! temperature are all frozen; only T moves. The coolant is therefore a
+      ! function of a single variable, and a function of one variable can be
+      ! tabulated once and interpolated. 16 points log-spaced over
+      ! [pdrTmin, pdrTmax] put successive entries a factor 1.94 apart, so the
+      ! root finder interpolates over a factor of two at worst and
+      ! extrapolates never.
+      !
+      ! Outside the table the value is CLAMPED to the end entry rather than
+      ! extrapolated. That is a deliberate choice and not a silent one: the
+      ! chemistry itself refuses to evaluate outside [pdrTmin, pdrTmax]
+      ! (pdr_mod clamps Tg there to keep the fitted rate data in range), so
+      ! above 2e4 K there is no solve to tabulate and any value would be
+      ! invention. MOCASSIN's own iterateT ceiling is 30000 K, so the clamp
+      ! does get used; it is counted and reported rather than hidden.
+      !-----------------------------------------------------------------
+      subroutine initPDRcoolTab()
+        implicit none
+        integer :: i
+
+        if (pdrNtab < 2) pdrNtab = 2
+        if (pdrNtab > size(pdrTabT)) pdrNtab = size(pdrTabT)
+        do i = 1, pdrNtab
+           pdrTabT(i) = pdrTmin &
+                & *(pdrTmax/pdrTmin)**(real(i-1)/real(pdrNtab-1))
+        end do
+        if (taskid == 0) then
+           print '(a,i3,a,f8.2,a,f10.1,a,f6.3)', &
+                & " ! initPDRcoolTab: cooling tabulated at", pdrNtab, &
+                & " points from", pdrTabT(1), " K to", pdrTabT(pdrNtab), &
+                & " K, ratio", pdrTabT(2)/pdrTabT(1)
+           print*, "! initPDRcoolTab: D-166's power law is retired (D-215) - &
+                &the balance interpolates this table and never extrapolates"
+        end if
+
+      end subroutine initPDRcoolTab
+
+
+
+
       !-----------------------------------------------------------------
       ! D-209. The starting H2 and CO fractions, from MOCASSIN's own
       ! photoionization solution.
@@ -2041,6 +2098,7 @@ module pdr_mod
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm, ilev
+        integer            :: iTnear                     ! D-215
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
         double precision   :: Flo, Fhi, Fratio, Fden, xlo, xhi, xnewT, denom
         logical            :: doChop
@@ -2625,16 +2683,20 @@ module pdr_mod
            ! only to check the power law against a real solve on the other side
            ! of Tref. An extrapolation is worth nothing until someone has looked
            ! at how far it misses.
-           do iTpass = 1, 3
-              if (iTpass == 1) then
-                 Tc = Tg
-              else if (iTpass == 2) then
-                 if (pdrCoolTdep == 0) exit
-                 Tc = dble(pdrCoolTfac)*Tg
-              else
-                 if (pdrCoolTdep < 2) exit
-                 Tc = Tg/dble(pdrCoolTfac)
-              end if
+           ! D-215: walk the tabulation grid from the bottom up, so each
+           ! level-population solve warm-starts from the one below it - the
+           ! same chaining D-166 used for its second point, extended along
+           ! the whole grid. iTnear is the entry closest to the cell's actual
+           ! temperature; it is the one whose populations are stored and whose
+           ! value goes into pdrCoolSp, so everything that reads those still
+           ! reads the coolant AT Tg.
+           iTnear = 1
+           do iTpass = 2, pdrNtab
+              if (abs(log(dble(pdrTabT(iTpass))/Tg)) < &
+                & abs(log(dble(pdrTabT(iTnear))/Tg))) iTnear = iTpass
+           end do
+           do iTpass = 1, pdrNtab
+              Tc = dble(pdrTabT(iTpass))
 
            do ik = 1, pdrNcool
               nlev = pdrCoolant2(ik)%cnlev
@@ -2650,7 +2712,8 @@ module pdr_mod
                  ! MOCASSIN's thermal balance, and leaving the previous MC
                  ! iteration's value in place would feed a cell the cooling of
                  ! a carrier the chemistry has since destroyed.
-                 if (iTpass == 1) grid%pdrCoolSp(cellP, ik) = 0.
+                 grid%pdrCoolTab(cellP, ik, iTpass) = 0.        ! D-215
+                 if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
                  cycle
               end if
 
@@ -2809,15 +2872,13 @@ module pdr_mod
               if (lsum < dble(pdrLevTol)) exit
               end do
 
-              if (iTpass == 1) grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
-              if (iTpass == 1) then
-                 coolTot  = coolTot  + coolK
-              else if (iTpass == 2) then
-                 coolTot2 = coolTot2 + coolK
-              else
-                 coolTot3 = coolTot3 + coolK
+              grid%pdrCoolTab(cellP, ik, iTpass) = real(coolK)          ! D-215
+              if (iTpass == iTnear) then
+                 grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) &
+                      & = lsol(1:nlev)
+                 coolTot = coolTot + coolK
+                 grid%pdrCoolSp(cellP, ik) = real(coolK)                 ! D-096
               end if
-              if (iTpass == 1) grid%pdrCoolSp(cellP, ik) = real(coolK)   ! D-096
 
               ! D-060 diagnostic: per-coolant budget at the illuminated face
               if (pdrDiagCool > 0 .and. taskid == 0 .and. iTpass == 1) then
@@ -2826,7 +2887,7 @@ module pdr_mod
                     print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
                        & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
                        & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " Td=", Td, " T=", Tc, " pop=", lsol(1), lsol(2), &
+                       & " cool=", coolK, " Td=", Td, " T=", real(Tc), " pop=", lsol(1), lsol(2), &
                        & " nSpec=", nSpec, " ne=", abun(pdrNelect)*nH, " nH0=", abun(pdrNHsp)*nH
                  end if
               end if
@@ -2836,24 +2897,27 @@ module pdr_mod
            ! fine-structure coolant rises nearly exponentially, above it the
            ! line saturates and the index goes to zero. Extrapolating an
            ! unclamped index over three decades is not defensible.
-           if (pdrCoolTdep /= 0 .and. coolTot > 0.d0 .and. coolTot2 > 0.d0) then
-              grid%pdrCoolSlope(cellP) = real(min(max( &
-                   & log(coolTot2/coolTot)/log(dble(pdrCoolTfac)), -2.d0), 12.d0))
+           ! D-215: kept, but DIAGNOSTIC only - the balance no longer reads
+           ! either of these. The slope is now measured off the table across
+           ! the entry nearest Tg and the one above it, so the [D213] line
+           ! still reports the local logarithmic index of the real cooling
+           ! function rather than the exponent of a prescription.
+           coolTot2 = 0.d0
+           do ik = 1, pdrNcool
+              coolTot2 = coolTot2 &
+                   & + dble(grid%pdrCoolTab(cellP, ik, min(iTnear+1, pdrNtab)))
+           end do
+           if (coolTot > 0.d0 .and. coolTot2 > 0.d0 .and. iTnear < pdrNtab) then
+              grid%pdrCoolSlope(cellP) = real( &
+                   & log(coolTot2/coolTot) &
+                   & /log(dble(pdrTabT(iTnear+1))/dble(pdrTabT(iTnear))))
            else
               grid%pdrCoolSlope(cellP) = 0.
            end if
-           grid%pdrCoolTref(cellP) = real(Tg)
-           ! Power law against a real solve, on the far side of Tref.
-           if (pdrCoolTdep >= 2 .and. taskid == 0 .and. coolTot > 0.d0 .and. &
-                & coolTot3 > 0.d0 .and. pdrNslopeChk < 30 .and. .not. lgChemOnly) then
-              pdrNslopeChk = pdrNslopeChk + 1
-              print '(a,i8,a,f9.2,a,f7.3,a,es11.3,a,es11.3,a,f8.3)', &
-                   & " [D166] cell", cellP, " Tref=", Tg, " p=", grid%pdrCoolSlope(cellP), &
-                   & "  C(Tref/f) true=", coolTot3, " pred=", &
-                   & coolTot*(1.d0/dble(pdrCoolTfac))**dble(grid%pdrCoolSlope(cellP)), &
-                   & "  ratio=", real(coolTot3/max(coolTot*(1.d0/dble(pdrCoolTfac)) &
-                   & **dble(grid%pdrCoolSlope(cellP)),1.d-99))
-           end if
+           grid%pdrCoolTref(cellP) = pdrTabT(iTnear)
+           ! D-215: the D-166 power-law check is gone with the power law it
+           ! checked. There is nothing left to validate here - the balance
+           ! reads solves, not an extrapolation from them.
 
 
            grid%pdrCool(cellP) = real(coolTot)

@@ -2018,7 +2018,7 @@ end subroutine iterateT
                   do iCool = 1, pdrNcool
                      if (pdrCoolIsMol(iCool)) then
                         ! MOCASSIN has no line data for this carrier at all.
-                        pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                        pdrCoolMol = pdrCoolMol + pdrCoolAt(grid,cellP,iCool,TeUsed)
                      else if (pdrCoolElem(iCool) > 0 .and. &
                           &   (pdrCoolZoneGate == 0 .or. &
                           &    grid%pdrZone(cellP) == 1)) then
@@ -2055,10 +2055,18 @@ end subroutine iterateT
                                    &                     pdrCoolIon(iCool), iLevJ, iLevK))
                            end do
                         end do
-                        if (grid%pdrCoolSp(cellP,iCool) > 0.) then
+                        ! D-215: the guard and the value are both taken at
+                        ! the temperature the solver is trying, not at the
+                        ! chemistry's Tg. Under the D-166 power law the guard
+                        ! tested pdrCoolSp - a fixed number - while the value
+                        ! that entered the budget was that number times an
+                        ! extrapolation, so the two could disagree about
+                        ! whether there was anything to substitute.
+                        if (pdrCoolAt(grid,cellP,iCool,TeUsed) > 0.d0) then
                            coolInt = coolInt - mocCool
                            coolSubL = coolSubL + mocCool          ! D-210
-                           pdrCoolMol = pdrCoolMol + grid%pdrCoolSp(cellP,iCool)
+                           pdrCoolMol = pdrCoolMol &
+                                & + real(pdrCoolAt(grid,cellP,iCool,TeUsed))
                         else if (mocCool > 0.) then
                            ! Nothing to replace it with: keep MOCASSIN's.
                            nCoolNull = nCoolNull + 1
@@ -2118,14 +2126,28 @@ end subroutine iterateT
                   ! the two-point version, and the power law is clamped because
                   ! extrapolating a fine-structure exponential over three
                   ! decades of T is not defensible.
-                  if (pdrCoolTdep /= 0 .and. grid%pdrCoolTref(cellP) > 0.) then
-                     pdrTfac = (TeUsed/grid%pdrCoolTref(cellP))**grid%pdrCoolSlope(cellP)
-                     pdrTfac = min(max(pdrTfac, 1.e-8), 1.e8)
-                     pdrCoolMol = pdrCoolMol*pdrTfac
-                     if (allocated(grid%pdrTfacUsed)) &          ! D-213
-                          & grid%pdrTfacUsed(cellP) = pdrTfac
-                  else if (allocated(grid%pdrTfacUsed)) then
-                     grid%pdrTfacUsed(cellP) = 1.
+                  ! D-215: no factor. pdrCoolMol was accumulated above from
+                  ! pdrCoolAt at TeUsed, which interpolates the tabulated
+                  ! cooling function and clamps at its ends. The power law,
+                  ! its [-2,12] slope clamp and its [1e-8,1e8] factor clamp
+                  ! are all gone.
+                  !
+                  ! pdrTfacUsed now records what the substitution actually
+                  ! scaled by relative to the coolant at Tg - the same number
+                  ! the [D213] line reported, so the two runs stay
+                  ! comparable. Under D-166 it reached x420; if the table is
+                  ! doing its job it should now stay within the range the
+                  ! cooling function itself spans between grid points.
+                  if (allocated(grid%pdrTfacUsed)) then
+                     pdrTfac = 0.
+                     do iCool = 1, pdrNcool
+                        pdrTfac = pdrTfac + grid%pdrCoolSp(cellP,iCool)
+                     end do
+                     if (pdrTfac > 0.) then
+                        grid%pdrTfacUsed(cellP) = pdrCoolMol/pdrTfac
+                     else
+                        grid%pdrTfacUsed(cellP) = 1.
+                     end if
                   end if
                   coolInt = coolInt + pdrCoolMol/grid%Hden(cellP)
                   ! D-168 probe: the budget of a cell sitting on the 30000 K

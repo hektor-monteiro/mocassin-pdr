@@ -71,6 +71,7 @@ program MoCaSSiN
     ! The network must be read before any grid allocation: grid_mod sizes
     ! pdrAbun(:, 1:pdrNspec) and needs pdrNspec (DEVLOG D-022).
     if (lgPDR) call initPDRnetwork()
+    if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
 
     print*, " "

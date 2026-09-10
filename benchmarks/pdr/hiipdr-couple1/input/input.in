@@ -1,0 +1,66 @@
+! ---------------------------------------------------------------------
+! hiipdr-contract with ONE coupling pass per MC iteration (D-214).
+!
+! D-213 measured that the coupling loop re-solves Te five times per MC
+! iteration at frozen radiation field, and that each pass re-anchors
+! pdrCoolTref, flattens the measured slope, removes the extrapolation that
+! was holding the cell cold, and lets Te step up: 530 -> 4129 -> 8054 ->
+! 8245 -> 8283 K inside iteration 6. The march is what carries the cell from
+! the extrapolation-inflated cold state to the substitution-starved hot one.
+!
+! One pass per iteration is the zero-code approximation of the contract as
+! stated: MOCASSIN solves the thermal equilibrium once, the chemistry
+! answers at that temperature, and the radiation field is rebuilt before
+! anything is solved again. If the collapse softens or moves, the pass
+! structure is amplifying it.
+!
+! NOT the full design: that would converge the chemistry against a fixed Te
+! over several passes. This has one chemistry call as well, so it also
+! removes whatever the chemistry loop was buying (D-119).
+! ---------------------------------------------------------------------
+! ---------------------------------------------------------------------
+! Bisbas et al. (2015) sec 5.4 H II region + PDR at the OWNERSHIP CONTRACT.
+!
+!   MOCASSIN -> 3D-PDR   ion densities, Ne, Te, dust temperature, dust opacity
+!   3D-PDR -> MOCASSIN   molecular content + the heating/cooling that follows
+!   MOCASSIN owns        ionization, thermal equilibrium, molecular bookkeeping
+!
+! D-198. The contract is now IN THE CODE, so this file states no ownership
+! keyword at all - there are none left to state. Seven are retired and
+! ignored: pdrAtomicH, pdrOwnIon, pdrIonFromMocassin, pdrTeFromMocassin
+! (D-193), ionChemRates (D-196/D-198), pdrAllCells and pdrCoolFeedback
+! (D-198). A run that sets them says so in the log and proceeds with the
+! contract regardless.
+!
+! What remains below is physics and numerics, not ownership. The fixture is
+! kept as the named target of the contract work rather than folded into
+! hiipdr, so that "the model at the contract" has an address.
+! ---------------------------------------------------------------------
+TStellar 40000.
+contShape blackbody
+LPhot 4.26e13
+symmetricXYZ
+Hdensity 100.
+nebComposition "input/abunV1.in"
+TeStart 8000.
+maxIterateMC 12 95.
+nPhotons 6000000
+nx 31
+ny 31
+nz 31
+nbins 600
+nuMax 15.
+nuMin 1.001e-5
+Rin 30.e17
+Rout 6.0e19
+edges 6.0e19 6.0e19 6.0e19
+convLimit 0.10
+dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
+MdMg constant 0.011295
+pdr 1
+pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
+pdrNetwork "reduced"
+pdrZeta 5.0e-17
+pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4
+pdrCoupleIter 1
