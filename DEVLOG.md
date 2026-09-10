@@ -194,7 +194,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-192 | **MOCASSIN's ionDen(H) and the chemistry's x(H) disagree by 100-200x past the H2 front**, in both runs: x(H+) 5.8e-1 against 4.5e-2, x(H0) clamped to exactly 0, budget 1.50 instead of 1.00 in 16 of 29 axis cells. Opacity, heating and n_e in the molecular interior all read the broken array | Open | 2026-09-08 |
 | D-193 | **One reality: ownership is no longer an input.** MOCASSIN owns ionization and thermal equilibrium in every cell; 3D-PDR returns molecular content plus heating/cooling and nothing else. Fixes D-192 (elemAvail now always constrains the ion sum), drops the rate injection, **adds cosmic-ray ionization to MOCASSIN's own ionBalance**, retires pdrAtomicH / pdrOwnIon / pdrIonFromMocassin / pdrTeFromMocassin | Done | 2026-09-08 |
 | D-196 | **The convergence percentage was counting frozen cells.** 97.0% of the converged PDR cells have x(H0) clamped to exactly zero by the D-192 handback, because ionBalance's conservation row normalises hydrogen to the TOTAL rather than the available fraction and over-states x(H+) by ~99x. D-191's mechanism was right and its direction wrong: x(H0) is pinned at 0, not near 1. D-190's 89.31% is not trustworthy. Correcting it (`ionChemRates 0`) sends the ratio to exactly 1, eliminates the clamp entirely, and raises convergence to 92.28% at iteration 12 with 0.0% of converged cells frozen | Measured | 2026-09-09 |
-| D-197 | **Reverted to D-190** (recorded as D-191 at the time, colliding with the damping entry that already held that ID). **Undone at D-198.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) are discarded: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`. The D-192 hydrogen-budget defect returns with them | Superseded by D-198 | 2026-09-09 |
+| D-197 | **Reverted to D-190** (recorded as D-191 at the time, colliding with the damping entry that already held that ID). **Undone at D-198.** D-193 (ownership hard-coded), D-194 (port list) and D-195 (H2 formation on the measured grain area) were discarded with it: they made the model worse, and the convergence fraction fell from 89.3% to 5.8% with 36-45% of cells flipping across 1000 K on every pass. Recoverable at tag `d193-d195-reverted`, and all three are now back: D-193 restored at D-198 on D-196's evidence, D-195 cherry-picked at D-209 because the H2 seed needs a formation rate built on MOCASSIN's own grains. The D-192 hydrogen-budget defect returned with the revert | Superseded by D-198 | 2026-09-09 |
 | D-198 | **D-193 restored on D-196's evidence.** The revert at D-197 compared a convergence number that counts frozen cells against one that does not; D-196 measured that directly. MOCASSIN owns ionization, thermal equilibrium and molecular bookkeeping again, unconditionally, and `ionChemRates` retires with the other ownership keywords | Done | 2026-09-09 |
 | D-199 | **`elemAvail` was one MC iteration stale.** `pdrToMocassin`, its only writer, sat outside the coupling loop while `updateCell` read it 5 times per iteration. Harmless until D-193 stopped writing `ionDen` directly; after that it rang the ion/chemistry ratio 1.05 -> 19.5 -> 0.166 with nothing converging. Moved inside the loop: the ratio holds 1.0000 with p90 1.01 and budget failures fall 9670 -> 29 | Done | 2026-09-09 |
 | D-200 | **Damping extended from the temperature to the molecular and ionic state.** D-174 damped Te across the MC iteration and recorded "Te only, for now: it is the bistable variable"; D-198 measured that it is not - a hot cell is atomic AND ionized AND hot. `pdrAbun` and `ionDen` are now damped on the same interval, and `elemAvail` republished from the damped abundances. Whether this resolves the bistability or only freezes it is the measurement | Running | 2026-09-09 |
@@ -206,6 +206,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-206 | **Twelve iterations: a relaxation oscillation, not a bistability - and the D-204 sign flip is withdrawn.** The model relaxes toward cold molecular gas over four iterations (|df_mol| p90 0.62 -> 0.13, converged fraction reaching its run maximum at iteration 9) and then discharges to 77% hot in one. Iteration 8 starts at f_mol 0.662, within 6% of iteration 6's, and its pass-1 balance cools by x0.15 where 6 warmed by x4.58 - so the sign flip flagged from three points was the initial transient read as a trend. chi_FUV jumps 45% the iteration AFTER each collapse, confirming the field follows the molecules | Done | 2026-09-09 |
 | D-208 | **The network file's x(H2)=0.300 was never removed, only routed around - and it was setting the H2 shielding column the first chemistry call consumed.** D-188 re-seeded each cell from MOCASSIN on its first `pdrStep` visit, but `seedPDR` went on writing `species_reduced.d`'s x(H)=0.400 / x(H2)=0.300 into every cell, and `computeAVdust` and `computeRayColumns` run BEFORE the coupling loop - so at the first PDR iteration the columns were integrated over a grid uniformly 60% molecular, order 1e21 cm^-2, which saturates self-shielding outright. One seeding rule now: `seedAbunFromMocassin`, molecules zero, every carrier from `elemAbun` and `ionDen`. `syncSeed` and `pdrSyncAbun` retire with it | Done | 2026-09-09 |
 | D-207 | **The D-205 budget columns reported quantities that never enter the balance.** They printed `pdrCool`, `pdrHeat` and `pdrHeatPE` - 3D-PDR's own totals. `pdrHeatPE` reaches `heatInt` only when `pdrPEfromPDR` is set, which is 0 by default and in no fixture, and `pdrHeat` is the PDR total of which MOCASSIN computes three terms itself. The heating column read ~1.9e-25 per H where the true contribution is ~1.4e-26. Replaced by `pdrHeatUsed` and `pdrCoolUsed`, captured as `heatInt`/`coolInt` after the PDR block minus before it - the substitution's net effect and nothing else | Done | 2026-09-09 |
+| D-194 | **Port list: 3D-PDR's presuppositions about our dust and abundances.** H2 formation on a hardcoded 6.273e-22 cm2/H grain cross-section (MOCASSIN measures 4.92e-22 and tracks MdMg, CT02 does not); photorate gammas on Savage & Mathis when this model's grains imply UV_fac 3.83 vs 3.02; WD01 grain recombination not even compiled in; network abundances C=1.4e-4 vs the model's 2.2e-4 | Open | 2026-09-08 |
+| D-195 | **H2 formation on grains now runs on MOCASSIN's own dust.** Upstream hardcoded 8.473e-22 / 7.908e-22 cm2/H for silicate / graphite, with no dependence on MdMg, the size distribution or the composition, while the rate is LINEAR in them. MOCASSIN now measures the geometric grain area per H per cell and splits it by material. This model: **1.02e-21 cm2/H, all silicate, zero graphite** - 20% MORE area than CT02 assumes, but a **0.62x** rate at cold dust and **0.24x** at 60 K, because CT02's graphite channel was carrying the rate and this model has none | Done | 2026-09-08 |
+| D-209 | **H2 and CO seeded from MOCASSIN's photoionization state - and the oscillation does not care.** At `pdrStartIter` MOCASSIN has a converged x(H0), Te, Tdust and dust opacity, so the H/H2 balance is placed by formation-on-grains against photodissociation at equilibrium, closed form, hydrogen conserved, with the CT02 rate on MOCASSIN's measured grain area (D-195 restored) and the network's own photodissociation coefficient. The seed lifts iteration 4 from f_mol 0.23 to 0.77 - and from iteration 6 the run is identical to the zero-seed run, collapses at 6 and 11 in both. The cycle is an attractor with no memory of the seed | Done | 2026-09-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -10870,6 +10873,7 @@ switch. Not built.
     differ by factors and are far above it.
 
 All four flavours rebuilt clean.
+Nothing implemented in this entry. This is the flag.
 
 
 ---
@@ -11844,3 +11848,250 @@ candidates are the coolants re-evaluated at a new reference temperature
 which describes this runaway shape exactly). `runs/d207-budget` is the
 measurement - and note it was launched before D-208, so it carries the old
 hardcoded seed.
+## D-195 - H2 formation on grains, from the model's own dust (2026-09-08)
+
+D-194 item 1, implemented. The complaint was `source/pdr/h2_form.F90:36`:
+
+    TOTAL_CROSS_SECTION=6.273D-22    ! cm^2 per H nucleus
+    SILICATE_CROSS_SECTION=8.473D-22
+    GRAPHITE_CROSS_SECTION=7.908D-22
+
+and the rate that uses them:
+
+    RATE = 0.5*v_th*(SIL_XSEC*eps_sil + GRA_XSEC*eps_gra)*S*METALLICITY
+
+The rate is LINEAR in those cross sections and they are constants. A dust-poor
+model, a dust-rich model, one with a different size distribution and one made
+of a different material all got the same diffuse-ISM H2 formation rate. The
+H/H2 front therefore sat where standard ISM dust would put it regardless of
+what dust MOCASSIN was actually transporting radiation through - and the H/H2
+front position is one of the two open disagreements against 3D-PDR sec 5.4.
+
+### What MOCASSIN measures
+
+The quantity CT02 wants is the GEOMETRIC grain area per H nucleus. MOCASSIN
+already has every term:
+
+    sigma_bar   = sum_species sum_sizes grainAbun * pi*a^2 * grainWeight   [cm^2/grain]
+    area per H  = Ndust(cell)/Hden(cell) * sigma_bar
+
+`sigma_bar` uses exactly the weighting `dustOpacity` uses to build `absOpac`
+from `Ndust` (ph_mod.f90:1398, grid_mod.f90:1810-1830), so the area and the
+opacity describe the same grains - which is the whole point. It is fixed by the
+size distribution and so is measured once; `Ndust/Hden` is per cell and is
+applied in `dustPerCell`, the loop that already visits every cell each
+iteration to refresh `dustAVfac` (D-109).
+
+Deliberately placed BEFORE the `kV <= 0` cycle in that loop. A cell with no
+dust has no A_V scale, hence the model-wide fallback there - but it does have a
+well-defined grain area for H2 formation, namely zero. Falling back to a
+diffuse-ISM constant there would form H2 on grains the model does not contain.
+
+### The silicate / graphite split
+
+CT02 gives the two materials different binding energies, so the rate needs to
+know which surface it is looking at. MOCASSIN's grain labels come from the .nk
+files and follow no single convention (`Ssil_dl_base`, `CamC-hann`, `grph1-dl`,
+`Olivpx`, `gr2_dl_hgk`, ...), so the classifier matches substrings and the full
+classification table is PRINTED at startup rather than trusted silently.
+Anything not recognisably carbonaceous goes to the silicate channel, and an
+unrecognised label additionally raises a warning naming itself.
+
+### Measured, this model
+
+`benchmarks/pdr/hiipdr`: single component, `astroSilD2003_base.nk`, MRN slope
+-3.5, a = 0.01-0.30 um, MdMg = 0.011295, mu = 1.418 amu/H.
+
+    sigma_bar  = 1.1675e-11 cm^2 per grain
+    Ndust/n_H  = 8.7069e-11
+    silicate   = 1.0165e-21 cm^2/H     (CT02 assumes 8.473e-22)
+    graphite   = 0                     (CT02 assumes 7.908e-22)
+
+The area is 20% LARGER than CT02's silicate channel. That is not the story.
+The story is the missing material, because the two efficiencies diverge with
+dust temperature - silicate's saddle-point energy is 110 K against graphite's
+260 K, so eps_sil collapses above ~25 K while eps_gra holds to ~60 K:
+
+      T_d   eps_sil   eps_gra    old rate    new rate   ratio
+       10    0.9996    0.9968   1.635e-21   1.016e-21   0.621
+       20    0.9009    1.0000   1.554e-21   9.158e-22   0.589
+       30    0.5924    0.9970   1.290e-21   6.022e-22   0.467
+       40    0.3676    0.9740   1.082e-21   3.736e-22   0.345
+       60    0.1886    0.8112   8.013e-22   1.917e-22   0.239
+
+So the H2 formation rate falls by a factor 0.62 in the cold interior and by
+more than 4 where the dust is warm. Over this model's actual dust temperatures
+(~21 K at the illuminated face, colder inside) the working factor is ~0.6.
+
+Less H2 formation moves the H/H2 front DEEPER in A_V. D-191 left that front at
+A_V 0.461 (damping 0.50) and 0.736 (damping 0.25) against 3D-PDR's 0.892, i.e.
+too shallow, with x(H2) overshooting 12x - so the direction is right. Whether
+the size is right is what D195hii is being run to find out; nothing is claimed
+here beyond the measurement.
+
+### Honest notes
+
+  - Upstream's own TOTAL (6.273e-22) is not the sum of its two channel values
+    (1.638e-21). Only the two channel values enter the active CT02 branch, so
+    those are what the measurement replaces; TOTAL is carried along for the
+    commented-out Tielens & Hollenbach branch.
+  - METALLICITY still multiplies the rate, exactly as before. The measured area
+    already contains MdMg, so `pdrMetal` remains a user knob layered on top and
+    is NOT pre-multiplied into the areas - same convention as `pdrAVfacMod`
+    (D-109), one factor of metallicity, not two.
+  - The classifier is a heuristic over free-text labels. It is printed, so it
+    can be checked and corrected; it is not claimed to be complete.
+  - The efficiency table above is evaluated offline from the CT02 formulae, not
+    read out of a run.
+
+### Files
+
+  - `source/pdr/modules.F90` - `h2form_xsec_sil` / `h2form_xsec_gra` in
+    `global_module`, both initialised to -1 meaning "host measured nothing"
+  - `source/pdr/h2_form.F90` - uses them when both are non-negative; the
+    upstream constants otherwise, so a dust-free model is bit-identical
+  - `source/pdr_mod.f90` - `measureH2grainArea`, `isCarbonGrain`,
+    `isSilicateGrain`; per-cell fill in `dustPerCell`; per-cell reseed in
+    `pdrStep` next to `pdrAVfacMod`; report in `calibratePDRdust`
+  - `source/common_mod.f90`, `source/grid_mod.f90` - `dustSigSil` /
+    `dustSigGra` per-cell arrays, initialised to -1
+
+All four build flavours compile clean.
+
+### D-193 verified, on D193hii
+
+Run finished, 24 iterations. The defect D-192 recorded was
+`x(HI)+2x(H2)+x(HII)` = 1.28-1.64 in 16 of 29 axis cells, with `ionDen(H0)`
+clamped to exactly zero and `ionDen(H+)` at 5.8e-1 where the chemistry said
+4.5e-2. After D-193:
+
+    hydrogen budget off by >2%:  0 of 29 cells
+
+and MOCASSIN's `ionDen(H+)` now agrees with the chemistry's x(H+) to 3-4
+significant figures from the face down to r = 2.2e19 cm. Past that the two
+still differ - 3.09e-4 against 1.34e-2 at r = 3.4e19 - but at absolute levels
+of ~1e-2 in a region whose temperature is still oscillating (248 K, 3043 K,
+168 K, 254 K, 167 K, 1556 K on consecutive cells). That oscillation is the
+open item, not the ownership.
+
+
+---
+
+## D-209 - seeding the molecules from the photoionization solution (2026-09-09)
+
+Asked for by the operator, on the reasoning that before the chemistry runs the
+model already knows x(H0), Te and Tdust, and should use them rather than start
+from nothing.
+
+**Where it runs, and why not earlier.** `seedPDR` executes right after
+`fillGrid`, where `fillGrid` has set x(H0) = `initH0` = 1e-5: the grid starts
+essentially fully ionized and MOCASSIN knows nothing yet, so D-208's zeros are
+correct there. By `pdrStartIter` there is a converged ionization structure, an
+electron temperature, a dust temperature and a dust opacity, and
+`computeAVdust`/`mocassinToPDR` have turned the last into chi_FUV and A_V. That
+is the moment, and it has to be before the shielding columns are integrated -
+which is the whole D-208 problem, one step further on.
+
+**H2: an equilibrium, in closed form.**
+
+    R n(H) n_H = D n(H2),   n(H) + 2n(H2) = N
+      ->  n(H2) = R N n_H / (D + 2 R n_H)
+
+Hydrogen conserved exactly, bounded by N/2, tending to N/2 as D -> 0 and to
+zero in the ionized gas where N is already near zero. No iteration, no free
+parameter. R is `H2_FORMATION_RATE(Te, Tdust)` with the grain cross sections
+reseeded from MOCASSIN's measured geometric area per H (D-195, cherry-picked
+back from `d193-d195-reverted` for this); D is the network's own
+photodissociation coefficient, looked up in the rate table rather than written
+into the source, times MOCASSIN's chi_FUV attenuated by the network's `SCATTER`
+at MOCASSIN's A_V.
+
+D is deliberately UNSHIELDED. H2 self-shielding needs an H2 column and the
+column is what the seed exists to supply; zero is the only choice that cannot
+inject shielding the model has not earned. It errs low, so the chemistry
+self-shields upward from a floor instead of relaxing down from a fiction.
+
+**CO is an ansatz and is labelled one.** Every path to CO in the reduced
+network is a chain through H2, so there is no two-body rate to balance and no
+equilibrium to solve without inventing a coefficient. CO takes the same share
+of the neutral carbon that H2 took of the neutral hydrogen, capped by the
+available oxygen, conserving both. Zero without H2, all the neutral carbon when
+fully molecular. The chemistry replaces it on the first call.
+
+**What it places.**
+
+    [D209] seeded 15204 cells: mean f_mol = 2x(H2) 0.4826, f_mol > 0.5 in 49.64%
+    [D209] inputs: mean x(H0) 9.567E-01  chi 8.883E+00  A_V 2.191E+00
+                   R_form 2.000E-17  D_pd 1.789E-10
+
+Structurally right - near zero in the illuminated gas, near one deep, half the
+grid above 0.5 - against the hardcoded seed's uniform 0.6 including the H II
+region, and D-208's zero everywhere.
+
+**Two failed attempts, both stale inputs, both plausible on their face.**
+
+  - `seedMolecules` called before `mocassinToPDR`, which is what writes
+    chi_FUV. D = 0 everywhere, the closed form correctly returned N/2, and the
+    log read mean f_mol 1.0000 in 100.00% of cells. A zero field IS the
+    fully-shielded limit, so the answer was right for the question accidentally
+    asked.
+  - Neutral hydrogen read from `pdrAbun` rather than from the current `ionDen`.
+    `seedPDR` had filled it at startup from x(H0) = 1e-5, so no cell could put
+    more than 5e-6 into H2. Reported mean f_mol 0.0000.
+
+Neither was visible in the answer alone, which is why the `[D209]` line now
+prints the seed's INPUTS beside its output. That is the D-203 lesson - report
+what went in, not only what came out - which had been written down and then not
+applied to this routine.
+
+The reported f_mol was also, on the first attempt, the fraction of the NEUTRAL
+hydrogen that is molecular rather than 2x(H2) per H nucleus. In ionized gas the
+neutral fraction is ~0, so that ratio is 0/0 and reads 1 where the census
+definition reads ~0 - two definitions of f_mol in one model, and the one that
+made the zero-field defect look plausible. It now prints the census definition.
+
+**The result: the oscillation does not care.**
+
+     it   f_mol mean, zero seed   f_mol mean, D-209 seed
+      4          0.2335                  0.7697
+      5          0.7066                  0.8165
+      6          0.2950                  0.2913
+      7          0.6634                  0.6416
+      8          0.7953                  0.7696
+      9          0.8291                  0.8182
+     10          0.8571                  0.8144
+     11          0.3413                  0.3273
+     12          0.6186                  0.6031
+
+The seed changes iterations 4 and 5 and nothing after. From iteration 6 the two
+runs are the same trajectory to within a few per cent, collapsing at 6 and 11
+in both, the same five-iteration interval, the same 0.0066% convergence
+ceiling. Two initial molecular contents differing by a factor 3.3 converge onto
+one cycle within two iterations.
+
+So the cycle is an attractor of the coupled system with no memory of the seed.
+D-208 predicted that an improvement would not establish the seed as the cause;
+there is no improvement at all, which settles it the other way and conclusively.
+Both D-208 and D-209 remain worth having - 0.300 uniformly across an H II
+region was wrong on its own terms, and an equilibrium seed is the right
+starting point - but neither is this defect.
+
+**A note against citing D-112 here.** D-112 measured that the H2 seed selects a
+branch that does not relax away even with a hundredfold longer integration.
+That was the 1D slab at a fixed field. In the fully coupled model the seed's
+memory is gone in two iterations. Different regime, not a contradiction, but
+D-112 should not be quoted as though it covers the coupled case.
+
+**What is NOT known.** What sets the five-iteration interval, and what triggers
+the discharge. `runs/d207-budget` was to answer the second with `pdrHeatUsed`
+and `pdrCoolUsed`, and it was killed before finishing; it also predates D-208,
+so it would have to be rerun regardless.
+
+**Known defect in the D-209 diagnostic, not yet fixed.** The input line reports
+MEANS over a field that is strongly bimodal - mean chi 8.88 and mean D 1.79e-10
+are set by H II region cells where chi is huge and A_V ~ 0, while the molecular
+half sits at chi ~ 0.1 and A_V ~ 3. Substituting those means into the closed
+form gives f_mol 2e-5 rather than the 0.4826 actually placed. That is not an
+inconsistency in the seed, it is a mean over two populations describing
+neither, and it is the D-202 failure in a new diagnostic. It should print
+quantiles.

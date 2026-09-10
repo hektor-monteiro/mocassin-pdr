@@ -9,7 +9,7 @@ FUNCTION H2_FORMATION_RATE(GAS_TEMPERATURE,GRAIN_TEMPERATURE) RESULT(RATE)
 
    USE DEFINITIONS
    USE HEALPIX_TYPES
-   USE GLOBAL_MODULE, ONLY: metallicity
+   USE GLOBAL_MODULE, ONLY: metallicity,h2form_xsec_sil,h2form_xsec_gra
    IMPLICIT NONE
 
    REAL(KIND=DP) :: RATE
@@ -36,6 +36,26 @@ FUNCTION H2_FORMATION_RATE(GAS_TEMPERATURE,GRAIN_TEMPERATURE) RESULT(RATE)
    TOTAL_CROSS_SECTION=6.273D-22 ! Total mixed grain cross section per H nucleus (cm^-2/nucleus)
    SILICATE_CROSS_SECTION=8.473D-22 ! Silicate grain cross section per H nucleus (cm^-2/nucleus)
    GRAPHITE_CROSS_SECTION=7.908D-22 ! Graphite grain cross section per H nucleus (cm^-2/nucleus)
+
+!  D-195: the three constants above are a diffuse-ISM prescription. They carry
+!  no dependence on the dust-to-gas ratio, the grain size distribution or the
+!  grain composition, yet the rate below is LINEAR in them - so a dust-poor or
+!  dust-rich model, or one made of a single material, gets the standard-ISM H2
+!  formation rate regardless. When the host code has measured the geometric
+!  grain area per H nucleus from its own grains it supplies it here, per cell
+!  and per material, and it replaces the prescription. A negative value means
+!  the host has measured nothing (no dust in this model at all) and the
+!  upstream constants stand.
+!
+!  Note that upstream's own TOTAL (6.273D-22) is NOT the sum of its two channel
+!  values (1.638D-21); only the two channel values enter the rate, so the
+!  measured areas replace those and TOTAL is carried along for the unused
+!  Tielens & Hollenbach branch commented out below.
+   IF(h2form_xsec_sil.GE.0.0D0 .AND. h2form_xsec_gra.GE.0.0D0) THEN
+      SILICATE_CROSS_SECTION=h2form_xsec_sil
+      GRAPHITE_CROSS_SECTION=h2form_xsec_gra
+      TOTAL_CROSS_SECTION=h2form_xsec_sil+h2form_xsec_gra
+   END IF
 
 !  Silicate grain properties
    SILICATE_MU=0.005D0   ! Fraction of newly formed H2 that stays on the grain surface

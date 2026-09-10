@@ -862,7 +862,39 @@ module iteration_mod
                  call dustPerCell(grid(1:nGrids))
               end if
               call computeAVdust(grid(1:nGrids))
+              ! --------------------------------------------------- D-209
+              ! Place the H/H2 balance from MOCASSIN's photoionization
+              ! solution, ONCE, at the first PDR iteration.
+              !
+              ! It has to sit here and not in seedPDR: seedPDR runs at
+              ! startup, before MOCASSIN knows anything, so D-208 correctly
+              ! leaves it writing zeros. By pdrStartIter there is a converged
+              ! ionization structure, a Te, a Tdust and a dust opacity, and
+              ! computeAVdust above has just turned the last of those into
+              ! chi_FUV and A_V. Those are dust and radiation quantities and
+              ! do not depend on the molecular abundances, so calling it
+              ! before the seed costs nothing and gives the seed its field.
+              !
+              ! The whole pair is then run AGAIN, because both of them
+              ! integrate shielding columns and those DO depend on the
+              ! abundances - they have to see the seeded grid, not the zeroed
+              ! one (D-208: both column routines run before the coupling loop
+              ! opens, which is why the old hardcoded x(H2)=0.300 was reaching
+              ! the first chemistry call at all). One extra pass, once per run.
+              !
+              ! The seed must sit AFTER mocassinToPDR, not between the two:
+              ! chiFUV is written by mocassinToPDR, so calling seedMolecules
+              ! before it hands the seed a zero FUV field. The closed form
+              ! then returns N/2 - every cell fully molecular, the H II region
+              ! included - and it is not obviously wrong on the face of it,
+              ! because a zero field IS the fully-shielded limit. Measured on
+              ! the first attempt: mean f_mol 1.0000 in 100.00% of cells.
               call mocassinToPDR(grid(1:nGrids))
+              if (lgPDR .and. nIterateMC == pdrStartIter) then
+                 call seedMolecules(grid(1:nGrids))
+                 call computeAVdust(grid(1:nGrids))
+                 call mocassinToPDR(grid(1:nGrids))
+              end if
            end if
 #endif
 

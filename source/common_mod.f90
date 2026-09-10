@@ -350,6 +350,9 @@ module common_mod
         real, allocatable         :: AVeff(:)        ! effective A_V from the MC field
         real, allocatable         :: dustAVfac(:)    ! A_V per N_H from THIS cell's grains (D-109)
         real, allocatable         :: dustRfuv(:)     ! tau_FUV/tau_V from THIS cell's grains (D-109)
+        real, allocatable         :: dustSigSil(:)   ! GEOMETRIC grain area per H nucleus [cm^2/H]
+        real, allocatable         :: dustSigGra(:)   ! of THIS cell's silicate / carbonaceous
+                                                     ! grains, for H2 formation (D-195)
         real, allocatable         :: H2den(:)        ! n(H2) from the CHEMISTRY [cm^-3] (D-107),
                                                      ! for the H2 photoionization continuum above
                                                      ! 15.43 eV in addOpacity.

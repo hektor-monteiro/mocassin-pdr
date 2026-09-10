@@ -1378,6 +1378,14 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate dustRfuv memory"; stop
                 end if
+                allocate(grid%dustSigSil(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate dustSigSil memory"; stop
+                end if
+                allocate(grid%dustSigGra(0:grid%nCells), stat = err)
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate dustSigGra memory"; stop
+                end if
                 allocate(grid%pdrCoolSp(0:grid%nCells, 1:max(pdrNcool,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
@@ -1473,6 +1481,8 @@ module grid_mod
                 ! model-wide value from calibratePDRdust until then (D-109)
                 grid%dustAVfac = 0.
                 grid%dustRfuv  = 0.
+                grid%dustSigSil = -1.       ! D-195: <0 marks "not measured yet"
+                grid%dustSigGra = -1.
                 grid%pdrCool = 0.
                 grid%elemAvail = 1.
                 grid%NePDR = 0.
@@ -3582,6 +3592,16 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate dustRfuv memory"; stop
                end if
+               allocate(grid(iG)%dustSigSil(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate dustSigSil memory"; stop
+               end if
+               allocate(grid(iG)%dustSigGra(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate dustSigGra memory"; stop
+               end if
+               grid(iG)%dustSigSil = -1.    ! D-195
+               grid(iG)%dustSigGra = -1.
                allocate(grid(iG)%pdrCoolSp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop

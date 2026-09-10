@@ -390,6 +390,14 @@ module global_module
  REAL(kind=dp) :: omega
  REAL(kind=dp) :: grain_radius
 
+! D-195: GEOMETRIC grain cross section per H nucleus [cm^2 per H], split by
+! material, as measured by the host code from its own grain size distribution,
+! composition and dust-to-gas ratio. H2_FORMATION_RATE uses these in place of
+! the hardcoded diffuse-ISM constants whenever they are non-negative; a negative
+! value means "not supplied" and the upstream constants stand.
+ REAL(kind=dp) :: h2form_xsec_sil = -1.0d0
+ REAL(kind=dp) :: h2form_xsec_gra = -1.0d0
+
  real(kind=dp),allocatable :: allheating(:) 
  
 end module global_module

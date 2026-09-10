@@ -67,6 +67,8 @@ module pdr_mod
     use global_module,    only : pdrMetalMod  => metallicity, &
                                & pdrOmega     => omega,       &
                                & pdrGrainRadM => grain_radius, &
+                               & pdrH2xsecSil => h2form_xsec_sil, &
+                               & pdrH2xsecGra => h2form_xsec_gra, &
                                & pdrNelect    => NELECT,      &
                                ! D-075: NH must be renamed. It is the species
                                ! index for atomic H, but pdrStep declares a local
@@ -91,8 +93,14 @@ module pdr_mod
     implicit none
 
     private
-    public :: initPDRnetwork, seedPDR, calibratePDRdust, dustPerCell, computeAVdust, &
+    public :: initPDRnetwork, seedPDR, seedMolecules, calibratePDRdust, dustPerCell, computeAVdust, &
             & mocassinToPDR, pdrStep, pdrToMocassin
+
+    ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
+    ! component, split by material. Fixed by the size distribution and the
+    ! species mix, so measured once; the per-H area is Ndust/Hden times this.
+    double precision, allocatable :: sigSilGrain(:), sigGraGrain(:)
+    logical                       :: lgH2areaDone = .false.
 
     contains
 
@@ -636,14 +644,164 @@ module pdr_mod
       end subroutine reportExtreme
 
 
+      !-----------------------------------------------------------------
+      ! D-195: is this grain material carbonaceous?
+      !
+      ! H2 forms on grain surfaces, and Cazaux & Tielens give silicate and
+      ! carbonaceous surfaces different binding energies - so the rate needs to
+      ! know which surface it is looking at, not just how much of it there is.
+      ! MOCASSIN's grain labels come from the .nk files and follow no single
+      ! convention, so the match is on substrings and the full classification is
+      ! PRINTED at startup for inspection rather than trusted silently.
+      !-----------------------------------------------------------------
+      logical function isCarbonGrain(label)
+        implicit none
+
+        character(len=*), intent(in) :: label
+        character(len=30) :: lc
+        integer           :: i, ic
+
+        lc = ' '
+        do i = 1, min(len(label), 30)
+           ic = iachar(label(i:i))
+           if (ic >= iachar('A') .and. ic <= iachar('Z')) ic = ic + 32
+           lc(i:i) = achar(ic)
+        end do
+
+        isCarbonGrain = (index(lc,'graph') > 0) .or. (index(lc,'grph')  > 0) &
+             &     .or. (index(lc,'amc')   > 0) .or. (index(lc,'carb')  > 0) &
+             &     .or. (index(lc,'pah')   > 0) .or. (index(lc,'sic')   > 0) &
+             &     .or. (index(lc,'gr1')   > 0) .or. (index(lc,'gr2')   > 0)
+
+      end function isCarbonGrain
+
+
+      !-----------------------------------------------------------------
+      ! D-195: measure the geometric grain area this model actually carries.
+      !
+      ! H2_FORMATION_RATE is LINEAR in the grain cross section per H nucleus,
+      ! and upstream hardcodes that as a diffuse-ISM constant - so the H/H2
+      ! front sat where standard ISM dust would put it no matter what dust the
+      ! model was given. MOCASSIN knows the size distribution, the composition
+      ! and the dust-to-gas ratio, so it can simply measure it.
+      !
+      ! The per-grain part is fixed by the size distribution: sum over sizes of
+      ! pi a^2 weighted by grainWeight (which is normalised to 1) and by the
+      ! species abundance, exactly the weighting dustOpacity uses to build
+      ! absOpac from Ndust - so the area and the opacity describe the same
+      ! grains. The per-H part, Ndust/Hden, is per cell and is applied in
+      ! dustPerCell.
+      !-----------------------------------------------------------------
+      subroutine measureH2grainArea()
+        implicit none
+
+        integer          :: nsp, nspec, ai, iSpec, err
+        double precision :: aCm2, sigTot
+        logical          :: lgUnknown
+
+        if (lgH2areaDone) return
+        lgH2areaDone = .true.
+
+        if (.not.lgDust) return
+
+        allocate(sigSilGrain(1:nDustComponents), stat = err)
+        if (err /= 0) then
+           print*, "! measureH2grainArea: can't allocate sigSilGrain"; stop
+        end if
+        allocate(sigGraGrain(1:nDustComponents), stat = err)
+        if (err /= 0) then
+           print*, "! measureH2grainArea: can't allocate sigGraGrain"; stop
+        end if
+        sigSilGrain = 0.d0
+        sigGraGrain = 0.d0
+        lgUnknown   = .false.
+
+        if (taskid == 0) then
+           print*, "! [D195] H2 formation grain area, measured from this model's dust:"
+           print*, "!   (component, species, label, material, mean pi a^2 per grain [cm^2])"
+        end if
+
+        do nsp = 1, nDustComponents
+           do nspec = 1, nSpeciesPart(nsp)
+              iSpec  = dustComPoint(nsp) - 1 + nspec
+              sigTot = 0.d0
+              do ai = 1, nSizes
+                 if (grainRadius(ai) < componentMinRadius(nsp, nspec)) cycle
+                 if (grainRadius(ai) > componentMaxRadius(nsp, nspec)) cycle
+                 aCm2   = dble(grainRadius(ai))*1.d-4          ! um -> cm
+                 sigTot = sigTot + dble(Pi)*aCm2*aCm2 &
+                        &        * dble(grainWeight(ai))*dble(grainAbun(nsp, nspec))
+              end do
+
+              if (isCarbonGrain(grainLabel(iSpec))) then
+                 sigGraGrain(nsp) = sigGraGrain(nsp) + sigTot
+              else
+                 sigSilGrain(nsp) = sigSilGrain(nsp) + sigTot
+                 ! everything that is not recognisably carbonaceous goes to the
+                 ! silicate channel; say so when the label was not recognised
+                 ! either, so an unlisted material is never silently binned
+                 if (.not.isSilicateGrain(grainLabel(iSpec))) lgUnknown = .true.
+              end if
+
+              if (taskid == 0) then
+                 if (isCarbonGrain(grainLabel(iSpec))) then
+                    print*, "!  ", nsp, nspec, trim(grainLabel(iSpec)), &
+                         & "  carbonaceous ", real(sigTot)
+                 else if (isSilicateGrain(grainLabel(iSpec))) then
+                    print*, "!  ", nsp, nspec, trim(grainLabel(iSpec)), &
+                         & "  silicate     ", real(sigTot)
+                 else
+                    print*, "!  ", nsp, nspec, trim(grainLabel(iSpec)), &
+                         & "  UNRECOGNISED -> silicate ", real(sigTot)
+                 end if
+              end if
+           end do
+        end do
+
+        if (lgUnknown .and. taskid == 0) then
+           print*, "! [D195] [warning] at least one grain label was not recognised as"
+           print*, "!   silicate or carbonaceous and was assigned to the silicate"
+           print*, "!   channel of Cazaux & Tielens. Check the table above."
+        end if
+
+      end subroutine measureH2grainArea
+
+
+      logical function isSilicateGrain(label)
+        implicit none
+
+        character(len=*), intent(in) :: label
+        character(len=30) :: lc
+        integer           :: i, ic
+
+        lc = ' '
+        do i = 1, min(len(label), 30)
+           ic = iachar(label(i:i))
+           if (ic >= iachar('A') .and. ic <= iachar('Z')) ic = ic + 32
+           lc(i:i) = achar(ic)
+        end do
+
+        isSilicateGrain = (index(lc,'sil')  > 0) .or. (index(lc,'oliv') > 0) &
+             &       .or. (index(lc,'pyr')  > 0) .or. (index(lc,'enst') > 0) &
+             &       .or. (index(lc,'forst')> 0) .or. (index(lc,'quartz') > 0) &
+             &       .or. (index(lc,'oss')  > 0)
+
+      end function isSilicateGrain
+
+
       subroutine dustPerCell(grid)
         implicit none
 
         type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer          :: iG, cP, ifreq
-        double precision :: kV, kFUV, wsum
+        integer          :: iG, cP, ifreq, nsp
+        double precision :: kV, kFUV, wsum, perH
         double precision :: wt(nbins)
+
+        ! D-195: the H2 formation area is a property of the same grains, and is
+        ! wanted in every cell the chemistry runs in - so it is filled here,
+        ! in the loop that already visits them, not on a separate pass.
+        call measureH2grainArea()
 
         ! the emitted-energy weights are a property of the source spectrum, not
         ! of the cell - build them once (see the band-average note below)
@@ -665,6 +823,24 @@ module pdr_mod
            do cP = 0, grid(iG)%nCells
               grid(iG)%dustAVfac(cP) = 0.
               grid(iG)%dustRfuv(cP)  = 0.
+
+              ! D-195. Deliberately BEFORE the kV cycle below: a cell with no
+              ! dust has no A_V scale to speak of (hence the fallback there) but
+              ! it does have a well-defined grain area for H2 formation, namely
+              ! zero. Falling back to a diffuse-ISM constant there would form H2
+              ! on grains the model does not contain.
+              if (allocated(sigSilGrain) .and. grid(iG)%Hden(cP) > 0.) then
+                 if (lgMultiDustChemistry) then
+                    nsp = grid(iG)%dustAbunIndex(cP)
+                 else
+                    nsp = 1
+                 end if
+                 if (nsp >= 1 .and. nsp <= nDustComponents) then
+                    perH = dble(grid(iG)%Ndust(cP))/dble(grid(iG)%Hden(cP))
+                    grid(iG)%dustSigSil(cP) = real(perH*sigSilGrain(nsp))
+                    grid(iG)%dustSigGra(cP) = real(perH*sigGraGrain(nsp))
+                 end if
+              end if
 
               kV = dble(grid(iG)%absOpac(cP,VbandP)) &
                  & + dble(grid(iG)%scaOpac(cP,VbandP))
@@ -904,6 +1080,18 @@ module pdr_mod
               print*, "!   measured ratio, so the chemistry stays self-consistent, but"
               print*, "!   the network's gamma values assume a standard extinction curve."
            end if
+        end if
+
+        ! D-195: report the H2 formation area against what upstream assumes, at
+        ! the densest dusty cell found above, so the size of the change is on
+        ! the record rather than buried in the chemistry.
+        if (taskid == 0 .and. lgDust) then
+           print*, "! [D195] H2 formation grain area at the calibration cell:"
+           print*, "!   silicate     = ", grid(1)%dustSigSil(iCell), &
+                & " cm^2/H   (Cazaux & Tielens assume 8.473e-22)"
+           print*, "!   carbonaceous = ", grid(1)%dustSigGra(iCell), &
+                & " cm^2/H   (Cazaux & Tielens assume 7.908e-22)"
+           print*, "!   the H2 formation rate is LINEAR in these"
         end if
 
       end subroutine calibratePDRdust
@@ -1531,6 +1719,228 @@ module pdr_mod
       end subroutine mocassinToPDR
 
 
+
+      !-----------------------------------------------------------------
+      ! D-209. The starting H2 and CO fractions, from MOCASSIN's own
+      ! photoionization solution.
+      !
+      ! D-208 set every molecule to zero at startup, which is right there -
+      ! at startup MOCASSIN knows nothing yet. By pdrStartIter it knows a
+      ! great deal: a converged ionization structure, an electron temperature,
+      ! a dust temperature, a dust opacity, and from those an FUV field and an
+      ! A_V. That is enough to place the H/H2 balance before the chemistry
+      ! ever runs, and it has to be done HERE because the shielding columns
+      ! are integrated over pdrAbun before the coupling loop opens (D-208).
+      !
+      ! H2: formation on grains against photodissociation, at equilibrium.
+      !
+      !     R n(H) n_H = D n(H2),     n(H) + 2 n(H2) = N
+      !
+      ! with N the neutral hydrogen MOCASSIN reports, giving in closed form
+      !
+      !     n(H2) = R N n_H / (D + 2 R n_H)
+      !
+      ! which conserves hydrogen exactly, is bounded by N/2, tends to N/2
+      ! where the field is extinguished (D -> 0) and to zero in the ionized
+      ! gas, where N is itself near zero. No iteration and no free parameter.
+      !
+      ! Every input is the model's own. R is H2_FORMATION_RATE, the Cazaux &
+      ! Tielens rate as a function of THIS cell's gas and dust temperature,
+      ! with the grain cross sections reseeded from MOCASSIN's measured
+      ! geometric area per H nucleus (D-195) rather than the diffuse-ISM
+      ! constants h2_form.F90 ships with. D is the network's own
+      ! photodissociation coefficient for H2 - looked up in the rate table,
+      ! not written here - times MOCASSIN's chi_FUV, attenuated by the
+      ! network's own SCATTER at MOCASSIN's A_V.
+      !
+      ! D is taken UNSHIELDED: H2 self-shielding needs an H2 column, and the
+      ! H2 column is what this seed exists to supply. Using zero there is the
+      ! one choice that cannot inject shielding the model has not earned, and
+      ! it errs low - the chemistry then self-shields upward from a floor
+      ! rather than relaxing down from a fiction, which is exactly the failure
+      ! D-208 removed.
+      !
+      ! CO is weaker and is labelled as such. It has no two-body formation
+      ! rate to balance - every path to CO in the reduced network is a chain
+      ! through H2 - so there is no equilibrium to solve without inventing a
+      ! coefficient, which the project forbids. The seed instead gives CO the
+      ! same share of the neutral carbon that H2 took of the neutral hydrogen,
+      ! capped by the available oxygen and conserving both. It is an ansatz,
+      ! not a solution: zero where there is no H2, all the neutral carbon
+      ! where the gas is fully molecular, and monotonic between. The chemistry
+      ! replaces it on the first call.
+      !-----------------------------------------------------------------
+      subroutine seedMolecules(grid)
+        use functions_module, only : H2_FORMATION_RATE, SCATTER
+        implicit none
+
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer          :: iG, cP, iR, i, j, k, iAb, yTop
+        integer, save    :: iRxH2 = -1
+        double precision, save :: alphaH2 = 0.d0
+        double precision :: Rform, Dh2, nH, xHn, xH2, fH2, xCO
+        integer          :: nSeed, nMol
+        double precision :: molSum, hSum, chiSum, avSum, rSum, dSum
+        double precision :: abunL(pdrNspec)
+
+        ! The photodissociation coefficient comes from the network's rate
+        ! table, once. Writing 5.18e-11 here would be the same defect D-208
+        ! removed, one file further along.
+        if (iRxH2 < 0) then
+           iRxH2 = 0
+           do iR = 1, pdrNreacMod
+              if (trim(adjustl(pdrReactant(iR,1))) == "H2" .and. &
+                & trim(adjustl(pdrReactant(iR,2))) == "PHOTON" .and. &
+                & trim(adjustl(pdrProduct(iR,1)))  == "H" .and. &
+                & trim(adjustl(pdrProduct(iR,2)))  == "H") then
+                 iRxH2   = iR
+                 alphaH2 = pdrAlpha(iR)
+                 exit
+              end if
+           end do
+           if (taskid == 0) then
+              if (iRxH2 > 0) then
+                 print*, "! seedMolecules: H2 photodissociation is reaction", &
+                      & iRxH2, " alpha =", alphaH2, " s^-1 (unattenuated)"
+              else
+                 print*, "! seedMolecules: [warning] no H2 photodissociation &
+                      &reaction found in the network - molecules seeded at zero"
+              end if
+           end if
+        end if
+        if (iRxH2 <= 0 .or. alphaH2 <= 0.d0) return
+
+        nSeed = 0; nMol = 0; molSum = 0.d0
+        hSum = 0.d0; chiSum = 0.d0; avSum = 0.d0; rSum = 0.d0; dSum = 0.d0
+        ! Looped over i,j,k rather than the cell pointer because the
+        ! abundance-file index is held per (i,j,k), exactly as seedPDR does it.
+        do iG = 1, nGrids
+           if (.not.allocated(grid(iG)%pdrAbun)) cycle
+           if (iG > 1 .or. (.not.lg2D)) then
+              yTop = grid(iG)%ny
+           else
+              yTop = 1
+           end if
+           do i = 1, grid(iG)%nx
+            do j = 1, yTop
+             do k = 1, grid(iG)%nz
+              cP = grid(iG)%active(i,j,k)
+              if (cP <= 0) cycle
+              iAb = grid(iG)%abFileIndex(i,j,k)
+              nH = dble(grid(iG)%Hden(cP))
+              if (nH <= 0.d0) cycle
+              nSeed = nSeed + 1
+
+              ! THIS cell's grains, the same handover pdrStep makes (D-195).
+              ! A negative value means MOCASSIN measured no dust and h2_form
+              ! falls back to its own constants, so a dust-free model is
+              ! unchanged.
+              if (allocated(grid(iG)%dustSigSil) .and. &
+                & allocated(grid(iG)%dustSigGra)) then
+                 if (grid(iG)%dustSigSil(cP) >= 0. .and. &
+                   & grid(iG)%dustSigGra(cP) >= 0.) then
+                    pdrH2xsecSil = dble(grid(iG)%dustSigSil(cP))
+                    pdrH2xsecGra = dble(grid(iG)%dustSigGra(cP))
+                 else
+                    pdrH2xsecSil = -1.d0
+                    pdrH2xsecGra = -1.d0
+                 end if
+              end if
+
+              Rform = H2_FORMATION_RATE(dble(grid(iG)%Te(cP)), &
+                   &                    dble(grid(iG)%Tdust(0,0,cP)))
+              if (Rform <= 0.d0) cycle
+
+              Dh2 = alphaH2*dble(grid(iG)%chiFUV(cP)) &
+                  & *SCATTER(dble(grid(iG)%AVeff(cP)), 1.0d3)
+              if (Dh2 < 0.d0) Dh2 = 0.d0
+
+              ! Rebuild the carriers from the ionization MOCASSIN has NOW.
+              !
+              ! Reading pdrAbun here instead was wrong and measured so: seedPDR
+              ! runs at startup, where fillGrid has set x(H0) = initH0 = 1e-5
+              ! - the grid starts essentially fully ionized - so pdrAbun held
+              ! 1e-5 of neutral hydrogen in every cell and the equilibrium
+              ! below could not put more than 5e-6 into H2 anywhere. Reported
+              ! mean f_mol 0.0000. The whole point of seeding at pdrStartIter
+              ! rather than at startup is that x(H0), Te and Tdust are
+              ! converged by then; reading a startup value at that point threw
+              ! the reason away.
+              call seedAbunFromMocassin(grid(iG), cP, iAb, abunL)
+              grid(iG)%pdrAbun(cP, 1:pdrNspec) = abunL
+
+              ! neutral hydrogen, as a fraction per H nucleus
+              xHn = grid(iG)%pdrAbun(cP, pdrNHsp)
+              hSum   = hSum   + xHn
+              chiSum = chiSum + dble(grid(iG)%chiFUV(cP))
+              avSum  = avSum  + dble(grid(iG)%AVeff(cP))
+              rSum   = rSum   + Rform
+              dSum   = dSum   + Dh2
+              if (xHn <= 0.d0) cycle
+
+              ! n(H2)/n_H = R N n_H /(D + 2 R n_H), with N/n_H = xHn
+              xH2 = Rform*xHn*nH/(Dh2 + 2.d0*Rform*nH)
+              xH2 = min(max(xH2, 0.d0), 0.5d0*xHn)
+
+              grid(iG)%pdrAbun(cP, pdrIdxH2) = xH2
+              grid(iG)%pdrAbun(cP, pdrNHsp)  = xHn - 2.d0*xH2
+              if (allocated(grid(iG)%H2den)) &
+                   & grid(iG)%H2den(cP) = real(xH2*nH)
+
+              ! fH2 here is the fraction of the NEUTRAL hydrogen that is
+              ! molecular - that is what the CO ansatz below needs. It is NOT
+              ! what the D-202 census calls f_mol, which is 2x(H2) per H
+              ! NUCLEUS, and in the ionized gas the two differ by everything:
+              ! xHn is ~0 there, so the neutral-normalised ratio is 0/0 and
+              ! reads 1 while the per-nucleus value is ~0. Reporting the
+              ! neutral-normalised one is how the zero-field defect above
+              ! looked like a plausible answer. The census definition is the
+              ! one printed.
+              fH2 = 2.d0*xH2/xHn
+              molSum = molSum + 2.d0*xH2
+              if (2.d0*xH2 > 0.5d0) nMol = nMol + 1
+
+              ! CO: the ansatz above. Carbon and oxygen both conserved.
+              if (pdrIdxC > 0 .and. pdrIdxCO > 0) then
+                 xCO = grid(iG)%pdrAbun(cP, pdrIdxC)*fH2
+                 xCO = min(xCO, grid(iG)%pdrAbun(cP, NO))
+                 if (xCO > 0.d0) then
+                    grid(iG)%pdrAbun(cP, pdrIdxCO) = xCO
+                    grid(iG)%pdrAbun(cP, pdrIdxC)  = &
+                         & grid(iG)%pdrAbun(cP, pdrIdxC) - xCO
+                    grid(iG)%pdrAbun(cP, NO)       = &
+                         & grid(iG)%pdrAbun(cP, NO) - xCO
+                 end if
+              end if
+
+              ! the cell is now seeded; pdrStep must not overwrite this with
+              ! its own molecules-at-zero version on the first visit
+              if (allocated(grid(iG)%pdrSeeded)) grid(iG)%pdrSeeded(cP) = 1
+             end do
+            end do
+           end do
+        end do
+
+        if (taskid == 0 .and. nSeed > 0) then
+           print '(a,i8,a,f8.4,a,i8,a,f6.2,a)', &
+                & " ! [D209] seeded", nSeed, " cells:  mean f_mol = 2x(H2) ", &
+                & molSum/dble(nSeed), "    f_mol > 0.5 in", nMol, " (", &
+                & 100.d0*dble(nMol)/dble(nSeed), "%)"
+           ! D-209: the seed's INPUTS, so a wrong answer says which input was
+           ! wrong instead of leaving it to be guessed. Two attempts at this
+           ! routine failed on a stale or unset input - chiFUV read before
+           ! mocassinToPDR wrote it, then x(H0) read from the startup grid -
+           ! and neither was visible in the answer alone.
+           print '(a,5(es11.4,a))', " ! [D209]   inputs: mean x(H0) ", &
+                & hSum/dble(nSeed), "  chi ", chiSum/dble(nSeed), &
+                & "  A_V ", avSum/dble(nSeed), "  R_form ", rSum/dble(nSeed), &
+                & "  D_pd ", dSum/dble(nSeed)
+        end if
+
+      end subroutine seedMolecules
+
+
       !-----------------------------------------------------------------
       ! D-208. The ONE seeding rule, used by seedPDR at startup and by
       ! pdrStep on a cell's first visit.
@@ -1741,6 +2151,20 @@ module pdr_mod
         ! (CRattenuation, UVfield) - reseed it per cell so those routines get
         ! THIS cell's grains.
         pdrAVfacMod = AVfacL*dble(pdrMetal)
+
+        ! D-195: same idea for the H2 formation rate. H2_FORMATION_RATE is
+        ! linear in the grain cross section per H nucleus and upstream hardcodes
+        ! it as a diffuse-ISM constant, so the H/H2 front ignored the model's
+        ! own dust entirely. Hand it THIS cell's measured geometric grain area,
+        ! split by material. A negative value means MOCASSIN measured nothing
+        ! (a dust-free model) and h2_form keeps the upstream constants.
+        if (grid%dustSigSil(cellP) >= 0. .and. grid%dustSigGra(cellP) >= 0.) then
+           pdrH2xsecSil = dble(grid%dustSigSil(cellP))
+           pdrH2xsecGra = dble(grid%dustSigGra(cellP))
+        else
+           pdrH2xsecSil = -1.d0
+           pdrH2xsecGra = -1.d0
+        end if
         !
         ! UV_fac is deliberately NOT reseeded from RfuvL. It is not a measured
         ! dust property but the exponent of a PRESCRIPTION, exp(-UV_fac*A_V),
