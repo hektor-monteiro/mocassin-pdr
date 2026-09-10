@@ -218,9 +218,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 45-2208x that of the cells that stay cold (45x and 111x at the two collapses) and 6-843x their own total cooling (above 100x from iteration 6 on); photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
 | D-218 | **Two regularities hold at every iteration; no single variable decides which cells flip.** Twelve iterations (runs/d218-front, 21:33). At EVERY iteration 5-12 the flipping cells come overwhelmingly from last iteration's cold cells, and a cell that flips receives ~1000x LESS field the next iteration (started hot: J 1.5-5.3e-6; flippers 2e-4-1.1e-2). The two big collapses look alike - iteration 6 (8265 cells) and 10 (6587) put their flippers deep (A_V 2.34, 2.41), very molecular (f_mol 0.904, 0.905) and at the lowest threshold tau (466, 201) - but the follow-on iterations do not, and threshold tau does not predict where the field lands (at 7 and 11 the lowest-tau group gets the least). The opacity trails the ionization by one iteration (tau 1260 = x(H0) 1.0 at it 5; predicted 460, measured 466 at it 6) | Done | 2026-09-10 |
-| D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Whether it is the collapse trigger is OPEN: an early argument that iteration 6 'enters at an excess of 1.26' conflated total hydrogen with the H0 that absorbs at 13.6-15.4 eV, where H2 is transparent - the H0 fraction iteration 6's photons saw had fallen from 1.0 to 0.365 (see D-218). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
-| D-220 | **Fix for D-219: rescale the ion stages to the chemistry's available fraction before the next opacity is built.** D-153's rule on MOCASSIN's side - keep MOCASSIN's ratio between stages, take the non-molecular total from the chemistry - applied to every enabled element exactly as `ionBalance`'s conservation row does, after the D-200 damping and republish. Plus a `pdrToMocassin` after the D-209 seed, which never republished `elemAvail`. Verification is built in: the D-196 budget prints after the rescale and should read ~1.00, and a `[D220]` line reports hydrogen's offset BEFORE each rescale. Not a promised cure - the five-pass run held the budget at 1.00 and still collapsed | Running | 2026-09-10 |
-| D-221 | **Which band carries the heating.** D-218 showed threshold opacity does not decide where the field lands. Per outcome group, at entry: the field summed over 13.6-15.4 eV (no H2 continuum, D-139) and above 15.43 eV (H2 absorbs), H0's photoionization heating split the same way inside `thermBalance`'s frequency loop, and H0's share of the photoionization heating. Per-cell `mocBand`, allocated on both the cold and warm paths | Running | 2026-09-10 |
+| D-219 | **The opacity was built from a hydrogen budget that did not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) - exactly what `ionizationDriver` reads to build the next opacity - ran at a median of 0.43-1.85 whenever one ionization solve was followed by chemistry that moved (D-216 and the one-pass runs); the five-pass loop held 1.000. The opacity followed that stale state (tau 1260 = x(H0) 1.0 at iteration 5). `seedMolecules` also never republished `elemAvail`. **Fixed by D-220**: budget 1.0000 at every iteration measured. Not the cause of the collapse - it persists with the budget closed | Fixed | 2026-09-10 |
+| D-220 | **The ion stages are rescaled to the chemistry's available fraction before the next opacity is built - verified, and the collapse survives it.** D-153's rule on MOCASSIN's side, applied after the D-200 damping, plus a `pdrToMocassin` after the seed. Before the rescale hydrogen was off by a mean 0.400 / 0.093 / 0.420 (93% / 78% / 89% of cells) at iterations 4-6; after it the budget reads 1.0000. The opacity follows: tau 281 per cell against 272 predicted at iteration 5, where it read 1260. Iteration 6 still collapses - median f_mol 0.239 against 0.238 without the fix, Te median 2160 K against 2525 K | Done | 2026-09-10 |
+| D-221 | **The heating that flips cells comes from above 15.43 eV, where H2 absorbs - not from the H2-transparent window.** At iteration 6, 7274 cells go cold -> hot (7270 of them cold at iteration 5): 99.9998% of their field and essentially all their H0 photoionization heating (4.94e-23 against 3.2e-29 in the window) lie above 15.43 eV, and H0 is 99.3% of their photoionization heating. Iterations 4 and 5 showed the same in 18 cells. So missing H2 line opacity between 13.6 and 15.4 eV is ruled out as the cause. The two bands reproduce D-218's total field to four figures | Done | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13156,3 +13156,60 @@ still not a result - iteration 6 is where thousands flip.
 its 15.43 eV threshold, He above 24.6 eV, or dust - and so why lowering the H0
 fraction moved it by ~760x. That is a question for a per-absorber opacity
 decomposition, and is only worth building if iteration 6 shows the same.
+
+
+### Iteration 6: the collapse survives the fix, and the band is decided (2026-09-10)
+
+**The collapse.** `runs/d220-fix` against `runs/d218-front`, identical except
+for D-220 and D-221:
+
+     it   f_mol median   f_mol mean   |df| p90   moved >0.1   Te median
+          d218   d220    d218  d220   d218 d220   d218  d220   d218   d220
+      4  0.850  0.833   0.794 0.784  0.698 0.698  60.2  62.5    264    311
+      5  0.915  0.916   0.808 0.820  0.160 0.167  38.8  39.4     96    102
+      6  0.238  0.239   0.396 0.433  0.714 0.714  72.4  67.7   2525   2160
+
+Iteration 6 still collapses. The median molecular fraction falls to 0.239
+against 0.238; at most the event is slightly milder (Te median 15% lower, mean
+f_mol 0.43 against 0.40, 4.7 points fewer cells moving), and that is within the
+range two runs of one fixture can differ. Closing the hydrogen budget in the
+opacity did not remove the relaxation oscillation. D-219 is a real correctness
+defect, now fixed, and not its cause - the five-pass run had already shown the
+collapse without the lag; this shows it with the lag removed.
+
+**The fix holds.** [D220] before each rescale: mean |x(H0)+x(H+)+2x(H2)-1| of
+0.4004, 0.0931 and 0.4198 at iterations 4, 5 and 6 (93.3%, 78.1%, 89.0% of cells
+off by more than 1%); the census after each reads min 0.99995-0.99996, median
+1.0000, max 1.0000.
+
+**The band, at scale.**
+
+     it 6          cells   A_V   f_mol  tau@thr   J 13.6-15.4   J >15.4   % hard   H0 heat win   H0 heat >15.4   H0 share
+     cold -> hot    7274   2.28  0.902    124     6.61e-9       3.30e-3    100.0    3.20e-29      4.94e-23        0.993
+     stayed cold    7579   2.19  0.734    322     1.08e-7       2.53e-4    100.0    1.89e-27      1.23e-24        0.979
+     started hot      64   0.65  0.000    960     4.87e-6       7.00e-7     12.6    4.77e-25      3.83e-25        0.992
+
+The 7274 cells that flip receive 99.9998% of their field above 15.43 eV and
+take essentially all their H0 photoionization heating from that band - six
+orders of magnitude more than from the window. H0 is 99.3% of their
+photoionization heating. 7270 of them were cold the iteration before. The cells
+that stay cold are also hard-field dominated (99.96%); only the 64 shallow
+started-hot cells, at A_V 0.65, are window-dominated.
+
+**So the window hypothesis is ruled out.** The heating that flips cells is not
+carried by 13.6-15.4 eV photons slipping through gas where H2 has no continuum.
+It is carried by photons above 15.43 eV - the band where H2 does absorb, and
+where the flipping cells, at f_mol 0.90 and n(H2) ~ 45 cm^-3, should be very
+thick near threshold (tau ~ 900 per cell at 18 eV from yanH2xSec).
+
+**What that leaves.** The photons arriving must sit where every absorber is thin
+- well above threshold, where the H0 and H2 cross sections fall as E^-3 and
+E^-3.5 and He0 has not yet taken over (24.6 eV) or has fallen off again. Which
+energies those are, and which absorber sets the path on the way in, is not
+measured. The obvious next instrument is the hard band split further in energy,
+with the opacity along it decomposed by absorber (H0, H2, He, dust). It is not
+built.
+
+**Also noted.** Convergence at iteration 6 is 0.1118% (17 cells), against
+0.0132% without the fix. Both are tiny and this is one run of each, so no
+weight is put on it.
