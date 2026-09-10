@@ -13213,3 +13213,51 @@ built.
 **Also noted.** Convergence at iteration 6 is 0.1118% (17 cells), against
 0.0132% without the fix. Both are tiny and this is one run of each, so no
 weight is put on it.
+
+
+### Full run - iterations 7 to 12 (2026-09-10)
+
+`runs/d220-fix`, 12 iterations, 21:17, clean exit.
+
+**The fix holds throughout.** Before each rescale hydrogen was off by a mean
+0.405, 0.271, 0.179, 0.373, 0.377 and 0.304 at iterations 7-12, in 87-94% of
+cells; after each the census reads min 0.99996, median 1.0000, max 1.0000. The
+chemistry moves the molecular content by that much every iteration, so the
+one-iteration lag D-219 described is not a transient.
+
+**The collapses, against `runs/d218-front`, which differs only by D-220/D-221:**
+
+     it    f_mol median     f_mol mean     moved >0.1      Te median
+           d218    d220     d218   d220    d218   d220     d218    d220
+      6    0.238   0.239    0.396  0.433   72.4   67.7     2525    2160
+      7    0.790   0.789    0.578  0.556   80.9   80.7      995    1064
+      8    0.904   0.882    0.719  0.721   84.2   82.4      319     346
+      9    0.926   0.926    0.784  0.789   41.1   45.6      111     129
+     10    0.241   0.315    0.487  0.543   71.4   65.2     1753     762
+     11    0.777   0.787    0.558  0.563   76.9   76.4      834     823
+     12    0.798   0.799    0.672  0.678   82.4   80.2      384     428
+
+The first collapse is unchanged. The second is milder with the fix - median
+f_mol 0.315 against 0.241, Te median 762 K against 1753 K, 6 points fewer cells
+moving. One run each, so that is suggestive, not established: it is the kind of
+difference two runs of one fixture can show. What is established is that the
+relaxation oscillation survives a hydrogen budget closed to 1.0000 at every
+iteration.
+
+Convergence is 0.013-0.112% throughout against 0.000-0.020% without the fix -
+consistently higher, and still two to seventeen cells. No weight is put on it.
+
+**The band holds at every iteration.** The cold -> hot group takes its field and
+its H0 photoionization heating from above 15.43 eV at iterations 7-12 as at 4-6:
+
+     it   cells   J window   J >15.43 eV   H0 heat window   H0 heat >15.43 eV   H0 share
+      7    3239   2.47e-7     1.08e-2         6.8e-27          1.05e-21          0.9992
+      8     708   3.76e-7     7.51e-3         9.0e-27          6.07e-22          0.9992
+      9     904   1.57e-7     3.82e-3         2.0e-27          1.93e-22          0.9981
+     10    5425   7.62e-8     3.39e-3         8.3e-28          6.31e-23          0.9952
+     11    3152   2.45e-7     4.32e-3         7.6e-27          1.15e-22          0.9976
+     12    1930   3.51e-7     1.28e-2         9.6e-27          8.54e-22          0.9993
+
+Nine iterations, every one with the heating that flips cells carried by photons
+above the H2 continuum threshold and hydrogen doing 99.5-99.9% of the absorbing.
+D-222 decomposes that band by energy and by absorber.

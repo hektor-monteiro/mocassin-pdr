@@ -1,0 +1,257 @@
+==============================================================================
+runs/d220-fix/run.log
+==============================================================================
+
+  f_mol = 2x(H2) distribution, % of PDR cells
+   it      <.01  .01-.1   .1-.3   .3-.5   .5-.7   .7-.9  .9-.99   >=.99
+    4      2.30    2.01    1.91    2.53    7.00   45.45   38.78    0.01
+    5      4.72    1.60    2.69    2.25    2.59   27.66   58.48    0.00
+    6      4.33    3.04   56.53    4.90    2.29    5.50   23.42    0.00
+    7      6.33   12.39   16.57    4.28    1.48   48.16   10.78    0.00
+    8      6.22    5.05    6.40    2.45    2.55   29.22   48.12    0.00
+    9      3.40    1.87    8.63    1.54    2.31   18.34   63.91    0.00
+   10      3.32    3.36   42.94    2.33    2.74   11.66   33.65    0.00
+   11      3.33   11.62   24.54    2.40    1.91   36.47   19.73    0.00
+   12      3.92    7.26   13.01    1.98    2.32   30.47   41.04    0.00
+
+  drivers and movement
+   it   f_mol_med  f_mol_mean   |df|_med   |df|_p90   mv>0.1%   Te_med     chi_med      AV_med    conv%
+    4      0.8331      0.7840     0.2491     0.6982     62.46      310.7   2.908e-01   2.371e+00   0.0066
+    5      0.9163      0.8198     0.0659     0.1671     39.41      102.1   2.843e-01   2.361e+00   0.0460
+    6      0.2391      0.4334     0.6416     0.7135     67.69     2160.0   2.855e-01   2.355e+00   0.1118
+    7      0.7889      0.5562     0.5583     0.6814     80.73     1063.8   3.992e-01   2.354e+00   0.0329
+    8      0.8818      0.7209     0.1382     0.6874     82.43      345.8   3.881e-01   2.352e+00   0.0263
+    9      0.9257      0.7894     0.0632     0.6792     45.62      128.5   3.450e-01   2.350e+00   0.0329
+   10      0.3147      0.5432     0.4300     0.7117     65.22      762.0   3.174e-01   2.350e+00   0.0855
+   11      0.7873      0.5625     0.5402     0.7155     76.42      822.9   3.769e-01   2.350e+00   0.0197
+   12      0.7991      0.6781     0.1429     0.6937     80.18      428.1   3.904e-01   2.345e+00   0.0132
+  ordering (D-204): three points in one MC iteration
+    start   = iteration start
+    upd1    = after pass-1 updateCell; thermal balance done, chemistry NOT yet run
+    end     = end of iteration; chemistry has run
+  A jump already present at upd1, with f_mol still at its start
+  value, means Te leads and the chemistry follows a hot cell.
+
+   it   | cells with Te > 3000 K, %  |  mean Te, K        |   mean f_mol
+        |  start    upd1     end    |  start     upd1    |  start     end
+    4   |   3.81    0.08    0.06   |   1142.1    127.3   |  0.5044   0.7840
+    5   |   0.53    0.07    0.00   |    416.2     77.9   |  0.7709   0.8198
+    6   |   0.43   48.76   32.42   |    186.5   2620.7   |  0.8128   0.4334
+    7   |  32.52   23.46   20.07   |   2016.7   1870.5   |  0.4315   0.5562
+    8   |  20.17    9.20    9.38   |   1910.4    644.5   |  0.5552   0.7209
+    9   |   9.39    6.84    5.35   |    961.3    429.2   |  0.7208   0.7894
+   10   |   5.42   36.98   23.02   |    566.7   1820.6   |  0.7888   0.5432
+   11   |  23.02   23.84   14.11   |   1507.1   1342.5   |  0.5432   0.5625
+   12   |  14.13   14.40   10.53   |   1384.9   1011.0   |  0.5623   0.6781
+
+  MOCASSIN's own thermal budget (D-217), per H nucleus, group means
+    entry = first thermBalance call: iteration-start Te, NEW field
+    exit  = last call: where the solve left the cell
+   it  group        slot    cells       Te    h:phot      h:PE     h:PDR    c:coll     c:rec      c:ff      c:gd     c:PDR       H-C
+    4  cold -> hot  entry        8   2229.4   1.14e-25  6.09e-28  0.00e+00  5.15e-26  1.85e-27  7.94e-28  1.10e-27  0.00e+00  5.94e-26
+    4  cold -> hot  exit         8   3268.9   1.14e-25  7.11e-28  0.00e+00  1.08e-25  2.72e-27  1.34e-27  2.37e-27  0.00e+00  2.75e-28
+    4  stayed cold  entry    13980   1005.5   2.50e-27  2.56e-27  0.00e+00  1.07e-25  1.10e-27  4.35e-28  1.27e-27  0.00e+00 -1.05e-25
+    4  stayed cold  exit     13980    124.9   2.90e-27  3.32e-27  0.00e+00  6.16e-27  2.60e-29  5.65e-30  3.14e-29  0.00e+00  9.36e-30
+    4  started hot  entry      554   4571.5   4.14e-25  7.00e-26  0.00e+00  2.37e-24  1.57e-25  8.92e-26  9.52e-26  0.00e+00 -2.23e-24
+    4  started hot  exit       554    143.3   4.54e-25  9.35e-26  0.00e+00  5.41e-25  3.25e-27  5.69e-28  1.19e-27  0.00e+00  1.50e-27
+
+    5  cold -> hot  entry       10    114.0   4.86e-24  2.63e-26  1.30e-27  3.96e-25  2.74e-27  5.05e-28  1.06e-28 -2.62e-25  4.75e-24
+    5  cold -> hot  exit        10   3270.3   1.83e-24  2.62e-26  1.30e-27  1.49e-24  2.39e-26  1.15e-26  6.69e-27  3.21e-25  5.38e-27
+    5  stayed cold  entry    14700    397.9   3.93e-26  3.87e-27  3.40e-27  8.63e-26  1.24e-27  4.79e-28  1.29e-27  2.71e-25 -3.14e-25
+    5  stayed cold  exit     14700     74.7   2.68e-26  6.02e-27  3.40e-27  3.79e-26  1.99e-28  6.57e-29  9.10e-29 -2.05e-27  1.44e-29
+    5  started hot  entry       79   3874.8   6.85e-25  1.28e-25  4.96e-27  2.31e-24  2.49e-25  1.29e-25  1.50e-25  2.55e-25 -2.27e-24
+    5  started hot  exit        79    268.9   7.39e-25  1.74e-25  4.96e-27  1.62e-24  2.68e-26  6.70e-27  1.19e-26 -7.47e-25 -9.01e-28
+
+    6  cold -> hot  entry     7274     83.1   4.97e-23  2.19e-25  1.26e-27  7.15e-25  2.00e-26  3.46e-27  5.76e-28 -3.22e-25  4.95e-23
+    6  cold -> hot  exit      7274   4818.4   6.63e-24  2.04e-25  1.26e-27  5.03e-24  1.34e-25  7.98e-26  5.95e-26  1.51e-24  2.09e-26
+    6  stayed cold  entry     7579    255.7   1.25e-24  2.68e-26  2.42e-27  2.83e-25  2.46e-27  8.18e-28  1.79e-27  2.03e-25  7.91e-25
+    6  stayed cold  exit      7579    530.5   4.37e-25  2.94e-26  2.42e-27  3.94e-25  2.92e-27  1.15e-27  1.89e-27  6.90e-26 -3.52e-28
+    6  started hot  entry       64   3749.9   8.68e-25  1.59e-25  7.94e-28  2.53e-24  3.07e-25  1.56e-25  1.99e-25  1.60e-25 -2.33e-24
+    6  started hot  exit        64    372.9   9.33e-25  2.24e-25  7.94e-28  1.90e-24  4.61e-26  1.27e-26  2.32e-26 -8.26e-25 -1.33e-27
+
+    7  cold -> hot  entry     3239    650.9   1.05e-21  7.53e-25  3.14e-27  1.10e-24  5.04e-25  9.12e-26  3.85e-27 -4.81e-25  1.05e-21
+    7  cold -> hot  exit      3239   6795.6   9.73e-23  6.60e-25  3.13e-27  8.68e-23  3.64e-24  2.96e-24  5.14e-25  3.59e-24  4.05e-25
+    7  stayed cold  entry     6871   1158.4   1.13e-24  2.89e-26  1.24e-27  2.77e-25  9.63e-27  3.88e-27  2.45e-27 -2.70e-26  8.91e-25
+    7  stayed cold  exit      6871    605.4   2.87e-25  2.89e-26  1.24e-27  3.31e-25  4.25e-27  1.61e-27  2.23e-27 -2.14e-26 -5.81e-28
+    7  started hot  entry     4872   4135.2   2.59e-25  5.64e-27  1.61e-28  1.38e-24  7.39e-26  3.96e-26  1.45e-26 -5.78e-25 -6.70e-25
+    7  started hot  exit      4872    380.4   2.71e-25  5.46e-27  1.61e-28  3.47e-25  8.34e-27  3.53e-27  1.69e-27 -8.51e-26  3.02e-28
+
+    8  cold -> hot  entry      708    558.3   6.07e-22  5.69e-25  2.14e-27  9.80e-25  3.54e-25  6.69e-26  4.76e-27 -3.83e-25  6.07e-22
+    8  cold -> hot  exit       708   5390.9   6.76e-23  4.34e-25  2.13e-27  6.06e-23  2.53e-24  2.06e-24  4.08e-25  2.14e-24  3.00e-25
+    8  stayed cold  entry    11273   1006.5   3.79e-25  1.21e-26  1.13e-27  2.38e-25  5.09e-27  1.89e-27  1.37e-27  3.40e-26  1.12e-25
+    8  stayed cold  exit     11273    190.3   9.10e-26  1.17e-26  1.13e-27  1.26e-25  1.47e-27  5.21e-28  8.42e-28 -2.47e-26 -1.15e-28
+    8  started hot  entry     3028   5591.8   6.82e-25  3.97e-26  3.99e-28  1.09e-23  2.69e-25  1.83e-25  9.97e-26 -1.40e-24 -9.31e-24
+    8  started hot  exit      3028   1225.6   7.18e-25  3.84e-26  3.99e-28  1.17e-24  1.13e-25  5.60e-26  2.60e-26 -6.06e-25  1.39e-27
+
+    9  cold -> hot  entry      904    186.6   1.93e-22  2.91e-25  1.47e-27  8.24e-25  1.08e-25  2.02e-26  2.54e-27 -4.14e-25  1.93e-22
+    9  cold -> hot  exit       904   4987.0   2.45e-23  2.39e-25  1.47e-27  2.07e-23  8.27e-25  6.46e-25  1.72e-25  2.35e-24  1.01e-25
+    9  stayed cold  entry    12697    590.1   1.28e-25  6.08e-27  1.14e-27  1.65e-25  3.06e-27  1.19e-27  1.44e-27  4.42e-26 -7.89e-26
+    9  stayed cold  exit     12697     94.0   4.12e-26  6.83e-27  1.14e-27  7.62e-26  7.56e-28  2.55e-28  3.57e-28 -2.83e-26 -3.10e-29
+    9  started hot  entry     1409   4803.6   5.94e-25  5.98e-26  7.90e-28  6.36e-24  2.38e-25  1.53e-25  1.06e-25 -3.52e-25 -5.85e-24
+    9  started hot  exit      1409    525.2   6.32e-25  6.75e-26  7.90e-28  1.18e-24  8.41e-26  4.38e-26  2.41e-26 -6.35e-25  1.56e-27
+
+   10  cold -> hot  entry     5425    136.2   6.34e-23  2.28e-25  1.09e-27  6.27e-25  3.06e-26  5.66e-27  9.10e-28 -3.32e-25  6.33e-23
+   10  cold -> hot  exit      5425   4282.7   7.79e-24  1.99e-25  1.09e-27  6.40e-24  2.10e-25  1.51e-25  6.40e-26  1.13e-24  2.93e-26
+   10  stayed cold  entry     8782    479.0   6.12e-25  1.41e-26  1.61e-27  2.80e-25  2.43e-27  8.21e-28  1.90e-27  3.27e-27  3.39e-25
+   10  stayed cold  exit      8782    379.3   2.17e-25  1.61e-26  1.61e-27  2.90e-25  2.09e-27  8.28e-28  1.13e-27 -5.95e-26 -1.25e-28
+   10  started hot  entry      814   4382.7   8.42e-25  4.42e-26  2.83e-28  4.32e-24  2.22e-25  1.42e-25  9.47e-26 -5.52e-25 -3.34e-24
+   10  started hot  exit       814    960.0   8.76e-25  5.17e-26  2.83e-28  1.08e-24  1.02e-25  5.43e-26  3.43e-26 -3.45e-25  1.79e-27
+
+   11  cold -> hot  entry     3152    537.1   1.15e-22  2.88e-25  1.04e-27  6.05e-25  6.07e-26  1.25e-26  1.87e-27 -3.28e-25  1.15e-22
+   11  cold -> hot  exit      3152   4424.5   1.10e-23  2.26e-25  1.04e-27  9.59e-24  3.56e-25  2.71e-25  9.96e-26  8.86e-25  3.74e-26
+   11  stayed cold  entry     8411   1002.8   7.34e-25  2.14e-26  1.63e-27  3.49e-25  9.17e-27  3.77e-27  2.33e-27 -7.07e-26  4.63e-25
+   11  stayed cold  exit      8411    449.8   1.94e-25  2.20e-26  1.63e-27  2.92e-25  3.80e-27  1.45e-27  1.73e-27 -8.16e-26 -2.37e-28
+   11  started hot  entry     3458   3618.0   3.37e-25  9.39e-27  1.77e-28  1.58e-24  8.73e-26  5.06e-26  2.42e-26 -4.18e-25 -9.73e-25
+   11  started hot  exit      3458    704.5   3.48e-25  9.86e-27  1.77e-28  4.79e-25  3.37e-26  1.75e-26  9.04e-27 -1.81e-25  5.87e-28
+
+   12  cold -> hot  entry     1930    517.2   8.55e-22  8.71e-25  2.37e-27  8.97e-25  3.78e-25  6.79e-26  4.99e-27 -3.71e-25  8.55e-22
+   12  cold -> hot  exit      1930   5594.3   5.73e-23  6.26e-25  2.38e-27  4.87e-23  2.18e-24  1.80e-24  4.42e-25  4.52e-24  2.14e-25
+   12  stayed cold  entry    10971   1006.7   4.67e-25  1.44e-26  1.26e-27  2.65e-25  6.84e-27  2.74e-27  1.45e-27 -1.28e-26  2.19e-25
+   12  stayed cold  exit     10971    269.5   1.27e-25  1.33e-26  1.26e-27  1.92e-25  2.41e-27  8.96e-28  1.23e-27 -5.52e-26 -1.41e-28
+   12  started hot  entry     2123   4128.2   4.74e-25  1.80e-26  4.84e-28  2.70e-24  1.25e-25  7.79e-26  4.36e-26 -1.52e-25 -2.30e-24
+   12  started hot  exit      2123    675.9   4.91e-25  1.84e-26  4.84e-28  7.04e-25  5.68e-26  2.99e-26  1.71e-26 -2.99e-25  1.09e-27
+
+ ! [D217] cold -> hot   cells       8
+ ! [D217]   entry  Te   2229.4  heat phot/PE/PDR  1.14E-25  6.09E-28  0.00E+00  cool coll/rec/ff/gd/PDR  5.15E-26  1.85E-27  7.94E-28  1.10E-27  0.00E+00  H-C  5.94E-26
+ ! [D217]   exit   Te   3268.9  heat phot/PE/PDR  1.14E-25  7.11E-28  0.00E+00  cool coll/rec/ff/gd/PDR  1.08E-25  2.72E-27  1.34E-27  2.37E-27  0.00E+00  H-C  2.75E-28
+ ! [D218]   A_V  2.306  x(H0) 6.779E-01  f_mol 0.3141  J>H0thr 2.531E-07  tau/cell@thr 1.260E+03   last it none/c->h/cold/hot      8      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 6.707E-09 2.463E-07  H0 phot heat 13.6-15.4 / >15.4 2.909E-29 1.135E-25  H0 share  0.9950
+ ! [D217] stayed cold   cells   13980
+ ! [D217]   entry  Te   1005.5  heat phot/PE/PDR  2.50E-27  2.56E-27  0.00E+00  cool coll/rec/ff/gd/PDR  1.07E-25  1.10E-27  4.35E-28  1.27E-27  0.00E+00  H-C -1.05E-25
+ ! [D217]   exit   Te    124.9  heat phot/PE/PDR  2.90E-27  3.32E-27  0.00E+00  cool coll/rec/ff/gd/PDR  6.16E-27  2.60E-29  5.65E-30  3.14E-29  0.00E+00  H-C  9.36E-30
+ ! [D218]   A_V  2.303  x(H0) 4.771E-01  f_mol 0.5220  J>H0thr 2.820E-08  tau/cell@thr 1.261E+03   last it none/c->h/cold/hot  13980      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.520E-08 2.998E-09  H0 phot heat 13.6-15.4 / >15.4 8.323E-28 1.521E-27  H0 share  0.9404
+ ! [D217] started hot   cells     554
+ ! [D217]   entry  Te   4571.5  heat phot/PE/PDR  4.14E-25  7.00E-26  0.00E+00  cool coll/rec/ff/gd/PDR  2.37E-24  1.57E-25  8.92E-26  9.52E-26  0.00E+00  H-C -2.23E-24
+ ! [D217]   exit   Te    143.3  heat phot/PE/PDR  4.54E-25  9.35E-26  0.00E+00  cool coll/rec/ff/gd/PDR  5.41E-25  3.25E-27  5.69E-28  1.19E-27  0.00E+00  H-C  1.50E-27
+ ! [D218]   A_V  1.240  x(H0) 9.185E-01  f_mol 0.0628  J>H0thr 2.198E-06  tau/cell@thr 1.062E+03   last it none/c->h/cold/hot    554      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.932E-06 2.663E-07  H0 phot heat 13.6-15.4 / >15.4 2.584E-25 1.521E-25  H0 share  0.9913
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4004, off by >1% in   14186 ( 93.30%)
+ ! [D217] cold -> hot   cells      10
+ ! [D217]   entry  Te    114.0  heat phot/PE/PDR  4.86E-24  2.63E-26  1.30E-27  cool coll/rec/ff/gd/PDR  3.96E-25  2.74E-27  5.05E-28  1.06E-28 -2.62E-25  H-C  4.75E-24
+ ! [D217]   exit   Te   3270.3  heat phot/PE/PDR  1.83E-24  2.62E-26  1.30E-27  cool coll/rec/ff/gd/PDR  1.49E-24  2.39E-26  1.15E-26  6.69E-27  3.21E-25  H-C  5.38E-27
+ ! [D218]   A_V  2.523  x(H0) 6.121E-02  f_mol 0.9056  J>H0thr 3.927E-04  tau/cell@thr 1.208E+02   last it none/c->h/cold/hot      0      0     10      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 0.000E+00 3.927E-04  H0 phot heat 13.6-15.4 / >15.4 0.000E+00 4.784E-24  H0 share  0.9841
+ ! [D217] stayed cold   cells   14700
+ ! [D217]   entry  Te    397.9  heat phot/PE/PDR  3.93E-26  3.87E-27  3.40E-27  cool coll/rec/ff/gd/PDR  8.63E-26  1.24E-27  4.79E-28  1.29E-27  2.71E-25  H-C -3.14E-25
+ ! [D217]   exit   Te     74.7  heat phot/PE/PDR  2.68E-26  6.02E-27  3.40E-27  cool coll/rec/ff/gd/PDR  3.79E-26  1.99E-28  6.57E-29  9.10E-29 -2.05E-27  H-C  1.44E-29
+ ! [D218]   A_V  2.245  x(H0) 2.238E-01  f_mol 0.7749  J>H0thr 2.316E-06  tau/cell@thr 2.806E+02   last it none/c->h/cold/hot    176      5  13970    549
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.853E-08 2.277E-06  H0 phot heat 13.6-15.4 / >15.4 1.145E-27 3.679E-26  H0 share  0.9654
+ ! [D217] started hot   cells      79
+ ! [D217]   entry  Te   3874.8  heat phot/PE/PDR  6.85E-25  1.28E-25  4.96E-27  cool coll/rec/ff/gd/PDR  2.31E-24  2.49E-25  1.29E-25  1.50E-25  2.55E-25  H-C -2.27E-24
+ ! [D217]   exit   Te    268.9  heat phot/PE/PDR  7.39E-25  1.74E-25  4.96E-27  cool coll/rec/ff/gd/PDR  1.62E-24  2.68E-26  6.70E-27  1.19E-26 -7.47E-25  H-C -9.01E-28
+ ! [D218]   A_V  0.898  x(H0) 9.505E-01  f_mol 0.0062  J>H0thr 4.308E-06  tau/cell@thr 9.664E+02   last it none/c->h/cold/hot     71      3      0      5
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.784E-06 5.240E-07  H0 phot heat 13.6-15.4 / >15.4 3.879E-25 2.906E-25  H0 share  0.9907
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.0931, off by >1% in   11871 ( 78.08%)
+ ! [D217] cold -> hot   cells    7274
+ ! [D217]   entry  Te     83.1  heat phot/PE/PDR  4.97E-23  2.19E-25  1.26E-27  cool coll/rec/ff/gd/PDR  7.15E-25  2.00E-26  3.46E-27  5.76E-28 -3.22E-25  H-C  4.95E-23
+ ! [D217]   exit   Te   4818.4  heat phot/PE/PDR  6.63E-24  2.04E-25  1.26E-27  cool coll/rec/ff/gd/PDR  5.03E-24  1.34E-25  7.98E-26  5.95E-26  1.51E-24  H-C  2.09E-26
+ ! [D218]   A_V  2.277  x(H0) 2.732E-02  f_mol 0.9017  J>H0thr 3.296E-03  tau/cell@thr 1.240E+02   last it none/c->h/cold/hot      0      4   7270      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 6.613E-09 3.296E-03  H0 phot heat 13.6-15.4 / >15.4 3.199E-29 4.935E-23  H0 share  0.9930
+ ! [D217] stayed cold   cells    7579
+ ! [D217]   entry  Te    255.7  heat phot/PE/PDR  1.25E-24  2.68E-26  2.42E-27  cool coll/rec/ff/gd/PDR  2.83E-25  2.46E-27  8.18E-28  1.79E-27  2.03E-25  H-C  7.91E-25
+ ! [D217]   exit   Te    530.5  heat phot/PE/PDR  4.37E-25  2.94E-26  2.42E-27  cool coll/rec/ff/gd/PDR  3.94E-25  2.92E-27  1.15E-27  1.89E-27  6.90E-26  H-C -3.52E-28
+ ! [D218]   A_V  2.188  x(H0) 2.572E-01  f_mol 0.7343  J>H0thr 2.532E-04  tau/cell@thr 3.225E+02   last it none/c->h/cold/hot     64      6   7430     79
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.085E-07 2.531E-04  H0 phot heat 13.6-15.4 / >15.4 1.888E-27 1.225E-24  H0 share  0.9789
+ ! [D217] started hot   cells      64
+ ! [D217]   entry  Te   3749.9  heat phot/PE/PDR  8.68E-25  1.59E-25  7.94E-28  cool coll/rec/ff/gd/PDR  2.53E-24  3.07E-25  1.56E-25  1.99E-25  1.60E-25  H-C -2.33E-24
+ ! [D217]   exit   Te    372.9  heat phot/PE/PDR  9.33E-25  2.24E-25  7.94E-28  cool coll/rec/ff/gd/PDR  1.90E-24  4.61E-26  1.27E-26  2.32E-26 -8.26E-25  H-C -1.33E-27
+ ! [D218]   A_V  0.647  x(H0) 9.447E-01  f_mol 0.0000  J>H0thr 5.566E-06  tau/cell@thr 9.598E+02   last it none/c->h/cold/hot     64      0      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.867E-06 6.996E-07  H0 phot heat 13.6-15.4 / >15.4 4.769E-25 3.834E-25  H0 share  0.9915
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4198, off by >1% in   13531 ( 89.00%)
+ ! [D217] cold -> hot   cells    3239
+ ! [D217]   entry  Te    650.9  heat phot/PE/PDR  1.05E-21  7.53E-25  3.14E-27  cool coll/rec/ff/gd/PDR  1.10E-24  5.04E-25  9.12E-26  3.85E-27 -4.81E-25  H-C  1.05E-21
+ ! [D217]   exit   Te   6795.6  heat phot/PE/PDR  9.73E-23  6.60E-25  3.13E-27  cool coll/rec/ff/gd/PDR  8.68E-23  3.64E-24  2.96E-24  5.14E-25  3.59E-24  H-C  4.05E-25
+ ! [D218]   A_V  1.862  x(H0) 2.903E-01  f_mol 0.4679  J>H0thr 1.083E-02  tau/cell@thr 5.250E+02   last it none/c->h/cold/hot      0    576   2663      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.466E-07 1.083E-02  H0 phot heat 13.6-15.4 / >15.4 6.825E-27 1.054E-21  H0 share  0.9992
+ ! [D217] stayed cold   cells    6871
+ ! [D217]   entry  Te   1158.4  heat phot/PE/PDR  1.13E-24  2.89E-26  1.24E-27  cool coll/rec/ff/gd/PDR  2.77E-25  9.63E-27  3.88E-27  2.45E-27 -2.70E-26  H-C  8.91E-25
+ ! [D217]   exit   Te    605.4  heat phot/PE/PDR  2.87E-25  2.89E-26  1.24E-27  cool coll/rec/ff/gd/PDR  3.31E-25  4.25E-27  1.61E-27  2.23E-27 -2.14E-26  H-C -5.81E-28
+ ! [D218]   A_V  2.491  x(H0) 4.229E-01  f_mol 0.5650  J>H0thr 3.577E-04  tau/cell@thr 2.787E+02   last it none/c->h/cold/hot     29   1862   4916     64
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.920E-07 3.573E-04  H0 phot heat 13.6-15.4 / >15.4 8.626E-27 1.094E-24  H0 share  0.9785
+ ! [D217] started hot   cells    4872
+ ! [D217]   entry  Te   4135.2  heat phot/PE/PDR  2.59E-25  5.64E-27  1.61E-28  cool coll/rec/ff/gd/PDR  1.38E-24  7.39E-26  3.96E-26  1.45E-26 -5.78E-25  H-C -6.70E-25
+ ! [D217]   exit   Te    380.4  heat phot/PE/PDR  2.71E-25  5.46E-27  1.61E-28  cool coll/rec/ff/gd/PDR  3.47E-25  8.34E-27  3.53E-27  1.69E-27 -8.51E-26  H-C  3.02E-28
+ ! [D218]   A_V  2.069  x(H0) 7.624E-01  f_mol 0.2191  J>H0thr 1.600E-06  tau/cell@thr 3.667E+02   last it none/c->h/cold/hot     36   4836      0      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.267E-06 3.329E-07  H0 phot heat 13.6-15.4 / >15.4 1.148E-25 1.417E-25  H0 share  0.9924
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.4049, off by >1% in   13696 ( 90.08%)
+ ! [D217] cold -> hot   cells     708
+ ! [D217]   entry  Te    558.3  heat phot/PE/PDR  6.07E-22  5.69E-25  2.14E-27  cool coll/rec/ff/gd/PDR  9.80E-25  3.54E-25  6.69E-26  4.76E-27 -3.83E-25  H-C  6.07E-22
+ ! [D217]   exit   Te   5390.9  heat phot/PE/PDR  6.76E-23  4.34E-25  2.13E-27  cool coll/rec/ff/gd/PDR  6.06E-23  2.53E-24  2.06E-24  4.08E-25  2.14E-24  H-C  3.00E-25
+ ! [D218]   A_V  2.005  x(H0) 2.508E-01  f_mol 0.5801  J>H0thr 7.509E-03  tau/cell@thr 3.865E+02   last it none/c->h/cold/hot      0     90    618      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.761E-07 7.508E-03  H0 phot heat 13.6-15.4 / >15.4 8.997E-27 6.065E-22  H0 share  0.9992
+ ! [D217] stayed cold   cells   11273
+ ! [D217]   entry  Te   1006.5  heat phot/PE/PDR  3.79E-25  1.21E-26  1.13E-27  cool coll/rec/ff/gd/PDR  2.38E-25  5.09E-27  1.89E-27  1.37E-27  3.40E-26  H-C  1.12E-25
+ ! [D217]   exit   Te    190.3  heat phot/PE/PDR  9.10E-26  1.17E-26  1.13E-27  cool coll/rec/ff/gd/PDR  1.26E-25  1.47E-27  5.21E-28  8.42E-28 -2.47E-26  H-C -1.15E-28
+ ! [D218]   A_V  2.353  x(H0) 3.148E-01  f_mol 0.6785  J>H0thr 1.391E-04  tau/cell@thr 2.792E+02   last it none/c->h/cold/hot      6    469   6253   4545
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.796E-07 1.386E-04  H0 phot heat 13.6-15.4 / >15.4 4.101E-27 3.671E-25  H0 share  0.9792
+ ! [D217] started hot   cells    3028
+ ! [D217]   entry  Te   5591.8  heat phot/PE/PDR  6.82E-25  3.97E-26  3.99E-28  cool coll/rec/ff/gd/PDR  1.09E-23  2.69E-25  1.83E-25  9.97E-26 -1.40E-24  H-C -9.31E-24
+ ! [D217]   exit   Te   1225.6  heat phot/PE/PDR  7.18E-25  3.84E-26  3.99E-28  cool coll/rec/ff/gd/PDR  1.17E-24  1.13E-25  5.60E-26  2.60E-26 -6.06E-25  H-C  1.39E-27
+ ! [D218]   A_V  1.748  x(H0) 8.591E-01  f_mol 0.0905  J>H0thr 3.296E-06  tau/cell@thr 6.567E+02   last it none/c->h/cold/hot     21   2680      0    327
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.808E-06 4.890E-07  H0 phot heat 13.6-15.4 / >15.4 4.380E-25 2.411E-25  H0 share  0.9958
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.2709, off by >1% in   13925 ( 91.59%)
+ ! [D217] cold -> hot   cells     904
+ ! [D217]   entry  Te    186.6  heat phot/PE/PDR  1.93E-22  2.91E-25  1.47E-27  cool coll/rec/ff/gd/PDR  8.24E-25  1.08E-25  2.02E-26  2.54E-27 -4.14E-25  H-C  1.93E-22
+ ! [D217]   exit   Te   4987.0  heat phot/PE/PDR  2.45E-23  2.39E-25  1.47E-27  cool coll/rec/ff/gd/PDR  2.07E-23  8.27E-25  6.46E-25  1.72E-25  2.35E-24  H-C  1.01E-25
+ ! [D218]   A_V  2.362  x(H0) 9.717E-02  f_mol 0.8024  J>H0thr 3.823E-03  tau/cell@thr 2.153E+02   last it none/c->h/cold/hot      0     19    885      0
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.570E-07 3.823E-03  H0 phot heat 13.6-15.4 / >15.4 1.972E-27 1.930E-22  H0 share  0.9981
+ ! [D217] stayed cold   cells   12697
+ ! [D217]   entry  Te    590.1  heat phot/PE/PDR  1.28E-25  6.08E-27  1.14E-27  cool coll/rec/ff/gd/PDR  1.65E-25  3.06E-27  1.19E-27  1.44E-27  4.42E-26  H-C -7.89E-26
+ ! [D217]   exit   Te     94.0  heat phot/PE/PDR  4.12E-26  6.83E-27  1.14E-27  cool coll/rec/ff/gd/PDR  7.62E-26  7.56E-28  2.55E-28  3.57E-28 -2.83E-26  H-C -3.10E-29
+ ! [D218]   A_V  2.296  x(H0) 2.065E-01  f_mol 0.7898  J>H0thr 3.877E-05  tau/cell@thr 2.095E+02   last it none/c->h/cold/hot      0    217  10388   2092
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.367E-07 3.843E-05  H0 phot heat 13.6-15.4 / >15.4 2.926E-27 1.225E-25  H0 share  0.9770
+ ! [D217] started hot   cells    1409
+ ! [D217]   entry  Te   4803.6  heat phot/PE/PDR  5.94E-25  5.98E-26  7.90E-28  cool coll/rec/ff/gd/PDR  6.36E-24  2.38E-25  1.53E-25  1.06E-25 -3.52E-25  H-C -5.85E-24
+ ! [D217]   exit   Te    525.2  heat phot/PE/PDR  6.32E-25  6.75E-26  7.90E-28  cool coll/rec/ff/gd/PDR  1.18E-24  8.41E-26  4.38E-26  2.41E-26 -6.35E-25  H-C  1.56E-27
+ ! [D218]   A_V  1.387  x(H0) 9.155E-01  f_mol 0.0475  J>H0thr 3.176E-06  tau/cell@thr 8.174E+02   last it none/c->h/cold/hot      1    472      0    936
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.742E-06 4.339E-07  H0 phot heat 13.6-15.4 / >15.4 3.841E-25 2.066E-25  H0 share  0.9945
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.1791, off by >1% in   13167 ( 86.60%)
+ ! [D217] cold -> hot   cells    5425
+ ! [D217]   entry  Te    136.2  heat phot/PE/PDR  6.34E-23  2.28E-25  1.09E-27  cool coll/rec/ff/gd/PDR  6.27E-25  3.06E-26  5.66E-27  9.10E-28 -3.32E-25  H-C  6.33E-23
+ ! [D217]   exit   Te   4282.7  heat phot/PE/PDR  7.79E-24  1.99E-25  1.09E-27  cool coll/rec/ff/gd/PDR  6.40E-24  2.10E-25  1.51E-25  6.40E-26  1.13E-24  H-C  2.93E-26
+ ! [D218]   A_V  2.394  x(H0) 3.274E-02  f_mol 0.9054  J>H0thr 3.387E-03  tau/cell@thr 1.000E+02   last it none/c->h/cold/hot      0     89   5334      2
+ ! [D221]   J 13.6-15.4 / >15.4 eV 7.617E-08 3.387E-03  H0 phot heat 13.6-15.4 / >15.4 8.341E-28 6.309E-23  H0 share  0.9952
+ ! [D217] stayed cold   cells    8782
+ ! [D217]   entry  Te    479.0  heat phot/PE/PDR  6.12E-25  1.41E-26  1.61E-27  cool coll/rec/ff/gd/PDR  2.80E-25  2.43E-27  8.21E-28  1.90E-27  3.27E-27  H-C  3.39E-25
+ ! [D217]   exit   Te    379.3  heat phot/PE/PDR  2.17E-25  1.61E-26  1.61E-27  cool coll/rec/ff/gd/PDR  2.90E-25  2.09E-27  8.28E-28  1.13E-27 -5.95E-26  H-C -1.25E-28
+ ! [D218]   A_V  2.120  x(H0) 2.178E-01  f_mol 0.7752  J>H0thr 1.051E-04  tau/cell@thr 2.497E+02   last it none/c->h/cold/hot      0    146   7363   1273
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.748E-07 1.048E-04  H0 phot heat 13.6-15.4 / >15.4 1.737E-27 5.956E-25  H0 share  0.9763
+ ! [D217] started hot   cells     814
+ ! [D217]   entry  Te   4382.7  heat phot/PE/PDR  8.42E-25  4.42E-26  2.83E-28  cool coll/rec/ff/gd/PDR  4.32E-24  2.22E-25  1.42E-25  9.47E-26 -5.52E-25  H-C -3.34E-24
+ ! [D217]   exit   Te    960.0  heat phot/PE/PDR  8.76E-25  5.17E-26  2.83E-28  cool coll/rec/ff/gd/PDR  1.08E-24  1.02E-25  5.43E-26  3.43E-26 -3.45E-25  H-C  1.79E-27
+ ! [D218]   A_V  2.019  x(H0) 8.013E-01  f_mol 0.1590  J>H0thr 3.697E-06  tau/cell@thr 5.041E+02   last it none/c->h/cold/hot     11    669      0    134
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.648E-06 1.049E-06  H0 phot heat 13.6-15.4 / >15.4 3.542E-25 4.825E-25  H0 share  0.9942
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3734, off by >1% in   14224 ( 93.55%)
+ ! [D217] cold -> hot   cells    3152
+ ! [D217]   entry  Te    537.1  heat phot/PE/PDR  1.15E-22  2.88E-25  1.04E-27  cool coll/rec/ff/gd/PDR  6.05E-25  6.07E-26  1.25E-26  1.87E-27 -3.28E-25  H-C  1.15E-22
+ ! [D217]   exit   Te   4424.5  heat phot/PE/PDR  1.10E-23  2.26E-25  1.04E-27  cool coll/rec/ff/gd/PDR  9.59E-24  3.56E-25  2.71E-25  9.96E-26  8.86E-25  H-C  3.74E-26
+ ! [D218]   A_V  2.334  x(H0) 1.582E-01  f_mol 0.7732  J>H0thr 4.317E-03  tau/cell@thr 1.638E+02   last it none/c->h/cold/hot      0    449   2695      8
+ ! [D221]   J 13.6-15.4 / >15.4 eV 2.454E-07 4.317E-03  H0 phot heat 13.6-15.4 / >15.4 7.602E-27 1.145E-22  H0 share  0.9976
+ ! [D217] stayed cold   cells    8411
+ ! [D217]   entry  Te   1002.8  heat phot/PE/PDR  7.34E-25  2.14E-26  1.63E-27  cool coll/rec/ff/gd/PDR  3.49E-25  9.17E-27  3.77E-27  2.33E-27 -7.07E-26  H-C  4.63E-25
+ ! [D217]   exit   Te    449.8  heat phot/PE/PDR  1.94E-25  2.20E-26  1.63E-27  cool coll/rec/ff/gd/PDR  2.92E-25  3.80E-27  1.45E-27  1.73E-27 -8.16E-26  H-C -2.37E-28
+ ! [D218]   A_V  2.143  x(H0) 3.964E-01  f_mol 0.5931  J>H0thr 2.083E-04  tau/cell@thr 3.246E+02   last it none/c->h/cold/hot      0   1662   6087    662
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.749E-07 2.079E-04  H0 phot heat 13.6-15.4 / >15.4 8.986E-27 7.101E-25  H0 share  0.9797
+ ! [D217] started hot   cells    3458
+ ! [D217]   entry  Te   3618.0  heat phot/PE/PDR  3.37E-25  9.39E-27  1.77E-28  cool coll/rec/ff/gd/PDR  1.58E-24  8.73E-26  5.06E-26  2.42E-26 -4.18E-25  H-C -9.73E-25
+ ! [D217]   exit   Te    704.5  heat phot/PE/PDR  3.48E-25  9.86E-27  1.77E-28  cool coll/rec/ff/gd/PDR  4.79E-25  3.37E-26  1.75E-26  9.04E-27 -1.81E-25  H-C  5.87E-28
+ ! [D218]   A_V  2.274  x(H0) 7.645E-01  f_mol 0.2121  J>H0thr 1.831E-06  tau/cell@thr 3.548E+02   last it none/c->h/cold/hot      0   3314      0    144
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.360E-06 4.711E-07  H0 phot heat 13.6-15.4 / >15.4 1.309E-25 2.041E-25  H0 share  0.9934
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3773, off by >1% in   13682 ( 89.99%)
+ ! [D217] cold -> hot   cells    1930
+ ! [D217]   entry  Te    517.2  heat phot/PE/PDR  8.55E-22  8.71E-25  2.37E-27  cool coll/rec/ff/gd/PDR  8.97E-25  3.78E-25  6.79E-26  4.99E-27 -3.71E-25  H-C  8.55E-22
+ ! [D217]   exit   Te   5594.3  heat phot/PE/PDR  5.73E-23  6.26E-25  2.38E-27  cool coll/rec/ff/gd/PDR  4.87E-23  2.18E-24  1.80E-24  4.42E-25  4.52E-24  H-C  2.14E-25
+ ! [D218]   A_V  1.799  x(H0) 2.762E-01  f_mol 0.5658  J>H0thr 1.277E-02  tau/cell@thr 4.238E+02   last it none/c->h/cold/hot      0    231   1690      9
+ ! [D221]   J 13.6-15.4 / >15.4 eV 3.512E-07 1.277E-02  H0 phot heat 13.6-15.4 / >15.4 9.559E-27 8.543E-22  H0 share  0.9993
+ ! [D217] stayed cold   cells   10971
+ ! [D217]   entry  Te   1006.7  heat phot/PE/PDR  4.67E-25  1.44E-26  1.26E-27  cool coll/rec/ff/gd/PDR  2.65E-25  6.84E-27  2.74E-27  1.45E-27 -1.28E-26  H-C  2.19E-25
+ ! [D217]   exit   Te    269.5  heat phot/PE/PDR  1.27E-25  1.33E-26  1.26E-27  cool coll/rec/ff/gd/PDR  1.92E-25  2.41E-27  8.96E-28  1.23E-27 -5.52E-26  H-C -1.41E-28
+ ! [D218]   A_V  2.307  x(H0) 3.474E-01  f_mol 0.6446  J>H0thr 1.593E-04  tau/cell@thr 2.985E+02   last it none/c->h/cold/hot      0   1271   6721   2979
+ ! [D221]   J 13.6-15.4 / >15.4 eV 4.691E-07 1.588E-04  H0 phot heat 13.6-15.4 / >15.4 6.348E-27 4.512E-25  H0 share  0.9805
+ ! [D217] started hot   cells    2123
+ ! [D217]   entry  Te   4128.2  heat phot/PE/PDR  4.74E-25  1.80E-26  4.84E-28  cool coll/rec/ff/gd/PDR  2.70E-24  1.25E-25  7.79E-26  4.36E-26 -1.52E-25  H-C -2.30E-24
+ ! [D217]   exit   Te    675.9  heat phot/PE/PDR  4.91E-25  1.84E-26  4.84E-28  cool coll/rec/ff/gd/PDR  7.04E-25  5.68E-26  2.99E-26  1.71E-26 -2.99E-25  H-C  1.09E-27
+ ! [D218]   A_V  2.106  x(H0) 8.383E-01  f_mol 0.1340  J>H0thr 2.246E-06  tau/cell@thr 6.344E+02   last it none/c->h/cold/hot      3   1650      0    470
+ ! [D221]   J 13.6-15.4 / >15.4 eV 1.639E-06 6.066E-07  H0 phot heat 13.6-15.4 / >15.4 1.937E-25 2.772E-25  H0 share  0.9932
+ ! [D220] rescaled ion stages to elemAvail in   15204 cells; before: mean |x(H0)+x(H+)+2x(H2)-1|   0.3035, off by >1% in   14007 ( 92.13%)
