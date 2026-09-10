@@ -217,8 +217,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 45-2208x that of the cells that stay cold (45x and 111x at the two collapses) and 6-843x their own total cooling (above 100x from iteration 6 on); photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
-| D-218 | **Is the heating a front advancing in pulses?** D-217 iteration 7: the 8336 cells that went hot at 6 enter 7 with photoionization heating 180x lower (2.53e-25), while 2835 OTHER cells take 25x more (1.13e-21) - the heating moves between cells. Heating per H goes as x(H0)*J, so ionized cells may turn transparent and pass the hard photons to the layer behind. The census now reports per group the mean A_V, x(H0), f_mol, J above hydrogen's threshold, tau per cell at threshold, and each cell's group ONE ITERATION AGO (per-cell `budGrpLast`, allocated on both the cold and warm paths). Also withdrawn: the 'two-iteration opacity lag' inferred for D-217 - the opacity is rebuilt at the top of every MC iteration | Running | 2026-09-10 |
-| D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Not the collapse trigger - iteration 6 enters at 1.26 and the five-pass run still collapsed - but the largest heating follows the deficits (it 7 after 0.43). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
+| D-218 | **Not a front: the cells that flip are the most molecular, and their H0 opacity has fallen furthest.** Iteration 6 (runs/d218-front): 8265 cells go cold -> hot; 8262 were cold at iteration 5; they sit DEEPER (A_V 2.34 vs 2.10), are more molecular (f_mol 0.904 vs 0.680), see a lower tau per cell at H0 threshold (466 vs 598) and 16x the field above it, and carry 45x the photoionization heating (4.48e-23 vs 1.00e-24). Iteration 5's 33 flippers show the same. The opacity trails the ionization by one iteration plus damping: tau 1260 at iteration 5 is x(H0)=1.0 exactly, and the predicted 460 at iteration 6 measured 466. Instrument caveat: D-218's x(H0) is post-solve | Running | 2026-09-10 |
+| D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Whether it is the collapse trigger is OPEN: an early argument that iteration 6 'enters at an excess of 1.26' conflated total hydrogen with the H0 that absorbs at 13.6-15.4 eV, where H2 is transparent - the H0 fraction iteration 6's photons saw had fallen from 1.0 to 0.365 (see D-218). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12749,6 +12749,72 @@ Monte Carlo sampling of a hard-tail field deep in the cloud becomes the
 leading alternative.
 
 
+
+### D-218 result so far - iterations 4 to 6 (2026-09-10)
+
+`runs/d218-front`, one-pass fixture. The trajectory reproduces `d217-budget`:
+iteration 6's cold -> hot group is 8265 cells entering at 87.6 K with
+photoionization heating 4.48e-23 per H, against 8336 cells, 88 K and 4.47e-23
+in the earlier run.
+
+**Checks.** At iteration 4 every cell's previous group is "none", as it must be.
+Cells re-enter the census consistently: iteration 4's 587 started-hot cells cool
+to 99 K and appear at iteration 5 as stayed cold (585 of them). Cells with no
+previous group at later iterations are cells that joined the PDR zone between
+iterations. tau per cell at threshold in the cold groups at iteration 4-5 is
+1260-1270, matching D-168's independent 1270.
+
+**The opacity trails the ionization by one iteration plus the damping.** With
+n_H = 100, sigma(13.6 eV) ~ 6.3e-18 cm^2 and 2e18 cm cells, tau = 1260 per cell
+is x(H0) = 1.0 exactly. At iteration 5 the cold groups report tau 1262-1270
+while their x(H0) is 0.05-0.21. The census's end-of-iteration x(H0) median -
+the state `ionizationDriver` reads at the top of the next iteration - is 0.998
+after iteration 4 (seed defect: `elemAvail` never republished), 0.365 after
+iteration 5 (0.21 from `updateCell` blended by iterDamp 0.25 with 0.998), and
+0.110 after iteration 6. That predicted tau ~ 460 per cell for iteration 6's
+photons; the flipping group measured 466. Confirmed.
+
+**The cells that flip are not a front's leading edge.**
+
+     it 6          cells   A_V    f_mol   tau/cell@thr   J>thr      phot heat   cold at it 5
+     cold -> hot    8265   2.34   0.904      466        2.84e-3    4.48e-23       8262
+     stayed cold    6579   2.10   0.680      598        1.77e-4    1.00e-24       6415
+
+A front advancing outward would put the flipping cells shallower than the rest,
+next to the previous iteration's hot cells. Instead they are the deepest and
+MOST MOLECULAR cells, drawn almost entirely from the previous iteration's cold
+cells - so their H0 opacity for this iteration's photons has fallen the
+furthest (tau 466 against 598), and they receive 16x the field above threshold
+and carry 45x the photoionization heating. Iteration 5's 33 flippers show the
+same shape: deepest (A_V 2.54 against 2.25), f_mol 0.914, all cold the iteration
+before, 47x the field.
+
+What that suggests, and it is NOT yet a mechanism: molecular locking removes H0,
+and H2 does not replace it as an absorber between 13.6 and 15.4 eV, so the
+cells that lock most hydrogen lose the most opacity in that window - one
+iteration late, because the opacity is built from the previous ionization.
+The difficulty it has not resolved: tau ~ 466 per cell at threshold is still
+far too thick for threshold photons to cross several cells, so the extra field
+must sit at energies where the gas is thinner, and which band that is has not
+been measured.
+
+**Two slips while reading this.**
+  - An awk field offset printed the PHOTOELECTRIC column as "photoionization
+    heating" for iteration 6 (1.89e-25 for the flippers). Caught before being
+    reported as a result; the values above are from the parser.
+  - D-218's x(H0) is read from `grid%ionDen` after `updateCell`, so for cells
+    that went hot it is the HOT END STATE, not what they carried into the
+    solve. Pairing it with entry heating - x(H0)*J predicts only a ~1.4x
+    heating ratio against the measured 45x - is not valid. f_mol is valid
+    (`updateCell` does not move H2), and so are the field and tau columns,
+    which do not depend on the solve.
+
+**What is NOT known.** Which band carries the extra field - the 13.6-15.4 eV
+window where H2 is transparent, or above 15.4 eV where it absorbs - and what
+share of the photoionization heating is hydrogen's in these cells at ENTRY.
+Those decide whether the missing absorber is H2 line opacity MOCASSIN does not
+model, or something else.
+
 ---
 
 ## D-219 - the opacity's hydrogen does not add up (2026-09-10)
@@ -12809,9 +12875,15 @@ not the same as every cell closing.
 
 **What it does and does not explain.**
 
-  - It is NOT the collapse trigger. Iteration 6 enters with a median of 1.26 -
-    an excess, which errs opaque - and `d210-budget`, with its median at 1.00,
-    still collapsed at iterations 6 and 11.
+  - RETRACTED: "It is NOT the collapse trigger. Iteration 6 enters with a
+    median of 1.26 - an excess, which errs opaque." The budget sum counts H2,
+    and H2 has no continuum between 13.6 and 15.4 eV (D-139); at hydrogen's
+    threshold the only gas absorber is H0. The H0 fraction iteration 6's
+    photons saw had fallen to 0.365 of atomic from 1.0 one iteration earlier
+    (measured under D-218). So the lag errs TRANSPARENT at threshold exactly
+    when molecules form. What still stands is that `d210-budget`, with its
+    median at 1.00, also collapsed - so the lag is not NECESSARY for a
+    collapse. Whether it triggers this one is open.
   - It plausibly AMPLIFIES what follows a collapse. After iteration 6 the median
     cell's opacity carries 0.43 of its hydrogen, and iteration 7 then carries
     the largest photoionization heating in the run, 1.13e-21 per H in its
