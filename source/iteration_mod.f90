@@ -104,6 +104,9 @@ module iteration_mod
            real(kind=8)              :: budSum(3,21)                ! D-217
            integer                   :: iBudG, iBudT                ! D-217
            character(len=11)         :: budLab(3)                   ! D-217
+           real(kind=8)              :: budSum2(3,9)                ! D-218
+           integer                   :: iLastG                      ! D-218
+           real(kind=8)              :: dxCell                      ! D-218
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -1144,6 +1147,7 @@ module iteration_mod
                  pcSubSum = 0.d0; pcNulSum = 0.d0
                  tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
                  budSum = 0.d0
+                 budSum2 = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1226,6 +1230,45 @@ module iteration_mod
                                      & + dble(grid(iG)%mocBud(iDum, 2, iBudT))
                              end do
                              budSum(iBudG, 21) = budSum(iBudG, 21) + 1.d0
+                             ! ---------------------------------------- D-218
+                             ! What sets the photoionization heating D-217
+                             ! found: heating per H ~ x(H0) * J, and J at
+                             ! depth is what the opacity in front lets through.
+                             ! So per group: depth (A_V), the absorbers
+                             ! (x(H0), f_mol), the field above hydrogen's
+                             ! threshold, and tau per cell AT that threshold -
+                             ! HlevNuP(1) is the bin the H0 cross section
+                             ! itself starts from (ph_mod). The opacity is
+                             ! rebuilt at the top of the MC iteration and not
+                             ! rewritten by updateCell, and Jste is reduced
+                             ! after the transfer, so both are global here.
+                             budSum2(iBudG,1) = budSum2(iBudG,1) &
+                                  & + dble(grid(iG)%AVeff(iDum))
+                             budSum2(iBudG,2) = budSum2(iBudG,2) &
+                                  & + dble(grid(iG)%ionDen(iDum,elementXref(1),1))
+                             if (allocated(grid(iG)%H2den)) &
+                                  & budSum2(iBudG,3) = budSum2(iBudG,3) &
+                                  & + 2.d0*dble(grid(iG)%H2den(iDum)) &
+                                  &   /dble(grid(iG)%Hden(iDum))
+                             budSum2(iBudG,4) = budSum2(iBudG,4) &
+                                  & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):nbins)))
+                             if (i < grid(iG)%nx) then
+                                dxCell = dble(grid(iG)%xAxis(i+1) - grid(iG)%xAxis(i))
+                             else
+                                dxCell = dble(grid(iG)%xAxis(i) - grid(iG)%xAxis(i-1))
+                             end if
+                             budSum2(iBudG,5) = budSum2(iBudG,5) &
+                                  & + dble(grid(iG)%opacity(iDum,HlevNuP(1)))*dxCell
+                             ! the same cell's group one MC iteration ago;
+                             ! ownership is fixed per rank, so each rank
+                             ! carries its own cells' history without a
+                             ! reduction
+                             iLastG = 0
+                             if (allocated(grid(iG)%budGrpLast)) then
+                                iLastG = grid(iG)%budGrpLast(iDum)
+                                grid(iG)%budGrpLast(iDum) = iBudG
+                             end if
+                             budSum2(iBudG,6+iLastG) = budSum2(iBudG,6+iLastG) + 1.d0
                           end if
                           if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
                                & + dble(grid(iG)%pdrHeatXtra(iDum)) &
@@ -1263,6 +1306,8 @@ module iteration_mod
                  ! collective cannot be skipped by a subset of them.
                  if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum, 63, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum2, 27, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-218
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
                  ! where the runaway actually happens. The [D119] residual
@@ -1344,6 +1389,16 @@ module iteration_mod
                                & "  cool coll/rec/ff/gd/PDR", &
                                & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
                                & "  H-C", budSum(iBudG,19)/budSum(iBudG,21)
+                          ! D-218: depth, absorbers, field, tau at threshold,
+                          ! and where these cells were one iteration ago
+                          print '(a,f7.3,a,es10.3,a,f7.4,a,es10.3,a,es10.3,a,4i7)', &
+                               & " ! [D218]   A_V", budSum2(iBudG,1)/budSum(iBudG,21), &
+                               & "  x(H0)", budSum2(iBudG,2)/budSum(iBudG,21), &
+                               & "  f_mol", budSum2(iBudG,3)/budSum(iBudG,21), &
+                               & "  J>H0thr", budSum2(iBudG,4)/budSum(iBudG,21), &
+                               & "  tau/cell@thr", budSum2(iBudG,5)/budSum(iBudG,21), &
+                               & "   last it none/c->h/cold/hot", &
+                               & (nint(budSum2(iBudG,5+iLastG)), iLastG = 1, 4)
                        end do
                     end if
                  end if

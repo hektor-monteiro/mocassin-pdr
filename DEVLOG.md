@@ -217,6 +217,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-215 | **The cooling function is tabulated and interpolated; D-166's power law is retired.** Inside `iterateT` only T moves, so the coolant is a function of one variable: 16 points log-spaced over [1, 2e4] K, log-log interpolation, clamped at the ends, never extrapolated. The effective multiplier falls from **x420 to x15.5**, and x15.5 IS the real cooling function over that temperature range. D-213's "second defect" (substitution deleting cooling 7.4x in hot gas) was an artefact of the first and is **retracted** - the substitution is now net positive. The oscillation survives, damped 4.8x in Te amplitude | Done | 2026-09-10 |
 | D-216 | **MOCASSIN solves Te and ionization once per MC iteration; the chemistry converges against it.** The `updateCell` loop moves out of the coupling loop, so `pdrCoupleIter` now counts chemistry passes only. Te is constant across passes by construction (2977.4 K at every pass of iteration 6). The trajectory is identical to the one-pass run within scatter - collapses at 6 and 10, Te median 2558/1502 K against 2517/1677 - so D-119's chemistry closure buys nothing and the D-214 confound is closed. It costs 2.7x in wall clock (58:42 vs 21:53). The pass-to-pass f_mol alternation is real but at most 0.034, against a ~0.4 collapse: NOT a candidate for the residual. Under one thermal solve the order is unambiguous - Te jumps 131 K -> 2977 K at f_mol 0.80, then the chemistry follows | Done | 2026-09-10 |
 | D-217 | **MOCASSIN's own thermal budget, term by term - and the warm-start path had never been given the post-D-188 PDR arrays.** D-216 put the start of the collapse in the thermal solve on still-molecular gas, with the PDR side of the budget ruled out, so the diagnostic now reports photoionization, photoelectric and PDR heating against collisional, recombination, free-free, gas-dust and PDR cooling, per H, at the FIRST `thermBalance` call (iteration-start Te under the new field) and the LAST, grouped by outcome. Separately, `resetGrid` allocated none of `pdrHeatXtra`, `pdrCoolTab` or the D-207..D-217 diagnostics: `mocassinWarm` compiled and would have met unallocated arrays in `pdrStep`. Fixed; compiled, not yet exercised by a warm run | Running | 2026-09-10 |
+| D-218 | **Is the heating a front advancing in pulses?** D-217 iteration 7: the 8336 cells that went hot at 6 enter 7 with photoionization heating 180x lower (2.53e-25), while 2835 OTHER cells take 25x more (1.13e-21) - the heating moves between cells. Heating per H goes as x(H0)*J, so ionized cells may turn transparent and pass the hard photons to the layer behind. The census now reports per group the mean A_V, x(H0), f_mol, J above hydrogen's threshold, tau per cell at threshold, and each cell's group ONE ITERATION AGO (per-cell `budGrpLast`, allocated on both the cold and warm paths). Also withdrawn: the 'two-iteration opacity lag' inferred for D-217 - the opacity is rebuilt at the top of every MC iteration | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -12606,3 +12607,77 @@ rather than ~59 for the same answer.
 **What is NOT known.** Everything the run is for: which of MOCASSIN's own terms
 separates the cells that go hot from those that stay cold at iteration 6 and 10,
 and whether it is a heating term appearing or a cooling term disappearing.
+
+
+---
+
+## D-218 - does the heating move, and does it move deeper? (2026-09-10)
+
+**What prompted it.** D-217's iteration 7, read against iteration 6:
+
+     it   group        cells   entry Te   photoionization heating per H
+      6   cold -> hot   8336      88 K       4.47e-23
+      7   started hot   5293    4052 K       2.53e-25   (these are 6's flippers)
+      7   cold -> hot   2835     701 K       1.13e-21
+
+The cells that went hot at iteration 6 lose their photoionization heating by a
+factor 180 and cool to 416 K; a different set of cells takes 25x more than
+iteration 6's group did. The heating is not a property of fixed cells.
+
+**The hypothesis.** Heating per H nucleus goes as x(H0) times the field above
+threshold. Cells that ionize at iteration N carry few absorbers at N+1: the
+hard photons pass through them to the layer behind, which heats, while the
+ionized layer - little H0 to absorb with - loses its heating, cools, recombines
+and becomes opaque again. An ionization front advancing in pulses. It predicts
+that each iteration's cold -> hot cells are (a) deeper than the previous
+iteration's, and (b) drawn from the previous iteration's stayed-cold cells.
+
+**The history this has to respect.** Deep-cell heating is 99.5% H I
+photoionization (D-138). The field delivering it is 86-100% stellar with no
+packet crossing tau > 20 (D-159), which retracted the "photons that cannot
+arrive" framing: the heating is real and the opacity that stops it belongs to
+the other ionization state. D-168 raised a transport defect again and retracted
+it at D-169. D-160 tested for a stable neutral branch under pdrTeFromMocassin
+and found none. So this entry does not re-open the transport question; it asks
+how the ionized/neutral alternation propagates through the grid.
+
+**A claim from the running commentary, withdrawn.** While reading D-217 I
+suggested a two-iteration delay between molecule formation and the opacity the
+photons see, and that a delayed loop explains the 4-5 iteration period. The
+structure does not support it. `iteration_mod` zeroes `grid%opacity` and runs
+`ionizationDriver` - and so `addOpacity` with `H2den` - over every cell at the
+TOP of each MC iteration, before the transfer. Photons at iteration N see H2
+from iteration N-1's chemistry and an x(H0) normalised with `elemAvail` from one
+iteration earlier still, because `updateCell` precedes the chemistry (D-216).
+That lag errs OPAQUE while molecules form - more H2 arrives before x(H0) falls -
+so it opens no transparent window where the collapse begins. It is recorded,
+not used.
+
+Also checked on the way: H2 opacity does reach the transport (the PDR build
+passes `grid%H2den` to `addOpacity`, continuum above 15.43 eV), and
+`pdrSplitField` is diagnostic-only - every `Jdif` read in `update_mod` sits
+behind `lgDebug`.
+
+**The instrument.** Per D-217 outcome group, on pass 1:
+
+    A_V (mean)                     - depth
+    x(H0), f_mol                   - the absorbers
+    J above hydrogen's threshold   - sum of Jste from HlevNuP(1), the bin the
+                                     H0 cross section itself starts from (ph_mod)
+    tau per cell at threshold      - opacity(HlevNuP(1)) x cell size
+    group one iteration ago        - none / cold->hot / stayed cold / started hot
+
+The last needs the same cell across iterations, so `grid%budGrpLast` stores
+each cell's group. Ownership of a cell is fixed per rank, so each rank carries
+its own cells' history with no reduction. It is allocated in `setMotherGrid`
+AND `resetGrid` - D-217 found the warm path missing every per-cell PDR array
+added since D-188, and this does not add another.
+
+**Run.** `runs/d218-front`, one-pass fixture, launched automatically as soon as
+`runs/d217-budget` released the cores.
+
+**What is NOT known.** Whether the flipping cells are deeper and were cold the
+iteration before. If they are not - if the heating lands in scattered cells
+with no progression in A_V - the pulsing-front picture is wrong, and patchy
+Monte Carlo sampling of a hard-tail field deep in the cloud becomes the
+leading alternative.

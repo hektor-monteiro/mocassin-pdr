@@ -1472,6 +1472,11 @@ module grid_mod
                    print*, "! setMotherGrid: can't allocate mocBud memory"; stop
                 end if
                 grid%mocBud = 0.
+                allocate(grid%budGrpLast(0:grid%nCells), stat = err)     ! D-218
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate budGrpLast memory"; stop
+                end if
+                grid%budGrpLast = 0
                 allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
@@ -3760,6 +3765,13 @@ end function getVolume
                grid(iG)%pdrTfacUsed = 1.
                grid(iG)%pdrCoolTab  = 0.
                grid(iG)%mocBud      = 0.
+               ! D-218: allocated here too - D-217 found the warm path had
+               ! been missing every per-cell PDR array added after D-188.
+               allocate(grid(iG)%budGrpLast(0:grid(iG)%nCells), stat = err)
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate budGrpLast memory"; stop
+               end if
+               grid(iG)%budGrpLast = 0
                grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.

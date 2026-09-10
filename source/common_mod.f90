@@ -443,6 +443,15 @@ module common_mod
         ! Heating = 1+2+3 and cooling = 4+..+8 exactly, so 9 is their
         ! difference and the terms can be compared on one footing.
         real, allocatable         :: mocBud(:,:,:)
+        ! D-218. The D-217 outcome group each cell fell in at the previous MC
+        ! iteration (0 = none yet; 1 cold->hot, 2 stayed cold, 3 started hot).
+        ! Iteration 7 showed the photoionization heating MOVING between cells:
+        ! the 8336 that went hot at 6 enter 7 with 180x less of it, while 2835
+        ! other cells take 25x more. Whether each iteration's flipping cells
+        ! are drawn from the previous iteration's cold ones - a front advancing
+        ! in pulses - is a question about the SAME cell across iterations, and
+        ! group means cannot answer it without this.
+        integer, allocatable      :: budGrpLast(:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
