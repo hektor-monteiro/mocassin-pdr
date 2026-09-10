@@ -452,6 +452,13 @@ module common_mod
         ! in pulses - is a question about the SAME cell across iterations, and
         ! group means cannot answer it without this.
         integer, allocatable      :: budGrpLast(:)
+        ! D-221. H0 photoionization heating per H nucleus at the FIRST
+        ! thermBalance call, split at 15.43 eV: (cell, 1) the 13.6-15.4 eV
+        ! window where H2 has no continuum (D-139), (cell, 2) above it where
+        ! H2 absorbs (addOpacity, yanH2xSec). D-218 found threshold opacity
+        ! does not decide where the field lands, so the photons carrying the
+        ! heating must sit where the gas is thinner - this says which band.
+        real, allocatable         :: mocBand(:,:)
                                                      ! > 0 when the dust is heating the gas
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.

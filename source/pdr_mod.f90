@@ -94,7 +94,7 @@ module pdr_mod
 
     private
     public :: initPDRnetwork, seedPDR, seedMolecules, calibratePDRdust, dustPerCell, computeAVdust, &
-             & initPDRcoolTab, &
+             & initPDRcoolTab, rescaleIonToAvail, &
             & mocassinToPDR, pdrStep, pdrToMocassin
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
@@ -1776,6 +1776,74 @@ module pdr_mod
 
 
 
+
+
+      !-----------------------------------------------------------------
+      ! D-220. Make the ionization the opacity is built from describe the
+      ! same hydrogen as the molecules beside it.
+      !
+      ! D-219 measured x(H0)+2x(H2)+x(H+) at a median of 0.43-1.85 in the
+      ! state ionizationDriver reads at the top of each MC iteration: the ion
+      ! stages carry a molecular fraction from BEFORE the chemistry moved it,
+      ! the molecules carry the fraction after. D-218 confirmed the opacity
+      ! follows that stale state (tau 1260 = x(H0) 1.0 at iteration 5; 460
+      ! predicted, 466 measured at iteration 6).
+      !
+      ! The fix is D-153's rule applied on MOCASSIN's side. D-153 hands the
+      ! chemistry MOCASSIN's RATIO between stages and lets the chemistry keep
+      ! the non-molecular TOTAL. Here the same split runs the other way: keep
+      ! MOCASSIN's ratio between stages, and rescale their sum to the
+      ! chemistry's current available fraction. That is exactly what
+      ! ionBalance's conservation row asserts - every enabled element, stages
+      ! 1..min(elem+1, nstages), summing to min(max(elemAvail,1e-10),1) - so
+      ! this reproduces the normalisation the next updateCell would apply,
+      ! one step earlier, where the opacity needs it. Elements pdrToMocassin
+      ! never sets carry elemAvail = 1 and are left unchanged.
+      !
+      ! Called after the D-200 damping and elemAvail republish, when ionDen is
+      ! already reduced and every rank holds the same elemAvail, so every rank
+      ! rescales identically and no collective is needed.
+      !-----------------------------------------------------------------
+      subroutine rescaleIonToAvail(grid)
+        implicit none
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer          :: iG, cP, elem, nSt, nH, nOff
+        double precision :: tot, tgt, offSum
+
+        nH = 0; nOff = 0; offSum = 0.d0
+        do iG = 1, nGrids
+           if (.not.allocated(grid(iG)%elemAvail)) cycle
+           do cP = 1, grid(iG)%nCells
+              if (grid(iG)%Hden(cP) <= 0.) cycle
+              do elem = 1, nElements
+                 if (.not.lgElementOn(elem)) cycle
+                 if (elementXref(elem) <= 0) cycle
+                 nSt = min(elem+1, nstages)
+                 tot = sum(dble(grid(iG)%ionDen(cP, elementXref(elem), 1:nSt)))
+                 if (tot <= 0.d0) cycle
+                 tgt = min(max(dble(grid(iG)%elemAvail(cP, elem)), 1.d-10), 1.d0)
+                 if (elem == 1) then
+                    ! hydrogen's full budget BEFORE the rescale, with the
+                    ! molecules, so the defect is measured as it is removed
+                    nH = nH + 1
+                    if (pdrIdxH2 > 0 .and. allocated(grid(iG)%pdrAbun)) then
+                       offSum = offSum + abs(tot + 2.d0*grid(iG)%pdrAbun(cP,pdrIdxH2) - 1.d0)
+                       if (abs(tot + 2.d0*grid(iG)%pdrAbun(cP,pdrIdxH2) - 1.d0) > 0.01d0) &
+                            & nOff = nOff + 1
+                    end if
+                 end if
+                 grid(iG)%ionDen(cP, elementXref(elem), 1:nSt) = &
+                      & real(dble(grid(iG)%ionDen(cP, elementXref(elem), 1:nSt))*tgt/tot)
+              end do
+           end do
+        end do
+        if (taskid == 0 .and. nH > 0) print '(a,i8,a,f8.4,a,i8,a,f6.2,a)', &
+             & " ! [D220] rescaled ion stages to elemAvail in", nH, &
+             & " cells; before: mean |x(H0)+x(H+)+2x(H2)-1| ", offSum/dble(nH), &
+             & ", off by >1% in", nOff, " (", 100.d0*dble(nOff)/dble(nH), "%)"
+
+      end subroutine rescaleIonToAvail
 
       !-----------------------------------------------------------------
       ! D-209. The starting H2 and CO fractions, from MOCASSIN's own

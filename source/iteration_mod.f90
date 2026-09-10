@@ -107,6 +107,9 @@ module iteration_mod
            real(kind=8)              :: budSum2(3,9)                ! D-218
            integer                   :: iLastG                      ! D-218
            real(kind=8)              :: dxCell                      ! D-218
+           real(kind=8)              :: budSum3(3,4)                ! D-221
+           integer, save             :: iH2thrC = 0                 ! D-221
+           integer                   :: iNuD                        ! D-221
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -904,6 +907,12 @@ module iteration_mod
                  call seedMolecules(grid(1:nGrids))
                  call computeAVdust(grid(1:nGrids))
                  call mocassinToPDR(grid(1:nGrids))
+                 ! D-220: the seed moved the molecular content, so republish
+                 ! elemAvail before updateCell normalises the ion stages to it.
+                 ! Without this the first PDR iteration ran with the stages
+                 ! summing to 1 beside a seed that had made half the hydrogen
+                 ! molecular - a hydrogen budget of 1.85 (D-219).
+                 call pdrToMocassin(grid(1:nGrids))
               end if
            end if
 #endif
@@ -1148,6 +1157,7 @@ module iteration_mod
                  tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
                  budSum = 0.d0
                  budSum2 = 0.d0
+                 budSum3 = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1259,6 +1269,27 @@ module iteration_mod
                              end if
                              budSum2(iBudG,5) = budSum2(iBudG,5) &
                                   & + dble(grid(iG)%opacity(iDum,HlevNuP(1)))*dxCell
+                             ! D-221: the field and H0's heating on each side
+                             ! of 15.43 eV, where H2's continuum begins
+                             if (iH2thrC == 0) then
+                                iH2thrC = nbins + 1
+                                do iNuD = 1, nbins
+                                   if (nuArray(iNuD) >= 1.1345) then
+                                      iH2thrC = iNuD
+                                      exit
+                                   end if
+                                end do
+                             end if
+                             if (iH2thrC > HlevNuP(1)) budSum3(iBudG,1) = budSum3(iBudG,1) &
+                                  & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):iH2thrC-1)))
+                             if (iH2thrC <= nbins) budSum3(iBudG,2) = budSum3(iBudG,2) &
+                                  & + dble(sum(grid(iG)%Jste(iDum,iH2thrC:nbins)))
+                             if (allocated(grid(iG)%mocBand)) then
+                                budSum3(iBudG,3) = budSum3(iBudG,3) &
+                                     & + dble(grid(iG)%mocBand(iDum,1))
+                                budSum3(iBudG,4) = budSum3(iBudG,4) &
+                                     & + dble(grid(iG)%mocBand(iDum,2))
+                             end if
                              ! the same cell's group one MC iteration ago;
                              ! ownership is fixed per rank, so each rank
                              ! carries its own cells' history without a
@@ -1308,6 +1339,8 @@ module iteration_mod
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum2, 27, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-218
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum3, 12, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-221
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
                  ! where the runaway actually happens. The [D119] residual
@@ -1399,6 +1432,18 @@ module iteration_mod
                                & "  tau/cell@thr", budSum2(iBudG,5)/budSum(iBudG,21), &
                                & "   last it none/c->h/cold/hot", &
                                & (nint(budSum2(iBudG,5+iLastG)), iLastG = 1, 4)
+                          ! D-221: which band. H0 share is H0's heating over the
+                          ! group's entry photoionization heating (D-217 term 1).
+                          print '(a,2es10.3,a,2es10.3,a,f8.4)', &
+                               & " ! [D221]   J 13.6-15.4 / >15.4 eV", &
+                               & budSum3(iBudG,1)/budSum(iBudG,21), &
+                               & budSum3(iBudG,2)/budSum(iBudG,21), &
+                               & "  H0 phot heat 13.6-15.4 / >15.4", &
+                               & budSum3(iBudG,3)/budSum(iBudG,21), &
+                               & budSum3(iBudG,4)/budSum(iBudG,21), &
+                               & "  H0 share", &
+                               & (budSum3(iBudG,3)+budSum3(iBudG,4)) &
+                               & /max(budSum(iBudG,1), 1.d-99)
                        end do
                     end if
                  end if
@@ -1943,6 +1988,12 @@ module iteration_mod
               ! D-199 lag, reintroduced by the damping itself.
               if (nIterateMC >= pdrStartIter) call pdrToMocassin(grid(1:nGrids))
            end if
+           ! D-220: after the last change to the molecular content and the last
+           ! republish - whether or not the damping above ran - bring the ion
+           ! stages to the same hydrogen before the next iteration builds its
+           ! opacity from them (D-219).
+           if (lgPDR .and. nIterateMC >= pdrStartIter) &
+                & call rescaleIonToAvail(grid(1:nGrids))
            if (allocated(pdrAbunIter)) deallocate(pdrAbunIter)
            if (allocated(ionDenIter))  deallocate(ionDenIter)
 #endif

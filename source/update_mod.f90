@@ -1618,6 +1618,8 @@ end subroutine iterateT
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
             real                   :: budL(10)             ! D-217: this call's budget
+            real                   :: heatH0win, heatH0hi  ! D-221: H0 heating by band
+            integer, save          :: iH2thrP = 0          ! D-221: first bin >= 15.43 eV
             real                   :: coolSubL             ! D-210: MOCASSIN cooling removed
             integer                :: nNullL               ! D-210: coolants the guard kept
             real                   :: coolColl      ! cool due to coll excit   [erg/s/Hden]
@@ -1803,6 +1805,19 @@ end subroutine iterateT
              ! re-initialize heatSte and heatDif
              heatSte = 0.
              hMaxV = 0.; hMaxE = 0; hMaxI = 0; iH1nuP = 0    ! D-168
+             ! D-221: H0 photoionization heating split where H2's continuum
+             ! starts, 15.43 eV = 1.1345 Ryd (addOpacity). The energy grid is
+             ! fixed for the run, so the split bin is found once.
+             heatH0win = 0.; heatH0hi = 0.
+             if (iH2thrP == 0) then
+                iH2thrP = nbins + 1
+                do j = 1, nbins
+                   if (nuArray(j) >= 1.1345) then
+                      iH2thrP = j
+                      exit
+                   end if
+                end do
+             end if
              if (lgDebug) heatDif = 0.
 
              do elem = 1, nElements  ! begin element loop
@@ -1883,6 +1898,16 @@ end subroutine iterateT
 
                                 heatIonSte = heatIonSte + phXSec*grid%Jste(cellP,j)*&
                                      & (nuArray(j)-nuArray(IPNuP)) / (nuArray(j))
+                                ! D-221: the same term, for H0 only, by band
+                                if (elem == 1 .and. ion == 1) then
+                                   if (j < iH2thrP) then
+                                      heatH0win = heatH0win + phXSec*grid%Jste(cellP,j)* &
+                                           & (nuArray(j)-nuArray(IPNuP)) / (nuArray(j))
+                                   else
+                                      heatH0hi  = heatH0hi  + phXSec*grid%Jste(cellP,j)* &
+                                           & (nuArray(j)-nuArray(IPNuP)) / (nuArray(j))
+                                   end if
+                                end if
 
                              end if
 
@@ -1903,6 +1928,12 @@ end subroutine iterateT
 
                     heatIonSte = heatIonSte*ionDenUsed(elementXref(elem),ion)*&
                          & grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)
+                    if (elem == 1 .and. ion == 1) then            ! D-221: same scaling
+                       heatH0win = heatH0win*ionDenUsed(elementXref(1),1)* &
+                            & grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)
+                       heatH0hi  = heatH0hi *ionDenUsed(elementXref(1),1)* &
+                            & grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)
+                    end if
                     if (lgDebug) &
                          & heatIonDif = heatIonDif*ionDenUsed(elementXref(elem),ion)*&
                          &grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)
@@ -2282,6 +2313,10 @@ end subroutine iterateT
                grid%mocBud(cellP, 2, :) = budL
                if (lgBudEntry) then
                   grid%mocBud(cellP, 1, :) = budL
+                  if (allocated(grid%mocBand)) then           ! D-221: entry only
+                     grid%mocBand(cellP, 1) = heatH0win
+                     grid%mocBand(cellP, 2) = heatH0hi
+                  end if
                   lgBudEntry = .false.
                end if
             end if

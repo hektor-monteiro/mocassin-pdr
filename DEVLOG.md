@@ -219,6 +219,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-217 | **The trigger is photoionization heating from the MC field, landing in the coldest cells.** At every iteration the cells that go cold -> hot enter the thermal solve with photoionization heating 45-2208x that of the cells that stay cold (45x and 111x at the two collapses) and 6-843x their own total cooling (above 100x from iteration 6 on); photoelectric and PDR terms are two orders smaller. Iteration 6: 8336 cells at 88 K carrying 4.47e-23 per H. Iteration 10: 6649 at 133 K, 6.64e-23. The heating does not stay put - cells that flipped enter the next iteration with it 100x lower. The instrument's entry slot reproduces the iteration-start Te to 0.1 K. Separately, `resetGrid` had none of the post-D-188 PDR arrays; fixed, compiled, not exercised by a warm run | Done | 2026-09-10 |
 | D-218 | **Two regularities hold at every iteration; no single variable decides which cells flip.** Twelve iterations (runs/d218-front, 21:33). At EVERY iteration 5-12 the flipping cells come overwhelmingly from last iteration's cold cells, and a cell that flips receives ~1000x LESS field the next iteration (started hot: J 1.5-5.3e-6; flippers 2e-4-1.1e-2). The two big collapses look alike - iteration 6 (8265 cells) and 10 (6587) put their flippers deep (A_V 2.34, 2.41), very molecular (f_mol 0.904, 0.905) and at the lowest threshold tau (466, 201) - but the follow-on iterations do not, and threshold tau does not predict where the field lands (at 7 and 11 the lowest-tau group gets the least). The opacity trails the ionization by one iteration (tau 1260 = x(H0) 1.0 at it 5; predicted 460, measured 466 at it 6) | Done | 2026-09-10 |
 | D-219 | **The opacity is built from a hydrogen budget that does not sum to 1, and D-216 made that the permanent state.** The census's x(H0)+2x(H2)+x(H+) pairs `ionDen` with `pdrAbun` after the D-200 damping and republish - exactly what `ionizationDriver` reads at the top of the next iteration to build the opacity. With one ionization solve per iteration followed by chemistry that moves (D-216, and the one-pass runs), the median runs 0.43-1.85: hydrogen double-counted after molecules form, MISSING after they are destroyed. The five-pass loop D-216 replaced held the median at 1.000 from iteration 7. Whether it is the collapse trigger is OPEN: an early argument that iteration 6 'enters at an excess of 1.26' conflated total hydrogen with the H0 that absorbs at 13.6-15.4 eV, where H2 is transparent - the H0 fraction iteration 6's photons saw had fallen from 1.0 to 0.365 (see D-218). Also: `seedMolecules` never republishes `elemAvail`, so iteration 4 runs at 1.85 | Open | 2026-09-10 |
+| D-220 | **Fix for D-219: rescale the ion stages to the chemistry's available fraction before the next opacity is built.** D-153's rule on MOCASSIN's side - keep MOCASSIN's ratio between stages, take the non-molecular total from the chemistry - applied to every enabled element exactly as `ionBalance`'s conservation row does, after the D-200 damping and republish. Plus a `pdrToMocassin` after the D-209 seed, which never republished `elemAvail`. Verification is built in: the D-196 budget prints after the rescale and should read ~1.00, and a `[D220]` line reports hydrogen's offset BEFORE each rescale. Not a promised cure - the five-pass run held the budget at 1.00 and still collapsed | Running | 2026-09-10 |
+| D-221 | **Which band carries the heating.** D-218 showed threshold opacity does not decide where the field lands. Per outcome group, at entry: the field summed over 13.6-15.4 eV (no H2 continuum, D-139) and above 15.43 eV (H2 absorbs), H0's photoionization heating split the same way inside `thermBalance`'s frequency loop, and H0's share of the photoionization heating. Per-cell `mocBand`, allocated on both the cold and warm paths | Running | 2026-09-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13020,3 +13022,64 @@ stages to the new `elemAvail` - MOCASSIN keeps the RATIO between stages, the
 chemistry sets the non-molecular TOTAL - before the opacity is built. Plus a
 `pdrToMocassin` after `seedMolecules`. It changes the D-216 design, so it is
 put to the operator rather than made.
+
+
+---
+
+## D-220 - the ion stages brought to the same hydrogen as the molecules (2026-09-10)
+
+**What.** A new `rescaleIonToAvail`, called in `iteration_mod` after the D-200
+damping block closes - so after the last change to the molecular content and
+the last `elemAvail` republish, whether or not the damping ran. For every
+enabled element, stages `1..min(elem+1, nstages)` are scaled so they sum to
+`min(max(elemAvail, 1e-10), 1)`. That is exactly the normalisation
+`ionBalance`'s conservation row imposes (`availFrac`), so this applies the next
+`updateCell`'s normalisation one step earlier, where `ionizationDriver` needs it
+to build the opacity. The ratio between stages is MOCASSIN's and is unchanged;
+the total is the chemistry's. D-153 hands the chemistry MOCASSIN's ratio and
+keeps the chemistry's total; this is the same split applied on MOCASSIN's side.
+
+Elements `pdrToMocassin` never sets keep `elemAvail = 1` and are unchanged.
+At the call site `ionDen` is already reduced and every rank has republished
+`elemAvail` from the reduced `pdrAbun`, so every rank rescales identically and
+no collective is added.
+
+Also a `pdrToMocassin` immediately after `seedMolecules` at `pdrStartIter`: the
+seed moves the molecular content and nothing republished `elemAvail`, so the
+first PDR iteration's `updateCell` normalised hydrogen's stages to 1 beside a
+seed that had made half of it molecular (budget 1.85 at iteration 4, D-219).
+
+**Verification built in.** The D-196 budget census prints after the rescale, so
+its median should read ~1.00 rather than 0.43-1.85 - the other hydrogen carriers
+in the network (H2O, OH, CH_n, H3+) keep it slightly off. And a `[D220]` line on
+rank 0 reports hydrogen's mean |x(H0)+x(H+)+2x(H2)-1| and the fraction of cells
+off by more than 1% BEFORE each rescale, so the defect is measured in the same
+pass that removes it.
+
+**What it is not.** A promised cure. `d210-budget`, whose median budget was
+1.000 from iteration 7, still collapsed at iterations 6 and 11. The fix makes
+the opacity physically consistent; whether that changes the collapse is what
+the run measures.
+
+---
+
+## D-221 - which band carries the heating (2026-09-10)
+
+**Why.** D-218: threshold opacity does not predict where the field lands - at
+iterations 7 and 11 the lowest-tau group receives the least field - so the
+photons carrying the heating must sit where the gas is much thinner than at
+13.6 eV. The candidates differ in what they imply: in the 13.6-15.4 eV window H2
+has no continuum (D-139; MOCASSIN does not model H2 line opacity there), above
+15.43 eV H2 absorbs (`addOpacity` with `yanH2xSec`).
+
+**What.** At the D-217 entry call (the first `thermBalance` of the updateCell),
+H0's photoionization heating is split inside the frequency loop at the first
+bin with nu >= 1.1345 Ryd, with exactly the scaling `heatIonSte` gets, and
+stored in per-cell `mocBand(cell, 1:2)` - allocated in `setMotherGrid` and
+`resetGrid`. The census adds per outcome group: the field summed over
+[HlevNuP(1), split) and [split, nbins], the two H0 heating means, and H0's share
+of the group's entry photoionization heating.
+
+**Run.** `runs/d220-fix`, one-pass fixture, carrying both D-220 and D-221.
+
+**What is NOT known.** Everything the run is for.
