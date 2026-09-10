@@ -38,6 +38,12 @@ STRT = re.compile(r"\[D204\]\s+iteration start, for comparison.*?mean Te\s+([-\d
                   r"\s+Te>3000 K in\s*(\d+)\s+\(\s*([-\d.]+)%\)")
 MSTR = re.compile(r"\[D204\]\s+mean f_mol at iteration start\s+([-\d.eE+]+)"
                   r"\s+now\s+([-\d.eE+]+)")
+# D-217: MOCASSIN's own budget, per outcome group. A label line opens a group;
+# the entry and exit lines that follow carry Te then the 9 budget terms.
+BUDLAB = re.compile(r"\[D217\]\s+(cold -> hot|stayed cold|started hot)\s+cells\s+(\d+)")
+BUDROW = re.compile(r"\[D217\]\s+(entry|exit)\s+Te\s*([-\d.eE+]+)\s+heat phot/PE/PDR"
+                    r"((?:\s*[-\d.eE+]+){3})\s+cool coll/rec/ff/gd/PDR"
+                    r"((?:\s*[-\d.eE+]+){5})\s+H-C\s*([-\d.eE+]+)")
 RATIO = re.compile(r"\[D196\]\s+x\(H\+\)_ion / x\(H\+\)_chem\s+median\s+([-\d.eE+]+)"
                    r"\s+p90\s+([-\d.eE+]+)\s+max\s+([-\d.eE+]+)")
 
@@ -61,6 +67,19 @@ def parse(path):
             m = rx.search(line)
             if m:
                 d[key] = [float(m.group(i + 1)) for i in range(n)]
+        m = BUDLAB.search(line)
+        if m:
+            d.setdefault("bud", {})[m.group(1)] = {"n": int(m.group(2))}
+            d["_budgrp"] = m.group(1)
+            continue
+        m = BUDROW.search(line)
+        if m and d.get("_budgrp"):
+            heat = [float(x) for x in m.group(3).split()]
+            cool = [float(x) for x in m.group(4).split()]
+            d["bud"][d["_budgrp"]][m.group(1)] = {
+                "Te": float(m.group(2)), "heat": heat, "cool": cool,
+                "net": float(m.group(5))}
+            continue
         m = WARM.search(line)
         if m:
             d["warm"] = [int(m.group(1)), float(m.group(2))]
@@ -129,12 +148,40 @@ def report(path, data):
         print()
 
 
+def report_budget(data):
+    """D-217 table: MOCASSIN's own budget per outcome group, entry and exit."""
+    its = sorted(k for k in data if "bud" in data[k])
+    if not its:
+        return
+    print("  MOCASSIN's own thermal budget (D-217), per H nucleus, group means")
+    print("    entry = first thermBalance call: iteration-start Te, NEW field")
+    print("    exit  = last call: where the solve left the cell")
+    hdr = ("   it  group        slot    cells       Te    h:phot      h:PE     h:PDR"
+           "    c:coll     c:rec      c:ff      c:gd     c:PDR       H-C")
+    print(hdr)
+    for i in its:
+        for grp in ("cold -> hot", "stayed cold", "started hot"):
+            g = data[i]["bud"].get(grp)
+            if not g:
+                continue
+            for slot in ("entry", "exit"):
+                r = g.get(slot)
+                if not r:
+                    continue
+                vals = r["heat"] + r["cool"] + [r["net"]]
+                print("  %3d  %-11s  %-5s  %7d  %7.1f " % (i, grp, slot, g["n"], r["Te"])
+                      + "".join("%10.2e" % v for v in vals))
+        print()
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return 1
     for path in sys.argv[1:]:
-        report(path, parse(path))
+        data = parse(path)
+        report(path, data)
+        report_budget(data)
     return 0
 
 
