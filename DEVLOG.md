@@ -13368,3 +13368,75 @@ cannot answer its question.
     orders below.
 
 Five cells; iteration 6 is where the split is measured across thousands.
+
+
+### Iteration 5: H2 reaches the transport, and no energy lets photons cross these cells (2026-09-10)
+
+**H2 is in the opacity from iteration 5, as required.** At 19.8 eV H2's tau per
+cell is 690 in the cold -> hot cells and 611 in the stayed-cold bulk, where
+iteration 4 read exactly zero. (gas + dust) / total is still 1.0000 at every
+bin in every group.
+
+     it 5, cold -> hot (7 cells)   H2     H0     He0    He+    Z      dust   total
+     tau/cell @  19.8 eV           690    57      -      -     1.2    0.40   ~750
+     tau/cell @  36.9 eV           115    9.7    74      -     0.83   0.29   ~200
+     tau/cell @  75.4 eV           10.6   1.15   16.1   0.011  0.29   0.25   ~28
+     tau/cell @ 149.5 eV           1.29   0.14   2.59   0.002  0.07   0.21   ~4.3
+
+The field is again zero above 54.4 eV in every group, and the flipping cells
+take all their field (1.10e-4) and all their H0 heating (2.75e-24) from
+15.4-24.6 eV.
+
+**A narrow-window hypothesis, tested and refuted.** The representative bin
+samples a band at one energy, and `yanH2xSec` is negative at its threshold and
+clamped to zero (the code says so) before rising to its peak near 18 eV - so a
+transparent sliver just above 15.43 eV, where molecule formation has also
+removed the H0, was possible and invisible to one bin at 19.8 eV. Evaluating
+`yanH2xSec` exactly as coded, with a hydrogenic H0 cross section, and the
+cells' own H2 and H0 columns inferred from their measured tau at 19.8 eV:
+
+  - The clamped region is real: sigma_H2 is exactly 0 from 15.43 to ~15.7 eV,
+    1.5e-18 at 15.8 eV, 9.8e-18 at 18 eV.
+  - But H0 keeps it thick. Minimum tau per cell over 15.4-25 eV is 116, at
+    15.61 eV, in the flipping cells (n(H2)dx 8.8e19, n(H0)dx 2.8e19 cm^-2) and
+    206 in the stayed-cold bulk. Tau per cell is below 100 nowhere in that range.
+  - At 36.9 eV the measured total is ~200; above 54.4 eV there is no field.
+
+The inferred columns carry the hydrogenic approximation, but a minimum of 116 is
+some 50 e-folds from transparent, so a factor of a few does not change it.
+**There is no energy at which photons present in the field can cross one of
+these cells.**
+
+**What that implies, and what it does not.** The field recorded inside the
+flipping cells did not travel through them. It must be deposited in a skin a
+fraction of a cell deep - entering from a neighbouring cell's face - or be
+emitted locally. MOCASSIN's J is the path length accumulated over the cell's
+whole volume, so energy absorbed in a thin skin is spread over the entire cell
+and heats it uniformly.
+
+**Hypothesis - not tested.** The relaxation oscillation is substantially a
+resolution artefact. These cells are 2e18 cm on a side at tau 100-1000; a real
+ionization front is of order 1/(n sigma) ~ 1e15-1e16 cm, a hundredth to a
+thousandth of a cell. A cell whose illuminated skin should ionize while its
+interior stays molecular instead has the skin's heating spread over its whole
+volume; with a bistable thermal balance the whole cell flips rather than
+partially warming. Once flipped it is ionized, carries few absorbers and loses
+~1000x of its field (D-218's second regularity), and the next cell inward
+receives the flux in its skin and flips in turn - a front advancing about one
+cell per iteration regardless of the physical front speed. It is consistent
+with every result that survived the physics fixes: the collapse is unmoved by
+the seed (D-209), the cooling extrapolation (D-215), the chemistry loop
+(D-216) and the hydrogen budget (D-220); the heating moves between cells every
+iteration (D-217); flipping cells come from last iteration's cold cells and lose
+their field the iteration after (D-218); and it is carried by photons the gas
+cannot transmit (here).
+
+**What would test it.**
+  1. Adjacency, cell by cell: whether each iteration's cold -> hot cells are
+     face-neighbours of cells that were hot or flipped the iteration before.
+     A front artefact predicts nearly all are; scattered heating predicts few.
+     The group means cannot answer this.
+  2. Whether the field in the flipping cells is stellar or diffuse
+     (`pdrSplitField`, diagnostic-only per D-218's check).
+  3. Resolution: the oscillation's amplitude, period and front speed at a
+     finer grid. Most expensive; 58^3 is the memory ceiling at nbins = 600.
