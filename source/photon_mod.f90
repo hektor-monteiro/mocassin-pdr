@@ -1176,6 +1176,14 @@ module photon_mod
           character(len=7)                :: packetType ! stellar, diffuse, dustEmitted?
 
           logical                         :: lgScattered=.False. ! is the packet scattering with dust?
+          ! D-224: transport consistency trace (diagnostic, behind pdrSplitField)
+          real                            :: lo224(3), hi224(3), r224(3), v224(3)
+          real                            :: chord224, tol224, kW224, dW224, cJ224
+          real                            :: prevKW224 ! tau per cell of the cell last crossed; < 0 none
+          integer                         :: k224
+          logical                         :: lgTrc224, lgOut224, lgOver224, lgB2224
+          logical                         :: prevBad224, prevPdr224, lgPt224
+          logical                         :: lgB2all225 ! D-225: in the band, any packet type
           logical                         :: lgReturn
 
 
@@ -1260,6 +1268,8 @@ module photon_mod
 
           ! initialize optical depth
           absTau = 0.
+          ! D-224: a new path has crossed no cell yet
+          lgTrc224 = .false.; prevKW224 = -1.; prevBad224 = .false.; prevPdr224 = .false.
 
           ! calculate the optical depth to the next cell wall
           tauCell = R_out*grid(gP)%opacity(grid(gP)%active(xP,yP,zP), enPacket%nuP)
@@ -1488,6 +1498,14 @@ module photon_mod
              
              end do ! j safe limit loop
 
+             ! D-224: how often a wall distance is replaced just below. The
+             ! replacement is the grid's extent, not the distance to the next
+             ! wall of the cell the packet has just been moved into.
+             if (pdrSplitField /= 0 .and. gP == 1) then
+                if (abs(dSx)<1.e-10 .or. abs(dSy)<1.e-10 .or. abs(dSz)<1.e-10) &
+                     & trc224(6) = trc224(6) + 1.d0
+             end if
+
              ! cater for cells on cell wall
              if ( abs(dSx)<1.e-10 ) dSx = grid(gP)%xAxis(grid(gP)%nx)
              if ( abs(dSy)<1.e-10 ) dSy = grid(gP)%yAxis(grid(gP)%ny)
@@ -1534,6 +1552,75 @@ module photon_mod
 
              ! find the volume of this cell via pre-calculated array
              dV = cell_volumes(gP)%v(xP,yP,zP)
+
+             ! ------------------------------------------------------ D-224
+             ! Is this step inside the cell it is charged to? tauCell and the
+             ! J estimator both use cell (xP,yP,zP) for the whole of dS, so a
+             ! step that starts outside that cell's box, or runs past its far
+             ! wall, puts optical depth and field in the wrong cell - which is
+             ! one way D-146's shallow attenuation could arise. The box is the
+             ! one the wall distances above are measured to: walls midway
+             ! between axis points, the axis ends at the grid edges. The
+             ! tolerance, 1e-3 of the cell width, is ~500x the single-precision
+             ! position resolution at 6e19 cm. Counted, never acted on.
+             lgTrc224 = (pdrSplitField /= 0 .and. gP == 1)
+             lgOut224 = .false.; lgOver224 = .false.; lgB2224 = .false.; kW224 = 0.
+             lgB2all225 = .false.
+             if (lgTrc224) then
+                if (grid(gP)%active(xP,yP,zP) > 0) then
+                   lo224(1) = grid(gP)%xAxis(1); hi224(1) = grid(gP)%xAxis(grid(gP)%nx)
+                   if (xP > 1) lo224(1) = (grid(gP)%xAxis(xP-1) + grid(gP)%xAxis(xP))/2.
+                   if (xP < grid(gP)%nx) hi224(1) = (grid(gP)%xAxis(xP) + grid(gP)%xAxis(xP+1))/2.
+                   lo224(2) = grid(gP)%yAxis(1); hi224(2) = grid(gP)%yAxis(grid(gP)%ny)
+                   if (yP > 1) lo224(2) = (grid(gP)%yAxis(yP-1) + grid(gP)%yAxis(yP))/2.
+                   if (yP < grid(gP)%ny) hi224(2) = (grid(gP)%yAxis(yP) + grid(gP)%yAxis(yP+1))/2.
+                   lo224(3) = grid(gP)%zAxis(1); hi224(3) = grid(gP)%zAxis(grid(gP)%nz)
+                   if (zP > 1) lo224(3) = (grid(gP)%zAxis(zP-1) + grid(gP)%zAxis(zP))/2.
+                   if (zP < grid(gP)%nz) hi224(3) = (grid(gP)%zAxis(zP) + grid(gP)%zAxis(zP+1))/2.
+                   r224 = (/ rVec%x, rVec%y, rVec%z /)
+                   v224 = (/ vHat%x, vHat%y, vHat%z /)
+                   chord224 = 1.e35
+                   do k224 = 1, 3
+                      tol224 = 1.e-3*(hi224(k224) - lo224(k224))
+                      if (r224(k224) < lo224(k224) - tol224 .or. &
+                           & r224(k224) > hi224(k224) + tol224) lgOut224 = .true.
+                      if (v224(k224) > 1.e-10) then
+                         chord224 = min(chord224, max(hi224(k224) - r224(k224), 0.)/v224(k224))
+                      else if (v224(k224) < -1.e-10) then
+                         chord224 = min(chord224, max(r224(k224) - lo224(k224), 0.)/(-v224(k224)))
+                      end if
+                   end do
+                   if (dS > chord224 + 1.e-3*minval(hi224 - lo224)) lgOver224 = .true.
+                   ! tau per cell as the census measures it
+                   if (xP < grid(gP)%nx) then
+                      dW224 = grid(gP)%xAxis(xP+1) - grid(gP)%xAxis(xP)
+                   else
+                      dW224 = grid(gP)%xAxis(xP) - grid(gP)%xAxis(xP-1)
+                   end if
+                   kW224 = grid(gP)%opacity(grid(gP)%active(xP,yP,zP), enPacket%nuP)*dW224
+                   lgB2224 = enPacket%lgStellar .and. bandP(2) > 0 .and. &
+                        & enPacket%nuP >= bandP(2) .and. enPacket%nuP < bandP(3)
+                   ! D-225: the same band for every packet type, and a count of
+                   ! the stellar steps taken in this cell
+                   lgB2all225 = bandP(2) > 0 .and. &
+                        & enPacket%nuP >= bandP(2) .and. enPacket%nuP < bandP(3)
+                   if (lgB2224 .and. allocated(grid(gP)%trcJ)) &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),6) = &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),6) + 1.
+                   trc224(1) = trc224(1) + 1.d0
+                   trc224(4) = trc224(4) + dble(dS)
+                   if (lgOut224) trc224(2) = trc224(2) + 1.d0
+                   if (lgOver224) then
+                      trc224(3) = trc224(3) + 1.d0
+                      trc224(5) = trc224(5) + dble(dS - chord224)
+                   end if
+                   if (lgB2224) then
+                      trc224(7) = trc224(7) + 1.d0
+                      if (lgOut224)  trc224(8) = trc224(8) + 1.d0
+                      if (lgOver224) trc224(9) = trc224(9) + 1.d0
+                   end if
+                end if
+             end if
              
              !=============================================================
              ! D-147 (removed). A forced-skip variance reduction lived here:
@@ -1614,6 +1701,61 @@ module photon_mod
                       if (vHat%z<0.) vHat%z = -vHat%z
                       rVec%z = grid(gP)%zAxis(1)
                    end if
+                end if
+
+                ! D-224: an interaction of a 15.4-24.6 eV stellar packet in a
+                ! cell it cannot cross (tau per cell > 20): what did it cross
+                ! just before, and was either step inside its own cell?
+                if (lgTrc224 .and. lgB2224) then
+                   if (kW224 > 20.) then
+                      trc224(10) = trc224(10) + 1.d0
+                      if (prevKW224 < 0.) then
+                         trc224(11) = trc224(11) + 1.d0
+                      else if (prevKW224 < 0.1) then
+                         trc224(12) = trc224(12) + 1.d0
+                      else if (prevKW224 < 1.) then
+                         trc224(13) = trc224(13) + 1.d0
+                      else if (prevKW224 < 10.) then
+                         trc224(14) = trc224(14) + 1.d0
+                      else if (prevKW224 < 100.) then
+                         trc224(15) = trc224(15) + 1.d0
+                      else
+                         trc224(16) = trc224(16) + 1.d0
+                      end if
+                      if (prevBad224) trc224(17) = trc224(17) + 1.d0
+                      if (lgOut224 .or. lgOver224) trc224(18) = trc224(18) + 1.d0
+                      r224 = (/ rVec%x, rVec%y, rVec%z /)
+                      lgPt224 = .false.
+                      do k224 = 1, 3
+                         tol224 = 1.e-3*(hi224(k224) - lo224(k224))
+                         if (r224(k224) < lo224(k224) - tol224 .or. &
+                              & r224(k224) > hi224(k224) + tol224) lgPt224 = .true.
+                      end do
+                      if (lgPt224) trc224(19) = trc224(19) + 1.d0
+                      if (prevPdr224) trc224(20) = trc224(20) + 1.d0
+                   end if
+                   if (allocated(grid(gP)%trcJ)) then
+                      grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),5) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),5) + 1.   ! D-225
+                      cJ224 = dlLoc*deltaE(iStar)*(enPacket%weight)/dV
+                      grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),1) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),1) + cJ224
+                      if (lgOut224 .or. lgOver224) &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),2) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),2) + cJ224
+                      if (prevKW224 >= 0. .and. prevKW224 < 1.) &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),3) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),3) + cJ224
+                   end if
+                end if
+
+                ! D-225: every packet in the band, stellar or diffuse, exactly as
+                ! it is added to Jste just below - the closure term
+                if (lgTrc224 .and. lgB2all225) then
+                   if (allocated(grid(gP)%trcJ)) &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),4) = &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),4) &
+                        & + dlLoc*deltaE(iStar)*(enPacket%weight)/dV
                 end if
 
                 ! add contribution of the packet to the radiation field
@@ -1859,6 +2001,8 @@ module photon_mod
 
                       ! initialize optical depth
                       absTau = 0.
+                      ! D-224: the scattered path starts afresh in this cell
+                      prevKW224 = -1.; prevBad224 = .false.; prevPdr224 = .false.
 
 !                      ! get a random number
 !                      call random_number(random)
@@ -1911,6 +2055,28 @@ module photon_mod
                    end if
                 end if
 
+                ! D-225: the closure term on the crossing branch
+                if (lgTrc224 .and. lgB2all225) then
+                   if (allocated(grid(gP)%trcJ)) &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),4) = &
+                        & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),4) &
+                        & + dS*deltaE(iStar)*(enPacket%weight)/dV
+                end if
+                ! D-224: the same split on the crossing branch
+                if (lgTrc224 .and. lgB2224) then
+                   if (allocated(grid(gP)%trcJ)) then
+                      cJ224 = dS*deltaE(iStar)*(enPacket%weight)/dV
+                      grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),1) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),1) + cJ224
+                      if (lgOut224 .or. lgOver224) &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),2) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),2) + cJ224
+                      if (prevKW224 >= 0. .and. prevKW224 < 1.) &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),3) = &
+                           & grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),3) + cJ224
+                   end if
+                end if
+
                 ! D-159: a stellar packet crossing a cell at tau = 175 without
                 ! being absorbed is the transport defect itself. Report the
                 ! survivors: which cell, what optical depth it just crossed,
@@ -1925,6 +2091,18 @@ module photon_mod
                 end if
                 ! update absTau
                 absTau = absTau+tauCell
+                ! D-224: remember the cell just crossed
+                if (lgTrc224) then
+                   prevKW224  = kW224
+                   prevBad224 = lgOut224 .or. lgOver224
+                   prevPdr224 = .false.
+#ifdef PDR
+                   ! pdrZone exists only in the PDR build
+                   if (grid(gP)%active(xP,yP,zP) > 0 .and. allocated(grid(gP)%pdrZone)) then
+                      if (grid(gP)%pdrZone(grid(gP)%active(xP,yP,zP)) == 1) prevPdr224 = .true.
+                   end if
+#endif
+                end if
 
                 ! update packet's position
                 rVec = rVec+dS*vHat

@@ -115,6 +115,16 @@ module iteration_mod
            real(kind=8)              :: budSum5(3,8)                ! D-223
            integer                   :: iOffD, niD, njD, nkD, nbD   ! D-223
            integer                   :: nHotD, nUpD, nDnD           ! D-223
+           real(kind=8)              :: budSum6(3,15)               ! D-224
+           real(kind=8)              :: tNbD, tMinD, tUpMinD        ! D-224
+           integer                   :: nbMinD, iHD                 ! D-224
+           real(kind=8)              :: budSum7(3,7)                ! D-225
+           real(kind=8)              :: jbD, jdD, tj1D, tj4D, sclD  ! D-225
+           real(kind=8)              :: sJ225, sT225                ! D-225
+           integer                   :: nC225, nMis225, iC225       ! D-225
+           real(kind=8)              :: budSum8(3,70), budSum9(3,64) ! D-226
+           real(kind=8)              :: pLinD, dP226                ! D-226
+           integer                   :: nB226, kB226, kTopP, kTopJ  ! D-226
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
 #endif
@@ -573,6 +583,11 @@ module iteration_mod
            do iG = 1, nGrids
 
               grid(iG)%Jste(0:grid(iG)%nCells, 1:nbins)    = 0.
+              ! D-224: the transport trace restarts with the field
+              if (pdrSplitField /= 0) then
+                 trc224 = 0.d0
+                 if (allocated(grid(iG)%trcJ)) grid(iG)%trcJ = 0.
+              end if
               ! D-158: Jdif is only reset under lgDebug, so mirroring the
               ! diffuse packets into it without this let it accumulate across
               ! every iteration - it read 8.8e7 against Jste's 0.038. Reset it
@@ -798,6 +813,44 @@ module iteration_mod
               call mpi_allreduce(grid(iG)%JSte, JSteTemp, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
 
+#ifdef PDR
+              ! D-224: the transport trace, summed over ranks. pdrSplitField
+              ! and trcJ's allocation are the same on every rank, so no rank
+              ! skips a collective the others run. PDR build only: trcJ is
+              ! only allocated there, and the print borrows the census's
+              ! loop counter, which is declared there.
+              if (pdrSplitField /= 0) then
+                 if (allocated(grid(iG)%trcJ)) &
+                      & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%trcJ, (grid(iG)%nCells+1)*6, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 if (iG == 1) then
+                    call mpi_allreduce(MPI_IN_PLACE, trc224, 20, &
+                         & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+                    if (taskid == 0) then
+                       print '(a,es10.3,a,f9.5,a,f9.5,a,es10.3,a,es10.3)', &
+                            & " ! [D224T] steps", trc224(1), &
+                            & "   start outside their cell (%)", 100.d0*trc224(2)/max(trc224(1), 1.d0), &
+                            & "   longer than the chord (%)", 100.d0*trc224(3)/max(trc224(1), 1.d0), &
+                            & "   excess/total path", trc224(5)/max(trc224(4), 1.d-99), &
+                            & "   wall snaps", trc224(6)
+                       print '(a,es10.3,a,f9.5,a,f9.5)', &
+                            & " ! [D224T] 15.4-24.6 eV stellar steps", trc224(7), &
+                            & "   start outside (%)", 100.d0*trc224(8)/max(trc224(7), 1.d0), &
+                            & "   longer than the chord (%)", 100.d0*trc224(9)/max(trc224(7), 1.d0)
+                       print '(a,es10.3,a,6f7.2,a,f7.2,a,f7.2,a,f7.2,a,f7.2)', &
+                            & " ! [D224T] 15.4-24.6 eV stellar interactions in cells with tau/cell>20:", &
+                            & trc224(10), &
+                            & "   previous cell tau/cell none/<0.1/0.1-1/1-10/10-100/>=100 (%)", &
+                            & (100.d0*trc224(10+kBd)/max(trc224(10), 1.d0), kBd = 1, 6), &
+                            & "   previous step not in its cell (%)", 100.d0*trc224(17)/max(trc224(10), 1.d0), &
+                            & "   this step not in its cell (%)", 100.d0*trc224(18)/max(trc224(10), 1.d0), &
+                            & "   point outside cell (%)", 100.d0*trc224(19)/max(trc224(10), 1.d0), &
+                            & "   previous cell PDR zone (%)", 100.d0*trc224(20)/max(trc224(10), 1.d0)
+                    end if
+                 end if
+              end if
+#endif
+
               size =  (grid(iG)%nCells+1)*nLines
 
               if (lgDebug) then
@@ -811,7 +864,14 @@ module iteration_mod
                     do k = 1, grid(iG)%nz
                        if (grid(iG)%active(i,j,k)>0) then
                           do freq = 1, nbins
-                             if (lgDebug) then
+                             ! D-225: pdrSplitField reduces Jdif into JDifTemp
+                             ! (D-158) but the copy back was only under lgDebug,
+                             ! so every rank kept its own packets' deposits and
+                             ! the census read ~1/14 of the diffuse field. That
+                             ! made D-223's "diffuse fraction" ~0.07 whatever the
+                             ! truth. Diagnostic only: nothing reads Jdif for
+                             ! physics unless lgDebug (D-218).
+                             if (lgDebug .or. pdrSplitField /= 0) then
                                 grid(iG)%JDif(grid(iG)%active(i,j,k),freq) = &
                                      & JDifTemp(grid(iG)%active(i,j,k),freq)
                              end if
@@ -879,6 +939,33 @@ module iteration_mod
            end do
 
 #ifdef PDR
+           ! ------------------------------------------------------- D-225
+           ! Closure, checkpoint 1: straight after the transfer, reduction and
+           ! scaling, does Jste summed over 15.4-24.6 eV equal the traced
+           ! deposits of every packet in that band, cell by cell? trcJ(:,4)
+           ! adds exactly what pathSegment adds to Jste, so it can only differ
+           ! if something else writes Jste. Scaled as Jste is just above.
+           ! Both arrays are reduced, so every rank holds the same values; no
+           ! collective here.
+           if (pdrSplitField /= 0 .and. allocated(grid(1)%trcJ) .and. bandP(2) > 0) then
+              sclD = 1.d-9
+              if (lgSymmetricXYZ) sclD = sclD/8.d0
+              nC225 = 0; nMis225 = 0; sJ225 = 0.d0; sT225 = 0.d0
+              do iC225 = 1, grid(1)%nCells
+                 jbD  = dble(sum(grid(1)%Jste(iC225, bandP(2):bandP(3)-1)))
+                 tj4D = dble(grid(1)%trcJ(iC225,4))*sclD
+                 if (jbD <= 0.d0 .and. tj4D <= 0.d0) cycle
+                 nC225 = nC225 + 1
+                 sJ225 = sJ225 + jbD
+                 sT225 = sT225 + tj4D
+                 if (abs(jbD - tj4D) > 1.d-3*max(jbD, tj4D)) nMis225 = nMis225 + 1
+              end do
+              if (taskid == 0) print '(a,es12.5,a,es12.5,a,f9.6,a,i8,a,i8)', &
+                   & " ! [D225T] after transfer, 15.4-24.6 eV: sum Jste", sJ225, &
+                   & "   sum traced", sT225, "   traced/Jste", sT225/max(sJ225, 1.d-99), &
+                   & "   cells with field", nC225, "   not closing to 1e-3", nMis225
+           end if
+
            ! Placed AFTER the loop above, not before it. That loop applies the
            ! 1.e-9 unit conversion to Jste (and the lgSymmetricXYZ division by
            ! 8); reducing the field any earlier reads the raw estimator and
@@ -1181,6 +1268,10 @@ module iteration_mod
                  budSum3 = 0.d0
                  budSum4 = 0.d0
                  budSum5 = 0.d0
+                 budSum6 = 0.d0
+                 budSum7 = 0.d0
+                 budSum8 = 0.d0
+                 budSum9 = 0.d0
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -1363,6 +1454,7 @@ module iteration_mod
                              ! no assumption about where the star sits.
                              if (allocated(grid(iG)%TeIterStart)) then
                                 nHotD = 0; nUpD = 0; nDnD = 0
+                                tMinD = huge(1.d0); tUpMinD = huge(1.d0); nbMinD = 0   ! D-224
                                 do iOffD = 1, 6
                                    niD = i; njD = j; nkD = k
                                    select case (iOffD)
@@ -1379,6 +1471,20 @@ module iteration_mod
                                    nbD = grid(iG)%active(niD,njD,nkD)
                                    if (nbD <= 0) cycle
                                    budSum5(iBudG,5) = budSum5(iBudG,5) + 1.d0
+                                   ! D-224: what the photons care about - the
+                                   ! neighbour's tau per cell at band 2's
+                                   ! representative bin, from the opacity the
+                                   ! transport used (reduced, so every rank
+                                   ! holds it for every cell)
+                                   if (bandRepP(2) > 0) then
+                                      tNbD = dble(grid(iG)%opacity(nbD,bandRepP(2)))*dxCell
+                                      if (tNbD < tMinD) then
+                                         tMinD = tNbD
+                                         nbMinD = nbD
+                                      end if
+                                      if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) &
+                                           & tUpMinD = min(tUpMinD, tNbD)
+                                   end if
                                    if (grid(iG)%TeIterStart(nbD) > 3000.) then
                                       nHotD = nHotD + 1
                                       if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) then
@@ -1392,6 +1498,88 @@ module iteration_mod
                                 budSum5(iBudG,2) = budSum5(iBudG,2) + dble(nHotD)
                                 if (nUpD > 0)  budSum5(iBudG,3) = budSum5(iBudG,3) + 1.d0
                                 if (nDnD > 0)  budSum5(iBudG,4) = budSum5(iBudG,4) + 1.d0
+                                ! D-224: the most transparent face-neighbour,
+                                ! and where this cell's band-2 stellar field
+                                ! came from (trcJ, summed after the transfer)
+                                if (nbMinD > 0) then
+                                   if (tMinD < 0.1d0) then
+                                      iHD = 1
+                                   else if (tMinD < 1.d0) then
+                                      iHD = 2
+                                   else if (tMinD < 10.d0) then
+                                      iHD = 3
+                                   else if (tMinD < 100.d0) then
+                                      iHD = 4
+                                   else
+                                      iHD = 5
+                                   end if
+                                   budSum6(iBudG,iHD) = budSum6(iBudG,iHD) + 1.d0
+                                   budSum6(iBudG,6) = budSum6(iBudG,6) + log10(max(tMinD, 1.d-10))
+                                   if (allocated(grid(iG)%pdrZone)) then
+                                      if (grid(iG)%pdrZone(nbMinD) == 1) &
+                                           & budSum6(iBudG,7) = budSum6(iBudG,7) + 1.d0
+                                   end if
+                                   budSum6(iBudG,8) = budSum6(iBudG,8) + dble(grid(iG)%TeIterStart(nbMinD))
+                                   if (allocated(grid(iG)%xHIiterStart)) budSum6(iBudG,9) = &
+                                        & budSum6(iBudG,9) + dble(grid(iG)%xHIiterStart(nbMinD))
+                                   if (grid(iG)%AVeff(nbMinD) < grid(iG)%AVeff(iDum)) &
+                                        & budSum6(iBudG,10) = budSum6(iBudG,10) + 1.d0
+                                   budSum6(iBudG,15) = budSum6(iBudG,15) + 1.d0
+                                end if
+                                if (tUpMinD < 1.d0) budSum6(iBudG,14) = budSum6(iBudG,14) + 1.d0
+                                if (allocated(grid(iG)%trcJ)) then
+                                   do kBd = 1, 3
+                                      budSum6(iBudG,10+kBd) = budSum6(iBudG,10+kBd) &
+                                           & + dble(grid(iG)%trcJ(iDum,kBd))
+                                   end do
+                                end if
+                                ! D-225: closure, checkpoint 2 - at the census,
+                                ! per group, in absolute terms. Jste and trcJ
+                                ! are both reduced, so any cell can be read here.
+                                if (allocated(grid(iG)%trcJ) .and. bandP(2) > 0 &
+                                     & .and. pdrSplitField /= 0) then
+                                   sclD = 1.d-9
+                                   if (lgSymmetricXYZ) sclD = sclD/8.d0
+                                   jbD  = dble(sum(grid(iG)%Jste(iDum, bandP(2):bandP(3)-1)))
+                                   jdD  = dble(sum(grid(iG)%Jdif(iDum, bandP(2):bandP(3)-1)))
+                                   tj1D = dble(grid(iG)%trcJ(iDum,1))*sclD
+                                   tj4D = dble(grid(iG)%trcJ(iDum,4))*sclD
+                                   budSum7(iBudG,1) = budSum7(iBudG,1) + jbD
+                                   budSum7(iBudG,2) = budSum7(iBudG,2) + jdD
+                                   budSum7(iBudG,3) = budSum7(iBudG,3) + tj1D
+                                   budSum7(iBudG,4) = budSum7(iBudG,4) + tj4D
+                                   budSum7(iBudG,5) = budSum7(iBudG,5) + dble(grid(iG)%trcJ(iDum,5))
+                                   budSum7(iBudG,6) = budSum7(iBudG,6) + dble(grid(iG)%trcJ(iDum,6))
+                                   if (abs(jbD - tj4D) > 1.d-3*max(jbD, tj4D)) &
+                                        & budSum7(iBudG,7) = budSum7(iBudG,7) + 1.d0
+                                end if
+                                ! D-226: what this cell's re-emission spectrum
+                                ! puts into the band - the probability that a
+                                ! diffuse packet born here is a 15.4-24.6 eV
+                                ! continuum photon, bin by bin (recPDF is the
+                                ! cumulative continuum PDF, totalLines the line
+                                ! share; both reduced after emissionDriver) -
+                                ! with the field in the same bins beside it
+                                if (bandP(2) > 1 .and. bandP(3) > bandP(2)) then
+                                   nB226 = min(bandP(3) - bandP(2), 64)
+                                   pLinD = dble(grid(iG)%totalLines(iDum))
+                                   do kB226 = 0, nB226 - 1
+                                      dP226 = (1.d0 - pLinD) &
+                                           & *dble(grid(iG)%recPDF(iDum, bandP(2)+kB226) &
+                                           &     - grid(iG)%recPDF(iDum, bandP(2)+kB226-1))
+                                      budSum8(iBudG,6+kB226) = budSum8(iBudG,6+kB226) + dP226
+                                      budSum8(iBudG,1) = budSum8(iBudG,1) + dP226
+                                      budSum9(iBudG,1+kB226) = budSum9(iBudG,1+kB226) &
+                                           & + dble(grid(iG)%Jste(iDum, bandP(2)+kB226))
+                                   end do
+                                   if (grid(iG)%TeIterStart(iDum) < 100.) &
+                                        & budSum8(iBudG,2) = budSum8(iBudG,2) + 1.d0
+                                   budSum8(iBudG,3) = budSum8(iBudG,3) &
+                                        & + dble(grid(iG)%ionDen(iDum,elementXref(2),2))
+                                   budSum8(iBudG,4) = budSum8(iBudG,4) &
+                                        & + dble(grid(iG)%ionDen(iDum,elementXref(1),2))
+                                   budSum8(iBudG,5) = budSum8(iBudG,5) + pLinD
+                                end if
                              end if
                              ! the diffuse part of the field in the three bands
                              ! that carry any: Jdif holds the diffuse packets
@@ -1457,6 +1645,14 @@ module iteration_mod
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-222
                  if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum5, 24, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-223
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum6, 45, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-224
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum7, 21, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-225
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum8, 210, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
+                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum9, 192, &
+                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
                  ! D-205. The pass-1 line is the D-204 ordering probe and keeps
                  ! its label; passes 2..n are the same numbers inside the loop,
                  ! where the runaway actually happens. The [D119] residual
@@ -1591,6 +1787,67 @@ module iteration_mod
                                & print '(a,3f9.4)', &
                                & " ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4", &
                                & (budSum5(iBudG,5+kBd)/max(budSum4(iBudG,kBd), 1.d-99), kBd = 1, 3)
+                          ! D-224: neighbours by optical depth, and where the
+                          ! 15.4-24.6 eV stellar field came from
+                          if (bandRepP(2) > 0) then
+                             print '(a,f6.1,a,5f7.2,a,f7.2)', &
+                                  & " ! [D224]   most transparent face-neighbour, tau/cell @", &
+                                  & nuArray(bandRepP(2))*13.605693, &
+                                  & " eV  <0.1 / 0.1-1 / 1-10 / 10-100 / >=100 (%)", &
+                                  & (100.d0*budSum6(iBudG,kBd)/max(budSum6(iBudG,15), 1.d0), kBd = 1, 5), &
+                                  & "   <log10>", budSum6(iBudG,6)/max(budSum6(iBudG,15), 1.d0)
+                             print '(a,f7.2,a,f8.1,a,es10.3,a,f7.2,a,f7.2,a)', &
+                                  & " ! [D224]   that neighbour: PDR zone", &
+                                  & 100.d0*budSum6(iBudG,7)/max(budSum6(iBudG,15), 1.d0), &
+                                  & "%   Te_start", budSum6(iBudG,8)/max(budSum6(iBudG,15), 1.d0), &
+                                  & "   x(H0)_start", budSum6(iBudG,9)/max(budSum6(iBudG,15), 1.d0), &
+                                  & "   upstream", 100.d0*budSum6(iBudG,10)/max(budSum6(iBudG,15), 1.d0), &
+                                  & "%   any upstream neighbour tau/cell<1 in", &
+                                  & 100.d0*budSum6(iBudG,14)/max(budSum(iBudG,21), 1.d0), "%"
+                             print '(a,2f9.5)', &
+                                  & " ! [D224]   15.4-24.6 eV stellar J share: steps not in their cell / entering from tau/cell<1", &
+                                  & budSum6(iBudG,12)/max(budSum6(iBudG,11), 1.d-99), &
+                                  & budSum6(iBudG,13)/max(budSum6(iBudG,11), 1.d-99)
+                             ! D-225: the closure, and the transport events
+                             ! that actually happened in these cells
+                             if (pdrSplitField /= 0) then
+                                print '(a,es10.3,a,es10.3,a,f9.6,a,f7.2,a)', &
+                                     & " ! [D225]   15.4-24.6 eV per cell: Jste", &
+                                     & budSum7(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   traced, all packets", budSum7(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   traced/Jste", budSum7(iBudG,4)/max(budSum7(iBudG,1), 1.d-99), &
+                                     & "   cells not closing to 1e-3", &
+                                     & 100.d0*budSum7(iBudG,7)/max(budSum(iBudG,21), 1.d0), "%"
+                                print '(a,es10.3,a,es10.3,a,f9.6,a,es10.3,a,es10.3)', &
+                                     & " ! [D225]   stellar per cell: Jste-Jdif", &
+                                     & (budSum7(iBudG,1)-budSum7(iBudG,2))/max(budSum(iBudG,21), 1.d0), &
+                                     & "   traced stellar", budSum7(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   ratio", budSum7(iBudG,3)/max(budSum7(iBudG,1)-budSum7(iBudG,2), 1.d-99), &
+                                     & "   stellar interactions/cell", budSum7(iBudG,5)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   stellar steps/cell", budSum7(iBudG,6)/max(budSum(iBudG,21), 1.d0)
+                             end if
+                             ! D-226: the re-emission spectrum in the band,
+                             ! and where in the band the field sits
+                             if (bandP(3) > bandP(2) .and. bandP(2) > 1) then
+                                nB226 = min(bandP(3) - bandP(2), 64)
+                                kTopP = maxloc(budSum8(iBudG,6:5+nB226), 1) - 1
+                                kTopJ = maxloc(budSum9(iBudG,1:nB226), 1) - 1
+                                print '(a,es10.3,a,f7.2,a,f6.3,a,f7.2,a,es10.3,a,es10.3,a,f6.3)', &
+                                     & " ! [D226]   P(re-emitted packet born in 15.4-24.6 eV)", &
+                                     & budSum8(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   top bin", nuArray(bandP(2)+kTopP)*13.605693, &
+                                     & " eV carries", budSum8(iBudG,6+kTopP)/max(budSum8(iBudG,1), 1.d-99), &
+                                     & "   Te_start<100 K (%)", 100.d0*budSum8(iBudG,2)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   x(He+)", budSum8(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   x(H+)", budSum8(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
+                                     & "   line fraction", budSum8(iBudG,5)/max(budSum(iBudG,21), 1.d0)
+                                print '(a,f7.2,a,f6.3,a,f7.2,a,f6.3)', &
+                                     & " ! [D226]   Jste 15.4-24.6 eV: top bin", nuArray(bandP(2)+kTopJ)*13.605693, &
+                                     & " eV holds", budSum9(iBudG,1+kTopJ)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99), &
+                                     & " of the band;  the top-P bin", nuArray(bandP(2)+kTopP)*13.605693, &
+                                     & " eV holds", budSum9(iBudG,1+kTopP)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99)
+                             end if
+                          end if
                        end do
                     end if
                  end if

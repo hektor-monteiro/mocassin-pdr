@@ -222,7 +222,11 @@ reasoning that led to the wrong turn is part of the history.
 | D-220 | **The ion stages are rescaled to the chemistry's available fraction before the next opacity is built - verified, and the collapse survives it.** D-153's rule on MOCASSIN's side, applied after the D-200 damping, plus a `pdrToMocassin` after the seed. Before the rescale hydrogen was off by a mean 0.400 / 0.093 / 0.420 (93% / 78% / 89% of cells) at iterations 4-6; after it the budget reads 1.0000. The opacity follows: tau 281 per cell against 272 predicted at iteration 5, where it read 1260. Iteration 6 still collapses - median f_mol 0.239 against 0.238 without the fix, Te median 2160 K against 2525 K | Done | 2026-09-10 |
 | D-221 | **The heating that flips cells comes from above 15.43 eV, where H2 absorbs - not from the H2-transparent window.** At iteration 6, 7274 cells go cold -> hot (7270 of them cold at iteration 5): 99.9998% of their field and essentially all their H0 photoionization heating (4.94e-23 against 3.2e-29 in the window) lie above 15.43 eV, and H0 is 99.3% of their photoionization heating. Iterations 4 and 5 showed the same in 18 cells. So missing H2 line opacity between 13.6 and 15.4 eV is ruled out as the cause. The two bands reproduce D-218's total field to four figures | Done | 2026-09-10 |
 | D-222 | **The cells that flip are heated by photons they cannot transmit.** At every iteration 6-12 the flipping cells take their field and H0 heating only from 15.4-24.6 eV (24.6-54.4 eV is 5-8 orders weaker, nothing above 54.4 eV), where their tau per cell is 559-758 at the band centre, dominated by H2. The one place H2 does not absorb - `yanH2xSec` is clamped to zero from 15.43 to ~15.7 eV - is still held above ~78 per cell by the remaining H0. (gas+dust)/total = 1.0000 throughout. Opacity does not distinguish flipping from stayed-cold cells (it 10: 747 vs 703) while the field does (32x). No energy present lets photons cross one cell, so the field inside must enter a skin or be emitted locally | Done | 2026-09-10 |
-| D-223 | **Neither a hot neighbour nor local emission puts the field there - and D-146's open question is back.** At the iteration-6 collapse 0.03% of the 7345 flipping cells have a face-neighbour above 3000 K (control 1.52%); at iterations 7-12 flipping cells border hot cells no more often than stayed-cold cells. The field is ~93% stellar in every group. No `[D159]` crossing again, weights are 1, `Jste` is reset each iteration, and every `absTau` reset is paired with a `passProb` redraw. So stellar packets reach cells opaque at every energy with field without crossing a thick cell. The resolution-artefact hypothesis as stated is refuted; the Te criterion cannot see a neighbour that is transparent but cold | Done | 2026-09-10 |
+| D-223 | **Neither a hot neighbour nor local emission puts the field there - and D-146's open question is back.** At the iteration-6 collapse 0.03% of the 7345 flipping cells have a face-neighbour above 3000 K (control 1.52%); at iterations 7-12 flipping cells border hot cells no more often than stayed-cold cells. The field is ~93% stellar in every group. No `[D159]` crossing again, weights are 1, `Jste` is reset each iteration, and every `absTau` reset is paired with a `passProb` redraw. So stellar packets reach cells opaque at every energy with field without crossing a thick cell. The resolution-artefact hypothesis as stated is refuted; the Te criterion cannot see a neighbour that is transparent but cold - **the diffuse-fraction half is retracted at D-225: Jdif was rank-local, the true field in PDR cells is entirely diffuse** | Done | 2026-09-10 |
+| D-224 | **No transparent neighbour and no misplaced step - yet the cells that flip hold the model's largest 15.4-24.6 eV field.** At iterations 4-6 every PDR-zone cell's most transparent face-neighbour is above 100 per cell at 19.8 eV, in every group. Steps outside their cell are 2-7e-7 of all steps (none in the band); the wall-snap branch fires ~300 times in 3e8 steps. Stellar 15.4-24.6 eV interactions in opaque cells (0.9-3.6e4 per iteration) arrive from non-PDR cells at 1-100 per cell - never from a PDR cell - while at iteration 6 the 7238 flipping cells, whose neighbours are all PDR cells, hold 3.2e-3 against 3.3e-7 in the cells on the H II edge. The opacity is written only before the transfer. Unexplained by any traced transport event | Done | 2026-09-11 |
+| D-225 | **The field in the flipping cells is deposited by transport - and none of it is stellar.** Jste over 15.4-24.6 eV equals the traced deposits of every packet in the band to 1.000000 in every cell, after the transfer (iterations 1-7) and at the census (every group). At the iteration-6 collapse the 7322 flipping cells hold 3.30e-3 with zero stellar steps and zero stellar interactions: the field is re-emitted, diffuse radiation. D-223's 'about 93% stellar' was an instrument defect - JDifTemp was reduced but copied back only under lgDebug, so each rank kept ~1/14 of the diffuse field - fixed (diagnostic only) | Done | 2026-09-11 |
+| D-226 | **The collapse is MOCASSIN's He I recombination continuum starting two bins below threshold.** fb_ff starts the analytic He I branch at bin 465 (1.7922 Ryd, 24.38 eV), not at the threshold bin 467 (1.8080 Ryd), with exp(+(nu_th - nu)h/kTe) and a cross-section read from the free-free block (3.4e-22 against 7.4e-18). At the iteration-6 collapse 98.3% of what the 7237 flipping cells re-emit is born in that one bin, and it holds 100% of their 15.4-24.6 eV field; 85% of them started below 100 K and their x(He+) is 1.7e-5. At iteration 4, with no cell below 100 K, the band's small re-emission (2.6e-4) was the real He I 2^3S 19.8 eV term. Fix proposed, not applied | Done | 2026-09-11 |
+| D-227 | **Fixed: the He I and He II continua start at their thresholds - the relaxation oscillation is gone.** Against runs/d224-trace (same fixture, no fix): 0 cells cold -> hot at iteration 6 (7238 before) and at 10 (5409); median f_mol 0.938 at 6 (0.239) and 0.9455 at 10 (0.365), flat from iteration 9; cells moving > 0.1% fall 63% -> 5.7% -> 1.2%; P(re-emission in 15.4-24.6 eV) in cold cells 5.5e-5 to 9.7e-5, carried by the real 19.8 eV term; the band's field stays in ~330-440 cells. MOCASSIN's converged count stays ~0% - the D-032 PDR heat/cool test is still on by default (pdrFcritConv = 1), which D-176/D-193 found meaningless under the contract | Done | 2026-09-11 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -13623,3 +13627,508 @@ should use the neighbour's tau per cell at the band's representative energy.
 Failing that, a packet-level trace - for band-2 stellar packets absorbed in PDR
 cells, the cells crossed and the optical depth accumulated - is the direct
 measurement.
+
+
+---
+
+## D-224 - neighbours by optical depth, and the transport trace (2026-09-11)
+
+**Why.** D-223 closed both routes D-222 left open - no hot neighbour, no local
+emission - and left two things standing: the flipping cells take 16-32x the
+control's 15.4-24.6 eV stellar field at the same ~700-760 tau per cell, and
+D-146's measured attenuation (~0.9 per cell against a stored 250-450) was never
+explained. A packet absorbed in an opaque cell deposits a path of ~1/kappa, so
+an opaque cell's J measures the energy *entering* it. 16-32x the field at the
+same opacity is 16-32x the energy entering. Either it crosses a face from a
+neighbour the photons can cross - which a Te test cannot see - or the transport
+charges some steps to a cell they are not in. Both are measured in one build.
+
+**1. Adjacency by optical depth** (census, pass 1, per outcome group). For each
+cell, among its six face-neighbours (in the PDR zone or not), the one with the
+smallest tau per cell at band 2's representative bin (19.8 eV), from
+`grid%opacity` - the array the transport used this iteration, reduced across
+ranks. Reported: the histogram of that minimum (<0.1, 0.1-1, 1-10, 10-100,
+>=100), its mean log10; for that neighbour, whether it is in the PDR zone, its
+iteration-start Te and x(H0), whether it is upstream in A_V; and the share of
+cells with any upstream neighbour below 1 per cell.
+  - Flippers with a transparent neighbour, control without: the channel is
+    physical, and the question becomes why that neighbour is transparent at the
+    temperature it has.
+  - Neither group with one: the field in the flippers did not come through a
+    face, and part 2 should show how it got there.
+
+**2. Transport trace** (photon_mod, every packet, every iteration). Where
+`tauCell = dS*opacity(xP,yP,zP)` is formed, the step's start point and length
+are checked against the box of cell (xP,yP,zP): walls midway between axis
+points and the axis ends at the grid edges - the same walls the wall distances
+are measured to - with a tolerance of 1e-3 of a cell width (single-precision
+position resolution at 6e19 cm is ~4e12 cm, ~2e-6 of a cell). Counted:
+  - steps starting outside their cell;
+  - steps longer than the chord to the cell's far wall, and the excess path;
+  - how often the "cater for cells on cell wall" branch replaces a wall
+    distance. Read from the code, when a packet sits exactly on a wall the
+    j-loop advances the index and that branch then sets the distance to
+    `xAxis(nx)`, the grid's extent, without computing the distance to the next
+    wall of the new cell. A step taken after it could run through several cells
+    while charging one cell's opacity and J. Whether it fires in this geometry
+    is not known from reading.
+
+For 15.4-24.6 eV stellar packets - the band that carries the heating that flips
+cells (D-221, D-222) - also: every interaction in a cell with tau per cell > 20
+is binned by the tau per cell of the cell crossed immediately before ("none"
+when the path began in that cell, at launch or after a dust scattering), and
+flagged if the previous step or this one was not inside its cell, if the
+interaction point is outside the cell, and if the previous cell is in the PDR
+zone. Per cell, the band's path-length estimator is split into the part
+deposited by steps not inside their cell and the part deposited by steps
+entering from a cell below 1 per cell; the census reports both shares per group.
+
+**Diagnostic only.** Behind `pdrSplitField`, as D-159's probe is. The counters
+are summed and printed, never read by the physics, and no random number is
+drawn, so the packet histories are those of D-223. The fixture is `hiipdr-split`
+unchanged; the run should reproduce `runs/d223-adjacency` to Monte Carlo
+scatter.
+
+**What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-11)
+
+`runs/d224-trace`, fixture `hiipdr-split`, 14 ranks. Iterations 1-7 read here;
+the run continues to 12.
+
+**The transport trace, every iteration.**
+
+     it   all steps   outside cell   past far wall   wall snaps   band-2 stellar steps (outside / past wall)
+      1    3.36e8      6e-7            7e-7            290          6.10e6  (0 / 0)
+      4    3.00e8      6e-7            7e-7            292          4.52e6  (0 / 0)
+      5    3.14e8      6e-7            6e-7            261          4.60e6  (0 / 0)
+      6    9.74e8      2e-7            3e-7            953          4.63e6  (0 / 0)
+      7    9.81e8      2e-7            3e-7            527          4.64e6  (0 / 0)
+
+(fractions, not percent). The excess path of steps longer than their chord is
+4-14e-7 of the total. The "cater for cells on cell wall" branch read from the
+code does fire, but a few hundred times in 3e8 steps. Geometric misassignment
+of optical depth or field is not what is happening. The total step count
+triples at iteration 6 while the band-2 stellar count does not move; that is
+other bands or diffuse packets and is not followed up here.
+
+     15.4-24.6 eV stellar interactions in cells with tau per cell > 20
+     it   count     previous cell tau/cell:  none  <0.1  0.1-1  1-10   10-100  >=100   previous cell in PDR zone
+      3        5                              0     0     0     60     40      0        0
+      4      888                              0     0     0     83.3   16.7    0        0
+      5     8484                              0     0     0     93.9    6.1    0        0
+      6    18890                              0     0     0     96.1    3.9    0.02     0
+      7    28350                              0     0     2.7   93.4    3.8    0.05     0
+
+No step involved is outside its cell, no interaction point is outside its cell.
+
+**Adjacency by optical depth.** At iterations 4, 5 and 6, in every outcome
+group, 100% of cells have their most transparent face-neighbour above 100 per
+cell at 19.8 eV; none has any upstream neighbour below 1 per cell; the share of
+the band's stellar field from steps entering from below 1 per cell is 0.
+
+     it 6         cells   J 15.4-24.6   min-neighbour tau   that neighbour: PDR zone   Te_start   x(H0)_start
+     cold -> hot   7238    3.23e-3       ~710 (all >=100)    100%                        260 K      0.17
+     stayed cold   7616    2.48e-4       ~650                 99.6%                      408 K      0.33
+     started hot     65    3.31e-7       ~250                  1.5% (all upstream)      5872 K      0.54
+
+**What it means.** The PDR zone is sealed at 19.8 eV: every cell in it,
+including the ones on the H II edge, has only neighbours above 100 per cell -
+the ionization front itself sits in the non-PDR cells, which are where the
+opaque-cell interactions happen (their previous cells are never PDR cells). The
+cells on the H II edge hold 3.3e-7. The flipping cells, walled in by PDR cells
+at ~700 per cell, hold 3.2e-3 - four orders more - and ~93% of it is stellar
+(D-223). For a stellar packet to interact in a flipping cell its previous cell
+would be a PDR cell, and that count is zero at every iteration.
+
+**Refuted here.**
+  - A transparent-but-cold neighbour channel (D-223's open point): there is no
+    neighbour below 100 per cell.
+  - Steps charged to a cell they are not in, including via the wall-snap
+    branch: 2-7e-7 of steps, none in the band.
+  - Packets crossing opaque PDR cells in sequence: previous cell >= 100 per cell
+    in 0-0.1% of opaque interactions, and never a PDR cell.
+  - The opacity being rebuilt between the transfer and the census, so that the
+    census reads a different opacity than the photons saw: `grid%opacity` is
+    written only at the top of the MC iteration (zeroed, `ionizationDriver`,
+    reduction, dust), before `energyPacketDriver`; `addOpacity` is called only
+    from `ionizationDriver`, which is called only there.
+  - A NaN in the outputs: the single match was the label `nAngleBins`. No NaN
+    or negative-opacity warning in the log.
+
+**Caveats.** "Previous cell in the PDR zone" reads `pdrZone` inside the
+transport on every rank; that it is valid there is inferred from its reduction,
+not checked. The census shares are shares, not absolute values, so they cannot
+say whether the traced stellar estimator in the flipping cells is small or zero.
+Both are removed in D-225.
+
+---
+
+## D-225 - closure: is the field deposited by transport at all? (2026-09-11)
+
+**Why.** D-224 leaves the flipping cells' 15.4-24.6 eV field unexplained by any
+transport event it traced. Every write to `Jste` in the source was listed: the
+two deposits in `pathSegment` (crossing and interaction), the same pair in
+fluorescence_mod (fluorescence is off here), the zeroing, the copy back from the
+reduction (a straight copy by `active` index) and the uniform 1e-9 and 1/8
+scaling. So either the field there is deposited by steps the trace classified
+without its being visible in shares, or something that is not in that list
+writes into `Jste` - an out-of-bounds write into adjacent memory is the obvious
+candidate, and would be invisible to every census so far.
+
+**What.** `trcJ` grows to six columns:
+  4. the path-length estimator for every packet in the band, stellar or
+     diffuse, added in both branches exactly as `Jste` is;
+  5. stellar interactions in the cell;
+  6. stellar steps in the cell.
+
+**Checkpoint 1** (right after the transfer, reduction and scaling): over all
+cells, the sum of `Jste` over 15.4-24.6 eV and the scaled sum of column 4, their
+ratio, and the number of cells differing by more than 1e-3.
+
+**Checkpoint 2** (census, per outcome group): per cell, `Jste` and the traced
+total, their ratio and the share of cells not closing; `Jste - Jdif` against the
+traced stellar estimator; stellar interactions per cell and stellar steps per
+cell, counted where they happen rather than inferred from the previous cell's
+zone.
+
+Closure at both: the flippers' field is deposited by transport steps in those
+cells, and the step counts say which. Closure at 1, not at 2: something between
+the transfer and the census writes `Jste`. No closure at 1: something inside the
+transfer writes `Jste` outside the deposits - next is a bounds-checked build.
+
+**Run.** `runs/d225-closure`, fixture `hiipdr-split` with `maxIterateMC` cut to
+7 in the run's copy of the input (iteration 6 is the collapse; nothing before it
+depends on the iteration cap). Diagnostic only, behind `pdrSplitField`.
+
+**What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-11)
+
+`runs/d225-closure`, fixture `hiipdr-split` capped at 7 iterations, 14 ranks.
+
+**Checkpoint 1, straight after the transfer** (whole grid, 15.4-24.6 eV):
+
+     it   sum Jste   traced/Jste   cells with field   not closing to 1e-3
+      1    156.5      1.000000        15093               0
+      2     97.0      1.000000        12933               0
+      3     87.5      1.000000         5196               0
+      4     84.65     1.000000         1326               0
+      5     86.83     1.000000         3300               0
+      6    113.73     1.000000        14370               0
+      7    126.65     1.000000        10577               0
+
+**Checkpoint 2, at the census, per group:**
+
+     it  group         cells   Jste/cell   traced/Jste   stellar traced   stellar steps/cell   stellar interactions/cell
+      4  cold -> hot       6   1.01e-7     1.000000      0                0                    0
+      4  stayed cold   13936   5.20e-10    1.000000      0                0                    0
+      4  started hot     603   1.50e-7     1.000000      0                0                    0
+      6  cold -> hot    7322   3.30e-3     1.000000      0                0                    0
+      6  stayed cold    7528   2.58e-4     1.000000      0                0                    0
+      6  started hot      69   3.78e-7     1.000000      0                0                    0
+
+The collapse reproduces `runs/d224-trace` (7322 flipping cells against 7238,
+3.30e-3 against 3.23e-3).
+
+**What it means.**
+  - Nothing writes Jste but the transport deposits: every write is traced, in
+    every cell, at both checkpoints. An out-of-bounds write, a stale copy, or a
+    field carried between iterations are all excluded.
+  - Not one stellar 15.4-24.6 eV packet takes a step in any PDR-zone cell, at
+    iteration 4 or 6, in any group - counted where it happens, so D-224's caveat
+    about reading `pdrZone` inside the transport is moot. The field in the PDR
+    zone, and all 3.30e-3 of it in the flipping cells, is diffuse: packets
+    re-emitted by gas, with a frequency drawn from the emitting cell's `recPDF`.
+  - The band-2 field spreads from ~1300 cells at iteration 4 to the whole PDR
+    zone at iteration 6, the iteration that collapses. The total step count
+    tripling at iterations 6-7 (D-224) is the same event seen from the transport:
+    diffuse packets absorbed and re-emitted in opaque cells.
+
+**Retraction: D-223's diffuse fraction.** The printed "Jste - Jdif" is 0.93 of
+Jste in every group, which read as "93% stellar". It is an instrument defect.
+`JDifTemp` is reduced across ranks (iteration_mod, D-158) but copied back into
+`grid%Jdif` only under `lgDebug`, and deallocated. With `pdrSplitField` each rank
+kept only the deposits of its own packets, and the census, summing each rank's
+owned cells, read ~1/14 of the diffuse field: a "diffuse fraction" of 0.071 if
+the field is entirely diffuse, which is what D-223 printed (0.05-0.12) and what
+the traced stellar estimator now shows directly. Retracted with it: "the field is
+~93% stellar in every group" and "local or neighbour emission does not put it
+there". The copy back now also runs under `pdrSplitField`; nothing reads Jdif for
+physics unless `lgDebug` (D-218), so no result changes.
+
+The checks that should have caught it: a diffuse fraction that sat near 1/14 in
+every group at every iteration, and a Jdif never compared against a total.
+
+---
+
+## D-226 - the re-emission spectrum of cold cells (2026-09-11)
+
+**Why.** D-225: the 15.4-24.6 eV field that heats the flipping cells is diffuse.
+A diffuse packet's frequency is drawn from the `recPDF` of the cell it is born in
+(photon_mod, newPhotonPacket), after the line/continuum choice by `totalLines`.
+`recPDF` is built by emission_mod (`fb_ff`, `twoPhoton`, `setDiffusePDF`) at the
+top of each MC iteration from that cell's Te, Ne and ion fractions, then reduced.
+It is a normalized shape: however little a cold cell emits in total, the PDF
+decides where the energy it absorbs is re-emitted. A photon re-emitted in the
+band inside a cell at ~700 per cell is absorbed on the spot, re-emitted from the
+same PDF, and deposits ~1/kappa each time.
+
+**What reading the code found.**
+  - H I bound-free (analytic branch) starts at the threshold bin `HIPnuP`, with
+    exp(-(nu - nu_th)h/kTe): at 260 K nothing above 15.4 eV.
+  - Heavy-element edges carry the same decaying factor above their edges.
+  - He I 2^3S (19.82 eV, the `j2TsP` bin): proportional to Ne x(He+), rate taken
+    at max(5000 K, Te).
+  - **The He I and He II analytic branches start at the top edge of their
+    tabulated range, `HeINuEdgeP(nlimGammaHeI)` and `HeIINuEdgeP(nlimGammaHeII)`,
+    not at their thresholds.** The tables end at 1.7999 Ryd (He I threshold
+    1.8072 Ryd) and 3.9996 Ryd (He II, 4.0). If the start rounds to a lower bin
+    than the threshold, that bin - the top bin of 15.4-24.6 eV for He I - gets
+    exp(+(nu_th - nu)h/kTe), which grows as Te falls, with a cross-section index
+    that lands before the He I block, in the free-free array (~3e-22 cm^2 there,
+    against 7.4e-18 at threshold). The factor for a 0.0073 Ryd gap is ~40 at
+    315 K, ~8e4 at 102 K and ~3e10 at 48 K; times the cross-section ratio
+    (~4e-5), negligible at 300 K, comparable to the threshold emission at 100 K,
+    dominant below. The collapses follow the coldest iterations - median Te
+    102 K at the end of iteration 5 and 133 K at the end of 9 (D-224).
+
+That is an inference from code and three numbers, and it depends on whether
+1.7999 and 1.8072 Ryd fall in different bins of this frequency grid, which
+reading cannot settle. It is the leading candidate, not a finding.
+
+**What.**
+  - One-time report from `fb_ff` (rank 0): for H I, He I and He II, the bin the
+    analytic branch starts at, the threshold bin, their frequencies, and the
+    cross-section read at the start and at the threshold.
+  - Census, per group: the probability that a re-emitted packet is born in
+    15.4-24.6 eV, (1 - totalLines) x the recPDF increment summed over the band;
+    the bin carrying most of it and its share; the field's top bin and the field
+    share in the top-probability bin; x(He+), x(H+), the line fraction, and the
+    share of cells whose iteration-start Te is below 100 K.
+  - A top bin at ~24.5 eV that holds the field is the He I branch; at 19.8 eV the
+    2^3S term; elsewhere a heavy-element edge (Ar I 15.76, Fe II 16.2, Si II 16.35,
+    Ne I 21.56, S II 23.3, C II 24.38 eV).
+
+**Run.** `runs/d226-emission`, fixture `hiipdr-split` capped at 6 iterations.
+Diagnostic only.
+
+**What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-11)
+
+`runs/d226-emission`, fixture `hiipdr-split` capped at 6 iterations, 14 ranks.
+Closure (D-225 checkpoint 1) holds at every iteration; the collapse reproduces
+(7237 flipping cells at iteration 6 against 7322 in D-225).
+
+**Edge report** (`fb_ff`, rank 0, once):
+
+     continuum   analytic start bin (nu, Ryd)   threshold bin (nu, Ryd)   xSec read at start   xSec at threshold
+     H I          430 (0.99943)                  430 (0.99943)             -                    -
+     He I         465 (1.79220)                  467 (1.80797)             3.372e-22            7.431e-18
+     He II        516 (3.99970)                  517 (4.00000)             2.240e-23            1.587e-18
+
+The He I branch starts **two** bins below threshold, not one, and bin 465 is
+0.0158 Ryd below it. Its factor relative to the threshold emission, with the
+cross-section ratio (4.5e-5), is ~0.1 at 315 K, ~2e6 at 102 K and ~1e18 at 48 K.
+He II's gap is 3e-4 Ryd and there is no He++ here, so it contributes nothing in
+this model - but it is the same defect.
+
+**Census: probability that a re-emitted packet is born in 15.4-24.6 eV**
+
+     it  group         cells   P(band)    top bin (share of P)   field in that bin   Te_start<100 K   x(He+)    x(H+)
+      4  cold -> hot       4   2.78e-3    19.78 eV (0.815)       0.232 (top: 23.11)    0%            2.2e-2    4.0e-3
+      4  stayed cold   13975   2.62e-4    19.78 eV (0.846)       0.882                 0%            6.4e-4    9.2e-4
+      4  started hot     569   6.51e-3    19.78 eV (0.763)       0.773                 0%            1.2e-3    1.9e-2
+      5  cold -> hot      13   0.954      24.38 eV (1.000)       1.000                23%            1.5e-4    3.6e-2
+      5  stayed cold   14702   0.0848     24.38 eV (0.999)       1.000                 0.16%         4.8e-4    1.3e-3
+      5  started hot      74   3.87e-3    19.78 eV (0.848)       0.867                 0%            2.1e-3    4.7e-2
+      6  cold -> hot    7237   0.983      24.38 eV (1.000)       1.000                85%            1.7e-5    7.1e-2
+      6  stayed cold    7617   0.349      24.38 eV (1.000)       1.000                14%            1.9e-4    8.6e-3
+      6  started hot      64   2.93e-3    19.78 eV (0.850)       0.891                 0%            2.6e-3    5.7e-2
+
+**What it means.** The mechanism of the relaxation oscillation, end to end:
+  1. A PDR cell cools (iteration-start Te of a few hundred K and below).
+  2. Its re-emission spectrum collapses into bin 465: at 24.38 eV, just below
+     He I's threshold, the analytic branch's exp(+(nu_th - nu)h/kTe) outgrows
+     every real term, however little He+ there is - the flipping cells hold the
+     least (1.7e-5).
+  3. Everything the cell absorbs - dust-absorbed stellar FUV/optical included,
+     since gas and dust share `recPDF` (photon_mod:1920-1924) - comes back out
+     at 24.38 eV, where the cell is ~700 per cell opaque. It is absorbed on the
+     spot, by H2 and H0, and re-emitted from the same PDF: the packets cycle
+     (the tripled step count of D-224) and the path-length estimator fills the
+     cell with field (D-225: all of it diffuse, none stellar).
+  4. That field photoionizes H0; the thermal balance sees the heating (D-221,
+     D-222) and the cell flips hot.
+  5. Hot, the factor is negligible, the band empties, the cell cools - and the
+     cycle repeats. The collapses at iterations 6 and 10 follow the coldest
+     iterations (median end Te 102 K at 5, 133 K at 9; D-224).
+
+It explains every regularity measured since D-217: heating from 15.4-24.6 eV
+only (D-221, D-222) - the bin is the band's top bin; a field in cells no stellar
+photon reaches (D-224, D-225); no hot neighbour needed (D-223); flipping cells
+that lose their field the iteration after (D-218); and the collapse surviving
+every fix to the chemistry, seed, cooling and hydrogen budget (D-209 to D-220),
+none of which touched the emission spectrum. The 19.8 eV He I 2^3S term is real
+and dominates the band when the gas is warm (iteration 4, hot cells throughout),
+but at P ~ 1e-4-1e-3 it cannot fill a cell.
+
+**Proposed fix (not applied; awaiting approval).** Start the analytic He I and
+He II branches in `fb_ff` at their threshold bins, `HeIPnuP` and `HeIIPnuP`, as
+the H I branch already starts at `HIPnuP`. Bins between a table's top edge and
+the threshold then take the table's own top value, which is zero at both edges
+(the tables list 0 at 1.7999 and 3.9996 Ryd). No constant, no gate.
+
+**Where the fix touches MOCASSIN outside the PDR.** Every model's He I continuum
+in those two bins, and He II's in one. In an H II region at ~1e4 K the spurious
+factor is exp(0.0158 x 157890/1e4) ~ 1.3 times a cross-section 4.5e-5 of the
+threshold value - negligible, so benchmark changes should be at the noise level.
+That is expected, not yet checked.
+
+### A second analysis, from another checkout (2026-09-11)
+
+The user brought an analysis made in a separate testing checkout. Its measured
+facts agree with D-224/D-225: no stellar penetration of the PDR, re-emission
+trapped in the emitting cell, `recursionLimit = 5000`. It identified the
+channel correctly - dust absorptions become "diffuse" packets and sample a
+`recPDF` that pools gas and dust emission - and attributed the leak to the He I
+2^3S term at 19.8 eV and its `MAX(5000., Te)` clamp. It proposed two tiers.
+
+**Assessment.**
+  - The 19.8 eV attribution is contradicted by D-226 at the iterations that
+    matter: from iteration 5 on, 99.9-100% of the band's re-emission and field
+    in cold cells is at 24.38 eV. The clamp also works the other way from the
+    claim: alpha scales as T^-0.678, so the 5000 K floor makes the cold-gas rate
+    smaller, not larger.
+  - **Tier 1** (separate dust and gas re-emission; `dustEmi` with gas present):
+    pooling the cell's total emissivity is MOCASSIN's standard re-emission and
+    is exact at equilibrium. It is the channel by which dust-absorbed energy
+    reaches the bad bin, not the defect. Splitting it would change every dusty
+    model and leave bin 465 in `recPDF` for gas absorptions. A possible design
+    change on its own merits, to be benchmarked separately; not needed for this.
+  - **Tier 2** (zero ionizing continuum and the 2^3S/He II Lyman terms where
+    A_V > 1 or Te < 1000 K): a zone gate with hardcoded thresholds, which
+    CLAUDE.md rules out, and it would suppress the symptom while leaving the
+    defect in every other cell and model.
+  - Not in that analysis: the start-bin defect in `fb_ff`.
+
+**Open, separate from the fix.** x(He+) of 1e-4-2e-2 in shielded cold cells
+(iteration 4: 2.2e-2 in the cells about to flip, above their x(H+)) with no
+field above 24.6 eV reaching them. Probably He ionized by the trapped field in
+the cascade or carried from the hot phase; to be checked after the fix, when the
+cascade is gone.
+
+
+---
+
+## D-227 - the fix, and its test (2026-09-11)
+
+**Decision.** Approved by the user after D-226: apply the start-bin fix and rerun.
+
+**Change** (`emission_mod.f90`, `fb_ff`). The analytic He I branch ran for
+`i >= HeINuEdgeP(nlimGammaHeI)`; He II's for `i >= HeIINuEdgeP(nlimGammaHeII)`.
+Each now splits at its threshold: at and above `HeIPnuP` (`HeIIPnuP`) the
+ground-state continuum exactly as before; between the table's top edge and the
+threshold, free-free only (`ffCoeff1`, `ffCoeff2`). That is the physics of those
+bins - no ground-state recombination below the threshold - and it matches the
+tables, which go to zero at their top edges (1.7999 and 3.9996 Ryd). No constant
+and no condition on the cell. If a grid ever puts the table edge above the
+threshold, the branch starts at the edge as before and nothing changes.
+
+**Checked, and not changed.** `update_mod` reads the same cross-section blocks
+with the same index pattern (`xSecArray(j-IPnuP+1+HeISingXSecP(1)-1)`, lines 226
+and 1886) but both loops run `do j = IPnuP, highNuP`, from each ion's own
+threshold, so the index never leaves the He I or He II block there.
+
+**Predictions** (stated before the run):
+  - In cold cells, P(re-emitted packet born in 15.4-24.6 eV) drops from 0.35-0.98
+    at iteration 6 to the level of iteration 4 (~1e-4-1e-3), carried by 19.8 eV.
+  - The collapse at iteration 6 does not occur: no iteration moves thousands of
+    PDR cells cold -> hot, and the median f_mol no longer swings to 0.24.
+  - The step count does not triple at iteration 6.
+  - If the oscillation persists at smaller amplitude, what remains is a second
+    mechanism, and the census will say what carries the heating.
+  - Outside the PDR the change is ~1e-5 of He I's threshold emission at 1e4 K;
+    a standard H II benchmark should confirm that separately.
+
+**Run.** `runs/d227-hei-fix`, fixture `hiipdr-split`, 12 iterations, with the
+D-224..D-226 diagnostics in place. Compared against `runs/d224-trace` (the same
+fixture without the fix).
+
+**What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-11)
+
+`runs/d227-hei-fix`, fixture `hiipdr-split`, 12 iterations, 14 ranks, clean
+build of all four flavours. Compared with `runs/d224-trace`: same fixture,
+same diagnostics, no fix.
+
+**The collapse**
+
+     it   cells cold -> hot       median f_mol        median Te (K)     cells moving > 0.1%
+          fixed    no fix         fixed    no fix     fixed   no fix    fixed    no fix
+      4       4        4          0.825    0.825       310     315       63.1     63.0
+      5       0        5          0.916    0.915        90     102       36.9     39.9
+      6       0     7238          0.938    0.239        34    2133        5.7     67.5
+      7       0     3177          0.944    0.788        19    1070        5.9     80.7
+      8       0      720          0.945    0.881        15     347        7.8     82.4
+      9       0      955          0.945    0.926        14     133        5.2     46.5
+     10       0     5409          0.9455   0.365        13     728        2.2     64.7
+     11       0     3061          0.9455   0.777        13     825        1.3     76.9
+     12       3     1809          0.9455   0.798        13     464        1.2     80.0
+
+Median |df_mol| falls 0.26 -> 0.059 -> 0.015 -> 4e-3 -> 1.7e-3 -> 8e-4 -> 6e-4.
+The three cells that flip at iteration 12 are not the bin-465 mechanism: their
+band re-emission is 2.5e-3, carried by 19.78 eV, and their x(He+) is 0.13.
+
+**The band's field and re-emission, fixed run**
+
+     it   cells with 15.4-24.6 eV field   sum Jste   P(re-emission in band), stayed cold   top bin
+      4        1341                          84.8       2.8e-4                              19.78 eV
+      5         718   (no fix: 3371)         86.7       1.0e-4   (no fix: 0.085)            19.78 eV
+      6         497   (no fix: 14399)        87.5       5.5e-5   (no fix: 0.349)            19.78 eV
+      8         338                          88.0       7.3e-5                              19.78 eV
+     10         329                          88.2       8.5e-5                              19.78 eV
+     12         441                          87.9       9.7e-5                              19.78 eV
+
+Closure (D-225) holds at every iteration. Every prediction recorded before the
+run is met: the band's re-emission in cold cells returns to the iteration-4
+level and is carried by 19.8 eV; no mass cold -> hot transition; the model
+stops moving.
+
+**Against the 3D-PDR reference** (`sec54.pdr.fin`, a reference, not a target):
+at A_V 2.0 Tgas 36 K (chi 0.14), at A_V 2.45 24 K (chi 0.037). MOCASSIN's PDR
+cells sit at median A_V 2.35 in a field of chi 0.28 and settle at median Te
+13.2 K - colder than the reference at a stronger field. A divergence to measure
+and explain, not to tune; not yet examined.
+
+### What is open after the fix
+
+  1. **The converged count is ~0% at every iteration** (0.007-0.026%) although
+     the model has stopped moving. Cause, read from the code: `pdrFcritConv`
+     defaults to 1 and no fixture sets it, so `pdrStep` clears `lgConverged` in
+     any PDR cell whose 3D-PDR heat and cool differ by more than `pdrFcrit`
+     (0.5%) at MOCASSIN's Te (pdr_mod:3107-3115). D-176 and D-193 concluded that
+     balance is not required under the contract; D-181's converging run set
+     `pdrFcritConv 0`, and the default was never changed. A decision for the
+     user: the default, and the fixture length (D-181 needed 18-22 iterations).
+  2. **"Ion balance not reached" in ~50% of cells** - `ionBalance` hitting
+     `maxIterateX` before x(H0), x(He0) and x(He+) change by less than 1%
+     between its internal steps. It sets `lgBlack`, not `lgConverged`. Probably
+     the relative change of small He+ fractions in cold cells; not measured.
+  3. **x(He+) rises steadily in the cold cells**: 5.6e-4, 6.3e-4, 7.1e-4,
+     8.1e-4, 9.8e-4, 1.19e-3 over iterations 7-12, while x(H+) falls 5.5e-4 ->
+     2.8e-4. Nothing ionizes helium in shielded cold gas at that rate. Candidate
+     links: item 2, and the D-220 rescaling. Unexplained; if it keeps growing it
+     feeds the real 19.8 eV term.
+  4. **Median Te 13 K** against the reference's 24-36 K at a weaker field (above).
+  5. Mean f_mol drifts down slowly (0.847 at 8 -> 0.824 at 12) with the < 0.01
+     bin growing 3.4% -> 5.2% while the median is flat: a small population
+     losing its molecules. Possibly item 3.
+  6. The effect of the fix outside the PDR (expected ~1e-5 of He I's threshold
+     emission at 1e4 K) has not been checked on a standard H II benchmark.

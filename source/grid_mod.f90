@@ -1487,6 +1487,11 @@ module grid_mod
                    print*, "! setMotherGrid: can't allocate opaRep memory"; stop
                 end if
                 grid%opaRep = 0.
+                allocate(grid%trcJ(0:grid%nCells, 1:6), stat = err)   ! D-224/D-225
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate trcJ memory"; stop
+                end if
+                grid%trcJ = 0.
                 allocate(grid%pdrLevPop(0:grid%nCells,1:max(pdrNlevTot,1)), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
@@ -3792,6 +3797,11 @@ end function getVolume
                   print*, "! resetGrid: can't allocate opaRep memory"; stop
                end if
                grid(iG)%opaRep = 0.
+               allocate(grid(iG)%trcJ(0:grid(iG)%nCells, 1:6), stat = err)   ! D-224/D-225
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate trcJ memory"; stop
+               end if
+               grid(iG)%trcJ = 0.
                grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.

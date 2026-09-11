@@ -232,6 +232,7 @@ module emission_mod
         double precision   :: aFit, factor, expFactor, constant
         double precision   :: phXSecHI, phXSecHeI, phXSecHeII, phXSecM
         double precision   :: inv_Te_sqrTe    ! Hoisted invariant
+        logical, save      :: lgEdge226 = .false.   ! D-226: edge report printed
 
         ! Automatic arrays replace dynamic memory allocations
         real :: logGammaHIloc(nlimGammaHI)
@@ -326,6 +327,32 @@ module emission_mod
         statW = (/2., 0.5, 2./)
         inv_Te_sqrTe = 1.0d0 / (TeUsed*sqrTeUsed) ! Hoisted
 
+        ! D-226: the analytic He I and He II continua below start at the top
+        ! edge of their tables, not at their thresholds, while their
+        ! exp((nu_threshold - nu) h/kTe) factor and cross-section index both
+        ! assume nu >= threshold. A start bin below the threshold bin grows
+        ! as Te falls and reads the cross-section block before He I's (free-
+        ! free). Whether the start and threshold fall in different bins
+        ! depends on the frequency grid, so report both, once.
+        if (.not. lgEdge226 .and. taskid == 0) then
+           lgEdge226 = .true.
+           print '(a,2i6,2f10.5)', &
+                & " ! [D226E] HI   table top bin, threshold bin, their nu (Ryd):", &
+                & HINuEdgeP(nlimGammaHI), HIPnuP, nuArray(HINuEdgeP(nlimGammaHI)), nuArray(HIPnuP)
+           print '(a,2i6,2f10.5,a,es10.3,a,es10.3)', &
+                & " ! [D226E] HeI  analytic start bin, threshold bin, their nu (Ryd):", &
+                & HeINuEdgeP(nlimGammaHeI), HeIPnuP, nuArray(HeINuEdgeP(nlimGammaHeI)), nuArray(HeIPnuP), &
+                & "   xSec read at start", &
+                & xSecArray(HeINuEdgeP(nlimGammaHeI)-HeIPnuP+1+HeISingXSecP(1)-1), &
+                & "   xSec at threshold", xSecArray(HeISingXSecP(1))
+           print '(a,2i6,2f10.5,a,es10.3,a,es10.3)', &
+                & " ! [D226E] HeII analytic start bin, threshold bin, their nu (Ryd):", &
+                & HeIINuEdgeP(nlimGammaHeII), HeIIPnuP, nuArray(HeIINuEdgeP(nlimGammaHeII)), nuArray(HeIIPnuP), &
+                & "   xSec read at start", &
+                & xSecArray(HeIINuEdgeP(nlimGammaHeII)-HeIIPnuP+1+HeIIXSecP(1)-1), &
+                & "   xSec at threshold", xSecArray(HeIIXSecP(1))
+        end if
+
         do i = HIPnuP, nbins
             factor = (nuArray(i)*nuArray(i)*nuArray(i)) * inv_Te_sqrTe
             expFactor = exp(dble( (-nuArray(i) + nuArray(HIPnuP)) * hcRyd_k / TeUsed))
@@ -333,16 +360,35 @@ module emission_mod
             gammaHI(i) = fourPi * phXSecHI * statW(1) * hcRyd * constant* factor * expFactor * 1.d40
             gammaHI(i) = gammaHI(i)+ffCoeff1(i)
 
+            ! D-227: a ground-state recombination continuum exists only at and
+            ! above its threshold. These branches used to start at the top
+            ! edge of the tabulated range, which on this frequency grid lies
+            ! two bins below the He I threshold (bin 465 at 1.7922 Ryd against
+            ! 467 at 1.8080) and one below He II's (D-226). There
+            ! exp((nu_th - nu)h/kTe) GREW as Te fell and the cross-section
+            ! index landed in the free-free block, so a cold cell re-emitted
+            ! nearly everything at 24.4 eV. Between the table's top edge and
+            ! the threshold only free-free remains - the tables themselves go
+            ! to zero at their top edges. The H I branch already starts at
+            ! HIPnuP.
             if (i >= HeINuEdgeP(nlimGammaHeI) ) then
-                expFactor = exp(dble( (-nuArray(i) + nuArray(HeIPnuP)) * hcRyd_k / TeUsed))
-                phXSecHeI = xSecArray(i-HeIPnuP+1+HeISingXSecP(1)-1)
-                gammaHeI(i) = fourPi * phXSecHeI * statW(2) * hcRyd * constant* factor * expFactor * 1.d40
-                gammaHeI(i) = gammaHeI(i) + ffCoeff1(i)
+                if (i >= HeIPnuP) then
+                    expFactor = exp(dble( (-nuArray(i) + nuArray(HeIPnuP)) * hcRyd_k / TeUsed))
+                    phXSecHeI = xSecArray(i-HeIPnuP+1+HeISingXSecP(1)-1)
+                    gammaHeI(i) = fourPi * phXSecHeI * statW(2) * hcRyd * constant* factor * expFactor * 1.d40
+                    gammaHeI(i) = gammaHeI(i) + ffCoeff1(i)
+                else
+                    gammaHeI(i) = ffCoeff1(i)
+                end if
                 if (i >= HeIINuEdgeP(nlimGammaHeII)) then
-                    expFactor  = exp(dble( (-nuArray(i) + nuArray(HeIIPnuP)) * hcRyd_k / TeUsed))
-                    phXSecHeII = xSecArray(i-HeIIPnuP+1+HeIIXSecP(1)-1)
-                    gammaHeII(i) = fourPi * phXSecHeII * statW(3) * hcRyd * constant* factor * expFactor * 1.d40
-                    gammaHeII(i) = gammaHeII(i) + ffCoeff2(i)
+                    if (i >= HeIIPnuP) then
+                        expFactor  = exp(dble( (-nuArray(i) + nuArray(HeIIPnuP)) * hcRyd_k / TeUsed))
+                        phXSecHeII = xSecArray(i-HeIIPnuP+1+HeIIXSecP(1)-1)
+                        gammaHeII(i) = fourPi * phXSecHeII * statW(3) * hcRyd * constant* factor * expFactor * 1.d40
+                        gammaHeII(i) = gammaHeII(i) + ffCoeff2(i)
+                    else
+                        gammaHeII(i) = ffCoeff2(i)
+                    end if
                 end if
             end if
         end do

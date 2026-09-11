@@ -336,6 +336,17 @@ module common_mod
         real, allocatable :: echoVol(:,:,:)  ! BEKS 2010. Contains volume of one
         ! grid cell enclosed by echo.  Only used if lgEcho=.true.
 
+        ! D-224. The 15.4-24.6 eV stellar path-length estimator, per cell, split
+        ! by the step that deposited it: (cell,1) all, (cell,2) steps not inside
+        ! the cell they were charged to, (cell,3) steps entering from a cell with
+        ! tau per cell < 1 at that energy. D-225 adds (cell,4) the same
+        ! estimator for EVERY packet in the band, stellar or diffuse - the
+        ! closure against Jste - (cell,5) stellar interactions in the cell and
+        ! (cell,6) stellar steps in the cell. Declared outside #ifdef PDR because
+        ! photon_mod writes it in every flavour (the D-158 slip again); it is
+        ! only allocated in the PDR build, and every write tests allocated().
+        real, allocatable :: trcJ(:,:)
+
 #ifdef PDR
         ! --- photodissociation-region state (DEVLOG D-006, D-018) -------------
         ! pdrAbun is double precision deliberately: PDR abundances run below
@@ -865,6 +876,16 @@ module common_mod
     ! has broken the plain build (D-096, D-109, D-119, D-138, D-143).
     integer             :: pdrSplitField = 0
     integer             :: nXProbe = 0     ! D-159: surviving-packet probe
+    ! D-224: transport consistency trace, summed over ranks after the transfer.
+    ! 1 steps, 2 starting outside the cell they are charged to, 3 longer than
+    ! the chord to that cell's far wall, 4 total path, 5 excess path, 6 wall
+    ! distances replaced by the "cater for cells on cell wall" branch; 7-9 the
+    ! same three for 15.4-24.6 eV stellar packets; 10 their interactions in
+    ! cells with tau per cell > 20, 11-16 binned by the tau per cell of the cell
+    ! crossed before (none, <0.1, 0.1-1, 1-10, 10-100, >=100), 17 previous step
+    ! not inside its cell, 18 this step not inside its cell, 19 interaction
+    ! point outside the cell, 20 previous cell in the PDR zone.
+    real(kind=8)        :: trc224(20) = 0.d0
     ! D-165: instrument iterateT itself. Cloudy's temperature solver
     ! (conv_temp_eden_ioniz.cpp) brackets first, then runs Brent, and declares
     ! convergence only when BOTH |H-C|/H is small AND the bracket is narrow
