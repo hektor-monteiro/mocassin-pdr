@@ -4,7 +4,7 @@ planeIonization 5.01e-2 0.
 densityFile 'input/v1.den'
 nebComposition "input/abunV1.in"
 TeStart 100.
-maxIterateMC 8 95.
+maxIterateMC 22 95.
 nPhotons 6000000
 nx 5
 ny 801

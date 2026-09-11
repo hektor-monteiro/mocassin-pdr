@@ -995,7 +995,15 @@ module common_mod
     !
     ! pdrFcritConv 1 keeps the test (the behaviour every number so far was
     ! measured with), 0 skips it where MOCASSIN owns the balance.
-    integer             :: pdrFcritConv = 1
+    !
+    ! D-228: default 0. Under the contract (D-193, D-198) MOCASSIN owns the
+    ! thermal equilibrium in every cell, so there is no configuration in which
+    ! 3D-PDR's own heat and cool are required to balance, and D-181's
+    ! converging run already set 0. With the default at 1 and no fixture
+    ! setting it, D-227's settled model - median f_mol flat to 6e-4 - still
+    ! reported 0.007% converged. Kept as a switch only so the old test can be
+    ! re-run as a probe.
+    integer             :: pdrFcritConv = 0
     integer(kind=8)     :: cvPdrCleared = 0
     ! D-178. Cloudy decides ITERATION-level convergence on several
     ! independent, model-integrated quantities - the outward Hbeta fraction,
@@ -1040,6 +1048,7 @@ module common_mod
     integer             :: cvUseH2   = 1
     real                :: cvH2floor = 1.e-5
     integer(kind=8)     :: cvFailH0 = 0, cvFailH2 = 0, cvFailBoth = 0
+    integer(kind=8)     :: cvFailTe = 0   ! D-229: cells failing on Te
     integer, parameter  :: nCvSp = 8
     real(kind=8)        :: cvSpNow(nCvSp) = 0.d0, cvSpOld(nCvSp) = 0.d0
     character(len=6)    :: cvSpName(nCvSp) = &

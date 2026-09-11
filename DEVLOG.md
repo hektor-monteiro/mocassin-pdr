@@ -226,7 +226,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-224 | **No transparent neighbour and no misplaced step - yet the cells that flip hold the model's largest 15.4-24.6 eV field.** At iterations 4-6 every PDR-zone cell's most transparent face-neighbour is above 100 per cell at 19.8 eV, in every group. Steps outside their cell are 2-7e-7 of all steps (none in the band); the wall-snap branch fires ~300 times in 3e8 steps. Stellar 15.4-24.6 eV interactions in opaque cells (0.9-3.6e4 per iteration) arrive from non-PDR cells at 1-100 per cell - never from a PDR cell - while at iteration 6 the 7238 flipping cells, whose neighbours are all PDR cells, hold 3.2e-3 against 3.3e-7 in the cells on the H II edge. The opacity is written only before the transfer. Unexplained by any traced transport event | Done | 2026-09-11 |
 | D-225 | **The field in the flipping cells is deposited by transport - and none of it is stellar.** Jste over 15.4-24.6 eV equals the traced deposits of every packet in the band to 1.000000 in every cell, after the transfer (iterations 1-7) and at the census (every group). At the iteration-6 collapse the 7322 flipping cells hold 3.30e-3 with zero stellar steps and zero stellar interactions: the field is re-emitted, diffuse radiation. D-223's 'about 93% stellar' was an instrument defect - JDifTemp was reduced but copied back only under lgDebug, so each rank kept ~1/14 of the diffuse field - fixed (diagnostic only) | Done | 2026-09-11 |
 | D-226 | **The collapse is MOCASSIN's He I recombination continuum starting two bins below threshold.** fb_ff starts the analytic He I branch at bin 465 (1.7922 Ryd, 24.38 eV), not at the threshold bin 467 (1.8080 Ryd), with exp(+(nu_th - nu)h/kTe) and a cross-section read from the free-free block (3.4e-22 against 7.4e-18). At the iteration-6 collapse 98.3% of what the 7237 flipping cells re-emit is born in that one bin, and it holds 100% of their 15.4-24.6 eV field; 85% of them started below 100 K and their x(He+) is 1.7e-5. At iteration 4, with no cell below 100 K, the band's small re-emission (2.6e-4) was the real He I 2^3S 19.8 eV term. Fix proposed, not applied | Done | 2026-09-11 |
-| D-227 | **Fixed: the He I and He II continua start at their thresholds - the relaxation oscillation is gone.** Against runs/d224-trace (same fixture, no fix): 0 cells cold -> hot at iteration 6 (7238 before) and at 10 (5409); median f_mol 0.938 at 6 (0.239) and 0.9455 at 10 (0.365), flat from iteration 9; cells moving > 0.1% fall 63% -> 5.7% -> 1.2%; P(re-emission in 15.4-24.6 eV) in cold cells 5.5e-5 to 9.7e-5, carried by the real 19.8 eV term; the band's field stays in ~330-440 cells. MOCASSIN's converged count stays ~0% - the D-032 PDR heat/cool test is still on by default (pdrFcritConv = 1), which D-176/D-193 found meaningless under the contract | Done | 2026-09-11 |
+| D-227 | **Fixed: the He I and He II continua start at their thresholds - the relaxation oscillation is gone.** Against runs/d224-trace (same fixture, no fix): 0 cells cold -> hot at iteration 6 (7238 before) and at 10 (5285); median f_mol 0.938 at 6 (0.239) and 0.9455 at 10 (0.365), flat from iteration 9; cells moving > 0.1% fall 63% -> 5.7% -> 1.2%; P(re-emission in 15.4-24.6 eV) in cold cells 5.5e-5 to 9.7e-5, carried by the real 19.8 eV term; the band's field stays in ~330-440 cells. MOCASSIN's converged count stays ~0% - the D-032 PDR heat/cool test is still on by default (pdrFcritConv = 1), which D-176/D-193 found meaningless under the contract | Done | 2026-09-11 |
+| D-228 | **Without the heat/cool clearing the per-cell test passes at 95.9% on iteration 5 and stops the run before the model has settled.** `pdrFcritConv` now defaults to 0 and the PDR fixtures run to 22, but `maxIterateMC 22 95.` ends a run at 95% converged: 26.0% at iteration 4, 95.86% at 5, clean exit. The same physics (D-227) was still moving there - median Te 90 K -> 13 K, median f_mol 0.916 -> 0.9455, 37% of cells moving > 0.1%. The per-cell test checks x(H0) and x(H2) to 10% and never the temperature | Open | 2026-09-11 |
+| D-229 | **With the temperature in the test the run no longer stops early, and the converged fraction plateaus at 85-86%.** `runs/d229-teconv`, 22 iterations, clean exit: 0.21% converged at iteration 5 (95.86% before, which ended D-228 there), 50.7% at 9, 83.2% at 12, 85.9% at 22. It lands where D-227 did - median f_mol 0.9455, median Te 13.0 K, median |df_mol| 5e-4 - and the axis profile is smoother (PDR Te 14.0-21.9 K against D-227's 14.1-50.6 K). The unconverged ~14% is a churning population: cells moving > 0.1% fall to 1.06% at iteration 12 and settle back at 3.6-5% | Done | 2026-09-11 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -14075,12 +14077,14 @@ same diagnostics, no fix.
       4       4        4          0.825    0.825       310     315       63.1     63.0
       5       0        5          0.916    0.915        90     102       36.9     39.9
       6       0     7238          0.938    0.239        34    2133        5.7     67.5
-      7       0     3177          0.944    0.788        19    1070        5.9     80.7
-      8       0      720          0.945    0.881        15     347        7.8     82.4
-      9       0      955          0.945    0.926        14     133        5.2     46.5
-     10       0     5409          0.9455   0.365        13     728        2.2     64.7
-     11       0     3061          0.9455   0.777        13     825        1.3     76.9
-     12       3     1809          0.9455   0.798        13     464        1.2     80.0
+      7       0     3304          0.944    0.788        19    1070        5.9     80.7
+      8       0      730          0.945    0.881        15     347        7.8     82.4
+      9       0      949          0.945    0.926        14     133        5.2     46.5
+     10       0     5285          0.9455   0.365        13     728        2.2     64.7
+     11       0     3242          0.9455   0.777        13     825        1.3     76.9
+     12       3     1846          0.9455   0.798        13     464        1.2     80.0
+
+**Correction (2026-09-11, same day).** The first version of this table - and the D-227 commit message and what I reported to the user - gave the no-fix cold -> hot counts at iterations 7-12 as 3177, 720, 955, 5409, 3061 and 1809. Those are D-223's (`runs/d223-adjacency`), copied from its table under D-224's label. D-224's own census, extracted when building the artifact, gives 3304, 730, 949, 5285, 3242 and 1846; the table now carries those. Iteration 6 (7238) and every other column were D-224's throughout. The conclusion is unchanged.
 
 Median |df_mol| falls 0.26 -> 0.059 -> 0.015 -> 4e-3 -> 1.7e-3 -> 8e-4 -> 6e-4.
 The three cells that flip at iteration 12 are not the bin-465 mechanism: their
@@ -14132,3 +14136,201 @@ and explain, not to tune; not yet examined.
      losing its molecules. Possibly item 3.
   6. The effect of the fix outside the PDR (expected ~1e-5 of He I's threshold
      emission at 1e4 K) has not been checked on a standard H II benchmark.
+
+
+---
+
+## D-228 - the convergence default, and fixture length (2026-09-11)
+
+**Decision.** Approved by the user after D-227.
+
+**Why.** D-227's model stopped moving - median f_mol flat at 0.9455 from
+iteration 9, median |df_mol| 6e-4, 1.2% of cells moving more than 0.1% - and
+MOCASSIN reported 0.007% converged. The per-cell test (D-155, D-179: x(H0)
+and x(H2) against their iteration-start values, `convLimit 0.10`) is not what
+held it there. `pdrStep` clears `lgConverged` in any cell whose 3D-PDR heat and
+cool differ by more than `pdrFcrit` = 0.5% at MOCASSIN's Te (D-032,
+pdr_mod:3107-3115), and it runs after `updateCell`, so it has the last word.
+
+D-176 found that test meaningless once MOCASSIN owns the temperature; D-193
+annotated it "left switchable purely as a probe"; D-181's run that converged
+(86.4% at 22 iterations, every species' total content within ~1%) set
+`pdrFcritConv 0` in its input. The default stayed 1 and no fixture set it, so
+every run since has been judged by it. D-198 made the contract unconditional,
+which leaves no configuration in which the test measures anything solved.
+
+**Change.**
+  - `common_mod`: `pdrFcritConv = 0`. The switch stays, as a probe.
+  - `maxIterateMC 22` in all nine PDR fixtures: hiipdr, hiipdr-contract,
+    hiipdr-couple1, hiipdr-d190, hiipdr-d190-noavail, hiipdr-split, ifront
+    (were 12), v1slab and v2slab (were 8). D-181 needed 18-22 iterations; the
+    slabs have not been re-measured at that length.
+
+**Not changed.** The per-cell criterion itself, `convLimit 0.10`, and the
+"ion balance not reached" count (a separate `lgBlack` flag).
+
+**Predictions.** The converged fraction rises as the model settles rather than
+sitting at ~0%. D-227's movement fell to 1.2% of cells by iteration 12, so
+most PDR cells should pass once the clearing is gone; how high it goes is set by
+the per-cell x(H0) test, where x(H0) is a ~5% residual in molecular gas and its
+relative change is amplified (D-198's note). If it plateaus well below ~90%,
+the next question is which of the two per-cell tests fails, and where.
+
+**Run.** `runs/d228-converge`, fixture `hiipdr-split` at 22 iterations, with the
+D-227 fix and all diagnostics.
+
+**What is NOT known.** Everything the run is for.
+
+
+### Result (2026-09-11)
+
+`runs/d228-converge`, fixture `hiipdr-split`, `maxIterateMC 22 95.`, the D-227
+fix, `pdrFcritConv` 0 by default. Clean exit after **5 iterations**, 7:46 per
+processor.
+
+     it   converged, D-228   converged, D-227 (clearing on)
+      1         0.00%              0.00%
+      2         0.0066             0.0066
+      3        72.2               72.3
+      4        26.0                0.0066
+      5        95.86               0.026     -> D-228 stops: 95.86 >= minConvergence 95
+
+The stop is `iteration_mod:3072`: `totPercent >= minConvergence` once the PDR
+has had a pass (D-062). `pdrFcritConv` changes only the converged flag, not
+the physics, so D-227 shows what D-228 stopped short of:
+
+     from iteration 5 to 12 (D-227)
+     median Te, PDR           90 K   ->  13 K
+     median f_mol            0.916   ->  0.9455 (flat from 9)
+     cells moving > 0.1%       37%   ->  1.2%
+
+**What it means.** The prediction recorded above was met and then some: without
+the clearing, the per-cell test passes almost everywhere as soon as the
+molecules stop moving by 10% per iteration. But that test is
+|dx(H0)/x| <= `convLimit` and |dx(H2)/x| <= `convLimit` (D-155, D-179) - it does
+not test the temperature. In an H II region Te follows the ionization, so
+MOCASSIN never needed to. In a PDR the molecular coolants set Te independently,
+and here it falls sevenfold after the run has declared itself converged. The
+project rule - "a convergence percentage is only as good as the quantity it
+measures" - again: the 95.86% is real for x(H0) and x(H2) and says nothing about
+Te.
+
+D-181's 22-iteration run never met this because it never reached 95%: the
+oscillation kept the per-cell test near 86%.
+
+**Options, for the user:**
+  1. Test Te per cell alongside x(H0) and x(H2), at the same `convLimit`,
+     against its iteration-start value (`TeIterStart` already exists). Physics:
+     the thermal state is one of the quantities being converged. D-227's numbers
+     say it would hold the run until ~iteration 9-10, where Te moves < 2%.
+  2. Leave the test and set the fixtures' `minConvergence` above 100 so every run
+     goes the full 22. Simple, but it hides the gap rather than closing it, and a
+     user's own input would still stop early.
+  3. Both.
+
+Recommended: 1. Not applied pending a decision.
+
+**Not yet committed.** The D-228 change stands (the clearing had no meaning
+under the contract) but is incomplete without a temperature criterion.
+
+
+---
+
+## D-229 - the temperature belongs in the convergence test (2026-09-11)
+
+**Decision.** Chosen by the user after D-228, over two alternatives: setting the
+fixtures' `minConvergence` above 100 so runs never stop early, or both.
+
+**Why.** MOCASSIN's per-cell test is |dx(H0)/x| and (D-179) |dx(H2)/x| against
+the iteration-start values, at `convLimit`. It has never tested Te. In an H II
+region that is defensible: the temperature follows the ionization, so a settled
+x(H0) implies a settled Te. In a PDR it does not - the molecular coolants set
+the temperature, and the two can settle at different rates. D-228 measured the
+consequence: 95.86% converged at iteration 5, the run stopped by
+`minConvergence`, and the same physics (D-227) went on to take the median PDR Te
+from 90 K to 13 K and the median f_mol from 0.916 to 0.9455 over the next four
+iterations.
+
+**Change** (`update_mod`, the `lgConverged` block). A third condition:
+
+    lgCvTe = |TeUsed - TeIterStart(cellP)| / TeIterStart(cellP) <= XHILimit
+
+guarded on `TeIterStart` being allocated (it is, in every flavour -
+grid_mod:1671, no #ifdef) and positive, so a cell with no previous value is not
+failed for lacking one. `lgConverged` is now the AND of all three.
+`cvFailTe` counts temperature-only failures beside `cvFailH0`, `cvFailH2` and
+`cvFailBoth`, under `teProbe` as they are.
+
+**Predictions.** The run no longer stops at iteration 5. D-227's Te series -
+310, 90, 34, 19, 15, 14, 13, 13, 13 K - moves by more than 10% until about
+iteration 9 and by ~1-2% after it, so convergence should be reached around
+iterations 9-12 rather than 5, and the state at that point should match D-227's
+iteration 12 (median f_mol 0.9455, median Te 13 K). If it instead runs all 22
+iterations, some population is still moving in Te and the census says which.
+
+**Run.** `runs/d229-teconv`, `hiipdr-split` at 22 iterations.
+
+**What is NOT known.** Everything the run is for. In particular whether a 10%
+per-cell tolerance on Te is the right one; `convLimit` sets all three.
+
+
+### Result (2026-09-11)
+
+`runs/d229-teconv`, fixture `hiipdr-split`, 22 iterations, 36:03 per processor,
+clean exit. The prediction was met: the run does not stop at iteration 5, and it
+converges around 9-12 rather than there.
+
+     it    converged   median f_mol   median Te   median |df_mol|   cells moving > 0.1%
+      4     0.013%       0.8297         309 K        0.253            62.8%
+      5     0.21         0.9180          90          0.055            36.5
+      6     0.80         0.9379          33.7        0.015             5.9
+      7     1.14         0.9435          19.3        0.0039            6.0
+      8     5.01         0.9450          15.0        0.0017            7.6
+      9    50.7          0.9454          13.7        0.0008            5.3
+     10    78.7          0.9454          13.4        0.0007            2.0
+     12    83.2          0.9454          13.2        0.0006            1.1
+     16    85.4          0.9454          13.1        0.0006            5.1
+     22    85.9          0.9455          13.0        0.0005            3.6
+
+Against D-228 (same physics, no Te test): 26.0% at iteration 4 and 95.86% at 5.
+The temperature criterion holds the run through the cooling - median Te 309 ->
+90 -> 34 -> 19 -> 15 -> 13.7 K over iterations 4-9 - and lets it pass when that
+stops, which is what it was added to do.
+
+**The state is D-227's**, as it must be (the criterion changes when the run
+stops, not what it computes): median f_mol 0.9455 against 0.9455, median Te
+13.0 K against 13.2 K. The axis profile is *smoother* after ten more
+iterations: PDR-zone Te 14.0-21.9 K (median 18.0) against D-227's 14.1-50.6 K
+(median 18.0) at iteration 12, and the scatter in x(H2) between neighbouring
+cells is gone - D-227 still carried a 50.6 K cell at the PDR edge and single
+cells at 24.7 and 15.4 K where D-229 has 17.6, 18.0 and 18.0 K.
+
+**The plateau, and what is still open.** The converged fraction stops at 85-86%
+from iteration 14 and does not rise. Over the same iterations the share of cells
+moving more than 0.1% per iteration comes back up from 1.06% (iteration 12) to
+3.6-5%, and |df_mol| p90 from 0.0149 to ~0.022. So the residual is a churning
+population, not a monotone approach - the same ~14% D-181 saw and called cells
+crossing branches. What it is has not been measured here:
+  - which of the three tests those cells fail (`cvFailH0`, `cvFailH2`,
+    `cvFailTe` exist but print only under `teProbe`, which is 0);
+  - where they sit - the census bins by outcome group, not by convergence;
+  - whether a 10% per-cell tolerance on Te is right at all: `convLimit` sets the
+    same number for x(H0), x(H2) and Te, and Monte Carlo noise on a cell's
+    temperature is not measured either.
+
+**Also still open** (D-227, unchanged by this): the PDR gas is 2-10x colder than
+standalone 3D-PDR at a stronger field; x(He+) climbs in shielded cold cells;
+about half the cells report "ion balance not reached"; the H II benchmark has
+not been re-run since the He I fix.
+
+**The per-species content report of D-178** (`cvSpNow`/`cvSpName`, Cloudy's
+iteration-level check on total content) does exist and prints as `! CVSPEC`
+lines - iteration_mod:2449 - but behind `teProbe /= 0`, and no fixture sets
+`teProbe`, so this run's log carries none. The same gate hides `cvFailH0`,
+`cvFailH2` and `cvFailTe`. So one run with `teProbe` set would answer both open
+questions above at once: which test the churning ~14% fail, and whether the
+total content per species is stable to ~1% as D-181 reported.
+
+(Corrected the same day: the first version of this paragraph said the report was
+"no longer printed anywhere in the source". It is printed; I wrote that from a
+grep whose output was truncated, without reading the block.)

@@ -576,6 +576,7 @@ subroutine iterateT()
     real    :: xHInow                ! D-170
     real    :: xH2now                ! D-179
     logical :: lgCvH0, lgCvH2       ! D-179
+    logical :: lgCvTe               ! D-229
     real    :: relRes, brkW, TeEntry
     real    :: teTrail(maxIterateT), resTrail(maxIterateT)
 
@@ -1027,7 +1028,24 @@ subroutine iterateT()
        end if
     end if
 #endif
-    if (lgCvH0 .and. lgCvH2) then
+    ! ---------------------------------------------------------------- D-229
+    ! And the temperature. In an H II region Te follows the ionization, so a
+    ! settled x(H0) implies a settled Te and testing it bought nothing. In a
+    ! PDR the molecular coolants set Te, and the two settle at different rates:
+    ! D-228 reported 95.86% converged at iteration 5 - enough to stop the run
+    ! on minConvergence - with the median PDR Te still to fall from 90 K to
+    ! 13 K over the following four iterations (D-227).
+    !
+    ! Against the iteration-start value, like the other two (D-155).
+    ! TeIterStart is allocated in every flavour (grid_mod, no #ifdef); a cell
+    ! with no previous value is not failed for lacking one.
+    lgCvTe = .true.
+    if (allocated(grid%TeIterStart)) then
+       if (grid%TeIterStart(cellP) > 0.) &
+            & lgCvTe = abs(TeUsed - grid%TeIterStart(cellP)) &
+            &          / grid%TeIterStart(cellP) <= XHILimit
+    end if
+    if (lgCvH0 .and. lgCvH2 .and. lgCvTe) then
         grid%lgConverged(cellP) = 1
     else
         grid%lgConverged(cellP) = 0
@@ -1036,6 +1054,7 @@ subroutine iterateT()
        if (.not.lgCvH0 .and.      lgCvH2) cvFailH0   = cvFailH0   + 1
        if (     lgCvH0 .and. .not.lgCvH2) cvFailH2   = cvFailH2   + 1
        if (.not.lgCvH0 .and. .not.lgCvH2) cvFailBoth = cvFailBoth + 1
+       if (.not.lgCvTe)                   cvFailTe   = cvFailTe   + 1
     end if
 
     ! ---------------------------------------------------------------- D-170
