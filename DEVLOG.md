@@ -235,7 +235,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-233 | **Fix: dust absorptions re-emit from the dust's own spectrum.** Each non-scattering absorption branches on absOpac/(opacity - scaOpac): dust absorptions become 'dustEmi' packets sampling dustPDF, gas absorptions stay 'diffuse' sampling a recPDF that no longer carries the dust term. dustPDF is built and reduced whenever there is dust, not only when there is no gas. **Result: it fixes the ionization front and does nothing for the dark gas.** x(He+)/ref at the front goes 1390 -> 1.15, the first PDR cell 939 K -> 21.9 K and fully neutral, x(C+)/ref 0.95 -> 1.00, convergence 83.3% -> 87.8%. Deep, every number is unchanged (He+ 14.6x, CO 78x low, OH 870x low, C+ 1.9e-7 of the reference), so the pooled PDF was not what sustains helium ionization in dark gas - that hypothesis is discarded and the on-the-spot question (D-232) is next. The H II region only cools 0.2-2.6% and the front does not move | Done | 2026-09-11 |
 | D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell. **Result: stellar photoionization is at its 1e-20 initialisation floor for EVERY element, and the only non-zero source anywhere in the cell is the cosmic-ray term for H and He.** Every metal stage - C, N, O, Ne, S - has up = 1e-20 exactly, so nothing ionizes them at all; chex is 0 for every element (the 6000 K gate); dn is Ne*alpha exactly. The C+ cliff is therefore not carbon-specific, and the He+ excess is the CR source over a recombination sink with no charge exchange | Done | 2026-09-12 |
 | D-235 | **The cross-sections are present and correct; the field is absent.** Per ion, over its own bin range, in a cell at A_V 2.88: sum Jste = 0.000 with 0 bins carrying J > 0, while xSec at threshold reads 1.828e-17 for C I, 3.202e-17 for S I, 1.278e-17 for N I. Sulphur is the discriminator - its range starts at bin 416 (0.7614 Ryd), BELOW carbon's 421, and is equally empty - so the cutoff is not carbon's own edge. Since chiFUV = 0.127 is built from the same Jste over bins 397-431, every surviving photon lies in bins 397-415, below the lowest metal threshold in the model. Only one cell was sampled, so absorbed-on-the-way-in and never-present are still indistinguishable | Done | 2026-09-12 |
-| D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it | Open | 2026-09-12 |
+| D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it. **Result: absorbed, not absent - and only C and S were ever candidates.** At A_V 1.381 C I carries sum Jste 1.116e-03 over 9 of its 179 bins and S I 1.642e-03 over 13; at A_V 2.880 both are exactly 0. N, O and Ne have thresholds ABOVE 1 Ryd where J is identically zero in a PDR, so their neutrality is correct physics, not a defect - my 'no metal is ever photoionized' was too broad. The depth scheme returned only two points because the probe was gated on taskid == 0 | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15044,3 +15044,51 @@ PDR at all (structural). That is D-236.
 **One harmless artefact to note:** stages whose threshold exceeds `nuMax` print
 an empty range, "bins 600 to 599", with xSec 0 - C V, C VI, N VI. The loop is
 correctly doing nothing for them.
+
+
+---
+
+## D-236 - the photons are absorbed on the way in (2026-09-12)
+
+**Result.** `runs/d236-depth`, clean exit at iteration 13, 87.9% converged.
+
+     A_V     cell  Te      chi     | C I sum Jste  nbins | S I sum Jste  nbins
+     1.381   13    26.4    6.55    | 1.116e-03      9    | 1.642e-03     13
+     2.880   27    13.9    0.0836  | 0.000e+00      0    | 0.000e+00      0
+
+**The "never present" branch is retired.** The field carbon needs exists at
+A_V 1.38 and is gone by 2.88, so those photons are absorbed between the two
+depths. This is self-shielding, and the divergence from 3D-PDR is a method
+difference - full Monte Carlo transfer against a fitted CIPDRATE factor - not a
+missing channel.
+
+**And D-234's headline was too broad.** Only C (0.8276 Ryd) and S (0.7614 Ryd)
+have thresholds below 1 Ryd; N (1.0679), O (1.0011) and Ne (1.5846) sit above
+the Lyman limit, where J is identically zero in a PDR. Their being neutral is
+correct physics. The defect concerns two elements, not five, and carbon is the
+one the chemistry depends on.
+
+**What the numbers say about why.** Working from the reference's own
+prescription at its deepest point, TAUC ~ 10.4 gives a C ionization rate of
+3.0e-10*61*exp(-10.4) ~ 5.5e-13 s^-1 against Ne*alpha ~ 3.9e-13, i.e. C+/C ~ 1.4
+- the 58% ionized carbon the reference reports. For our cell to reach that with
+the measured dn = 1.78e-13 needs up ~ 2.5e-13. Our own optical depth at 0.83 Ryd
+(grain ~3*2.88 = 8.6 plus an integrated C I column ~4.6) implies a physical rate
+near 1.8e-8*exp(-13) ~ 3e-14 s^-1 - smaller than the reference's, but finite.
+MOCASSIN reports < 1e-20, six or more orders below that.
+
+**So the leading explanation is Monte Carlo resolution, not physics and not a
+coding error.** At A_V 1.38 nine bins carry 1.116e-3 between them, so one packet
+is worth ~1e-4 in these units; a rate of 3e-14 is far less than one packet, and
+the estimator returns exactly zero. Zero is a fixed point - no photoionization,
+so carbon stays neutral, so its column grows, so still fewer photons arrive.
+Brute force would need ~1e6 times more packets.
+
+**Two things this does NOT yet establish, and D-237 measures both.** The tau ~ 13
+above is estimated from A_V and a carbon column, not read from MOCASSIN's own
+opacity array; and two depth points are not a profile. D-237 prints
+`grid%opacity` at each ion's threshold bin, and samples on every rank - D-236
+was gated on `taskid == 0`, which owns only a fraction of the grid and is why a
+one-cell-per-0.5-mag scheme produced two cells.
+
+**Run.** `runs/d237-taus`, hiipdr-split plus `teProbe 1`, 13 iterations.

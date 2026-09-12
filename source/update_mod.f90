@@ -2477,7 +2477,7 @@ end subroutine iterateT
             ! D-235: is the photoionization sum empty because there is no
             ! field in this ion's range, or because there is no cross-section?
             integer :: jLo234, jHi234, jj234, nnz234, iB234
-            real    :: sumJ234, xTh234
+            real    :: sumJ234, xTh234, opac234
 
 
             ! initialize variables
@@ -2689,7 +2689,10 @@ end subroutine iterateT
                     iB234 = int(grid%AVeff(cellP)/0.5)
                     if (iB234 < 0)  iB234 = 0
                     if (iB234 > 15) iB234 = 15
-                    if (teProbe /= 0 .and. taskid == 0 .and. nProbe234 < 400 &
+                    ! D-237: every rank samples, not only rank 0. Rank 0 owns a
+                    ! fraction of the grid, and D-236's one-cell-per-0.5-mag
+                    ! scheme returned two depth points because of it.
+                    if (teProbe /= 0 .and. nProbe234 < 400 &
                          & .and. nIterateMC >= 12 .and. ion <= 2 &
                          & .and. grid%pdrZone(cellP) == 1 &
                          & .and. (.not.lgAVsamp234(iB234) .or. cellSamp234 == cellP)) then
@@ -2703,7 +2706,7 @@ end subroutine iterateT
                        ! 1e-20 initialisation floor for every element while
                        ! chiFUV - built from the same Jste - reads 0.13 in
                        ! this cell, so one of the two must be empty.
-                       sumJ234 = 0.; xTh234 = 0.; nnz234 = 0
+                       sumJ234 = 0.; xTh234 = 0.; nnz234 = 0; opac234 = 0.
                        jLo234 = 0; jHi234 = 0
                        if (elem > 2) then
                           jLo234 = elementP(elem, ion, outShell, 1)
@@ -2716,10 +2719,14 @@ end subroutine iterateT
                              if (elementP(elem, ion, outShell, 3) >= 1 .and. &
                                   & elementP(elem, ion, outShell, 3) <= size(xSecArray)) &
                                   & xTh234 = xSecArray(elementP(elem, ion, outShell, 3))
+                             ! D-237: MOCASSIN's OWN total opacity at this
+                             ! ion's threshold bin, so tau is measured rather
+                             ! than estimated from A_V and a column.
+                             opac234 = grid%opacity(cellP, jLo234)
                           end if
                        end if
                        if (elem == 1 .and. ion == 1) &
-                            & print*, "! [D234] cell", cellP, " AV", &
+                            & print*, "! [D234] rank", taskid, " cell", cellP, " AV", &
                             & grid%AVeff(cellP), " Te", TeUsed, " Ne", NeUsed, &
                             & " nH", grid%Hden(cellP), " chi", grid%chiFUV(cellP)
                        print '(a,a2,i3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,f7.4,a,es10.3)', &
@@ -2731,13 +2738,14 @@ end subroutine iterateT
                             & "  chex", dble(chex(elem,ion,1)), &
                             & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
                             & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
-                       if (elem > 2) &
-                            & print '(a,a2,i3,a,i5,a,i5,a,es10.3,a,i5,a,es10.3)', &
+                       if (elem == 6 .or. elem == 16) &
+                            & print '(a,a2,i3,a,i5,a,es10.3,a,i5,a,es10.3,a,es10.3)', &
                             & " ! [D235]   ", elemLabel(elem), ion, &
-                            & "  bins", jLo234, " to", jHi234, &
+                            & "  binLo", jLo234, &
                             & "  sum Jste", dble(sumJ234), &
                             & "  bins with J>0", nnz234, &
-                            & "  xSec(thresh)", dble(xTh234)
+                            & "  xSec(thresh)", dble(xTh234), &
+                            & "  opac(thresh)", dble(opac234)
                     end if
 #endif
 
