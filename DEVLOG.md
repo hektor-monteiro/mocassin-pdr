@@ -15092,3 +15092,64 @@ was gated on `taskid == 0`, which owns only a fraction of the grid and is why a
 one-cell-per-0.5-mag scheme produced two cells.
 
 **Run.** `runs/d237-taus`, hiipdr-split plus `teProbe 1`, 13 iterations.
+
+**Result (2026-09-12).** All 14 ranks sampling, 24 on-axis cells. Cumulative
+tau uses the measured `opacity` at bin 421 and ds = 2e18 cm; `pred` is
+J0*exp(-dtau)*(r0/r)^2 normalised at the first PDR cell.
+
+     A_V    cell  sum Jste    nb   opac(421)   tau_cum   pred        meas/pred
+     0.561  6     3.934e-02   9    2.273e-19    0.00     3.934e-02   1.00
+     1.058  10    4.375e-03   8    2.273e-19    1.82     2.298e-03   1.90
+     1.488  14    3.197e-04   5    2.277e-19    3.64     1.901e-04   1.68
+     1.917  18    7.601e-05   2    2.371e-19    5.46     1.851e-05   4.11
+     2.030  19    4.681e-05   1    3.340e-19    5.94     1.034e-05   4.53
+     2.030  20    2.645e-06   1    6.534e-19    6.61     4.785e-06   0.55
+     2.238  21    0.000e+00   0    6.541e-19    7.91     1.175e-06   -- floor
+     2.345  22    0.000e+00   0    6.545e-19    9.22     2.893e-07   -- floor
+     3.094  29    0.000e+00   0    6.604e-19   18.44     1.646e-11   -- floor
+
+**The transfer is correct.** Over four decades the measured field tracks
+exp(-tau)*(r0/r)^2 to within a factor 1.2-4.5, using MOCASSIN's own opacity. It
+then stops - not decays, stops - between cells 20 and 21.
+
+**Carbon self-shielding, measured.** `opac(421)` is flat at 2.273e-19 while
+carbon is ionized and rises to 6.604e-19 once it is not. The increment,
+4.33e-19, is x(C)*n_H*sigma = 2.2e-4*100*1.828e-17 = 4.02e-19. So the deep
+opacity rise IS neutral carbon shielding itself, and it is a feedback.
+
+**And this corrects what I wrote at D-236.** There I argued the physical rate was
+hopelessly small anyway. That used the deepest cell. Compared at the REFERENCE'S
+own depth the two codes nearly agree: MOCASSIN's tau at A_V 2.45 is ~11.2
+against 3D-PDR's TAUC ~10.4. The implied photoionization rate is then
+3.0e-10*61*exp(-11.2) ~ 2.5e-13 s^-1 against dn = 1.78e-13, i.e. C+/C ~ 1.4 -
+carbon majority-ionized, which is what the reference reports. The physics does
+not forbid C+ here. MOCASSIN forbids it.
+
+**The cliff is the estimator's floor.** One packet is worth ~2.6e-6 in these
+units (the smallest non-zero sum, one occupied bin). The predicted field at cell
+21 is 1.175e-6 and at cell 22 is 2.893e-07 - below one packet. The estimator
+returns exactly zero, and zero is a fixed point: no photoionization, carbon
+neutral, opacity triples, still fewer packets. The C+ collapse coincides with
+the floor crossing, not with any physical threshold. Resolving exp(-11) of the
+surface field in one cell would need ~1e3-1e4 times more packets.
+
+**What is still unexplained, and is smaller.** Scaling from cell 19, where
+carbon is ~80% ionized at sum Jste 4.68e-5, the physical field at cell 21 would
+leave C+/C ~ 0.02, or x(C+) ~ 4e-6 - better than the 3e-11 we get by five
+orders, but still ~30x under the reference. So removing the floor would not by
+itself reproduce 3D-PDR; there is a residual factor ~30 that is a separate
+question.
+
+**Caveat on the instrument.** With every rank printing, stdout interleaving can
+pair a [D235] line with the wrong [D234] header: cell 16 reads 3.934e-02 with 9
+bins, byte-identical to cell 6 and 672x off trend, where its own rank-3 sample
+was 2.288e-04. Any future all-rank probe must carry rank and cell on every line.
+
+**Where this leaves it.** The atomic data, threshold pointers, integration
+ranges, opacities and the transfer itself are all correct. MOCASSIN is being
+asked to represent an exponentially attenuated ionization rate with discrete
+packets, in a regime it was not built for. The options are more packets
+(impractical at 1e3-1e4x), an analytic attenuation estimator for the sub-Lyman
+photoionization of C and S as 3D-PDR's CIPDRATE does, or biased sampling in the
+FUV band. That is a contract decision - MOCASSIN owns ionization but cannot
+compute it here by Monte Carlo - and belongs to the user.
