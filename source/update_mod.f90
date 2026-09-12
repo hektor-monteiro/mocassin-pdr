@@ -2655,6 +2655,48 @@ end subroutine iterateT
                     if (ionUp(elem,ion) < 0.d0) ionUp(elem,ion) = 0.d0
                     if (ionDn(elem,ion) < 0.d0) ionDn(elem,ion) = 0.d0
 
+#ifdef PDR
+                    ! ------------------------------------------------ D-234
+                    ! EVERY element, not only carbon. Deep in the PDR x(C+) is
+                    ! 1e-7 of the reference while x(He+) is 1e3-1e4 ABOVE it,
+                    ! in the same cells at the same temperature. Opposite
+                    ! signs, so a carbon-only probe cannot separate "carbon is
+                    ! wrong" from "the balance splits by element" - and two
+                    ! things here are element-dependent by construction:
+                    !
+                    !   - chex is zeroed below 6000 K (line ~2585), for every
+                    !     element, so no metal has a charge-exchange sink here
+                    !   - the cosmic-ray source is added only for elem 1 and 2
+                    !     (the D-193 block below), so H and He keep a source in
+                    !     shielded gas that every metal loses
+                    !
+                    ! That predicts H/He over-ionized and metals under-ionized,
+                    ! split exactly at elem 2. Print both rates and each of
+                    ! their ingredients, per stage per element, in one cell.
+                    ! nIterateMC >= 12: the cliff is a property of the settled
+                    ! state, and the first deep cells this would otherwise
+                    ! catch are at iteration 4, before anything has cooled.
+                    if (teProbe /= 0 .and. taskid == 0 .and. nProbe234 < 120 &
+                         & .and. nIterateMC >= 12 &
+                         & .and. grid%pdrZone(cellP) == 1 &
+                         & .and. grid%AVeff(cellP) > 2.0) then
+                       nProbe234 = nProbe234 + 1
+                       if (elem == 1 .and. ion == 1) &
+                            & print*, "! [D234] cell", cellP, " AV", &
+                            & grid%AVeff(cellP), " Te", TeUsed, " Ne", NeUsed, &
+                            & " nH", grid%Hden(cellP), " chi", grid%chiFUV(cellP)
+                       print '(a,a2,i3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,f7.4,a,es10.3)', &
+                            & " ! [D234]   ", elemLabel(elem), ion, &
+                            & "  up", ionUp(elem,ion), &
+                            & "  phot", dble(nPhotoSte(elem,ion)), &
+                            & "  dn", ionDn(elem,ion), &
+                            & "  Ne*alpha", dble(NeUsed)*dble(alphaTot(elem,ion)), &
+                            & "  chex", dble(chex(elem,ion,1)), &
+                            & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
+                            & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
+                    end if
+#endif
+
                     ! D-116: a zero denominator is what drives the whole
                     ! pathology. Report its two terms the first time it
                     ! happens, so the cause is read rather than inferred -

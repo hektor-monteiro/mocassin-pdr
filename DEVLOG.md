@@ -233,6 +233,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-231 | **Fixed and verified - it does not explain the missing CO, and the converged profile says what does not.** The after-solve electron abundance now sits with the cell's ions (was 14-300x off). CO is unchanged by it (-74.4% and -74.8% at iterations 5-6, against -74.6% and -74.9% before), because the rates inside the solve never read the corrupted entry. Converged at 22 iterations, 83.3%: deep x(CO) 4.2e-10 against the reference's 3.3e-8 (80x low), x(OH) 4.7e-13 against 4.1e-10 (870x low), x(He+) 3.6e-5 against 2.5e-6 (14x high), carbon fully neutral where the reference keeps C+. The unconverged 17% fail on Te (2542) not on the chemistry (2) | Done | 2026-09-11 |
 | D-232 | **Dust supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing - but the channels are pooled, so ~3.8% of what dust absorbs comes back out ionizing and ~0.15% above 24.6 eV.** The gas remainder is 49-60% ionizing at 14-25 K, because the recombination continua are narrow spikes at their thresholds. Two compounding faults: the pooled PDF (the user's objection, confirmed) and the on-the-spot treatment of near-threshold gas emission | Done | 2026-09-11 |
 | D-233 | **Fix: dust absorptions re-emit from the dust's own spectrum.** Each non-scattering absorption branches on absOpac/(opacity - scaOpac): dust absorptions become 'dustEmi' packets sampling dustPDF, gas absorptions stay 'diffuse' sampling a recPDF that no longer carries the dust term. dustPDF is built and reduced whenever there is dust, not only when there is no gas. **Result: it fixes the ionization front and does nothing for the dark gas.** x(He+)/ref at the front goes 1390 -> 1.15, the first PDR cell 939 K -> 21.9 K and fully neutral, x(C+)/ref 0.95 -> 1.00, convergence 83.3% -> 87.8%. Deep, every number is unchanged (He+ 14.6x, CO 78x low, OH 870x low, C+ 1.9e-7 of the reference), so the pooled PDF was not what sustains helium ionization in dark gas - that hypothesis is discarded and the on-the-spot question (D-232) is next. The H II region only cools 0.2-2.6% and the front does not move | Done | 2026-09-11 |
+| D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -14901,3 +14902,54 @@ and not obviously the same one.
 
 **What is NOT known.** Everything the run is for, and whether the H II region
 benchmark moves - which must be checked separately before this is called done.
+
+---
+
+## D-234 - the ionization balance, every element (2026-09-12)
+
+**Raised by the user**, correcting the plan: I proposed instrumenting carbon,
+having spent the whole investigation on carbon. The user asked why not all of
+them. That is the better test, and the reason is specific rather than general.
+
+**Why carbon alone cannot answer it.** In the same cells, at the same
+temperature, deep in the PDR:
+
+    x(C+)  = 1e-7 of the reference        (three fixtures: A_V 2.35, 2.86, 3.44)
+    x(He+) = 1e3 - 1e4 TIMES the reference (14x, 3500x, 3.1e4x)
+
+Opposite signs. A carbon-only probe would have shown carbon's rates being small
+and told me nothing about whether that is carbon's problem or the balance
+splitting by element.
+
+**And the balance does have an element boundary in it, by construction.**
+Both found by reading `ionBalance` while chasing the carbon cliff:
+
+  - `chex(elem,ion,1)` is zeroed outright for `TeUsed < 6000` (update_mod
+    ~2585), for every element. At 14 K no species has a charge-exchange sink.
+  - the D-193 cosmic-ray source is added only for `elem == 1` and `elem == 2`
+    (update_mod ~2648). In shielded gas, where the FUV is gone, H and He keep
+    an ionizing source and every metal has none.
+
+**Prediction, written before the run.** If that boundary is what produces the
+two signs, the probe will show, in one deep cell:
+
+  - H and He: `up` dominated by the cosmic-ray term, `dn` = Ne*alpha with the
+    chex term exactly 0, and up/dn far above the reference's ionization
+  - C, N, O, Ne, S: `up` ~ `phot` alone and negligible, `dn` = Ne*alpha, chex
+    exactly 0, up/dn collapsing with depth
+  - the split falling exactly between elem 2 and elem 6, not gradually
+
+If instead every element shows a negligible `up`, the cosmic-ray boundary is
+not the cause and the missing 8 orders in carbon's photoionization rate - which
+static reading could not explain, since its threshold pointer is correct at
+0.827 Ryd, its integration range is correct, and J(FUV) is alive at depth - is
+a separate defect.
+
+**Change.** `update_mod`, in `ionBalance` after the rate clamps, under
+`#ifdef PDR` and gated on `teProbe`, `nIterateMC >= 12` (the cliff is a settled
+state, and the first deep cells otherwise caught are at iteration 4), a PDR-zone
+cell with `A_V > 2`, and capped at 120 lines. Prints per stage per element:
+`up`, its photoionization part, `dn`, its `Ne*alpha` part, `chex`, the ion's own
+threshold from `elementP(elem,ion,outShell,1)`, and up/dn.
+
+**Run.** `runs/d234-ionprobe`, hiipdr-split plus `teProbe 1`.

@@ -941,6 +941,7 @@ module common_mod
     integer             :: nHotProbe = 0       ! D-168: budget at the 30000 K rail
     integer(kind=8)     :: teNhiNoPdr = 0      ! D-168: ceiling clamps with no PDR data yet
     integer             :: nRateProbe = 0      ! D-169: MOCASSIN vs chemistry H rates
+    integer             :: nProbe234 = 0       ! D-234: ionization balance, every element
     integer             :: nSolProbe = 0       ! D-169: what ionBalance wrote back
     ! D-170. Where do the convergence failures actually live? Cloudy judges
     ! ITERATION-level convergence (ConvIterCheck) on model-integrated
