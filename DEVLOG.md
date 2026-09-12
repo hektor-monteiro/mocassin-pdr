@@ -234,6 +234,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-232 | **Dust supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing - but the channels are pooled, so ~3.8% of what dust absorbs comes back out ionizing and ~0.15% above 24.6 eV.** The gas remainder is 49-60% ionizing at 14-25 K, because the recombination continua are narrow spikes at their thresholds. Two compounding faults: the pooled PDF (the user's objection, confirmed) and the on-the-spot treatment of near-threshold gas emission | Done | 2026-09-11 |
 | D-233 | **Fix: dust absorptions re-emit from the dust's own spectrum.** Each non-scattering absorption branches on absOpac/(opacity - scaOpac): dust absorptions become 'dustEmi' packets sampling dustPDF, gas absorptions stay 'diffuse' sampling a recPDF that no longer carries the dust term. dustPDF is built and reduced whenever there is dust, not only when there is no gas. **Result: it fixes the ionization front and does nothing for the dark gas.** x(He+)/ref at the front goes 1390 -> 1.15, the first PDR cell 939 K -> 21.9 K and fully neutral, x(C+)/ref 0.95 -> 1.00, convergence 83.3% -> 87.8%. Deep, every number is unchanged (He+ 14.6x, CO 78x low, OH 870x low, C+ 1.9e-7 of the reference), so the pooled PDF was not what sustains helium ionization in dark gas - that hypothesis is discarded and the on-the-spot question (D-232) is next. The H II region only cools 0.2-2.6% and the front does not move | Done | 2026-09-11 |
 | D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell. **Result: stellar photoionization is at its 1e-20 initialisation floor for EVERY element, and the only non-zero source anywhere in the cell is the cosmic-ray term for H and He.** Every metal stage - C, N, O, Ne, S - has up = 1e-20 exactly, so nothing ionizes them at all; chex is 0 for every element (the 6000 K gate); dn is Ne*alpha exactly. The C+ cliff is therefore not carbon-specific, and the He+ excess is the CR source over a recombination sink with no charge exchange | Done | 2026-09-12 |
+| D-235 | **The cross-sections are present and correct; the field is absent.** Per ion, over its own bin range, in a cell at A_V 2.88: sum Jste = 0.000 with 0 bins carrying J > 0, while xSec at threshold reads 1.828e-17 for C I, 3.202e-17 for S I, 1.278e-17 for N I. Sulphur is the discriminator - its range starts at bin 416 (0.7614 Ryd), BELOW carbon's 421, and is equally empty - so the cutoff is not carbon's own edge. Since chiFUV = 0.127 is built from the same Jste over bins 397-431, every surviving photon lies in bins 397-415, below the lowest metal threshold in the model. Only one cell was sampled, so absorbed-on-the-way-in and never-present are still indistinguishable | Done | 2026-09-12 |
+| D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15001,3 +15003,44 @@ cross-section at its threshold. Run: `runs/d235-fuvprobe`, 13 iterations.
 `HlevNuP`/`HeIlevNuP` - so their printed 0.0000 is an unset pointer, not a
 threshold.
 
+
+---
+
+## D-235 - the cross-section is there; the photons are not (2026-09-12)
+
+**Change.** The D-234 probe, plus per ion: the summed `grid%Jste` over that
+ion's own bin range, how many of those bins carry J > 0, and the cross-section
+at its threshold. That separates "no field in this ion's range" from "no
+cross-section in this ion's range", which D-234 could not.
+
+**Result.** `runs/d235-fuvprobe`, iteration 12, cell 27, A_V 2.880, Te 14.67 K,
+chi 0.127:
+
+     ion    bins        sum Jste    bins with J>0   xSec(threshold)
+     C  I   421-599     0.000E+00         0          1.828E-17
+     N  I   439-599     0.000E+00         0          1.278E-17
+     O  I   434-599     0.000E+00         0          1.770E-18
+     Ne I   454-599     0.000E+00         0          6.538E-18
+     S  I   416-598     0.000E+00         0          3.202E-17
+
+**The cross-sections are present and right.** 1.83e-17 cm2 for C I at its
+threshold is the textbook value. Nothing is wrong with the atomic data, the
+`xSecArray` indexing, or the threshold pointers.
+
+**The field is what is missing, and sulphur says where.** S I's range begins at
+bin 416, 0.7614 Ryd - BELOW carbon's 421 - and is just as empty. So the cutoff
+is not at carbon's own edge, and "neutral carbon absorbs its own ionizing
+photons" is wrong as stated. Since `chiFUV` = 0.127 in this same cell is built
+by summing this same `Jste` over bins 397-431, the surviving photons must all
+lie in bins 397-415: below the lowest metal ionization threshold present in the
+model. Above the first metal edge, nothing survives to this depth.
+
+**What this still cannot decide.** The probe sampled ONE cell - 27, at A_V 2.88
+- four times, once per thermal-balance pass. A field that is zero at one depth
+is equally consistent with photons absorbed on the way in (physical
+self-shielding by the metals themselves) and with photons that were never in the
+PDR at all (structural). That is D-236.
+
+**One harmless artefact to note:** stages whose threshold exceeds `nuMax` print
+an empty range, "bins 600 to 599", with xSec 0 - C V, C VI, N VI. The loop is
+correctly doing nothing for them.

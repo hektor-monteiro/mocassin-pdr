@@ -942,6 +942,10 @@ module common_mod
     integer(kind=8)     :: teNhiNoPdr = 0      ! D-168: ceiling clamps with no PDR data yet
     integer             :: nRateProbe = 0      ! D-169: MOCASSIN vs chemistry H rates
     integer             :: nProbe234 = 0       ! D-234: ionization balance, every element
+    ! D-236: one sampled cell per 0.5 mag of A_V, so the field can be read as a
+    ! function of depth rather than at a single cell.
+    logical             :: lgAVsamp234(0:15) = .false.
+    integer             :: cellSamp234 = -1
     integer             :: nSolProbe = 0       ! D-169: what ionBalance wrote back
     ! D-170. Where do the convergence failures actually live? Cloudy judges
     ! ITERATION-level convergence (ConvIterCheck) on model-integrated

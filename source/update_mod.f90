@@ -2476,7 +2476,7 @@ end subroutine iterateT
 
             ! D-235: is the photoionization sum empty because there is no
             ! field in this ion's range, or because there is no cross-section?
-            integer :: jLo234, jHi234, jj234, nnz234
+            integer :: jLo234, jHi234, jj234, nnz234, iB234
             real    :: sumJ234, xTh234
 
 
@@ -2681,10 +2681,22 @@ end subroutine iterateT
                     ! nIterateMC >= 12: the cliff is a property of the settled
                     ! state, and the first deep cells this would otherwise
                     ! catch are at iteration 4, before anything has cooled.
-                    if (teProbe /= 0 .and. taskid == 0 .and. nProbe234 < 120 &
-                         & .and. nIterateMC >= 12 &
+                    ! D-236: one cell per 0.5 mag of A_V. D-234/D-235 sampled a
+                    ! single cell (27, A_V 2.88) and found zero field above the
+                    ! lowest metal threshold - which cannot distinguish photons
+                    ! absorbed on the way in from photons never present. The
+                    ! depth profile does distinguish them.
+                    iB234 = int(grid%AVeff(cellP)/0.5)
+                    if (iB234 < 0)  iB234 = 0
+                    if (iB234 > 15) iB234 = 15
+                    if (teProbe /= 0 .and. taskid == 0 .and. nProbe234 < 400 &
+                         & .and. nIterateMC >= 12 .and. ion <= 2 &
                          & .and. grid%pdrZone(cellP) == 1 &
-                         & .and. grid%AVeff(cellP) > 2.0) then
+                         & .and. (.not.lgAVsamp234(iB234) .or. cellSamp234 == cellP)) then
+                       if (cellSamp234 /= cellP) then
+                          cellSamp234 = cellP
+                          lgAVsamp234(iB234) = .true.
+                       end if
                        nProbe234 = nProbe234 + 1
                        ! D-235: the field and the cross-section this ion
                        ! actually sees, over its OWN range. phot sits at its
