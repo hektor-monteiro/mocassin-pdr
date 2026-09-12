@@ -1064,10 +1064,61 @@ module photon_mod
         REAL :: G_alpha     ! Value of the CDF at the boundary x=20
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! original basic probability
-        call random_number(random)
-        passProb = -log(1.-random)
-        weightFactor = 1.0
+        ! D-238: composite biasing of the interaction depth.
+        ! Baes et al. 2016, A&A 590, A55 (10.1051/0004-6361/201528063).
+        !
+        ! The analog sampler draws tau from p(tau) = exp(-tau), so the number
+        ! of packets reaching optical depth tau falls as exp(-tau). At the
+        ! carbon edge the PDR is ~18 optical depths deep (D-237), so with 6e6
+        ! packets NONE arrive and J is not small but identically zero - and
+        ! zero is a fixed point, because neutral carbon then triples the
+        ! opacity. Composite biasing draws instead from
+        !
+        !   q(tau) = xi*exp(-tau) + (1-xi)*alpha*exp(-alpha*tau)
+        !
+        ! and carries the correction as a packet weight
+        !
+        !   w = p/q = 1 / ( xi + (1-xi)*alpha*exp((1-alpha)*tau) )
+        !
+        ! which is bounded above by 1/xi whatever alpha is - that bound is the
+        ! reason for the composite form rather than plain stretching, whose
+        ! weights are unbounded and whose variance can be infinite.
+        !
+        ! alpha = 1/(1+tauCell) with tauCell = R_out*opacity, i.e. the optical
+        ! depth across the model at this frequency, so the stretched branch has
+        ! mean depth 1+tauCell: it reaches the far side by construction.
+        !
+        ! The weight is already carried everywhere it must be: Jste/Jdif, the
+        ! SED and escaped packets all deposit with enPacket%weight, getDustT
+        ! builds its radiation field from those same arrays, and a packet
+        ! absorbed with weight w is re-emitted with weight w (energyPacketRun
+        ! keeps start_weight when reRun == 1).
+        if (lgPathStretch) then
+           compXi = pathStretchXi
+           alpha  = 1.0/(1.0 + max(tauCell, 0.0))
+           ! branch selection needs its OWN draw: reusing one random number for
+           ! the branch and then for the sample correlates them, which is not
+           ! this estimator.
+           call random_number(random)
+           if (random < compXi) then
+              call random_number(random)
+              passProb = -log(1.-random)
+           else
+              call random_number(random)
+              passProb = -log(1.-random)/alpha
+           end if
+           ! guard the exponential: (1-alpha)*passProb can be large deep in an
+           ! opaque model, and overflow would poison the weight rather than
+           ! merely make it small.
+           expval = (1.0-alpha)*passProb
+           if (expval > 80.) expval = 80.
+           weightFactor = 1.0/(compXi + (1.0-compXi)*alpha*exp(expval))
+        else
+           ! original basic probability
+           call random_number(random)
+           passProb = -log(1.-random)
+           weightFactor = 1.0
+        end if
 
 !        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !        ! Probability considering path stretching with fixed alpha

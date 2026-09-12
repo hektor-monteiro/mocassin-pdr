@@ -236,6 +236,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell. **Result: stellar photoionization is at its 1e-20 initialisation floor for EVERY element, and the only non-zero source anywhere in the cell is the cosmic-ray term for H and He.** Every metal stage - C, N, O, Ne, S - has up = 1e-20 exactly, so nothing ionizes them at all; chex is 0 for every element (the 6000 K gate); dn is Ne*alpha exactly. The C+ cliff is therefore not carbon-specific, and the He+ excess is the CR source over a recombination sink with no charge exchange | Done | 2026-09-12 |
 | D-235 | **The cross-sections are present and correct; the field is absent.** Per ion, over its own bin range, in a cell at A_V 2.88: sum Jste = 0.000 with 0 bins carrying J > 0, while xSec at threshold reads 1.828e-17 for C I, 3.202e-17 for S I, 1.278e-17 for N I. Sulphur is the discriminator - its range starts at bin 416 (0.7614 Ryd), BELOW carbon's 421, and is equally empty - so the cutoff is not carbon's own edge. Since chiFUV = 0.127 is built from the same Jste over bins 397-431, every surviving photon lies in bins 397-415, below the lowest metal threshold in the model. Only one cell was sampled, so absorbed-on-the-way-in and never-present are still indistinguishable | Done | 2026-09-12 |
 | D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it. **Result: absorbed, not absent - and only C and S were ever candidates.** At A_V 1.381 C I carries sum Jste 1.116e-03 over 9 of its 179 bins and S I 1.642e-03 over 13; at A_V 2.880 both are exactly 0. N, O and Ne have thresholds ABOVE 1 Ryd where J is identically zero in a PDR, so their neutrality is correct physics, not a defect - my 'no metal is ever photoionized' was too broad. The depth scheme returned only two points because the probe was gated on taskid == 0 | Done | 2026-09-12 |
+| D-237 | **Measure tau from MOCASSIN's own opacity, and sample on every rank.** **Result: the C+ cliff is the Monte Carlo estimator's floor.** Over four decades the field tracks exp(-tau)*(r0/r)^2 to within 1.2-4.5x using the measured opacity, then stops rather than decaying. opac(421) is flat at 2.273e-19 while carbon is ionized and rises to 6.604e-19 once it is not - an increment of 4.33e-19 against x(C)*n_H*sigma = 4.02e-19, carbon shielding itself. At the reference's own depth the two codes nearly agree (tau ~ 11.2 against TAUC ~ 10.4), so the implied rate ~2.5e-13 against dn 1.78e-13 gives C+/C ~ 1.4: the physics does not forbid C+ there, the estimator does. One packet is worth ~2.6e-6 and the predicted field at the first zero cell is 1.2e-6 | Done | 2026-09-12 |
+| D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15153,3 +15155,71 @@ packets, in a regime it was not built for. The options are more packets
 photoionization of C and S as 3D-PDR's CIPDRATE does, or biased sampling in the
 FUV band. That is a contract decision - MOCASSIN owns ionization but cannot
 compute it here by Monte Carlo - and belongs to the user.
+
+
+---
+
+## D-238 - composite biasing, which was already written here (2026-09-12)
+
+**Raised by the user**, asking whether path length stretching (Baes et al. 2016,
+A&A 590, A55) would help. It does, and the more useful finding is that it is
+already in this tree: `calculate_pass_prob_and_weight` (photon_mod.f90:1048) has
+the analog sampler live and THREE biased variants commented out beneath it, one
+of them composite with a variable literally named `compXi`. `common_mod.f90:510`
+declares the packet field as "weight to be used in path streching". It has never
+been switched on - D-019 mentions it only in a list of things ruled out, as
+"disabled, weightFactor=1" - so this is enabling and correcting existing work,
+not new machinery.
+
+**Why it addresses D-237 exactly.** The analog sampler draws tau from exp(-tau),
+so the fraction of packets reaching the carbon edge at tau ~ 11-18 is 1e-5 to
+1e-8; with 6e6 packets that is none, and D-237 showed the estimator returning
+identically zero where the physical field is small but finite. Zero is a fixed
+point: no photoionization, carbon neutral, opacity triples, still fewer packets.
+Composite biasing draws from
+
+    q(tau) = xi*exp(-tau) + (1-xi)*alpha*exp(-alpha*tau)
+    w      = p/q = 1 / ( xi + (1-xi)*alpha*exp((1-alpha)*tau) )   <= 1/xi
+
+so the stretched branch reaches the far side while the weight stays bounded -
+which is the whole point of the composite form over plain stretching, whose
+weights are unbounded and whose variance can be infinite.
+
+**alpha is already right, and I had this wrong first.** I criticised
+`alpha = 1/(1+tauCell)` as tied to the local cell, computing alpha ~ 0.69 from a
+per-cell tau of 0.46. The call site passes `tauCell = R_out*opacity`, the optical
+depth across the MODEL: at the carbon edge that is 6e19*2.27e-19 = 13.6, giving
+alpha = 0.069 and a stretched branch of mean depth 14.6. It reaches our cells by
+construction. The formula needed fixing, not redesigning.
+
+**Two defects fixed.** The commented composite block tested `if (random < compXi)`
+against a random number drawn by the analog block above, then drew a second one
+inside each branch - branch and sample correlated, and undefined if the analog
+lines were ever commented out. Branch selection now takes its own draw. And
+`(1-alpha)*passProb` is now clamped at 80 before exponentiation.
+
+**Why the weights are safe here, checked rather than assumed.** They are already
+carried everywhere energy lands: `Jste`/`Jdif`, the SED and escaped packets all
+deposit with `enPacket%weight`; `getDustT` builds `radField` from those same
+arrays; gas photoionization heating sums `phXSec*Jste`; and `energyPacketRun`
+keeps `start_weight` when `reRun == 1`, so a packet absorbed with weight w is
+re-emitted with weight w and the re-emission budget stays consistent.
+
+**Predictions, before the run.**
+  - Deep cells (A_V > 2.2) acquire NON-ZERO sum Jste for C I and S I, where
+    D-237 measured exactly 0 in every one of 179 bins.
+  - x(C+) deep rises from 3.2e-11 towards ~4e-6. It should NOT reach the
+    reference's 1.6e-4: D-237 left a residual factor ~30 that biasing does not
+    address, and if C+ lands at the reference value something else changed too.
+  - CO and OH rise off their floors; how far is the measurement.
+  - Weights stay within (0, 2] with xi = 0.5. Any weight outside that is a bug.
+  - The controls must NOT move: H II region Te 7900-9400 K, the ionization front
+    at r = 4.54 pc, deep x(H2) ~ 0.475-0.495, the hydrogen budget 1 +/- 1e-4,
+    and the dust temperature profile. This changes the sampling of EVERY model,
+    so those are the quantities that say whether it is safe to make default.
+  - Convergence may DEGRADE: the ionization rate in shielded cells becomes a
+    noisy small number where it was a stable zero, and the chemistry feeds back
+    on it. A drop in the converged fraction is not by itself a failure.
+
+**Run.** `runs/d238-stretch`, hiipdr-split plus `teProbe 1` and `pathStretch 0.5`,
+13 iterations.

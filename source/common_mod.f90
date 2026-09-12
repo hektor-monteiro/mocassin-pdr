@@ -942,6 +942,11 @@ module common_mod
     integer(kind=8)     :: teNhiNoPdr = 0      ! D-168: ceiling clamps with no PDR data yet
     integer             :: nRateProbe = 0      ! D-169: MOCASSIN vs chemistry H rates
     integer             :: nProbe234 = 0       ! D-234: ionization balance, every element
+    ! D-238: composite biasing of the interaction depth (Baes et al. 2016,
+    ! A&A 590, A55). Default off: it changes the sampling of EVERY model, not
+    ! only PDRs, so it is validated on the fixtures before it becomes default.
+    logical             :: lgPathStretch = .false.
+    real                :: pathStretchXi = 0.5  ! the composite parameter xi
     ! D-236: one sampled cell per 0.5 mag of A_V, so the field can be read as a
     ! function of depth rather than at a single cell.
     logical             :: lgAVsamp234(0:15) = .false.

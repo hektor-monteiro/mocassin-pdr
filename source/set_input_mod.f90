@@ -790,6 +790,21 @@ module set_input_mod
             case ("teProbe")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teProbe
+            ! D-238: composite biasing of the interaction depth, Baes et al.
+            ! 2016. The argument is xi, the composite parameter: the fraction
+            ! of packets still drawn from the analog exp(-tau). Weights are
+            ! bounded by 1/xi, so xi = 0.5 caps them at 2. Numerics, not
+            ! ownership - it changes how the same field is estimated, not who
+            ! computes it - and it is off by default only until the fixtures
+            ! have been re-measured with it on.
+            case ("pathStretch")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, pathStretchXi
+                lgPathStretch = .true.
+                if (pathStretchXi <= 0. .or. pathStretchXi > 1.) then
+                   print*, "! setInput: pathStretch xi must be in (0,1]", pathStretchXi
+                   stop
+                end if
             case ("pdrTrackCell")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTrackCell
