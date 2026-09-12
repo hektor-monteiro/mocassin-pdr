@@ -985,6 +985,23 @@ module common_mod
     integer(kind=8)     :: cvFailByAV(7) = 0    ! failures by A_V band
     integer(kind=8)     :: cvFailSmallX = 0     ! failures with x(H0) < 1e-3
     integer(kind=8)     :: cvPassGated = 0      ! would pass a Cloudy-style gate
+    ! ------------------------------------------------------------------ D-248
+    ! The same instrument for the TEMPERATURE. D-229 added Te to lgConverged
+    ! and D-247 measured that it is the only test still failing at the plateau
+    ! (x(H0) 2, x(H2) 0, Te 1895 at iteration 13) - but nothing recorded the
+    ! DISTRIBUTION of the Te test statistic, so whether 1895 cells are moving
+    ! or merely noisy could not be told apart. cvTeHist is |dTe/Te| binned
+    ! exactly as cvHist bins |dx/x|, so the tolerance can be read against the
+    ! distribution it is applied to rather than argued about.
+    !
+    ! cvTeFloorPass is the D-176..D-181 / D-191 question asked of Te: a cell
+    ! clamped at teFloor cannot move, so it passes the test for free. D-165
+    ! recorded 1864 such cells being counted as converged; this counts them.
+    integer(kind=8)     :: cvTeHist(12) = 0     ! log10 |dTe/Te|, -8..+3
+    integer(kind=8)     :: cvFailTeByAV(7) = 0  ! Te failures by A_V band
+    integer(kind=8)     :: cvTeNear = 0         ! Te failures within 2x tolerance
+    integer(kind=8)     :: cvTeFloorPass = 0    ! at teFloor AND passing the Te test
+    integer(kind=8)     :: cvTeFloorN = 0       ! at teFloor, however they test
     ! D-172. Cloudy never reports a bare "not converged": conv.chNotConverged
     ! carries the reason, drChoice records which criterion set the zone
     ! thickness, and thermal.lgUnstable names a cell whose solution is on the

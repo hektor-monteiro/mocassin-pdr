@@ -158,6 +158,7 @@ module iteration_mod
            integer(kind=8)        :: cvS4                                ! D-176
            real(kind=8)           :: wDum                                ! D-178
            integer(kind=8)        :: cvS5(4)                             ! D-179, (4) D-229
+           integer(kind=8)        :: cvTS(12), cvTAS(7), cvS6(3)         ! D-248
            character(len=80)      :: chNotConv                           ! D-172
            integer(kind=int64)    :: size            ! size for mpi
            integer                :: iCell           ! cell index including non-active
@@ -2969,6 +2970,13 @@ module iteration_mod
               ! failures out of ~14900 unconverged cells. cvFailTe counts every
               ! cell that failed on Te, exclusively or not.
               call mpi_reduce(cvFailTe,   cvS5(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              ! D-248: the Te test statistic's distribution, and the cells the
+              ! floor is holding still.
+              call mpi_reduce(cvTeHist,     cvTS, 12, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvFailTeByAV, cvTAS, 7, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvTeNear,      cvS6(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvTeFloorPass, cvS6(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              call mpi_reduce(cvTeFloorN,    cvS6(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               if (taskid == 0 .and. teNsum(1) > 0) then
                  print*, "! TEPROBE iter", nIterateMC, " calls", teNsum(1), &
                       & " conv", teNsum(2), " (", 100.*real(teNsum(2))/real(teNsum(1)), "%)"
@@ -3006,6 +3014,17 @@ module iteration_mod
                        print*, "! CVPROBE   which test failed: x(H0) only", cvS5(1), &
                             & "  x(H2) only", cvS5(2), "  both", cvS5(3), &
                             & "  Te (any)", cvS5(4)
+                    end if
+                    ! -------------------------------------------------- D-248
+                    ! The Te statistic's own distribution. The verdict line
+                    ! above says how many cells fail; this says whether they
+                    ! are moving or merely noisy, and how many pass only
+                    ! because the floor is holding them still.
+                    if (sum(cvTS) > 0) then
+                       print*, "! CVPROBE   log10|dTe/Te| histogram -8..+3:", cvTS
+                       print*, "! CVPROBE   Te failures by A_V <.1 <.5 <1 <2 <4 >4:", cvTAS(1:6)
+                       print*, "! CVPROBE   Te failures within 2x tolerance:", cvS6(1), &
+                            & "  at teFloor:", cvS6(3), " of which PASSING for free:", cvS6(2)
                     end if
                     if (cvS3(1)+cvS3(2)+cvS3(3)+cvS3(4) > 0) then
                        print*, "! CVPROBE   branch vs last iteration (split", &
@@ -3049,6 +3068,8 @@ module iteration_mod
               cvStayHot = 0; cvStayCold = 0; cvHot2Cold = 0; cvCold2Hot = 0
               cvPdrCleared = 0
               cvFailH0 = 0; cvFailH2 = 0; cvFailBoth = 0; cvFailTe = 0   ! D-229
+              cvTeHist = 0; cvFailTeByAV = 0                             ! D-248
+              cvTeNear = 0; cvTeFloorPass = 0; cvTeFloorN = 0            ! D-248
               teBrkHist = 0
            end if
 

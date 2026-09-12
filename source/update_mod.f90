@@ -570,6 +570,8 @@ subroutine iterateT()
 
     ! D-165 probe: instrument the temperature solve itself.
     integer :: nStallHit, nUsed, iBin, iTr, jTr
+    integer :: iBinTe                  ! D-248: bin index for the Te statistic
+    real    :: deltaTe                 ! D-248: |Te - TeIterStart| / TeIterStart
     integer :: lastSide, nRestart      ! D-165 Illinois / restart state
     real    :: brkStep, TeNext
     real    :: TeBest, resBest       ! D-165: best point seen, for the no-bracket exit
@@ -1055,6 +1057,42 @@ subroutine iterateT()
        if (     lgCvH0 .and. .not.lgCvH2) cvFailH2   = cvFailH2   + 1
        if (.not.lgCvH0 .and. .not.lgCvH2) cvFailBoth = cvFailBoth + 1
        if (.not.lgCvTe)                   cvFailTe   = cvFailTe   + 1
+       ! ------------------------------------------------------------- D-248
+       ! The distribution of the Te test statistic, not just its verdict.
+       ! Binned as cvHist bins |dx/x| so the two are read the same way.
+       if (allocated(grid%TeIterStart)) then
+          if (grid%TeIterStart(cellP) > 0.) then
+             deltaTe = abs(TeUsed - grid%TeIterStart(cellP)) &
+                  &    / grid%TeIterStart(cellP)
+             iBinTe = min(12, max(1, 9 + int(log10(max(deltaTe, 1.e-30)))))
+             cvTeHist(iBinTe) = cvTeHist(iBinTe) + 1
+             ! A cell held at the floor cannot move, so it passes for free.
+             if (TeUsed <= teFloor*1.00001) then
+                cvTeFloorN = cvTeFloorN + 1
+                if (lgCvTe) cvTeFloorPass = cvTeFloorPass + 1
+             end if
+             if (.not.lgCvTe) then
+                if (deltaTe <= 2.*XHILimit) cvTeNear = cvTeNear + 1
+#ifdef PDR
+                if (lgPDR) then
+                   if (grid%AVeff(cellP) < 0.1) then
+                      cvFailTeByAV(1) = cvFailTeByAV(1) + 1
+                   else if (grid%AVeff(cellP) < 0.5) then
+                      cvFailTeByAV(2) = cvFailTeByAV(2) + 1
+                   else if (grid%AVeff(cellP) < 1.) then
+                      cvFailTeByAV(3) = cvFailTeByAV(3) + 1
+                   else if (grid%AVeff(cellP) < 2.) then
+                      cvFailTeByAV(4) = cvFailTeByAV(4) + 1
+                   else if (grid%AVeff(cellP) < 4.) then
+                      cvFailTeByAV(5) = cvFailTeByAV(5) + 1
+                   else
+                      cvFailTeByAV(6) = cvFailTeByAV(6) + 1
+                   end if
+                end if
+#endif
+             end if
+          end if
+       end if
     end if
 
     ! ---------------------------------------------------------------- D-170

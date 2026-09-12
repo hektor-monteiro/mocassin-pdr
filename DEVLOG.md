@@ -246,6 +246,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-244 | **The ionizing emission of cold PDR gas is the He I recombination continuum: 87-95% of it, at every depth below the front.** D-243 excluded the He I 2^3S metastable line at under 1% and left ~40% of a cold cell's gas spectrum above 13.6 eV unattributed. Splitting the sum by emitter answers it. In the hot front gas hydrogen behaves as it should - fHI 0.955 at 6977 K - and through the entire cold PDR it inverts: **fHeI 0.606, 0.809, 0.954, 0.872, 0.885, 0.868 from A_V 0.81 to 3.06**, with fHeII identically 0 (absolute ~1e-9). Since the 2^3S term is <1%, the carrier is the He I recombination continuum at 24.6 eV. **It scales as x(He+)*Ne, and our x(He+) is 2-7.5x the reference deep in the PDR - an excess this project has never explained** - so an excess He+ feeds an excess 24.6 eV continuum, reabsorbed on the spot in gas ~700 optical depths per cell thick. Same shape as the D-227 runaway, different channel. Measured at 13 iterations rather than 22 after an OOM kill; validated by ion/gas agreeing with D-243 to 1-2% in six of seven A_V buckets. Open and unresolved: the run holds 1.05 GB/rank against the 393 MB/rank the documented memory model predicts, 2.7x, cause unknown | Done | 2026-09-12 |
 | D-245 | **A memory leak I introduced in D-158/D-225: `JDifTemp` allocated under `pdrSplitField` but freed only under `lgDebug`, in a RECURSIVE subroutine.** `iteration_mod.f90:760` allocates it when `lgDebug .or. pdrSplitField /= 0`; `:923` freed it when `lgDebug` alone. I added the `pdrSplitField` term to the allocate guard so the diffuse field would be unpacked for the D-225 census and never touched its partner. Because `iterateMC` is `recursive` - it advances `nIterateMC` at `:3220` and calls itself at `:3227` rather than looping - a local allocatable still allocated at the recursive call stays live in that frame and every frame beneath it. **Measured: 34.8 MiB per rank per iteration**, one `(nCells+1, nbins)` real4 array. Per-rank PSS before the fix 754.6 / 789.5 / 828.5 / 874.6 MB at iterations 1-4, monotonic and never returning; after, 685.1 / 685.1 / 689.3 / 700.7, flat through all 6 with the wobble moving both directions. At the 22-iteration setting that is ~19.9 GB against ~9.8 GB across 14 ranks, which is why D-244's first attempt was killed at iteration 6 and why 22-iteration runs had become untenable. **Every run of mine on the `hiipdr-split` fixture since D-225 carried it.** No computed quantity is affected - it consumes memory and nothing else - so the D-243 and D-244 physics stand. Audit: every other temporary in `iterateMC` pairs symmetrically and is freed before the recursive call. **Still open and NOT explained by this: the baseline is 685 MB/rank against the documented model's 393 MB, 1.74x, present at iteration 1 before any accumulation** | Done | 2026-09-12 |
 | D-246 | **The He I continuum feeds nothing, and the He+ excess is a missing sink: 3D-PDR destroys He+ by ~20 routes MOCASSIN does not have.** Two results. (1) **The loop is dead.** D-244 raised the possibility that the He I recombination continuum sustains the He+ that emits it. `phot` = `nPhotoSte` sits at its 1e-20 initialisation floor in **all 434 sampled PDR cells, for BOTH H and He**, with `up` equal to the cosmic-ray constant alone (2.301E-17 for H, 2.501E-17 for He, against 2.300e-17 and 2.500e-17). Photoionization is 4e-4 of the CR term. The instrumentation artefact was excluded: helium is handled by its own branch at `update_mod.f90:199-207/224-230` with `IPNuP = HeIlevNuP(1)`, `highNuP = nbins` and a proper He I cross-section, so the band IS sampled; the `nu_th 0.0000` on those lines is a display bug only (the probe prints `nuArray(elementP(...))`, and `elementP`/`outShell` are populated only for elem > 2). **So D-244's 87-95% is a consequence of the He+ excess, not its cause.** (2) With `phot` negligible and `chex` zeroed by the 6000 K gate, x(He+) reduces to CR/(Ne*alpha) - and **that prediction fails, with the wrong sign**: it gives 0.31-0.62 where the observed excess is 1.5-3.9 at A_V 0.7-1.8. The reason is that **the reference is sink-limited, not CR-limited - its x(He+) is 30-60x BELOW CR/(Ne*alpha) at every depth**, so the equation was never valid on both sides. 3D-PDR drains He+ through He+ + H (rates_reduced.d:156/157, valid from 10 K), He+ + H2 (50, 170), He+ + C (178) and a molecular family with CH, CH2, CH3, CH4, OH, H2O, CO, O2 (78-92). MOCASSIN's ionBalance has exactly one non-recombination sink, `chex`, which is He+ + H -> He + H+ - the reference's main low-T route - and it is switched off below 6000 K; the molecular channels have no counterpart at all. Our alpha is fine (1.8-3.0e-11 cm^3/s at 14-26 K, Verner & Ferland He-like, dielectronic excluded for elem < 3). Secondary but real: the electron pool modulates the excess - biasing restores x(C+), holding x(e) at 2.20e-4 instead of 6.45e-5, and the excess drops from 24x to 2.4x in that bucket. **Decision needed before any fix: the 6000 K gate is not PDR-specific, so removing it changes ionization for every MOCASSIN model** | Open | 2026-09-12 |
+| D-247 | **Full-repository audit: all four build flavours compile; the five things blocking the coupling, ranked.** Verified from a clean tree this session - `PDR=1 PDRGEOM=3D`, `PDR=1`, plain and `PDR=1 mocassinWarm` all build, working tree clean, default flavour restored. What works: the ownership contract is in the code (D-198), the hydrogen budget closes, `x(H+)_ion / x(H+)_chem` has median 0.99998 over 15039 cells, the V1/V2 slabs reproduce the reference's CO and H2 exactly, and a 13-iteration 3D run exits clean in 25 min. **The five blockers, in the order I would work them.** (1) **CO/OH 1-2 decades under the reference in 3D while the 1D slabs are exact** - hiipdr CO/ref 0.004-0.250 and OH/ref 0.013-0.593 at matched depth, against 1.00 for CO in V1/V2; C+ is now right (0.98-1.03), so the network and the CO formation path are correct in a slab and something in the 3D coupling suppresses the molecules. Worst at BOTH ends, best in the middle - a shape, not an offset. This contrast is the sharpest unexploited lead in the project. (2) **The He+ excess needs a design decision, not more measurement** - D-246 closed the mechanism; `chex` is zeroed below 6000 K at `update_mod.f90:2590` so He+ + H is off in every PDR cell, and the reference's molecular sinks have no counterpart. Its three prerequisites are undone. (3) **The 87.5% convergence plateau is entirely the Te test, and the log already said so** - final-iteration CVPROBE reads `x(H0) only 2, x(H2) only 0, both 0, Te (any) 1895`, and 1895/15204 = 12.5% is exactly the missing fraction. D-228 listed "which of the three tests those cells fail" as unmeasured; `d244-species` ran with `teProbe 1` and answered it, and nobody read the line. Supporting: the Te bracket is wider than `thLimit/3` in 81.8% of cells. (4) **47% of cells report "Ion balance not reached" at the FINAL iteration** - 51, 50, 49 ... 47% across the run, while Te balance falls to 0% by iteration 13. Counted at `update_mod.f90:985` over `totCells`, so not PDR-specific and not confined to the zone. Never diagnosed; every ionization result including D-246 rests on it. (5) **Memory is 1.74x the documented model, cause unknown** - 685 MB/rank at iteration 1 against 393 MB predicted, ~20 `(15205,600)` arrays where 4-5 are implied. D-245 fixed a real leak on top of this; the baseline gap is untouched and has already killed a production run. **Below the line:** ~9 live ownership switches remain plus `pdrZoneLim 0.3` (the production fixture sets none of them, so this is latent complexity, not active divergence); the temperature disagrees with the reference in OPPOSITE directions - 0.59x in hiipdr, 2.3x and 6.0x in the slabs - which is not one missing term; 70 `mocassin.dNNN` binaries are tracked in git, 78 MB. **One thing not to chase:** `pdrOmega = 0.42d0` looks like a rule-1 violation but is dead - `omega` is assigned and printed and never enters a rate expression anywhere in `source/pdr/`; `pdrAVfac` by contrast IS calibrated from MOCASSIN's own dust at `pdr_mod.f90:986` | Done | 2026-09-12 |
+| D-248 | **The 87.5% plateau is Monte Carlo noise measured against a tolerance below it, plus two populations that pass for free.** D-247 found the plateau is entirely the Te test; nothing recorded the test statistic's DISTRIBUTION, only its verdict. **(1) The floor is stationary, not converging** - d243-heicorr's 22 iterations oscillate in the band 1872-2017 for twelve consecutive iterations. **(2) A verified repeat pair measures the null.** `d239-roulette`/`d242-repeat` have byte-identical inputs AND binaries; realisation noise alone puts **13.21%** of cells past the 0.10 tolerance (median |dTe/Te| 0.0272, p90 0.1162), and not one of the 165 ionized cells breaches it - every breach is in the PDR. My first pair, d236/d237, was WRONG and is withdrawn: `git diff` between the result commits was empty but `cmp` puts 392,183 bytes between the binaries, because those runs carried uncommitted probe changes. **(3) The failing cells are the noisy cells** - P(noisy|fail) 39.5% against P(noisy|pass) 9.8%, median scatter 0.0805 against 0.0233. **(4) The noise is not inherited from the field but filtered by depth**: chiFUV scatter rises monotonically with A_V (0.0073 -> 0.5514) while Te scatter PEAKS at A_V 2.0-2.5 and collapses to 0.0052 deeper; the gain d(lnTe)/d(ln heat) falls 0.57 -> 0.01, so the failure band is where large heating noise meets a response that has not yet collapsed. **(5) The instrument** (`cvTeHist`, `cvFailTeByAV`, `cvTeNear`, `cvTeFloorN/Pass`, diagnostic-only under `teProbe`) validated two ways in `runs/d248-tehist`: bins 9-12 equal `cvFailTe` in all 13 iterations, and `cvFailTeByAV` `[0,0,35,219,1751,0]` matches `[0,2,29,206,1660,0]` predicted beforehand from disk. **(6) THE RESULT: failure rate 13.19% against a null of 13.21%, and 48% of the grid sits in the single decade immediately below the tolerance** - the criterion slices the body of a noise-set distribution rather than separating converged from unconverged; 58% of failures are within 2x of passing. **(7) A second free-pass population, larger than the floor's**: 2515 cells (16.5%) report EXACTLY zero change, growing 146->2515 over iterations 8-13. Not structural, not the D-215 table (2395 distinct temperatures), not the dead `if (.false.)` PDR pinning - it is the solver's no-bracket fallback, tracking `teNnobrack` at a constant ~130 offset, where `update_mod.f90:737-744` sets `TeUsed = TeBest` and exits without a secant step. A fallback, not a root, counted as converged. The floor clamp is real but small in this configuration (74 cells, 64 passing free) and is **tenfold larger in biased runs** (729 vs 72), so my first write-up of it, quoted from d239, overstated it for the analog case. **Conclusion: the converged percentage is not currently a statement about PDR physics** - an eighth of the grid fails on noise, a sixth passes without moving. Raising `convLimit` is explicitly refused as fitting a number; the clearest justified change is to stop counting no-bracket fallbacks as converged, which does not touch the criterion | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -16267,3 +16269,437 @@ header's fields are `AV=$8, Te=$10, Ne=$12, nH=$14` and I read `$10`/`$12`,
 reporting "Ne 20.27, nH 0.0"; and earlier an awk table was corrupted by a
 comma-decimal locale. The habit that would have prevented all three is to print
 one raw line and number its fields before writing the extractor.
+
+---
+
+## D-247 - full-repository audit: what builds, what works, and the five blockers (2026-09-12)
+
+Requested as a standing audit rather than prompted by a defect. Nothing was
+changed; everything below is measured from the tree at 559215e and from run
+output already on disk, except the builds, which were run fresh.
+
+### The build matrix, verified
+
+All four flavours compile from a clean object tree, in this order, with
+`make clean` between each:
+
+    make PDR=1 PDRGEOM=3D mocassin      OK
+    make PDR=1 mocassin                 OK
+    make mocassin                       OK
+    make PDR=1 mocassinWarm             OK
+
+The default flavour was rebuilt afterwards, so `.pdrflag` reads `1-3D` and the
+`mocassin` binary in the root is the ray-traced build. Working tree clean.
+
+### What is working, stated so it is not re-derived
+
+  - The ownership contract is in the code, not in keywords (D-198). The
+    production fixture states no ownership keyword at all.
+  - `x(H+)_ion / x(H+)_chem` has median 0.99998, p90 1.0015 over 15039 cells.
+    The two descriptions of hydrogen's ionization agree - "one reality per
+    quantity" holds for the quantity that has cost the most to get there.
+  - The hydrogen budget closes: worst 1.0e-5 over 801 cells (V1), 9.9e-6 over
+    401 (V2).
+  - The V1/V2 slabs reproduce the reference: x(CO)/ref = 1.00, x(H2) 0.4993
+    against 0.4993 and 0.5000 against 0.5000.
+  - A 13-iteration 3D run of the H II + PDR fixture completes in 24:56 per
+    processor with a clean exit.
+
+### The five blockers, ranked
+
+**1. CO and OH are 1-2 decades under the reference in 3D, and exact in 1D.**
+
+    A_V       1.175  1.488  1.917  2.030  2.238  2.345
+    CO/ref    0.004  0.090  0.236  0.250  0.029  0.020
+    OH/ref    0.013  0.310  0.559  0.593  0.032  0.016
+    C+/ref     1.00   1.01   1.03   1.02   0.98   1.00
+
+against x(CO)/ref = 1.00 in both slabs at A_V 8.49. Carbon is right, so C+
+starvation is excluded (D-239 correction). The network, the CO formation route
+and the H2 chemistry all reproduce the reference in a slab; the deficit appears
+only when the 3D coupling is in the path. It is worst at BOTH ends of the PDR
+and best in the middle - a shape, not an offset. **The slab/3D contrast is the
+sharpest lead in the project and has not been worked.** It is what I would do
+first.
+
+**2. The He+ excess is blocked on a design decision, not on measurement.**
+
+D-246 closed the mechanism end to end. `chex` - He+ + H -> He + H+, the
+reference's dominant low-temperature sink - is zeroed below 6000 K at
+`update_mod.f90:2590`, which is every PDR cell; the reference's molecular sinks
+have no MOCASSIN counterpart at all. D-246's three prerequisites are all
+undone. The gate is not PDR-specific, so this belongs in the design.
+
+**3. The 87.5% plateau is entirely the Te test, and the log already said so.**
+
+Converged fraction over iterations 9-13: 73.0, 85.4, 87.1, 87.8, 87.5, against
+a 95% target. The final iteration's CVPROBE line reads
+
+    which test failed: x(H0) only 2   x(H2) only 0   both 0   Te (any) 1895
+
+and 1895/15204 = 12.5%, exactly the missing fraction. D-228 listed "which of
+the three tests those cells fail" as unmeasured; `d244-species` ran with
+`teProbe 1`, printed the answer, and it was not read. This is the entry's own
+process finding: **an instrument was added, fired, and its output went
+unexamined for a day.** Supporting numbers from the same block: the Te solve's
+bracket is wider than `thLimit/3` in 12435 cells (81.8%), and TEPROBE itself
+reports 99.89% of Te calls converging - so the root finder is not failing, the
+inter-iteration test is.
+
+**4. 47% of cells report "Ion balance not reached" at the FINAL iteration.**
+
+Across the run: 1, 51, 50, 49, ..., 47%. The Te-balance counter falls to 0% by
+iteration 13; this one does not move. It is incremented at
+`update_mod.f90:985` and normalised over `totCells` at `iteration_mod.f90:2844`,
+so it is neither PDR-specific nor confined to the zone. It has never been
+diagnosed - no probe says which elements, which stages, or where. Every
+ionization result in this log, D-246 included, sits on top of it.
+
+**5. Memory is 1.74x the documented model and the cause is unknown.**
+
+685 MB/rank at iteration 1 against the 393 MB that 234 MB + 10.47 kB/cell
+predicts at 15204 cells - about 20 `(15205,600)` real4 arrays where the
+per-cell term implies four or five. D-245 fixed a genuine leak on top of this
+baseline; the baseline itself is untouched, and it has already killed a
+production run at iteration 6. It gates the longer and denser runs that
+blockers 1-4 need. Separating "regression in this tree" from "the model always
+understated this fixture" costs one build of an older commit and one
+measurement.
+
+### Below the line
+
+  - **Ownership-switch debt.** 43 `pdr*` keywords. Seven are retired and
+    ignored with a log line but still parsed; roughly nine remain live
+    ownership switches - `pdrOwnDust`, `pdrDustFeedback`, `pdrUseNePDR`,
+    `pdrPEfromPDR`, `pdrCoolZoneGate`, `pdrDustModel`, `pdrFUVmode`,
+    `pdrSplitField`, `pdrCoupleIter` - plus `pdrZoneLim = 0.3`, still a runtime
+    threshold deciding ownership (latched, D-031). CLAUDE.md names this class
+    as the project's largest defect source. The production fixture sets none of
+    them, so this is latent complexity rather than active divergence.
+  - **The temperature disagrees with the reference in opposite directions**:
+    0.59x in hiipdr (colder), 2.3x and 6.0x in V1/V2 (hotter). Same code. That
+    is not one missing heating or cooling term.
+  - **Repo hygiene.** 70 `mocassin.dNNN` binaries are tracked in git, 78 MB in
+    the working tree; `.gitignore` covers `mocassin` but not the dated copies.
+
+### One thing not to chase
+
+`pdrOmega = 0.42d0` at `pdr_mod.f90:207` reads as a CLAUDE.md rule-1 violation
+and is **dead**: `omega` is assigned (`input_parameters.F90:65`) and printed
+(`writeparams.F90:55`) and never enters a rate expression anywhere in
+`source/pdr/`. `pdrAVfac`, which looks like the same kind of constant, is the
+opposite case - it is calibrated from MOCASSIN's own dust at `pdr_mod.f90:986`,
+`magPerTau*kV/Hden`, and is self-consistent by construction.
+
+Also cosmetic and already noted at D-246: the D-234 probe prints `nu_th 0.0000`
+for every helium line because it reads `nuArray(elementP(elem,ion,outShell,1))`
+and `elementP`/`outShell` are populated only for `elem > 2`. Display only - it
+never touches `nPhotoSte` - but it misled one analysis already.
+
+---
+
+## D-248 - the 87.5% plateau is the Te test, and most of what it is testing is Monte Carlo noise (2026-09-12)
+
+D-247 found that the plateau is entirely the temperature test - final-iteration
+CVPROBE reads `x(H0) only 2, x(H2) only 0, both 0, Te (any) 1895`, and
+1895/15204 = 12.5% is exactly the missing fraction. What it could not say is
+whether those 1895 cells are *moving* or merely *noisy*. Nothing recorded the
+distribution of the Te test statistic, only its verdict.
+
+This entry answers that from data already on disk, then adds the instrument
+that measures it directly.
+
+### 1. The floor is stationary, not converging
+
+`cvFailTe` per iteration, three runs of the same fixture:
+
+    d244-species (13 it)  8379 14897 14982 14766 15079 15031 14960 10393 4082 2205 1959 1846 1895
+    d236-depth   (13 it)  8584 14902 14983 14723 15077 15027 14960 10355 4220 2317 2020 1896 1836
+    d243-heicorr (22 it)  8512 14898 14984 14681 15075 15032 14962 10338 4099 2253 2008 2017 1938
+                          1873 1872 1954 1889 1916 1895 1880 1897 1877
+
+**d243-heicorr is the decisive one: twelve consecutive iterations oscillating
+in the band 1872-2017 with no downward trend.** A converging sequence does not
+look like that. The Te failure count is a floor the model sits on, not a
+residual it is working off.
+
+### 2. What a repeat run says the test statistic does under NO physics change
+
+If the physics is converged and only the realisation differs, the test
+statistic |dTe/Te| still has a distribution. Two runs of an identical
+configuration measure it.
+
+**Choosing the pair took two attempts, and the first was wrong.** I first used
+`d236-depth` / `d237-taus`: same input file, both 13 iterations, and
+`git diff --stat 6119748 8442c73 -- source/` empty, which I read as "same
+code". It is not - `cmp` puts **392,183 bytes** between the two binaries, a
+third of the file. Those runs were made from working trees carrying
+uncommitted probe changes, and a diff between the two *result* commits cannot
+see that. The 18.72% figure that pair gave is withdrawn.
+
+The verified pair is `d239-roulette` / `d242-repeat`: byte-identical input
+files AND byte-identical binaries (`cmp` clean), which is what D-242 describes
+as re-running the D-239 configuration unchanged.
+
+Measured over the 15204 active cells, comparing final `grid%Te` cell by cell:
+
+    median |dTe/Te|   0.0272
+    p90               0.1162
+    p99               0.2564
+    max               1.3174
+    exceeding 0.10    2009 cells = 13.21%
+
+Against an observed failure floor of 1727 (11.36%) in d239 and 1822 (11.98%)
+in d242. **The rate at which pure realisation noise breaches the tolerance is
+of the same size as - in fact slightly larger than - the rate at which cells
+actually fail it.**
+
+By zone, the separation is total: the 165 ionized cells have median scatter
+0.0055 and **not one** exceeds 0.10; every one of the 2009 breaches is in the
+PDR.
+
+### 3. The failing cells are the noisy cells
+
+Cross-tabulating each run's own per-cell `lgConverged` (it is written to
+`grid0.out`, so this needed no new run) against the pair's noise map:
+
+                        d239      d242
+    P(noisy | fail)     39.5%     36.4%
+    P(noisy | pass)      9.8%     10.1%
+    median scatter, failing cells   0.0805    0.0754
+    median scatter, passing cells   0.0233    0.0231
+
+A failing cell carries **3.5x** the realisation noise of a passing one, and is
+**4x** more likely to be over tolerance on noise alone. The typical failing
+cell's noise, 0.08, is 80% of the entire 0.10 budget - so for those cells
+almost nothing is left over for physical drift.
+
+By depth, the failure profile and the noise profile track each other:
+
+    A_V band     cells   fail%   noisy%   median scatter
+    0.0-0.5        168     1.2%    0.0%       0.0054
+    0.5-1.0        684     4.4%    4.1%       0.0033
+    1.0-1.5       1496     0.1%    0.2%       0.0069
+    1.5-2.0       2628     4.7%    3.5%       0.0232
+    2.0-2.5       4203    18.9%   21.5%       0.0527
+    2.5-3.0       5724    13.5%   17.0%       0.0331
+    3.0+           301     1.3%    2.0%       0.0052
+
+### 4. The noise is not inherited from the field - it is filtered by depth
+
+The obvious story, "the deep field is under-sampled so the deep temperature is
+noisy", is wrong. Over the verified pair, the FUV field's own scatter **rises
+monotonically** with depth while the temperature's **peaks and falls back**:
+
+    A_V band      n     med chi   med heat   med Te   gain = Te/heat
+    0.0-0.5      168     0.0073     0.0095   0.0054       0.57
+    0.5-1.0      684     0.0333     0.0143   0.0033       0.23
+    1.0-1.5     1496     0.0904     0.0468   0.0069       0.15
+    1.5-2.0     2628     0.1969     0.1398   0.0232       0.17
+    2.0-2.5     4203     0.3373     0.2845   0.0527       0.19
+    2.5-3.0     5724     0.4907     0.4027   0.0331       0.08
+    3.0+         301     0.5514     0.3961   0.0052       0.01
+
+Whole-grid medians: chiFUV 0.2911, pdrHeat 0.2289, Te 0.0272. **The field is an
+order of magnitude noisier than the temperature it drives**, and the log-log
+correlation between them is only 0.197 (heating to Te, 0.265).
+
+The gain, d(lnTe)/d(ln heat), **collapses with depth** - 0.57 at the face,
+0.01 in the deepest gas, which absorbs a 40% swing in its heating and moves
+0.5% in temperature. So the failure band at A_V 2.0-2.5 is not where the field
+is worst; the field is worst at A_V 3+, where almost nothing fails. It is where
+the heating noise has grown large while the thermal response has not yet
+collapsed. The two curves cross there.
+
+### 5. The temperature floor: real, confirmed, and too small to matter here
+
+I claimed, then withdrew, then restored a finding about `teFloor`, and then had
+to cut its size by a factor of five. Recorded in full because the reasoning
+errors are the reusable part.
+
+**Claim.** Cells sitting at the 10 K floor have a quantity that cannot move, so
+they pass the Te test for free - D-176..D-181 and D-191 again.
+
+**Retraction.** Tested against the true clamp (`Te <= teFloor*1.00001`) on the
+stored `grid%Te`, **zero** cells matched; the minimum is 10.0005 (biased) and
+10.0080 (analog). Nothing appeared to be clamped.
+
+**Restoration.** The clamp counter disagrees: `teNloclamp` is nonzero in every
+run. The stored value is not the tested value - `iterDamp = 0.25` blends the
+clamped 10.0 with the previous iteration's temperature *after* the test, which
+lifts it just above the floor. **Testing the stored array measured the wrong
+quantity.** That is the reusable lesson: where a value is damped after the
+test, the array on disk is not what the criterion saw.
+
+**Correction of scale - and it is configuration-dependent.** I first quoted
+d239, which carries `pathStretch 0.5`. The plateau being diagnosed is the
+*analog* configuration, and it clamps roughly ten times fewer cells:
+
+    final-iteration teNloclamp
+      analog   d244  72     d236  60     d243 142
+      biased   d239 729     d242 781
+
+    cells within 0.1 K of the floor, and their convergence
+      d244 (analog)   202 cells = 1.33% of grid,  0% unconverged
+      d239 (biased)  1061 cells = 6.98% of grid,  0% unconverged
+
+**So the mechanism is confirmed and the magnitude is small.** Every near-floor
+band in both runs is 0% unconverged - a cell held at the floor does pass for
+free, exactly as predicted, and D-165 said so already: *"a cell parked on the
+floor is not a solved cell, and 1864 of them were being counted as one."* But
+in the configuration that shows the 87.5% plateau it accounts for 1.3% of the
+grid, not 12.5%. **It is a real defect in what the convergence number means; it
+is not the explanation of the plateau.** Why biasing clamps ten times more
+cells at the floor is unexplained and not chased here.
+
+### 6. Why the disk measurement cannot finish the argument
+
+Two biases run in opposite directions and neither is small.
+
+  - `grid1.out` holds the **damped** Te, so the between-run scatter is measured
+    on a smoothed quantity. The test compares a **raw** new solution against a
+    damped reference. That makes 13.21% an *under*estimate of the true null.
+  - The two runs differ by their whole accumulated history, not by one
+    realisation. That makes 13.21% an *over*estimate.
+
+The statistic the test actually computes was never recorded. So the instrument.
+
+### 7. The instrument
+
+Diagnostic only, under `teProbe`, mirroring the existing x(H0) probe so the two
+are read the same way:
+
+  - `cvTeHist(12)` - |dTe/Te| binned as `cvHist` bins |dx/x|
+  - `cvFailTeByAV(7)` - Te failures by A_V band
+  - `cvTeNear` - failures within 2x tolerance
+  - `cvTeFloorN` / `cvTeFloorPass` - cells at `teFloor`, and how many of them
+    pass for free
+
+**Bin semantics, mapped empirically rather than assumed.** `iBin = 9 +
+int(log10 x)` with Fortran `int()` truncating toward zero, so the bins are NOT
+what the label suggests below 1: bin 8 collects (0.01, **0.10**] and bin 9
+collects (0.10, 9.99]. The tolerance sits exactly on the bin 8/9 boundary and
+failures are bins 9-12. Confirmed against a trusted count at iteration 1 of
+`d248-tehist`: bins 9-12 sum to 8397 and `cvFailTe` is 8397. My first parser
+summed from bin 10 and would have under-reported the failing fraction by a
+whole decade; it was caught by doing this calibration rather than trusting the
+label - the D-246 habit, applied before reading any result.
+
+### 8. Result: the tolerance cuts through the body of the distribution
+
+`runs/d248-tehist`, the `d244-species` configuration byte-for-byte plus the
+instrument. 24:39 per processor against d244's 24:56, clean exit, 13
+iterations.
+
+**The instrument is validated two independent ways.** Histogram bins 9-12 equal
+`cvFailTe` in **all thirteen iterations**, which fixes the bin mapping against
+a count already trusted. And `cvFailTeByAV` at the final iteration reads
+`[0, 0, 35, 219, 1751, 0]` against `[0, 2, 29, 206, 1660, 0]` predicted
+beforehand from d244's on-disk `lgConverged` and `AVeff` - same shape, same
+concentration, differing by realisation.
+
+**It is inert**, as a diagnostic must be: `cvFailTe` runs 8397/14899/14985...
+against d244's 8379/14897/14982, differences of 18, 2 and 3 cells.
+
+**The distribution of |dTe/Te| at the final iteration:**
+
+    |dTe/Te|             cells    share
+    <= 1e-8 (exactly 0)   2515    16.5%
+    1e-8 .. 1e-3             0     0.0%
+    1e-3 .. 1e-2          3385    22.3%
+    1e-2 .. 0.10          7299    48.0%
+    > 0.10  (FAILS)       2005    13.19%
+
+    of the 2005 failures, within 2x tolerance:  1168  (58%)
+
+**The two numbers that matter.** The failure rate is **13.19%**. The null rate -
+the fraction of cells that breach 0.10 on realisation noise alone, from the
+verified repeat pair - is **13.21%**. They agree to two hundredths of a point.
+
+And **48% of the grid sits in the single decade immediately below the
+tolerance**. The criterion is not separating a converged population from an
+unconverged one; it is slicing the middle of a distribution whose width is set
+by Monte Carlo noise. 58% of the failures are within a factor of two of
+passing.
+
+**The agreement of 13.19% with 13.21% is closer than the measurement deserves**
+and should not be read as a precise identity: section 6's two biases are still
+in the null, in opposite directions and neither quantified. What is established
+is that the two rates are the same size, which is enough for the conclusion.
+
+### 9. A second population that passes for free, larger than the floor
+
+**2515 cells - 16.5% of the grid - report a temperature change of exactly
+zero**, and the population **grows monotonically**: 146, 330, 744, 1153, 2278,
+2515 over iterations 8-13. Bins 2-6 are empty, so these are exact zeros, not
+small numbers.
+
+It is not structural (zone 0 is 165 cells, near-floor 221, hot 195) and not the
+x(H0) probe's behaviour (its bin 1 holds 463 and its distribution is smooth).
+It is not the D-215 cooling table snapping cells to nodes: the frozen cells
+carry 2395 *distinct* temperatures out of 2398. It is not the PDR pinning Te -
+that path, `update_mod.f90:639`, is `if (.false.)` under D-193.
+
+**It is the temperature solver's no-bracket fallback.** The frozen count tracks
+`teNnobrack` in lockstep through the converged phase, at a near-constant offset
+of ~130 cells:
+
+    iter      10     11     12     13
+    frozen   744   1153   2278   2515
+    nobrack  872   1281   2404   2667
+
+and the mechanism is explicit at `update_mod.f90:737-744`: with no bracket,
+`lgTOk = nIterateT > 1` and then **`TeUsed = TeBest`**, exiting on the second
+pass without ever reaching the secant update. Where the entry temperature was
+the best point seen, `TeUsed` is returned bit-identical to `TeIterStart`. The
+comment states the intent: *"if the sign never flips within 20% of T on either
+side, the residual is flat and small there and the best point seen is the
+answer."*
+
+So these cells' temperatures are **a fallback, not a root** - and the
+convergence test, comparing the returned value against the entry value, sees
+zero and passes them. **D-176..D-181 and D-191 again, at 16.5% of the grid and
+growing.** They sit where the thermal gain collapsed: 63.3% of the 10-10.1 K
+band is frozen, 39.9% of 10.1-11 K, against 2-4% at 12-20 K.
+
+**Not fully closed.** That `TeBest` equals `TeEntry` for these cells is
+inferred from the code path plus the lockstep correlation, not measured
+per cell. `teProbe > 1` prints `Tin` and `Tout` per cell and would settle it
+in one run; it was not worth 25 minutes today.
+
+### 10. What this does and does not license
+
+**Established.** The 87.5% plateau is the Te test (D-247); the Te test statistic
+is noise-dominated at the tolerance it is applied at; the failure rate equals
+the realisation-noise rate to the precision available; and two separate
+populations pass the test with a quantity that cannot move - 74 at `teFloor`,
+64 of them passing for free, and 2515 in the no-bracket fallback.
+
+**Therefore the converged percentage is not, at present, a statement about the
+physics of the PDR.** Roughly an eighth of the grid fails on noise and roughly
+a sixth passes without moving.
+
+**What must NOT be done: raise `convLimit` until the number looks better.**
+That is fitting a coefficient to close a gap, which CLAUDE.md forbids, and the
+D-247 audit exists partly because convergence percentages have been argued
+about rather than measured.
+
+The options, none of them taken here because the criterion is a design
+decision:
+
+  - **Report the floor rather than chase it.** State the noise rate beside the
+    converged fraction, so a run that reaches it is known to be done.
+  - **Make the test noise-aware.** The per-cell MC noise is estimable; a
+    criterion that compares the change against that cell's own noise is the
+    honest version of what a fixed 10% is trying to approximate.
+  - **Fix the free passes independently of the tolerance.** A cell returned by
+    the no-bracket fallback should not be counted as converged - it should be
+    reported, as D-165 argued for the floor clamp. This is the change with the
+    clearest justification and it does not touch the criterion.
+  - **Reduce the variance.** Biasing lowers the Te scatter, and the biased runs
+    do converge slightly higher (88.0-88.6% against 87.5-87.9%) - but they also
+    clamp ten times more cells at the floor, so that comparison is confounded
+    and is not evidence for biasing.
+
+**Unchanged by any of this:** the CO/OH deficit (D-247 blocker 1) and the He+
+sink (blocker 2). Nothing here bears on either.
