@@ -48,7 +48,14 @@ def read_ref(path):
 
 def interp(xs, ys, x):
     """Linear in x, logarithmic in y where y is positive - abundances span
-    twenty decades and a linear interpolation of them is meaningless."""
+    twenty decades and a linear interpolation of them is meaningless.
+
+    D-239: OUTSIDE the reference's range this returns the end value, and a
+    ratio formed against it is a comparison with an extrapolation, not with the
+    reference. That produced a reported "32x residual" in x(C+) which was
+    entirely an artefact of our grid running to A_V 3.09 where the reference
+    stops at 2.45. Callers must mark such rows - see `beyond()`.
+    """
     if x <= xs[0]:
         return ys[0]
     if x >= xs[-1]:
@@ -67,6 +74,13 @@ def interp(xs, ys, x):
         from math import exp, log
         return exp(log(a) + t * (log(b) - log(a)))
     return a + t * (b - a)
+
+
+def beyond(ref, x):
+    """True where x lies outside the reference's own A_V range, so a ratio
+    formed there compares against a clamped end value - an extrapolation, not
+    the reference. D-239: this is what made x(C+) look 32x low at A_V 3.09."""
+    return x > ref['AV'][-1] or x < ref['AV'][0]
 
 
 def axis(run):
@@ -99,6 +113,9 @@ def main():
                 ref_v = interp(ref['AV'], ref[c], av)
                 rat = run_v / ref_v if ref_v else float('nan')
                 row += f' {run_v:10.3e} {ref_v:10.3e} {rat:8.2e}'
+            if beyond(ref, av):
+                row += f'   << A_V beyond the reference ({ref["AV"][-1]:.3f}):' \
+                       ' ratios are against an extrapolation'
             print(row)
 
 
