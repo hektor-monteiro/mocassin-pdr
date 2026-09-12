@@ -248,6 +248,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-246 | **The He I continuum feeds nothing, and the He+ excess is a missing sink: 3D-PDR destroys He+ by ~20 routes MOCASSIN does not have.** Two results. (1) **The loop is dead.** D-244 raised the possibility that the He I recombination continuum sustains the He+ that emits it. `phot` = `nPhotoSte` sits at its 1e-20 initialisation floor in **all 434 sampled PDR cells, for BOTH H and He**, with `up` equal to the cosmic-ray constant alone (2.301E-17 for H, 2.501E-17 for He, against 2.300e-17 and 2.500e-17). Photoionization is 4e-4 of the CR term. The instrumentation artefact was excluded: helium is handled by its own branch at `update_mod.f90:199-207/224-230` with `IPNuP = HeIlevNuP(1)`, `highNuP = nbins` and a proper He I cross-section, so the band IS sampled; the `nu_th 0.0000` on those lines is a display bug only (the probe prints `nuArray(elementP(...))`, and `elementP`/`outShell` are populated only for elem > 2). **So D-244's 87-95% is a consequence of the He+ excess, not its cause.** (2) With `phot` negligible and `chex` zeroed by the 6000 K gate, x(He+) reduces to CR/(Ne*alpha) - and **that prediction fails, with the wrong sign**: it gives 0.31-0.62 where the observed excess is 1.5-3.9 at A_V 0.7-1.8. The reason is that **the reference is sink-limited, not CR-limited - its x(He+) is 30-60x BELOW CR/(Ne*alpha) at every depth**, so the equation was never valid on both sides. 3D-PDR drains He+ through He+ + H (rates_reduced.d:156/157, valid from 10 K), He+ + H2 (50, 170), He+ + C (178) and a molecular family with CH, CH2, CH3, CH4, OH, H2O, CO, O2 (78-92). MOCASSIN's ionBalance has exactly one non-recombination sink, `chex`, which is He+ + H -> He + H+ - the reference's main low-T route - and it is switched off below 6000 K; the molecular channels have no counterpart at all. Our alpha is fine (1.8-3.0e-11 cm^3/s at 14-26 K, Verner & Ferland He-like, dielectronic excluded for elem < 3). Secondary but real: the electron pool modulates the excess - biasing restores x(C+), holding x(e) at 2.20e-4 instead of 6.45e-5, and the excess drops from 24x to 2.4x in that bucket. **Decision needed before any fix: the 6000 K gate is not PDR-specific, so removing it changes ionization for every MOCASSIN model** | Open | 2026-09-12 |
 | D-247 | **Full-repository audit: all four build flavours compile; the five things blocking the coupling, ranked.** Verified from a clean tree this session - `PDR=1 PDRGEOM=3D`, `PDR=1`, plain and `PDR=1 mocassinWarm` all build, working tree clean, default flavour restored. What works: the ownership contract is in the code (D-198), the hydrogen budget closes, `x(H+)_ion / x(H+)_chem` has median 0.99998 over 15039 cells, the V1/V2 slabs reproduce the reference's CO and H2 exactly, and a 13-iteration 3D run exits clean in 25 min. **The five blockers, in the order I would work them.** (1) **CO/OH 1-2 decades under the reference in 3D while the 1D slabs are exact** - hiipdr CO/ref 0.004-0.250 and OH/ref 0.013-0.593 at matched depth, against 1.00 for CO in V1/V2; C+ is now right (0.98-1.03), so the network and the CO formation path are correct in a slab and something in the 3D coupling suppresses the molecules. Worst at BOTH ends, best in the middle - a shape, not an offset. This contrast is the sharpest unexploited lead in the project. (2) **The He+ excess needs a design decision, not more measurement** - D-246 closed the mechanism; `chex` is zeroed below 6000 K at `update_mod.f90:2590` so He+ + H is off in every PDR cell, and the reference's molecular sinks have no counterpart. Its three prerequisites are undone. (3) **The 87.5% convergence plateau is entirely the Te test, and the log already said so** - final-iteration CVPROBE reads `x(H0) only 2, x(H2) only 0, both 0, Te (any) 1895`, and 1895/15204 = 12.5% is exactly the missing fraction. D-228 listed "which of the three tests those cells fail" as unmeasured; `d244-species` ran with `teProbe 1` and answered it, and nobody read the line. Supporting: the Te bracket is wider than `thLimit/3` in 81.8% of cells. (4) **47% of cells report "Ion balance not reached" at the FINAL iteration** - 51, 50, 49 ... 47% across the run, while Te balance falls to 0% by iteration 13. Counted at `update_mod.f90:985` over `totCells`, so not PDR-specific and not confined to the zone. Never diagnosed; every ionization result including D-246 rests on it. (5) **Memory is 1.74x the documented model, cause unknown** - 685 MB/rank at iteration 1 against 393 MB predicted, ~20 `(15205,600)` arrays where 4-5 are implied. D-245 fixed a real leak on top of this; the baseline gap is untouched and has already killed a production run. **Below the line:** ~9 live ownership switches remain plus `pdrZoneLim 0.3` (the production fixture sets none of them, so this is latent complexity, not active divergence); the temperature disagrees with the reference in OPPOSITE directions - 0.59x in hiipdr, 2.3x and 6.0x in the slabs - which is not one missing term; 70 `mocassin.dNNN` binaries are tracked in git, 78 MB. **One thing not to chase:** `pdrOmega = 0.42d0` looks like a rule-1 violation but is dead - `omega` is assigned and printed and never enters a rate expression anywhere in `source/pdr/`; `pdrAVfac` by contrast IS calibrated from MOCASSIN's own dust at `pdr_mod.f90:986` | Done | 2026-09-12 |
 | D-248 | **The 87.5% plateau is Monte Carlo noise measured against a tolerance below it, plus two populations that pass for free.** D-247 found the plateau is entirely the Te test; nothing recorded the test statistic's DISTRIBUTION, only its verdict. **(1) The floor is stationary, not converging** - d243-heicorr's 22 iterations oscillate in the band 1872-2017 for twelve consecutive iterations. **(2) A verified repeat pair measures the null.** `d239-roulette`/`d242-repeat` have byte-identical inputs AND binaries; realisation noise alone puts **13.21%** of cells past the 0.10 tolerance (median |dTe/Te| 0.0272, p90 0.1162), and not one of the 165 ionized cells breaches it - every breach is in the PDR. My first pair, d236/d237, was WRONG and is withdrawn: `git diff` between the result commits was empty but `cmp` puts 392,183 bytes between the binaries, because those runs carried uncommitted probe changes. **(3) The failing cells are the noisy cells** - P(noisy|fail) 39.5% against P(noisy|pass) 9.8%, median scatter 0.0805 against 0.0233. **(4) The noise is not inherited from the field but filtered by depth**: chiFUV scatter rises monotonically with A_V (0.0073 -> 0.5514) while Te scatter PEAKS at A_V 2.0-2.5 and collapses to 0.0052 deeper; the gain d(lnTe)/d(ln heat) falls 0.57 -> 0.01, so the failure band is where large heating noise meets a response that has not yet collapsed. **(5) The instrument** (`cvTeHist`, `cvFailTeByAV`, `cvTeNear`, `cvTeFloorN/Pass`, diagnostic-only under `teProbe`) validated two ways in `runs/d248-tehist`: bins 9-12 equal `cvFailTe` in all 13 iterations, and `cvFailTeByAV` `[0,0,35,219,1751,0]` matches `[0,2,29,206,1660,0]` predicted beforehand from disk. **(6) THE RESULT: failure rate 13.19% against a null of 13.21%, and 48% of the grid sits in the single decade immediately below the tolerance** - the criterion slices the body of a noise-set distribution rather than separating converged from unconverged; 58% of failures are within 2x of passing. **(7) A second free-pass population, larger than the floor's**: 2515 cells (16.5%) report EXACTLY zero change, growing 146->2515 over iterations 8-13. Not structural, not the D-215 table (2395 distinct temperatures), not the dead `if (.false.)` PDR pinning - it is the solver's no-bracket fallback, tracking `teNnobrack` at a constant ~130 offset, where `update_mod.f90:737-744` sets `TeUsed = TeBest` and exits without a secant step. A fallback, not a root, counted as converged. The floor clamp is real but small in this configuration (74 cells, 64 passing free) and is **tenfold larger in biased runs** (729 vs 72), so my first write-up of it, quoted from d239, overstated it for the analog case. **Conclusion: the converged percentage is not currently a statement about PDR physics** - an eighth of the grid fails on noise, a sixth passes without moving. Raising `convLimit` is explicitly refused as fitting a number; the clearest justified change is to stop counting no-bracket fallbacks as converged, which does not touch the criterion | Open | 2026-09-12 |
+| D-249 | **The CO/OH deficit is a chain whose head is a ~7x FUV normalisation error in 3D; the dust slope is correct to 2.3%.** First comparison of ALL 33 species, over every PDR cell at its own A_V (no axis indexing, so it reads the 801-cell slabs too - `d196_axis.py` hardcodes 31^3 and cannot). **The 3D model separates cleanly**: correct are He 1.000, O 1.000, C+ 1.001, e- 1.043, H2 0.960; collapsed are H2+ ~5e-5, **H3+ 0.009**, HCO+ 0.001, CH3+ 0.001, H3O+ 0.002, H2O 0.013, CO 0.050, OH 0.110. **Everything deficient is downstream of H3+, and H3+ of H2+** - so CO and OH are symptoms, and D-239's correct carbon never helped because carbon was never the constraint. Geometry-specific as required: H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2, so the network is sound. Cosmic-ray attenuation excluded - `CRATTENUATION` is absent from PDRFLAGS, so `zetalocal = zeta` and the `AV(6)` code is dead. **Where it breaks**: at A_V 0.5-1.0 the reference is 34% molecular and our gas is entirely atomic, x(H2) 2.9e-6 against 0.171, a ~60,000x deficit - **the H/H2 transition is displaced ~1 mag too deep** and the chain below it is empty. **The cause**: chi/chi_ref is 9.05, 5.25, 3.94, 4.10, 5.00 across the A_V bands at matched density. Fitting `k = -dln(chi)/dA_V` separates normalisation from slope and **reverses the obvious reading**: in 3D k = 2.951 against the reference's 3.020 (**ratio 0.977 - the dust-owned slope is right**) with the normalisation ~7x too high, while the too-shallow slope (0.66) belongs to the SLABS. So this is NOT a "MOCASSIN owns the dust, report the divergence" case; it is a bounded normalisation defect. It also explains why the slabs "work" - their field is 2.7x too WEAK, so H2 forms early and the chemistry is never starved; they are a different error with a benign sign, not a control that passed. **Not explained**: by A_V 1.5-2.45 H2 matches the reference and H3+ is still 25-450x low, with x(e-) at ratio 1.0 and T only 1.6x off - the normalisation explains the shallow catastrophe, not the deep residual. Also recorded: Mg/Mg+ are identically zero in our runs against a reference 2.7e-6, because `abunV1.in` sets Mg = 0 - absent by INPUT, not by defect, so the two codes are compared with different metal content and every deep x(e-) ratio in this log inherits it | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -16703,3 +16704,136 @@ decision:
 
 **Unchanged by any of this:** the CO/OH deficit (D-247 blocker 1) and the He+
 sink (blocker 2). Nothing here bears on either.
+
+---
+
+## D-249 - the CO deficit is a chain, and its head is a 7x FUV normalisation error in 3D (2026-09-12)
+
+D-247 ranked the CO/OH deficit as blocker 1 on the strength of one contrast:
+CO is 0.004-0.250 of the reference in 3D and 1.00 in the V1/V2 slabs, with
+carbon correct. Only seven species had ever been compared, so the deficit's
+extent was unknown.
+
+### 1. Method: all 33 species, every PDR cell, matched A_V
+
+`tools/` compares seven species on an extracted on-axis profile, and
+`d196_axis.py` hardcodes 31^3, so it cannot read the 801-cell slabs at all.
+Instead every PDR-zone cell is compared at **its own A_V** - the one depth
+coordinate both codes compute for themselves - against the reference
+log-interpolated onto it. That needs no axis indexing, works unchanged for the
+3D model and both slabs, and uses 8542 cells instead of 29.
+
+Cells outside the reference's own A_V range are excluded, not clamped (D-239).
+Verified first: the references really do reach A_V 2.4534 (sec54) and 8.4912
+(v1/v2), monotonically, so the slab result quoted at A_V 8.49 is the
+reference's last point and is legitimate - a concern I raised and disposed of
+before building on it.
+
+### 2. The deficit is a chain, and CO/OH are its symptoms
+
+Sorted by severity, the 3D model separates cleanly into species that are right
+and species that descend from one place:
+
+    correct      He 1.000   O 1.000   C+ 1.001   e- 1.043   H2 0.960
+    collapsed    H2+ ~5e-5  H3+ 0.009  HCO+ 0.001  CH3+ 0.001  H3O+ 0.002
+                 CH4 0.000  H2O 0.013  CO 0.050  OH 0.110
+
+**Everything deficient is downstream of H3+, and H3+ is downstream of H2+.**
+The elemental reservoirs - carbon and oxygen - are exactly right, which is why
+D-239's finding that carbon is correct never helped: carbon was never the
+constraint. A collapsed H3+ starves OH, H2O, HCO+ and CO simultaneously,
+through H3+ + O -> OH+ and H3+ + CO -> HCO+, and that is the observed pattern.
+
+**It is geometry-specific, as blocker 1 requires.** H2+/H3+ read 0.142/0.482 in
+V1 and 102.8/2.835 in V2 - not collapsed, and in V2 overabundant. The network
+is not at fault.
+
+**Cosmic-ray attenuation is excluded.** `CRattenuation.F90` is entirely inside
+`#ifdef CRATTENUATION`, which is absent from `PDRFLAGS` (Makefile:87-89), so
+`zetalocal = zeta` uniformly and the suspicious `pdr(p)%AV(6)` indexing is dead
+code - consistent with the coupling never populating `pdr%AV` at all.
+
+### 3. Where the chain breaks: the H/H2 transition is ~1 mag too deep
+
+Absolute values, not ratios:
+
+    A_V        x(H2) ours    ref     x(H) ours   ref    H3+ ours    ref     T ours  ref
+    0.5-1.0     2.919e-06  1.713e-01   1.000   0.657   2.1e-21   9.6e-10     24    104
+    1.0-1.5     1.758e-01  4.359e-01   0.648   0.128   1.7e-11   5.1e-9      26     82
+    1.5-2.0     4.753e-01  4.854e-01   0.049   0.029   2.0e-10   5.3e-9      23     48
+    2.0-2.45    4.742e-01  4.930e-01   0.052   0.014   1.2e-11   5.4e-9      17     29
+
+At A_V 0.5-1.0 the reference is 34% molecular and **our gas is entirely
+atomic**, x(H2) = 3e-6, a ~60,000x deficit. No H2 means no H2+ means no H3+,
+and the chain below it is empty. The slabs show no such displacement: V1 is
+0.343 against 0.443 at A_V 0-0.5 and matches by 0.5.
+
+### 4. The cause: the 3D FUV field is ~7x too strong, and the slope is FINE
+
+    chi ours / chi ref, 3D, by A_V band
+      0.0-0.5   9.05      1.0-1.5   3.94      2.0-2.45   5.00
+      0.5-1.0   5.25      1.5-2.0   4.10
+
+    slabs, same measure:  1.05 at A_V<0.5, rising to 14.3 by A_V 2-4
+
+Densities match exactly (100, 1e3, 1e5 cm^-3), so this is not a setup mismatch.
+
+**The distinction that matters is between normalisation and slope**, and a
+fitted `k = -d ln(chi)/d A_V` separates them:
+
+    model        range        k ours    k ref    ratio     chi at shallowest PDR cell
+    3D sec5.4    0.3-2.45      2.951    3.020    0.977     7.33x too HIGH
+    V1 slab      0.0-4.00      1.999    3.020    0.662     0.36x (too low)
+    V2 slab      0.0-4.00      1.989    3.020    0.659     0.39x (too low)
+
+**In 3D the attenuation slope is correct to 2.3% and the normalisation is ~7x
+too high.** The slope is the dust-owned quantity, so this is NOT the "MOCASSIN
+owns the dust, report the divergence" case that CLAUDE.md protects - the dust
+is behaving. It is a normalisation error, which is a defect with an address.
+
+I had read the band medians as "our field decays too slowly" and wrote that
+down; the fit reversed it. The too-shallow slope is the **slabs'** problem
+(0.66), not the 3D model's, and the slab medians had misled me because the
+bands are unequally populated. Recorded because the wrong reading survived two
+paragraphs before the fit killed it.
+
+**This also explains why the slabs "work".** Their field is too *weak* by 2.7x,
+so H2 forms early, the transition lands at or before the reference's, and the
+chemistry below it is never starved. The slabs are not a control that passed -
+they are a different error whose sign happens to be benign.
+
+### 5. What is NOT explained
+
+**The deep H3+ deficit survives.** By A_V 1.5-2.45 our H2 matches the reference
+(0.475 vs 0.485, 0.474 vs 0.493) and H3+ is **still 25-450x low**. x(e-) is at
+ratio ~1.0 and the temperature is 1.6x off - neither is remotely enough for
+25x, let alone 450x. So the FUV normalisation explains the catastrophic band at
+A_V 0.5-1.5 and does **not** explain the deep residual. Whether one cause
+produces both is open.
+
+**Our gas is colder everywhere** - 24 K against 104 K at A_V 0.5-1.0 - which is
+D-227's standing item and interacts with this one: H2 formation on grains
+depends on temperature, so the transition displacement and the temperature
+deficit are not independent.
+
+**Magnesium is absent by INPUT, not by defect.** Mg and Mg+ are identically
+zero in all three of our runs against a reference x(Mg+) = 2.7e-6. The fixture's
+`abunV1.in` sets Mg = 0, while the standalone reference carries Mg+ from
+`species_reduced.d`. The coupling maps it correctly (`pdr_mod.f90:339-340`,
+`linkIon` 9/10 -> Mg I/II) and D-208 already warns that removing Mg+ silently
+changes the electron budget. **So the two codes are being compared with
+different metal content, and the reference has a deep electron donor we do
+not.** That is a property of the comparison, and every deep x(e-) ratio in this
+log inherits it.
+
+### 6. Next
+
+The 7x normalisation is the thing to chase, and it is bounded: the slope is
+right, so the error is in the field's amplitude at the PDR boundary rather than
+in its transport through the dust. D-047's finding that "launch overhang is
+reflected back in, so `meanField` IS the incident flux" is marked *Revised* and
+is the natural place to start, as is the relation between `chiFUV` and
+`chiFUV0` under `planeIonization` versus a point source.
+
+Not attempted here, deliberately: nothing was changed. This entry is a
+measurement.
