@@ -21,7 +21,9 @@ import sys
 
 NX = NY = NZ = 31
 DR = 2.0e18                    # Rout 6e19 over 30 intervals
-NELEM = 7                      # H He C N O Ne S
+# D-251: the number of element blocks per cell is nElements SWITCHED ON, not a
+# constant - turning Mg on in the abundance file took it from 7 to 8 and would
+# silently shift every ionDen read. Derived from the files instead.
 HYD_LINE, CAR_LINE = 0, 2      # offsets within a cell's element block
 IH2, IH, IHP, IC, ICP, ICO = 31, 32, 19, 25, 11, 28   # 1-based, species_reduced.d
 IHEP, IOH = 2, 29
@@ -40,6 +42,8 @@ def main():
     g2 = load(os.path.join(out, 'grid2.out'))
     pg = load(os.path.join(out, 'pdrGrid.out'))
     pr = load(os.path.join(out, 'pdrRad.out'))[1:]     # drop the header line
+
+    NELEM = len(g2) // len(g1)         # D-251: elements actually switched on
 
     res = {k: [] for k in ('r', 'T', 'HI', 'HII', 'HImoc', 'HIImoc',
                            'H2', 'Cp', 'C', 'CO', 'AV', 'zone',

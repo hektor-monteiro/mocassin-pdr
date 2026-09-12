@@ -441,6 +441,8 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer :: iG, iCell, i, j, k, iAb, yTop
+        integer :: iLnk, iEl                  ! D-251
+        logical :: lgAbunMissing              ! D-251
         double precision :: seed(pdrNspec)
 
         ! Report how the two codes' elemental abundances compare, once. They are
@@ -463,6 +465,53 @@ module pdr_mod
                 &was not used (D-208)"
            if (pdrSyncAbun == 0) print*, "!   pdrSyncAbun is retired (D-208) &
                 &and ignored - the seed is always MOCASSIN's"
+        end if
+
+        ! ------------------------------------------------------------- D-251
+        ! An element the network carries with a non-zero initial abundance,
+        ! switched off in MOCASSIN, is DELETED from the chemistry - not kept at
+        ! the network's value. seedAbunFromMocassin builds the seed from zero
+        ! and cycles past elements that are off, so the slot keeps that zero
+        ! and pdrAbun is overwritten with it.
+        !
+        ! Magnesium is the case that matters in the REDUCED network, and it is
+        ! silent: Mg is a CLOSED sub-system - of its eleven reactions, ten make
+        ! Mg+ from Mg and one makes Mg from Mg+, and nothing produces either
+        ! from a non-Mg species. So x(Mg) + x(Mg+) is conserved at whatever it
+        ! is seeded with, a zero seed stays zero for the whole run, and the
+        ! solver neither fails nor complains. What is lost is eight
+        ! charge-transfer sinks for molecular ions (H3+, CH5+, CH3+, H2O+, CH+,
+        ! C+, H+, O2+ each strip Mg WITHOUT consuming an electron) and the
+        ! dominant electron donor of shielded gas - up to 99.3% of x(e-) in the
+        ! deep V2 slab against the reference (D-250).
+        !
+        ! The chemistry does not fail without it, it answers a different
+        ! question - which is exactly why this is a stop and not a warning. A
+        ! model whose network expects an element MOCASSIN is not carrying is
+        ! misconfigured, and D-250 is what that costs when it goes unnoticed.
+        lgAbunMissing = .false.
+        do iLnk = 1, pdrNlink
+           if (pdrLinkSpec(iLnk) <= 0) cycle
+           iEl = pdrLinkElem(iLnk)
+           if (iEl < 2 .or. iEl > nElements) cycle      ! hydrogen is always on
+           if (pdrInitAbun(pdrLinkSpec(iLnk)) <= 0.d0) cycle
+           if (lgElementOn(iEl)) then
+              if (grid(1)%elemAbun(1, iEl) > 0.) cycle
+           end if
+           if (taskid == 0) then
+              print*, "! seedPDR: MOCASSIN element", iEl, " is switched off, but the &
+                   &network carries species", pdrLinkSpec(iLnk)
+              print*, "!   with initial abundance", pdrInitAbun(pdrLinkSpec(iLnk)), &
+                   & " - the seed would DELETE it, not keep it."
+              print*, "!   Give element", iEl, " an abundance in the nebComposition &
+                   &file (element 12 is Mg)."
+           end if
+           lgAbunMissing = .true.
+        end do
+        if (lgAbunMissing) then
+           if (taskid == 0) print*, "! seedPDR: refusing to run - a network element is &
+                &absent from MOCASSIN's composition (D-251)"
+           stop
         end if
 
         do iG = 1, nGrids
@@ -555,8 +604,12 @@ module pdr_mod
         if (iSp <= 0) then
            print*, "!   ", label, " not in this network"
         else if (abunMoc <= 0.) then
+           ! D-251: this used to claim "network value kept". It is not kept -
+           ! seedAbunFromMocassin zeroes the slot and pdrAbun is overwritten
+           ! with the zero, so the element is deleted from the chemistry. The
+           ! message asserted the opposite for every run that had Mg off.
            print*, "!   ", label, " network ", pdrInitAbun(iSp), &
-                & " MOCASSIN: element off - network value kept"
+                & " MOCASSIN: element OFF - the seed DELETES it (D-251)"
         else
            print*, "!   ", label, " network ", pdrInitAbun(iSp), &
                 & " MOCASSIN ", abunMoc
