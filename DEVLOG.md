@@ -245,6 +245,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-243 | **The He I 2^3S term evaluated at the 5000 K clamp is not what makes cold gas emit ionizing photons: it carries at most 0.9% of it.** Prompted by an audit of the user's `_testing` tree, whose Master Matrix of five fixes turns out to be **already implemented here in full** (JDif unpack = our D-225 with the identical condition; dustPDF alloc/reduce, opacity branching and recPDF purity = our D-233; the legacy `dustEmi` stop removed), with this tree ahead on three counts (D-227 He I continuum, D-229 Te criterion, the D-233 `size` reuse bug). The one live candidate was Tier 2 of `Runaway-Cascade-FIX.txt`, never implemented in either tree: `T4 = MAX(5000.,TeUsed)` at `emission_mod.f90:720` feeding `alpha2tS` into the 1.45673 Ryd (19.82 eV) bin of the gas re-emission PDF, above the 13.6 eV edge, with no temperature guard. **Measured before changing anything, and the answer is no: corr/ion is 3.3e-3 to 9.2e-3 across the PDR** (max 3.2e-2 only in the A_V 0.49 bucket, which averages cells across the front at 6982 K and is not PDR gas). Deleting the clamp was never the fix either - alpha2tS rises as Te falls, so at 14 K it would go 43.5 -> ~2334, a 54x INCREASE in the injection - and the document's alternative, zeroing below 1000 K, is a hardcoded threshold deciding physics at run time. **What the probe did find: the ionizing share of a cold cell's gas re-emission rises from 11-14% at 24-26 K to 38-43% at 11-15 K**, so the D-232 leak is real, depth-dependent, and comes from the recombination continua rather than from helium's metastable line. Shipped alongside: division-by-zero guards on the recPDF and dustPDF normalisations (both were 0/0 -> NaN for a cell with no emission in that channel), measured inert on this model against d233-channels on every control | Done | 2026-09-12 |
 | D-244 | **The ionizing emission of cold PDR gas is the He I recombination continuum: 87-95% of it, at every depth below the front.** D-243 excluded the He I 2^3S metastable line at under 1% and left ~40% of a cold cell's gas spectrum above 13.6 eV unattributed. Splitting the sum by emitter answers it. In the hot front gas hydrogen behaves as it should - fHI 0.955 at 6977 K - and through the entire cold PDR it inverts: **fHeI 0.606, 0.809, 0.954, 0.872, 0.885, 0.868 from A_V 0.81 to 3.06**, with fHeII identically 0 (absolute ~1e-9). Since the 2^3S term is <1%, the carrier is the He I recombination continuum at 24.6 eV. **It scales as x(He+)*Ne, and our x(He+) is 2-7.5x the reference deep in the PDR - an excess this project has never explained** - so an excess He+ feeds an excess 24.6 eV continuum, reabsorbed on the spot in gas ~700 optical depths per cell thick. Same shape as the D-227 runaway, different channel. Measured at 13 iterations rather than 22 after an OOM kill; validated by ion/gas agreeing with D-243 to 1-2% in six of seven A_V buckets. Open and unresolved: the run holds 1.05 GB/rank against the 393 MB/rank the documented memory model predicts, 2.7x, cause unknown | Done | 2026-09-12 |
 | D-245 | **A memory leak I introduced in D-158/D-225: `JDifTemp` allocated under `pdrSplitField` but freed only under `lgDebug`, in a RECURSIVE subroutine.** `iteration_mod.f90:760` allocates it when `lgDebug .or. pdrSplitField /= 0`; `:923` freed it when `lgDebug` alone. I added the `pdrSplitField` term to the allocate guard so the diffuse field would be unpacked for the D-225 census and never touched its partner. Because `iterateMC` is `recursive` - it advances `nIterateMC` at `:3220` and calls itself at `:3227` rather than looping - a local allocatable still allocated at the recursive call stays live in that frame and every frame beneath it. **Measured: 34.8 MiB per rank per iteration**, one `(nCells+1, nbins)` real4 array. Per-rank PSS before the fix 754.6 / 789.5 / 828.5 / 874.6 MB at iterations 1-4, monotonic and never returning; after, 685.1 / 685.1 / 689.3 / 700.7, flat through all 6 with the wobble moving both directions. At the 22-iteration setting that is ~19.9 GB against ~9.8 GB across 14 ranks, which is why D-244's first attempt was killed at iteration 6 and why 22-iteration runs had become untenable. **Every run of mine on the `hiipdr-split` fixture since D-225 carried it.** No computed quantity is affected - it consumes memory and nothing else - so the D-243 and D-244 physics stand. Audit: every other temporary in `iterateMC` pairs symmetrically and is freed before the recursive call. **Still open and NOT explained by this: the baseline is 685 MB/rank against the documented model's 393 MB, 1.74x, present at iteration 1 before any accumulation** | Done | 2026-09-12 |
+| D-246 | **The He I continuum feeds nothing, and the He+ excess is a missing sink: 3D-PDR destroys He+ by ~20 routes MOCASSIN does not have.** Two results. (1) **The loop is dead.** D-244 raised the possibility that the He I recombination continuum sustains the He+ that emits it. `phot` = `nPhotoSte` sits at its 1e-20 initialisation floor in **all 434 sampled PDR cells, for BOTH H and He**, with `up` equal to the cosmic-ray constant alone (2.301E-17 for H, 2.501E-17 for He, against 2.300e-17 and 2.500e-17). Photoionization is 4e-4 of the CR term. The instrumentation artefact was excluded: helium is handled by its own branch at `update_mod.f90:199-207/224-230` with `IPNuP = HeIlevNuP(1)`, `highNuP = nbins` and a proper He I cross-section, so the band IS sampled; the `nu_th 0.0000` on those lines is a display bug only (the probe prints `nuArray(elementP(...))`, and `elementP`/`outShell` are populated only for elem > 2). **So D-244's 87-95% is a consequence of the He+ excess, not its cause.** (2) With `phot` negligible and `chex` zeroed by the 6000 K gate, x(He+) reduces to CR/(Ne*alpha) - and **that prediction fails, with the wrong sign**: it gives 0.31-0.62 where the observed excess is 1.5-3.9 at A_V 0.7-1.8. The reason is that **the reference is sink-limited, not CR-limited - its x(He+) is 30-60x BELOW CR/(Ne*alpha) at every depth**, so the equation was never valid on both sides. 3D-PDR drains He+ through He+ + H (rates_reduced.d:156/157, valid from 10 K), He+ + H2 (50, 170), He+ + C (178) and a molecular family with CH, CH2, CH3, CH4, OH, H2O, CO, O2 (78-92). MOCASSIN's ionBalance has exactly one non-recombination sink, `chex`, which is He+ + H -> He + H+ - the reference's main low-T route - and it is switched off below 6000 K; the molecular channels have no counterpart at all. Our alpha is fine (1.8-3.0e-11 cm^3/s at 14-26 K, Verner & Ferland He-like, dielectronic excluded for elem < 3). Secondary but real: the electron pool modulates the excess - biasing restores x(C+), holding x(e) at 2.20e-4 instead of 6.45e-5, and the excess drops from 24x to 2.4x in that bucket. **Decision needed before any fix: the 6000 K gate is not PDR-specific, so removing it changes ionization for every MOCASSIN model** | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -16132,3 +16133,137 @@ Separately, `pkill -f "^\./mocassin$"` killed its own invoking shell, because
 the pattern appears in that shell's own command line - exit 144 with no output.
 `pkill -x mocassin`, which matches the process name rather than the command
 line, is the correct form.
+
+## D-246 - the helium loop is dead, and the excess is a sink MOCASSIN never had (2026-09-12)
+
+Following D-244, which found the He I recombination continuum supplying
+87-95% of the ionizing emission of cold PDR gas. The question it raised: does
+that continuum ionize the helium that emits it - a loop - or does it merely
+track an excess set elsewhere?
+
+Answered from data already on disk. No new run was needed: the D-234 probe
+already prints `phot` = `nPhotoSte(elem,ion)` per ion, and the cosmic-ray term
+is not a variable but the constant at `update_mod.f90:2653-2656`,
+`5.98e-18 * zeta/1.3e-17` for H and `6.50e-18 * zeta/1.3e-17` for He, which at
+this fixture's `pdrZeta 5.0e-17` is 2.300e-17 and 2.500e-17 s^-1.
+
+### 1. The loop is dead
+
+Over all 434 sampled PDR cells in `runs/d244-species`:
+
+    *H  1  up 2.301E-17  phot 1.000E-20  dn 4.772E-13  Ne*alpha 4.772E-13
+    He  1  up 2.501E-17  phot 1.000E-20  dn 4.651E-13  Ne*alpha 4.651E-13
+
+`phot` is min = max = mean = 1.000e-20, the initialisation floor set at
+`update_mod.f90:169`, and `up` is exactly the cosmic-ray constant plus that
+floor. **Photoionization runs at 4e-4 of the cosmic-ray rate, for hydrogen as
+well as helium.** So the ionizing emission D-244 measured produces a field that
+ionizes nothing at all.
+
+**The instrumentation artefact was excluded before concluding.** Every He line
+prints `nu_th 0.0000`, which would be consistent with the accumulation never
+sampling helium's band. It is not: helium has its own branch at `:199-207`,
+`IPNuP = HeIlevNuP(1)`, `highNuP = nbins`, with `phXSec` from
+`HeISingXSecP(1)` at `:224-230`. The band is covered from threshold to the top
+bin. The zero is a display defect in the probe itself - `:2739` prints
+`nuArray(elementP(elem,ion,outShell,1))`, and `elementP` and `outShell` are
+populated only on the `elem > 2` path. It never touches `nPhotoSte`. Worth
+fixing so the probe does not mislead later.
+
+**Consequence: D-244's 87-95% is a consequence of the He+ excess, not its
+driver.** That closes the hypothesis D-244 raised, negatively.
+
+### 2. So what does set x(He+)? Not what I predicted
+
+With `phot` at the floor and `chex` zeroed below 6000 K, MOCASSIN's helium
+balance reduces to x(He+) = CR/(Ne*alpha). Both codes ionize helium from an
+identical zeta with identical coefficients (D-193), so the excess should be
+(x(e)_ref/x(e)_our) * (T_our/T_ref)^0.7. Tested:
+
+    A_V     Te    x(e)our    x(e)ref    T_ref   obs He+/ref   predicted
+    0.72  23.45  2.736e-04  2.463e-04  105.72        1.52        0.31
+    1.30  26.03  2.605e-04  2.293e-04   81.07        3.15        0.40
+    1.78  24.96  2.349e-04  2.262e-04   46.94        3.93        0.62
+    2.19  25.49  6.448e-05  2.051e-04   30.79       23.97        2.79
+
+**The prediction fails, and with the wrong sign.** Our x(e) is HIGHER than the
+reference's and our gas is colder, so CR/(Ne*alpha) says we should have LESS
+He+ than the reference. We have more, everywhere.
+
+### 3. Why: the reference is sink-limited, we are CR-limited
+
+Computing CR/(Ne*alpha) from the reference's *own* x(e) and T, against its own
+x(He+):
+
+    A_V      T     x(He+)      x(e)    CR/(Ne*alpha)   obs/pred
+    0.50  118.4  4.026e-06  2.707e-04    1.099e-04       0.037
+    0.99   98.9  1.903e-06  2.333e-04    1.130e-04       0.017
+    1.49   66.8  1.637e-06  2.287e-04    8.863e-05       0.018
+    2.01   36.4  1.993e-06  2.181e-04    6.193e-05       0.032
+
+**3D-PDR sits 30-60x below its own CR-limited value at every depth.** Its He+
+is set by destruction routes other than recombination. The equation was never
+valid on both sides, which is why the comparison inverted.
+
+Those routes, from `dataPDR/rates_reduced.d`:
+
+    156/157  He+ + H   -> He + H+     4.85e-15 T^0.18 (10-1000 K), 3.28e-15 T^0.50
+     50/170  He+ + H2  -> He + H+ + H / He + H2+
+        178  He+ + C   -> C+ + He     6.30e-15 T^0.75 (10-300 K)
+      78-92  He+ + CH, CH2, CH3, CH4, OH, H2O, CO, O2   ~1e-9 to 2e-10
+
+**MOCASSIN's ionBalance has exactly one non-recombination sink**: `chex`,
+applied as `chex(elem,ion,1)*Hden*x(H0)`, which IS He+ + H -> He + H+ - the
+reference's dominant low-temperature route. The coefficient exists
+(`chex(2,2,:)` at `:2520`). It is switched off below 6000 K, the gate D-234
+flagged as element-dependent by construction. The molecular channels have no
+MOCASSIN counterpart at all.
+
+That also explains the depth structure without needing the electron pool to
+carry it: the molecular sinks switch on with depth, so the reference's
+destruction strengthens inward exactly where our excess grows.
+
+### What is NOT the cause
+
+**Our alpha is fine.** Recovered from the probe as `Ne*alpha`/`Ne`, it reads
+1.8-3.0e-11 cm^3/s over 14-26 K and rises as temperature falls, the right
+magnitude and sign for He+ radiative recombination. `radRecFit` is Verner &
+Ferland (1996) for He-like ions, and the dielectronic term - the one with the
+documented negative-fit pathology (D-116) - is added only for `elem >= 3`, so
+it never touches helium.
+
+**The electron pool modulates but does not set it.** Biasing restores x(C+) and
+with it the electron pool: at A_V ~2.2, x(e) is 2.20e-4 biased against 6.45e-5
+analog, and the He+ excess falls from 24x to 2.4x in that bucket. So a large
+part of the *depth-dependent* excess is the D-237 estimator floor acting
+through the electron donor. But a roughly flat 2-3x remains where carbon is
+perfect, and that part is the missing sink.
+
+### The decision this needs
+
+The 6000 K `chex` gate is **not PDR-specific**. Removing it changes the
+ionization balance of every MOCASSIN model, not only coupled ones, so it is a
+design decision rather than a fix to be applied quietly - exactly the class
+CLAUDE.md says belongs in the design. Three things to establish first:
+
+  - whether 6000 K is a stated validity bound on the Kingdon & Ferland fits
+    `chex` uses, or an arbitrary guard;
+  - the magnitude of He+ + H at 20 K from the reference's own coefficient
+    against our `Ne*alpha` in the same cells, i.e. whether that one reaction
+    closes the flat 2-3x or only part of it;
+  - whether the chemistry's own x(He+), which solves all ~20 sinks, already
+    disagrees with MOCASSIN's `ionDen` in the same cells - that would confirm
+    the mechanism end to end from data on disk.
+
+**Unresolved and deliberately left so.** Nothing here bears on the CO/OH
+deficit, which remains 1-2 decades under the reference with carbon at 1.00.
+
+### Process
+
+Three extraction errors in this entry's own analysis, all mine, all caught by
+the data looking wrong rather than by care: `elemLabel` pads single-letter
+symbols with an asterisk (`*H`, `*C`) so `$3=="H"` matched nothing; the D-234
+header's fields are `AV=$8, Te=$10, Ne=$12, nH=$14` and I read `$10`/`$12`,
+reporting "Ne 20.27, nH 0.0"; and earlier an awk table was corrupted by a
+comma-decimal locale. The habit that would have prevented all three is to print
+one raw line and number its fields before writing the extractor.
