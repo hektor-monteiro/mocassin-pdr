@@ -692,7 +692,9 @@ module emission_mod
 
         integer           :: dcp, elem, ion, j2TsP, i,iup,ilow,j, nuP, nS, ai, freq, iT
         character(len=50) :: cShapeLoc
-        real,dimension(NHeIILyman) :: HeIILyman 
+        real,dimension(NHeIILyman) :: HeIILyman
+        integer           :: iB243                    ! D-243
+        real              :: ionTot243, gasTot243     ! D-243
 
         cShapeLoc = 'blackbody'
         call locate(nuArray, 1.45673, j2TsP)
@@ -826,6 +828,48 @@ module emission_mod
            end if
         end if
 
+        ! ------------------------------------------------------------- D-243
+        ! The He I 2^3S -> 1^1S term at 1.45673 Ryd (19.82 eV) was added to the
+        ! gas spectrum above with alpha2tS evaluated at MAX(5000., TeUsed): in
+        ! a 14 K cell its rate comes from a 5000 K extrapolation. That bin sits
+        ! above the 13.6 eV edge, so whatever share of a cold cell's gas
+        ! spectrum it carries is ionizing emission produced by a clamp rather
+        ! than by the cell's own temperature.
+        !
+        ! Measure the share before choosing a fix. Deleting the MAX is NOT the
+        ! fix - alpha2tS grows as Te falls, so at 14 K it would become ~2334
+        ! against 43.5 clamped, a 54x INCREASE in the injection. And gating on
+        ! a Te threshold would be exactly the artificial gate the project bans.
+        ! pdrZone and AVeff live inside common_mod's #ifdef PDR block, so this
+        ! probe cannot compile in the plain flavour without the same guard.
+#ifdef PDR
+        if (teProbe /= 0 .and. nIterateMC >= 12 .and. HlevNuP(1) > 0) then
+           if (allocated(grids(iG)%pdrZone) .and. allocated(grids(iG)%AVeff)) then
+              if (grids(iG)%pdrZone(cellPUsed) == 1) then
+                 iB243 = int(grids(iG)%AVeff(cellPUsed)/0.5)
+                 if (iB243 >= 0 .and. iB243 <= 15) then
+                    if (.not.lgAVsamp243(iB243)) then
+                       lgAVsamp243(iB243) = .true.
+                       gasTot243 = normHI + normHeI + normHeII
+                       ionTot243 = sum(sumDiffuseHI(HlevNuP(1):nbins)) &
+                            & + sum(sumDiffuseHeI(HlevNuP(1):nbins)) &
+                            & + sum(sumDiffuseHeII(HlevNuP(1):nbins))
+                       print '(a,i4,a,i7,a,f7.3,a,f9.2,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3)', &
+                            & " ! [D243] rank ", taskid, " cell ", cellPUsed, &
+                            & "  AV ", grids(iG)%AVeff(cellPUsed), &
+                            & "  Te ", TeUsed, &
+                            & "  corr ", correction, &
+                            & "  gasTot ", gasTot243, &
+                            & "  ionTot ", ionTot243, &
+                            & "  corr/gas ", correction/max(gasTot243, tiny(1.)), &
+                            & "  corr/ion ", correction/max(ionTot243, tiny(1.))
+                    end if
+                 end if
+              end if
+           end if
+        end if
+#endif
+
         ! D-233: the gas spectrum alone. A gas absorption samples recPDF and a
         ! dust absorption samples dustPDF, so the dust term no longer belongs
         ! here - neither in the PDF below nor in the line/continuum split, which
@@ -885,7 +929,17 @@ module emission_mod
            end if
         end do
 
-        grids(iG)%recPDF(cellPUsed, :) = grids(iG)%recPDF(cellPUsed, :)/grids(iG)%recPDF(cellPUsed, nbins)
+        ! D-243: normalise only when there is gas emission to normalise. The
+        ! cumulative sum's last bin is the total; where a cell emits nothing in
+        ! the gas channel it is exactly zero and this was 0/0 -> NaN in the PDF
+        ! that every gas absorption samples. The fallback is degenerate rather
+        ! than physical - all weight in the top bin - but it is finite and it
+        ! leaves a signature that can be recognised, which NaN does not.
+        if (grids(iG)%recPDF(cellPUsed, nbins) > 0.) then
+           grids(iG)%recPDF(cellPUsed, :) = grids(iG)%recPDF(cellPUsed, :)/grids(iG)%recPDF(cellPUsed, nbins)
+        else
+           grids(iG)%recPDF(cellPUsed, :) = 0.
+        end if
         grids(iG)%recPDF(cellPUsed, nbins) = 1.
 
         do i = 1, nbins
@@ -1009,8 +1063,15 @@ module emission_mod
          grids(iG)%dustPDF(cellPused,i) = &
               & grids(iG)%dustPDF(cellPUsed,i-1)+grids(iG)%dustPDF(cellPUsed,i)
       end do
-      grids(iG)%dustPDF(cellPused,:) = &
-           grids(iG)%dustPDF(cellPused,:)/grids(iG)%dustPDF(cellPused,nbins)
+      ! D-243: same guard as recPDF above. A cell with no dust emission - no
+      ! grains, or every Tdust still zero on the first pass - gave 0/0 here,
+      ! and since D-233 this is the PDF that every dust absorption samples.
+      if (grids(iG)%dustPDF(cellPused,nbins) > 0.) then
+         grids(iG)%dustPDF(cellPused,:) = &
+              grids(iG)%dustPDF(cellPused,:)/grids(iG)%dustPDF(cellPused,nbins)
+      else
+         grids(iG)%dustPDF(cellPused,:) = 0.
+      end if
       grids(iG)%dustPDF(cellPused,nbins) = 1.
 
     end subroutine setDustPDF

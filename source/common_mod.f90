@@ -961,6 +961,9 @@ module common_mod
     ! D-236: one sampled cell per 0.5 mag of A_V, so the field can be read as a
     ! function of depth rather than at a single cell.
     logical             :: lgAVsamp234(0:15) = .false.
+    ! D-243: one cell per 0.5 mag of A_V for the 19.82 eV He I 2^3S probe in
+    ! setDiffusePDF. Separate from lgAVsamp234, which update_mod owns.
+    logical             :: lgAVsamp243(0:15) = .false.
     integer             :: cellSamp234 = -1
     integer             :: nSolProbe = 0       ! D-169: what ionBalance wrote back
     ! D-170. Where do the convergence failures actually live? Cloudy judges

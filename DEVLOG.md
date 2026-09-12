@@ -240,6 +240,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in. **Result: it works, it is safe, and it is not enough.** Deep x(C+) goes 3.155e-11 -> 4.600e-08, a factor 1458, and every deep cell now carries flux where all four previous runs read exactly 0 in all 179 bins. But that is still 3500x under the reference's 1.624e-4 and ~100x under the ~4e-6 I predicted; CO rises only 49% (4.24e-10 -> 6.31e-10) and OH FALLS 8%, against a predicted rise. Every control holds: H II Te within 0.1-0.5%, ionization front unmoved, deep x(H2) 0.4749 -> 0.4751, hydrogen budget 9.2e-5, T_dust -1.8%, no NaN. Convergence 87.9% -> 85.7% | Done | 2026-09-12 |
 | D-239 | **The biasing was switched off for every flight after the first scattering, and D-238 never saw it.** `tauCell` means two things in `pathSegment`: `R_out*opacity` before the traversal loop, and `dS*opacity` (a single step, ~0.5) inside it. The post-scattering re-draw was handed the second, so alpha came out ~0.68 instead of ~0.069 - near-analog - and in a dusty medium most transport is post-scattering. Fixed with a separate `tauPath`. Plus a weight diagnostic (min/max/mean/mean-log10 per iteration) to measure the compounding rather than assume it, and Russian roulette below 1e-3 with survivors promoted, gated on lgPathStretch so analog runs are unchanged. **Result: x(C+) recovers COMPLETELY - ratio 1.00 against the reference at every depth the reference covers (0.98-1.03 over A_V 1.06-2.35)**, from 5e6 under it. The '32x residual' I first reported was an artefact of comparing our deepest cell (A_V 3.094) against the reference's last point (A_V 2.453), which d233_refcmp silently clamps - corrected below, and the tool now marks extrapolated rows. Carbon is conserved (x(C) falls by the 2.3% that appears as C+). Convergence 88.6%, ahead of analog. **But CO rises only 6% and OH 38%, still 49x and 678x under the reference - so the CO deficit is not mainly C+ starvation.** Controls: front, x(H2) and the H budget untouched; H II Te +0.9 to +1.7%, T_dust -5.5%, radiated energy +0.42% against a 0.038% analog scatter - the unbounded upper weight tail beginning to show, and the argument for splitting before this becomes default | Done | 2026-09-12 |
 | D-240 | **Audit of the path-stretching scheme: correct in sampling, weighting and energy bookkeeping; the open items are variance control.** Sampler and weight agree and implement the Baes composite form; exp(-tau) is the analog law replaced; the weight is updated before the flight it governs at both sites, survives absorption -> re-emission, and reaches Jste/Jdif/escapedPackets/SED, which getDustT and the gas heating read; zero safeLimit losses. **Energy conservation, the real unbiasedness test, passes: radiated luminosity +0.023% against analog, inside the 0.038% analog-analog scatter** - which also shows the mean weight of 1.29 is a diagnostic artefact (averaging over surviving packets while roulette culls low weights), not bias. Caveats: the expval>80 clamp inflates the deepest packets' weights; the upper tail is unbounded because 1/xi bounds a draw, not the product, so splitting is the missing companion to roulette; totalEscaped is nint of an energy and meaningless under weighting; and my D-238 prediction that weights stay in (0,2] was wrong | Done | 2026-09-12 |
+| D-241 | **3.3x the packets: the deep field was still on the one-packet floor, x(C+) reproduces, and CO/OH still do not follow.** 2e7 packets against D-239's 6e6, same fixture and settings. Every deep cell that read exactly 0 at 6e6 (cells 25, 87, 29 at A_V 2.564, 2.891, 3.094) now carries flux, and deep cells go from 1 bin with J>0 to 3-7; above A_V 2.0 the two runs agree to 10-30%, so the biased deep field at 6e6 was still sampling-limited - D-237's floor pushed deeper, not removed. x(C+)/ref reproduces at 1.00 (0.998-1.04 over A_V 0.56-2.03) in an independent realisation. **CO and OH remain 1-2 decades under the reference at both packet counts, so the deficit survives a 3.3x improvement in the deep field and is confirmed not to be a sampling problem.** (D-242 later measured the fixed-packet scatter and withdrew the "2-4x rise" this entry first read into the packet count: two 6e6 runs differ by up to 4.7x in deep CO and 25.9x in deep OH, so the between-run moves are scatter, not a packet-count effect. The 1-2 decade deficit is unaffected and now rests on three realisations.) Controls hold: H II Te -0.8%, deep x(H2) 0.4752 -> 0.4753, H budget 1.2e-4, deep T_dust +1.6%. Convergence 88.64% -> 92.36%. **On the energy control (D-242 settles it):** a third biased run at 6e6 radiates 2697.94, inside the analog cluster of 2699.80/2698.26/2698.77 (mean 2698.94, spread 0.057%), against D-239's 2710.11 at the same settings. Two biased runs at fixed packet count therefore span 0.45%, ~8x the analog-analog spread, while their mean sits ~1 sd from the analog mean. **The biasing introduces no detectable mean offset; it inflates the variance of the radiated energy roughly eightfold** - the signature of a heavy-tailed weight distribution, an unbiased estimator with a large variance. D-240's verdict stands and splitting is confirmed as a variance fix, not a bias correction. D-238's broken-stretch run radiates 2699.38, inside the analog cluster, independently confirming D-239's finding that the stretch was effectively off | Done | 2026-09-12 |
+| D-242 | **The error bar the energy verdict needed: two biased runs at identical settings span 0.45%, eight times the analog spread.** D-241 had one biased realisation per packet count and I twice read a conclusion out of it - first "scatter", then "bias, D-240 withdrawn". Re-running the D-239 configuration unchanged (6e6, `pathStretch 0.5`) gives 2697.94 against D-239's 2710.11, straddling the analog mean of 2698.94. **No detectable mean offset; the variance of the radiated energy is inflated ~8x**, the expected behaviour of an unbiased estimator with a heavy weight tail. D-240's verdict restored, splitting confirmed as a variance fix. Convergence 88.02% against D-239's 88.64%, so the realisation moves convergence far less than the packet count does (92.36% at 2e7). Cost: 19:56 per processor | Done | 2026-09-12 |
+| D-243 | **The He I 2^3S term evaluated at the 5000 K clamp is not what makes cold gas emit ionizing photons: it carries at most 0.9% of it.** Prompted by an audit of the user's `_testing` tree, whose Master Matrix of five fixes turns out to be **already implemented here in full** (JDif unpack = our D-225 with the identical condition; dustPDF alloc/reduce, opacity branching and recPDF purity = our D-233; the legacy `dustEmi` stop removed), with this tree ahead on three counts (D-227 He I continuum, D-229 Te criterion, the D-233 `size` reuse bug). The one live candidate was Tier 2 of `Runaway-Cascade-FIX.txt`, never implemented in either tree: `T4 = MAX(5000.,TeUsed)` at `emission_mod.f90:720` feeding `alpha2tS` into the 1.45673 Ryd (19.82 eV) bin of the gas re-emission PDF, above the 13.6 eV edge, with no temperature guard. **Measured before changing anything, and the answer is no: corr/ion is 3.3e-3 to 9.2e-3 across the PDR** (max 3.2e-2 only in the A_V 0.49 bucket, which averages cells across the front at 6982 K and is not PDR gas). Deleting the clamp was never the fix either - alpha2tS rises as Te falls, so at 14 K it would go 43.5 -> ~2334, a 54x INCREASE in the injection - and the document's alternative, zeroing below 1000 K, is a hardcoded threshold deciding physics at run time. **What the probe did find: the ionizing share of a cold cell's gas re-emission rises from 11-14% at 24-26 K to 38-43% at 11-15 K**, so the D-232 leak is real, depth-dependent, and comes from the recombination continua rather than from helium's metastable line. Shipped alongside: division-by-zero guards on the recPDF and dustPDF normalisations (both were 0/0 -> NaN for a cell with no emission in that channel), measured inert on this model against d233-channels on every control | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15527,6 +15530,403 @@ one.
 but that dump is iteration 8 of 13, an unconverged state. Re-check at
 completion.
 
+> **Re-checked at completion in D-241/D-242, and the verdict below stands.**
+> Biased runs at identical settings radiate 2710.11 and 2697.94 - a 0.45%
+> spread against a 0.057% analog spread - with their mean ~1 sd from the analog
+> mean. No detectable mean bias; the biasing inflates the variance of the
+> radiated energy roughly eightfold, which is the heavy weight tail this audit
+> named. Splitting is the fix, for variance. See D-241.
+
 **Verdict.** The implementation is correct in its sampling, its weighting and
 its energy bookkeeping. The open items are variance control (C, and B as a
 smaller version of the same thing), not correctness.
+
+## D-241 - 2e7 packets: the floor was still there, and CO still did not follow (2026-09-12)
+
+`runs/d241-photons`, the hiipdr-split fixture at `nPhotons 20000000` against
+D-239's `6000000`, everything else identical (`maxIterateMC 13 95.`,
+`teProbe 1`, `pathStretch 0.5`, same binary, 14 ranks). 24:11 per processor.
+
+The question was the one D-239 left open: is the residual a sampling problem?
+
+**The deep field was still on the floor at 6e6.** Matched by cell index - the
+grid is identical, cell 101 is A_V 1.206 in both runs - the C I band reads
+
+    cell   A_V     6e6        2e7       bins 6e6 -> 2e7
+      21  2.238  5.290e-06  9.081e-06     3 -> 8
+      24  2.559  1.141e-07  3.423e-06     1 -> 7
+      25  2.564  0.000      3.152e-07     0 -> 6
+      26  2.773  3.134e-08  3.310e-07     1 -> 6
+      27  2.880  6.457e-08  1.341e-07     1 -> 5
+      87  2.891  0.000      2.627e-08     0 -> 3
+      28  2.987  1.509e-08  5.142e-08     1 -> 3
+      29  3.094  0.000      2.027e-08     0 -> 1
+
+All three cells that read exactly zero at 6e6 now carry flux, and every cell
+below A_V 2.2 goes from a single populated bin to three or more. Above A_V 2.0
+the two runs agree to 10-30%. So composite biasing moved the one-packet floor
+of D-237 deeper without removing it, and D-239's deep profile was quoted from
+cells that were still floor-limited. Nothing in D-239's conclusions changes -
+x(C+) was recovered in cells well above the floor - but the deepest rows of
+that table were noise and should not have been read as profile.
+
+**x(C+) reproduces.** An independent realisation puts x(C+)/ref at 0.998-1.04
+over A_V 0.56-2.03 and 1.02-1.13 out to 2.56. The D-239 result was not a lucky
+draw.
+
+**CO and OH still do not follow.** They remain one to two decades under the
+reference - CO/ref 4.2e-5 at A_V 0.561 climbing to 0.20 at 2.03, OH/ref 2.8e-4
+to 0.47. A 3.3x increase in packets, which filled every empty deep cell and
+tripled the populated bin count, did not close them. **The CO/OH deficit is now
+confirmed not to be a sampling problem**, which is the same answer D-239 gave
+from the C+ side and is now independent of it.
+
+> **Corrected by D-242.** This entry originally read the differences between
+> the 6e6 and 2e7 runs as "CO and OH rise by 2-4x". The repeat run shows two
+> runs at *identical* settings differ by up to 4.7x in deep CO and 25.9x in
+> deep OH, so those moves are run-to-run scatter and cannot be attributed to
+> the packet count. Only the shallow cells (A_V <= 0.75, agreeing to three
+> digits across all three runs) and the 1-2 decade deficit itself are outside
+> the scatter.
+
+**Controls.** H II region Te mean 12206.8 -> 12108.6 K (-0.8%); deep x(H2)
+0.4752 -> 0.4753; hydrogen budget max|1-(HI+2H2+HII)| 1.175e-4 -> 1.222e-4,
+both at A_V 1.381; deep T_dust 11.58 -> 11.76 K (+1.6%). Convergence 88.64% ->
+92.36%, the gap opening at iteration 9 (85.66% against 79.28%) and holding, so
+part of what earlier runs left unconverged was Monte Carlo noise on Te.
+
+Weight statistics are unchanged at 3.3x the packets: mean 1.288-1.295, mean
+log10 -0.82, roulette culling 6.5% of draws in both runs. The weight
+distribution is a per-packet property and does not depend on how many packets
+are drawn - so more photons improve the sampling of the deep field without
+touching the tail.
+
+### The energy control: D-240 re-checked, and D-242 settles it
+
+D-240 reported "radiated luminosity +0.023% against analog, inside the 0.038%
+analog-analog scatter" and passed the scheme as unbiased, while its own body
+flagged that number as an iteration-8 dump and said to re-check at completion.
+At completion, with a repeat run added to supply the missing error bar:
+
+    analog   d233-channels  2699.80   (6e6)
+             d236-depth     2698.26   (6e6)
+             d237-taus      2698.77   (6e6)   mean 2698.94, spread 0.057%
+    biased   d239-roulette  2710.11   (6e6)   +0.41%
+             d242-repeat    2697.94   (6e6)   -0.04%   <- same settings as d239
+             d241-photons   2708.38   (2e7)   +0.35%
+
+against a source luminosity of 3076.74. **Two biased runs at identical settings
+and packet count span 0.45%, about eight times the analog-analog spread, while
+their mean sits roughly one standard deviation from the analog mean. So there
+is no detectable mean bias - what the biasing does is inflate the variance of
+the radiated energy by ~8x.** That is exactly what a heavy-tailed weight
+distribution produces: the estimator stays unbiased, and individual
+realisations scatter widely because a handful of high-weight packets dominate
+whichever tally they land in. **D-240's verdict therefore stands**, and its
+named open item - splitting as the missing companion to roulette - is confirmed
+as the right fix, for variance rather than for bias.
+
+`d238-stretch` radiates 2699.38, inside the analog cluster. That is independent
+corroboration of D-239's finding that the stretch was switched off for every
+post-scattering flight in D-238 - the run is energetically analog because it
+very nearly was analog.
+
+**My own errors, recorded - I drew a conclusion twice from too few samples.**
+First I told the user the offset was realisation scatter, reasoning from the
+two biased runs agreeing to 0.064%; that reasoning was backwards, since
+agreement between two biased runs is what a reproducible bias looks like. I
+then corrected myself to the opposite claim - a real bias, "the energy test
+does not pass", D-240 withdrawn - and wrote it into this log. That was two
+biased samples that happened to land high, against an analog spread measured
+from three runs. The third biased run put it back. The lesson is the one
+CLAUDE.md already states: where a result is close to run-to-run scatter, the
+scatter has to be measured before the result is read, and two points do not
+measure a spread.
+
+**Correction to the baseline itself (found 2026-09-12 while setting up D-243).**
+The three "analog" runs pooled above do not share a configuration: d233-channels
+ran 22 iterations, d236-depth and d237-taus 13. Worse, the radiated energy
+fluctuates from iteration to iteration *within* a single run by as much as the
+spread between runs - d233-channels spans 2698.58 to 2699.80 over its own
+iterations 17-22, d236-depth 2697.06 to 2699.80 over 8-13. **So the 0.057%
+figure quoted here and in D-241 is substantially within-run iteration noise,
+not a between-run realisation scatter**, and it should be read as "analog
+variation of order 1-3 in 2699" rather than as a clean run-to-run sigma.
+
+This does not weaken the D-242 conclusion, it strengthens it: the biased pair
+differ by 12.17 absolute, against analog variation of 1-3 whichever way it is
+measured. The inflation factor is ~5-10x rather than precisely 8x.
+
+**What is not known.** The biased-biased spread rests on two runs at 6e6, so
+0.45% is an estimate of an inflated variance, not a precise figure. d241 is at
+2e7, where the variance should already be ~1.8x smaller, so it does not belong
+in the same pool. The convergence figures - 88.64% (d239), 88.02% (d242),
+92.36% (d241) - are consistent with the packet count mattering more than the
+realisation.
+
+`pathStretch` stays off by default.
+
+## D-242 - the repeat run, and what two points cannot measure (2026-09-12)
+
+`runs/d242-repeat`: the D-239 configuration re-run unchanged - same fixture,
+same binary, `nPhotons 6000000`, `pathStretch 0.5`, `maxIterateMC 13 95.`,
+14 ranks - for one purpose, to measure the biased-biased scatter that D-241
+was missing. 19:56 per processor.
+
+    analog   d233-channels  2699.80      d236-depth  2698.26
+             d237-taus      2698.77      mean 2698.94, spread 0.057%
+    biased   d239-roulette  2710.11  (6e6)
+             d242-repeat    2697.94  (6e6)   spread 0.45%
+             d241-photons   2708.38  (2e7)
+
+The two 6e6 biased runs straddle the analog mean and span eight times the
+analog-analog spread. **The conclusion is that composite biasing leaves the
+radiated energy unbiased in the mean and inflates its run-to-run variance by
+roughly a factor of eight.** This is the expected behaviour of an unbiased
+estimator whose weights are heavy-tailed: a few packets carry weights of order
+10^4, and whichever tally they land in is pulled with them, so individual
+realisations swing while the expectation does not move.
+
+Consequences:
+
+  - **D-240's verdict is restored.** Its audit called the scheme correct in
+    sampling, weighting and energy bookkeeping, with variance control as the
+    open item. That reading survives; the completed-run energy figure does not
+    contradict it.
+  - **Splitting is confirmed as the right next step, and as a variance fix.**
+    It was always motivated as the companion to roulette - roulette culls the
+    low-weight tail, splitting culls the high-weight one. The measurement now
+    says what it buys: a narrower distribution of run outcomes, not a different
+    mean. That also means it cannot be expected to move CO or OH.
+  - `pathStretch` stays off by default, now for a measured reason: a user who
+    turns it on gets an unbiased answer with ~8x the usual run-to-run scatter.
+
+**What this cost, and the process lesson.** I reported this quantity twice
+before it was measurable, in opposite directions, from two samples against a
+scatter estimated from three. CLAUDE.md already says a single run is the
+default evidence *and* that where a result sits close to run-to-run scatter one
+should say so rather than read it - the second half is the part I skipped. A
+0.4% effect against a 0.06% analog spread needed the biased spread measured
+before any verdict, and that was one 20-minute run away the whole time.
+
+### The same error, on the species: what the repeat run also measured
+
+The repeat run gives the per-species run-to-run scatter at fixed packet count,
+which no previous entry had. Against the reference, three runs:
+
+    A_V     d239 6e6    d242 6e6    d241 2e7    6e6 pair
+    0.561   4.242e-05   4.254e-05   4.242e-05     1.00x     CO/ref
+    1.175   4.031e-03   1.671e-02   1.428e-02     4.14x
+    2.030   1.168e-01   6.455e-02   1.550e-01     1.81x
+    2.350   1.715e-02   7.996e-02   1.991e-02     4.66x
+
+    0.561   2.813e-04   2.816e-04   2.812e-04     1.00x     OH/ref
+    1.175   1.339e-02   5.431e-02   4.698e-02     4.06x
+    2.345   1.579e-02   1.975e-01   4.200e-02    12.51x
+    2.350   6.139e-03   1.588e-01   1.365e-02    25.87x
+
+**Two runs that differ in nothing but the random sequence disagree by up to
+4.7x in deep CO and 25.9x in deep OH.** D-241 read the 6e6 -> 2e7 differences
+as a packet-count effect and reported CO and OH "rising 2-4x"; those moves are
+smaller than this, so that reading is withdrawn. It is the same error as the
+energy one in the same session - a difference quoted before its scatter was
+known - and it is now corrected in D-241 as well.
+
+What is outside the scatter, and therefore stands:
+
+  - **The shallow PDR reproduces exactly.** At A_V <= 0.75 all three runs agree
+    to three digits on CO and OH. The scatter is a deep-cell phenomenon, which
+    is what the weight tail and the packet floor both predict.
+  - **x(C+) = 1.00.** The pair ratio is 1.00 out to A_V 1.9 in every run,
+    degrading to 1.10-1.34 only in the deepest three cells.
+  - **The 1-2 decade CO/OH deficit**, present in all three runs at two packet
+    counts. Three realisations now, not one.
+
+A practical consequence for every future comparison on this fixture: **deep-cell
+molecular abundances have a run-to-run spread of up to a decade**, so no single
+deep cell can be evidence, and differences below ~5x in CO or ~25x in OH beyond
+A_V 2 mean nothing without a repeat.
+
+**Still open, and untouched by any of this.** CO 1-2 decades under the
+reference and OH likewise, at both packet counts, with carbon reproduced at
+1.00. Nothing in D-238 through D-242 is about the molecules; that residual is
+the whole remaining question.
+
+## D-243 - the 19.82 eV helium line is not the cold-gas leak (2026-09-12)
+
+`runs/d243-heicorr`: the hiipdr-split fixture, analog (no `pathStretch`),
+`maxIterateMC 22 95.`, `nPhotons 6000000`, `teProbe 1` - the exact
+configuration of `d233-channels`, which is therefore the control. 39:30 per
+processor, clean exit, 87.65% converged.
+
+### Where this came from
+
+An audit of the user's `mocassin_HM_2026_3DPDR_testing` tree and its session
+report. Its "Master Matrix of Fixed Bugs & Architectural Flaws" lists five
+items; **all five are already implemented in this tree**, in most cases by a
+different route and under a different D-number:
+
+    their item                          here
+    grid%JDif MPI unpack guard          D-225, iteration_mod.f90:892 -
+                                        the IDENTICAL condition
+                                        `if (lgDebug .or. pdrSplitField /= 0)`
+    dustPDF alloc + MPI omission        D-233, grid_mod.f90:1623/2561/3983,
+                                        iteration_mod.f90:509
+    dust/gas opacity conflation         D-233, photon_mod.f90:2020-2048
+    recPDF dust contamination           D-233, emission_mod.f90:875-886
+    legacy dustEmi stop                 removed
+
+and on three counts this tree is ahead: their `emission_mod` still carries the
+pre-D-227 `gammaHeI`/`gammaHeII` `expFactor` code (no He I continuum start-bin
+fix), their `update_mod` convergence test is `if (lgCvH0 .and. lgCvH2)` without
+the D-229 temperature criterion, and our D-233 additionally caught a `size`
+variable reuse in the dustPDF allreduce that their version does not mention.
+Their remaining 452 lines of `photon_mod` difference are D-224/D-225 packet
+tracing counters, superseded by the D-235/D-237/D-239 probes.
+
+**A caution on the premise.** The report concludes the chemistry is validated
+because CO "looks correct". Against `sec54.pdr.fin` at matched A_V, from their
+own section 6 table:
+
+    A_V    ref CO     theirs      ours      theirs/ref   ours/ref
+    2.03   6.87e-09   2.00e-08   1.06e-09      2.9x        0.16
+    2.24   1.57e-08   1.20e-06   1.93e-09       76x        0.12
+    2.35   2.36e-08   6.50e-06   4.70e-10      275x        0.020
+
+Their CO overshoots the reference by up to 275x while ours undershoots by ~50x,
+and their x(C+) oscillates 4.4e-5 -> 9.1e-11 -> 1.6e-4 -> 4.6e-11 between
+adjacent cells with Te spiking to 62-70 K where neighbours sit at 21-25 K. Both
+trees diverge from 3D-PDR at A_V 2-3, in opposite directions.
+
+### The one live candidate, and its measurement
+
+Tier 2 of `Runaway-Cascade-FIX.txt`, never implemented in either tree.
+`emission_mod.f90:720-727`:
+
+    T4 = MAX(5000.,TeUsed)*1.e-4
+    alpha2tS = 27.2*(T4**(-0.678))
+    correction = alpha2tS * NeUsed*elemAbun(He)*ionDen(He+)*1.45673*hcRyd*1e11
+    sumDiffuseHeI(j2TsP) = sumDiffuseHeI(j2TsP) + correction
+
+`j2TsP` is `locate(nuArray, 1.45673, ...)` = 19.82 eV, above the 13.6 eV edge.
+In a 14 K cell the rate comes from a 5000 K extrapolation, with no guard. It is
+proportional to x(He+), which runs 2-7.5x the reference deep in our PDR - an
+excess never explained - and D-227 left exactly three cells still flipping at
+iteration 12 "on the real 19.8 eV He I line".
+
+**Result: it is not the leak.** One cell per 0.5 mag of A_V, 90 samples over
+A_V 0.494-3.094:
+
+    A_V    cells   Te(K)    ion/gas   corr/ion
+    0.49       6  6981.6      0.621   2.66e-02
+    0.81      14    24.0      0.108   3.27e-03
+    1.32      14    26.0      0.127   3.97e-03
+    1.73      14    23.7      0.137   5.29e-03
+    2.28      14    14.9      0.425   7.77e-03
+    2.77      14    12.5      0.403   8.69e-03
+    3.06      14    11.2      0.376   9.22e-03
+
+The term supplies **0.33% to 0.92% of the ionizing gas emission through the
+PDR**. The 2.7% in the first row is not a PDR number: that bucket averages
+cells straddling the ionization front at a mean 6982 K, where the clamp is
+barely active. The hypothesis is discarded.
+
+**Neither proposed fix was ever the right one.** Deleting the `MAX` moves
+alpha2tS the wrong way - recombination rises as temperature falls, so at 14 K
+the unclamped fit gives ~2334 against 43.5 clamped, a 54x larger injection.
+Zeroing below 1000 K is a hardcoded threshold selecting physics at run time,
+the anti-pattern CLAUDE.md puts first. Measuring first avoided implementing
+either.
+
+### What the probe did find
+
+**The ionizing share of a cold cell's own gas re-emission rises with depth as
+the gas cools**: 11-14% at 24-26 K, 38-43% at 11-15 K. That is the D-232 leak
+re-measured on a different run through a different code path - not identical to
+its 49-62% figure, which was defined over different cells and possibly before
+the dust term was split out, but the same mechanism: as kT shrinks the
+recombination continua collapse into narrow spikes sitting on their own
+thresholds, so a growing share of the gas spectrum lands above 13.6 eV. With
+helium's metastable line excluded at under 1%, the remaining ~40% is the H I,
+He I and He II recombination continua. **Splitting `ionTot` by species is the
+next diagnostic and it is nearly free - the probe already computes the three
+sums and prints only their total.**
+
+### How Cloudy does it (c25.00, read from source)
+
+There is no `alpha2tS` analogue at all. 2^3S is a level in the He-like
+iso-sequence model atom and its population comes from solving the full
+collisional-radiative matrix by LAPACK inversion (`iso_level.cpp:168`), fed by
+`HeCSInterp` collision rates (`iso_solve.cpp:527-538`), photoionization out of
+the level, and recombination in. There is no closed-form coefficient to clamp.
+
+Recombination coefficients come from Hummer & Storey 1998 photoionization
+cross-sections (`helike_recom.cpp:119`) through the Milne relation, integrated
+numerically with `qg32` (`iso_radiative_recomb.cpp:45-103`), either at the
+actual `phycon.te` or by interpolating a table built that way on the grid
+`TeRRCoef[i] = 0.25*i` in log10 T for i = 0..40 - **1 K to 1e10 K** in
+quarter-decade steps (`:826`, `N_ISO_TE_RECOMB = 41` in `iso.h:102`). 14 K sits
+well inside it, so no clamp is ever needed. Out of range, Cloudy neither clamps
+nor extrapolates: it prints "TempInterp called with te out of bounds" and calls
+`cdEXIT(EXIT_FAILURE)` (`:1232-1237`). Its only temperature floor,
+`TEMP_LIMIT_LOW = 2.8` K (`phycon.h:133`), bounds the temperature solver, not
+any rate coefficient.
+
+The decay is A = **1.272e-4 s^-1**, single-photon M1, with 1%/20% error bars
+registered through `iso_put_error` (`helike_einsta.cpp:322-325`). The
+two-photon channel is set up separately at 4.09e-9 s^-1
+(`cont_createpointers.cpp:811`) and Cloudy's own comment notes the M1 rate is
+~1e4 larger - so Cloudy emits a single 19.82 eV photon too. **I had started to
+write that Cloudy spreads this over a two-photon continuum; the source says
+otherwise, and the claim was withdrawn before it was made.**
+
+**The real gap is not the coefficient.** MOCASSIN's emission is
+`alpha * Ne * x(He+) * h_nu` with **no destruction channel for 2^3S at all** -
+no collisional de-excitation, no transfer to singlets, no photoionization out
+of the metastable level. In Cloudy those are what set the population. So the
+single-coefficient formula is the wrong model rather than a right model with a
+bad constant. Given the measurement above this is now moot for the leak, but it
+is the reason neither proposed patch would have been principled.
+
+### Also shipped: two division-by-zero guards
+
+`emission_mod.f90:888` normalised `recPDF` by `recPDF(nbins)` and `:1013`
+normalised `dustPDF` by `dustPDF(nbins)`, both unguarded. A cell with no
+emission in that channel gave 0/0 -> NaN in the PDF that every gas (resp.
+dust, since D-233) absorption samples. Both now test the total first and fall
+back to a zeroed PDF - degenerate, but finite and recognisable, which NaN is
+not. Taken from the `_testing` tree, the one thing in it worth porting.
+
+**Measured inert**, against `d233-channels` at identical settings:
+
+    control                     d233-channels    d243-heicorr
+    radiated energy [e36 erg/s]      2699.80         2699.26   (-0.02%)
+    convergence                        87.8%           87.65%
+    H II Te, mean                    12095.0 K       11998.4 K  (-0.8%)
+    ionization front           r=1.400e19, A_V 0.561    identical
+    deep x(H2)                        0.4749          0.4749
+    deep x(HI)                      5.013e-02       5.012e-02
+    H budget max|1-sum|              1.108e-04       1.084e-04
+    deep T_dust                       12.25 K         12.09 K
+
+They only fire on a cell with literally zero emission in a channel, and this
+model has none - they are insurance against a NaN, not a change in behaviour.
+
+### An unrelated finding, recorded because it retires a D-233 detail
+
+D-233 reported "a single cell at A_V = 2.24 sitting at 53 K where its
+neighbours are 20-23 K: the one place in the model that makes CO in quantity,
+23x the reference". In `d233-channels` that cell reads T = 53.26 K, CO/ref
+22.8x, OH/ref 41.2x. **In d243, an independent realisation at identical
+settings, the same cell reads T = 17.25 K, CO/ref 2.75e-02, OH/ref 3.73e-02.**
+The warm CO-producing cell does not reproduce; it was a realisation artefact,
+and D-233's remark about it should not be carried forward. This is the same
+lesson as D-242 - a deep single cell is not evidence on this fixture - now
+demonstrated on the analog side as well as the biased one.
+
+Both analog runs do show the C+ cliff beyond A_V ~1.9 (d243: x(C+)/ref 0.19 at
+1.92, 1.3e-2 at 2.03, 2.2e-4 at 2.35), which is expected and is exactly what
+D-237 diagnosed and D-239 fixed with biasing - these runs have it switched off.
+
+**Still open, and untouched.** CO 1-2 decades under the reference with carbon
+reproduced at 1.00 under biasing. Nothing in D-243 bears on it.
