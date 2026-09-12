@@ -249,6 +249,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-247 | **Full-repository audit: all four build flavours compile; the five things blocking the coupling, ranked.** Verified from a clean tree this session - `PDR=1 PDRGEOM=3D`, `PDR=1`, plain and `PDR=1 mocassinWarm` all build, working tree clean, default flavour restored. What works: the ownership contract is in the code (D-198), the hydrogen budget closes, `x(H+)_ion / x(H+)_chem` has median 0.99998 over 15039 cells, the V1/V2 slabs reproduce the reference's CO and H2 exactly, and a 13-iteration 3D run exits clean in 25 min. **The five blockers, in the order I would work them.** (1) **CO/OH 1-2 decades under the reference in 3D while the 1D slabs are exact** - hiipdr CO/ref 0.004-0.250 and OH/ref 0.013-0.593 at matched depth, against 1.00 for CO in V1/V2; C+ is now right (0.98-1.03), so the network and the CO formation path are correct in a slab and something in the 3D coupling suppresses the molecules. Worst at BOTH ends, best in the middle - a shape, not an offset. This contrast is the sharpest unexploited lead in the project. (2) **The He+ excess needs a design decision, not more measurement** - D-246 closed the mechanism; `chex` is zeroed below 6000 K at `update_mod.f90:2590` so He+ + H is off in every PDR cell, and the reference's molecular sinks have no counterpart. Its three prerequisites are undone. (3) **The 87.5% convergence plateau is entirely the Te test, and the log already said so** - final-iteration CVPROBE reads `x(H0) only 2, x(H2) only 0, both 0, Te (any) 1895`, and 1895/15204 = 12.5% is exactly the missing fraction. D-228 listed "which of the three tests those cells fail" as unmeasured; `d244-species` ran with `teProbe 1` and answered it, and nobody read the line. Supporting: the Te bracket is wider than `thLimit/3` in 81.8% of cells. (4) **47% of cells report "Ion balance not reached" at the FINAL iteration** - 51, 50, 49 ... 47% across the run, while Te balance falls to 0% by iteration 13. Counted at `update_mod.f90:985` over `totCells`, so not PDR-specific and not confined to the zone. Never diagnosed; every ionization result including D-246 rests on it. (5) **Memory is 1.74x the documented model, cause unknown** - 685 MB/rank at iteration 1 against 393 MB predicted, ~20 `(15205,600)` arrays where 4-5 are implied. D-245 fixed a real leak on top of this; the baseline gap is untouched and has already killed a production run. **Below the line:** ~9 live ownership switches remain plus `pdrZoneLim 0.3` (the production fixture sets none of them, so this is latent complexity, not active divergence); the temperature disagrees with the reference in OPPOSITE directions - 0.59x in hiipdr, 2.3x and 6.0x in the slabs - which is not one missing term; 70 `mocassin.dNNN` binaries are tracked in git, 78 MB. **One thing not to chase:** `pdrOmega = 0.42d0` looks like a rule-1 violation but is dead - `omega` is assigned and printed and never enters a rate expression anywhere in `source/pdr/`; `pdrAVfac` by contrast IS calibrated from MOCASSIN's own dust at `pdr_mod.f90:986` | Done | 2026-09-12 |
 | D-248 | **The 87.5% plateau is Monte Carlo noise measured against a tolerance below it, plus two populations that pass for free.** D-247 found the plateau is entirely the Te test; nothing recorded the test statistic's DISTRIBUTION, only its verdict. **(1) The floor is stationary, not converging** - d243-heicorr's 22 iterations oscillate in the band 1872-2017 for twelve consecutive iterations. **(2) A verified repeat pair measures the null.** `d239-roulette`/`d242-repeat` have byte-identical inputs AND binaries; realisation noise alone puts **13.21%** of cells past the 0.10 tolerance (median |dTe/Te| 0.0272, p90 0.1162), and not one of the 165 ionized cells breaches it - every breach is in the PDR. My first pair, d236/d237, was WRONG and is withdrawn: `git diff` between the result commits was empty but `cmp` puts 392,183 bytes between the binaries, because those runs carried uncommitted probe changes. **(3) The failing cells are the noisy cells** - P(noisy|fail) 39.5% against P(noisy|pass) 9.8%, median scatter 0.0805 against 0.0233. **(4) The noise is not inherited from the field but filtered by depth**: chiFUV scatter rises monotonically with A_V (0.0073 -> 0.5514) while Te scatter PEAKS at A_V 2.0-2.5 and collapses to 0.0052 deeper; the gain d(lnTe)/d(ln heat) falls 0.57 -> 0.01, so the failure band is where large heating noise meets a response that has not yet collapsed. **(5) The instrument** (`cvTeHist`, `cvFailTeByAV`, `cvTeNear`, `cvTeFloorN/Pass`, diagnostic-only under `teProbe`) validated two ways in `runs/d248-tehist`: bins 9-12 equal `cvFailTe` in all 13 iterations, and `cvFailTeByAV` `[0,0,35,219,1751,0]` matches `[0,2,29,206,1660,0]` predicted beforehand from disk. **(6) THE RESULT: failure rate 13.19% against a null of 13.21%, and 48% of the grid sits in the single decade immediately below the tolerance** - the criterion slices the body of a noise-set distribution rather than separating converged from unconverged; 58% of failures are within 2x of passing. **(7) A second free-pass population, larger than the floor's**: 2515 cells (16.5%) report EXACTLY zero change, growing 146->2515 over iterations 8-13. Not structural, not the D-215 table (2395 distinct temperatures), not the dead `if (.false.)` PDR pinning - it is the solver's no-bracket fallback, tracking `teNnobrack` at a constant ~130 offset, where `update_mod.f90:737-744` sets `TeUsed = TeBest` and exits without a secant step. A fallback, not a root, counted as converged. The floor clamp is real but small in this configuration (74 cells, 64 passing free) and is **tenfold larger in biased runs** (729 vs 72), so my first write-up of it, quoted from d239, overstated it for the analog case. **Conclusion: the converged percentage is not currently a statement about PDR physics** - an eighth of the grid fails on noise, a sixth passes without moving. Raising `convLimit` is explicitly refused as fitting a number; the clearest justified change is to stop counting no-bracket fallbacks as converged, which does not touch the criterion | Open | 2026-09-12 |
 | D-249 | **The CO/OH deficit is a chain whose head is a ~7x FUV normalisation error in 3D; the dust slope is correct to 2.3%.** First comparison of ALL 33 species, over every PDR cell at its own A_V (no axis indexing, so it reads the 801-cell slabs too - `d196_axis.py` hardcodes 31^3 and cannot). **The 3D model separates cleanly**: correct are He 1.000, O 1.000, C+ 1.001, e- 1.043, H2 0.960; collapsed are H2+ ~5e-5, **H3+ 0.009**, HCO+ 0.001, CH3+ 0.001, H3O+ 0.002, H2O 0.013, CO 0.050, OH 0.110. **Everything deficient is downstream of H3+, and H3+ of H2+** - so CO and OH are symptoms, and D-239's correct carbon never helped because carbon was never the constraint. Geometry-specific as required: H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2, so the network is sound. Cosmic-ray attenuation excluded - `CRATTENUATION` is absent from PDRFLAGS, so `zetalocal = zeta` and the `AV(6)` code is dead. **Where it breaks**: at A_V 0.5-1.0 the reference is 34% molecular and our gas is entirely atomic, x(H2) 2.9e-6 against 0.171, a ~60,000x deficit - **the H/H2 transition is displaced ~1 mag too deep** and the chain below it is empty. **The cause**: chi/chi_ref is 9.05, 5.25, 3.94, 4.10, 5.00 across the A_V bands at matched density. Fitting `k = -dln(chi)/dA_V` separates normalisation from slope and **reverses the obvious reading**: in 3D k = 2.951 against the reference's 3.020 (**ratio 0.977 - the dust-owned slope is right**) with the normalisation ~7x too high, while the too-shallow slope (0.66) belongs to the SLABS. So this is NOT a "MOCASSIN owns the dust, report the divergence" case; it is a bounded normalisation defect. It also explains why the slabs "work" - their field is 2.7x too WEAK, so H2 forms early and the chemistry is never starved; they are a different error with a benign sign, not a control that passed. **Not explained**: by A_V 1.5-2.45 H2 matches the reference and H3+ is still 25-450x low, with x(e-) at ratio 1.0 and T only 1.6x off - the normalisation explains the shallow catastrophe, not the deep residual. Also recorded: Mg/Mg+ are identically zero in our runs against a reference 2.7e-6, because `abunV1.in` sets Mg = 0 - absent by INPUT, not by defect, so the two codes are compared with different metal content and every deep x(e-) ratio in this log inherits it | Open | 2026-09-12 |
+| D-250 | **The input audit D-074 should have been: composition was never in scope, and Mg+ is DELETED by the guard that reports it kept.** Asked for directly after D-249 surfaced Mg as a side observation. **Why it was missed**: D-074's eleven-row table is exactly the contents of 3D-PDR's `params.dat`, which holds no elemental abundances - composition lives in `species_reduced.d`, never opened. The audit was scoped to one file and reported as covering "every input parameter". **What IS consistent, verified not assumed**: zeta (v1/v2), v_turb, grain radius, UV factor 3.02, T_min/T_max, HEALPix, Fcrit, end time, ODE tolerances, coolants, network, metallicity - all match. **A_V per N_H measured from the reference files' own columns** rather than read from params.dat: sec54 5.34153e-22 against our calibrated 5.34152688e-22 (six significant figures), v1/v2 5.33997e-22 against 5.33995e-22 - so "matched A_V" really is matched column and D-249's basis is sound; the 6.289e-22 in 3D/params.dat belongs to the diffuse benchmark, not sec54. **Composition, never checked before**: C, O, He match in all three fixtures; **Mg does not, in any of them** (reference 2.70e-06, ours 0). **The defect**: `seedAbunFromMocassin` pre-zeroes `abun` then `cycle`s past a switched-off element, so the slot keeps the zero and `pdrAbun` is overwritten with it - while the routine's own comment says "the network's value is left alone rather than deleting the element - removing e.g. Mg+ would silently change the electron budget" and `reportAbun` prints "MOCASSIN: element off - network value kept" every run. **The message is false**: Mg and Mg+ are identically zero in all 15039 PDR cells of d248-tehist and all 20018 of d233-v1slab. Mg is the only affected element. **What it costs**, against the reference's own budget: Mg+ is 1.1-1.4% of x(e-) in sec54 but **89.8% at A_V 7.9 in v1 and 99.3% in v2** - in the slabs' deep gas the electron budget IS Mg+, and we delete it. **So it does NOT rescue D-249** (sec54's deep electrons are C+-dominated, so the 25-450x H3+ residual stands) but it **does contaminate every deep slab comparison**, including the "slabs reproduce the reference" claim blocker 1 was ranked on: our V1 x(e-) is 1.79x the reference while missing the donor supplying 90% of the reference's deep electrons. Also found: hiipdr uses `nbins 600` against D-013's own >= 1000; and our FUV slope is not single-valued - 2.951/mag in 3D against 1.99/mag in the slabs from identical dust inputs. sec54's zeta is unrecorded and could not be inferred (the estimator failed its control on v1/v2). Decision needed, not taken: turn Mg on in MOCASSIN (one reality, re-runs everything) versus make the guard keep the network value (cheaper, creates a second reality) | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -16837,3 +16838,175 @@ is the natural place to start, as is the relation between `chiFUV` and
 
 Not attempted here, deliberately: nothing was changed. This entry is a
 measurement.
+
+---
+
+## D-250 - the input audit that D-074 should have been: composition was never in scope, and Mg is deleted by a guard that reports it kept (2026-09-12)
+
+Asked for directly: audit the model inputs against the reference inputs and make
+them consistent, because the Mg discrepancy surfaced in D-249 as a side
+observation and should have been caught long before.
+
+It should have been. This entry records why it was not, what is actually
+consistent, and the one defect the audit found.
+
+### 1. Why D-074 missed it
+
+D-074 (2026-09-01) is titled "the full parameter audit" and its table has
+eleven rows: G0, zeta, turbulent velocity, grain radius, A_V conversion,
+T_min/T_max, HEALPix level, Fcrit, UV factor, dust-to-gas, chemistry
+iterations. **Every one of those is a line in 3D-PDR's `params.dat`** - and
+`params.dat` contains no elemental abundances at all. The composition lives in
+`species_reduced.d` (and the `.species` list), which the audit never opened.
+
+So the audit was not incomplete by accident; it was **scoped to one file** and
+reported as covering "every input parameter". That is the process lesson: an
+audit's scope is the set of files it opens, and it must be stated as such.
+
+### 2. What IS consistent - verified, not assumed
+
+Every `params.dat` quantity re-checked against the current fixtures:
+
+    quantity            reference            ours                    verdict
+    zeta (v1/v2)        5.000E-17            pdrZeta 5.0e-17         ok
+    turbulent velocity  1 km/s               pdrVturb 1.0            ok
+    grain radius        1.0e-5 cm            pdrGrainRad 1.0e-5      ok
+    UV factor           3.02                 pdrUVfac 3.02           ok
+    T_min / T_max       1 / 2e4              1.0 / 2.0e4             ok
+    HEALPix level       0                    pdrHealpix 0            ok
+    Fcrit               0.005                pdrFcrit 0.005          ok (D-074)
+    end time            1e7 yr               pdrEndTime 1.0e7        ok
+    ODE rel/abs tol     1e-8 / 1e-30         1.0d-8 / 1.0d-30        ok
+    coolants            4, fixed order       same 4, same order      ok
+    network             REDUCED              reduced                 ok
+    metallicity         1                    pdrMetal 1.0            ok
+
+**The A_V conversion was measured from the reference files themselves** rather
+than read from `params.dat`, by integrating their own n_H over their own depth
+column:
+
+    reference        A_V/N_H measured     our calibrated pdrAVfac
+    sec54.pdr.fin    5.34153e-22          5.34152688e-22    (6 significant figures)
+    v1.pdr.fin       5.33997e-22          5.33995522e-22
+    v2.pdr.fin       5.33997e-22          5.33995472e-22
+
+So "matched A_V" genuinely means matched hydrogen column, and D-249's
+comparison basis is sound. Note the `6.289e-22` in `3D/params.dat` belongs to
+the *diffuse* 3D benchmark, not to sec54 - sec54 is a 1D run and used the 1D
+value, which its own output confirms.
+
+**Composition, the part never checked before**, derived by summing each
+reference's surface row over all carriers of each element:
+
+    reference     C          O          Mg         He      n_H     chi
+    sec54      2.20e-04   3.30e-04   2.70e-06   1.0e-01   100    61.24
+    v1         1.40e-04   3.00e-04   2.70e-06   1.0e-01   1e3    10
+    v2         1.40e-04   3.00e-04   2.70e-06   1.0e-01   1e5    1000
+
+    our hiipdr 2.2e-04    3.3e-04    0          1.0e-01   100
+    our v1/v2  1.4e-04    3.0e-04    0          1.0e-01   1e3/1e5
+
+**C, O and He match in all three fixtures. Mg does not, in any of them.**
+
+### 3. The defect: the element is deleted by the guard meant to preserve it
+
+`seedAbunFromMocassin` (`pdr_mod.f90`) opens with `abun = 0.d0` and then, per
+linked species,
+
+    if (.not.lgElementOn(iEl)) cycle
+
+`cycle` skips the *assignment*, so the slot keeps the pre-zeroed value. Since
+`seedPDR` then does `grid%pdrAbun(iCell,:) = seed`, **Mg+ is set to zero in
+every cell of every run.** The comment immediately above the routine states the
+opposite intent, in these words:
+
+    A zero MOCASSIN abundance means the element is switched off there, and
+    the network's value is left alone rather than deleting the element -
+    removing e.g. Mg+ would silently change the electron budget.
+
+And `reportAbun` prints, every run:
+
+    !   Mg network 2.7000000000000000E-006  MOCASSIN: element off - network value kept
+
+**The message is false.** Measured over the output of both runs: Mg and Mg+ are
+identically zero in all 15039 PDR cells of `d248-tehist` and all 20018 of
+`d233-v1slab` - max = min = 0, zero non-zero cells. The thing the comment warns
+against is exactly what the code does, and the log asserts it did not.
+
+Mg is the only affected element. Of the ten `linkIon` calls, only H, He, C, O
+and Mg are carried by the REDUCED network, and only Mg is switched off in the
+fixtures. (N, Ne and S are zero in the slab fixtures but have no network
+species, so nothing is deleted.)
+
+### 4. What it costs, measured against the reference's own electron budget
+
+    reference   A_V    x(e-)      Mg+ share of x(e-)    C+ share
+    sec54      0.616  2.56e-04          1.1%             85.9%
+    sec54      2.333  1.90e-04          1.4%             94.5%
+    v1         2.133  2.31e-05         11.4%             84.1%
+    v1         7.864  2.03e-06         89.8%              7.6%
+    v2         4.962  1.80e-06         98.8%              0.9%
+    v2         7.864  4.38e-07         99.3%              0.5%
+
+**In the slabs' deep gas the electron budget IS Mg+** - up to 99.3% of it -
+because C+ has recombined and Mg+ has not. We delete that donor entirely. In
+sec54 it is 1.1-1.4%, because C+ stays high across the compared range.
+
+So the severity is geometry-dependent, and it is worst in exactly the two
+fixtures this project has been treating as the controls that pass.
+
+### 5. What this does and does not overturn
+
+**It does not rescue D-249's 3D result.** sec54's deep electron budget is
+C+-dominated and Mg+ is ~1%, so the missing donor cannot explain the 25-450x
+deep H3+ deficit there. The FUV normalisation finding stands.
+
+**It does contaminate every deep slab comparison in this log**, including the
+"the slabs reproduce the reference" claim that D-247 ranked blocker 1 on. Our
+V1 x(e-) measured 1.79x the reference *while missing the donor that supplies
+90% of the reference's deep electrons*, which means something else is
+over-supplying electrons there by a larger factor than previously thought.
+That is a new discrepancy, not a resolved one.
+
+### 6. Two further inconsistencies found, not yet acted on
+
+**`nbins` 600 in hiipdr against D-013's own requirement of >= 1000.** The slab
+fixtures use 1000; the 3D fixture, which is the one every recent entry runs,
+uses 600. Either D-013 is wrong or the fixture is.
+
+**Our own FUV attenuation slope is not single-valued across geometries.** From
+D-249: k = -dln(chi)/dA_V is 2.951/mag in the 3D model and 1.99/mag in both
+slabs, from identical `dust_species.dat`, identical `MdMg`, and calibrated
+`pdrAVfac` agreeing to 0.03%. Same dust, two answers. That is a one-reality
+violation independent of any reference and is the sharper of the two.
+
+### 7. Unverifiable from disk: sec54's cosmic-ray rate
+
+There is no `params.dat` for sec54 - the repository has v1's and the 3D
+diffuse one only, and commit f8d8911 committed `sec54.pdr.fin` without
+recording the parameters it was generated with. Our fixture assumes
+`pdrZeta 5.0e-17`.
+
+An attempt to infer it from the reference's own deep x(H+) balance gave
+1.22e-16 for sec54 - suspiciously close to the 1e-16 of the 3D params - but
+**the estimator fails its own control**, returning 7.5e-19 and 1.9e-17 for
+v1/v2 where zeta is known to be 5e-17. So it is not evidence, and the value is
+recorded as unknown rather than guessed. Closing this needs the reference
+regenerated under the D-016 policy, with its parameters committed alongside.
+
+### 8. The decision this needs
+
+Not taken here; nothing was changed.
+
+  - **Turn Mg on in MOCASSIN** - set 2.7e-6 in the three `abunV1.in` files.
+    MOCASSIN has `mgi.dat`/`mgii.dat`, so it can carry the element, and this is
+    the "one reality per quantity" answer: composition is MOCASSIN's, the
+    chemistry reads it. It changes every fixture's ionization and cooling, so
+    every comparison in the log would need re-running.
+  - **Make the guard do what it claims** - keep the network's value for a
+    switched-off element. Cheaper, but it creates a second reality: an element
+    the chemistry carries and MOCASSIN does not know about, which is the class
+    CLAUDE.md rules against.
+
+Either way `reportAbun`'s message is a defect on its own and must stop claiming
+the network value was kept when it was not.
