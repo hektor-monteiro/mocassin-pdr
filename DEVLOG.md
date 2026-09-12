@@ -239,6 +239,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-237 | **Measure tau from MOCASSIN's own opacity, and sample on every rank.** **Result: the C+ cliff is the Monte Carlo estimator's floor.** Over four decades the field tracks exp(-tau)*(r0/r)^2 to within 1.2-4.5x using the measured opacity, then stops rather than decaying. opac(421) is flat at 2.273e-19 while carbon is ionized and rises to 6.604e-19 once it is not - an increment of 4.33e-19 against x(C)*n_H*sigma = 4.02e-19, carbon shielding itself. At the reference's own depth the two codes nearly agree (tau ~ 11.2 against TAUC ~ 10.4), so the implied rate ~2.5e-13 against dn 1.78e-13 gives C+/C ~ 1.4: the physics does not forbid C+ there, the estimator does. One packet is worth ~2.6e-6 and the predicted field at the first zero cell is 1.2e-6 | Done | 2026-09-12 |
 | D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in. **Result: it works, it is safe, and it is not enough.** Deep x(C+) goes 3.155e-11 -> 4.600e-08, a factor 1458, and every deep cell now carries flux where all four previous runs read exactly 0 in all 179 bins. But that is still 3500x under the reference's 1.624e-4 and ~100x under the ~4e-6 I predicted; CO rises only 49% (4.24e-10 -> 6.31e-10) and OH FALLS 8%, against a predicted rise. Every control holds: H II Te within 0.1-0.5%, ionization front unmoved, deep x(H2) 0.4749 -> 0.4751, hydrogen budget 9.2e-5, T_dust -1.8%, no NaN. Convergence 87.9% -> 85.7% | Done | 2026-09-12 |
 | D-239 | **The biasing was switched off for every flight after the first scattering, and D-238 never saw it.** `tauCell` means two things in `pathSegment`: `R_out*opacity` before the traversal loop, and `dS*opacity` (a single step, ~0.5) inside it. The post-scattering re-draw was handed the second, so alpha came out ~0.68 instead of ~0.069 - near-analog - and in a dusty medium most transport is post-scattering. Fixed with a separate `tauPath`. Plus a weight diagnostic (min/max/mean/mean-log10 per iteration) to measure the compounding rather than assume it, and Russian roulette below 1e-3 with survivors promoted, gated on lgPathStretch so analog runs are unchanged | Open | 2026-09-12 |
+| D-240 | **Audit of the path-stretching scheme: correct in sampling, weighting and energy bookkeeping; the open items are variance control.** Sampler and weight agree and implement the Baes composite form; exp(-tau) is the analog law replaced; the weight is updated before the flight it governs at both sites, survives absorption -> re-emission, and reaches Jste/Jdif/escapedPackets/SED, which getDustT and the gas heating read; zero safeLimit losses. **Energy conservation, the real unbiasedness test, passes: radiated luminosity +0.023% against analog, inside the 0.038% analog-analog scatter** - which also shows the mean weight of 1.29 is a diagnostic artefact (averaging over surviving packets while roulette culls low weights), not bias. Caveats: the expval>80 clamp inflates the deepest packets' weights; the upper tail is unbounded because 1/xi bounds a draw, not the product, so splitting is the missing companion to roulette; totalEscaped is nint of an energy and meaningless under weighting; and my D-238 prediction that weights stay in (0,2] was wrong | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15351,3 +15352,83 @@ are exactly the deepest-penetrating packets, and they carry almost nothing.
 
 **Run.** `runs/d239-roulette`, hiipdr-split plus `teProbe 1` and
 `pathStretch 0.5`, 13 iterations.
+
+---
+
+## D-240 - audit of the path-stretching implementation (2026-09-12)
+
+**Asked for by the user** while D-239 ran: is the scheme implemented properly?
+
+**What is correct, checked line by line.**
+
+  1. Sampler and weight agree. The code draws from
+     q(tau) = xi*Exp(1) + (1-xi)*Exp(alpha) - `-log(1-r)` with probability xi,
+     `-log(1-r)/alpha` otherwise - and weights with
+     w = p/q = 1/(xi + (1-xi)*alpha*exp((1-alpha)*tau)). That is the Baes et
+     al. composite form, and the two halves match each other.
+  2. p(tau) = exp(-tau) really is the analog law being replaced: the original
+     sampler is `passProb = -log(1.-random)`, so the ratio is the right one.
+  3. The weight is updated BEFORE the flight it governs, at both call sites, so
+     the deposits made during that flight carry the correct multiplier.
+  4. Every random draw is independent: branch selection, the sample within the
+     branch, and the roulette each call `random_number` afresh.
+  5. Weight survives absorption and re-emission - `energyPacketRun` keeps
+     `start_weight` when `reRun == 1` - so absorbed and re-emitted energy match.
+  6. The weight reaches every deposit: `Jste`, `Jdif`, `escapedPackets` and the
+     SED; `getDustT` builds its field from those arrays; gas photoionization
+     heating sums `phXSec*Jste`.
+  7. No packets are lost to step exhaustion: the `safeLimit` handler drops a
+     packet silently, and stretching sends packets much further, but the count
+     of "exceeded maximum number of events" warnings is 0 in the analog run, in
+     D-238 and in D-239.
+
+**Energy conservation, which is the real unbiasedness test.**
+
+     total energy radiated [erg/s]        vs analog
+     d237-taus     analog    2.69877e-33      -
+     d233-channels analog    2.69980e-33   +0.038%   (analog-analog scatter)
+     d238-stretch  biased    2.69938e-33   +0.023%
+
+The biased run conserves the radiated luminosity to +0.023%, inside the 0.038%
+scatter between two analog runs. The scheme is unbiased in the quantity that
+matters.
+
+**That also disposes of the mean weight of 1.29.** If the estimator carried a
+29% bias the radiated energy would be ~29% high; it is 0.02% high. The 1.29 is
+an artefact of the diagnostic: `weightStats239` averages over draws made by
+SURVIVING packets, and roulette preferentially kills low-weight ones, enriching
+the sample. The mean weight is not an unbiasedness test and must not be read as
+one.
+
+**Defects and caveats found.**
+
+  A. `tauCell` overloaded for two meanings - the D-239 defect, fixed there.
+  B. The clamp at `expval > 80` truncates the weight from BELOW, so the
+     deepest-penetrating packets get weights up to ~1e5 too LARGE. It touches
+     only ~0.1% of draws, but those are the only packets that reach the deep
+     cells, so it inflates precisely the quantity being measured. Killing such
+     a packet outright would be sounder than clamping its weight upward; the
+     energy involved is ~1e-34 of a packet.
+  C. The upper tail is unbounded. Observed max weight 3.5e3 to 2.4e4. The 1/xi
+     bound is per DRAW; the packet weight is the product over flights, so ~12
+     flights at factor ~2 gives ~4e3. Roulette controls only the lower tail.
+     Splitting - divide a high-weight packet into N of weight/N - is the
+     standard companion and is NOT implemented.
+  D. `totalEscaped` accumulates `nint(escapedPackets)`, an energy rounded to an
+     integer. It was already odd; under weighting it is meaningless and should
+     not be read as a conservation check.
+  E. My own D-238 prediction was wrong: "weights stay within (0, 2]; any weight
+     outside that is a bug". The bound is per draw, not for the accumulated
+     packet weight. Not a bug - my error.
+  F. `alpha = 1/(1 + R_out*opacity_local)` uses the LOCAL opacity extrapolated
+     over the model radius as a proxy for the remaining path depth. It is what
+     makes the stretch reach the far side, but it is an approximation and worth
+     naming.
+
+**Not yet comparable.** D-239's radiated energy reads -0.35% against the analog,
+but that dump is iteration 8 of 13, an unconverged state. Re-check at
+completion.
+
+**Verdict.** The implementation is correct in its sampling, its weighting and
+its energy bookkeeping. The open items are variance control (C, and B as a
+smaller version of the same thing), not correctness.
