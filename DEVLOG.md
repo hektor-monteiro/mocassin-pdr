@@ -14868,5 +14868,36 @@ look, but it is one cell and is not evidence on its own.
 user identified, fixes the front, and costs the H II region nothing. It does not
 explain the missing CO.
 
+**The V1/V2 slabs, run after the split (2026-09-12).** Both through the 1D
+build, `tools/d233_slabcmp.py` against `v1.pdr.fin` / `v2.pdr.fin`. V1 stopped
+at iteration 11 on the 95% threshold (95.07%), V2 at iteration 15 (95.16%,
+74:57). Nothing in the split breaks them, and one result changes how the CO
+deficit should be read:
+
+| deep, A_V ~ 8.49 | V1 (n=1e3, chi=10) | V2 (n=1e5, chi=1e3) |
+|---|---|---|
+| x(CO) / reference | 1.397e-4 / 1.393e-4 = **1.00** | 1.399e-4 / 1.399e-4 = **1.00** |
+| x(H2) / reference | 0.4993 / 0.4993 | 0.5000 / 0.5000 |
+| hydrogen budget, worst | 1.0e-5 over 801 cells | 9.9e-6 over 401 cells |
+| T_gas / reference | 23.2 K / 10.5 K = 2.3x | 58.9 K / 9.8 K = 6.0x |
+| x(C+) / reference | 3.4e-6 past A_V 2.86 | 7.4e-8 past A_V 3.44 |
+| x(He+) / reference | 3480x | 3.1e4x |
+
+**The CO network is not broken.** Given a cloud deep enough to have a CO core,
+the coupled code reproduces the reference's CO to three digits and its H2 to
+four. The section 5.4 model only reaches A_V 3.1, so its CO never leaves the
+regime where it is made from C+ - and C+ there is 1e-7 of the reference. So
+"MOCASSIN forms no CO" was the wrong reading of D-230: what it forms no CO from
+is a shallow cloud whose carbon has been driven neutral.
+
+**And the two failures reproduce on all three fixtures.** The C+ cliff appears
+in V1 and V2 as well, at A_V 2.86 and 3.44, and x(He+) is 3e3-3e4x the
+reference deep in both. Three models, three densities, two geometries, one
+pattern: this is MOCASSIN's own ionization balance in cold gas, not anything
+specific to the section 5.4 setup. The temperatures now diverge in the opposite
+direction from section 5.4 - the slabs run 2.3x and 6.0x WARMER than the
+reference where section 5.4 runs 1.7x colder - which is a separate open item
+and not obviously the same one.
+
 **What is NOT known.** Everything the run is for, and whether the H II region
 benchmark moves - which must be checked separately before this is called done.
