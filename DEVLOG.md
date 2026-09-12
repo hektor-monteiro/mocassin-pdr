@@ -238,6 +238,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it. **Result: absorbed, not absent - and only C and S were ever candidates.** At A_V 1.381 C I carries sum Jste 1.116e-03 over 9 of its 179 bins and S I 1.642e-03 over 13; at A_V 2.880 both are exactly 0. N, O and Ne have thresholds ABOVE 1 Ryd where J is identically zero in a PDR, so their neutrality is correct physics, not a defect - my 'no metal is ever photoionized' was too broad. The depth scheme returned only two points because the probe was gated on taskid == 0 | Done | 2026-09-12 |
 | D-237 | **Measure tau from MOCASSIN's own opacity, and sample on every rank.** **Result: the C+ cliff is the Monte Carlo estimator's floor.** Over four decades the field tracks exp(-tau)*(r0/r)^2 to within 1.2-4.5x using the measured opacity, then stops rather than decaying. opac(421) is flat at 2.273e-19 while carbon is ionized and rises to 6.604e-19 once it is not - an increment of 4.33e-19 against x(C)*n_H*sigma = 4.02e-19, carbon shielding itself. At the reference's own depth the two codes nearly agree (tau ~ 11.2 against TAUC ~ 10.4), so the implied rate ~2.5e-13 against dn 1.78e-13 gives C+/C ~ 1.4: the physics does not forbid C+ there, the estimator does. One packet is worth ~2.6e-6 and the predicted field at the first zero cell is 1.2e-6 | Done | 2026-09-12 |
 | D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in. **Result: it works, it is safe, and it is not enough.** Deep x(C+) goes 3.155e-11 -> 4.600e-08, a factor 1458, and every deep cell now carries flux where all four previous runs read exactly 0 in all 179 bins. But that is still 3500x under the reference's 1.624e-4 and ~100x under the ~4e-6 I predicted; CO rises only 49% (4.24e-10 -> 6.31e-10) and OH FALLS 8%, against a predicted rise. Every control holds: H II Te within 0.1-0.5%, ionization front unmoved, deep x(H2) 0.4749 -> 0.4751, hydrogen budget 9.2e-5, T_dust -1.8%, no NaN. Convergence 87.9% -> 85.7% | Done | 2026-09-12 |
+| D-239 | **The biasing was switched off for every flight after the first scattering, and D-238 never saw it.** `tauCell` means two things in `pathSegment`: `R_out*opacity` before the traversal loop, and `dS*opacity` (a single step, ~0.5) inside it. The post-scattering re-draw was handed the second, so alpha came out ~0.68 instead of ~0.069 - near-analog - and in a dusty medium most transport is post-scattering. Fixed with a separate `tauPath`. Plus a weight diagnostic (min/max/mean/mean-log10 per iteration) to measure the compounding rather than assume it, and Russian roulette below 1e-3 with survivors promoted, gated on lgPathStretch so analog runs are unchanged | Open | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15284,3 +15285,69 @@ product, or by raising nPhotons) or something beyond the estimator limits C+
 here. Those are different fixes and the measurement that separates them is a
 re-run with the corrected print and a weight diagnostic.
 
+
+---
+
+## D-239 - the stretch was off after the first scattering (2026-09-12)
+
+**Approved by the user** as the follow-up to D-238: roulette plus a weight
+diagnostic. Writing it found something neither of us had: the biasing was
+largely inert.
+
+**The defect.** `pathSegment` uses one name for two quantities:
+
+    line 1325   tauCell = R_out*opacity(cell)   ! path scale, before the loop
+    line 1600   tauCell = dS*opacity(cell)      ! ONE STEP, inside the loop
+
+`calculate_pass_prob_and_weight` is called twice - once before the traversal
+(site 1, correct) and once after every scattering (site 2, line 2101). Site 2
+received whatever `tauCell` last held, which is the per-step value, ~0.46 at the
+carbon edge. So alpha = 1/(1+0.46) = 0.68 instead of 1/(1+13.6) = 0.069: a mean
+free path stretched by 1.5x rather than 15x. Only a packet's FIRST flight was
+biased. In a dusty medium a packet scatters repeatedly before reaching depth, so
+most of the transport was effectively analog - which is a good candidate for why
+D-238 bought ~1e3 in x(C+) where the method should give ~1e5, and why C+ landed
+100x short of prediction.
+
+This is the same failure the project keeps finding: one name, two realities.
+Fixed by introducing `tauPath` and computing it from the packet's CURRENT cell
+at both call sites.
+
+**It also explains D-238's 1e-34 deposits without a bug.** On the first flight
+alpha = 0.069, so `passProb` drawn from the stretched branch has mean 14.6 and a
+tail reaching the 80 clamp, where w = 1/(0.5 + 0.5*0.069*e^80) ~ 5e-34. Those
+are exactly the deepest-penetrating packets, and they carry almost nothing.
+
+**Change.**
+  1. `tauPath`, separate from `tauCell`, path-scale at both call sites.
+  2. `weightStats239` - min, max, sum, sum of log10, count - called at both
+     weight updates, reduced and printed once per iteration beside the
+     [Summary] line, then zeroed. Not beside the budSum census: that sits
+     inside the coupling and grid loops and would zero mid-transport.
+  3. Russian roulette below w = 1e-3: survive with probability w/threshold and
+     be promoted to the threshold, else terminate by the bare `return` that
+     ends a flight without tallying an escape. Unbiased in expectation. Gated
+     on `lgPathStretch`, so an analog run is bit-identical to before.
+
+**Predictions, before the run.**
+  - The [D239] line settles the compounding question outright. If the weight
+    range spans many decades and mean log10 is strongly negative, compounding
+    is real and roulette is the right control. If every weight sits in
+    (0, 1/xi] = (0, 2], my D-238 explanation was wrong and the tiny deep
+    deposits come from somewhere else.
+  - With site 2 fixed, post-scattering flights are stretched for the first
+    time, so the deep field should rise substantially above D-238's.
+  - x(C+) deep should exceed D-238's 4.600e-08. If it approaches the ~4e-6 that
+    D-237's floor-free scaling implies, the sampling story closes. If it stalls
+    again well short, something other than sampling limits C+ here and the
+    remaining 3500x is not a Monte Carlo problem.
+  - Roulette should kill a substantial fraction of draws - that is the point -
+    and the killed fraction is itself a measure of how far into the tail the
+    weights go.
+  - The controls must hold AGAIN, and they are the licence for any of this:
+    H II region Te, the ionization front, deep x(H2), the hydrogen budget, the
+    dust temperature profile. Roulette changes per-packet energy bookkeeping,
+    so an energy or SED anomaly is the specific new risk to watch.
+
+**Run.** `runs/d239-roulette`, hiipdr-split plus `teProbe 1` and
+`pathStretch 0.5`, 13 iterations.

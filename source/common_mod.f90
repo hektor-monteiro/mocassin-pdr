@@ -947,6 +947,17 @@ module common_mod
     ! only PDRs, so it is validated on the fixtures before it becomes default.
     logical             :: lgPathStretch = .false.
     real                :: pathStretchXi = 0.5  ! the composite parameter xi
+    ! D-239: what the packet weights actually do. D-238 left deep deposits at
+    ! 1e-17 to 1e-35 where the physical field is ~2.7e-10, and the hypothesis is
+    ! that enPacket%weight compounds across segments - bounded per draw by
+    ! 1/xi, unbounded as a product. These measure it instead of assuming it.
+    real(kind=8)        :: wgtMin239 = 1.d99, wgtMax239 = 0.d0
+    real(kind=8)        :: wgtSum239 = 0.d0, wgtLogS239 = 0.d0
+    real(kind=8)        :: wgtN239 = 0.d0, wgtKill239 = 0.d0, wgtSurv239 = 0.d0
+    ! Russian roulette below this weight: the packet survives with probability
+    ! w/wRoulette239 and is promoted to wRoulette239, so the estimator is
+    ! unchanged in expectation and negligible packets stop costing time.
+    real                :: wRoulette239 = 1.e-3
     ! D-236: one sampled cell per 0.5 mag of A_V, so the field can be read as a
     ! function of depth rather than at a single cell.
     logical             :: lgAVsamp234(0:15) = .false.

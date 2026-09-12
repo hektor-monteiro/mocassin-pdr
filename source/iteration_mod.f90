@@ -3042,6 +3042,36 @@ module iteration_mod
               teBrkHist = 0
            end if
 
+           ! ------------------------------------------------------- D-239
+           ! What the packet weights did this iteration. Reduced here, once per
+           ! iteration, rather than beside the budSum census - that sits inside
+           ! the coupling and grid loops and would zero these mid-transport.
+           if (lgPathStretch) then
+              call mpi_allreduce(MPI_IN_PLACE, wgtN239,   1, mpi_double_precision, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtSum239, 1, mpi_double_precision, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtLogS239,1, mpi_double_precision, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtKill239,1, mpi_double_precision, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtSurv239,1, mpi_double_precision, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtMin239, 1, mpi_double_precision, &
+                   & mpi_min, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, wgtMax239, 1, mpi_double_precision, &
+                   & mpi_max, mpi_comm_world, ierr)
+              if (taskid == 0 .and. wgtN239 > 0.d0) &
+                   & print '(a,es10.3,a,es10.3,a,f7.2,a,es10.3,a,es11.4,a,es10.3)', &
+                   & " ! [D239]   weight min", wgtMin239, "  max", wgtMax239, &
+                   & "  mean log10", wgtLogS239/wgtN239, &
+                   & "  mean", wgtSum239/wgtN239, &
+                   & "  draws", wgtN239, "  roulette killed", wgtKill239
+              wgtMin239 = 1.d99; wgtMax239 = 0.d0; wgtSum239 = 0.d0
+              wgtLogS239 = 0.d0; wgtN239 = 0.d0
+              wgtKill239 = 0.d0; wgtSurv239 = 0.d0
+           end if
+
            if (taskid==0) then
               print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; Total:  ', &
                    &totPercent,"% converged cells over all grids"

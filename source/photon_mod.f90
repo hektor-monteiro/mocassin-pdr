@@ -1187,6 +1187,24 @@ module photon_mod
         
     end subroutine calculate_pass_prob_and_weight
 
+    ! D-239: the weight distribution, measured rather than assumed. D-238 left
+    ! deep deposits at 1e-17 to 1e-35 where the physical field is ~2.7e-10, and
+    ! attributed it to weights compounding across scatterings. This says
+    ! whether that is true: if the range spans many decades it is, and roulette
+    ! is the right control; if every weight sits in (0, 1/xi] the explanation
+    ! is somewhere else.
+    subroutine weightStats239(w)
+        implicit none
+        real, intent(in) :: w
+
+        wgtN239   = wgtN239   + 1.d0
+        wgtSum239 = wgtSum239 + dble(w)
+        if (w > 0.) wgtLogS239 = wgtLogS239 + log10(dble(w))
+        if (dble(w) < wgtMin239) wgtMin239 = dble(w)
+        if (dble(w) > wgtMax239) wgtMax239 = dble(w)
+
+    end subroutine weightStats239
+
 
 
         subroutine pathSegment(enPacket)
@@ -1210,6 +1228,12 @@ module photon_mod
           real                            :: radius   ! radius
           real                            :: random   ! random number
           real                            :: tauCell  ! local tau
+          ! D-239: tauCell means two different things in this routine - the
+          ! path-scale depth R_out*opacity before the loop, and a single step's
+          ! dS*opacity inside it. The biasing needs the first; after a
+          ! scattering it was being handed the second, which is ~0.5 and turns
+          ! the stretch off. Separate name, separate meaning.
+          real                            :: tauPath  ! path-scale tau, for the biasing
           real                            :: weightFactor !updated packet weight
 
           integer                         :: iierr, ihg
@@ -1331,10 +1355,24 @@ module photon_mod
 
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! Using new sampling subroutine
-          call calculate_pass_prob_and_weight(tauCell, enPacket%weight, passProb, weightFactor)
-!          print*, '           i, reRun, lgScattered, chTypeIn, enPacket%weight, weightFactor, enPacket%nuP, tauCell, absTau, passProb, probSca'
-!          print*, i, reRun, lgScattered, chTypeIn, enPacket%weight, weightFactor, enPacket%nuP, tauCell, absTau, passProb, probSca
+          tauPath = tauCell     ! D-239: still the R_out*opacity value here
+          call calculate_pass_prob_and_weight(tauPath, enPacket%weight, passProb, weightFactor)
           enPacket%weight = enPacket%weight * weightFactor
+          call weightStats239(enPacket%weight)
+          ! D-239: Russian roulette. Unbiased - survivors are promoted to the
+          ! threshold - and it stops negligible-weight packets costing time and
+          ! filling deep cells with 1e-30 dribble. Only when biasing is on, so
+          ! an analog run is unchanged.
+          if (lgPathStretch .and. enPacket%weight < wRoulette239) then
+             call random_number(random)
+             if (random > enPacket%weight/wRoulette239) then
+                wgtKill239 = wgtKill239 + 1.d0
+                return
+             else
+                enPacket%weight = wRoulette239
+                wgtSurv239 = wgtSurv239 + 1.d0
+             end if
+          end if
           !print*, tauCell, passProb, weightFactor
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -2098,8 +2136,26 @@ module photon_mod
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Using new sampling subroutine
-                      call calculate_pass_prob_and_weight(tauCell, enPacket%weight, passProb, weightFactor)
+                      ! D-239: THE defect D-238 left. tauCell here is the last
+                      ! step's dS*opacity, ~0.5, so alpha came out ~0.68 and the
+                      ! stretch was effectively off for every flight after the
+                      ! first scattering - which in a dusty medium is most of
+                      ! the transport. Recompute the path-scale depth for the
+                      ! cell the packet is actually in.
+                      tauPath = R_out*grid(gP)%opacity(grid(gP)%active(xP,yP,zP), enPacket%nuP)
+                      call calculate_pass_prob_and_weight(tauPath, enPacket%weight, passProb, weightFactor)
                       enPacket%weight = enPacket%weight * weightFactor
+                      call weightStats239(enPacket%weight)
+                      if (lgPathStretch .and. enPacket%weight < wRoulette239) then
+                         call random_number(random)
+                         if (random > enPacket%weight/wRoulette239) then
+                            wgtKill239 = wgtKill239 + 1.d0
+                            return
+                         else
+                            enPacket%weight = wRoulette239
+                            wgtSurv239 = wgtSurv239 + 1.d0
+                         end if
+                      end if
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                    end if
