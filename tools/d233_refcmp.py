@@ -13,7 +13,10 @@ the ratio reported per species. Where MOCASSIN's own dust puts a different A_V
 on the same physical depth, that is a divergence to read, not to correct - the
 depth columns are printed alongside so it stays visible.
 
-Usage:  d233_refcmp.py <run-dir> [<run-dir> ...]
+The V1/V2 slab references (baseline3dpdr/v1.pdr.fin, v2.pdr.fin) are written by
+the same branch and share the layout, so --ref points the comparison at them.
+
+Usage:  d233_refcmp.py [--ref <file.pdr.fin>] <run-dir> [<run-dir> ...]
 """
 import json
 import os
@@ -27,9 +30,9 @@ SPEC = {'Hep': 2, 'Cp': 11, 'C': 25, 'CO': 28, 'OH': 29, 'H2': 31, 'H': 32}
 COLS = ('T', 'Td', 'Hep', 'Cp', 'C', 'CO', 'OH')
 
 
-def read_ref():
+def read_ref(path):
     out = {k: [] for k in ('x', 'AV', 'T', 'Td') + tuple(SPEC)}
-    with open(REF) as fh:
+    with open(path) as fh:
         for line in fh:
             f = line.split()
             if len(f) < 41:
@@ -73,8 +76,14 @@ def axis(run):
 
 
 def main():
-    ref = read_ref()
-    for run in sys.argv[1:]:
+    args = sys.argv[1:]
+    path = REF
+    if args and args[0] == '--ref':
+        path = args[1]
+        args = args[2:]
+    ref = read_ref(path)
+    print(f'reference: {os.path.normpath(path)}')
+    for run in args:
         d = axis(run)
         print(f'\n=== {run}   (reference A_V reaches {ref["AV"][-1]:.3f} '
               f'over {ref["x"][-1]:.2f} pc; run reaches {max(d["AV"]):.3f})')
