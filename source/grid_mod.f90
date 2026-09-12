@@ -1300,6 +1300,11 @@ module grid_mod
                 stop
              end if
 
+             allocate(grid%pdfSrc(0:grid%nCells, 1:6), stat = err)   ! D-232
+             if (err /= 0) then
+                print*, "! setMotherGrid: can't allocate pdfSrc memory"; stop
+             end if
+             grid%pdfSrc = 0.
              allocate(grid%recPDF(0:grid%nCells, 1:nbins), stat = err)
              if (err /= 0) then
                 print*, "Can't allocate grid memory, 8"
@@ -2462,6 +2467,11 @@ module grid_mod
                     stop
                  end if
 
+                 allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:6), stat = err)   ! D-232
+                 if (err /= 0) then
+                    print*, "! resetGrid: can't allocate pdfSrc memory"; stop
+                 end if
+                 grid(iG)%pdfSrc = 0.
                  allocate(grid(iG)%recPDF(0:grid(iG)%nCells, 1:nbins), stat = err)
                  if (err /= 0) then
                     print*, "Can't allocate grid memory, 8"
@@ -3838,6 +3848,13 @@ end function getVolume
                print*, "! resetGrid: can't allocate grid memory,ionDenUsed"
                stop
             end if
+
+            allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:6), stat = err)   ! D-232
+            if (err /= 0) then
+               print*, "! resetGrid: can't allocate pdfSrc memory"
+               stop
+            end if
+            grid(iG)%pdfSrc = 0.
 
             allocate(grid(iG)%recPDF(0:grid(iG)%nCells, 1:nbins), stat = err)
             if (err /= 0) then

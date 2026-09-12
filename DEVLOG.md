@@ -229,6 +229,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-227 | **Fixed: the He I and He II continua start at their thresholds - the relaxation oscillation is gone.** Against runs/d224-trace (same fixture, no fix): 0 cells cold -> hot at iteration 6 (7238 before) and at 10 (5285); median f_mol 0.938 at 6 (0.239) and 0.9455 at 10 (0.365), flat from iteration 9; cells moving > 0.1% fall 63% -> 5.7% -> 1.2%; P(re-emission in 15.4-24.6 eV) in cold cells 5.5e-5 to 9.7e-5, carried by the real 19.8 eV term; the band's field stays in ~330-440 cells. MOCASSIN's converged count stays ~0% - the D-032 PDR heat/cool test is still on by default (pdrFcritConv = 1), which D-176/D-193 found meaningless under the contract | Done | 2026-09-11 |
 | D-228 | **Without the heat/cool clearing the per-cell test passes at 95.9% on iteration 5 and stops the run before the model has settled.** `pdrFcritConv` now defaults to 0 and the PDR fixtures run to 22, but `maxIterateMC 22 95.` ends a run at 95% converged: 26.0% at iteration 4, 95.86% at 5, clean exit. The same physics (D-227) was still moving there - median Te 90 K -> 13 K, median f_mol 0.916 -> 0.9455, 37% of cells moving > 0.1%. The per-cell test checks x(H0) and x(H2) to 10% and never the temperature | Open | 2026-09-11 |
 | D-229 | **With the temperature in the test the run no longer stops early, and the converged fraction plateaus at 85-86%.** `runs/d229-teconv`, 22 iterations, clean exit: 0.21% converged at iteration 5 (95.86% before, which ended D-228 there), 50.7% at 9, 83.2% at 12, 85.9% at 22. It lands where D-227 did - median f_mol 0.9455, median Te 13.0 K, median |df_mol| 5e-4 - and the axis profile is smoother (PDR Te 14.0-21.9 K against D-227's 14.1-50.6 K). The unconverged ~14% is a churning population: cells moving > 0.1% fall to 1.06% at iteration 12 and settle back at 3.6-5% | Done | 2026-09-11 |
+| D-230 | **The chemistry's electron abundance is whatever CVODE left in that slot, and that is why there is no CO.** The probe shows the imposition is exact (e- written = Ne/Hden to every digit) and the solve then changes it by x306, x26, x16, /14 - the exported value matching neither MOCASSIN's Ne nor the chemistry's own cations. Electrons were the one quantity imposed only BEFORE the solve; D-162 re-imposes the ion ratios after it as well, which is why H+ comes back right. Downstream, CO collapses 75% per iteration while H2 settles to 0.5% | Done | 2026-09-11 |
+| D-231 | **Fixed and verified - it does not explain the missing CO, and the converged profile says what does not.** The after-solve electron abundance now sits with the cell's ions (was 14-300x off). CO is unchanged by it (-74.4% and -74.8% at iterations 5-6, against -74.6% and -74.9% before), because the rates inside the solve never read the corrupted entry. Converged at 22 iterations, 83.3%: deep x(CO) 4.2e-10 against the reference's 3.3e-8 (80x low), x(OH) 4.7e-13 against 4.1e-10 (870x low), x(He+) 3.6e-5 against 2.5e-6 (14x high), carbon fully neutral where the reference keeps C+. The unconverged 17% fail on Te (2542) not on the chemistry (2) | Done | 2026-09-11 |
+| D-232 | **Dust supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing - but the channels are pooled, so ~3.8% of what dust absorbs comes back out ionizing and ~0.15% above 24.6 eV.** The gas remainder is 49-60% ionizing at 14-25 K, because the recombination continua are narrow spikes at their thresholds. Two compounding faults: the pooled PDF (the user's objection, confirmed) and the on-the-spot treatment of near-threshold gas emission | Done | 2026-09-11 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -14334,3 +14337,410 @@ total content per species is stable to ~1% as D-181 reported.
 (Corrected the same day: the first version of this paragraph said the report was
 "no longer printed anywhere in the source". It is printed; I wrote that from a
 grep whose output was truncated, without reading the block.)
+
+
+---
+
+## D-230 - no CO, and an electron density that belongs to no one (2026-09-11)
+
+**Raised by the user** looking at the D-229 profiles: the converged model forms
+essentially no CO, least of all deep in the PDR where there should be some.
+
+**Measured** on the axis of `runs/d229-teconv` (converged, 22 iterations),
+against `sec54.pdr.fin` at the same depth:
+
+     quantity, deep PDR (A_V ~ 2.4-3.0)     coupled        standalone 3D-PDR
+     x(CO)                                  4.3e-10        2.5e-8       (60x low)
+     x(OH)                                  4.4e-13        4.1e-10      (1000x low)
+     x(O)                                   3.30e-4        3.30e-4      (identical)
+     x(C)                                   2.20e-4        5.8e-5
+     x(C+)                                  2.5e-11        1.6e-4
+     x(e-), chemistry                       4.1e-2         1.7e-4
+     x(e-) = Ne/Hden, MOCASSIN              4.3e-5         -
+     sum of the chemistry's own cations     4.25e-5        1.66e-4
+
+Two readings follow. First, **the carbon transition is in the wrong place and
+too sharp**: ours converts C+ -> C completely at A_V ~ 2.1, the reference still
+holds most of its carbon ionized at 3.0. Second, and the reason there is no CO,
+**the chemistry is running with 960x (deep) to 2500x (first PDR cell) too many
+electrons.** CO forms through OH and CH; OH is made by ion-molecule chemistry
+(H3+ + O, then the H3O+ chain) whose ions are destroyed by dissociative
+recombination at a rate proportional to x(e-). With x(e-) three orders too high
+that chain is suppressed - OH sits 1000x low - and CO follows at 60x low with
+the oxygen untouched.
+
+**The electron abundance belongs to no one.** In these cells:
+  - MOCASSIN's Ne/Hden is 4.3e-5, and its own ion densities sum to the same
+    (checked cell by cell on the axis: x(e-)_moc vs sum over stages agrees to
+    3 digits);
+  - the chemistry's *cations* sum to 4.25e-5 - they agree with MOCASSIN;
+  - the chemistry's *electron entry* is 4.1e-2.
+
+So the electron species disagrees with both codes' ion inventories, including
+its own. It cannot be a network steady state: charge is violated by 1000x.
+
+**And it cannot happen, from the code.** `pdr_mod` imposes
+`abun(NELECT) = Ne/Hden` before the solve, unconditionally (D-212, the
+`if (.true.)` block). `calculate_abundances.c` copies that value into
+`user_data->x_e` (line 190), never touches it, and writes it back unchanged
+(line 451) - electrons are frozen through the integration. Nothing else writes
+`pdrAbun` (the only store is at the end of `pdrStep`). The species order was
+confirmed against this run's own `species_reduced.d` (33 = e-), and the
+hydrogen budget from the same dump closes to 0.999, so the indexing is right.
+The ratio is not a constant factor either: 2500x at the first PDR cell, 960x
+deep, so it is not a units or per-H/per-cm3 slip.
+
+**Probe.** `runs/d230-eprobe`, `hiipdr-split`, 6 iterations, `teProbe 1`. Two
+prints in `pdrStep`: `[D230]` at the imposition - the NELECT index, Ne, Ne/Hden
+and the value just written - and `[D230] after solve` in the same cell - the
+electron entry and the cations. Whatever the answer, one of the three
+statements above is false and the print says which. `teProbe` also turns on the
+convergence-failure split (`cvFailH0`/`cvFailH2`/`cvFailTe`) and the D-178
+per-species totals, so the same run addresses D-229's open plateau.
+
+**What is NOT known.** Everything the run is for. Also untouched: whether the
+sharp C+ -> C transition is a consequence of the electron defect or separate.
+
+
+### Result (2026-09-11)
+
+`runs/d230-eprobe`, `hiipdr-split`, 6 iterations, `teProbe 1`, clean exit 9:36.
+
+**The probe, per PDR cell** - `[D230]` at the imposition, `[D230] after solve`
+in the same cell:
+
+     cell   Ne/Hden = imposed    after the solve    that cell's cations (H+ + He+ + C+)
+       27   8.2249e-5            2.5131e-2  (x306)  8.07e-5
+       39   3.0202e-2            4.8044e-1  (x16)   3.02e-2
+       53   1.9931e-3            1.4006e-4  (/14)   6.58e-5
+       80   1.6190e-3            4.2311e-2  (x26)   1.10e-4
+      175   1.2969e-4            2.6109e-2  (x201)  1.04e-4
+      384   1.4172e-2            2.0724e-4  (/68)   5.25e-3
+
+So:
+  - **the imposition works** - the value written before the solve equals
+    MOCASSIN's Ne/Hden to every digit printed, in every cell;
+  - **the solve changes it**, in both directions, by factors 14 to 300;
+  - **the result is not a charge balance** either: it matches neither Ne nor the
+    chemistry's own cation sum. It is whatever CVODE left in the electron slot.
+
+`calculate_abundances.c` was supposed to prevent exactly this - it copies
+`abundance[nelect]` into `user_data->x_e` (line 190) and writes it back
+unchanged (line 451) - and on this path it evidently does not take effect. The
+reaction rates inside the solve are evaluated with the imposed value (passed
+separately, `abun(pdrNelect)*nH`), so what is corrupted is the exported state
+vector, which is what the cooling, the next pass and every downstream consumer
+read.
+
+**Why the ions are fine and the electrons are not.** D-162 re-imposes
+MOCASSIN's ionization ratio on the linked elements *after* the solve as well as
+before, precisely because the network relaxes it back to its own equilibrium.
+The probe shows that working: after the solve, x(H+) tracks the imposed value.
+D-212 added electrons to the *before* imposition only. That asymmetry is the
+defect.
+
+**The consequence the user spotted.** Per-species total content (`CVSPEC`, D-178,
+printed under `teProbe`):
+
+     iteration    H2        CO         e-        <Te>
+        5        +7.96%    -74.60%   -24.25%   -49.95%
+        6        +0.47%    -74.92%   -15.46%   -33.43%
+
+H2 settles while CO falls by a factor 16 over two iterations. With x(e-) three
+orders too high, dissociative recombination strips the molecular ions that build
+OH (measured 1000x below the reference at D-230's opening), and CO follows.
+
+**Also measured, and incomplete.** The `CVPROBE` line reports which convergence
+test failed: `x(H0) only 313, x(H2) only 0, both 0` at iteration 6 - but it was
+never extended with the Te column added at D-229, and at that iteration only
+0.82% of ~15000 cells converged. So nearly every failure is on Te and none of
+them appear in that line. The print needs the column before it can answer
+D-229's plateau question.
+
+**Fix proposed, not applied.** Re-impose the electron abundance from MOCASSIN's
+Ne immediately after the solve, in the same block that already re-imposes the
+ion ratios (D-162). One statement, no constant, no gate, and the contract's own
+rule: MOCASSIN owns Ne.
+
+**What that does not settle.** Whether MOCASSIN's Ne is right in cold molecular
+gas. It is a sum over the ion stages it tracks; D-105 records that the
+chemistry's own electron density there is far smaller (cosmic-ray maintained,
+x_e ~ 1e-8) and that substituting it made an earlier runaway worse. That
+comparison is worth re-making once the export is consistent.
+
+
+---
+
+## D-231 - the electrons are re-imposed after the solve too (2026-09-11)
+
+**Decision.** Approved by the user after D-230.
+
+**Change** (`pdr_mod`, `pdrStep`). The post-solve block that re-imposes
+MOCASSIN's ionization ratio on every linked element (D-162, added because the
+network relaxes that ratio back to its own cosmic-ray equilibrium whatever it
+is handed) now also re-imposes the electron abundance:
+
+    abun(NELECT) = max(Ne(cellP)/Hden(cellP), 0)
+
+guarded on `pdrNelect > 0` and a positive Hden, the same guard the pre-solve
+imposition carries. No constant, no gate, no zone test.
+
+**Why here and not in the C.** The measured defect (D-230) is that
+`calculate_abundances.c`'s restore of the electron slot does not take effect on
+this path, so the exported state vector carries CVODE's value. The rates *inside*
+the integration are evaluated with the imposed value - it is passed separately as
+`abun(pdrNelect)*nH` - so the integration itself was never running on the wrong
+electron density; only what it exported was wrong. Re-imposing on the Fortran
+side fixes what is consumed, in the same place and by the same rule as the ion
+ratios, without touching vendored solver internals. If the C restore is itself a
+bug it remains one, now harmless here; worth reporting upstream separately.
+
+**Predictions** (before the run):
+  - The `[D230] after solve` probe line now reads Ne/Hden, matching the
+    imposition - that is the direct verification.
+  - CO stops collapsing: at D-230 it fell 75% per iteration while H2 settled to
+    0.5%. Deep x(CO) should rise from 4.3e-10 toward the reference's 2.5e-8, and
+    x(OH) from 4.4e-13 toward 4.1e-10.
+  - The carbon transition should soften: ours converts C+ -> C completely at
+    A_V ~ 2.1 where the reference still holds most carbon ionized at 3.0.
+  - Te may move: the substituted cooling is computed with this electron density
+    as a collision partner (D-212's original reason for imposing it at all), and
+    the PDR gas currently runs 2-10x colder than the reference (D-227).
+  - No prediction for the convergence plateau; the run also carries the D-229 Te
+    column in the failure split, which D-230 found missing, so that gets its
+    first complete measurement.
+
+**Run.** `runs/d231-efix`, `hiipdr-split`, 22 iterations, `teProbe 1`.
+
+**Also in this build** (reporting only, both defects of mine from D-230):
+the `[D230]` after-solve print gated on a counter that stopped rising, so it
+wrote every cell of the grid to the log; and `CVPROBE`'s failure split never
+carried the Te column added at D-229, so at D-230's iteration 6 it named 313
+failures out of ~14900 unconverged cells. `cvFailTe` is now reduced, printed and
+reset with the others.
+
+**What is NOT known.** Everything the run is for. Separately: whether MOCASSIN's
+Ne is itself right in cold molecular gas (D-105).
+
+
+### Result (2026-09-11)
+
+`runs/d231-efix`, `hiipdr-split`, 22 iterations, `teProbe 1`. Read at iteration 6;
+the run continues.
+
+**The fix works, and the probe verifies it directly.** After the solve:
+
+     cell    e- after solve    H+ + He+ + C+     before the fix (D-230)
+       27    1.1569e-4         1.0501e-4         2.5131e-2  vs 8.07e-5
+       39    2.7276e-2         2.7261e-2         4.8044e-1  vs 3.02e-2
+       53    4.1306e-4         1.1443e-4         1.4006e-4  vs 6.58e-5
+       80    1.7048e-3         1.3398e-4         4.2311e-2  vs 1.10e-4
+
+The residual spread against the printed cation sum is expected: that sum is
+H+ + He+ + C+ only, while MOCASSIN's Ne carries every ion stage it tracks,
+metals included. The factors of 14-300 are gone.
+
+**And the CO prediction failed.** Per-species total content:
+
+     iteration    CO, D-231 (fixed)    CO, D-230 (before)    H2, D-231
+         5          -74.40%              -74.60%              +8.85%
+         6          -74.85%              -74.92%              +1.68%
+
+Identical. **The corrupted electron export never touched the CO chemistry**,
+and the code says why - I had read both facts before the run and drew the
+wrong conclusion from them anyway:
+  - the reaction rates inside the solve are evaluated with the imposed value,
+    passed separately as `abun(pdrNelect)*nH`, not read from the state vector;
+  - `abun` is reloaded from `pdrAbun` at entry and the electron entry is
+    re-imposed before every solve, so the drifted value never survived into a
+    later pass's chemistry either.
+What the corrupted export did reach is the level populations and the
+substituted cooling (D-212's original reason for imposing it), the diagnostics,
+and `NePDR`. The fix is right on its own terms - one electron density, MOCASSIN
+owns it - and it is not the cause of the missing CO.
+
+**Hypothesis raised and refuted the same hour: a missing He+ sink.** Deep on
+the axis our x(He+) is 2.8e-5 against the reference's 2.5e-6, and He+ + CO ->
+C+ + O is the dominant CO destroyer in dark gas, so an 11x He+ excess was the
+obvious next candidate. Creation is not the difference: D-193 gives helium the
+network's own coefficient (6.50e-18 x zeta/1.3e-17), identical in both codes.
+Destruction looked like the asymmetry - `ionDn` for helium is
+`Ne*alphaTot + chex*Hden*x(H0)` (update_mod:2618) and `chex` is zeroed below
+6000 K (line 2585), so at 13 K MOCASSIN has electron recombination alone, while
+the network also destroys He+ through H (reactions 156/157) and H2 (170).
+
+The arithmetic kills it. At the deep-PDR point (n_H = 100, T = 13 K, x(H) =
+0.05, x(H2) = 0.47, x(e-) = 4.3e-5), per He+:
+
+     network  H  + He+     1.4e-14 s^-1
+     network  H2 + He+     3.4e-13
+     network  total        3.5e-13
+     MOCASSIN e- + He+     2.0e-12     (5.8x STRONGER than the network's)
+
+MOCASSIN's sink is the larger one, and a steady state against it gives
+x(He+) = 1.2e-6 - below the reference's 2.5e-6, not above it, and 23x below
+what we measure. So the He+ excess is not a missing destruction channel, and
+whatever sets 2.8e-5 in these cells is still unidentified.
+
+### Converged, 22 iterations (2026-09-11)
+
+`runs/d231-efix` ran to 22 iterations, 83.3% converged. Everything but CO is
+steady to <0.3% per iteration by iteration 15; CO oscillates by tens of percent
+(+12.5, +3.8, -27.4, -32.8, -24.6, +12.8, +14.9, -28.6, -8.4) about a total that
+drifts down from 0.060 to 0.019 - one species that never settles, at a level ~600x
+below where it started at iteration 5.
+
+**On the axis, against `sec54.pdr.fin` at the same A_V:**
+
+     A_V    Te      x(CO)      ref CO     x(OH)      ref OH     x(He+)    ref He+    x(C+)     x(C)
+     0.56   939.0   1.5e-15    9.6e-12    4.6e-13    6.0e-10    5.3e-03   3.8e-06    2.1e-04   3.9e-08
+     1.49    25.6   1.3e-10    1.8e-09    3.8e-10    1.4e-09    5.4e-06   1.6e-06    2.2e-04   1.9e-07
+     2.03    20.0   5.8e-10    6.2e-09    5.2e-11    3.5e-10    1.2e-04   2.0e-06    1.4e-05   2.1e-04
+     2.56    14.9   3.2e-10    3.3e-08    5.0e-13    4.1e-10    4.8e-05   2.5e-06    4.2e-11   2.2e-04
+     3.09    14.4   4.2e-10    3.3e-08    4.7e-13    4.1e-10    3.6e-05   2.5e-06    3.1e-11   2.2e-04
+
+Four disagreements, and they are one story rather than four:
+  - **He+ is 11-19x too high** through the whole PDR, and 2000x too high in the
+    first two cells (5.3e-3 at A_V 0.56, where those cells also sit at 939 K).
+  - **OH is 850x too low** deep, with atomic O identical to the reference's.
+  - **CO is 80x too low** deep - it is built from OH and CH.
+  - **Carbon goes fully neutral** at A_V >= 2.35 (C+ = 3e-11, C = 2.2e-4) where
+    the reference still holds C+ = 1.6e-4 at A_V 2.45. Ours converts C+ -> C
+    completely and abruptly; the reference does not.
+
+He+ + CO -> C+ + O is the dominant CO destroyer in dark gas, so an order of
+magnitude too much He+ is sufficient to explain the CO deficit on its own; the
+OH deficit needs its own account (the ion-molecule chain that makes it runs
+through H3+ and H3O+, and both are destroyed by the same He+ and by electrons).
+
+**D-229's plateau, answered.** At iteration 22 the failure split reads x(H0)
+only 2, x(H2) only 0, both 0, Te (any) 2542. The residual ~17% that would not
+converge is entirely the temperature test - the chemistry is settled. Whether a
+10% per-cell tolerance on Te is the right one, against Monte Carlo noise on a
+14 K cell, is a separate question and is not yet measured.
+
+**Next, by measurement rather than reading**: for the same deep cells,
+MOCASSIN's `ionUp` and `ionDn` for helium and the ratio they produce, against
+the Ne and x(He0) that go into them - i.e. whether 2.8e-5 is what `ionBalance`
+computes, or what survives the later normalisation to `elemAvail` (D-220).
+
+
+---
+
+## D-232 - dust energy, or recycled helium photons? (2026-09-11)
+
+**Raised by the user**, against my own dismissal at D-226: *"it makes no sense
+that dust re-emitted radiation should have the same PDF as gas diffuse
+radiation."* That is right, and my argument for the existing scheme was wrong.
+
+I had said pooling the cell's gas and dust emissivities into one re-emission
+spectrum "is exact at equilibrium". That holds only where absorber and emitter
+share an energy balance. Here they do not: the grains are in radiative
+equilibrium at T_dust, the gas has a separate thermal balance whose cooling
+MOCASSIN computes by other means. Re-emitting a dust-absorbed packet from a
+spectrum that contains gas recombination continua converts dust-absorbed
+starlight into gas emission - including ionizing photons - and no energy balance
+in the code objects.
+
+**The code, as it stands.**
+  - `setDustPDF()` is called only under `lgDust .and. .not.lgGas`
+    (emission_mod:69), so in a gas+dust model `dustPDF` is never built.
+  - `setDiffusePDF` sums `sumDiffuseHI + sumDiffuseHeI + sumDiffuseHeII +
+    sumDiffuseDust` into one cumulative `recPDF` (emission_mod:794-816).
+  - Every non-scattering absorption with gas present becomes `packetType =
+    "diffuse"` (photon_mod:1914-1926) and samples that pooled PDF - no split by
+    which opacity absorbed it, though `absOpac` and the gas opacity are both in
+    hand at that point.
+
+**What makes it urgent rather than cosmetic.** In `runs/d229-teconv` at
+iteration 21, over the 15004 stayed-cold cells (A_V 2-3, T ~13 K):
+
+     band                         J
+     13.6-15.4 eV (window)        1.26e-8
+     15.4-24.6 eV                 2.29e-9
+     24.6-54.4 eV                 4.77e-8     <- 20x the band below it
+
+Above 24.6 eV is where helium is ionized, and these cells carry x(He+) = 1.3e-3
+against a cosmic-ray steady state of 1.2e-6 (D-231) - 23x more than their only
+identified source can make. D-225 proved the 15.4-24.6 eV field in such cells is
+entirely diffuse; nothing stellar reaches them at any harder energy either. So
+this field is born in the cells, and something in it is ionizing the helium that
+then destroys CO (He+ + CO -> C+ + O, the dominant dark-gas channel).
+
+**Two candidates, one measurement.**
+  1. **Dust energy leaking through the gas terms** - the user's point. Cold dust
+     absorbs the bulk of the FUV/optical, and the pooled PDF gives that energy a
+     nonzero chance of coming back out in a gas ionizing continuum.
+  2. **He I recombination photons recycled on the spot.** At 13 K the analytic
+     He I continuum is a narrow spike at its 24.6 eV threshold with a large
+     nu^3/Te^1.5 coefficient; the cell cannot transmit it, so each He+
+     recombination's photon is re-absorbed locally and re-ionizes helium. That is
+     the situation the on-the-spot approximation exists to avoid; MOCASSIN
+     transports it explicitly.
+
+They imply different fixes - separating the channels, versus how the
+near-threshold recombination continuum is treated - so they must be told apart
+before either is attempted.
+
+**Instrument** (`setDiffusePDF`, where both terms still exist un-normalised),
+per cell: the gas norm and the dust norm, and the part of each above 13.6 eV and
+above 24.6 eV. Reported per outcome group beside the existing census. No
+behaviour changes.
+
+**What is NOT known.** Which of the two dominates, and whether the dust term's
+ionizing part is nonzero at all (it is a blackbody at ~12-30 K, so its own
+emission above 13.6 eV should be negligible - in which case the leak, if it is
+the dust channel, is dust *energy* re-emitted through the *gas* terms rather
+than the dust term itself).
+
+
+### Result (2026-09-11)
+
+`runs/d232-pdfsrc`, `hiipdr-split`, 6 iterations. Per outcome group, from
+`setDiffusePDF` before the terms are pooled:
+
+     it  group         cells    dust share   gas >13.6/gas   dust >13.6/dust   gas >24.6/gas   dust >24.6/dust
+      4  stayed cold   13954     0.938        0.597           3.4e-9            1.45e-2         2.3e-9
+      5  stayed cold   14708     0.939        0.590           1.0e-9            1.91e-2         6.9e-10
+      6  stayed cold   14894     0.923        0.487           4.9e-10           1.92e-2         3.1e-10
+      6  started hot      27     0.748        0.627           2.8e-10           1.53e-2         2.3e-12
+
+**The dust behaves exactly as it should.** At 12-30 K its emission above 13.6 eV
+is 1e-9 to 1e-10 of its own total - nil, as a blackbody at that temperature must
+be. The leak is not dust emitting ionizing photons.
+
+**The leak is the pooling.** Dust supplies 92-94% of the emissivity in these
+cells, so it absorbs most of what arrives; every absorption samples the pooled
+spectrum (photon_mod:1914); and the 6-8% gas remainder is **49-60% ionizing**.
+So per packet absorbed in a cold molecular cell:
+
+     P(re-emitted above 13.6 eV) = (1 - 0.923) x 0.487 = 3.8%
+     P(re-emitted above 24.6 eV) = (1 - 0.923) x 0.0192 = 0.15%
+
+That is dust-absorbed starlight returned as ionizing radiation, in gas no
+stellar ionizing photon reaches. It is the user's objection at D-232, measured.
+0.15% above 24.6 eV is the helium-ionizing channel that D-231 could not account
+for: those cells carry x(He+) 14x the reference where cosmic rays alone give 23x
+less than observed.
+
+**And a second fault, which the same numbers expose.** The *gas* spectrum in a
+14 K cell is itself half ionizing. That is not a defect of the emissivities: at
+low Te the recombination continua collapse into narrow spikes sitting on their
+thresholds (the nu^3/Te^1.5 factor with an exponential cutoff of width kTe), so
+nearly all of the gas's continuum emission is at or just above 13.6 and 24.6 eV.
+Physically those photons are re-absorbed where they are made - the on-the-spot
+approximation exists for exactly this - while MOCASSIN transports them
+explicitly. In gas this opaque the two are not equivalent: the transported
+version sustains a local ionizing field and a raised He+.
+
+**The two are separable, and the first is well-defined:**
+  1. **Split the channels.** Branch the absorption on absOpac/(opacity - scaOpac)
+     and let dust absorptions sample `dustPDF`, which already exists and is
+     already built - just only when there is no gas (emission_mod:69). Removes
+     the 3.8%/0.15% leak outright. Backwards compatible by construction: pure
+     dust gives P(dust) = 1, pure gas gives 0.
+  2. **The on-the-spot question** for near-threshold gas emission. A real
+     modelling decision with consequences for every nebular model, not just PDR
+     cells, and not to be taken from this measurement alone.
+
+Proposed: 1 first, then re-measure He+, OH and CO before touching 2.

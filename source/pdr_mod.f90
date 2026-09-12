@@ -2483,6 +2483,16 @@ module pdr_mod
            if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
                 & abun(pdrNelect) = &
                 & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+           ! D-230: what the imposition actually wrote, at the moment it wrote it
+           if (teProbe /= 0 .and. taskid == 0 .and. nProbe230 < 24 .and. &
+                & grid%pdrZone(cellP) == 1) then
+              nProbe230 = nProbe230 + 1
+              print '(a,i7,a,i3,a,es11.4,a,es11.4,a,es11.4,a,f8.2)', &
+                   & " ! [D230] cell", cellP, "  NELECT idx", pdrNelect, &
+                   & "   Ne/Hden", dble(grid%Ne(cellP))/max(dble(grid%Hden(cellP)),1.d-99), &
+                   & "   e- imposed", abun(max(pdrNelect,1)), &
+                   & "   Ne", dble(grid%Ne(cellP)), "   Te", grid%Te(cellP)
+           end if
         end if
 
         ! D-078: true integrated columns, not local abundance x total column
@@ -2575,6 +2585,25 @@ module pdr_mod
                  abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
                  abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
               end do
+
+              ! ---------------------------------------------------- D-231
+              ! And the electrons, for the same reason and on the same
+              ! footing. D-212 imposed them BEFORE the solve only. D-230
+              ! measured what the solve then does to that entry: x306, x26,
+              ! x16, /14 against the value imposed, matching neither
+              ! MOCASSIN's Ne nor the chemistry's own cations - it is
+              ! whatever CVODE left in the slot, the restore in
+              ! calculate_abundances.c (line 451) not taking effect on this
+              ! path. The rates inside the solve use the imposed value (it is
+              ! passed separately), so what was corrupted is the exported
+              ! state vector - and that is what the level populations, the
+              ! substituted cooling and the next pass's rates all read.
+              !
+              ! One reality per quantity: there is one electron density and
+              ! MOCASSIN computes it.
+              if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
+                   & abun(pdrNelect) = &
+                   & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
            end if
 
            ! shielding columns follow the abundances between passes
@@ -2602,6 +2631,23 @@ module pdr_mod
         ! the last digit across three different thermal-balance algorithms.
         !
         ! Count it for diagnostics, but never skip the thermal balance for it.
+        ! D-230: and what survives the solve, in the same cell. Electrons are
+        ! frozen inside calculate_abundances, so these two must agree - and the
+        ! dumped state says they do not.
+        ! nProbe230b, not nProbe230: gating the pair on the first counter left
+        ! this print firing for every cell once that counter had stopped
+        ! rising, and it wrote the per-cell state of the whole grid to the log.
+        if (teProbe /= 0 .and. taskid == 0 .and. nProbe230b < 24 .and. &
+             & grid%pdrZone(cellP) == 1) then
+           nProbe230b = nProbe230b + 1
+           print '(a,i7,a,es11.4,a,es11.4,a,es11.4,a,es11.4,a,es11.4)', &
+                & " ! [D230]      after solve, cell", cellP, &
+                & "   e-", abun(max(pdrNelect,1)), &
+                & "   H+", abun(NPROTON), "   He+", abun(NHEx), &
+                & "   C+", abun(NCx), &
+                & "   H+ + He+ + C+", abun(NPROTON) + abun(NHEx) + abun(NCx)
+        end if
+
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
         ! D-121: the chemistry's outputs are the first hand-off in the chain.

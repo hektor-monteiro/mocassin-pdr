@@ -794,6 +794,35 @@ module emission_mod
            normDust = normDust*const*grids(iG)%Ndust(cellPUsed)/grids(iG)%Hden(cellPUsed)
         end if
 
+        ! ------------------------------------------------------------- D-232
+        ! Where a packet re-emitted in this cell gets its frequency from, split
+        ! by source term and by band, before the two are folded into one
+        ! cumulative PDF below. A dust absorption samples that pooled PDF
+        ! (photon_mod:1914), so a nonzero gas ionizing part means dust-absorbed
+        ! starlight can come back out as an ionizing photon. HlevNuP(1) is the
+        ! 13.6 eV bin, HeIlevNuP(1) the 24.6 eV bin.
+        if (allocated(grids(iG)%pdfSrc)) then
+           grids(iG)%pdfSrc(cellPUsed,:) = 0.
+           grids(iG)%pdfSrc(cellPUsed,1) = normHI + normHeI + normHeII
+           if (lgDust) grids(iG)%pdfSrc(cellPUsed,2) = normDust
+           if (HlevNuP(1) > 0) then
+              grids(iG)%pdfSrc(cellPUsed,3) = &
+                   & sum(sumDiffuseHI(HlevNuP(1):nbins)) &
+                   & + sum(sumDiffuseHeI(HlevNuP(1):nbins)) &
+                   & + sum(sumDiffuseHeII(HlevNuP(1):nbins))
+              if (lgDust) grids(iG)%pdfSrc(cellPUsed,4) = &
+                   & sum(sumDiffuseDust(HlevNuP(1):nbins))
+           end if
+           if (HeIlevNuP(1) > 0) then
+              grids(iG)%pdfSrc(cellPUsed,5) = &
+                   & sum(sumDiffuseHI(HeIlevNuP(1):nbins)) &
+                   & + sum(sumDiffuseHeI(HeIlevNuP(1):nbins)) &
+                   & + sum(sumDiffuseHeII(HeIlevNuP(1):nbins))
+              if (lgDust) grids(iG)%pdfSrc(cellPUsed,6) = &
+                   & sum(sumDiffuseDust(HeIlevNuP(1):nbins))
+           end if
+        end if
+
         normalize = normHI + normHeI + normHeII
         if (lgDust) normalize = normalize+normDust
 

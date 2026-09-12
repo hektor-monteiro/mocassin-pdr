@@ -346,6 +346,14 @@ module common_mod
         ! photon_mod writes it in every flavour (the D-158 slip again); it is
         ! only allocated in the PDR build, and every write tests allocated().
         real, allocatable :: trcJ(:,:)
+        ! D-232. Where a re-emitted packet's spectrum comes from, per cell,
+        ! captured in setDiffusePDF before the terms are folded into recPDF:
+        ! (cell,1) gas norm (HI+HeI+HeII), (cell,2) dust norm, (cell,3) the gas
+        ! part above 13.6 eV, (cell,4) the dust part above 13.6 eV, (cell,5) the
+        ! gas part above 24.6 eV, (cell,6) the dust part above 24.6 eV. Dust
+        ! absorptions currently sample the pooled spectrum (photon_mod:1914), so
+        ! this says how much of the ionizing diffuse field each side supplies.
+        real, allocatable :: pdfSrc(:,:)
 
 #ifdef PDR
         ! --- photodissociation-region state (DEVLOG D-006, D-018) -------------
@@ -1049,6 +1057,12 @@ module common_mod
     real                :: cvH2floor = 1.e-5
     integer(kind=8)     :: cvFailH0 = 0, cvFailH2 = 0, cvFailBoth = 0
     integer(kind=8)     :: cvFailTe = 0   ! D-229: cells failing on Te
+    ! D-230: the chemistry's electron abundance is imposed from MOCASSIN's Ne
+    ! before the solve (pdr_mod, D-212) and frozen through it
+    ! (calculate_abundances.c copies x_e in and back out untouched), yet the
+    ! dumped value is 960-2500x MOCASSIN's Ne/Hden while the chemistry's own
+    ! cations agree with it. Report both sides at the two points.
+    integer             :: nProbe230 = 0, nProbe230b = 0
     integer, parameter  :: nCvSp = 8
     real(kind=8)        :: cvSpNow(nCvSp) = 0.d0, cvSpOld(nCvSp) = 0.d0
     character(len=6)    :: cvSpName(nCvSp) = &

@@ -157,7 +157,7 @@ module iteration_mod
            integer(kind=8)        :: cvS3(4)                             ! D-173
            integer(kind=8)        :: cvS4                                ! D-176
            real(kind=8)           :: wDum                                ! D-178
-           integer(kind=8)        :: cvS5(3)                             ! D-179
+           integer(kind=8)        :: cvS5(4)                             ! D-179, (4) D-229
            character(len=80)      :: chNotConv                           ! D-172
            integer(kind=int64)    :: size            ! size for mpi
            integer                :: iCell           ! cell index including non-active
@@ -186,6 +186,10 @@ module iteration_mod
               if (lgGas) then
                  ! zero out PDF arrays
                  grid(iG)%recPDF(0:grid(iG)%nCells, 1:nbins) = 0.
+                 ! D-232: zeroed with the PDF it describes. emissionDriver only
+                 ! clears the cells a rank owns, so without this the sum across
+                 ! ranks would accumulate from one iteration to the next.
+                 if (allocated(grid(iG)%pdfSrc)) grid(iG)%pdfSrc = 0.
                  ! D-157: linePDF is allocated only under `if (nLines > 0)`
                  ! (grid_mod:1571), but this zeroing was guarded on lgDebug
                  ! alone - so enabling `debug` on a model with no line list
@@ -486,6 +490,13 @@ module iteration_mod
               if (lgGas) then
                  call mpi_allreduce(grid(iG)%recPDF, recPDFTemp, size, mpi_real&
                       &, mpi_sum, mpi_comm_world, ierr)
+
+                 ! D-232: the source split travels with the PDF it describes.
+                 ! Only the owning rank writes a cell in emissionDriver, so a
+                 ! plain sum reassembles it, exactly as for recPDF above.
+                 if (allocated(grid(iG)%pdfSrc)) &
+                      & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%pdfSrc, &
+                      & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
                  if (lgDebug) then
                     size =  (grid(iG)%nCells+1)*nLines
@@ -1580,6 +1591,18 @@ module iteration_mod
                                         & + dble(grid(iG)%ionDen(iDum,elementXref(1),2))
                                    budSum8(iBudG,5) = budSum8(iBudG,5) + pLinD
                                 end if
+                                ! D-232: what the cell's re-emission spectrum is
+                                ! made of, before normalisation - gas terms and
+                                ! dust term, whole band and above 13.6/24.6 eV.
+                                ! A dust absorption samples the pooled PDF, so a
+                                ! nonzero gas ionizing part is dust-absorbed
+                                ! energy able to come back out ionizing.
+                                if (allocated(grid(iG)%pdfSrc)) then
+                                   do kBd = 1, 6
+                                      budSum8(iBudG,15+kBd) = budSum8(iBudG,15+kBd) &
+                                           & + dble(grid(iG)%pdfSrc(iDum,kBd))
+                                   end do
+                                end if
                              end if
                              ! the diffuse part of the field in the three bands
                              ! that carry any: Jdif holds the diffuse packets
@@ -1804,6 +1827,21 @@ module iteration_mod
                                   & "   upstream", 100.d0*budSum6(iBudG,10)/max(budSum6(iBudG,15), 1.d0), &
                                   & "%   any upstream neighbour tau/cell<1 in", &
                                   & 100.d0*budSum6(iBudG,14)/max(budSum(iBudG,21), 1.d0), "%"
+                             ! D-232: the re-emission spectrum by source term
+                             if (budSum8(iBudG,16)+budSum8(iBudG,17) > 0.d0) then
+                                print '(a,f8.5,a,es10.3,a,es10.3,a,es10.3,a,es10.3)', &
+                                     & " ! [D232]   re-emission spectrum: dust share", &
+                                     & budSum8(iBudG,17) &
+                                     & /max(budSum8(iBudG,16)+budSum8(iBudG,17), 1.d-99), &
+                                     & "   gas >13.6 eV / gas", &
+                                     & budSum8(iBudG,18)/max(budSum8(iBudG,16), 1.d-99), &
+                                     & "   dust >13.6 eV / dust", &
+                                     & budSum8(iBudG,19)/max(budSum8(iBudG,17), 1.d-99), &
+                                     & "   gas >24.6 eV / gas", &
+                                     & budSum8(iBudG,20)/max(budSum8(iBudG,16), 1.d-99), &
+                                     & "   dust >24.6 eV / dust", &
+                                     & budSum8(iBudG,21)/max(budSum8(iBudG,17), 1.d-99)
+                             end if
                              print '(a,2f9.5)', &
                                   & " ! [D224]   15.4-24.6 eV stellar J share: steps not in their cell / entering from tau/cell<1", &
                                   & budSum6(iBudG,12)/max(budSum6(iBudG,11), 1.d-99), &
@@ -2909,6 +2947,11 @@ module iteration_mod
               call mpi_reduce(cvFailH0,   cvS5(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvFailH2,   cvS5(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvFailBoth, cvS5(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+              ! D-229/D-230: the temperature test was added to lgConverged but
+              ! not to this report, so at D-230's iteration 6 the line named 313
+              ! failures out of ~14900 unconverged cells. cvFailTe counts every
+              ! cell that failed on Te, exclusively or not.
+              call mpi_reduce(cvFailTe,   cvS5(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               if (taskid == 0 .and. teNsum(1) > 0) then
                  print*, "! TEPROBE iter", nIterateMC, " calls", teNsum(1), &
                       & " conv", teNsum(2), " (", 100.*real(teNsum(2))/real(teNsum(1)), "%)"
@@ -2942,9 +2985,10 @@ module iteration_mod
                     ! code's convergence reporting, and every argument about
                     ! convergence in the log has been an argument about a
                     ! scalar with no attribution.
-                    if (cvS5(1)+cvS5(2)+cvS5(3) > 0) then
+                    if (cvS5(1)+cvS5(2)+cvS5(3)+cvS5(4) > 0) then
                        print*, "! CVPROBE   which test failed: x(H0) only", cvS5(1), &
-                            & "  x(H2) only", cvS5(2), "  both", cvS5(3)
+                            & "  x(H2) only", cvS5(2), "  both", cvS5(3), &
+                            & "  Te (any)", cvS5(4)
                     end if
                     if (cvS3(1)+cvS3(2)+cvS3(3)+cvS3(4) > 0) then
                        print*, "! CVPROBE   branch vs last iteration (split", &
@@ -2987,7 +3031,7 @@ module iteration_mod
               cvNear = 0; cvFar = 0; cvUnstable = 0; cvDeriv = 0
               cvStayHot = 0; cvStayCold = 0; cvHot2Cold = 0; cvCold2Hot = 0
               cvPdrCleared = 0
-              cvFailH0 = 0; cvFailH2 = 0; cvFailBoth = 0
+              cvFailH0 = 0; cvFailH2 = 0; cvFailBoth = 0; cvFailTe = 0   ! D-229
               teBrkHist = 0
            end if
 
