@@ -232,6 +232,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-230 | **The chemistry's electron abundance is whatever CVODE left in that slot, and that is why there is no CO.** The probe shows the imposition is exact (e- written = Ne/Hden to every digit) and the solve then changes it by x306, x26, x16, /14 - the exported value matching neither MOCASSIN's Ne nor the chemistry's own cations. Electrons were the one quantity imposed only BEFORE the solve; D-162 re-imposes the ion ratios after it as well, which is why H+ comes back right. Downstream, CO collapses 75% per iteration while H2 settles to 0.5% | Done | 2026-09-11 |
 | D-231 | **Fixed and verified - it does not explain the missing CO, and the converged profile says what does not.** The after-solve electron abundance now sits with the cell's ions (was 14-300x off). CO is unchanged by it (-74.4% and -74.8% at iterations 5-6, against -74.6% and -74.9% before), because the rates inside the solve never read the corrupted entry. Converged at 22 iterations, 83.3%: deep x(CO) 4.2e-10 against the reference's 3.3e-8 (80x low), x(OH) 4.7e-13 against 4.1e-10 (870x low), x(He+) 3.6e-5 against 2.5e-6 (14x high), carbon fully neutral where the reference keeps C+. The unconverged 17% fail on Te (2542) not on the chemistry (2) | Done | 2026-09-11 |
 | D-232 | **Dust supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing - but the channels are pooled, so ~3.8% of what dust absorbs comes back out ionizing and ~0.15% above 24.6 eV.** The gas remainder is 49-60% ionizing at 14-25 K, because the recombination continua are narrow spikes at their thresholds. Two compounding faults: the pooled PDF (the user's objection, confirmed) and the on-the-spot treatment of near-threshold gas emission | Done | 2026-09-11 |
+| D-233 | **Fix: dust absorptions re-emit from the dust's own spectrum.** Each non-scattering absorption branches on absOpac/(opacity - scaOpac): dust absorptions become 'dustEmi' packets sampling dustPDF, gas absorptions stay 'diffuse' sampling a recPDF that no longer carries the dust term. dustPDF is built and reduced whenever there is dust, not only when there is no gas. **Result: it fixes the ionization front and does nothing for the dark gas.** x(He+)/ref at the front goes 1390 -> 1.15, the first PDR cell 939 K -> 21.9 K and fully neutral, x(C+)/ref 0.95 -> 1.00, convergence 83.3% -> 87.8%. Deep, every number is unchanged (He+ 14.6x, CO 78x low, OH 870x low, C+ 1.9e-7 of the reference), so the pooled PDF was not what sustains helium ionization in dark gas - that hypothesis is discarded and the on-the-spot question (D-232) is next. The H II region only cools 0.2-2.6% and the front does not move | Done | 2026-09-11 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -14744,3 +14745,128 @@ version sustains a local ionizing field and a raised He+.
      cells, and not to be taken from this measurement alone.
 
 Proposed: 1 first, then re-measure He+, OH and CO before touching 2.
+
+
+---
+
+## D-233 - the two channels are separated (2026-09-11)
+
+**Decision.** Approved by the user after D-232, which measured the leak: dust
+supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing,
+yet 3.8% of what dust absorbs returns above 13.6 eV and 0.15% above 24.6 eV,
+because every absorption samples the pooled spectrum.
+
+**Change.**
+  1. `photon_mod`, the non-scattering absorption branch. The packet is assigned
+     to the absorber that took it:
+
+         P(dust) = absOpac(cell,nu) / (opacity(cell,nu) - scaOpac(cell,nu))
+
+     a uniform draw against that gives `packetType = "dustEmi"` or `"diffuse"`.
+     Backwards compatible by construction: with no gas P(dust) = 1 and with no
+     dust P(dust) = 0, which are the two branches the code had before.
+  2. `emission_mod`: `setDustPDF()` is called whenever there is dust, not only
+     when there is no gas, and `recPDF` no longer carries `sumDiffuseDust` - it
+     is the gas spectrum, which is what a gas absorption should sample. The
+     line/continuum split (`totalLines`) is normalised against the gas terms
+     alone for the same reason.
+  3. `grid_mod`, `iteration_mod`: `dustPDF` and its cross-rank reduction exist
+     whenever `lgDust`, as `recPDF` does for gas.
+
+**What this does not change.** The dust emission spectrum itself (a sum of
+blackbodies at the grain temperatures MOCASSIN transports, already built by
+`setDustPDF`), the energy carried by each packet, or the gas emissivities.
+Energy is still conserved per packet; what changes is which spectrum a packet
+is re-emitted from.
+
+**Predictions.**
+  - The ionizing field in cold molecular cells drops by the factor D-232
+    measured: a dust absorption can no longer produce an ionizing photon, so the
+    24.6 eV field should fall towards what the gas alone makes.
+  - x(He+) should fall from 3.6e-5 towards the reference's 2.5e-6 - if the
+    dust-fed channel is what sustains it. If it does not, the remaining source
+    is the on-the-spot question (D-232's second fault) and that becomes the next
+    measurement.
+  - CO and OH should rise from 80x and 870x below the reference. How far is the
+    test: He+ + CO -> C+ + O is the dominant CO sink in dark gas, but OH also
+    depends on H3+ and the electron density.
+  - Outside the PDR the change is real but should be modest: in ionized gas the
+    gas emissivity dominates the spectrum, so most absorptions were already
+    being re-emitted from gas-like frequencies. The H II region temperature and
+    the ionization front position are the quantities to watch, and this is the
+    first change in the project that alters MOCASSIN's own radiative transfer
+    for a dusty nebula rather than only the PDR coupling.
+
+**Run.** `runs/d233-channels`, `hiipdr-split`, 22 iterations.
+
+**Result (2026-09-11).** Clean exit, 39:05 on 14 ranks, 87.8% converged
+(D-231 reached 83.3%, D-229 85.9%), and 87.4% was already there at iteration 13.
+Compared against `sec54.pdr.fin` on the A_V axis both codes compute for
+themselves, with `tools/d233_refcmp.py` (new; the reference is the
+ONEDIMENSIONAL branch of `writeoutputs.F90:83`, so A_V is column 3 and the 33
+abundances start at column 9).
+
+The first prediction held. The ionizing bands in cold cells fell one to two
+orders (iteration 5: window /120, 15.4-24.6 eV /68, 24.6-54.4 eV /8), and the
+dust share of the re-emission spectrum reads 0.999 deep - not because dust
+emission grew but because the gas continuum it was pooled with is gone.
+
+**The second and third predictions are refuted.** Deep in the PDR nothing moved:
+
+| at A_V 3.09 | D-231 | D-233 | reference |
+|---|---|---|---|
+| x(He+) / ref | 14.4 | 14.6 | 2.5e-6 |
+| x(CO) / ref | 1.28e-2 | 1.29e-2 | 3.3e-8 |
+| x(OH) / ref | 1.15e-3 | 1.16e-3 | 4.1e-10 |
+| x(C+) / ref | 1.9e-7 | 1.9e-7 | 1.6e-4 |
+| T_gas / ref | 0.591 | 0.592 | 24.4 K |
+
+So the pooled PDF was **not** what sustains He+ in dark gas. That hypothesis is
+discarded: the leak was real and is now closed, and the deep helium ionization
+survived it intact. The remaining source is the on-the-spot treatment of
+near-threshold gas emission (D-232's second fault) or something not yet
+identified, and that is the next measurement.
+
+Where the fix did land is the ionization front, and there it landed hard:
+
+  - x(He+)/ref at A_V 0.561 goes **1390 -> 1.15**, and at 0.641 **1280 -> 1.31**.
+    The dust-fed ionizing channel was sustaining helium ionization at the front,
+    not in the interior.
+  - The first PDR cell goes from 939 K and x(H+) = 2.2e-2 to 21.9 K and
+    3.9e-5. The second goes 398 K -> 22.8 K. The front cell is now fully
+    neutral: the transition completes in one cell instead of smearing over two.
+  - It overshoots. Against the reference's ~114 K at that A_V, the front cell
+    was 8.2x too hot and is now 5.2x too cold. The front is sharp and in the
+    right place, but the PDR is still colder than the reference everywhere
+    (0.19-0.65x), which is D-227's open item and is untouched by this change.
+  - x(C+)/ref at the front goes 0.95 -> 1.00, and in the middle, at A_V 2.03,
+    0.066 -> 0.80. The C+ cliff itself has not moved: past A_V 2.35 the ratio
+    is still 1.3e-7, carbon fully neutral where the reference keeps C+ at
+    1.6e-4. Two distinct carbon failures, and this fixed only the shallower one.
+
+**The H II region, which this is the first change to touch.** The ionization
+front does not move - the zone flips 0->1 at the same cell, r = 4.54 pc, in both
+runs, and MOCASSIN's PDR is 14.90 pc deep against the reference's 14.89 pc.
+Ionized-gas temperatures fall by 0.2-2.6%, largest in the two cells nearest the
+front (10530 -> 10260 K, 8890 -> 8695 K); x(H+) in the last ionized cell goes
+0.680 -> 0.632. Modest, and in the direction predicted: removing an ionizing
+channel cools and slightly de-ionizes the boundary. Nothing in the H II region
+argues against the change.
+
+**Checks.** x(HI) + 2x(H2) + x(HII) = 1 on axis to 9.8e-5 worst case (D-231:
+9.0e-5). Flips are down to 1-2 cells per iteration late in the run, with 15012
+cells staying cold and 26 starting hot.
+
+**One anomaly, not explained.** A single on-axis cell at A_V 2.238 sits at
+53 K where its neighbours are 20-23 K, and it is the one cell in the model that
+makes CO in quantity: x(CO) 3.6e-7, 23x the reference, with OH 41x and He+ 60x.
+Warm gas at depth makes CO here while the cold gas around it makes none. Whether
+that is one MC-noisy cell or a pointer at why the bulk is 78x low is worth a
+look, but it is one cell and is not evidence on its own.
+
+**Status.** The channel split is correct and stays: it closes a real leak the
+user identified, fixes the front, and costs the H II region nothing. It does not
+explain the missing CO.
+
+**What is NOT known.** Everything the run is for, and whether the H II region
+benchmark moves - which must be checked separately before this is called done.

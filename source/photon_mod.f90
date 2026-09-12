@@ -990,11 +990,9 @@ module photon_mod
                   stop
                end if
 
-               if (lgGas) then
-                  print*, "! newPhotonPacket: dustEmi-type packet should be created in a &
-                       & grid containing gas."
-                  stop
-               end if
+               ! D-233: a dust-emitted packet in a grid that also has gas is now
+               ! the normal case - the absorption branch assigns each absorption
+               ! to the absorber that took it. This guard used to stop the run.
 
 
                ! check that the position is not inside the inner region
@@ -1184,6 +1182,7 @@ module photon_mod
           logical                         :: lgTrc224, lgOut224, lgOver224, lgB2224
           logical                         :: prevBad224, prevPdr224, lgPt224
           logical                         :: lgB2all225 ! D-225: in the band, any packet type
+          real                            :: probDust233, denAbs233   ! D-233
           logical                         :: lgReturn
 
 
@@ -1911,15 +1910,52 @@ module photon_mod
 
                       absInt = absInt + 1.
 
-                      if (.not.lgGas) then
+                      ! ------------------------------------------------ D-233
+                      ! Which absorber took it. The packet used to be handed to
+                      ! the gas whenever gas was present, so a photon absorbed
+                      ! by 14 K dust was re-emitted from a spectrum containing
+                      ! the gas recombination continua: D-232 measured 3.8% of
+                      ! what dust absorbs coming back out above 13.6 eV and
+                      ! 0.15% above 24.6 eV, in cells no stellar ionizing photon
+                      ! reaches. Dust and gas do not share an energy balance -
+                      ! the grains sit at their own radiative equilibrium, the
+                      ! gas has its own thermal balance - so they must not share
+                      ! a re-emission spectrum.
+                      !
+                      ! Split by the absorption opacities themselves, which is
+                      ! the probability that this absorption was on a grain:
+                      !   P(dust) = absOpac / (opacity - scaOpac)
+                      ! With no gas that is 1 and with no dust 0, which are the
+                      ! two branches this replaces.
+                      if (lgGas .and. grid(gP)%active(xP,yP,zP) > 0) then
+                         probDust233 = grid(gP)%absOpac(grid(gP)%active(xP,yP,zP),enPacket%nuP)
+                         denAbs233 = grid(gP)%opacity(grid(gP)%active(xP,yP,zP),enPacket%nuP) &
+                              & - grid(gP)%scaOpac(grid(gP)%active(xP,yP,zP),enPacket%nuP)
+                         if (denAbs233 > 0.) then
+                            probDust233 = probDust233/denAbs233
+                         else
+                            probDust233 = 0.
+                         end if
+                      else if (.not.lgGas) then
+                         probDust233 = 1.
+                      else
+                         probDust233 = 0.
+                      end if
+                      if (probDust233 > 1.) probDust233 = 1.
+                      if (probDust233 < 0.) probDust233 = 0.
 
-                         ! packet is absobed by the dust
+                      call random_number(random)
+                      random = 1.-random
+
+                      if (random <= probDust233) then
+
+                         ! packet is absorbed by the dust
                          packetType = "dustEmi"
                          exit
 
                       else
 
-                         ! packet is absobed by the dust+gas
+                         ! packet is absorbed by the gas
                          packetType = "diffuse"
                          exit
 

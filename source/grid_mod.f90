@@ -1620,7 +1620,7 @@ module grid_mod
              grid%dustAbunIndex=0
              ! be 2.02.44 end
 
-             if (.not.lgGas) then
+             if (lgDust) then   ! D-233: dust re-emission needs its own PDF whenever there is dust
                 allocate(grid%dustPDF(0:grid%nCells, 1:nbins), stat = err)
                 if (err /= 0) then
                    print*, "! grid: can't allocate dustPDF memory"
@@ -2557,7 +2557,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  end if
                  grid(iG)%dustAbunIndex=0
 
-                 if (.not.lgGas) then
+                 if (lgDust) then   ! D-233
                     allocate(grid(iG)%dustPDF(0:grid(iG)%nCells, 1:nbins), stat = err)
                     if (err /= 0) then
                        print*, "! grid: can't allocate dustPDF memory"
@@ -2844,7 +2844,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
               if(allocated(grid%Tdust)) deallocate(grid%Tdust)
               if (lgMultiChemistry .and. allocated(grid%dustAbunIndex)) &
                    &  deallocate(grid%dustAbunIndex)
-              if (.not.lgGas) then
+              if (lgDust) then   ! D-233
                  if(allocated(grid%dustPDF)) deallocate(grid%dustPDF)
               end if
            end if
@@ -3978,7 +3978,7 @@ end function getVolume
             end if
             grid(iG)%dustAbunIndex=0
 
-            if (.not.lgGas) then
+            if (lgDust) then   ! D-233
 
                allocate(grid(iG)%dustPDF(0:grid(iG)%nCells, 1:nbins), stat = err)
                if (err /= 0) then

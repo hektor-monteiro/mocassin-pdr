@@ -10,6 +10,8 @@ for cell i is (i-1)*ny*nz + 1.
                  H first (2 stages), He (3), C (7) ...
     pdrGrid.out  pdrZone, chiFUV, AVeff, ...       2 lines per cell, the
                  33 network abundances on the 2nd
+    pdrRad.out   A_V, totalLines, J bands, Tdust   1 line per cell, after a
+                 one-line header (grid_mod.f90:3048)
 
 Emits JSON on stdout, in the shape the section 5.4 artifact's data block uses.
 """
@@ -22,6 +24,8 @@ DR = 2.0e18                    # Rout 6e19 over 30 intervals
 NELEM = 7                      # H He C N O Ne S
 HYD_LINE, CAR_LINE = 0, 2      # offsets within a cell's element block
 IH2, IH, IHP, IC, ICP, ICO = 31, 32, 19, 25, 11, 28   # 1-based, species_reduced.d
+IHEP, IOH = 2, 29
+TD_COL = 6                     # Tdust, 0-based, in pdrRad.out
 
 
 def load(path):
@@ -35,9 +39,11 @@ def main():
     g1 = load(os.path.join(out, 'grid1.out'))
     g2 = load(os.path.join(out, 'grid2.out'))
     pg = load(os.path.join(out, 'pdrGrid.out'))
+    pr = load(os.path.join(out, 'pdrRad.out'))[1:]     # drop the header line
 
     res = {k: [] for k in ('r', 'T', 'HI', 'HII', 'HImoc', 'HIImoc',
-                           'H2', 'Cp', 'C', 'CO', 'AV', 'zone')}
+                           'H2', 'Cp', 'C', 'CO', 'AV', 'zone',
+                           'Hep', 'OH', 'Td')}
 
     for i in range(3, NX + 1):                 # i=3..31, as the published series
         rec = (i - 1) * NY * NZ                # 0-based record index
@@ -66,6 +72,9 @@ def main():
             res['Cp'].append(float(car[1]) * 2.2e-4)
             res['C'].append(float(car[0]) * 2.2e-4)
         res['CO'].append(float(abun[ICO - 1]))
+        res['Hep'].append(float(abun[IHEP - 1]))
+        res['OH'].append(float(abun[IOH - 1]))
+        res['Td'].append(float(pr[rec][TD_COL]) if rec < len(pr) else 0.)
 
     json.dump({k: [float(f'{v:.4g}') if isinstance(v, float) else v for v in vals]
                for k, vals in res.items()}, sys.stdout)

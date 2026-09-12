@@ -66,7 +66,10 @@ module emission_mod
         end if
 
         ! set the dust emission PDF
-        if (lgDust .and. .not.lgGas) call setDustPDF()
+        ! D-233: the dust needs its own emission spectrum whenever there is
+        ! dust. It used to be built only in a gas-free grid, because every
+        ! absorption in a gas+dust grid was handed to the gas.
+        if (lgDust) call setDustPDF()
 
         if (.not.lgGas) return
 
@@ -823,8 +826,11 @@ module emission_mod
            end if
         end if
 
+        ! D-233: the gas spectrum alone. A gas absorption samples recPDF and a
+        ! dust absorption samples dustPDF, so the dust term no longer belongs
+        ! here - neither in the PDF below nor in the line/continuum split, which
+        ! is a property of the gas emission.
         normalize = normHI + normHeI + normHeII
-        if (lgDust) normalize = normalize+normDust
 
         normRec = 0.
         do iup = 3, 15
@@ -866,29 +872,18 @@ module emission_mod
 
         grids(iG)%totalLines(cellPUsed) = normRec + normFor
 
-        if (lgDust) then
-           do i = 1, nbins
-              if (i == 1) then
-                 grids(iG)%recPDF(cellPUsed, i) = sumDiffuseHI(i) + sumDiffuseHeI(i) +&
-                      & sumDiffuseHeII(i) + sumDiffuseDust(i)
-              else
-                 grids(iG)%recPDF(cellPUsed, i) = grids(iG)%recPDF(cellPUsed, i-1) +&
-                      & sumDiffuseHI(i) + sumDiffuseHeI(i) +&
-                      & sumDiffuseHeII(i) + sumDiffuseDust(i)
-              end if
-           end do
-        else
-           do i = 1, nbins
-              if (i == 1) then
-                 grids(iG)%recPDF(cellPUsed, i) = (sumDiffuseHI(i) + sumDiffuseHeI(i) +&
-                      & sumDiffuseHeII(i) )
-              else
-                 grids(iG)%recPDF(cellPUsed, i) = grids(iG)%recPDF(cellPUsed, i-1) +&
-                      & (sumDiffuseHI(i) + sumDiffuseHeI(i) +&
-                      & sumDiffuseHeII(i) )
-              end if
-           end do
-        end if
+        ! D-233: gas terms only, with or without dust - the dust's own emission
+        ! is sampled from dustPDF by the packets the dust actually absorbed.
+        do i = 1, nbins
+           if (i == 1) then
+              grids(iG)%recPDF(cellPUsed, i) = (sumDiffuseHI(i) + sumDiffuseHeI(i) +&
+                   & sumDiffuseHeII(i) )
+           else
+              grids(iG)%recPDF(cellPUsed, i) = grids(iG)%recPDF(cellPUsed, i-1) +&
+                   & (sumDiffuseHI(i) + sumDiffuseHeI(i) +&
+                   & sumDiffuseHeII(i) )
+           end if
+        end do
 
         grids(iG)%recPDF(cellPUsed, :) = grids(iG)%recPDF(cellPUsed, :)/grids(iG)%recPDF(cellPUsed, nbins)
         grids(iG)%recPDF(cellPUsed, nbins) = 1.

@@ -209,7 +209,7 @@ module iteration_mod
                  Bjump     = 0.
               end if
 
-              if (lgDust .and. .not.lgGas) then
+              if (lgDust) then   ! D-233: with gas too, now that dust re-emits
                  ! zero out dust PDF arrays
                  grid(iG)%dustPDF(0:grid(iG)%nCells, 1:nbins)     = 0.
               end if
@@ -430,7 +430,7 @@ module iteration_mod
               if (taskid==0) print*, '! iterateMC: emissionDriver out', iG
               if (taskid==0 .and. lgWritePss) close(89)
 
-              if (lgDust .and. .not.lgGas) then
+              if (lgDust) then   ! D-233
                  allocate(dustPDFTemp(0:grid(iG)%nCells, 1:nbins),&
                       & stat = err)
                  if (err /= 0) then
@@ -506,7 +506,14 @@ module iteration_mod
                  end if
               end if
 
-              if (lgDust .and. .not.lgGas) then
+              if (lgDust) then   ! D-233
+
+                 ! D-233: set `size` here rather than inherit it. It is
+                 ! (nCells+1)*nbins above, but the lgGas branch just before
+                 ! reassigns it to (nCells+1)*nLines for linePDF under lgDebug -
+                 ! harmless while this block only ran without gas, wrong the
+                 ! moment dust and gas coexist.
+                 size = (grid(iG)%nCells+1)*nbins
 
                  call mpi_allreduce(grid(iG)%dustPDF, dustPDFTemp, size, mpi_real&
                       &, mpi_sum, mpi_comm_world, ierr)
@@ -1870,7 +1877,7 @@ module iteration_mod
                                 nB226 = min(bandP(3) - bandP(2), 64)
                                 kTopP = maxloc(budSum8(iBudG,6:5+nB226), 1) - 1
                                 kTopJ = maxloc(budSum9(iBudG,1:nB226), 1) - 1
-                                print '(a,es10.3,a,f7.2,a,f6.3,a,f7.2,a,es10.3,a,es10.3,a,f6.3)', &
+                                print '(a,es10.3,a,f7.2,a,es10.3,a,f7.2,a,es10.3,a,es10.3,a,f6.3)', &
                                      & " ! [D226]   P(re-emitted packet born in 15.4-24.6 eV)", &
                                      & budSum8(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
                                      & "   top bin", nuArray(bandP(2)+kTopP)*13.605693, &
