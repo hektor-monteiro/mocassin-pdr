@@ -238,7 +238,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it. **Result: absorbed, not absent - and only C and S were ever candidates.** At A_V 1.381 C I carries sum Jste 1.116e-03 over 9 of its 179 bins and S I 1.642e-03 over 13; at A_V 2.880 both are exactly 0. N, O and Ne have thresholds ABOVE 1 Ryd where J is identically zero in a PDR, so their neutrality is correct physics, not a defect - my 'no metal is ever photoionized' was too broad. The depth scheme returned only two points because the probe was gated on taskid == 0 | Done | 2026-09-12 |
 | D-237 | **Measure tau from MOCASSIN's own opacity, and sample on every rank.** **Result: the C+ cliff is the Monte Carlo estimator's floor.** Over four decades the field tracks exp(-tau)*(r0/r)^2 to within 1.2-4.5x using the measured opacity, then stops rather than decaying. opac(421) is flat at 2.273e-19 while carbon is ionized and rises to 6.604e-19 once it is not - an increment of 4.33e-19 against x(C)*n_H*sigma = 4.02e-19, carbon shielding itself. At the reference's own depth the two codes nearly agree (tau ~ 11.2 against TAUC ~ 10.4), so the implied rate ~2.5e-13 against dn 1.78e-13 gives C+/C ~ 1.4: the physics does not forbid C+ there, the estimator does. One packet is worth ~2.6e-6 and the predicted field at the first zero cell is 1.2e-6 | Done | 2026-09-12 |
 | D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in. **Result: it works, it is safe, and it is not enough.** Deep x(C+) goes 3.155e-11 -> 4.600e-08, a factor 1458, and every deep cell now carries flux where all four previous runs read exactly 0 in all 179 bins. But that is still 3500x under the reference's 1.624e-4 and ~100x under the ~4e-6 I predicted; CO rises only 49% (4.24e-10 -> 6.31e-10) and OH FALLS 8%, against a predicted rise. Every control holds: H II Te within 0.1-0.5%, ionization front unmoved, deep x(H2) 0.4749 -> 0.4751, hydrogen budget 9.2e-5, T_dust -1.8%, no NaN. Convergence 87.9% -> 85.7% | Done | 2026-09-12 |
-| D-239 | **The biasing was switched off for every flight after the first scattering, and D-238 never saw it.** `tauCell` means two things in `pathSegment`: `R_out*opacity` before the traversal loop, and `dS*opacity` (a single step, ~0.5) inside it. The post-scattering re-draw was handed the second, so alpha came out ~0.68 instead of ~0.069 - near-analog - and in a dusty medium most transport is post-scattering. Fixed with a separate `tauPath`. Plus a weight diagnostic (min/max/mean/mean-log10 per iteration) to measure the compounding rather than assume it, and Russian roulette below 1e-3 with survivors promoted, gated on lgPathStretch so analog runs are unchanged | Open | 2026-09-12 |
+| D-239 | **The biasing was switched off for every flight after the first scattering, and D-238 never saw it.** `tauCell` means two things in `pathSegment`: `R_out*opacity` before the traversal loop, and `dS*opacity` (a single step, ~0.5) inside it. The post-scattering re-draw was handed the second, so alpha came out ~0.68 instead of ~0.069 - near-analog - and in a dusty medium most transport is post-scattering. Fixed with a separate `tauPath`. Plus a weight diagnostic (min/max/mean/mean-log10 per iteration) to measure the compounding rather than assume it, and Russian roulette below 1e-3 with survivors promoted, gated on lgPathStretch so analog runs are unchanged. **Result: x(C+) recovers to within 32x of the reference**, from 5e6 under it - the path-scale tau fix is worth a further factor 110 over D-238, and 32 is exactly the residual D-237 predicted would remain once the sampling floor was gone. Carbon is conserved (x(C) falls by the 2.3% that appears as C+). Convergence 88.6%, ahead of analog. **But CO rises only 6% and OH 38%, still 49x and 678x under the reference - so the CO deficit is not mainly C+ starvation.** Controls: front, x(H2) and the H budget untouched; H II Te +0.9 to +1.7%, T_dust -5.5%, radiated energy +0.42% against a 0.038% analog scatter - the unbounded upper weight tail beginning to show, and the argument for splitting before this becomes default | Done | 2026-09-12 |
 | D-240 | **Audit of the path-stretching scheme: correct in sampling, weighting and energy bookkeeping; the open items are variance control.** Sampler and weight agree and implement the Baes composite form; exp(-tau) is the analog law replaced; the weight is updated before the flight it governs at both sites, survives absorption -> re-emission, and reaches Jste/Jdif/escapedPackets/SED, which getDustT and the gas heating read; zero safeLimit losses. **Energy conservation, the real unbiasedness test, passes: radiated luminosity +0.023% against analog, inside the 0.038% analog-analog scatter** - which also shows the mean weight of 1.29 is a diagnostic artefact (averaging over surviving packets while roulette culls low weights), not bias. Caveats: the expval>80 clamp inflates the deepest packets' weights; the upper tail is unbounded because 1/xi bounds a draw, not the product, so splitting is the missing companion to roulette; totalEscaped is nint of an energy and meaningless under weighting; and my D-238 prediction that weights stay in (0,2] was wrong | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -15352,6 +15352,70 @@ are exactly the deepest-penetrating packets, and they carry almost nothing.
 
 **Run.** `runs/d239-roulette`, hiipdr-split plus `teProbe 1` and
 `pathStretch 0.5`, 13 iterations.
+
+**Result (2026-09-12).** Clean exit, 13 iterations, 88.6% converged - AHEAD of
+the analog runs (87.6-87.9%), so the tauPath fix costs no convergence and
+reverses D-238's small penalty.
+
+                     Te      x(C+)       x(C)        x(CO)       x(OH)
+     D-233 analog    14.4    3.155e-11   2.200e-04   4.241e-10   4.752e-13
+     D-238           14.1    4.600e-08   2.200e-04   6.313e-10   4.384e-13
+     D-239 final     14.0    5.045e-06   2.150e-04   6.694e-10   6.039e-13
+     reference       24.4    1.624e-04   5.752e-05   3.300e-08   4.095e-10
+
+**x(C+) recovers to within 32x of the reference**, from 5e6 under it in the
+analog run. The single fix - handing the biasing a path-scale tau after
+scattering instead of a one-step tau - is worth a further factor 110 over D-238.
+
+**And 32 is the number D-237 predicted.** Working from the exp(-tau) scaling,
+D-237 said a residual factor ~30 would remain once the sampling floor was
+removed. It does. That is the first quantitative corroboration that the Monte
+Carlo floor and the residual were two separate effects rather than one.
+
+**Carbon is conserved across the change**, which is the internal check: x(C)
+falls 2.200e-04 -> 2.150e-04, by 2.3%, exactly the 5.045e-06 that appears as
+C+.
+
+**A correction I have to record.** From the iteration-12 dump I reported a
+provisional x(C+) of 8.073e-05. The converged value is 5.045e-06, sixteen times
+lower. I labelled it provisional and said an overshoot that far beyond
+prediction was more likely an error than a triumph; that caution was right, and
+the provisional figure should not be quoted.
+
+**The chemistry still does not recover.** CO rises only 6% on D-238 and remains
+49x under the reference; OH rises 38% and remains 678x under. Giving carbon back
+three orders of ionization barely moved either. So the CO deficit is NOT mainly
+C+ starvation, and that is a result in its own right - it rules out the
+explanation this whole line of work was built on.
+
+**Controls: they hold, but three have drifted and it is the direction that
+matters.**
+
+                          D-239        D-233 analog    D-238 for scale
+     ionization front     index 5      index 5         unmoved
+     deep x(H2)           0.4752       0.4749          0.4751
+     H budget             1.18e-4      1.11e-4         9.2e-5
+     H II Te (inner 4)    +0.9 to +1.7% vs analog      +0.1 to 0.5%
+     deep T_dust          11.58        12.25  (-5.5%)  -1.8%
+     radiated energy      2.71011e-33  2.69877e-33 (+0.42%)   +0.023%
+
+The front, the molecular fraction and the hydrogen budget are untouched. But the
+H II temperatures, the dust temperature and the radiated energy have all moved
+further than in D-238, in one direction, and the energy is now +0.42% against an
+analog-analog scatter of 0.038% - eleven times the scatter, where D-238 sat
+inside it. That is what the unbounded upper weight tail (max 1.9e4 this run)
+looks like when it begins to matter.
+
+**Open.**
+  - The deep field rests on single-packet estimates: bin counts fall to 1 above
+    A_V 2.5, and 3 of 14 deep cells are still exactly zero. A repeat run would
+    say how reproducible x(C+) = 5e-6 is.
+  - Splitting is the missing variance control (D-240 item C). The drifts above
+    are the argument for doing it before `pathStretch` becomes a default.
+  - The residual 32x is now the whole question for carbon, and it is not a
+    sampling problem.
+  - CO and OH are barely moved by any of this, so whatever suppresses them is
+    not the carbon ionization.
 
 ---
 
