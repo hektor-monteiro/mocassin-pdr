@@ -922,8 +922,18 @@ module iteration_mod
 
               if (lgDebug) then
                  if ( allocated(linePacketsTemp) )    deallocate(linePacketsTemp)
-                 if ( allocated(JDifTemp) )           deallocate(JDifTemp)
               end if
+              ! D-245: JDifTemp is allocated under (lgDebug .or. pdrSplitField /= 0)
+              ! at line ~760 but was freed here only under lgDebug, so with
+              ! pdrSplitField set and lgDebug off it was never freed. iterateMC is
+              ! RECURSIVE - it advances nIterateMC and calls itself rather than
+              ! looping - so a local allocatable still allocated at the recursive
+              ! call stays live in that frame and in every frame beneath it.
+              ! Measured cost: one (nCells+1, nbins) array = 34.8 MiB per rank per
+              ! iteration, taking 720 MB/rank at iteration 1 to 1050 MB/rank by
+              ! iteration 10 and making a 22-iteration run exhaust memory.
+              ! The guard must match the allocation, so it is freed unconditionally.
+              if ( allocated(JDifTemp) )           deallocate(JDifTemp)
               if ( allocated(JSteTemp) )           deallocate(JSteTemp)
 
 

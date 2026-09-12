@@ -243,6 +243,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-241 | **3.3x the packets: the deep field was still on the one-packet floor, x(C+) reproduces, and CO/OH still do not follow.** 2e7 packets against D-239's 6e6, same fixture and settings. Every deep cell that read exactly 0 at 6e6 (cells 25, 87, 29 at A_V 2.564, 2.891, 3.094) now carries flux, and deep cells go from 1 bin with J>0 to 3-7; above A_V 2.0 the two runs agree to 10-30%, so the biased deep field at 6e6 was still sampling-limited - D-237's floor pushed deeper, not removed. x(C+)/ref reproduces at 1.00 (0.998-1.04 over A_V 0.56-2.03) in an independent realisation. **CO and OH remain 1-2 decades under the reference at both packet counts, so the deficit survives a 3.3x improvement in the deep field and is confirmed not to be a sampling problem.** (D-242 later measured the fixed-packet scatter and withdrew the "2-4x rise" this entry first read into the packet count: two 6e6 runs differ by up to 4.7x in deep CO and 25.9x in deep OH, so the between-run moves are scatter, not a packet-count effect. The 1-2 decade deficit is unaffected and now rests on three realisations.) Controls hold: H II Te -0.8%, deep x(H2) 0.4752 -> 0.4753, H budget 1.2e-4, deep T_dust +1.6%. Convergence 88.64% -> 92.36%. **On the energy control (D-242 settles it):** a third biased run at 6e6 radiates 2697.94, inside the analog cluster of 2699.80/2698.26/2698.77 (mean 2698.94, spread 0.057%), against D-239's 2710.11 at the same settings. Two biased runs at fixed packet count therefore span 0.45%, ~8x the analog-analog spread, while their mean sits ~1 sd from the analog mean. **The biasing introduces no detectable mean offset; it inflates the variance of the radiated energy roughly eightfold** - the signature of a heavy-tailed weight distribution, an unbiased estimator with a large variance. D-240's verdict stands and splitting is confirmed as a variance fix, not a bias correction. D-238's broken-stretch run radiates 2699.38, inside the analog cluster, independently confirming D-239's finding that the stretch was effectively off | Done | 2026-09-12 |
 | D-242 | **The error bar the energy verdict needed: two biased runs at identical settings span 0.45%, eight times the analog spread.** D-241 had one biased realisation per packet count and I twice read a conclusion out of it - first "scatter", then "bias, D-240 withdrawn". Re-running the D-239 configuration unchanged (6e6, `pathStretch 0.5`) gives 2697.94 against D-239's 2710.11, straddling the analog mean of 2698.94. **No detectable mean offset; the variance of the radiated energy is inflated ~8x**, the expected behaviour of an unbiased estimator with a heavy weight tail. D-240's verdict restored, splitting confirmed as a variance fix. Convergence 88.02% against D-239's 88.64%, so the realisation moves convergence far less than the packet count does (92.36% at 2e7). Cost: 19:56 per processor | Done | 2026-09-12 |
 | D-243 | **The He I 2^3S term evaluated at the 5000 K clamp is not what makes cold gas emit ionizing photons: it carries at most 0.9% of it.** Prompted by an audit of the user's `_testing` tree, whose Master Matrix of five fixes turns out to be **already implemented here in full** (JDif unpack = our D-225 with the identical condition; dustPDF alloc/reduce, opacity branching and recPDF purity = our D-233; the legacy `dustEmi` stop removed), with this tree ahead on three counts (D-227 He I continuum, D-229 Te criterion, the D-233 `size` reuse bug). The one live candidate was Tier 2 of `Runaway-Cascade-FIX.txt`, never implemented in either tree: `T4 = MAX(5000.,TeUsed)` at `emission_mod.f90:720` feeding `alpha2tS` into the 1.45673 Ryd (19.82 eV) bin of the gas re-emission PDF, above the 13.6 eV edge, with no temperature guard. **Measured before changing anything, and the answer is no: corr/ion is 3.3e-3 to 9.2e-3 across the PDR** (max 3.2e-2 only in the A_V 0.49 bucket, which averages cells across the front at 6982 K and is not PDR gas). Deleting the clamp was never the fix either - alpha2tS rises as Te falls, so at 14 K it would go 43.5 -> ~2334, a 54x INCREASE in the injection - and the document's alternative, zeroing below 1000 K, is a hardcoded threshold deciding physics at run time. **What the probe did find: the ionizing share of a cold cell's gas re-emission rises from 11-14% at 24-26 K to 38-43% at 11-15 K**, so the D-232 leak is real, depth-dependent, and comes from the recombination continua rather than from helium's metastable line. Shipped alongside: division-by-zero guards on the recPDF and dustPDF normalisations (both were 0/0 -> NaN for a cell with no emission in that channel), measured inert on this model against d233-channels on every control | Done | 2026-09-12 |
+| D-244 | **The ionizing emission of cold PDR gas is the He I recombination continuum: 87-95% of it, at every depth below the front.** D-243 excluded the He I 2^3S metastable line at under 1% and left ~40% of a cold cell's gas spectrum above 13.6 eV unattributed. Splitting the sum by emitter answers it. In the hot front gas hydrogen behaves as it should - fHI 0.955 at 6977 K - and through the entire cold PDR it inverts: **fHeI 0.606, 0.809, 0.954, 0.872, 0.885, 0.868 from A_V 0.81 to 3.06**, with fHeII identically 0 (absolute ~1e-9). Since the 2^3S term is <1%, the carrier is the He I recombination continuum at 24.6 eV. **It scales as x(He+)*Ne, and our x(He+) is 2-7.5x the reference deep in the PDR - an excess this project has never explained** - so an excess He+ feeds an excess 24.6 eV continuum, reabsorbed on the spot in gas ~700 optical depths per cell thick. Same shape as the D-227 runaway, different channel. Measured at 13 iterations rather than 22 after an OOM kill; validated by ion/gas agreeing with D-243 to 1-2% in six of seven A_V buckets. Open and unresolved: the run holds 1.05 GB/rank against the 393 MB/rank the documented memory model predicts, 2.7x, cause unknown | Done | 2026-09-12 |
+| D-245 | **A memory leak I introduced in D-158/D-225: `JDifTemp` allocated under `pdrSplitField` but freed only under `lgDebug`, in a RECURSIVE subroutine.** `iteration_mod.f90:760` allocates it when `lgDebug .or. pdrSplitField /= 0`; `:923` freed it when `lgDebug` alone. I added the `pdrSplitField` term to the allocate guard so the diffuse field would be unpacked for the D-225 census and never touched its partner. Because `iterateMC` is `recursive` - it advances `nIterateMC` at `:3220` and calls itself at `:3227` rather than looping - a local allocatable still allocated at the recursive call stays live in that frame and every frame beneath it. **Measured: 34.8 MiB per rank per iteration**, one `(nCells+1, nbins)` real4 array. Per-rank PSS before the fix 754.6 / 789.5 / 828.5 / 874.6 MB at iterations 1-4, monotonic and never returning; after, 685.1 / 685.1 / 689.3 / 700.7, flat through all 6 with the wobble moving both directions. At the 22-iteration setting that is ~19.9 GB against ~9.8 GB across 14 ranks, which is why D-244's first attempt was killed at iteration 6 and why 22-iteration runs had become untenable. **Every run of mine on the `hiipdr-split` fixture since D-225 carried it.** No computed quantity is affected - it consumes memory and nothing else - so the D-243 and D-244 physics stand. Audit: every other temporary in `iterateMC` pairs symmetrically and is freed before the recursive call. **Still open and NOT explained by this: the baseline is 685 MB/rank against the documented model's 393 MB, 1.74x, present at iteration 1 before any accumulation** | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15930,3 +15932,203 @@ D-237 diagnosed and D-239 fixed with biasing - these runs have it switched off.
 
 **Still open, and untouched.** CO 1-2 decades under the reference with carbon
 reproduced at 1.00 under biasing. Nothing in D-243 bears on it.
+
+## D-244 - the cold-gas ionizing emission is helium's recombination continuum (2026-09-12)
+
+`runs/d244-species`: the D-243 configuration with the probe's ionizing sum
+split by emitter. Analog, `nPhotons 6000000`, `teProbe 1`, no `pathStretch`,
+`maxIterateMC 13 95.` (see the OOM note below). 24:56 per processor, clean
+exit, 90 `[D244]` lines over A_V 0.494-3.094, no format overflows.
+
+D-243 left a specific gap: the He I 2^3S metastable line carries under 1% of
+the ionizing gas emission, but 38-43% of a cold cell's gas spectrum still sits
+above 13.6 eV. The probe already computed the three species sums internally and
+printed only their total, so exposing them cost one print statement.
+
+### Result
+
+    A_V    Te(K)     fHI     fHeI    fHeII
+    0.49   6977.1  0.9549   0.0451   0.0000
+    0.81     24.0  0.3943   0.6057   0.0000
+    1.32     25.9  0.1910   0.8090   0.0000
+    1.73     22.2  0.0462   0.9538   0.0000
+    2.28     17.0  0.1282   0.8718   0.0000
+    2.77     12.6  0.1148   0.8852   0.0000
+    3.06     11.0  0.1319   0.8681   0.0000
+
+**In the hot gas at the front hydrogen supplies 95% of the ionizing emission,
+which is correct and expected. Through the whole cold PDR it inverts: helium
+supplies 87-95%.** He II is identically zero - absolute ~1e-9 - as it must be
+where there is no He++.
+
+`ionHeI` still contains `correction` (added to `sumDiffuseHeI(j2TsP)` before the
+probe), but D-243 measured that at 0.33-0.92% of `ionTot`, so subtracting it
+moves fHeI by under a point. **The carrier is the He I recombination continuum
+at its own 24.6 eV threshold**, not the metastable line.
+
+### Why this matters
+
+The He I recombination continuum is proportional to `x(He+) * Ne`. Deep in our
+PDR x(He+) runs **2.1 to 7.5x the reference** (D-241, `runs/d241-photons`):
+2.71 at A_V 1.92, 2.29 at 2.24, rising to 7.50 at 3.09. That excess has been on
+the open list since D-231 and was never explained - D-233 showed the pooled PDF
+was not its cause, and D-234 showed the only source term for helium in
+shielded gas is cosmic rays over a recombination sink with charge exchange
+zeroed by the 6000 K gate.
+
+So the chain now reads: excess He+ -> excess 24.6 eV recombination continuum ->
+emitted inside a cell ~700 optical depths per cell thick at that energy ->
+reabsorbed on the spot -> H0 and He0 photoionization. That is the same
+architecture as the D-227 relaxation oscillation, through a different channel,
+and it is a *loop*: the reabsorbed continuum is itself part of what sustains
+x(He+).
+
+**This is a hypothesis about a mechanism, not a measurement of one.** What is
+measured is the 87-95% share and the 2-7.5x He+ excess. Whether the continuum
+sustains the excess, or merely tracks it, is not established - the excess could
+equally be set by the cosmic-ray source with no feedback at all. Distinguishing
+them is the next step and it is cheap: the D-234 probe already prints `up` and
+`dn` per ion, so comparing the photoionization term for He0 against the
+cosmic-ray term in the same cells says directly whether the continuum is
+contributing to helium's own ionization balance or only to hydrogen's.
+
+### Two process notes
+
+**Measured at 13 iterations, not 22.** The first attempt was killed by the
+harness's low-memory guard at iteration 6. The relaunch shortened the run,
+which reduces the exposure window but not the peak footprint, so it was a
+probabilistic mitigation rather than a fix. It is validated after the fact:
+`ion/gas` agrees with D-243's 22-iteration values to 1-2% in six of seven
+buckets (0.620/0.621, 0.109/0.108, 0.129/0.127, 0.403/0.403, 0.375/0.376), the
+exception being A_V 1.73 at 0.164 against 0.137. Deep-cell Te differs by ~2 K
+between the two runs, which is the D-242 scatter and not a trend.
+
+**Memory, open.** Measured with PSS, this run holds **1.05 GB/rank, 14.74 GB
+across 14 ranks** - against the 393 MB/rank (5.5 GB) that the project's
+documented model, 234 MB + 10.47 kB/cell at 15204 active cells, predicts. That
+is 2.7x, and it is real: PSS 14.74 GB against summed RSS 15.00 GB means shared
+pages account for only 0.26 GB. One `(15205, 600)` real array is 36.5 MB, so
+1.05 GB/rank is ~29 such arrays where the documented per-cell term implies four
+or five. **Cause unknown, and deliberately not written into CLAUDE.md or the
+memory note**: distinguishing "regression in this tree" from "the model always
+understated this fixture" requires building an older commit and measuring it,
+and the `-np 14` guidance and the 58^3 ceiling both derive from that model. My
+first reading of this, that the run was a small contributor to system pressure,
+was wrong - it held ~60% of available RAM, so the kill was substantially our
+own doing.
+
+**Still open and untouched.** CO 1-2 decades under the reference with carbon at
+1.00 under biasing. Nothing in D-243 or D-244 bears on it directly, though the
+He+ excess and the molecular deficit have both survived every fix so far.
+
+## D-245 - a leak of my own: an allocate guard that outgrew its deallocate (2026-09-12)
+
+Found by asking why D-244's first attempt was killed for memory at iteration 6
+when D-243, an identical configuration, had completed 22 iterations an hour
+earlier.
+
+### The defect
+
+    :760   if (lgDebug .or. pdrSplitField /= 0) then
+              allocate(JDifTemp(0:grid(iG)%nCells, nbins), ...)
+    :923   if (lgDebug) then
+              if ( allocated(linePacketsTemp) ) deallocate(linePacketsTemp)
+              if ( allocated(JDifTemp) )        deallocate(JDifTemp)
+           end if
+
+**D-158/D-225 added `pdrSplitField /= 0` to the allocate guard and left the
+deallocate under `lgDebug` alone.** That was my edit: the point was to unpack
+the reduced diffuse field into `grid%JDif` for the D-225 closure census, and I
+changed one guard of a pair.
+
+Why it leaks rather than merely being untidy: **`iterateMC` is `recursive`**
+(declared at `:45`). It does not loop over MC iterations - it advances
+`nIterateMC` at `:3220` and calls *itself* at `:3227`. A local allocatable is
+auto-deallocated on return, but the return does not happen until the whole
+recursive chain unwinds, so anything still allocated at the recursive call
+stays live in that frame and in every frame beneath it. With `pdrSplitField 1`
+and `lgDebug` off - exactly the `hiipdr-split` fixture - each iteration left one
+`(15205, 600)` real4 array behind: **34.8 MiB per rank per iteration**.
+
+`JSteTemp` sits two lines below, outside the `lgDebug` block, and is freed every
+iteration. That asymmetry is what made the bug invisible on inspection.
+
+### Measured, before and after
+
+Per-rank PSS, `-np 4`, same fixture, `maxIterateMC 6`:
+
+    iteration   before      after     saving
+        1       754.6 MB   685.1 MB    -69
+        2       789.5 MB   685.1 MB   -104
+        3       828.5 MB   689.3 MB   -139
+        4       874.6 MB   700.7 MB   -174
+        5         --       703.9 MB
+        6         --       720.1 MB
+
+Before: monotonic, +34.9 MB at the first step against 34.8 MiB predicted from
+the array dimensions, and it never comes back down. After: flat, and the
+residual wobble (689 -> 713 -> 700 -> 717 -> 704 -> 720) moves in **both**
+directions, which is transient allocation within an iteration rather than
+accumulation. The saving grows by ~35 MB per iteration, which is the signature
+of one such array per recursion level now being freed.
+
+Extrapolated to the 22-iteration production setting: ~1420 MB/rank, ~19.9 GB
+across 14 ranks, against ~700 MB/rank and ~9.8 GB fixed. That is the difference
+between the run fitting on this machine and the harness killing it, and it is
+why the 2e7-packet and 22-iteration runs had been getting progressively harder
+to complete.
+
+### Scope
+
+**No computed quantity is affected.** The leak consumes memory and touches
+nothing else, and both affected runs completed. D-243's negative result on the
+19.82 eV helium line and D-244's finding that the He I recombination continuum
+supplies 87-95% of the cold PDR's ionizing gas emission both stand.
+
+Audit of every other temporary in `iterateMC` - all pair symmetrically, and all
+are freed well before the recursive call at `:3227`:
+
+    opacityTemp      alloc :252 unguarded   dealloc :279 unguarded
+    dustPDFTemp      alloc :434 lgDust      dealloc :530 lgDust
+    recPDFTemp       alloc :455 unguarded   dealloc :566 unguarded
+    totalLinesTemp   alloc :463 unguarded   dealloc :561 unguarded
+    linePDFTemp      alloc :477 lgDebug     dealloc :564 lgDebug
+    JSteTemp         alloc :753 unguarded   dealloc :927 unguarded
+    linePacketsTemp  alloc :766 lgDebug     dealloc :924 lgDebug
+    JDifTemp         alloc :761 lgDebug|pdrSplitField   dealloc :925 lgDebug
+
+`JDifTemp` was the only mismatch. The fix moves its deallocate out of the
+`lgDebug` block so the guard matches the allocation.
+
+The `_testing` tree had already corrected this independently - D-243's diff
+listed `if (allocated(JDifTemp)) deallocate(JDifTemp)` among the lines present
+only on their side, and I recorded it there as an unremarkable formatting
+difference rather than recognising it as a fix. That was a missed signal.
+
+### Still open, and NOT explained by this
+
+**The baseline is 685 MB/rank against the 393 MB the documented model predicts
+(234 MB + 10.47 kB/cell at 15204 active cells) - 1.74x, present at iteration 1
+before any accumulation.** One `(15205, 600)` real4 array is 34.8 MiB, so
+685 MB/rank is ~20 such arrays where the documented per-cell term implies four
+or five. Deliberately **not** written into CLAUDE.md or the memory note:
+separating "regression in this tree" from "the model always understated this
+fixture" requires building an older commit and measuring it, and the `-np 14`
+guidance and the 58^3 ceiling both derive from that model.
+
+### Process notes
+
+The first verification attempt was **invalid and I nearly reported it**. Its
+`cp` of the fixed binary failed with "Text file busy" - the previous probe's
+sampler had exited after a fixed 40 samples while the `mpirun` it launched kept
+running - so the verification executed the *old* binary alongside 4 surviving
+old ranks, 8 in total, and was killed for memory. The only trace was a
+Portuguese error on line 1 of the task output, which I did not read until the
+run was over. Two corrections: the retry verifies the copy with `cmp` and
+aborts if it did not land, and the sampler's lifetime is tied to the run's
+(`while kill -0 $MPID`) with a cleanup pass so nothing survives it.
+
+Separately, `pkill -f "^\./mocassin$"` killed its own invoking shell, because
+the pattern appears in that shell's own command line - exit 144 with no output.
+`pkill -x mocassin`, which matches the process name rather than the command
+line, is the correct form.

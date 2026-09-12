@@ -695,6 +695,7 @@ module emission_mod
         real,dimension(NHeIILyman) :: HeIILyman
         integer           :: iB243                    ! D-243
         real              :: ionTot243, gasTot243     ! D-243
+        real              :: ionHI243, ionHeI243, ionHeII243   ! D-244
 
         cShapeLoc = 'blackbody'
         call locate(nuArray, 1.45673, j2TsP)
@@ -851,9 +852,17 @@ module emission_mod
                     if (.not.lgAVsamp243(iB243)) then
                        lgAVsamp243(iB243) = .true.
                        gasTot243 = normHI + normHeI + normHeII
-                       ionTot243 = sum(sumDiffuseHI(HlevNuP(1):nbins)) &
-                            & + sum(sumDiffuseHeI(HlevNuP(1):nbins)) &
-                            & + sum(sumDiffuseHeII(HlevNuP(1):nbins))
+                       ! D-244: the same ionizing sum, split by emitter. D-243
+                       ! showed the He I 2^3S line carries under 1% of it, so
+                       ! the remaining ~40% in the coldest cells comes from the
+                       ! recombination continua themselves - this says which.
+                       ! NOTE: ionHeI still CONTAINS `correction`, which was
+                       ! added into sumDiffuseHeI(j2TsP) above; corr is printed
+                       ! alongside so it can be subtracted rather than guessed.
+                       ionHI243   = sum(sumDiffuseHI(HlevNuP(1):nbins))
+                       ionHeI243  = sum(sumDiffuseHeI(HlevNuP(1):nbins))
+                       ionHeII243 = sum(sumDiffuseHeII(HlevNuP(1):nbins))
+                       ionTot243 = ionHI243 + ionHeI243 + ionHeII243
                        print '(a,i4,a,i7,a,f7.3,a,f9.2,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3)', &
                             & " ! [D243] rank ", taskid, " cell ", cellPUsed, &
                             & "  AV ", grids(iG)%AVeff(cellPUsed), &
@@ -863,6 +872,15 @@ module emission_mod
                             & "  ionTot ", ionTot243, &
                             & "  corr/gas ", correction/max(gasTot243, tiny(1.)), &
                             & "  corr/ion ", correction/max(ionTot243, tiny(1.))
+                       print '(a,i4,a,i7,a,f7.3,a,es10.3,a,es10.3,a,es10.3,a,f7.4,a,f7.4,a,f7.4)', &
+                            & " ! [D244] rank ", taskid, " cell ", cellPUsed, &
+                            & "  AV ", grids(iG)%AVeff(cellPUsed), &
+                            & "  ionHI ", ionHI243, &
+                            & "  ionHeI ", ionHeI243, &
+                            & "  ionHeII ", ionHeII243, &
+                            & "  fHI ", ionHI243/max(ionTot243, tiny(1.)), &
+                            & "  fHeI ", ionHeI243/max(ionTot243, tiny(1.)), &
+                            & "  fHeII ", ionHeII243/max(ionTot243, tiny(1.))
                     end if
                  end if
               end if
