@@ -2474,6 +2474,11 @@ end subroutine iterateT
             real, dimension(nElements, nstages,4) :: &
                  & chex         ! ch exchange coeff in cm^3/s
 
+            ! D-235: is the photoionization sum empty because there is no
+            ! field in this ion's range, or because there is no cross-section?
+            integer :: jLo234, jHi234, jj234, nnz234
+            real    :: sumJ234, xTh234
+
 
             ! initialize variables
             correction  = 0.
@@ -2681,6 +2686,26 @@ end subroutine iterateT
                          & .and. grid%pdrZone(cellP) == 1 &
                          & .and. grid%AVeff(cellP) > 2.0) then
                        nProbe234 = nProbe234 + 1
+                       ! D-235: the field and the cross-section this ion
+                       ! actually sees, over its OWN range. phot sits at its
+                       ! 1e-20 initialisation floor for every element while
+                       ! chiFUV - built from the same Jste - reads 0.13 in
+                       ! this cell, so one of the two must be empty.
+                       sumJ234 = 0.; xTh234 = 0.; nnz234 = 0
+                       jLo234 = 0; jHi234 = 0
+                       if (elem > 2) then
+                          jLo234 = elementP(elem, ion, outShell, 1)
+                          jHi234 = min(elementP(elem, ion, outShell, 2) - 1, nbins)
+                          if (jLo234 >= 1 .and. jHi234 >= jLo234) then
+                             do jj234 = jLo234, jHi234
+                                sumJ234 = sumJ234 + grid%Jste(cellP, jj234)
+                                if (grid%Jste(cellP, jj234) > 0.) nnz234 = nnz234 + 1
+                             end do
+                             if (elementP(elem, ion, outShell, 3) >= 1 .and. &
+                                  & elementP(elem, ion, outShell, 3) <= size(xSecArray)) &
+                                  & xTh234 = xSecArray(elementP(elem, ion, outShell, 3))
+                          end if
+                       end if
                        if (elem == 1 .and. ion == 1) &
                             & print*, "! [D234] cell", cellP, " AV", &
                             & grid%AVeff(cellP), " Te", TeUsed, " Ne", NeUsed, &
@@ -2694,6 +2719,13 @@ end subroutine iterateT
                             & "  chex", dble(chex(elem,ion,1)), &
                             & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
                             & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
+                       if (elem > 2) &
+                            & print '(a,a2,i3,a,i5,a,i5,a,es10.3,a,i5,a,es10.3)', &
+                            & " ! [D235]   ", elemLabel(elem), ion, &
+                            & "  bins", jLo234, " to", jHi234, &
+                            & "  sum Jste", dble(sumJ234), &
+                            & "  bins with J>0", nnz234, &
+                            & "  xSec(thresh)", dble(xTh234)
                     end if
 #endif
 

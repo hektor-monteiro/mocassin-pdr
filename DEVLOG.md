@@ -233,7 +233,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-231 | **Fixed and verified - it does not explain the missing CO, and the converged profile says what does not.** The after-solve electron abundance now sits with the cell's ions (was 14-300x off). CO is unchanged by it (-74.4% and -74.8% at iterations 5-6, against -74.6% and -74.9% before), because the rates inside the solve never read the corrupted entry. Converged at 22 iterations, 83.3%: deep x(CO) 4.2e-10 against the reference's 3.3e-8 (80x low), x(OH) 4.7e-13 against 4.1e-10 (870x low), x(He+) 3.6e-5 against 2.5e-6 (14x high), carbon fully neutral where the reference keeps C+. The unconverged 17% fail on Te (2542) not on the chemistry (2) | Done | 2026-09-11 |
 | D-232 | **Dust supplies 92-94% of a cold cell's re-emission spectrum and emits nothing ionizing - but the channels are pooled, so ~3.8% of what dust absorbs comes back out ionizing and ~0.15% above 24.6 eV.** The gas remainder is 49-60% ionizing at 14-25 K, because the recombination continua are narrow spikes at their thresholds. Two compounding faults: the pooled PDF (the user's objection, confirmed) and the on-the-spot treatment of near-threshold gas emission | Done | 2026-09-11 |
 | D-233 | **Fix: dust absorptions re-emit from the dust's own spectrum.** Each non-scattering absorption branches on absOpac/(opacity - scaOpac): dust absorptions become 'dustEmi' packets sampling dustPDF, gas absorptions stay 'diffuse' sampling a recPDF that no longer carries the dust term. dustPDF is built and reduced whenever there is dust, not only when there is no gas. **Result: it fixes the ionization front and does nothing for the dark gas.** x(He+)/ref at the front goes 1390 -> 1.15, the first PDR cell 939 K -> 21.9 K and fully neutral, x(C+)/ref 0.95 -> 1.00, convergence 83.3% -> 87.8%. Deep, every number is unchanged (He+ 14.6x, CO 78x low, OH 870x low, C+ 1.9e-7 of the reference), so the pooled PDF was not what sustains helium ionization in dark gas - that hypothesis is discarded and the on-the-spot question (D-232) is next. The H II region only cools 0.2-2.6% and the front does not move | Done | 2026-09-11 |
-| D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell | Open | 2026-09-12 |
+| D-234 | **Instrument the ionization balance for every element, not only carbon.** Deep in the PDR x(C+) is 1e-7 of the reference while x(He+) is 1e3-1e4 above it, in the same cells - opposite signs, so a carbon-only probe cannot separate a broken carbon from an element-dependent split. Two things in ionBalance are element-dependent by construction: chex is zeroed below 6000 K for every element, and the cosmic-ray source is added only for elem 1 and 2, so H and He keep a source in shielded gas that every metal loses. Prints up/dn and each ingredient per stage per element in one deep cell. **Result: stellar photoionization is at its 1e-20 initialisation floor for EVERY element, and the only non-zero source anywhere in the cell is the cosmic-ray term for H and He.** Every metal stage - C, N, O, Ne, S - has up = 1e-20 exactly, so nothing ionizes them at all; chex is 0 for every element (the 6000 K gate); dn is Ne*alpha exactly. The C+ cliff is therefore not carbon-specific, and the He+ excess is the CR source over a recombination sink with no charge exchange | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -14953,3 +14953,51 @@ cell with `A_V > 2`, and capped at 120 lines. Prints per stage per element:
 threshold from `elementP(elem,ion,outShell,1)`, and up/dn.
 
 **Run.** `runs/d234-ionprobe`, hiipdr-split plus `teProbe 1`.
+
+**Result (2026-09-12).** `runs/d234-ionprobe`, iteration 12, cell 27:
+A_V = 2.880, Te = 14.83 K, Ne/n_H = 6.54e-5, chi = 0.129.
+
+     elem stage      up        phot        dn      Ne*alpha    chex     up/dn
+     H    1      2.301e-17   1.000e-20  1.783e-13  1.783e-13   0.000  1.291e-04
+     He   1      2.501e-17   1.000e-20  1.745e-13  1.745e-13   0.000  1.433e-04
+     He   2      1.000e-20   1.000e-20  7.998e-13  7.998e-13   0.000  1.250e-08
+     C    1      1.000e-20   1.000e-20  1.766e-13  1.766e-13   0.000  5.661e-08
+     ... N, O, Ne, S, every stage: up = phot = 1.000e-20, chex = 0, dn = Ne*alpha
+
+**The prediction was right about the split and wrong about its size.** H and He
+do keep a source every metal lacks, and it is exactly the cosmic-ray term:
+5.98e-18*(5e-17/1.3e-17) = 2.300e-17 for H and 6.50e-18*(5e-17/1.3e-17) =
+2.500e-17 for He, matching the printed `up` to four digits. But I predicted the
+metals would show a small photoionization rate. They show **none**: `nPhotoSte`
+is still at the 1.e-20 it is initialised to at update_mod:169, for every element
+in the cell - hydrogen included.
+
+**So the C+ cliff is not about carbon.** Nitrogen, oxygen, neon and sulphur are
+equally un-ionized, for the same reason: with `up` pinned at the floor and `dn`
+= Ne*alpha, the stage ratio is 1e-7 to 1e-9 and every metal goes fully neutral.
+Carbon was only the element whose neutral fraction the chemistry needed, so it
+is where the defect became visible.
+
+**And the helium excess is the same mechanism with the sign reversed.** He keeps
+the cosmic-ray source, loses charge exchange to the Te < 6000 K gate, and
+recombines only through Ne*alpha at an Ne that is itself low: up/dn = 1.43e-4
+gives x(He+) ~ 0.1*1.43e-4 = 1.4e-5, the order of the measured 3.6e-5 and well
+above the reference's 2.5e-6. It is not a radiative-transfer artefact, and no
+amount of D-233 could have moved it.
+
+**What is not yet known, and is D-235.** For hydrogen a floored `phot` is
+correct - its threshold is 1 Ryd and J(>1 Ryd) is exactly 0 in every PDR cell.
+For carbon (threshold 0.8276 Ryd) and sulphur (0.7614 Ryd) it is not, because
+those thresholds lie INSIDE the FUV band - bins 397-431, [0.4457, 0.9997] Ryd -
+and `chiFUV` is built from the same `grid%Jste` over that band and reads 0.129
+in this very cell. Two possibilities remain that this probe cannot separate: the
+field is zero between 0.8276 and 1.0 Ryd although the band as a whole is not, or
+the cross-section the loop reads there is zero. D-235 prints, per ion, the
+summed Jste over its own bin range, how many of those bins carry J > 0, and the
+cross-section at its threshold. Run: `runs/d235-fuvprobe`, 13 iterations.
+
+**One reading artefact.** The probe prints `nu_th` from
+`elementP(elem,ion,outShell,1)`, which H and He do not use - they carry
+`HlevNuP`/`HeIlevNuP` - so their printed 0.0000 is an unset pointer, not a
+threshold.
+
