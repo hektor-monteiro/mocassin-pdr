@@ -2738,9 +2738,14 @@ end subroutine iterateT
                             & "  chex", dble(chex(elem,ion,1)), &
                             & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
                             & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
+                       ! D-238: rank and cell on EVERY line. With 14 ranks
+                       ! writing to one stdout, a [D235] line could attach to
+                       ! another rank's [D234] header - D-237 recorded that as
+                       ! a caveat and D-238's first profile was corrupted by it
+                       ! (deep cells reading shallow cells' values verbatim).
                        if (elem == 6 .or. elem == 16) &
-                            & print '(a,a2,i3,a,i5,a,es10.3,a,i5,a,es10.3,a,es10.3)', &
-                            & " ! [D235]   ", elemLabel(elem), ion, &
+                            & print '(a,i3,a,i7,a,a2,i3,a,i5,a,es10.3,a,i5,a,es10.3,a,es10.3)', &
+                            & " ! [D235] rank", taskid, " cell", cellP, "  ", elemLabel(elem), ion, &
                             & "  binLo", jLo234, &
                             & "  sum Jste", dble(sumJ234), &
                             & "  bins with J>0", nnz234, &

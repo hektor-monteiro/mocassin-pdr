@@ -237,7 +237,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-235 | **The cross-sections are present and correct; the field is absent.** Per ion, over its own bin range, in a cell at A_V 2.88: sum Jste = 0.000 with 0 bins carrying J > 0, while xSec at threshold reads 1.828e-17 for C I, 3.202e-17 for S I, 1.278e-17 for N I. Sulphur is the discriminator - its range starts at bin 416 (0.7614 Ryd), BELOW carbon's 421, and is equally empty - so the cutoff is not carbon's own edge. Since chiFUV = 0.127 is built from the same Jste over bins 397-431, every surviving photon lies in bins 397-415, below the lowest metal threshold in the model. Only one cell was sampled, so absorbed-on-the-way-in and never-present are still indistinguishable | Done | 2026-09-12 |
 | D-236 | **Sample one cell per 0.5 mag of A_V, to read the field as a function of depth.** If the 0.76-1.0 Ryd flux is present near the front and dies inward, the metals are absorbing the photons that would ionize them - real self-shielding, and the divergence from 3D-PDR is method (full transfer against a fitted CIPDRATE factor). If it is zero at every depth including the first PDR cell, those photons never enter the PDR at all and MOCASSIN cannot ionize any metal anywhere in it. **Result: absorbed, not absent - and only C and S were ever candidates.** At A_V 1.381 C I carries sum Jste 1.116e-03 over 9 of its 179 bins and S I 1.642e-03 over 13; at A_V 2.880 both are exactly 0. N, O and Ne have thresholds ABOVE 1 Ryd where J is identically zero in a PDR, so their neutrality is correct physics, not a defect - my 'no metal is ever photoionized' was too broad. The depth scheme returned only two points because the probe was gated on taskid == 0 | Done | 2026-09-12 |
 | D-237 | **Measure tau from MOCASSIN's own opacity, and sample on every rank.** **Result: the C+ cliff is the Monte Carlo estimator's floor.** Over four decades the field tracks exp(-tau)*(r0/r)^2 to within 1.2-4.5x using the measured opacity, then stops rather than decaying. opac(421) is flat at 2.273e-19 while carbon is ionized and rises to 6.604e-19 once it is not - an increment of 4.33e-19 against x(C)*n_H*sigma = 4.02e-19, carbon shielding itself. At the reference's own depth the two codes nearly agree (tau ~ 11.2 against TAUC ~ 10.4), so the implied rate ~2.5e-13 against dn 1.78e-13 gives C+/C ~ 1.4: the physics does not forbid C+ there, the estimator does. One packet is worth ~2.6e-6 and the predicted field at the first zero cell is 1.2e-6 | Done | 2026-09-12 |
-| D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in | Open | 2026-09-12 |
+| D-238 | **Composite biasing of the interaction depth (Baes et al. 2016, A&A 590, A55), already present in the tree and inert.** `calculate_pass_prob_and_weight` returned the analog `-log(1-r)` with `weightFactor = 1`; the composite scheme was written beneath it, commented out, with a variable named `compXi`. Enabled behind the `pathStretch` keyword, with two defects fixed: the branch selection reused the analog draw instead of taking its own, and `(1-alpha)*tau` was unguarded against overflow. alpha = 1/(1+R_out*opacity), so the stretched branch has mean depth 1+tau_model and reaches the far side by construction; weights are bounded by 1/xi. Test: hiipdr-split at 13 iterations with the D-235 probe still in. **Result: it works, it is safe, and it is not enough.** Deep x(C+) goes 3.155e-11 -> 4.600e-08, a factor 1458, and every deep cell now carries flux where all four previous runs read exactly 0 in all 179 bins. But that is still 3500x under the reference's 1.624e-4 and ~100x under the ~4e-6 I predicted; CO rises only 49% (4.24e-10 -> 6.31e-10) and OH FALLS 8%, against a predicted rise. Every control holds: H II Te within 0.1-0.5%, ionization front unmoved, deep x(H2) 0.4749 -> 0.4751, hydrogen budget 9.2e-5, T_dust -1.8%, no NaN. Convergence 87.9% -> 85.7% | Done | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -15223,3 +15223,64 @@ re-emitted with weight w and the re-emission budget stays consistent.
 
 **Run.** `runs/d238-stretch`, hiipdr-split plus `teProbe 1` and `pathStretch 0.5`,
 13 iterations.
+
+**Result (2026-09-12).** Clean exit, 13 iterations, 85.7% converged.
+
+     deep, A_V 3.09    D-238 biased   D-233 analog   reference
+     Te                14.1 K         14.4 K         24.4 K
+     x(C+)             4.600e-08      3.155e-11      1.624e-04
+     x(C)              2.200e-04      2.200e-04      5.752e-05
+     x(CO)             6.313e-10      4.241e-10      3.300e-08
+     x(OH)             4.384e-13      4.752e-13      4.095e-10
+
+**The mechanism works.** Every deep cell now carries flux - 16 of 16 at
+A_V > 2.2, where D-234 through D-237 measured exactly zero in all 179 bins - and
+x(C+) rises by a factor 1458. The fixed point is broken: the estimator no longer
+returns a stable zero.
+
+**The controls all hold, which is what licenses the method.** This changes the
+sampling of every model, so these mattered more than the headline:
+
+     H II region Te      15610/13850/12000/10310 vs 15630/13860/12030/10260 K
+     ionization front    first PDR cell index 5, both runs - unmoved
+     deep x(H2)          0.4751 vs 0.4749
+     hydrogen budget     worst |sum-1| 9.2e-5 vs 9.8e-5
+     deep T_dust         12.03 vs 12.25 K (-1.8%)
+     NaN / Infinity      none anywhere in the log
+
+Convergence falls 87.9% -> 85.7%, which D-238 predicted: a noisy small rate
+where there was a stable zero, and the chemistry feeds back on it.
+
+**But the prediction was only half right, and one part of it failed.** I
+predicted x(C+) ~ 4e-6 and that CO and OH would rise off their floors. C+ rose
+three orders but landed 100x short of that; CO rose only 49%; and **OH fell 8%**,
+which no part of the prediction anticipated. Carbon is still essentially all
+neutral - 4.6e-8 against x(C) = 2.2e-4 - so none of this has yet changed the
+chemistry in the way that matters.
+
+**Why it is probably still under-converged rather than wrong.** The deep [D235]
+sums come out between 1e-17 and 1e-35, against the ~2.7e-10 that D-237's
+exp(-tau) fit predicts physically. That is not a small discrepancy, and the
+likely cause is that `enPacket%weight` COMPOUNDS multiplicatively: it is
+multiplied by `weightFactor` once per `pathSegment` and carried through
+re-emission, so a packet crossing many segments can reach an extreme weight.
+Composite biasing bounds each single draw by 1/xi, but it does not bound the
+product over segments. The deep deposits are therefore dominated by rare
+extreme-weight packets - non-zero, but not a converged field.
+
+**And the D-238 profile in the log cannot be trusted, through my own fault.**
+D-237 recorded that with every rank printing, a [D235] line can attach to
+another rank's [D234] header, and I ran D-238 before fixing it. Several deep
+cells report shallow cells' values verbatim (cell 19 at A_V 2.030 carries cell
+6's 4.017e-02 and 33 bins; cells 22 and 24 carry cell 7's). The grid dump above
+is unaffected - it comes from `pdrGrid.out`, not the log - so the result stands,
+but the depth profile must be re-measured. The print now carries rank and cell
+on every line.
+
+**What is open.** The residual is now 3500x, not the ~30x D-237 projected, so
+either the deep field is still far under-converged (the weight-compounding
+hypothesis above, testable by bounding or resetting the per-segment weight
+product, or by raising nPhotons) or something beyond the estimator limits C+
+here. Those are different fixes and the measurement that separates them is a
+re-run with the corrected print and a weight diagnostic.
+
