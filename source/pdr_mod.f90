@@ -2249,6 +2249,7 @@ module pdr_mod
         integer            :: iBinD113                   ! D-258
         logical, save      :: lgAVd113(8) = .false.      ! D-258
         integer, save      :: iterD113 = -1            ! D-258b
+        double precision   :: abunPre(pdrNspec)          ! D-258c
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
@@ -2596,6 +2597,7 @@ module pdr_mod
         abun0 = abun
 
 
+        abunPre = abun                                 ! D-258c
         do it = 1, pdrChemIter
            call CALCULATE_REACTION_RATES(Tg, Td, nraysLoc, radSurf, AVray, &
                 & colH2, colHD, colCO, colC, colS, &
@@ -2606,6 +2608,7 @@ module pdr_mod
 
            call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
                 & pdrNspecMod, pdrNreacMod)
+           abunPre = abun   ! D-258c: the chemistry's own state, before D-162/D-231 re-impose
            ! D-162: THERE IS ONE x(H+), AND MOCASSIN COMPUTES IT.
            !
            ! D-153 imposed MOCASSIN's ionization ratio before the solve and let
@@ -2803,6 +2806,26 @@ module pdr_mod
               print*, "! [D258]   implied H2 formation coefficient R =", &
                    & real(pdrFormSp(NH2)/max(nH*abun(pdrNHsp),1.d-99)), &
                    & " cm^3/s   (textbook ~3e-17)"
+              ! D-258c: the chemistry's OWN electrons and linked ions at the end
+              ! of the last solve, before D-162 re-imposes the ion ratios and
+              ! D-231 the electrons. Tests D-258's hypothesis: odes_reduced.c:52
+              ! computes x_e as the cation sum of the evolving state (written back
+              ! at calculate_abundances.c:451), while D-163 has deleted the linked
+              ! ions' radiative recombination, so they may accumulate in the solve.
+              print*, "! [D258c]  species    internal(solve)   imposed(MOCASSIN)   int/imp"
+              do it = 1, 6
+                 select case (it)
+                 case (1); ik = pdrNelect
+                 case (2); ik = NPROTON
+                 case (3); ik = NHEx
+                 case (4); ik = NCx
+                 case (5); ik = NOx
+                 case (6); ik = NMGx
+                 end select
+                 if (ik <= 0) cycle
+                 print*, "! [D258c]  ", pdrSpecies(ik), real(abunPre(ik)), real(abun(ik)), &
+                      & real(abunPre(ik)/max(abun(ik),1.d-99))
+              end do
            end if
         end if
 
