@@ -260,6 +260,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-258 | **H2+ was never starved - two species are mislabelled in 3D-PDR's own files - and the real H3+ deficit is DESTRUCTION: the solver recombines H3+ 22-845x faster than the network allows on our own state, most likely because the chemistry computes its electrons from ions whose recombination the coupling deleted.** (1) **Labelling defect, upstream.** `species_reduced.d` puts H2+ at slot 3 and CH5+ at slot 5, but the generated `odes_reduced.c` integrates slot 3 with CH5+'s reactions (ode[3] formed by rxn 59/73) and slot 5 with H2+'s (ode[5] by rxn 154/170/296); `calculate_abundances.c` copies the abundance array straight in, and both files are byte-identical to upstream `itamos-ism/3D-PDR@fabcdc6` apart from the D-113 capture lines. Every REDUCED-network output labels H2+ and CH5+ crosswise. That is why exactly H2+, H3+ (via rxn 49), CH5+ and CH4+ (via rxn 48) were the only species failing Ptot/Dtot = 1 in the published reference: transposing the two lines in the species file sends all four to 1.000 at every depth while changing Tgas by 1.8e-5 and every abundance by <~1e-4 - a relabelling, not a chemistry error. H2+ and CH5+ do NOT tie under MakeRates' sort key ((20,6) vs (11,6)), so the origin is not a tie-break. (2) **Corrected chain** (d252-hiipdr vs the matched G0=165.56 reference, by slot): true H2+ **0.485/0.894/0.349**, H3+ 6.8e-3/3.7e-2/1.8e-3, HCO+ ~1e-3; the '1.8e-08 H2+' of D-257 was CH5+. The converged D-258b probe confirms independently: H3+'s only source is rxn 49, and its formation implies true x(H2+) = 1.4-1.6e-10 at A_V 1.3-1.8 against the reference's ~2.1e-10. **So blocker 1 is not H2+ supply.** (3) **H3+ is destroyed too fast.** Our H3+ sits at its own steady state (x_eq/x = 1.000) with specific loss 1.18e-7/1.57e-7/8.8e-7 s^-1 at A_V 1.34/1.78/2.38, against the reference's 3.2e-9/3.5e-9/4.1e-9 (99% dissociative recombination 217+218, which the reference's own T and x(e-) reproduce). Evaluating every H3+ sink in `rates_reduced.d` on OUR final state gives 5.2e-9/5.2e-9/1.0e-9 - close to the reference - so the ODE's loss is **22x/30x/845x** the network sum. (4) **Mechanism, a hypothesis consistent with the numbers**: `odes_reduced.c:52` computes x_e as the sum of cation slots from the EVOLVING state and overwrites the imposed value (`:185`; written back at `calculate_abundances.c:451`), while D-163 suppresses the radiative recombination of every linked ion (242 H+, 243 He+, 244-246 C+, 248 O+, 249 Mg+) inside the solve. Their CR/charge-exchange production is kept, so they accumulate during CVODE's integration, the computed x_e inflates, and dissociative recombination empties H3+; D-162/D-231 then re-impose MOCASSIN's ions and Ne AFTER the solve, hiding it from pdrGrid.out. Implied internal x_e 5.6e-3/7.2e-3/3.3e-2 against reported 2.5e-4/2.4e-4/3.7e-5 - same range as D-230's measured x306/x26/x16 electron drift. Not yet measured directly. (5) **Probe**: re-armed per MC iteration after the first version latched at iteration 4 (runs/d258-chainprobe killed, marked INCOMPLETE); d258b ran 22 iterations, 85.03% final, ion balance 16% / Te 9% not reached. **Withdrawn from my own working**: 'blocker 1 is H2+' (D-257); '3D-PDR integrates H2+ with the wrong chemistry' (it is labels only); the MakeRates tie-break origin; and every number from the latched first probe. **CONFIRMED by d258c (s8)**: dissociative recombination with the chemistry's INTERNAL x_e reproduces the solver's H3+ loss to 1.00 at all five PDR depths, against 13-926x too little with MOCASSIN's; the internal electrons are unrecombined H+ (4.7e-3 vs imposed 1.6e-6 at A_V 1.78). **Decision needed**: hold the MOCASSIN-owned ions and x_e fixed inside the solve, or restore their recombination channels | Open | 2026-09-13 |
 | D-259 | **The 3D self-shielding ray tracer is not yet fit to be the only geometry: it stops at boundaries the transport reflects at, truncates slab rays at 59% of the depth, and weights a one-sided field as isotropic. Audit only - nothing changed; parked for later work.** Prompted by the proposal that PDRGEOM=3D be used for EVERY fixture, slabs included, because MOCASSIN has no genuine 1D radiative transfer - a slab is a 3D grid with mirror walls, and the ONEDIMENSIONAL chemistry path (11 of 12 rays blanked, one source-ward column) is a 1D shortcut inside a 3D model. **Agreed in principle; the 3D path needs fixing first.** (1) `computeRayColumns` (`pdr_mod.f90:1374`) `exit`s a ray the moment it leaves the box, while `photon_mod` REFLECTS packets at the `lgSymmetricXYZ` planes - so in hiipdr every inward-looking ray stops at x/y/z = 0 and misses the column of the mirrored octants. (2) It marches at the SMALLEST cell spacing with `nstep = min(2000, dmax/ds+1)`; on the slabs' non-uniform depth axis (4.68e15-5.28e16 cm) 6931 steps are needed, so rays reach only **58.9% of the depth** in d233-v1slab (hiipdr is uniform, 52 steps, unaffected). (3) `radSurf = chi/12` (`:2438`) with a per-ray H2/CO/C column is 3D-PDR's ISOTROPIC-field model; MOCASSIN's direct field is one-sided (point source or illuminated face). (4) The tracer's HEALPix rings are about z while planeIonization illuminates along y; the closed-form fallback in pdrStep assumes rings about the slab normal (only used before the first trace). **Also unknown: which geometry the reference-comparison runs used.** `PDRGEOM ?= 1D` is the Makefile default, no run records its flags, and a symbol-name fingerprint is useless - `nm` shows no `computeRayColumns` even in a binary known to be 3D, because the private routine is inlined. **A claim of mine corrected while auditing**: I said oblique rays leave the slab sideways within ~2.5 cells; the slab is 2.0e19 cm wide against 1.59e19 cm deep, so they travel up to 169% of the depth first. **Plan**: reflect at symmetry planes and mirror walls; cell-by-cell traversal instead of capped marching; decide the angular model (recommended: direct stellar field shielded along the source direction, only the diffuse part over 12 rays); make PDRGEOM=3D the single flavour and print the geometry in every run log. **Validation**: in an infinite slab each ray's traced column must equal N_normal/|mu| exactly, and v1/v2 now reproduce bit-for-bit (D-257). **Decision taken (s7)**: PDRGEOM=3D is the required mode for physical consistency and its ~3x chemistry-iteration runtime is accepted. **Still open**: the angular model | Open | 2026-09-13 |
 | D-260 | **Linked recombination and C/Mg photoionization restored inside the chemistry solve: H3+ recovers to 73-113% of a matched reference, and the C+ cliff it was hiding becomes the leading molecular defect.** D-163 zeroed reactions 242-246, 248, 249 (radiative recombination of H+, He+, C+, O+, Mg+) and 269, 289 (C, Mg photoionization) because MOCASSIN owns them. The generated ODE builds x(e-) from its own cations (odes_reduced.c:52), so with no recombination the solve ran on 12-940x MOCASSIN's electrons and destroyed H3+ by dissociative recombination (D-258). D-260 keeps those rates in the solve; MOCASSIN still re-imposes its ions and electrons after it (D-162/D-231), so ownership is unchanged; no vendored edit. `runs/d260-recomb`, 11 iterations, 84.6% (d258c 85.2%). Internal/imposed x_e 0.94-0.98 at A_V 0.9-1.8 (was 12-940), still 1.8-3 at A_V >= 2.4. All 15039 PDR cells binned in A_V against `sec54g166c.pdr.fin` (tools/d260_profiles.py): H3+ 0.075/0.014/0.043/0.007/0.002 -> 0.11/0.73/0.79/0.92/1.13 at A_V 0.9/1.3/1.7/2.1/2.3; HCO+ up 30-600x to 0.003-0.97; but CO 0.54 -> 9.8 and 0.56 -> 11.6 at A_V 2.1/2.3, OH -> 3.8, CH 7-8x from A_V 1.3, because C+ collapses to 0.003 and x(e-) to 0.17 there (unchanged by D-260) with atomic C 11-18x. Unchanged: Tgas 0.22-0.40 of reference, Tdust 1.18-1.42, He+ 1.3-12x. H budget closes to 3e-8. Open: H2 at A_V 0.9 bin 1.01 -> 0.087 (transition edge, unexamined); single run vs D-242 scatter. **Section 6 correction (same day): the reference slab's lit face belongs at our ionization front (A_V 0.479), not at A_V 0; aligned, the shifted slab ends at 2.93 vs our 3.00, and dust temperature agrees to 12% (it looked 18-42% warm unshifted). Aligned, D-260 still restores H3+ (0.9-2.8x past A_V 1.7) but the model is more molecular than the reference throughout (H2 2-8x at A_V 0.9-1.3, CO 16-48x, CH 10-350x), fed by atomic C 7-15x high and gas 3-7x colder; C+ falls to 1e-7 from A_V 2.5. D-257's unshifted conclusions need re-reading** | Open | 2026-09-13 |
+| D-261 | **Three disagreements in the D-260 figures explained by measurement: cold gas = MOCASSIN's grain photoelectric heating ~80x below 3D-PDR's at the same field (no grains below 100 A); O+ = MOCASSIN zeroes H-ion charge exchange below 6000 K, the reference's only O+ source; missing molecules in the H II gas = a plotting defect of mine.** Tgas: MOCASSIN owns the balance and uses its own PE (pdrPEfromPDR = 0); D-217 budget over 15009 cold cells gives per H: photo 3.2e-28, MOCASSIN PE 1.0e-27, PDR extra 1.7e-27 erg/s, while 3D-PDR's PE evaluated at OUR local field and T averages 7.9e-26 per H. At aligned depths that 3D-PDR PE matches the reference's own PE (6.6e-23 vs 4.4e-23 at the front, 2.7e-24 vs 6.8e-24 at A_V 2.1) although our chi is 2-4x lower, so the heating RATE, not the field, sets the 3-7x cold gas. Grain sizes start at 0.01 um; BT94 heating is dominated by grains < 15 A. Tdust agreement is genuine: pdrRad writes grid%Tdust(0,0) and pdrDustModel = 0 (MOCASSIN only). O+: reference chemanalysis shows O+ 99-100% from 162 H+ + O -> O+ + H against 161 at every depth; update_mod.f90 `if (TeUsed < 6000. .or. TeUsed > 5.e4) chex = 0.` removes both directions in PDR gas, and MOCASSIN re-imposes its O+ after the solve, so ours is 1e-9 cm^-3 against 3e-6. An artificial gate by the project rule. C+: reference is 99% C photoionization (269) against recombination (244); ours agrees to 1% until A_V 2.1 then falls to 1e-7, matching the D-237/D-241 MC estimator floor (6e6 packets here; D-241 recovered C+ at 2e7) - consistent but not re-measured at the aligned depths. Molecules below A_V 0.5: the chemistry is solved in all 165 H II cells (x(H2) 4e-11-1.2e-8); tools/d260_roellig.py zeroed them. Fixed; H2 now rises continuously through the front | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -18766,3 +18767,105 @@ Open: D-256/D-257 conclusions drawn on unshifted A_V (including "C+ to 0.3%,
 x(e-) to 12%" and "H2 correct to 3%") need re-reading with the alignment. The
 Roellig et al. (2007) Fig. 4-style whole-model figures
 (`tools/d260_roellig.py`, `runs/d260-recomb/figs/roellig_*.pdf`) use it.
+
+## D-261 - why Tgas, O+ and C+ disagree, and the molecules that were never missing (2026-09-13)
+
+The user examined the D-260 whole-model figures and asked for three things to be
+explained: T_dust agrees but T_gas does not in the PDR; O+ and C+ have large
+discrepancies; and there are no molecules below A_V ~ 0.5, although nothing
+should gate them. All numbers below are from `runs/d260-recomb` against
+`sec54g166c` with the reference aligned at the front (D-260 section 6).
+
+### 1. Molecules below A_V 0.5: a plotting defect of mine
+
+The chemistry is solved in every active cell. The 165 H II-zone cells carry
+x(H2) 4e-11 - 1.2e-8 (median 2e-9), OH, CO and H3+. `tools/d260_roellig.py`
+zeroed molecules outside `pdrZone == 1`, which drew a gate the model does not
+have. Fixed. H2 now rises continuously from 6e-9 cm^-3 at A_V 0.05 to 1e-5 at
+the front.
+
+The zone flag itself (x(H+) < pdrZoneLim = 0.3, latched) still exists in
+`mocassinToPDR`. It decides `lgChemOnly`, i.e. whether a cell publishes a PDR
+temperature, not whether the chemistry runs.
+
+### 2. T_dust agrees because it is MOCASSIN's
+
+`pdrRad.out` writes `grid%Tdust(0,0,cellP)`, and `pdrDustModel = 0` (MOCASSIN
+only, no HTT91 max). So the 3-12% agreement at aligned depths is MOCASSIN's own
+grain balance against the reference's HTT91 fit: a genuine result, not a
+substitution.
+
+### 3. T_gas: the photoelectric heating rate
+
+MOCASSIN owns the thermal balance (D-193). It heats with its own photoionization
+and grain photoelectric (PE) terms plus the chemistry's extra terms
+(`pdrHeatXtra`: PDR total minus the terms MOCASSIN computes itself), and cools
+with the chemistry's line coolants. `pdrPEfromPDR = 0`, so PE is MOCASSIN's.
+
+D-217 budget, mean over the 15009 cells that stayed cold, per H nucleus:
+
+    heating  photo 3.2e-28   PE(MOCASSIN) 1.0e-27   PDR extra 1.7e-27  erg/s
+    3D-PDR's own PE formula at our local field and T:   7.9e-26  (pdrHeatPE)
+
+At aligned depths (median of our cells in +-0.05 mag):
+
+    A_V    chi ours   ref     Te ours  ref     PE(3D-PDR formula @ ours)   PE ref
+    0.55   78.3      134      22.9    225      6.6e-23                    4.4e-23
+    0.90   16.1      46.3     25.3    169      3.6e-23                    3.3e-23
+    1.30   3.81      14.2     25.9    122      1.7e-23                    2.1e-23
+    1.70   1.07      4.22     23.8    106      7.3e-24                    1.2e-23
+    2.10   0.355     1.31     19.0     86      2.7e-24                    6.8e-24
+    2.50   0.123     0.385    11.3     53      9.5e-25                    3.0e-24
+    2.90   0.040     0.12     10.3     35      3.6e-25                    1.1e-24
+    (PE in erg cm^-3 s^-1)
+
+Our local field is 2-4x below the reference's at aligned depth, yet 3D-PDR's PE
+formula at our field reproduces the reference's PE to within 1.5-3x (its
+efficiency rises in our colder gas). MOCASSIN's own PE is ~80x below that
+formula, so the gas balances at 3-7x lower temperature.
+
+**Hypothesis, not yet measured:** grain size. `dust_sizes.dat` starts at
+0.010 um (100 A). Bakes & Tielens (1994) heating is dominated by grains and
+PAHs below ~15 A, which this model does not contain. By the project rule this is
+a physical difference to report, not a coefficient to substitute
+(`pdrPEfromPDR` exists as a diagnostic).
+
+Test: MOCASSIN's per-cell PE term (mocBud slot 2) is not written to a file.
+Either write it, or rerun with a size distribution extending to ~3.5 A.
+
+### 4. O+: charge exchange is switched off in cold gas
+
+The reference's `chemanalysis` shows that at every depth O+ is 99-100% formed
+by 162 `H+ + O -> O+ + H` and destroyed by 161 (then 58 `H2 + O+` from
+A_V ~ 1.6). `update_mod.f90`, in the ionization ratio loop:
+
+    if (TeUsed < 6000. .or. TeUsed > 5.e4) chex(elem,ion,1) = 0.
+
+This zeroes H-ion charge exchange in both directions (the reverse rate is built
+from chex) in all PDR gas. D-260 put 161/162 inside the chemistry solve, but
+MOCASSIN re-imposes its own O+ afterwards, so the answer is MOCASSIN's: ~1e-9
+cm^-3 against the reference's 3e-6 at the front. This is an artificial gate by
+the project rule. The Kingdon & Ferland (1996) fits are not valid at 20 K
+either, and O/H+ exchange at low T needs the fine-structure-resolved rate
+(the UMIST 161/162 coefficients the chemistry already carries).
+
+### 5. C+: photoionization against the MC estimator floor
+
+The reference's C+ is 99% 269 (C photoionization) against 244 (radiative
+recombination) at every depth. Ours matches to 1% out to aligned A_V 1.7, falls
+to 0.73 at 2.1, and to 1e-7 from 2.5.
+
+This is consistent with the D-237/D-241 finding that the analog estimator
+returns exactly zero C I-ionizing flux below one packet per bin: this run has
+6e6 packets, and D-241 recovered C+ to 1.00 with 2e7. **Not re-measured here, at
+the aligned depths**: the per-bin field in the C I band is not in the outputs.
+
+### 6. What is open
+
+  - Confirm the PE-rate hypothesis (per-cell MOCASSIN PE, or a small-grain run).
+  - Decide how charge exchange should be owned in cold gas. Removing the gate
+    needs low-temperature rates, not the KF96 extrapolation.
+  - Re-measure the C+ cliff at aligned depth against packet count.
+  - Explain the dip in H3+, CH and H2O in the first PDR bins just inside the
+    front (visible in the corrected figure), where the gas falls from ~7000 K
+    to ~23 K.

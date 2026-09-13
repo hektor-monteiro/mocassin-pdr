@@ -16,7 +16,8 @@ Where each quantity comes from, one source per quantity:
   - ions, electrons and neutral atoms in the ionized gas: MOCASSIN
     (grid2.out ionDen, grid1.out Ne). In PDR cells the chemistry's written ions
     equal these to 1e-4 (median), because MOCASSIN re-imposes them.
-  - molecules, and neutral H, C, O in PDR cells: the chemistry (pdrGrid.out).
+  - molecules everywhere, and neutral H, C, O in PDR cells: the chemistry
+    (pdrGrid.out), which is solved in the ionized cells too.
   - T_gas: MOCASSIN (grid1.out). T_dust: MOCASSIN's grains (pdrRad.out).
 
 Placing the reference. A 3D-PDR slab starts at A_V = 0 at its own lit face, and
@@ -135,8 +136,12 @@ def read_run(run):
     pdr = zone == 1
     for key, el in [('H', 'H'), ('C', 'C'), ('O', 'O')]:
         d[key] = np.where(pdr, ab[:, SPEC.index(key)], ion(el, 0)) * nh
+    # The chemistry is solved in every active cell, ionized gas included
+    # (lgChemOnly cells), so the molecules are its answer everywhere. An
+    # earlier version zeroed them outside the PDR zone, which drew a gate the
+    # model does not have.
     for key in ['H2', 'CO', 'OH', 'H2O', 'CH', 'HCO+', 'H3+']:
-        d[key] = np.where(pdr, ab[:, SPEC.index(key)], 0.0) * nh
+        d[key] = ab[:, SPEC.index(key)] * nh
     d['A_front'] = d['AV'][pdr].min()
     return d
 
