@@ -141,6 +141,16 @@ def read_ref(p):
 
 
 def read_run(r):
+    # D-254 correction: refuse a cancelled run outright. The first version of
+    # this entry quoted a "46x second defect" out of runs/d252-v1slab, whose own
+    # INCOMPLETE marker says "4 of 22 iterations ... Do not use" - with
+    # pdrStartIter 4 the chemistry had run on the final iteration only. The
+    # output files are all present and correctly shaped, so nothing in the data
+    # announces the problem; only the marker does. Fail loudly, not silently.
+    mk = os.path.join(r, 'INCOMPLETE')
+    if os.path.exists(mk):
+        raise SystemExit(f"REFUSING {r}: marked INCOMPLETE -\n    "
+                         + open(mk).read().strip().replace('\n', '\n    '))
     t = open(f'{r}/output/grid0.out').read().split()
     nx, ny, nz = int(t[1]), int(t[2]), int(t[3])
     n = nx*ny*nz; off = 7+nx+ny+nz
