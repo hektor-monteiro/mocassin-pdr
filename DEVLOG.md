@@ -254,6 +254,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-252 | **The corrected-composition re-run: D-249 survives, and restoring Mg INVERTS deep carbon.** `d252-hiipdr` is `d248-tehist` byte-for-byte with Mg = 2.7e-06 (13 iterations, 30:16, clean, 85.09%). **The chain is unmoved**: H3+ 0.0090 -> 0.0080, CO 0.050 -> 0.062, OH 0.110 -> 0.100, HCO+/CH3+/H3O+ unchanged - so the molecules are not rescued and the FUV normalisation stands as blocker 1. H3+ deepened, the predicted direction, since `H3+ + Mg` is a SINK. Mg+ is now carried correctly at 0.968. **But deep carbon inverted**: in the same fixed A_V band 1.84-2.45, C/C+ went 0.43 -> **4.31** against the reference's 0.11, and deep x(e-) halved (ratio 0.95 -> 0.44; C+'s share of the budget 78.7% -> 46.4%). The mechanism is reaction 185 `C+ + Mg -> Mg+ + C`, which consumes NEUTRAL Mg - and **MOCASSIN's own ionDen leaves 20.2% of Mg neutral in shielded gas against the reference's 0.17%**, ~120x, which the chemistry inherits through the seed (x(Mg) 17.9x too high while x(Mg+) is 0.968). Mg I ionizes at 7.65 eV, so this is sub-Lyman photoionization deep in the PDR - plausibly the same misnormalised field as D-249, i.e. one defect seen twice, but that is a hypothesis and untested. **The two slabs were started and deliberately cancelled** (marked INCOMPLETE on disk): they are the fixtures where Mg+ carries 54% and 99% of the reference's deep electrons, so running them before the Mg ionization fix would produce results the fix invalidates. Also recorded: on the pre-Mg runs our shielded-gas electrons were **98.75% (V1) and 99.99% (V2) spurious He+** against 0.29% and 0.02% in the reference, which resolves D-250's "1.79x electrons while the dominant donor is deleted" and ties it to D-246's missing He+ sink. A prediction of mine was half wrong: whole-grid medians barely moved (x(e-) 1.043 -> 1.046) but the deep band moved a lot, and generalising from the medians was an error. Process: four launches lost to the harness memory guard at 9.4, 9.9, 10.2 and 6.5 GB - the last with 46 GB free, swap 6 GB free and /tmp at 257 MB, so a threshold theory was proposed and disproved; no diagnosis, only a workaround (`setsid`, own session, launched from a foreground call). Swap had been exhausted by **9.3 GB of tmpfs** from a stale session's scratchpad under `/tmp`, which is tmpfs here - scratch runs belong in `runs/` | Open | 2026-09-12 |
 | D-253 | **D-245's leak again: ten arrays unfreed in the same recursive routine.** Prompted by "the memory leak should not be happening" - it should not, and it was real, not the transient allocation D-245 concluded. `iterateMC` allocates PDR reduction buffers at `iteration_mod.f90:1938-1969` and frees them at `:2105-2117` under the SAME guard, but ten were missing from the list: `pdrHeatGG{Tmp,Sum}`, `NePDR{Tmp,Sum}`, `H2den{Tmp,Sum}`, `pdrCoolSp{Tmp,Sum}` and `pdrIonRate{Tmp,Sum}` - **~3.1 MB per rank per iteration at 15205 cells, dominated by pdrIonRate at 1.16 MB each.** It accumulates because `iterateMC` is RECURSIVE (self-call at `:3258`), so anything allocated at that call stays live in that frame and every frame beneath it. Last use of all ten is `:2060-2076`, so freeing at `:2117` is safe; unguarded-unfreed count in the routine goes **14 -> 4** (three `nGrids` locals, plus `ionDenPrev` which is `.not.allocated`-guarded and must persist). Deliberately NOT changed: `updateCell`'s four arrays (no deallocate anywhere in `update_mod.f90`, but they are locals of a non-recursive routine, so freed on return - untidy, not a leak) and `cell_volumes` (guarded allocate-once). **Verified** on `runs/d253-leakcheck`, the same fixture with the post-fix binary, 14 ranks, 13 iterations, 30:34 against 30:16: net drift **+58.5 -> +30.4 MB/rank, 28.2 eliminated**, ~2.2 MB/rank/iteration against ~3.1 predicted. **The residual is NOT a leak**: per-iteration troughs run 688.3, 693.1, 695.4, 690.0, 690.0, 695.7, 694.1, 693.2, 712.9, 691.8 - steps of -5.3, -1.6, -0.8, -21.1, moving BOTH ways, slope +0.39 MB/rank/iter - whereas a leak raises the floor monotonically; the 712.9 is a 60 s sampling artefact. No physics changed: C+, O, H2, Mg+, HCO+, CH3+, H3O+ all at ratio 1.000, largest deviation H2O 13% with H3+ 1.125 and OH 1.110, all deep trace species where D-242 measured 4.7x-25.9x run-to-run scatter. **Untouched**: the 684 MB/rank baseline against the documented 393 MB (1.74x), present at iteration 1 - still blocker 5. The lesson on method: D-245 read the two-directional wobble as proof of health, but that wobble is the ~22 MB intra-iteration swing sitting on top of a real leak - **the trough, not the sample sequence, is the diagnostic** | Accepted | 2026-09-12 |
 | D-254 | **The He+ sink is molecular, and `chex` is the wrong lever: He+ + H is 0.42% of it.** D-246's two open prerequisites, answered from data already on disk. **(2) Magnitude.** He+ has exactly ONE production channel (`rates_reduced.d:297`, He + CRP), both codes evaluate it with the network's own coefficient, and the reference's `params.dat` carries zeta 5.000E-17 against the fixtures' `pdrZeta 5.0e-17` - so P cancels identically and x(He+)_ours/x(He+)_ref = D_ref/D_ours. Decomposing the reference's own D on its own abundances, in sec54's deepest quarter **He+ + H2 (reactions 50 and 170) is 82.0%** and recombination 17.4%, while **He+ + H (156) is 0.42%**; in v1's deepest quarter **He+ + CO (89) is 95.25%**. Different fixture, different dominant molecule - so removing the 6000 K gate buys 0.42%, and no single hardcoded reaction is "the" fix either. The prediction is quantitative and it holds: D_ref/D_ours = 0.98, 2.07, 3.21, 10.98 across the A_V bands against an observed x(He+) ours/ref of 1.14, 2.48, 3.10, 9.85. **Our alpha is not the weak link** - `radRecFit(z=2,n=2)` takes the Verner & Ferland branch with `rnew(:,2,2)` = line 380 of `data/radrec.dat` (offset fixed by line 350 being the published V&F hydrogen row), giving 2.07-2.55e-11 at 16-26 K, **1.6x LARGER** than the network's own reaction 243, so our one sink is generous rather than weak. **NEW - the two fixtures split.** With `phot` negligible (D-246: 4e-4 of the CR term) and `chex` gated off, MOCASSIN's shielded-gas balance reduces to CR/(Ne*alpha); imposed/that equilibrium is **1.01, 1.00, 1.00, 1.05 in sec54**, i.e. MOCASSIN sits exactly at its own CR-vs-recombination equilibrium and **100% of the 3D He+ error is the missing sinks** - but 10.3x and 4.9x in the deep bands of the two 1D slabs. **Localised, and it is not a He+ source**: splitting by `lgBlack` inside each fixture, balance-converged cells give **1.00 in all three fixtures** while `lgBlack` cells give 1.01 in sec54 and **10.69 / 5.00** in the slabs, and `lgBlack` is set at `update_mod.f90:988` when the ION BALANCE fails (measured flag fractions 45.2%/42.6%/20.5% against the logs' own 44%/42%/17% "Ion balance not reached"). **So this is D-247's blocker 4 surfacing in helium, in different cells from the missing sinks.** Eliminated on the way, all from disk: photoionization of He0 (J(>1 Ryd) zero in every deep slab cell), He III recombination as an omitted source (1e-8 of He II), the alpha index (`alphaTot(2,1) = radRecFit(2,2)`, dielectronic skipped for elem < 3, confirmed in code), Ne consistency (1.0000-1.0139 against the chemistry, charge balance closing to 2%), a differing zeta (all three runs saved `input.in` reading `pdrZeta 5.0e-17`), alpha evaluated at a trial temperature (refuted: inverting alpha needs T_implied/Te = 1.0 in sec54's four bands AND in each slab's surface band), and MC-iteration lag (the excess is in MC-converged cells, p10 10.18 / p90 11.41). **A withdrawn claim of my own**: the first version of this entry read a 46x out of `runs/d252-v1slab`, whose own marker says "4 of 22 iterations ... Do not use" - all output files present and correctly shaped, so only the marker announced it; `tools/d254_hesinks.py` now refuses such a directory. Redone on `d233-v1slab`/`d233-v2slab` (complete, 95.07%/95.16%, both Mg = 0, verified from their own output) **(3) Does the chemistry disagree? The output files cannot answer it** - D-162 re-imposes MOCASSIN's ratio AFTER the solve as well as before (`pdr_mod.f90:2604`), so `pdrAbun(He+)` is the imposed value by construction and stored/imposed = 1.0000 identically in all eight bands of both fixtures; reading that as agreement would have been the error. Evaluating the chemistry's own steady state on OUR cell state instead gives imposed/chem = 1.1, 1.2, 2.1, 6.1 (sec54) and 3.4, 571, 2702, 3333 (v1) - and the cross-check that matters: **the chemistry's own answer, computed from our own T, n_H, x(H2) and x(e-), lands at 1.01-2.07x of the reference in sec54 and 1.05-1.41x in three of four v1 bands.** The chemistry already computes the reference's answer; the coupling overwrites it. **Design consequence: the decision D-246 framed is void.** The gate is not the lever, and `chex(2,2,:) = (/1.e-5, 0., 0., 0./)` (`update_mod.f90:2558`) is a flat placeholder with no temperature dependence at all, so the 6000 K test guards a constant rather than enforcing a Kingdon & Ferland validity bound - prerequisite (a) answered in passing. The missing physics is molecular and MOCASSIN cannot own it; the ownership contract already assigns molecular content to the chemistry, and the transport half-exists - `grid%H2den` is filled at `pdr_mod.f90:2826/3178` and already read at `update_mod.f90:1020` - **but there is no CO equivalent, and CO is the sink that dominates the slab.** Nothing implemented; no physics changed by this entry | Open | 2026-09-13 |
+| D-255 | **The 7x FUV "normalisation error" is not one, and not ours: 2.70x is the benchmark's own boundary condition and 2.17x is scattered light.** Opened as the blocker-1 audit after the Mg/lgBlack precursor. **MOCASSIN's FUV chain is verified internally consistent, end to end**: `L_FUV/L_bol` = 0.44993 against a Planck energy fraction of 0.44462 for the 40000 K star (**1.0119**, and `inSpectrumProbDen` is built from `inSpSumErg/normConstantErg`, so it is an ENERGY cumulative, not photon-number); D-017's all-bin control gives `Fbol/Fbol_thin` = 1.27; the analytic Stromgren radius for Q = 4.26e49 at n_H = 100 is 1.5756e19 cm against our shallowest PDR cells at r = **1.562e19 cm (0.9%)**, where `chi_thin` reads 168.45 against the analytic 165.56 (**1.7%**); and binned by attenuation the field sits AT OR ABOVE `exp(-tau_FUV)` (ratio/pred 1.35, 1.56, 1.82, 2.70, 6.98 rising with depth), so there is no excess FUV absorption anywhere. **The reference's field is a prescribed boundary condition, not a computed one**: fitting `sec54.pdr.fin` column 8 gives `UV = G0*exp(-3.02*A_V)` with slope **-3.0200 exactly** and **G0 = 61.236** - note it uses the UV factor 3.02 directly as the exponent coefficient rather than 3.02/1.0857, and that the `G0 = 10` in `3D/params.dat` belongs to the diffuse benchmark, not sec54 (D-250). **So the discrepancy decomposes into two things, neither a bug in the coupling.** (1) The fixture's own star delivers **165.56 Draine at its own ionization front**, against the reference's prescribed 61.236 - **2.70x** - so the two models were never illuminated alike, and every CO/OH comparison in this log has been apples-to-oranges at the boundary. (2) Our field exceeds pure exponential attenuation from that 165.56 at the same A_V by **2.17x** (54.36 against 25.00), which is scattered and diffuse FUV folded into `Jste` - `photon_mod.f90:1858` adds diffuse packets to `Jste` when `lgDebug` is off - whereas the reference has no scattering by construction, its profile being a pure exponential to machine precision. Their product, 5.86x, brackets the 4.63x measured in the shallowest properly matched band. **D-249's numbers are revised down**: with BOTH sides restricted to the A_V range our model actually samples (there are NO PDR cells below AVeff 0.479, so the old shallowest band compared our 0.48-0.61 cells against the reference's 0-0.61 average) the ratios are **4.63, 3.17, 3.00, 3.43**, not 9.05, 5.25, 3.94, 4.10 - so "7x" should be quoted as ~3-4.6x. Also measured, the D-252 Mg question: **the 120x-too-neutral magnesium is mostly blocker 4 but not entirely** - in sec54's deepest quarter f(Mg0) is 0.847 in `lgBlack` cells against 0.148 in balance-converged ones and 0.0045 in the reference, and the shallower bands, which contain ZERO black cells, already run 2.5x, 9.0x, 20.7x too neutral, so a depth-dependent residual survives the ion-balance failure. **Open**: whether Bisbas et al. 2015 section 5.4 actually specifies G0 = 61.24 (we know only that the reference OUTPUT carries it); whether feeding a scattered-light-inclusive chi into rate expressions of the form `alpha*chi*exp(-gamma*A_V)` is right, since that form already assumes the attenuation it is being handed; and whether D-249's ~1 mag displacement of the H/H2 transition survives matched illumination. **Method, four times in one session**: an INCOMPLETE marker unread, `lgConverged` parsed as T/F when it is written 0/1, cells selected by radius when the physical variable is attenuation, and A_V ranges left unmatched between model and reference. Each produced a confident wrong number; each was caught by a quantity the run itself already reported | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -17648,3 +17649,181 @@ because sec54's own summary contradicted it, and the corrected parse recovers
 same class of error as the INCOMPLETE marker above: two in one session, both
 from trusting a derived array without checking it against a number the run
 already reported.
+
+## D-255 - the FUV audit: the 7x is a boundary condition plus scattered light (2026-09-13)
+
+Blocker 1 of the D-247 audit, opened after the Mg/`lgBlack` precursor below.
+D-249 measured `chi/chi_ref` of 9.05 ... 5.00 with the dust-owned slope correct
+to 2.3%, and concluded a "bounded normalisation defect". This audits the chain
+that produces chi and finds no defect in it.
+
+All measurements from `runs/d252-hiipdr` (complete, 13 iterations, 85.09%) and
+`runs/d233-v1slab` / `d233-v2slab` (complete, 95.07% / 95.16%), against
+`benchmarks/pdr/baseline3dpdr/sec54.pdr.fin`.
+
+### 1. The chain, verified end to end
+
+`mocassinToPDR` builds the field as
+
+    uFUV = sum(ifreq = FUVlowP..FUVhighP) Jste(cellP,ifreq)
+    chi  = uFUV / (c * uDraine)                      uDraine = 8.94e-14 erg/cm^3
+
+with `Jste += dlLoc*deltaE*weight/dV` and `deltaE = Lstar/nPhotons` in e36
+erg/s, i.e. a per-packet luminosity - so `Jste` is a per-bin flux, `/c` is an
+energy density and `/uDraine` is dimensionless. No `dnu` and no `4pi` belong in
+that sum, and none is missing.
+
+Five independent checks, none of which fails:
+
+  - **L_FUV.** `L_FUV/L_bol` = 0.44993 from the `pdrFUV.out` header against a
+    Planck energy fraction of 0.44462 over the same band for T = 40000 K:
+    **ratio 1.0119**. The slabs give 1.0092 at 25000 K. So `fFUV` is right, and
+    `inSpectrumProbDen` is indeed an ENERGY cumulative - `continuum_mod.f90:469`
+    builds it from `inSpSumErg(1)*widFlx(1)/normConstantErg`. The obvious
+    suspect - a photon-number PDF used as an energy fraction - is not the bug.
+  - **The estimator.** D-017 already writes the control: `Fbol` summed over
+    every bin against `L_bol/(4 pi r^2)`. In the innermost cells
+    `Fbol/Fbol_thin` = **1.27**, so the MC estimator's normalisation is right to
+    27%, and the excess is the expected reprocessed component.
+  - **The geometry.** The analytic Stromgren radius for the fixture's star
+    (`LPhot 4.26e13`, T = 40000 K, i.e. Q = 4.26e49 s^-1) at n_H = 100 with
+    alpha_B = 2.6e-13 is R_S = 1.5756e19 cm. Our shallowest PDR cells sit at
+    r = **1.562e19 cm**, 0.9% away.
+  - **The thin field.** At those cells `chi_thin` reads 168.45 against
+    L_FUV/(4 pi R_S^2 c uDraine) = **165.56**, 1.7%.
+  - **Attenuation.** Binned by A_V,eff, `chi/chi_thin` divided by
+    `exp(-3.02*A_V/1.0857)` gives **1.35, 1.56, 1.82, 2.70, 6.98** from A_V 0.1
+    to 3.0. The field is at or ABOVE pure exponential attenuation at every
+    depth and rises with it. There is no excess FUV absorption to find.
+
+### 2. The reference's field is prescribed, not computed
+
+Fitting `sec54.pdr.fin` column 8 against column 3:
+
+    d ln(UV) / dA_V = -3.0200   exactly,    G0 = 61.236
+
+So the reference is `UV = 61.236*exp(-3.02*A_V)` to machine precision - a
+boundary condition propagated by a single exponential, with no scattering and
+no geometry. Two details worth recording: it uses the UV factor 3.02 *directly*
+as the exponent coefficient rather than 3.02/1.0857 = 2.78; and the `G0 = 10`
+in `benchmarks/pdr/baseline3dpdr/3D/params.dat` is the DIFFUSE benchmark's
+(`diffuse_32.dat` ICs, zeta 1.0e-16, A_V factor 6.289e-22), not sec54's - the
+same trap D-250 recorded for the A_V conversion.
+
+### 3. The decomposition
+
+    star's field at its own IF / reference G0     165.56 / 61.236 = 2.70x
+    ours / pure exp(-3.02 A_V) at same A_V,eff     54.36 / 25.00  = 2.17x
+                                                   product          5.86x
+    measured, shallowest properly matched band                      4.63x
+
+**Neither factor is a bug in the coupling.**
+
+The first says the fixture's own star delivers 2.70x the field the reference
+model was illuminated with. The reference chose 61.236 as an input; MOCASSIN
+computes 165.56 from Q, the geometry and its own dust. Under this project's
+first rule MOCASSIN owns that number - but it also means the two models were
+never illuminated alike, and every CO/OH comparison in this log inherits a 2.7x
+difference in boundary condition before any physics is compared.
+
+The second is scattered and diffuse FUV. `photon_mod.f90:1858` adds diffuse
+packets into `Jste` when `lgDebug` is off, so chi contains reprocessed light;
+the reference's pure exponential contains none by construction. That the excess
+GROWS with depth (1.35 -> 6.98) is the signature: scattered photons fill in
+exactly where the direct beam has been attenuated.
+
+### 4. D-249's numbers, revised
+
+Our model has **no PDR cells below A_V,eff 0.479**. D-249's shallowest band
+(0.00-0.61) therefore compared our 0.48-0.61 cells against the reference
+averaged over 0-0.61, where the reference field is still near 61. Restricting
+both sides to the range we actually sample:
+
+    A_V band         n     ours        ref       ratio
+    0.479-0.972     699   2.778e+01   6.175e+00   4.63
+    0.972-1.466    1577   4.450e+00   1.370e+00   3.17
+    1.466-1.960    2631   1.004e+00   3.380e-01   3.00
+    1.960-2.453    4449   2.568e-01   7.392e-02   3.43
+
+against D-249's 9.05, 5.25, 3.94, 4.10. **The figure to quote is ~3-4.6x, not
+7x**, and it is flat-ish with depth rather than peaked at the surface.
+
+Also withdrawn from my own working: an intermediate claim that the FUV band ran
+3.5x BELOW its thin expectation. That came from selecting the "innermost 5% by
+radius", which is not an unattenuated sample - the minimum A_V,eff in this
+fixture is 0.479, and binning by attenuation instead gives the 1.35-6.98 above.
+
+### 5. The Mg precursor: mostly blocker 4, but not entirely
+
+Asked before the audit, to decide whether D-252's 120x-too-neutral magnesium
+collapses into the ion-balance failure. It does not, quite. sec54, f(Mg0):
+
+    A_V band        ours     ref      ratio    blk=0      blk=1
+    0.00-0.74      0.0003   0.00010    2.5    0.0003        -
+    0.74-1.48      0.0025   0.00028    9.0    0.0025        -
+    1.48-2.22      0.0349   0.00169   20.7    0.0348        -
+    2.22-2.95      0.2829   0.00447   63.3    0.1468     0.8438
+
+    deepest quarter:  blk=0  n=4908  f(Mg0) 0.1481
+                      blk=1  n=3072  f(Mg0) 0.8469
+
+So blocker 4 is the dominant term - 5.7x between the two populations - but the
+three shallower bands contain **zero** `lgBlack` cells and already run 2.5x,
+9.0x and 20.7x too neutral, rising monotonically. A depth-dependent residual
+survives the ion-balance failure, and balance-converged deep cells are still
+33x too neutral.
+
+Note the sign: Mg I ionizes at 7.65 eV = 0.562 Ryd, **inside** the FUV band
+(0.4537-0.9997 Ryd here). A field 2-4x too strong should over-ionize
+magnesium, and ours is 20-60x too NEUTRAL in the same cells. So the Mg residual
+is not the FUV normalisation seen through another threshold - it is something
+else, and it points at the band's spectral shape or at the photoionization
+integral rather than at its integrated magnitude.
+
+### 6. What this does to blocker 1
+
+Blocker 1 was ranked as "the sharpest unexploited lead" on the strength of a 7x
+normalisation defect with a correct slope. There is no such defect. What there
+is:
+
+  - a **2.70x mismatch in boundary condition** between fixture and reference,
+    which is a benchmark-design question and has to be settled before any
+    molecular comparison means anything;
+  - a **2.17x scattered-light contribution** to chi, which is a genuine
+    ownership question: 3D-PDR's rate expressions have the form
+    `alpha*chi*exp(-gamma*A_V)`, which already assumes the attenuation it is
+    being handed, so handing it a chi that itself contains reprocessed light
+    may be double-counting the geometry.
+
+### 7. What is not known
+
+  - Whether Bisbas et al. 2015 section 5.4 specifies G0 = 61.24. We know only
+    that the reference output carries it. Until that is settled it is not clear
+    whether the fixture or the reference is the odd one out.
+  - Whether including scattered light in the chi handed to the chemistry is
+    correct. Deciding it needs the diffuse part separated, which needs a run
+    with the D-158 diagnostic copy of `Jdif`, since neither `Jdif` nor
+    `chiFUV0` is written to any output file.
+  - Whether D-249's ~1 magnitude displacement of the H/H2 transition survives
+    matched illumination. That was the actual symptom, and it has not been
+    re-measured against a corrected boundary condition.
+  - The Mg residual in balance-converged cells, 33x at depth, with the wrong
+    sign for a too-strong field.
+
+### 8. Method
+
+Four selection and matching errors in one session, each producing a confident
+wrong number, each caught by a quantity the run itself already reported:
+
+  1. A cancelled run used as evidence - its `INCOMPLETE` marker said "Do not
+     use" while every output file was present and correctly shaped (D-254 s9).
+  2. `lgConverged` parsed as `T`/`F` when `grid0.out` writes `0`/`1`; caught
+     because the derived 0.000 contradicted the log's own 85.09%.
+  3. Cells selected by radius when the physical variable is attenuation, giving
+     a spurious 3.5x FUV deficit.
+  4. A_V ranges left unmatched between model and reference, inflating 4.63x to
+     9.05x and, separately, making a surface field look like it agreed to 11%.
+
+The common form is comparing two things that are not at the same place in the
+model. **Match on the physical variable, and check every derived array against
+a number the run already printed.**
