@@ -253,6 +253,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-251 | **MOCASSIN owns the abundances, and the coupling now refuses to run when it does not.** The rule as stated: if it is set in MOCASSIN's input it must reflect in the 3D-PDR coupling. **Is Mg actually required? Measured: the chemistry runs fine without it, and that is the problem.** Magnesium is a CLOSED sub-system in the REDUCED network - ten of its eleven reactions make Mg+ from Mg (H3+, CH5+, H+, C+, CH+, CH3+, H2O+, O2+ charge transfer, plus photo and CR ionization), one makes Mg from Mg+, and **nothing produces either from a non-Mg species** - so x(Mg)+x(Mg+) is exactly conserved at whatever it is seeded with, a zero seed stays zero all run, and there is no crash, warning or failed conservation check. What is silently lost is eight charge-transfer sinks that neutralise molecular ions WITHOUT consuming an electron, plus the dominant electron donor of shielded gas (99.3% of x(e-) in the deep V2 slab, D-250). Not required to run, required to mean anything - hence a stop, not a warning. **The check** sits in `seedPDR`, the only place both tables exist (`initPDRnetwork` builds the link table but runs before `setComposition`, so `lgElementOn` is empty there): any linked species with a non-zero initial abundance whose MOCASSIN element is off prints the element, species and discarded abundance, and stops. **Tested both ways** - Mg=0 stops at seedPDR and never reaches the MC loop; Mg=2.7e-6 exits clean with x(Mg)+x(Mg+) median 2.6971e-06 against 2.7e-06 seeded, conservation to 0.1%. `reportAbun`'s false "network value kept" message is corrected to say the seed deletes it. **All nine fixtures now carry Mg = 2.7e-06**, which is what both references were actually run with (measured from their own output), noting that the strict Lexington HII40 list contains no Mg at all - the reference carries it because `species_reduced.d` defaults it, so this is a documented departure, not a silent one. **Two consequences**: `grid2.out` gains an element block (7 -> 8) because it carries one per element switched on, and `tools/d196_axis.py` hardcoded `NELEM = 7` and would have silently misread every new run - now derived from the files; and `data/mgiii.dat` is absent but so are **143 of fileNames.dat's 259 entries**, MOCASSIN ships a subset and raises no error, with Mg III still solved by the ionization balance (median 9.6e-5, max 0.909) - pre-existing, not introduced here. **Every comparison in this log was run with magnesium deleted and must be repeated before being quoted.** It does NOT rescue D-249: sec54's deep electrons are C+-dominated (Mg+ 1.1-1.4%), and `H3+ + Mg` at 1.0e-9 is an H3+ SINK, so restoring Mg deepens the 3D H3+ deficit rather than closing it | Accepted | 2026-09-12 |
 | D-252 | **The corrected-composition re-run: D-249 survives, and restoring Mg INVERTS deep carbon.** `d252-hiipdr` is `d248-tehist` byte-for-byte with Mg = 2.7e-06 (13 iterations, 30:16, clean, 85.09%). **The chain is unmoved**: H3+ 0.0090 -> 0.0080, CO 0.050 -> 0.062, OH 0.110 -> 0.100, HCO+/CH3+/H3O+ unchanged - so the molecules are not rescued and the FUV normalisation stands as blocker 1. H3+ deepened, the predicted direction, since `H3+ + Mg` is a SINK. Mg+ is now carried correctly at 0.968. **But deep carbon inverted**: in the same fixed A_V band 1.84-2.45, C/C+ went 0.43 -> **4.31** against the reference's 0.11, and deep x(e-) halved (ratio 0.95 -> 0.44; C+'s share of the budget 78.7% -> 46.4%). The mechanism is reaction 185 `C+ + Mg -> Mg+ + C`, which consumes NEUTRAL Mg - and **MOCASSIN's own ionDen leaves 20.2% of Mg neutral in shielded gas against the reference's 0.17%**, ~120x, which the chemistry inherits through the seed (x(Mg) 17.9x too high while x(Mg+) is 0.968). Mg I ionizes at 7.65 eV, so this is sub-Lyman photoionization deep in the PDR - plausibly the same misnormalised field as D-249, i.e. one defect seen twice, but that is a hypothesis and untested. **The two slabs were started and deliberately cancelled** (marked INCOMPLETE on disk): they are the fixtures where Mg+ carries 54% and 99% of the reference's deep electrons, so running them before the Mg ionization fix would produce results the fix invalidates. Also recorded: on the pre-Mg runs our shielded-gas electrons were **98.75% (V1) and 99.99% (V2) spurious He+** against 0.29% and 0.02% in the reference, which resolves D-250's "1.79x electrons while the dominant donor is deleted" and ties it to D-246's missing He+ sink. A prediction of mine was half wrong: whole-grid medians barely moved (x(e-) 1.043 -> 1.046) but the deep band moved a lot, and generalising from the medians was an error. Process: four launches lost to the harness memory guard at 9.4, 9.9, 10.2 and 6.5 GB - the last with 46 GB free, swap 6 GB free and /tmp at 257 MB, so a threshold theory was proposed and disproved; no diagnosis, only a workaround (`setsid`, own session, launched from a foreground call). Swap had been exhausted by **9.3 GB of tmpfs** from a stale session's scratchpad under `/tmp`, which is tmpfs here - scratch runs belong in `runs/` | Open | 2026-09-12 |
 | D-253 | **D-245's leak again: ten arrays unfreed in the same recursive routine.** Prompted by "the memory leak should not be happening" - it should not, and it was real, not the transient allocation D-245 concluded. `iterateMC` allocates PDR reduction buffers at `iteration_mod.f90:1938-1969` and frees them at `:2105-2117` under the SAME guard, but ten were missing from the list: `pdrHeatGG{Tmp,Sum}`, `NePDR{Tmp,Sum}`, `H2den{Tmp,Sum}`, `pdrCoolSp{Tmp,Sum}` and `pdrIonRate{Tmp,Sum}` - **~3.1 MB per rank per iteration at 15205 cells, dominated by pdrIonRate at 1.16 MB each.** It accumulates because `iterateMC` is RECURSIVE (self-call at `:3258`), so anything allocated at that call stays live in that frame and every frame beneath it. Last use of all ten is `:2060-2076`, so freeing at `:2117` is safe; unguarded-unfreed count in the routine goes **14 -> 4** (three `nGrids` locals, plus `ionDenPrev` which is `.not.allocated`-guarded and must persist). Deliberately NOT changed: `updateCell`'s four arrays (no deallocate anywhere in `update_mod.f90`, but they are locals of a non-recursive routine, so freed on return - untidy, not a leak) and `cell_volumes` (guarded allocate-once). **Verified** on `runs/d253-leakcheck`, the same fixture with the post-fix binary, 14 ranks, 13 iterations, 30:34 against 30:16: net drift **+58.5 -> +30.4 MB/rank, 28.2 eliminated**, ~2.2 MB/rank/iteration against ~3.1 predicted. **The residual is NOT a leak**: per-iteration troughs run 688.3, 693.1, 695.4, 690.0, 690.0, 695.7, 694.1, 693.2, 712.9, 691.8 - steps of -5.3, -1.6, -0.8, -21.1, moving BOTH ways, slope +0.39 MB/rank/iter - whereas a leak raises the floor monotonically; the 712.9 is a 60 s sampling artefact. No physics changed: C+, O, H2, Mg+, HCO+, CH3+, H3O+ all at ratio 1.000, largest deviation H2O 13% with H3+ 1.125 and OH 1.110, all deep trace species where D-242 measured 4.7x-25.9x run-to-run scatter. **Untouched**: the 684 MB/rank baseline against the documented 393 MB (1.74x), present at iteration 1 - still blocker 5. The lesson on method: D-245 read the two-directional wobble as proof of health, but that wobble is the ~22 MB intra-iteration swing sitting on top of a real leak - **the trough, not the sample sequence, is the diagnostic** | Accepted | 2026-09-12 |
+| D-254 | **The He+ sink is molecular, and `chex` is the wrong lever: He+ + H is 0.42% of it.** D-246's two open prerequisites, answered from data already on disk. **(2) Magnitude.** He+ has exactly ONE production channel (`rates_reduced.d:297`, He + CRP), both codes evaluate it with the network's own coefficient, and the reference's `params.dat` carries zeta 5.000E-17 against the fixtures' `pdrZeta 5.0e-17` - so P cancels identically and x(He+)_ours/x(He+)_ref = D_ref/D_ours. Decomposing the reference's own D on its own abundances, in sec54's deepest quarter **He+ + H2 (reactions 50 and 170) is 82.0%** and recombination 17.4%, while **He+ + H (156) is 0.42%**; in v1's deepest quarter **He+ + CO (89) is 95.25%**. Different fixture, different dominant molecule - so removing the 6000 K gate buys 0.42%, and no single hardcoded reaction is "the" fix either. The prediction is quantitative and it holds: D_ref/D_ours = 0.98, 2.07, 3.21, 10.98 across the A_V bands against an observed x(He+) ours/ref of 1.14, 2.48, 3.10, 9.85. **Our alpha is not the weak link** - `radRecFit(z=2,n=2)` takes the Verner & Ferland branch with `rnew(:,2,2)` = line 380 of `data/radrec.dat` (offset fixed by line 350 being the published V&F hydrogen row), giving 2.07-2.55e-11 at 16-26 K, **1.6x LARGER** than the network's own reaction 243, so our one sink is generous rather than weak. **NEW - the two fixtures split.** With `phot` negligible (D-246: 4e-4 of the CR term) and `chex` gated off, MOCASSIN's shielded-gas balance reduces to CR/(Ne*alpha); imposed/that equilibrium is **1.01, 1.00, 1.00, 1.05 in sec54**, i.e. MOCASSIN sits exactly at its own CR-vs-recombination equilibrium and **100% of the 3D He+ error is the missing sinks** - but **0.42, 0.81, 46.01, 46.01 in v1**, so the deep slab is 46x above even that and carries a SECOND, separate over-ionization defect, splitting its 4309x into ~91x missing sink and ~46x excess ionization. Undiagnosed, and it is the same depth where Mg is 120x too neutral (D-252) - opposite sign, so not obviously one defect. **(3) Does the chemistry disagree? The output files cannot answer it** - D-162 re-imposes MOCASSIN's ratio AFTER the solve as well as before (`pdr_mod.f90:2604`), so `pdrAbun(He+)` is the imposed value by construction and stored/imposed = 1.0000 identically in all eight bands of both fixtures; reading that as agreement would have been the error. Evaluating the chemistry's own steady state on OUR cell state instead gives imposed/chem = 1.1, 1.2, 2.1, 6.1 (sec54) and 3.4, 571, 2702, 3333 (v1) - and the cross-check that matters: **the chemistry's own answer, computed from our own T, n_H, x(H2) and x(e-), lands at 1.01-2.07x of the reference in sec54 and 1.05-1.41x in three of four v1 bands.** The chemistry already computes the reference's answer; the coupling overwrites it. **Design consequence: the decision D-246 framed is void.** The gate is not the lever, and `chex(2,2,:) = (/1.e-5, 0., 0., 0./)` (`update_mod.f90:2558`) is a flat placeholder with no temperature dependence at all, so the 6000 K test guards a constant rather than enforcing a Kingdon & Ferland validity bound - prerequisite (a) answered in passing. The missing physics is molecular and MOCASSIN cannot own it; the ownership contract already assigns molecular content to the chemistry, and the transport half-exists - `grid%H2den` is filled at `pdr_mod.f90:2826/3178` and already read at `update_mod.f90:1020` - **but there is no CO equivalent, and CO is the sink that dominates the slab.** Nothing implemented; no physics changed by this entry | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -17338,3 +17339,195 @@ wobble is real - it is the ~22 MB intra-iteration swing measured again here -
 but it was sitting on top of a genuine +2.2 MB/iteration leak, and reading the
 downward steps as proof of health was the error. **The trough, not the sample
 sequence, is the diagnostic.**
+
+## D-254 - the He+ sink is molecular, and chex is the wrong lever (2026-09-13)
+
+D-246 closed the mechanism of the He+ excess and stopped at a design decision,
+listing three prerequisites that were never done. Two of them - the magnitude
+of He+ + H, and whether the chemistry's own x(He+) disagrees with MOCASSIN's
+`ionDen` - are answerable from runs already on disk. This entry answers both,
+and the answer reframes the decision rather than informing it.
+
+Measured on `runs/d252-hiipdr` (sec54, Mg-corrected, 13 iterations) and
+`runs/d252-v1slab` against `benchmarks/pdr/baseline3dpdr/{sec54,v1}.pdr.fin`,
+with `tools/d254_hesinks.py`.
+
+### 1. Why P cancels, which makes this arithmetic and not a fit
+
+He+ has exactly one production channel in the REDUCED network:
+
+    rates_reduced.d:297    He + CRP -> He+ + e-    6.50E-18
+
+There is no second entry producing He+ anywhere in the file. MOCASSIN adds the
+same channel with the same coefficient under the D-193 block
+(`update_mod.f90:2690-2695`, `6.50d-18*pdrZeta/1.3d-17`), and the cosmic-ray
+rate matches on both sides - the reference's `params.dat` line 12 reads
+5.000E-17, the fixtures set `pdrZeta 5.0e-17`. x(He) is 0.1000 in our output
+and 9.99955e-02 in the reference.
+
+So in steady state n(He+) = P/D with P identical on both sides, and
+
+    x(He+)_ours / x(He+)_ref  =  D_ref / D_ours
+
+exactly, with no free parameter. Decomposing D is therefore a prediction, not
+a description.
+
+### 2. Prerequisite (b): He+ + H closes 0.42% of it
+
+The reference's own destruction rates, evaluated on the reference's own
+abundances and temperatures, reproducing `calc_reac_rates.F90`'s treatment of
+the validity ranges exactly - a rate is ZEROED below RTMIN only for the
+pathological gamma < -200 fits, otherwise T is merely CLAMPED up to RTMIN when
+gamma < 0, and RTMAX only selects which branch of a DUPLICATE group applies
+(`read_rates.F90:62-77` groups them by identical reactants AND products).
+
+sec54, per-reaction share of D_total in the deepest quarter (A_V 1.84-2.45):
+
+    50:He+ +H2      52.04%
+    170:He+ +H2     29.96%
+    243:He+ +e-     17.41%     <- the only one we have
+    156:He+ +H       0.42%     <- what removing the 6000 K gate would buy
+    89:He+ +CO       0.14%
+
+v1 slab, same quantity in its deepest quarter (A_V 6.37-8.49):
+
+    89:He+ +CO      95.25%
+    92:He+ +O2       1.83%
+    170:He+ +H2      1.69%
+    86:He+ +OH       0.42%
+    50:He+ +H2       0.24%
+
+**The answer to D-246's prerequisite (b) is 0.42%.** He+ + H is not the
+reference's main low-temperature route - D-246 said it was, and that was wrong.
+It is a rounding error against the molecular channels.
+
+Note also that the two fixtures do not agree on which molecule dominates: H2 in
+the 3D model, CO in the slab. Any fix that hardcodes one reaction fixes one
+fixture and misses the other.
+
+### 3. The prediction holds
+
+D_ref computed as above; D_ours = Ne*alpha with MOCASSIN's own alpha.
+
+    A_V band      D_ref/D_ours    observed x(He+) ours/ref
+    0.00-0.61         0.98              1.14
+    0.61-1.23         2.07              2.48
+    1.23-1.84         3.21              3.10
+    1.84-2.45        10.98              9.85
+
+Agreement within 15% in every band, over a factor of ten in range. The missing
+sinks account for the 3D excess quantitatively.
+
+### 4. Our alpha is generous, not weak
+
+`radRecFit` for z=2, n=2 takes the four-parameter Verner & Ferland branch with
+`rnew(:,2,2)`. Locating that row: the `rrec` block consumes 349 lines, so the
+ion=1 group starts at line 350 of `data/radrec.dat`, and line 350 is
+`7.982e-11, 0.7480, 3.148e+00, 7.036e+05` - the published V&F hydrogen fit,
+which confirms the offset. The ion=2 group starts at line 380:
+`9.356e-10, 0.7892, 4.266e-02, 4.677e+06`, the published V&F He I row.
+
+That gives alpha = 2.07-2.55e-11 cm^3/s at 16-26 K, against the network's own
+reaction 243 at 1.34e-11. **Ours is 1.6x larger.** Dielectronic is correctly
+excluded for elem < 3. The single sink we have is stronger than the reference's
+equivalent; the deficit is entirely in the sinks we do not have.
+
+### 5. NEW: the two fixtures split, and the slab has a second defect
+
+With `phot` at 4e-4 of the CR term (D-246) and `chex` gated off, MOCASSIN's
+balance reduces to
+
+    x(He+)/x(He) = CR / (Ne*alpha)
+
+Comparing the imposed value against that equilibrium separates "we are missing
+sinks" from "we are over-ionizing helium":
+
+    sec54    imposed/CR-equilibrium =  1.01, 1.00, 1.00, 1.05
+    v1 slab  imposed/CR-equilibrium =  0.42, 0.81, 46.01, 46.01
+
+**In the 3D model MOCASSIN sits exactly at its own CR-vs-recombination
+equilibrium**, so 100% of its He+ error is the missing sinks and nothing else.
+
+**In the deep slab it is 46x above even its own equilibrium**, so something is
+additionally ionizing helium there - at A_V > 4, at 10 K, where there should be
+no He-ionizing photons at all. That splits the slab's 4309x discrepancy into
+roughly 91x of missing sink and 46x of excess ionization. The excess ionization
+is not diagnosed here.
+
+It occurs at the same depth where D-252 found Mg 120x too NEUTRAL. The signs
+are opposite - helium over-ionized, magnesium under-ionized - so this is not
+obviously one defect seen twice, and I am not going to claim it is.
+
+### 6. Prerequisite (c): the output files cannot answer it
+
+The intended test was to compare the chemistry's solved x(He+) against
+MOCASSIN's `ionDen` in the same cells. It returns
+
+    stored/imposed = 1.0000
+
+identically, in all four bands of both fixtures. **This is not agreement.**
+D-162 re-imposes MOCASSIN's ionization ratio AFTER the solve as well as before
+(`pdr_mod.f90:2604` onward, unconditional since D-193), so `pdrAbun(He+)` is
+the imposed value by construction. The chemistry's opinion is overwritten on
+entry and again on exit, and never reaches an output file. Reading the 1.0000
+as "the chemistry agrees" would have been a clean, confident, wrong conclusion.
+
+So the question was asked a different way: evaluate the chemistry's own steady
+state, P/D, using OUR cell state - our T, our n_H, our x(H2), our x(e-), our
+molecular abundances - and compare that against what MOCASSIN imposes.
+
+    sec54    imposed/chem =  1.1,  1.2,  2.1,   6.1
+    v1 slab  imposed/chem =  3.4, 571, 2702, 3333
+
+And the cross-check that gives this weight - the chemistry's own answer against
+the reference's, computed independently on our cell state:
+
+    sec54    chem/ref = 1.01, 2.07, 1.45, 1.62
+    v1 slab  chem/ref = 1.41, 0.10, 1.05, 1.29
+
+**The chemistry, handed our own conditions, computes essentially the
+reference's x(He+).** The coupling then discards it. The one outlier, v1's
+0.10 at A_V 2.12-4.25, is the band where our temperature disagrees most with
+the reference (T_e 86 K, T_pdr 57 K against 8.3 K), so the rates are evaluated
+on a different gas.
+
+### 7. What this does to the decision
+
+D-246 framed the decision as: the 6000 K gate is not PDR-specific, so removing
+it changes ionization for every MOCASSIN model. **That decision is void.**
+Removing the gate buys 0.42% of the missing sink and changes every model to do
+it. It is not worth taking, whatever the answer about the gate's provenance.
+
+Prerequisite (a) is answered in passing and cheaply: `chex(2,2,:) = (/1.e-5,
+0., 0., 0./)` at `update_mod.f90:2558` is a flat placeholder with zero
+temperature dependence - there is no Kingdon & Ferland fit for He+ to have a
+validity bound. The 6000 K test guards a constant.
+
+The real shape of the problem is that the sink list in
+
+    ionDn(elem,ion) = Ne*alphaTot + chex*Hden*x(H0)      (update_mod.f90:2661)
+
+is missing terms that depend on MOLECULAR densities, and MOCASSIN cannot own
+those - only the chemistry knows n(H2) and n(CO). That is not a gate to remove;
+it is a term to add, and the ownership contract already says whose number it
+is.
+
+The transport half-exists. `grid%H2den` is filled from the chemistry at
+`pdr_mod.f90:2826` and `:3178` and is already read on the MOCASSIN side at
+`update_mod.f90:1020`, so the H2 channels (50 and 170, 82% of the 3D sink)
+could be added from a quantity the coupling already carries. **There is no CO
+equivalent** - `H2den` is the only molecular density exported to the grid - and
+CO is 95% of the slab's sink. So a complete fix needs new transport, and a
+partial fix would close the 3D model while leaving the slab.
+
+### 8. What is not done
+
+  - Nothing is implemented. No physics changed in this entry.
+  - The 46x excess ionization of helium in the deep slab is undiagnosed, and
+    it is the larger of the two slab effects at depth.
+  - Whether adding a molecular He+ sink to `ionDn` is the right structure, or
+    whether the chemistry should hand back a total destruction rate the way it
+    already hands back `elemAvail`, is a design choice that has not been made.
+  - `d252-v2slab` is still empty; v2 is the fixture where the reference's deep
+    electrons are 99.3% Mg+, and it has never been run with correct
+    composition.
