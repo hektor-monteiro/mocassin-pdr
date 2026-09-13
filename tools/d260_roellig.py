@@ -259,7 +259,7 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label):
               [model_label, '3D-PDR reference'], loc='upper center',
               bbox_to_anchor=(0.5, -0.13), ncol=2, handlelength=2.4,
               columnspacing=1.6)
-    for ext in ('png', 'pdf'):
+    for ext in ('png', 'pdf', 'svg'):
         fig.savefig(os.path.join(outdir, f'roellig_{name}.{ext}'),
                     dpi=240 if ext == 'png' else None)
     plt.close(fig)
