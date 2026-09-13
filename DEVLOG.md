@@ -255,6 +255,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-253 | **D-245's leak again: ten arrays unfreed in the same recursive routine.** Prompted by "the memory leak should not be happening" - it should not, and it was real, not the transient allocation D-245 concluded. `iterateMC` allocates PDR reduction buffers at `iteration_mod.f90:1938-1969` and frees them at `:2105-2117` under the SAME guard, but ten were missing from the list: `pdrHeatGG{Tmp,Sum}`, `NePDR{Tmp,Sum}`, `H2den{Tmp,Sum}`, `pdrCoolSp{Tmp,Sum}` and `pdrIonRate{Tmp,Sum}` - **~3.1 MB per rank per iteration at 15205 cells, dominated by pdrIonRate at 1.16 MB each.** It accumulates because `iterateMC` is RECURSIVE (self-call at `:3258`), so anything allocated at that call stays live in that frame and every frame beneath it. Last use of all ten is `:2060-2076`, so freeing at `:2117` is safe; unguarded-unfreed count in the routine goes **14 -> 4** (three `nGrids` locals, plus `ionDenPrev` which is `.not.allocated`-guarded and must persist). Deliberately NOT changed: `updateCell`'s four arrays (no deallocate anywhere in `update_mod.f90`, but they are locals of a non-recursive routine, so freed on return - untidy, not a leak) and `cell_volumes` (guarded allocate-once). **Verified** on `runs/d253-leakcheck`, the same fixture with the post-fix binary, 14 ranks, 13 iterations, 30:34 against 30:16: net drift **+58.5 -> +30.4 MB/rank, 28.2 eliminated**, ~2.2 MB/rank/iteration against ~3.1 predicted. **The residual is NOT a leak**: per-iteration troughs run 688.3, 693.1, 695.4, 690.0, 690.0, 695.7, 694.1, 693.2, 712.9, 691.8 - steps of -5.3, -1.6, -0.8, -21.1, moving BOTH ways, slope +0.39 MB/rank/iter - whereas a leak raises the floor monotonically; the 712.9 is a 60 s sampling artefact. No physics changed: C+, O, H2, Mg+, HCO+, CH3+, H3O+ all at ratio 1.000, largest deviation H2O 13% with H3+ 1.125 and OH 1.110, all deep trace species where D-242 measured 4.7x-25.9x run-to-run scatter. **Untouched**: the 684 MB/rank baseline against the documented 393 MB (1.74x), present at iteration 1 - still blocker 5. The lesson on method: D-245 read the two-directional wobble as proof of health, but that wobble is the ~22 MB intra-iteration swing sitting on top of a real leak - **the trough, not the sample sequence, is the diagnostic** | Accepted | 2026-09-12 |
 | D-254 | **The He+ sink is molecular, and `chex` is the wrong lever: He+ + H is 0.42% of it.** D-246's two open prerequisites, answered from data already on disk. **(2) Magnitude.** He+ has exactly ONE production channel (`rates_reduced.d:297`, He + CRP), both codes evaluate it with the network's own coefficient, and the reference's `params.dat` carries zeta 5.000E-17 against the fixtures' `pdrZeta 5.0e-17` - so P cancels identically and x(He+)_ours/x(He+)_ref = D_ref/D_ours. Decomposing the reference's own D on its own abundances, in sec54's deepest quarter **He+ + H2 (reactions 50 and 170) is 82.0%** and recombination 17.4%, while **He+ + H (156) is 0.42%**; in v1's deepest quarter **He+ + CO (89) is 95.25%**. Different fixture, different dominant molecule - so removing the 6000 K gate buys 0.42%, and no single hardcoded reaction is "the" fix either. The prediction is quantitative and it holds: D_ref/D_ours = 0.98, 2.07, 3.21, 10.98 across the A_V bands against an observed x(He+) ours/ref of 1.14, 2.48, 3.10, 9.85. **Our alpha is not the weak link** - `radRecFit(z=2,n=2)` takes the Verner & Ferland branch with `rnew(:,2,2)` = line 380 of `data/radrec.dat` (offset fixed by line 350 being the published V&F hydrogen row), giving 2.07-2.55e-11 at 16-26 K, **1.6x LARGER** than the network's own reaction 243, so our one sink is generous rather than weak. **NEW - the two fixtures split.** With `phot` negligible (D-246: 4e-4 of the CR term) and `chex` gated off, MOCASSIN's shielded-gas balance reduces to CR/(Ne*alpha); imposed/that equilibrium is **1.01, 1.00, 1.00, 1.05 in sec54**, i.e. MOCASSIN sits exactly at its own CR-vs-recombination equilibrium and **100% of the 3D He+ error is the missing sinks** - but 10.3x and 4.9x in the deep bands of the two 1D slabs. **Localised, and it is not a He+ source**: splitting by `lgBlack` inside each fixture, balance-converged cells give **1.00 in all three fixtures** while `lgBlack` cells give 1.01 in sec54 and **10.69 / 5.00** in the slabs, and `lgBlack` is set at `update_mod.f90:988` when the ION BALANCE fails (measured flag fractions 45.2%/42.6%/20.5% against the logs' own 44%/42%/17% "Ion balance not reached"). **So this is D-247's blocker 4 surfacing in helium, in different cells from the missing sinks.** Eliminated on the way, all from disk: photoionization of He0 (J(>1 Ryd) zero in every deep slab cell), He III recombination as an omitted source (1e-8 of He II), the alpha index (`alphaTot(2,1) = radRecFit(2,2)`, dielectronic skipped for elem < 3, confirmed in code), Ne consistency (1.0000-1.0139 against the chemistry, charge balance closing to 2%), a differing zeta (all three runs saved `input.in` reading `pdrZeta 5.0e-17`), alpha evaluated at a trial temperature (refuted: inverting alpha needs T_implied/Te = 1.0 in sec54's four bands AND in each slab's surface band), and MC-iteration lag (the excess is in MC-converged cells, p10 10.18 / p90 11.41). **A withdrawn claim of my own**: the first version of this entry read a 46x out of `runs/d252-v1slab`, whose own marker says "4 of 22 iterations ... Do not use" - all output files present and correctly shaped, so only the marker announced it; `tools/d254_hesinks.py` now refuses such a directory. Redone on `d233-v1slab`/`d233-v2slab` (complete, 95.07%/95.16%, both Mg = 0, verified from their own output) **(3) Does the chemistry disagree? The output files cannot answer it** - D-162 re-imposes MOCASSIN's ratio AFTER the solve as well as before (`pdr_mod.f90:2604`), so `pdrAbun(He+)` is the imposed value by construction and stored/imposed = 1.0000 identically in all eight bands of both fixtures; reading that as agreement would have been the error. Evaluating the chemistry's own steady state on OUR cell state instead gives imposed/chem = 1.1, 1.2, 2.1, 6.1 (sec54) and 3.4, 571, 2702, 3333 (v1) - and the cross-check that matters: **the chemistry's own answer, computed from our own T, n_H, x(H2) and x(e-), lands at 1.01-2.07x of the reference in sec54 and 1.05-1.41x in three of four v1 bands.** The chemistry already computes the reference's answer; the coupling overwrites it. **Design consequence: the decision D-246 framed is void.** The gate is not the lever, and `chex(2,2,:) = (/1.e-5, 0., 0., 0./)` (`update_mod.f90:2558`) is a flat placeholder with no temperature dependence at all, so the 6000 K test guards a constant rather than enforcing a Kingdon & Ferland validity bound - prerequisite (a) answered in passing. The missing physics is molecular and MOCASSIN cannot own it; the ownership contract already assigns molecular content to the chemistry, and the transport half-exists - `grid%H2den` is filled at `pdr_mod.f90:2826/3178` and already read at `update_mod.f90:1020` - **but there is no CO equivalent, and CO is the sink that dominates the slab.** Nothing implemented; no physics changed by this entry | Open | 2026-09-13 |
 | D-255 | **The 7x FUV "normalisation error" is not one, and not ours: 2.70x is the benchmark's own boundary condition and 2.17x is scattered light.** Opened as the blocker-1 audit after the Mg/lgBlack precursor. **MOCASSIN's FUV chain is verified internally consistent, end to end**: `L_FUV/L_bol` = 0.44993 against a Planck energy fraction of 0.44462 for the 40000 K star (**1.0119**, and `inSpectrumProbDen` is built from `inSpSumErg/normConstantErg`, so it is an ENERGY cumulative, not photon-number); D-017's all-bin control gives `Fbol/Fbol_thin` = 1.27; the analytic Stromgren radius for Q = 4.26e49 at n_H = 100 is 1.5756e19 cm against our shallowest PDR cells at r = **1.562e19 cm (0.9%)**, where `chi_thin` reads 168.45 against the analytic 165.56 (**1.7%**); and binned by attenuation the field sits AT OR ABOVE `exp(-tau_FUV)` (ratio/pred 1.35, 1.56, 1.82, 2.70, 6.98 rising with depth), so there is no excess FUV absorption anywhere. **The reference's field is a prescribed boundary condition, not a computed one**: fitting `sec54.pdr.fin` column 8 gives `UV = G0*exp(-3.02*A_V)` with slope **-3.0200 exactly** and **G0 = 61.236** - note it uses the UV factor 3.02 directly as the exponent coefficient rather than 3.02/1.0857, and that the `G0 = 10` in `3D/params.dat` belongs to the diffuse benchmark, not sec54 (D-250). **So the discrepancy decomposes into two things, neither a bug in the coupling.** (1) The fixture's own star delivers **165.56 Draine at its own ionization front**, against the reference's prescribed 61.236 - **2.70x** - so the two models were never illuminated alike, and every CO/OH comparison in this log has been apples-to-oranges at the boundary. (2) Our field exceeds pure exponential attenuation from that 165.56 at the same A_V by **2.17x** (54.36 against 25.00), which is scattered and diffuse FUV folded into `Jste` - `photon_mod.f90:1858` adds diffuse packets to `Jste` when `lgDebug` is off - whereas the reference has no scattering by construction, its profile being a pure exponential to machine precision. Their product, 5.86x, brackets the 4.63x measured in the shallowest properly matched band. **D-249's numbers are revised down**: with BOTH sides restricted to the A_V range our model actually samples (there are NO PDR cells below AVeff 0.479, so the old shallowest band compared our 0.48-0.61 cells against the reference's 0-0.61 average) the ratios are **4.63, 3.17, 3.00, 3.43**, not 9.05, 5.25, 3.94, 4.10 - so "7x" should be quoted as ~3-4.6x. Also measured, the D-252 Mg question: **the 120x-too-neutral magnesium is mostly blocker 4 but not entirely** - in sec54's deepest quarter f(Mg0) is 0.847 in `lgBlack` cells against 0.148 in balance-converged ones and 0.0045 in the reference, and the shallower bands, which contain ZERO black cells, already run 2.5x, 9.0x, 20.7x too neutral, so a depth-dependent residual survives the ion-balance failure. **Open**: whether Bisbas et al. 2015 section 5.4 actually specifies G0 = 61.24 (we know only that the reference OUTPUT carries it); whether feeding a scattered-light-inclusive chi into rate expressions of the form `alpha*chi*exp(-gamma*A_V)` is right, since that form already assumes the attenuation it is being handed; and whether D-249's ~1 mag displacement of the H/H2 transition survives matched illumination. **Method, four times in one session**: an INCOMPLETE marker unread, `lgConverged` parsed as T/F when it is written 0/1, cells selected by radius when the physical variable is attenuation, and A_V ranges left unmatched between model and reference. Each produced a confident wrong number; each was caught by a quantity the run itself already reported | Open | 2026-09-13 |
+| D-256 | **The reference cannot be re-run, the slabs ARE illumination-matched, and matching on chi shows H2 was never broken - the defect is the H3+ chain.** Follows D-255's recommendation, which is now withdrawn as infeasible: **I reported that no standalone 3D-PDR source exists on this machine, which is WRONG - see D-257**: `source/pdr/` IS 3D-PDR, byte-identical to upstream except for the `3DPDR.F90` driver, as its own `UPSTREAM.md` says; my search was scoped to `$HOME/software` at maxdepth 3 and grepped only `*.f90`/`*.F90`. The reference HAS since been rebuilt and validated bit-for-bit. What remains true is that `benchmarks/pdr/baseline3dpdr/params.dat` is **v1's** config (ICs `1Dn30.dat`, prefix `v1`, G0 = 10), while **sec54's configuration is absent entirely** - so re-running the reference at a matched boundary condition is impossible, and matching can only be done on our side. **Credit correction: D-250 already tabulated the reference fields** - sec54 61.24, v1 10, v2 1000, in its composition table - so D-255 discovered the CONSEQUENCE of that number, not the number. **The slabs are the properly matched control, and sec54 is not.** De-attenuating our surface field to A_V = 0 gives chi(0)/G0 = **0.79-0.85 (v1)** and **0.75-0.83 (v2)** - illumination matched to ~20% - against sec54's **2.70x**, because sec54's 61.24 is a prescribed 1D boundary condition while our 3D star delivers 165.56 Draine at its own ionization front and cannot be weakened without breaking the Lexington HII40 benchmark it also serves. **So sec54 is a reference for shape, not a quantitative benchmark for the 3D coupling**, exactly as CLAUDE.md's rule 4 says, and the v1/v2 slabs carry the quantitative weight. **The result that matters: matched on chi rather than A_V, H2 agrees.** In sec54, at matched chi, H2 = 1.004 and 1.105, C+ = 0.960 and 0.999, x(e-) = 1.019 and 1.074 in the two bands where chi controls - while CO stays 0.29-0.33, OH 0.12-0.13 and **H3+ 0.025-0.029**. So **D-249's "H/H2 transition displaced ~1 magnitude, a 60,000x H2 deficit" was substantially an illumination-matching artifact**, and the surviving defect is the H3+ chain, 30-40x low, which no change of boundary condition touches. D-249's own note that H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2 already localised it to the 3D path; this confirms carbon, hydrogen and the electrons are not the problem. **A second, separate defect, now localised**: the slabs' attenuation slope is **2.07/mag** (stable over two fit ranges) against the reference's **3.02 exactly**, a 32% shortfall, while the 3D path's slope is fit-range dependent (3.10, 3.34, 3.77) and consistent with 3.02 - so D-250's "our FUV slope is not single-valued" is confirmed and belongs to the **plane-parallel** path, not the ray-traced one. Consistent with scattered light flattening the profile, the same mechanism as D-255's 2.17x. **Method, and it cuts against my own previous entry**: matching on chi is valid only where chi controls the chemistry - deep in the slabs it fails badly (CO 23x, OH 9x, H3+ 6x at chi -> 0) because cosmic rays set the chemistry there, not the field. **Neither chi nor A_V is the right match variable everywhere**; chi near the surface, column deep, and any single-variable comparison must say which regime it is quoting. **Open**: the H3+/H2+ chain in the 3D path (now blocker 1 in place of the withdrawn normalisation defect); the plane-parallel 2.07/mag slope; whether the scattered-light contribution should reach the chemistry at all (D-255) | Open | 2026-09-13 |
+| D-257 | **The reference is now a variable: standalone 3D-PDR rebuilt, validated bit-for-bit, and sec54's unrecorded zeta and composition pinned. At matched illumination the ionization side is exact and the H2+ chain is the whole defect.** D-256 withdrew the matched-reference plan as infeasible; the user pointed out a 3D-PDR source exists, and it does - `source/pdr/` is byte-identical to upstream `github.com/itamos-ism/3D-PDR@fabcdc6` **except for `3DPDR.F90`, the standalone driver**, as `UPSTREAM.md` says in as many words. My search missed it because it was scoped to `$HOME/software` at maxdepth 3 and to `*.f90`/`*.F90`. Fetching that one 434-line file from the pinned commit and compiling it with the vendored tree plus the eight deliberately-excluded files (`input_parameters`, `readdensity`, `UVfield`, `writeoutputs`, `restart_io`, `read_command_line`, `logo`, `writeparams`) **builds clean with zero errors**. One link fix was needed: upstream passes `-L$(SUNDIALS_DIR)/lib` without `-rpath`, so the loader picked the SYSTEM SUNDIALS **7.1.1**, which drags in `libmpi` and aborts with "MPI_Comm_dup() called before MPI_INIT" - adding `-Wl,-rpath` (which MOCASSIN's own Makefile already does, for this exact reason) pins the local **7.8.0**, the same CVODE the coupled build uses, and drops MPI entirely. **Validated twice, exactly.** It reproduces `v1.pdr.fin` with **zero deviation in all 41 columns and all 33 species** (median, p99, max all 0.000e+00). For sec54 the IC is reconstructible - A_V max 2.4534 / 5.34153e-22 = 4.594e21 cm^-2 at n_H = 100 gives 14.89 pc, exactly where its own `x` column ends - and a 250-point uniform slab built from sec54's own depth grid reproduces A_V, Tdust and UVfield exactly but left **Tgas 25.6% hot and species 35% off**. The cause was composition: `dataPDR/species_reduced.d` ships the Roellig v1 values C = 1.40e-04, O = 3.00e-04, while sec54 was run with **C = 2.20e-04, O = 3.30e-04** (D-250's own table). With those two numbers corrected the reconstruction is **bit-for-bit exact - Tgas ratio 1.0000 at surface, median and deep, all species 0.000e+00**. So two things D-250 recorded as unknown are now pinned: **sec54's zeta IS 5.0e-17** (it reported "unrecorded and could not be inferred") and its composition is confirmed. A zeta scan on the way refuted my own reasoning: I claimed zeta could not produce a near-constant surface offset because CR heating is negligible there, and it can - 2.0e-17/5.0e-17/1.0e-16 give surface ratios 1.060/1.259/1.487 - but no single zeta fits surface and deep together, which is what pointed at the coolants. **THE RESULT. Against a reference generated at the fixture's own field (G0 = 165.56), matched in zeta, composition, A_V conversion and dust, the ionization side is essentially perfect and the molecular chain is not**: C+ **1.000, 1.000, 0.997**, x(e-) **1.013, 1.124, 1.039**, Mg+ 0.999, 0.997, 0.980 across the three bands where chi controls, and H2 recovers to **1.030 and 0.968** in the two deepest bands - while CO is 0.001-0.580, OH 0.001-0.284, **H3+ 0.000-0.037 and H2+ 0.000 everywhere, exactly zero in 547 of 9356 PDR cells** (x(H2+) 8.9e-25 against 5.1e-17 at A_V 0.6-1.2, ratio 1.8e-08). **So blocker 1 is H2+**, the head of the chain, with its own precursor H2 correct to 3%, the electron pool correct to 12% and carbon correct to 0.3%. It is not illumination (D-256) and it cannot be temperature: H2+'s shielded-gas source is the single channel 296 `H2 + CRP -> H2+ + e-` and its sinks 49 and 155 all have beta = gamma = 0, so the balance is cosmic-ray driven and temperature-independent. **A hypothesis of mine refuted in passing**: I proposed the coupling's D-163 suppression had deleted 296 as "CR ionization, MOCASSIN's job". It has not - the suppressed list is exactly 242/243/244/245/246/248/249 (radiative recombination) and 269/289 (photoionization) of linked stages, and the code comment says cosmic-ray channels are deliberately kept. Note for readers of that log section: the interleaved `rxn NNN: ... eV` lines are `init_chemical_heating`'s listing, NOT suppressions. **A correction to D-254**: reaction 243 He+ + e- IS suppressed in the coupled chemistry, so the "chemistry's own steady state" computed there was of the full network rather than the coupled one; the conclusion is unaffected. **Also measured, and open**: our PDR gas runs **22.15 K against the matched reference's 59.18 K**, 2.7x colder at matched A_V and identical density, which is a separate defect from the chain. And my own hand estimate of the H2+ balance puts the REFERENCE's x(H2+) ~1e4 above what its CR steady state appears to imply, so the balance is not yet understood on either side and the next step is to measure it, not to estimate it | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -17827,3 +17829,360 @@ wrong number, each caught by a quantity the run itself already reported:
 The common form is comparing two things that are not at the same place in the
 model. **Match on the physical variable, and check every derived array against
 a number the run already printed.**
+
+## D-256 - the reference cannot be re-run, and matching on chi clears H2 (2026-09-13)
+
+> **CORRECTION (D-257, same day): section 1 below is WITHDRAWN.** The
+> standalone 3D-PDR source WAS on this machine - `source/pdr/` is upstream
+> minus only `3DPDR.F90` - and the reference has since been rebuilt and
+> validated bit-for-bit against both v1 and sec54. Sections 2-8 stand.
+
+D-255 ended by recommending that the standalone 3D-PDR reference be re-run at
+the fixture's own boundary condition (G0 = 165.6) so the molecular comparison
+would finally be matched. **That recommendation is withdrawn as infeasible.**
+This entry establishes why, what can be matched instead, and what the matched
+comparison actually says.
+
+### 1. The reference cannot be re-run
+
+  - **No standalone 3D-PDR source exists on this machine.** `/home/hmonteiro/software`
+    holds only `mocassin_HM_2026_3DPDR` and `mocassin_HM_2026_3DPDR_testing`,
+    and no `.F90`/`.f90` file outside those trees contains the string
+    `3D-PDR`. The vendored `source/pdr/` has no standalone main program; the
+    only standalone target in the Makefile is `pdrSmokeTest`, a single-cell
+    chemistry smoke test (D-020).
+  - **sec54's configuration is not in the repository.**
+    `benchmarks/pdr/baseline3dpdr/params.dat` is **v1's** - ICs `1Dn30.dat`,
+    output prefix `v1`, G0 = 10, A_V factor 5.33997E-22 - and
+    `baseline3dpdr/3D/params.dat` is the diffuse benchmark's. The directory
+    holds `1Dn30.dat` and `1Dn50.dat` (v1 and v2 ICs) and no sec54 IC file.
+
+So the reference outputs are fixed artefacts. Any matching has to be done on
+our side.
+
+### 2. A credit correction to D-255
+
+D-255 presented `G0 = 61.236` as though the audit had discovered it. It had
+not: **D-250 already tabulated it**, in the composition table at DEVLOG line
+16907 -
+
+    reference     C          O          Mg         He      n_H     chi
+    sec54      2.20e-04   3.30e-04   2.70e-06   1.0e-01   100    61.24
+    v1         1.40e-04   3.00e-04   2.70e-06   1.0e-01   1e3    10
+    v2         1.40e-04   3.00e-04   2.70e-06   1.0e-01   1e5    1000
+
+What D-255 established is the *consequence* - that 61.24 is 2.70x below what
+the fixture's own star delivers at its ionization front - not the number.
+
+### 3. The slabs are illumination-matched; sec54 is not
+
+De-attenuating our surface field to A_V = 0, using each run's own fitted slope
+and also a fixed 3.02 for a cross-check:
+
+    fixture   fit 0.0-1.0   fit 0.05-0.5   shallow 2% de-att.   reference G0
+    v1        8.459 (0.846)  8.456 (0.846)   8.151 (0.815)        10
+    v2        822.4 (0.822)  831.1 (0.831)   803.5 (0.803)        1000
+
+**Both slabs are illuminated at 0.75-0.85 of the reference's G0** - matched to
+about 20%, and consistently between two fixtures three orders of magnitude
+apart in field strength. sec54, by contrast, is off by 2.70x, and it cannot be
+fixed by changing our input: its star is the Lexington HII40 source
+(`LPhot 4.26e13`, T = 40000 K, Q = 4.26e49), and weakening it to deliver 61.24
+at the ionization front would break the H II region benchmark the same fixture
+serves.
+
+**Conclusion: sec54 is a reference for shape, not a quantitative benchmark for
+the 3D coupling.** That is CLAUDE.md's rule 4 read literally - "3D-PDR is a
+reference, not a benchmark to be reproduced" - and it means the v1/v2 slabs
+carry the quantitative weight in this project, not the 3D model. Every ratio
+quoted against sec54 in this log should be read as shape information with a
+2.7x boundary-condition offset underneath it.
+
+### 4. Matched on chi, H2 agrees - and H3+ does not
+
+The reference's profile is `UV = G0*exp(-3.02*A_V)` (D-255), so at matched A_V
+the two models sit at different local fields by construction. Matching instead
+on the local field, sec54:
+
+    chi band          n      H2      CO      OH     H3+     C+      e-
+    0.037-0.236     6897   0.968   0.062   0.002   0.002   0.000   0.166
+    0.236-1.507     4527   1.004   0.290   0.120   0.025   0.960   1.019
+    1.507-9.606     1987   1.105   0.330   0.134   0.029   0.999   1.074
+    9.606-61.236     742   0.002   0.003   0.001   0.000   1.000   0.949
+
+In the two bands where chi controls the chemistry, **H2 is 1.004 and 1.105,
+C+ is 0.960 and 0.999, and x(e-) is 1.019 and 1.074.** Hydrogen, carbon and the
+electron pool are right.
+
+**So D-249's headline symptom is largely an artefact of the match variable.**
+D-249 reported that at A_V 0.5-1.0 "the reference is 34% molecular and our gas
+is entirely atomic, x(H2) 2.9e-6 against 0.171, a ~60,000x deficit - the H/H2
+transition is displaced ~1 mag too deep". At matched chi the H2 ratio is 1.00.
+The transition is not displaced in the field; it is displaced in A_V, because
+our A_V carries 2.7x more field at every depth.
+
+What survives, untouched by illumination: **CO 0.29-0.33, OH 0.12-0.13, H3+
+0.025-0.029.** H3+ is 30-40x low with its own precursor H2 correct to 10% and
+the electron pool correct to 7%. That is the defect, and D-249's own
+observation that H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2 already
+says it is specific to the 3D path rather than to the network.
+
+### 5. A second defect, localised: the plane-parallel slope
+
+Fitting `d ln(chi)/dA_V`:
+
+    reference (both slabs and sec54)   -3.0200   exact, by construction
+    our v1 slab   0.05-0.5: -2.067    0.0-1.0: -2.133     stable
+    our v2 slab   0.05-0.5: -2.056    0.0-1.0: -2.109     stable
+    our 3D path   0.3-1.5:  -3.772    0.5-2.0: -3.339   0.0-2.45: -3.102
+
+**The slabs' attenuation is 32% too shallow, stably.** The 3D path's slope is
+fit-range dependent and brackets 3.02. So D-250's observation that "our FUV
+slope is not single-valued - 2.951/mag in 3D against 1.99/mag in the slabs from
+identical dust inputs" is confirmed, and the defect belongs to the
+**plane-parallel** path, not the ray-traced one. The A_V per N_H calibration is
+not the cause: D-250 measured it at 5.33995e-22 against the references'
+5.33997e-22, six significant figures, for both slabs.
+
+A too-shallow slope with a correct A_V calibration is what scattered light
+does - the same mechanism as D-255's 2.17x, stronger here because
+plane-parallel geometry with mirror walls traps reprocessed photons.
+
+### 6. Method: no single match variable is right
+
+Matching on chi is valid only where chi controls the chemistry. Deep in the
+slabs it fails badly - CO 23x, OH 9x, H3+ 6x, H2+ 8-15x at chi -> 0 - because
+cosmic rays, not the field, set the chemistry there, and two cells at the same
+vanishing chi can sit at completely different shielding columns.
+
+    v1, matched on chi:
+      chi 0.0001-0.0033   CO 23.5   OH  9.4   H3+ 6.0   H2+  8.5
+      chi 0.1636-8.2160   CO  0.21  OH  0.80  H3+ 0.31  H2+  0.02
+
+So: **chi near the surface, column deep, and every ratio must say which regime
+it belongs to.** This cuts against D-255's own presentation, which quoted
+A_V-matched ratios as though A_V were the neutral choice. It is not; it is the
+right choice only where shielding dominates.
+
+### 7. Where blocker 1 now stands
+
+The "7x FUV normalisation defect" of D-249 has been fully decomposed and none
+of it is a normalisation bug in the coupling:
+
+  - 2.70x - sec54's prescribed boundary condition versus the fixture's own
+    star (D-255). Not fixable, and not ours; it makes sec54 non-quantitative.
+  - 2.17x - scattered light in chi (D-255), an open ownership question.
+  - the rest - the match variable (this entry).
+
+**The replacement for blocker 1 is the H3+/H2+ chain in the 3D path**, 30-40x
+low with H2, C+ and x(e-) all correct at matched chi, and with the 1D path
+getting H3+ to 0.48 from the same network. Second is the plane-parallel
+2.07/mag slope.
+
+### 8. What is not known
+
+  - Why H3+ is 30-40x low in the 3D path when H2 is correct. H3+ forms from
+    H2+ + H2, and H2+ is ~5e-5 of the reference in 3D against 0.14 in V1, so
+    the chain head is H2+. Its formation is cosmic-ray ionization of H2 - which
+    is MOCASSIN's own physics since D-193 - and that is the next thing to read.
+  - Whether the plane-parallel slope and the 3D scattered-light excess are one
+    defect or two.
+  - Whether Bisbas et al. 2015 section 5.4 specifies 61.24. Still unresolved,
+    and now moot for matching purposes since the reference cannot be re-run.
+
+## D-257 - the reference becomes a variable, and the defect is H2+ (2026-09-13)
+
+D-256 concluded the standalone 3D-PDR reference could not be re-run and
+withdrew the matched-comparison plan. The user said a 3D-PDR source exists on
+this machine. It does, and the entry was wrong.
+
+### 1. Where it was, and why the search missed it
+
+`source/pdr/` **is** 3D-PDR. `source/pdr/UPSTREAM.md` states it outright:
+
+> the sources are byte-identical to upstream except that `3DPDR.F90`, the
+> standalone driver, is not imported.
+
+Upstream is `https://github.com/itamos-ism/3D-PDR`, commit
+`fabcdc646d7a54ae2ea3ba30bdd1a9f25a92e959`. So the whole reference code was
+present all along, one 434-line driver short of running.
+
+My search failed for two reasons, both mine: it was scoped to
+`/home/hmonteiro/software` at `maxdepth 3`, and it grepped only `*.f90`/`*.F90`
+for the string `3D-PDR` - which the vendored tree's own files largely do not
+contain. I then reported "no standalone 3D-PDR source exists on this machine"
+as a finding. The file that answered the question, `UPSTREAM.md`, was in the
+directory I had already listed twice.
+
+### 2. The build
+
+Fetched `src/3DPDR.F90` at the pinned commit (13879 bytes, HTTP 200) and
+compiled it against the vendored tree plus the eight files the coupled build
+deliberately excludes, all of which the driver calls: `input_parameters`
+(`readparams`), `readdensity`, `UVfield` (`calc_UVfield`), `writeoutputs`,
+`restart_io`, `read_command_line`, `logo`, `writeparams`. `dust_t.o` is also
+required (`DUST=HTT91`). Upstream's own `src/makefile`, fetched alongside,
+supplies the `config.mk` option -> `-D` flag mapping; `baseline3dpdr/config.mk`
+is the 1D configuration.
+
+**Builds clean, zero errors**, gfortran 15.2.0, `-O3 -fopenmp`.
+
+One fix was needed. Upstream links with `-L${SUNDIALS_DIR}/lib` and no
+`-rpath`, so the runtime loader resolved SUNDIALS to the **system** copy,
+`/usr/lib/x86_64-linux-gnu/libsundials_core.so.7.1.1`, which pulls in
+`libmpi.so.40`; the binary then died with
+
+    MPI_Comm_dup() was called before MPI_INIT was invoked
+    Program received signal SIGSEGV
+
+Adding `-Wl,-rpath,${SUNDIALS_DIR}/lib` pins the local **7.8.0** - no MPI
+dependency at all, and the same CVODE the coupled build uses, which a fair
+comparison requires. MOCASSIN's own Makefile already carries that flag with a
+comment explaining why; `baseline3dpdr/mpishim.c` is the alternative fallback
+and is not needed.
+
+Working tree: `runs/d257-3dpdr-standalone/` (sources, binary, `ics/`, `sims/`,
+a `chemfiles` symlink to `dataPDR`, and the params variants).
+
+### 3. Validated twice, exactly
+
+**v1**, using the repository's own `params.dat` and `1Dn30.dat`:
+
+    A_V      max rel dev 0.000e+00   median 0.000e+00
+    Tgas     max rel dev 0.000e+00   median 0.000e+00
+    Tdust    max rel dev 0.000e+00   median 0.000e+00
+    UVfield  max rel dev 0.000e+00   median 0.000e+00
+    all 33 species: median 0.000e+00  p99 0.000e+00  max 0.000e+00
+
+Bit-for-bit. The rebuild is the code that produced the reference.
+
+**sec54** has no IC file in the repository, but it is reconstructible. Its A_V
+max is 2.4534 and its A_V/N_H is 5.34153e-22, giving N_H = 4.594e21 cm^-2,
+which at n_H = 100 is 4.594e19 cm = **14.89 pc** - exactly where its own `x`
+column ends. A 250-point uniform slab built from sec54's own depth grid gives
+A_V, Tdust and UVfield exact, and the reconstructed grid implies A_V/N_H =
+5.341496e-22 against the tabulated 5.34153e-22.
+
+First attempt left **Tgas 25.6% hot** (surface ratio 1.2590, remarkably flat)
+and species 35% off. The cause was composition: `dataPDR/species_reduced.d`
+ships C = 1.40e-04 and O = 3.00e-04, the Roellig v1 values, while D-250's own
+table records sec54 as **C = 2.20e-04, O = 3.30e-04**. Less carbon and oxygen
+means less [CII]/[OI] cooling, hence uniformly hotter gas. Correcting those two
+numbers in a sec54-specific `chemfiles`:
+
+    Tgas ours/ref: surface 1.0000  median 1.0000  deep 1.0000
+    all species:   median 0.000e+00  p99 0.000e+00  max 0.000e+00
+
+Bit-for-bit again. **So sec54's zeta IS 5.0e-17** - D-250 recorded it as
+"unrecorded and could not be inferred", and an exact reproduction at that value
+pins it - and its composition is confirmed.
+
+A zeta scan along the way refuted my reasoning rather than confirming it. I
+argued zeta could not produce a near-constant *surface* offset because CR
+heating is negligible there. It can:
+
+    zeta 2.0e-17   surface 1.060   median 1.063   deep 1.169
+    zeta 5.0e-17   surface 1.259   median 1.256   deep 1.204
+    zeta 1.0e-16   surface 1.487   median 1.445   deep 1.258
+
+What is true is the weaker statement that no single zeta flattens the profile -
+2.0e-17 fixes the surface and leaves the deep gas 17% hot - and that is what
+pointed at a coolant-abundance term instead.
+
+### 4. THE RESULT: the ionization side is exact, the chain is empty
+
+`d252-hiipdr` against a reference generated at the fixture's own field
+(G0 = 165.56), matched in zeta, composition, A_V conversion and dust, with both
+sides restricted to the A_V range the model samples:
+
+    A_V band      n      H2      H      H+     C+      C      CO     OH    H3+   H2+    e-    Mg+
+    0.479-0.972  699   0.000  1.063  0.874  1.000  1.364  0.001  0.001  0.000 0.000 1.013  0.999
+    0.972-1.466 1577   0.628  1.576  3.228  1.000  1.387  0.168  0.085  0.007 0.000 1.124  0.997
+    1.466-1.960 2631   1.030  0.627  0.439  0.997  1.623  0.580  0.284  0.037 0.000 1.039  0.980
+    1.960-2.453 4449   0.968  2.575  1.482  0.079 22.344  0.118  0.024  0.002 0.000 0.340  0.924
+
+**C+ to 0.3%, x(e-) to 1-12%, Mg+ to 2%, and H2 to 3% in the two deepest
+bands.** Everything MOCASSIN owns - the ionization state and the electron pool -
+is right. What is wrong is the molecular chain, and its head:
+
+    A_V band        x(H2+) ours      ref        ratio     x(H3+) ours     ref      ratio
+    0.613-1.227       8.941e-25   5.069e-17   1.76e-08     6.930e-15  4.810e-10  1.44e-05
+    1.227-1.840       3.641e-18   8.206e-15   4.44e-04     1.804e-10  5.200e-09  3.47e-02
+    1.840-2.453       9.172e-19   1.750e-14   5.24e-05     1.521e-11  5.283e-09  2.88e-03
+
+x(H2+) is **exactly zero in 547 of 9356 PDR cells**.
+
+**So blocker 1 is H2+.** With its precursor H2 correct to 3%, the electrons to
+12% and carbon to 0.3%, the chain below it - H3+, then HCO+/H3O+/CH3+, then CO
+and OH - has nothing to build from. This is what D-249 saw as "everything
+deficient is downstream of H3+, and H3+ of H2+" and could not localise, because
+at the time the comparison also carried a 2.7x illumination mismatch and an
+A_V-matching artefact (D-255, D-256). Both are now removed and H2+ survives.
+
+It is also not a temperature effect. H2+'s only shielded-gas source is
+
+    296   H2 + CRP -> H2+ + e-      1.14E-17
+
+and its sinks
+
+    49    H2+ + H2 -> H3+ + H       2.08E-09   beta 0  gamma 0
+    155   H  + H2+ -> H2  + H+      6.40E-10   beta 0  gamma 0
+
+have no temperature dependence at all, so the balance is cosmic-ray driven and
+temperature-independent. At matched x(H2), matched n_H and matched zeta it
+should come out at unity.
+
+### 5. A hypothesis refuted, and a log section that invites the mistake
+
+I proposed that the coupling's D-163 suppression had deleted reaction 296 as
+"cosmic-ray ionization, MOCASSIN's job since D-193", which would have explained
+the zero exactly. **It has not.** The suppressed set is exactly
+
+    242 H+ +e- -> H      243 He+ +e- -> He     244/245/246 C+ +e- -> C
+    248 O+ +e- -> O      249 Mg+ +e- -> Mg
+    269 C + PHOTON -> C+ 289 Mg + PHOTON -> Mg+
+
+i.e. radiative recombination and photoionization of linked stages only, and
+`pdr_mod.f90:355` says in terms that cosmic-ray channels are KEPT because
+MOCASSIN has none (D-035).
+
+A warning for anyone reading that part of a run log: the suppression report is
+interleaved with `init_chemical_heating`'s reaction listing, whose lines look
+like `rxn 216: H2+ e- -> H H 10.90 eV`. Those are **not** suppressions. Reading
+them as such would wrongly suggest H2+ and H3+ dissociative recombination had
+been deleted.
+
+### 6. A correction to D-254
+
+D-254 computed "the chemistry's own steady state" for He+ including reaction
+243, He+ + e- -> He. That reaction **is** suppressed in the coupled chemistry,
+so the number quoted was the full network's steady state, not the coupled
+configuration's. The conclusion is unaffected - the point was that the
+chemistry's own network reproduces the reference while the coupling overwrites
+it - but the calculation should be labelled as the full network's.
+
+### 7. What is open
+
+  - **H2+.** The mechanism is not identified. Not illumination, not
+    temperature, not the D-163 suppression.
+  - **My own arithmetic on it does not close either.** A hand estimate of
+    296/49/155 steady state at n_H = 100, x(H2) = 0.5 gives x(H2+) ~ 2e-10,
+    which is ~1e4 ABOVE the reference's own 1.75e-14 in the same gas. So the
+    balance is not understood on either side yet, and the next step is to
+    measure the H2+ production and destruction rates in both codes - the
+    standalone now writes `*.chemanalysis.fin` for exactly this - rather than
+    to estimate them. Four hand-estimates in this session have been wrong.
+  - **Temperature.** Our PDR gas is **22.15 K against the matched reference's
+    59.18 K**, 2.7x colder at matched A_V and identical density. Separate from
+    the chain, and now measurable against a reference we control.
+  - Whether the plane-parallel 2.07/mag slope (D-256) and the scattered-light
+    contribution to chi (D-255) survive as defects once these are fixed.
+
+### 8. What this unlocks
+
+The reference is no longer a fixed artefact. It can be regenerated at any G0,
+zeta, composition, density or geometry, with a generator validated to zero
+error against two independent published cases. Comparisons can now be matched
+in the boundary condition instead of corrected for it, and the 1D/3D contrast
+that localised H2+ can be run deliberately rather than inferred from two
+fixtures that happened to differ.
