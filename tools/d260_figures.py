@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """D-260: publication-style profiles of a coupled run against a 3D-PDR reference.
 
-Three figures - temperatures, ionic fractions, molecular fractions - each with
-two panels sharing the y axis: against A_V (left) and against distance from the
-star (right). Every active PDR-zone cell in the grid is used, binned; the solid
+Three figures - temperatures, ionic fractions, molecular fractions - each a
+single panel against log A_V, with distance from the star on the upper axis. Every active PDR-zone cell in the grid is used, binned; the solid
 line is the bin median and the shading holds 16-84% of the cells. The reference
 is dashed.
 
-Radius of the reference. A 3D-PDR slab has depth x from its own illuminated
-face. It is placed on MOCASSIN's radial axis as r = Rout - (x_max - x), i.e.
-its far face on the grid's outer edge. D-257 built the slab to our PDR depth
-(14.89 pc against 14.90), so this puts its face at the ionization front.
+The upper axis is the model's own: each radius tick sits at the median A_V of
+the PDR cells at that radius. The reference is plotted against its own A_V
+only; its r (far face at Rout, D-257) is kept in read_ref for reference.
 
 Needs numpy + matplotlib (the `astro` conda env):
     ~/miniforge3/envs/astro/bin/python tools/d260_figures.py \
@@ -24,7 +22,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.ticker import LogLocator, NullFormatter, AutoMinorLocator
+from matplotlib.ticker import (LogLocator, NullFormatter,
+                               FixedLocator, FixedFormatter, FuncFormatter)
 
 PC = 3.0857e18
 SPEC = ['H3+', 'He+', 'Mg', 'H2+', 'O2', 'CH5+', 'CH4+', 'O+', 'OH+', 'Mg+',
@@ -133,41 +132,68 @@ def logticks(ax, lo, hi):
     ax.yaxis.set_minor_formatter(NullFormatter())
 
 
+def radius_ticks(run, rticks):
+    """A_V at which the model's PDR cells sit at each radius (bin median).
+
+    The mapping is the model's own, not the reference's: the upper axis tells
+    where in the grid a given A_V is, and it is monotonic with a 16-84% spread
+    of about 0.1 mag at every radius."""
+    edges = np.arange(4.0, 19.8, 0.5)
+    rc, av, _, _ = binned(run['r'], run['AV'], edges)
+    return np.interp(rticks, rc, av)
+
+
 def figure(run, ref, name, keys, cols, ylab, ylim, outdir, label):
-    fig, axes = plt.subplots(1, 2, figsize=(7.1, 3.3), sharey=True,
-                             gridspec_kw={'wspace': 0.05})
-    specs = [('AV', np.arange(0.45, 3.2, 0.1), r'$A_V$ [mag]'),
-             ('r', np.arange(4.0, 19.8, 0.5),
-              r'distance from the star $r$ [pc]')]
-    for ax, (xk, edges, xlab) in zip(axes, specs):
-        for k, c in zip(keys, cols):
-            xc, med, lo, hi = binned(run[xk], run[k], edges)
-            pos = lo > 0
-            ax.fill_between(xc[pos], lo[pos], hi[pos], color=c, alpha=0.18,
-                            lw=0)
-            ax.plot(xc, np.where(med > 0, med, np.nan), color=c, ls='-')
-            rv = np.where(ref[k] > 0, ref[k], np.nan)
-            ax.plot(ref[xk], rv, color=c, ls='--', lw=1.2)
-        ax.set_yscale('log')
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.set_xlabel(xlab)
-    axes[0].set_xlim(0, 3.15)
-    axes[1].set_xlim(4.0, 19.6)
-    axes[0].set_ylabel(ylab)
+    fig, ax = plt.subplots(figsize=(3.6, 3.4))
+    edges = np.geomspace(0.45, 3.2, 26)
+    for k, c in zip(keys, cols):
+        xc, med, lo, hi = binned(run['AV'], run[k], edges)
+        pos = lo > 0
+        ax.fill_between(xc[pos], lo[pos], hi[pos], color=c, alpha=0.18, lw=0)
+        ax.plot(xc, np.where(med > 0, med, np.nan), color=c, ls='-')
+        rv = np.where(ref[k] > 0, ref[k], np.nan)
+        ax.plot(ref['AV'], rv, color=c, ls='--', lw=1.2)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim(0.3, 3.2)
+    ax.xaxis.set_major_locator(FixedLocator([0.3, 0.5, 1, 2, 3]))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+    ax.xaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(2, 10) * .1,
+                                          numticks=30))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.tick_params(axis='x', which='both', top=False)
+    ax.set_xlabel(r'$A_V$ [mag]')
+    ax.set_ylabel(ylab)
     lo, hi = ylim if ylim else (5, 2e4)
-    axes[0].set_ylim(lo, hi)
-    logticks(axes[0], lo, hi)
+    ax.set_ylim(lo, hi)
+    logticks(ax, lo, hi)
+
+    top = ax.twiny()
+    top.set_xscale('log')
+    top.set_xlim(ax.get_xlim())
+    rt = np.array([5, 7.5, 10, 15])
+    top.xaxis.set_major_locator(FixedLocator(radius_ticks(run, rt)))
+    top.xaxis.set_major_formatter(FixedFormatter([f'{v:g}' for v in rt]))
+    top.xaxis.set_minor_locator(FixedLocator(radius_ticks(
+        run, np.array([6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19]))))
+    top.xaxis.set_minor_formatter(NullFormatter())
+    top.set_xlabel(r'distance from the star $r$ [pc]')
+
     h = [Line2D([], [], color=c, ls='-', lw=1.6) for c in cols]
-    h += [Line2D([], [], color='none'),
-          Line2D([], [], color='k', ls='-', lw=1.4),
+    labs = [LATEX[k] for k in keys]
+    ncol = len(h) if len(h) <= 4 else 4
+    ax.legend(h, labs, loc='upper left', ncol=ncol, handlelength=1.5,
+              columnspacing=0.9, handletextpad=0.4, labelspacing=0.25,
+              bbox_to_anchor=(-0.02, -0.16), borderaxespad=0.)
+    hs = [Line2D([], [], color='k', ls='-', lw=1.4),
           Line2D([], [], color='k', ls='--', lw=1.2)]
-    labs = [LATEX[k] for k in keys] + ['', label, '3D-PDR reference']
-    fig.legend(h, labs, loc='lower center', bbox_to_anchor=(0.5, 0.9),
-               ncol=len(h), handlelength=1.8, columnspacing=1.1,
-               handletextpad=0.5)
+    top.legend(hs, [label, '3D-PDR reference'], loc='upper left',
+               bbox_to_anchor=(-0.02, -0.16 - 0.075 * ((len(h) + 3) // 4)),
+               ncol=2, handlelength=2.0, columnspacing=1.2,
+               borderaxespad=0.)
     for ext in ('png', 'pdf'):
         fig.savefig(os.path.join(outdir, f'd260_{name}.{ext}'),
-                    dpi=220 if ext == 'png' else None)
+                    dpi=260 if ext == 'png' else None)
     plt.close(fig)
 
 
