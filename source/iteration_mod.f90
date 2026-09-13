@@ -2115,6 +2115,28 @@ module iteration_mod
                  deallocate(pdrLevSum)
                  deallocate(pdrTgTmp, pdrTgSum, pdrTlTmp, pdrTlSum, pdrThTmp, pdrThSum)
                  deallocate(pdrCoolSlTmp, pdrCoolSlSum, pdrCoolTrTmp, pdrCoolTrSum)  ! D-166
+                 ! ------------------------------------------------------ D-253
+                 ! These ten are allocated in the same guarded block at
+                 ! :1942-1961 and were omitted from this list, so every MC
+                 ! iteration left them behind. That matters because iterateMC
+                 ! is RECURSIVE - it advances nIterateMC and calls itself at
+                 ! :3258 rather than looping - so an allocatable still
+                 ! allocated at that call stays live in that frame and in
+                 ! every frame beneath it. D-245 exactly, in the same routine.
+                 !
+                 ! ~3.1 MB per iteration per rank at 15205 cells, dominated by
+                 ! pdrIonRate{Tmp,Sum} at 1.16 MB each; measured drift was
+                 ! ~4.5 MB/rank/iteration, so this is most of it. Last use of
+                 ! all ten is :2060-2076, so freeing here is safe.
+                 !
+                 ! ionDenPrev is deliberately NOT freed: it is guarded by
+                 ! .not.allocated at :1954 and persists across coupling passes
+                 ! by design.
+                 deallocate(pdrHeatGGTmp, pdrHeatGGSum)
+                 deallocate(NePDRTmp, NePDRSum)
+                 deallocate(H2denTmp, H2denSum)
+                 deallocate(pdrCoolSpTmp, pdrCoolSpSum)
+                 deallocate(pdrIonRateTmp, pdrIonRateSum)
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)

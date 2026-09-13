@@ -64,9 +64,37 @@ def run_cmp(run, refpath, label):
         print(f"  {name:>6}  {x:11.3e} {xr:11.3e} {med:10.3f} "
               f"{p10:9.3f} {p90:9.3f}{flag}")
 
-run_cmp('runs/d248-tehist',
-        'benchmarks/pdr/baseline3dpdr/sec54.pdr.fin', '3D  H II + PDR (sec 5.4)')
-run_cmp('runs/d233-v1slab',
-        'benchmarks/pdr/baseline3dpdr/v1.pdr.fin', 'V1 SLAB  n=1e3, chi=10')
-run_cmp('runs/d233-v2slab',
-        'benchmarks/pdr/baseline3dpdr/v2.pdr.fin', 'V2 SLAB  n=1e5, chi=1e3')
+REF = 'benchmarks/pdr/baseline3dpdr'
+KNOWN = {'hiipdr': (f'{REF}/sec54.pdr.fin', '3D  H II + PDR (sec 5.4)'),
+         'v1slab': (f'{REF}/v1.pdr.fin',    'V1 SLAB  n=1e3, chi=10'),
+         'v2slab': (f'{REF}/v2.pdr.fin',    'V2 SLAB  n=1e5, chi=1e3')}
+
+def guess(run):
+    """Pick the reference a run dir belongs to from its name, so
+    `d249_allspec.py runs/d252-v1slab` needs no second argument."""
+    for key, (path, label) in KNOWN.items():
+        if key in run:
+            return path, f'{label}   [{run}]'
+    # D-252: the 3D fixture appears under many run names (d248-tehist,
+    # d244-species, ...); anything that is not a slab is the sec 5.4 model.
+    if not any(t in run for t in ('v1slab', 'v2slab')):
+        return KNOWN['hiipdr'][0], f"{KNOWN['hiipdr'][1]}   [{run}]"
+    return None, None
+
+if len(sys.argv) > 1:
+    args = sys.argv[1:]
+    while args:
+        run = args.pop(0)
+        if args and args[0].endswith('.fin'):
+            refp = args.pop(0); label = run
+        else:
+            refp, label = guess(run)
+            if refp is None:
+                print(f'!! cannot infer the reference for {run} - '
+                      f'pass it explicitly: {run} <file.pdr.fin>')
+                continue
+        run_cmp(run, refp, label)
+else:
+    run_cmp('runs/d248-tehist', f'{REF}/sec54.pdr.fin', '3D  H II + PDR (sec 5.4)')
+    run_cmp('runs/d233-v1slab', f'{REF}/v1.pdr.fin', 'V1 SLAB  n=1e3, chi=10')
+    run_cmp('runs/d233-v2slab', f'{REF}/v2.pdr.fin', 'V2 SLAB  n=1e5, chi=1e3')

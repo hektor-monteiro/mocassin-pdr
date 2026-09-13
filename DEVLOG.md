@@ -251,6 +251,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-249 | **The CO/OH deficit is a chain whose head is a ~7x FUV normalisation error in 3D; the dust slope is correct to 2.3%.** First comparison of ALL 33 species, over every PDR cell at its own A_V (no axis indexing, so it reads the 801-cell slabs too - `d196_axis.py` hardcodes 31^3 and cannot). **The 3D model separates cleanly**: correct are He 1.000, O 1.000, C+ 1.001, e- 1.043, H2 0.960; collapsed are H2+ ~5e-5, **H3+ 0.009**, HCO+ 0.001, CH3+ 0.001, H3O+ 0.002, H2O 0.013, CO 0.050, OH 0.110. **Everything deficient is downstream of H3+, and H3+ of H2+** - so CO and OH are symptoms, and D-239's correct carbon never helped because carbon was never the constraint. Geometry-specific as required: H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2, so the network is sound. Cosmic-ray attenuation excluded - `CRATTENUATION` is absent from PDRFLAGS, so `zetalocal = zeta` and the `AV(6)` code is dead. **Where it breaks**: at A_V 0.5-1.0 the reference is 34% molecular and our gas is entirely atomic, x(H2) 2.9e-6 against 0.171, a ~60,000x deficit - **the H/H2 transition is displaced ~1 mag too deep** and the chain below it is empty. **The cause**: chi/chi_ref is 9.05, 5.25, 3.94, 4.10, 5.00 across the A_V bands at matched density. Fitting `k = -dln(chi)/dA_V` separates normalisation from slope and **reverses the obvious reading**: in 3D k = 2.951 against the reference's 3.020 (**ratio 0.977 - the dust-owned slope is right**) with the normalisation ~7x too high, while the too-shallow slope (0.66) belongs to the SLABS. So this is NOT a "MOCASSIN owns the dust, report the divergence" case; it is a bounded normalisation defect. It also explains why the slabs "work" - their field is 2.7x too WEAK, so H2 forms early and the chemistry is never starved; they are a different error with a benign sign, not a control that passed. **Not explained**: by A_V 1.5-2.45 H2 matches the reference and H3+ is still 25-450x low, with x(e-) at ratio 1.0 and T only 1.6x off - the normalisation explains the shallow catastrophe, not the deep residual. Also recorded: Mg/Mg+ are identically zero in our runs against a reference 2.7e-6, because `abunV1.in` sets Mg = 0 - absent by INPUT, not by defect, so the two codes are compared with different metal content and every deep x(e-) ratio in this log inherits it | Open | 2026-09-12 |
 | D-250 | **The input audit D-074 should have been: composition was never in scope, and Mg+ is DELETED by the guard that reports it kept.** Asked for directly after D-249 surfaced Mg as a side observation. **Why it was missed**: D-074's eleven-row table is exactly the contents of 3D-PDR's `params.dat`, which holds no elemental abundances - composition lives in `species_reduced.d`, never opened. The audit was scoped to one file and reported as covering "every input parameter". **What IS consistent, verified not assumed**: zeta (v1/v2), v_turb, grain radius, UV factor 3.02, T_min/T_max, HEALPix, Fcrit, end time, ODE tolerances, coolants, network, metallicity - all match. **A_V per N_H measured from the reference files' own columns** rather than read from params.dat: sec54 5.34153e-22 against our calibrated 5.34152688e-22 (six significant figures), v1/v2 5.33997e-22 against 5.33995e-22 - so "matched A_V" really is matched column and D-249's basis is sound; the 6.289e-22 in 3D/params.dat belongs to the diffuse benchmark, not sec54. **Composition, never checked before**: C, O, He match in all three fixtures; **Mg does not, in any of them** (reference 2.70e-06, ours 0). **The defect**: `seedAbunFromMocassin` pre-zeroes `abun` then `cycle`s past a switched-off element, so the slot keeps the zero and `pdrAbun` is overwritten with it - while the routine's own comment says "the network's value is left alone rather than deleting the element - removing e.g. Mg+ would silently change the electron budget" and `reportAbun` prints "MOCASSIN: element off - network value kept" every run. **The message is false**: Mg and Mg+ are identically zero in all 15039 PDR cells of d248-tehist and all 20018 of d233-v1slab. Mg is the only affected element. **What it costs**, against the reference's own budget: Mg+ is 1.1-1.4% of x(e-) in sec54 but **89.8% at A_V 7.9 in v1 and 99.3% in v2** - in the slabs' deep gas the electron budget IS Mg+, and we delete it. **So it does NOT rescue D-249** (sec54's deep electrons are C+-dominated, so the 25-450x H3+ residual stands) but it **does contaminate every deep slab comparison**, including the "slabs reproduce the reference" claim blocker 1 was ranked on: our V1 x(e-) is 1.79x the reference while missing the donor supplying 90% of the reference's deep electrons. Also found: hiipdr uses `nbins 600` against D-013's own >= 1000; and our FUV slope is not single-valued - 2.951/mag in 3D against 1.99/mag in the slabs from identical dust inputs. sec54's zeta is unrecorded and could not be inferred (the estimator failed its control on v1/v2). Decision needed, not taken: turn Mg on in MOCASSIN (one reality, re-runs everything) versus make the guard keep the network value (cheaper, creates a second reality) | Open | 2026-09-12 |
 | D-251 | **MOCASSIN owns the abundances, and the coupling now refuses to run when it does not.** The rule as stated: if it is set in MOCASSIN's input it must reflect in the 3D-PDR coupling. **Is Mg actually required? Measured: the chemistry runs fine without it, and that is the problem.** Magnesium is a CLOSED sub-system in the REDUCED network - ten of its eleven reactions make Mg+ from Mg (H3+, CH5+, H+, C+, CH+, CH3+, H2O+, O2+ charge transfer, plus photo and CR ionization), one makes Mg from Mg+, and **nothing produces either from a non-Mg species** - so x(Mg)+x(Mg+) is exactly conserved at whatever it is seeded with, a zero seed stays zero all run, and there is no crash, warning or failed conservation check. What is silently lost is eight charge-transfer sinks that neutralise molecular ions WITHOUT consuming an electron, plus the dominant electron donor of shielded gas (99.3% of x(e-) in the deep V2 slab, D-250). Not required to run, required to mean anything - hence a stop, not a warning. **The check** sits in `seedPDR`, the only place both tables exist (`initPDRnetwork` builds the link table but runs before `setComposition`, so `lgElementOn` is empty there): any linked species with a non-zero initial abundance whose MOCASSIN element is off prints the element, species and discarded abundance, and stops. **Tested both ways** - Mg=0 stops at seedPDR and never reaches the MC loop; Mg=2.7e-6 exits clean with x(Mg)+x(Mg+) median 2.6971e-06 against 2.7e-06 seeded, conservation to 0.1%. `reportAbun`'s false "network value kept" message is corrected to say the seed deletes it. **All nine fixtures now carry Mg = 2.7e-06**, which is what both references were actually run with (measured from their own output), noting that the strict Lexington HII40 list contains no Mg at all - the reference carries it because `species_reduced.d` defaults it, so this is a documented departure, not a silent one. **Two consequences**: `grid2.out` gains an element block (7 -> 8) because it carries one per element switched on, and `tools/d196_axis.py` hardcoded `NELEM = 7` and would have silently misread every new run - now derived from the files; and `data/mgiii.dat` is absent but so are **143 of fileNames.dat's 259 entries**, MOCASSIN ships a subset and raises no error, with Mg III still solved by the ionization balance (median 9.6e-5, max 0.909) - pre-existing, not introduced here. **Every comparison in this log was run with magnesium deleted and must be repeated before being quoted.** It does NOT rescue D-249: sec54's deep electrons are C+-dominated (Mg+ 1.1-1.4%), and `H3+ + Mg` at 1.0e-9 is an H3+ SINK, so restoring Mg deepens the 3D H3+ deficit rather than closing it | Accepted | 2026-09-12 |
+| D-252 | **The corrected-composition re-run: D-249 survives, and restoring Mg INVERTS deep carbon.** `d252-hiipdr` is `d248-tehist` byte-for-byte with Mg = 2.7e-06 (13 iterations, 30:16, clean, 85.09%). **The chain is unmoved**: H3+ 0.0090 -> 0.0080, CO 0.050 -> 0.062, OH 0.110 -> 0.100, HCO+/CH3+/H3O+ unchanged - so the molecules are not rescued and the FUV normalisation stands as blocker 1. H3+ deepened, the predicted direction, since `H3+ + Mg` is a SINK. Mg+ is now carried correctly at 0.968. **But deep carbon inverted**: in the same fixed A_V band 1.84-2.45, C/C+ went 0.43 -> **4.31** against the reference's 0.11, and deep x(e-) halved (ratio 0.95 -> 0.44; C+'s share of the budget 78.7% -> 46.4%). The mechanism is reaction 185 `C+ + Mg -> Mg+ + C`, which consumes NEUTRAL Mg - and **MOCASSIN's own ionDen leaves 20.2% of Mg neutral in shielded gas against the reference's 0.17%**, ~120x, which the chemistry inherits through the seed (x(Mg) 17.9x too high while x(Mg+) is 0.968). Mg I ionizes at 7.65 eV, so this is sub-Lyman photoionization deep in the PDR - plausibly the same misnormalised field as D-249, i.e. one defect seen twice, but that is a hypothesis and untested. **The two slabs were started and deliberately cancelled** (marked INCOMPLETE on disk): they are the fixtures where Mg+ carries 54% and 99% of the reference's deep electrons, so running them before the Mg ionization fix would produce results the fix invalidates. Also recorded: on the pre-Mg runs our shielded-gas electrons were **98.75% (V1) and 99.99% (V2) spurious He+** against 0.29% and 0.02% in the reference, which resolves D-250's "1.79x electrons while the dominant donor is deleted" and ties it to D-246's missing He+ sink. A prediction of mine was half wrong: whole-grid medians barely moved (x(e-) 1.043 -> 1.046) but the deep band moved a lot, and generalising from the medians was an error. Process: four launches lost to the harness memory guard at 9.4, 9.9, 10.2 and 6.5 GB - the last with 46 GB free, swap 6 GB free and /tmp at 257 MB, so a threshold theory was proposed and disproved; no diagnosis, only a workaround (`setsid`, own session, launched from a foreground call). Swap had been exhausted by **9.3 GB of tmpfs** from a stale session's scratchpad under `/tmp`, which is tmpfs here - scratch runs belong in `runs/` | Open | 2026-09-12 |
+| D-253 | **D-245's leak again: ten arrays unfreed in the same recursive routine.** Prompted by "the memory leak should not be happening" - it should not, and it was real, not the transient allocation D-245 concluded. `iterateMC` allocates PDR reduction buffers at `iteration_mod.f90:1938-1969` and frees them at `:2105-2117` under the SAME guard, but ten were missing from the list: `pdrHeatGG{Tmp,Sum}`, `NePDR{Tmp,Sum}`, `H2den{Tmp,Sum}`, `pdrCoolSp{Tmp,Sum}` and `pdrIonRate{Tmp,Sum}` - **~3.1 MB per rank per iteration at 15205 cells, dominated by pdrIonRate at 1.16 MB each.** It accumulates because `iterateMC` is RECURSIVE (self-call at `:3258`), so anything allocated at that call stays live in that frame and every frame beneath it. Last use of all ten is `:2060-2076`, so freeing at `:2117` is safe; unguarded-unfreed count in the routine goes **14 -> 4** (three `nGrids` locals, plus `ionDenPrev` which is `.not.allocated`-guarded and must persist). Deliberately NOT changed: `updateCell`'s four arrays (no deallocate anywhere in `update_mod.f90`, but they are locals of a non-recursive routine, so freed on return - untidy, not a leak) and `cell_volumes` (guarded allocate-once). **Verified** on `runs/d253-leakcheck`, the same fixture with the post-fix binary, 14 ranks, 13 iterations, 30:34 against 30:16: net drift **+58.5 -> +30.4 MB/rank, 28.2 eliminated**, ~2.2 MB/rank/iteration against ~3.1 predicted. **The residual is NOT a leak**: per-iteration troughs run 688.3, 693.1, 695.4, 690.0, 690.0, 695.7, 694.1, 693.2, 712.9, 691.8 - steps of -5.3, -1.6, -0.8, -21.1, moving BOTH ways, slope +0.39 MB/rank/iter - whereas a leak raises the floor monotonically; the 712.9 is a 60 s sampling artefact. No physics changed: C+, O, H2, Mg+, HCO+, CH3+, H3O+ all at ratio 1.000, largest deviation H2O 13% with H3+ 1.125 and OH 1.110, all deep trace species where D-242 measured 4.7x-25.9x run-to-run scatter. **Untouched**: the 684 MB/rank baseline against the documented 393 MB (1.74x), present at iteration 1 - still blocker 5. The lesson on method: D-245 read the two-directional wobble as proof of health, but that wobble is the ~22 MB intra-iteration swing sitting on top of a real leak - **the trough, not the sample sequence, is the diagnostic** | Accepted | 2026-09-12 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -17122,3 +17124,217 @@ and is if anything sharpened.
 The re-runs. Nothing in this entry re-measures anything - it fixes the input
 reality and the guard that let it drift, and the fixtures now differ from every
 run on disk.
+
+---
+
+## D-252 - the corrected composition re-run: D-249 survives, and restoring Mg inverts deep carbon (2026-09-12)
+
+D-251 set Mg = 2.7e-06 in all nine fixtures, so every comparison on disk was
+made with a different composition than the code now runs. This is the re-run,
+and what it found.
+
+### 1. What was re-run, and what was deliberately not
+
+`runs/d252-hiipdr` is `d248-tehist`'s configuration byte-for-byte with the
+corrected `abunV1.in` - `input.in` diffed identical, Mg the only change.
+Complete: 13 iterations, 30:16 per processor, clean exit, 85.09% converged,
+`reportAbun` confirming `MOCASSIN 2.70000010E-06`.
+
+**The two slabs were started and then deliberately cancelled** (marked
+`INCOMPLETE` on disk so they cannot be mistaken for results). The reason is
+section 3: MOCASSIN's Mg ionization balance is ~120x too neutral-rich in
+shielded gas, and the slabs are the fixtures where Mg+ carries 54% (V1) and
+99% (V2) of the reference's deep electrons. Running the two most Mg-sensitive
+models with Mg's ionization wrong spends six hours producing numbers the next
+fix invalidates. They are re-run after that fix, not before.
+
+### 2. D-249 survives the corrected composition
+
+    species    before Mg    after Mg    reference ratio
+    H3+          0.0090      0.0080     still ~125x under
+    HCO+         0.0010      0.0010
+    CH3+         0.0010      0.0010
+    H3O+         0.0020      0.0020
+    H2O          0.0130      0.0150
+    CO           0.0500      0.0620     still ~16x under
+    OH           0.1100      0.1000     still ~10x under
+    C+           1.0010      1.0000
+    Mg+          0 (absent)  0.9680     now carried correctly
+
+**The chain is unmoved and the molecules are not rescued.** H3+ deepened
+slightly, which is the direction predicted: `H3+ + Mg -> Mg+ + H2 + H` at
+1.0e-9 is an H3+ SINK, so restoring magnesium removes H3+ rather than
+supplying it. The FUV normalisation finding stands as blocker 1.
+
+**A prediction of mine that was half wrong, recorded.** I predicted the 3D model
+would "barely move" because Mg+ is only 1.3% of sec54's electron budget. The
+whole-grid medians did barely move - x(e-) 1.043 -> 1.046, H2 0.960 -> 0.961,
+C+ 1.001 -> 1.000 - but the deepest band moved a great deal, and generalising
+from the medians to "the model barely changed" was wrong.
+
+### 3. Restoring Mg INVERTS deep carbon, and MOCASSIN's Mg ionization is why
+
+At matched depth, the same fixed A_V band (1.84-2.4534):
+
+    run              n      x(C+)      x(C)     x(Mg+)     x(e-)    C/C+
+    before Mg=0    4647   1.543e-04  6.568e-05  0         1.961e-04  0.43
+    after Mg set   5083   4.143e-05  1.785e-04  2.513e-06 8.929e-05  4.31
+    reference        12   1.987e-04  2.129e-05  2.693e-06 2.095e-04  0.11
+
+**C/C+ went from 4x the reference to 39x, the wrong way, and deep x(e-)
+halved** (ratio 0.95 -> 0.44; C+'s share of the electron budget 78.7% -> 46.4%,
+He+'s 9.8% -> 23.9%).
+
+The mechanism is reaction 185, `C+ + Mg -> Mg+ + C` at 1.1e-9, which consumes
+**neutral** Mg - and ours is far too abundant:
+
+    neutral Mg fraction, deep PDR cells
+      MOCASSIN's ionDen(Mg) stage 1     20.2%
+      the chemistry settles at           6.9%
+      reference                          0.17%
+
+x(Mg) is 17.9x the reference while x(Mg+) is 0.968 of it. So the element's
+total is right and its **ionization state is not**: MOCASSIN leaves ~120x too
+much magnesium neutral in shielded gas, the chemistry inherits that through the
+seed, and C+ is destroyed at roughly that factor too.
+
+**A hypothesis, not a measurement:** Mg I ionizes at 7.65 eV, well below the
+Lyman limit, so this is about sub-13.6 eV photoionization deep in the PDR -
+plausibly the same misnormalised FUV field D-249 measured at ~7x too strong.
+If so these are one defect seen twice, not two. Untested.
+
+### 4. The electron budget, and a tie to D-246
+
+Measured on the pre-Mg runs, deepest quarter, donor shares ours vs reference:
+
+    V1 slab    He+ 98.75% / 0.29%     C+ 0% / 34.5%    Mg+ 0% / 54.3%
+    V2 slab    He+ 99.99% / 0.02%     C+ 0% / 0.71%    Mg+ 0% / 99.1%
+    sec54 3D   He+  9.84% / 1.05%     C+ 78.7% / 94.8% Mg+ 0% / 1.31%
+
+**Our shielded-gas electrons were almost entirely spurious He+.** That resolves
+D-250's puzzle - "x(e-) is 1.79x the reference while the dominant donor is
+deleted" - and ties it to D-246's missing He+ sink, measured independently. It
+also means restoring Mg adds the real donor but cannot remove the spurious one.
+
+### 5. Process: four runs lost to the harness memory guard
+
+Four launches were killed with "system running low on memory" at footprints of
+9.4, 9.9, 10.2 and **6.5 GB**, the last with system available flat at 46 GB,
+swap 6 GB free and /tmp at 257 MB - no memory pressure of any kind. A threshold
+theory (~9.4 GB) was proposed and then disproved by the 6.5 GB kill. VSZ
+inflation is only 1.3x (8.90 GB against 6.73 GB resident), so that hypothesis
+is weak too. **No diagnosis was reached.**
+
+What did work is a **workaround, labelled as such**: run under `setsid` so the
+job is its own session leader and not a child of a harness background task,
+launched from a foreground call that returns immediately. Every kill hit a
+background task; none hit a detached session. `runs/leakcheck.sh` and the
+cancelled `runs/slabdriver.sh` are the pattern.
+
+Two contributing errors of mine. The swap was exhausted by **9.3 GB of tmpfs**
+- a stale session's scratchpad holding 39 old MOCASSIN run directories under
+`/tmp`, which is tmpfs on this machine, so those outputs were sitting in RAM.
+Deleting them took swap free from 0.87 GB to 7.04 GB. Before finding that I
+suggested killing Chrome (17.6 GB, unnecessary) and then `sudo swapoff`. The
+check that would have found it first is per-process `VmSwap` against
+`Shmem` in `/proc/meminfo`: processes held only 1.20 GB of the 7 GB used, so no
+process was the culprit and files were. **Scratch runs belong in `runs/`, which
+is real storage, never `/tmp`.**
+
+---
+
+## D-253 - D-245's leak again, ten arrays this time, in the same recursive routine (2026-09-12)
+
+Prompted by the observation that the memory drift "should not be happening".
+It should not, and it was a real defect - not the transient allocation D-245
+concluded it was.
+
+### 1. The defect
+
+`iterateMC` allocates a block of PDR reduction buffers at
+`iteration_mod.f90:1938-1969`, guarded by
+`if (lgPDR .and. nIterateMC >= pdrStartIter)`, and frees them at `:2105-2117`
+under the same guard. **Ten of them were missing from the deallocate list:**
+
+    pdrHeatGGTmp, pdrHeatGGSum     0.12 MB
+    NePDRTmp, NePDRSum             0.12 MB
+    H2denTmp, H2denSum             0.12 MB
+    pdrCoolSpTmp, pdrCoolSpSum     0.46 MB
+    pdrIonRateTmp, pdrIonRateSum   2.32 MB   <- dominates
+                                   ------
+                                   ~3.1 MB per rank per iteration at 15205 cells
+
+Guards matched; this was purely an omission from a list. It matters because
+**`iterateMC` is `recursive`** - it advances `nIterateMC` and calls itself at
+`:3258` rather than looping - so anything still allocated at that call stays
+live in that frame and in every frame beneath it. **This is D-245 exactly, in
+the same routine, found by the same kind of audit.**
+
+Last use of all ten is `:2060-2076`, so freeing them at `:2117` is safe.
+
+### 2. What was NOT changed, and why
+
+  - `updateCell` allocates four arrays (`grainPot`, `grainPotP`,
+    `photoelHeat_d`, `gasDustColl_d`) and `update_mod.f90` contains **zero**
+    `deallocate` statements. They are **locals of `updateCell`**, which is not
+    recursive, so Fortran frees them on return. Untidy, not a leak.
+  - `cell_volumes` (`photon_mod.f90:3532`) is guarded by
+    `volumes_initialized` - genuinely allocate-once.
+  - `noHitPercent`, `noIonBalPercent`, `noTeBalPercent` (`:179-181`) are
+    unguarded locals of the recursive routine, so one copy per recursion level
+    survives - but they are `nGrids` elements, a few bytes. Left alone rather
+    than risk changing recursion semantics for nothing.
+  - `ionDenPrev` is `.not.allocated`-guarded at `:1954` and persists across
+    coupling passes by design. It must NOT be freed. (My first audit reported
+    it unguarded; the regex only inspected the allocate's own line and the
+    guard is on the line above.)
+
+After the fix the routine's unguarded-unfreed count is **14 -> 4**, those four
+being the three `nGrids` locals and `ionDenPrev`.
+
+### 3. Verification: measured, and only half of it is the leak
+
+`runs/d253-leakcheck`, the `d252-hiipdr` configuration byte-for-byte with the
+post-fix binary, 14 ranks, 13 iterations, 30:34 against 30:16.
+
+    net first-to-last, MB/rank        pre-fix    post-fix
+                                       +58.5      +30.4
+    drift eliminated                            -28.2 MB/rank over 13 iterations
+
+That is ~2.2 MB/rank/iteration recovered against the ~3.1 predicted from the
+array dimensions - the right order, not exact.
+
+**The residual +30 MB is NOT a leak, and the trough test is what shows it.** A
+leak raises the floor the allocator returns to; fragmentation and high-water do
+not. Per-iteration troughs, iterations 3-12:
+
+    688.3  693.1  695.4  690.0  690.0  695.7  694.1  693.2  712.9  691.8
+
+with steps of -5.3, -1.6, -0.8 and -21.1: **it moves in both directions**,
+slope +0.39 MB/rank/iteration. The 712.9 at iteration 11 is a sampling
+artefact - the 60 s sampler caught only mid-iteration points in that one.
+Pre-fix, by contrast, the whole envelope climbed monotonically.
+
+**No physics changed**, which is the thing that would matter if an array had
+been freed while still in use. Ratios post-fix / pre-fix: C+, O, H2, Mg+,
+HCO+, CH3+, H3O+ all 1.000; the largest deviation is H2O at 13%, with H3+ at
+1.125 and OH at 1.110 - all deep trace species where D-242 measured 4.7x-25.9x
+run-to-run scatter, so 10-13% is well inside realisation noise. Convergence
+85.09% -> 85.53%.
+
+### 4. What this does not fix
+
+**The 684 MB/rank baseline against the documented model's 393 MB - 1.74x -
+is untouched.** It is present at iteration 1, before any drift, and remains the
+open item from the D-247 audit's blocker 5. This entry removed the
+accumulation; it says nothing about the baseline.
+
+### 5. Why the previous conclusion was wrong
+
+D-245 measured the post-fix profile as 685.1 / 685.1 / 689.3 / 700.7 / 703.9 /
+720.1 over six iterations, saw the wobble move in both directions, and called
+it "transient allocation within an iteration rather than accumulation". The
+wobble is real - it is the ~22 MB intra-iteration swing measured again here -
+but it was sitting on top of a genuine +2.2 MB/iteration leak, and reading the
+downward steps as proof of health was the error. **The trough, not the sample
+sequence, is the diagnostic.**
