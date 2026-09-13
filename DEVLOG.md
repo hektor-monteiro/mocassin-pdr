@@ -257,6 +257,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-255 | **The 7x FUV "normalisation error" is not one, and not ours: 2.70x is the benchmark's own boundary condition and 2.17x is scattered light.** Opened as the blocker-1 audit after the Mg/lgBlack precursor. **MOCASSIN's FUV chain is verified internally consistent, end to end**: `L_FUV/L_bol` = 0.44993 against a Planck energy fraction of 0.44462 for the 40000 K star (**1.0119**, and `inSpectrumProbDen` is built from `inSpSumErg/normConstantErg`, so it is an ENERGY cumulative, not photon-number); D-017's all-bin control gives `Fbol/Fbol_thin` = 1.27; the analytic Stromgren radius for Q = 4.26e49 at n_H = 100 is 1.5756e19 cm against our shallowest PDR cells at r = **1.562e19 cm (0.9%)**, where `chi_thin` reads 168.45 against the analytic 165.56 (**1.7%**); and binned by attenuation the field sits AT OR ABOVE `exp(-tau_FUV)` (ratio/pred 1.35, 1.56, 1.82, 2.70, 6.98 rising with depth), so there is no excess FUV absorption anywhere. **The reference's field is a prescribed boundary condition, not a computed one**: fitting `sec54.pdr.fin` column 8 gives `UV = G0*exp(-3.02*A_V)` with slope **-3.0200 exactly** and **G0 = 61.236** - note it uses the UV factor 3.02 directly as the exponent coefficient rather than 3.02/1.0857, and that the `G0 = 10` in `3D/params.dat` belongs to the diffuse benchmark, not sec54 (D-250). **So the discrepancy decomposes into two things, neither a bug in the coupling.** (1) The fixture's own star delivers **165.56 Draine at its own ionization front**, against the reference's prescribed 61.236 - **2.70x** - so the two models were never illuminated alike, and every CO/OH comparison in this log has been apples-to-oranges at the boundary. (2) Our field exceeds pure exponential attenuation from that 165.56 at the same A_V by **2.17x** (54.36 against 25.00), which is scattered and diffuse FUV folded into `Jste` - `photon_mod.f90:1858` adds diffuse packets to `Jste` when `lgDebug` is off - whereas the reference has no scattering by construction, its profile being a pure exponential to machine precision. Their product, 5.86x, brackets the 4.63x measured in the shallowest properly matched band. **D-249's numbers are revised down**: with BOTH sides restricted to the A_V range our model actually samples (there are NO PDR cells below AVeff 0.479, so the old shallowest band compared our 0.48-0.61 cells against the reference's 0-0.61 average) the ratios are **4.63, 3.17, 3.00, 3.43**, not 9.05, 5.25, 3.94, 4.10 - so "7x" should be quoted as ~3-4.6x. Also measured, the D-252 Mg question: **the 120x-too-neutral magnesium is mostly blocker 4 but not entirely** - in sec54's deepest quarter f(Mg0) is 0.847 in `lgBlack` cells against 0.148 in balance-converged ones and 0.0045 in the reference, and the shallower bands, which contain ZERO black cells, already run 2.5x, 9.0x, 20.7x too neutral, so a depth-dependent residual survives the ion-balance failure. **Open**: whether Bisbas et al. 2015 section 5.4 actually specifies G0 = 61.24 (we know only that the reference OUTPUT carries it); whether feeding a scattered-light-inclusive chi into rate expressions of the form `alpha*chi*exp(-gamma*A_V)` is right, since that form already assumes the attenuation it is being handed; and whether D-249's ~1 mag displacement of the H/H2 transition survives matched illumination. **Method, four times in one session**: an INCOMPLETE marker unread, `lgConverged` parsed as T/F when it is written 0/1, cells selected by radius when the physical variable is attenuation, and A_V ranges left unmatched between model and reference. Each produced a confident wrong number; each was caught by a quantity the run itself already reported | Open | 2026-09-13 |
 | D-256 | **The reference cannot be re-run, the slabs ARE illumination-matched, and matching on chi shows H2 was never broken - the defect is the H3+ chain.** Follows D-255's recommendation, which is now withdrawn as infeasible: **I reported that no standalone 3D-PDR source exists on this machine, which is WRONG - see D-257**: `source/pdr/` IS 3D-PDR, byte-identical to upstream except for the `3DPDR.F90` driver, as its own `UPSTREAM.md` says; my search was scoped to `$HOME/software` at maxdepth 3 and grepped only `*.f90`/`*.F90`. The reference HAS since been rebuilt and validated bit-for-bit. What remains true is that `benchmarks/pdr/baseline3dpdr/params.dat` is **v1's** config (ICs `1Dn30.dat`, prefix `v1`, G0 = 10), while **sec54's configuration is absent entirely** - so re-running the reference at a matched boundary condition is impossible, and matching can only be done on our side. **Credit correction: D-250 already tabulated the reference fields** - sec54 61.24, v1 10, v2 1000, in its composition table - so D-255 discovered the CONSEQUENCE of that number, not the number. **The slabs are the properly matched control, and sec54 is not.** De-attenuating our surface field to A_V = 0 gives chi(0)/G0 = **0.79-0.85 (v1)** and **0.75-0.83 (v2)** - illumination matched to ~20% - against sec54's **2.70x**, because sec54's 61.24 is a prescribed 1D boundary condition while our 3D star delivers 165.56 Draine at its own ionization front and cannot be weakened without breaking the Lexington HII40 benchmark it also serves. **So sec54 is a reference for shape, not a quantitative benchmark for the 3D coupling**, exactly as CLAUDE.md's rule 4 says, and the v1/v2 slabs carry the quantitative weight. **The result that matters: matched on chi rather than A_V, H2 agrees.** In sec54, at matched chi, H2 = 1.004 and 1.105, C+ = 0.960 and 0.999, x(e-) = 1.019 and 1.074 in the two bands where chi controls - while CO stays 0.29-0.33, OH 0.12-0.13 and **H3+ 0.025-0.029**. So **D-249's "H/H2 transition displaced ~1 magnitude, a 60,000x H2 deficit" was substantially an illumination-matching artifact**, and the surviving defect is the H3+ chain, 30-40x low, which no change of boundary condition touches. D-249's own note that H2+/H3+ are 0.142/0.482 in V1 and 102.8/2.835 in V2 already localised it to the 3D path; this confirms carbon, hydrogen and the electrons are not the problem. **A second, separate defect, now localised**: the slabs' attenuation slope is **2.07/mag** (stable over two fit ranges) against the reference's **3.02 exactly**, a 32% shortfall, while the 3D path's slope is fit-range dependent (3.10, 3.34, 3.77) and consistent with 3.02 - so D-250's "our FUV slope is not single-valued" is confirmed and belongs to the **plane-parallel** path, not the ray-traced one. Consistent with scattered light flattening the profile, the same mechanism as D-255's 2.17x. **Method, and it cuts against my own previous entry**: matching on chi is valid only where chi controls the chemistry - deep in the slabs it fails badly (CO 23x, OH 9x, H3+ 6x at chi -> 0) because cosmic rays set the chemistry there, not the field. **Neither chi nor A_V is the right match variable everywhere**; chi near the surface, column deep, and any single-variable comparison must say which regime it is quoting. **Open**: the H3+/H2+ chain in the 3D path (now blocker 1 in place of the withdrawn normalisation defect); the plane-parallel 2.07/mag slope; whether the scattered-light contribution should reach the chemistry at all (D-255) | Open | 2026-09-13 |
 | D-257 | **The reference is now a variable: standalone 3D-PDR rebuilt, validated bit-for-bit, and sec54's unrecorded zeta and composition pinned. At matched illumination the ionization side is exact and the H2+ chain is the whole defect.** D-256 withdrew the matched-reference plan as infeasible; the user pointed out a 3D-PDR source exists, and it does - `source/pdr/` is byte-identical to upstream `github.com/itamos-ism/3D-PDR@fabcdc6` **except for `3DPDR.F90`, the standalone driver**, as `UPSTREAM.md` says in as many words. My search missed it because it was scoped to `$HOME/software` at maxdepth 3 and to `*.f90`/`*.F90`. Fetching that one 434-line file from the pinned commit and compiling it with the vendored tree plus the eight deliberately-excluded files (`input_parameters`, `readdensity`, `UVfield`, `writeoutputs`, `restart_io`, `read_command_line`, `logo`, `writeparams`) **builds clean with zero errors**. One link fix was needed: upstream passes `-L$(SUNDIALS_DIR)/lib` without `-rpath`, so the loader picked the SYSTEM SUNDIALS **7.1.1**, which drags in `libmpi` and aborts with "MPI_Comm_dup() called before MPI_INIT" - adding `-Wl,-rpath` (which MOCASSIN's own Makefile already does, for this exact reason) pins the local **7.8.0**, the same CVODE the coupled build uses, and drops MPI entirely. **Validated twice, exactly.** It reproduces `v1.pdr.fin` with **zero deviation in all 41 columns and all 33 species** (median, p99, max all 0.000e+00). For sec54 the IC is reconstructible - A_V max 2.4534 / 5.34153e-22 = 4.594e21 cm^-2 at n_H = 100 gives 14.89 pc, exactly where its own `x` column ends - and a 250-point uniform slab built from sec54's own depth grid reproduces A_V, Tdust and UVfield exactly but left **Tgas 25.6% hot and species 35% off**. The cause was composition: `dataPDR/species_reduced.d` ships the Roellig v1 values C = 1.40e-04, O = 3.00e-04, while sec54 was run with **C = 2.20e-04, O = 3.30e-04** (D-250's own table). With those two numbers corrected the reconstruction is **bit-for-bit exact - Tgas ratio 1.0000 at surface, median and deep, all species 0.000e+00**. So two things D-250 recorded as unknown are now pinned: **sec54's zeta IS 5.0e-17** (it reported "unrecorded and could not be inferred") and its composition is confirmed. A zeta scan on the way refuted my own reasoning: I claimed zeta could not produce a near-constant surface offset because CR heating is negligible there, and it can - 2.0e-17/5.0e-17/1.0e-16 give surface ratios 1.060/1.259/1.487 - but no single zeta fits surface and deep together, which is what pointed at the coolants. **THE RESULT. Against a reference generated at the fixture's own field (G0 = 165.56), matched in zeta, composition, A_V conversion and dust, the ionization side is essentially perfect and the molecular chain is not**: C+ **1.000, 1.000, 0.997**, x(e-) **1.013, 1.124, 1.039**, Mg+ 0.999, 0.997, 0.980 across the three bands where chi controls, and H2 recovers to **1.030 and 0.968** in the two deepest bands - while CO is 0.001-0.580, OH 0.001-0.284, **H3+ 0.000-0.037 and H2+ 0.000 everywhere, exactly zero in 547 of 9356 PDR cells** (x(H2+) 8.9e-25 against 5.1e-17 at A_V 0.6-1.2, ratio 1.8e-08). **So blocker 1 is the H2+/H3+ chain - though see the AMENDMENT below: the H2+ RATIO is measured against a reference value 3D-PDR's own network contradicts, so the chain, not H2+ itself, is the defensible statement**, the head of the chain, with its own precursor H2 correct to 3%, the electron pool correct to 12% and carbon correct to 0.3%. It is not illumination (D-256) and it cannot be temperature: H2+'s shielded-gas source is the single channel 296 `H2 + CRP -> H2+ + e-` and its sinks 49 and 155 all have beta = gamma = 0, so the balance is cosmic-ray driven and temperature-independent. **A hypothesis of mine refuted in passing**: I proposed the coupling's D-163 suppression had deleted 296 as "CR ionization, MOCASSIN's job". It has not - the suppressed list is exactly 242/243/244/245/246/248/249 (radiative recombination) and 269/289 (photoionization) of linked stages, and the code comment says cosmic-ray channels are deliberately kept. Note for readers of that log section: the interleaved `rxn NNN: ... eV` lines are `init_chemical_heating`'s listing, NOT suppressions. **A correction to D-254**: reaction 243 He+ + e- IS suppressed in the coupled chemistry, so the "chemistry's own steady state" computed there was of the full network rather than the coupled one; the conclusion is unaffected. **Also measured, and open**: our PDR gas runs **22.15 K against the matched reference's 59.18 K**, 2.7x colder at matched A_V and identical density, which is a separate defect from the chain. And my own hand estimate of the H2+ balance puts the REFERENCE's x(H2+) ~1e4 above what its CR steady state appears to imply, so the balance is not yet understood on either side and the next step is to measure it, not to estimate it | Open | 2026-09-13 |
+| D-259 | **The 3D self-shielding ray tracer is not yet fit to be the only geometry: it stops at boundaries the transport reflects at, truncates slab rays at 59% of the depth, and weights a one-sided field as isotropic. Audit only - nothing changed; parked for later work.** Prompted by the proposal that PDRGEOM=3D be used for EVERY fixture, slabs included, because MOCASSIN has no genuine 1D radiative transfer - a slab is a 3D grid with mirror walls, and the ONEDIMENSIONAL chemistry path (11 of 12 rays blanked, one source-ward column) is a 1D shortcut inside a 3D model. **Agreed in principle; the 3D path needs fixing first.** (1) `computeRayColumns` (`pdr_mod.f90:1374`) `exit`s a ray the moment it leaves the box, while `photon_mod` REFLECTS packets at the `lgSymmetricXYZ` planes - so in hiipdr every inward-looking ray stops at x/y/z = 0 and misses the column of the mirrored octants. (2) It marches at the SMALLEST cell spacing with `nstep = min(2000, dmax/ds+1)`; on the slabs' non-uniform depth axis (4.68e15-5.28e16 cm) 6931 steps are needed, so rays reach only **58.9% of the depth** in d233-v1slab (hiipdr is uniform, 52 steps, unaffected). (3) `radSurf = chi/12` (`:2438`) with a per-ray H2/CO/C column is 3D-PDR's ISOTROPIC-field model; MOCASSIN's direct field is one-sided (point source or illuminated face). (4) The tracer's HEALPix rings are about z while planeIonization illuminates along y; the closed-form fallback in pdrStep assumes rings about the slab normal (only used before the first trace). **Also unknown: which geometry the reference-comparison runs used.** `PDRGEOM ?= 1D` is the Makefile default, no run records its flags, and a symbol-name fingerprint is useless - `nm` shows no `computeRayColumns` even in a binary known to be 3D, because the private routine is inlined. **A claim of mine corrected while auditing**: I said oblique rays leave the slab sideways within ~2.5 cells; the slab is 2.0e19 cm wide against 1.59e19 cm deep, so they travel up to 169% of the depth first. **Plan**: reflect at symmetry planes and mirror walls; cell-by-cell traversal instead of capped marching; decide the angular model (recommended: direct stellar field shielded along the source direction, only the diffuse part over 12 rays); make PDRGEOM=3D the single flavour and print the geometry in every run log. **Validation**: in an infinite slab each ray's traced column must equal N_normal/|mu| exactly, and v1/v2 now reproduce bit-for-bit (D-257). **Decision open**: the angular model | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -18281,3 +18282,132 @@ implementation site has not been found. Mapping note for anyone repeating this:
 `odes_reduced.c` does NOT use `species_reduced.d` ordering - **H2+ is `x[5]`**,
 identified by its formation block carrying `rate[295]` (296), `rate[169]` (170),
 `rate[153]` (154), `rate[249]/[250]` and `rate[266]` (267).
+
+## D-259 - the 3D self-shielding tracer, audited: not yet fit to be the only geometry (2026-09-13)
+
+**Status: audit only. Nothing was changed. Parked deliberately so it can be
+picked up later; the open decision is in section 6.**
+
+### 1. The proposal
+
+MOCASSIN has no genuine 1D radiative transfer. A "slab" fixture is a 3D grid
+(`nx, ny, nz = 5, 801, 5` for v1) with `planeIonization`, illuminated along y
+with mirror side walls, and the Monte Carlo transport treats it as 3D. The
+chemistry, however, can be built two ways:
+
+    make PDR=1 PDRGEOM=1D   (Makefile default)  -> -DONEDIMENSIONAL
+    make PDR=1 PDRGEOM=3D                        -> -DRAYTHEIA -DRAYTHEIA_MO
+
+The 1D branch blanks 11 of the 12 HEALPix rays and uses one source-ward column
+(`pdr_mod.f90:3018-3024`, `evpt(1,6,1) = (colA/AVfacL)/nH/PC`). That is a 1D
+shortcut inside a 3D model. The proposal is to use PDRGEOM=3D for **every**
+fixture, slabs included, so there is one geometry and it matches the transport.
+
+**Agreed in principle.** This entry records why the 3D path cannot yet carry
+that role, so the work is not re-derived.
+
+### 2. What PDRGEOM=3D does
+
+Once per MC iteration (`pdr_mod.f90:1772`), `computeRayColumns` walks each of
+12 HEALPix nside=1 directions outward from every cell centre and accumulates
+n_H*x(H2), n_H*x(C), n_H*x(CO) and the V-band extinction into
+`colRayH2/C/CO/AV(cell, 0:11)`. In `pdrStep` those feed the chemistry's H2, CO
+and C self-shielding per ray (`:2585-2593`) and the escape-probability path
+lengths per ray (`:2975-3017`). The photorates themselves take
+`radSurf = chi/12` and `AVray = A_V,eff` on every ray (`:2438-2439`), the D-001
+effective-A_V form.
+
+### 3. Defects
+
+**(a) Rays stop at boundaries the transport reflects at.** The march is
+
+    if (px < xAxis(1) .or. px > xAxis(nx) .or. ...) exit      (pdr_mod.f90 ~1440)
+
+with no reflection. `photon_mod.f90` reflects packets at the `lgSymmetricXYZ`
+planes (`:394, 1442, 1779, 2513, 2732, 3087 ...`). hiipdr is one octant
+(`symmetricXYZ`, star at the origin), so any ray with a negative component
+stops at x, y or z = 0 and never collects the column in the mirrored octants -
+for a PDR-shell cell, the far side of the shell. The slab side walls have the
+same gap: the transport is a mirror-walled slab, the tracer a finite box.
+
+**(b) Capped marching truncates rays on non-uniform grids.**
+
+    ds    = smallest cell spacing on any axis
+    nstep = max(4, min(2000, int(dmax/ds) + 1))
+
+    fixture         depth spacing              ds        steps needed  reach
+    d233-v1slab     4.682e15 - 5.282e16 cm     4.68e15   6931 -> 2000  58.9% of depth
+    d252-hiipdr     2.0e18 (uniform)           2.00e18   52            173% (fine)
+
+In the slab a ray looking into the cloud covers under 60% of the depth, so
+deep-looking columns - and self-shielding - are underestimated. Sampling is
+also nearest-cell (`nearestAxG`, an O(n) search per step), so the column is a
+sampled sum, not a path integral through cell faces.
+
+**(c) The angular model is isotropic; the field is not.** `radSurf = chi/12`
+with each ray shielded by its own column is 3D-PDR's model for an isotropic
+external field, which is what standalone 3D-PDR assumes. MOCASSIN's direct field
+comes from one direction - the star, or the illuminated face - so eleven
+twelfths of the flux is shielded by columns along directions those photons
+never travel. Only the diffuse/scattered part is plausibly isotropic, and
+D-255 measured that part as a 2.17x contribution to chi at the PDR surface.
+
+**(d) Ray orientation does not follow the slab.** The tracer's rings are about
+z (rays 0-3 at z = +2/3, 4-7 at z = 0, 8-11 at z = -2/3; rays 5 and 7 lie along
++/-y). planeIonization illuminates along y. The closed-form fallback in
+`pdrStep` (`:2993-3015`) assumes "4 rays at mu = +2/3 ... along the slab
+normal". It is only used before the first trace, but the two conventions
+disagree and any future closed form must not inherit that assumption.
+
+### 4. What is not known
+
+  - **Which geometry the reference-comparison runs used** (d233 slabs,
+    d248/d252 hiipdr, and so D-249 .. D-257). The Makefile default is 1D;
+    D-190 calls 3D "the default test build" while D-247 speaks of "the 1D
+    slabs"; no run records its build flags. The obvious fingerprint fails:
+    `nm` shows no `computeRayColumns` symbol even in `source/pdr_mod.o` and in
+    the `d258b` binary, both certainly PDRGEOM=3D, because the private routine
+    is inlined. A reliable test would be to rebuild each flavour from the run's
+    commit and compare, or to add a geometry banner (section 5).
+  - How large defects (a)-(c) are in practice. None has been measured; the
+    slab closed form in section 5 is the way to measure (a) and (b).
+
+**Corrected during the audit**: I first said oblique rays leave the slab
+sideways "within about 2.5 cells". Wrong - the transverse box is 2.0e19 cm
+wide against a 1.59e19 cm depth, so an oblique ray (|v_x| = 0.745) travels up to
+169% of the depth before exiting. The real slab problem is the missing mirror
+walls and the step cap, not a narrow box.
+
+### 5. Plan
+
+  1. **Boundaries**: reflect rays at the `symmetricXYZ` planes, and treat the
+     planeIonization side walls as mirrors (effectively infinite in x and z),
+     matching `photon_mod`.
+  2. **Traversal**: replace fixed-step marching with a cell-by-cell walk
+     (distance to the next cell face), so every ray reaches the boundary on any
+     grid and the column is a true path integral.
+  3. **Angular model** - the open decision, section 6.
+  4. **One flavour**: make PDRGEOM=3D the only (or at least default) PDR build,
+     and print the compiled geometry in every run log so each run is
+     self-identifying.
+  5. Re-run the fixtures with the corrected tracer.
+
+**Validation, before any science run**: for an infinite slab the column on a
+ray at direction cosine mu to the normal is exactly N_normal/|mu|, so a traced
+slab can be checked against a closed form per ray; and the standalone reference
+now reproduces v1/v2 bit-for-bit (D-257), so the chemistry that consumes those
+columns can be checked against 3D-PDR's own 1D answer.
+
+### 6. Decision open
+
+How to divide the field among directions:
+
+  - **Recommended**: shield the direct stellar component along the source
+    direction (the column computeAVradial / computeAVdust already trace), and
+    spread only the diffuse part over the 12 rays with per-ray columns.
+  - Alternative: keep 3D-PDR's isotropic `chi/12` treatment and accept it as an
+    approximation for a one-sided field.
+
+This needs MOCASSIN to separate direct from diffuse FUV. `Jdif` exists but is
+only filled as a diagnostic mirror (D-158) when `lgDebug` is off - the same
+limitation D-255 met.
