@@ -106,7 +106,7 @@ module set_input_mod
         Hdensity      = 0.
         H0Start       = 3.e-5
         LPhot         = 0.
-        minConvergence= 95.
+        minConvergence= 90.
         NeStart       = 0.
         nuMax         = 15.
         nuMin         = 1.001e-5

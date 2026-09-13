@@ -43,7 +43,7 @@ symmetricXYZ
 Hdensity 100.
 nebComposition "input/abunV1.in"
 TeStart 8000.
-maxIterateMC 22 95.
+maxIterateMC 22 90.
 nPhotons 6000000
 nx 31
 ny 31
