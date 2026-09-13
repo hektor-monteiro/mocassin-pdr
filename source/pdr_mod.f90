@@ -78,7 +78,9 @@ module pdr_mod
                                ! a 33-element array at 1000. gfortran accepts the
                                ! real subscript as a legacy extension, silently.
                                & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
-                               & NCx, NO, NOx, NMG, NMGx
+                               & NCx, NO, NOx, NMG, NMGx, &
+                               ! D-258: H2+ and H3+, for the chain diagnostic
+                               & NH2x, NH3x
 
     ! D-113: per-species formation and destruction rates from the ODE RHS
     use chemistry_module, only : pdrFormSp => species_form, &
@@ -2244,6 +2246,9 @@ module pdr_mod
         integer            :: iEl                        ! D-188
         integer            :: iRay                       ! D-190
         double precision   :: Tc, coolTot2, coolTot3     ! D-166
+        integer            :: iBinD113                   ! D-258
+        logical, save      :: lgAVd113(8) = .false.      ! D-258
+        integer, save      :: iterD113 = -1            ! D-258b
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
@@ -2749,24 +2754,53 @@ module pdr_mod
         !       that is ~0, so |form + x*loss| / form is the residual.
         !   (b) H2 formation on grains is the textbook R*n_H*x(H) with
         !       R ~ 3e-17 cm^3/s, so form(H2)/(nH*x(H)) recovers R.
+        ! D-258: extended to H2+ and H3+, and sampled one cell per 0.5 mag of
+        ! A_V rather than a single pdrDiagAV window, because the question -
+        ! is our H2+ consistent with our OWN network? - is a function of depth.
+        ! The column that matters is x_eq: the ODE is dx/dt = form + x*loss
+        ! with loss negative, so at steady state x_eq = form/(-loss), and
+        ! x_eq/x is 1 exactly when a species sits where its own rates put it.
+        ! Measured from the output files, ours is ~1e9 for H2+ (D-257 s11).
+        ! Diagnostic only; fixed-size saved flags, so no allocation and none
+        ! of the D-245/D-253 leak class.
         if (pdrDiagRates /= 0 .and. taskid == 0 .and. grid%pdrZone(cellP) == 1) then
-           if (av > 0.9d0*pdrDiagAV .and. av < 1.1d0*pdrDiagAV) then
-              print*, "! [D113] rates at A_V =", real(av), " n_H =", real(nH)
-              print*, "! [D113]   species     x            form         ", &
-                   & "x*loss       residual"
-              do it = 1, 3
+           ! D-258b: re-arm every MC iteration. The first version latched each
+           ! A_V bin on first visit and never cleared, so all six bins were
+           ! captured during iteration 4 - the FIRST chemistry pass, with the
+           ! model 0.00% converged - and never refreshed over 55 later pdrStep
+           ! calls. The probe then described a transient, not the settled
+           ! state, which is exactly the failure D-176..D-181 warn about: a
+           ! diagnostic whose quantity cannot move reports for free.
+           if (nIterateMC /= iterD113) then
+              lgAVd113 = .false.
+              iterD113 = nIterateMC
+           end if
+           iBinD113 = int(av/0.5d0) + 1
+           if (iBinD113 < 1) iBinD113 = 1
+           if (iBinD113 > 8) iBinD113 = 8
+           if (.not.lgAVd113(iBinD113)) then
+              lgAVd113(iBinD113) = .true.
+              print*, "! [D258] rates at A_V =", real(av), " n_H =", real(nH), &
+                   & " T =", real(Tg)
+              print*, "! [D258]   species     x            form         ", &
+                   & "x*loss       resid        x_eq         x_eq/x"
+              do it = 1, 5
                  nSpec = 0.d0
                  select case (it)
                  case (1); ik = NH2
                  case (2); ik = NCO
                  case (3); ik = pdrNHsp
+                 case (4); ik = NH2x
+                 case (5); ik = NH3x
                  end select
-                 print*, "! [D113]  ", pdrSpecies(ik), real(abun(ik)), &
+                 if (pdrLossSp(ik) < 0.d0) nSpec = pdrFormSp(ik)/(-pdrLossSp(ik))
+                 print*, "! [D258]  ", pdrSpecies(ik), real(abun(ik)), &
                       & real(pdrFormSp(ik)), real(abun(ik)*pdrLossSp(ik)), &
                       & real((pdrFormSp(ik)+abun(ik)*pdrLossSp(ik)) &
-                      &      / max(abs(pdrFormSp(ik)),1.d-99))
+                      &      / max(abs(pdrFormSp(ik)),1.d-99)), &
+                      & real(nSpec), real(nSpec/max(abun(ik),1.d-99))
               end do
-              print*, "! [D113]   implied H2 formation coefficient R =", &
+              print*, "! [D258]   implied H2 formation coefficient R =", &
                    & real(pdrFormSp(NH2)/max(nH*abun(pdrNHsp),1.d-99)), &
                    & " cm^3/s   (textbook ~3e-17)"
            end if
