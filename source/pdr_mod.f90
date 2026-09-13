@@ -366,8 +366,8 @@ module pdr_mod
         ! network's own photoionization and recombination channels for those
         ! stages are always duplicates and are always suppressed.
         if (taskid == 0) &
-             & print*, "! initPDR: MOCASSIN owns the ion stages - suppressing &
-             &duplicated network channels:"
+             & print*, "! initPDR: linked ionization/recombination channels KEPT &
+             &inside the solve (D-260); MOCASSIN re-imposes afterwards:"
         if (.true.) then
            do iR = 1, pdrNreacMod
               lgDupPhot = .false.; lgDupRec = .false.
@@ -409,7 +409,21 @@ module pdr_mod
                       & trim(adjustl(pdrReactant(iR,2))), " -> ", &
                       & trim(adjustl(pdrProduct(iR,1))), &
                       & merge("  (photoionization)", "  (recombination)  ", lgDupPhot)
-                 pdrAlpha(iR) = 0.d0
+                 ! D-260: KEPT, no longer zeroed. Deleting these inside the
+                 ! network left the linked ions with production but no loss
+                 ! during the solve: H + CRP -> H+ ran with H+ + e- removed, and
+                 ! because odes_reduced.c computes x_e as the sum of the evolving
+                 ! cations, x_e inflated 13-926x and dissociative recombination
+                 ! emptied H3+ (D-258, closure exact at five depths). The
+                 ! post-solve re-imposition (D-162 ratios, D-231 electrons) then
+                 ! hid it. MOCASSIN still owns the stored ionization state and
+                 ! re-imposes it after every solve; the network now only uses
+                 ! its own coefficients WHILE it integrates, so its internal
+                 ! electrons stay physical. Evidence that this suffices in
+                 ! shielded gas: the standalone 3D-PDR, this network with these
+                 ! channels intact, gives x_e 1.01-1.12x MOCASSIN's at matched
+                 ! illumination (D-257). Photoionization (269 C, 289 Mg) is kept
+                 ! with recombination so C+/Mg+ keep both directions.
               end if
            end do
         end if
