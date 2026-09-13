@@ -261,6 +261,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-259 | **The 3D self-shielding ray tracer is not yet fit to be the only geometry: it stops at boundaries the transport reflects at, truncates slab rays at 59% of the depth, and weights a one-sided field as isotropic. Audit only - nothing changed; parked for later work.** Prompted by the proposal that PDRGEOM=3D be used for EVERY fixture, slabs included, because MOCASSIN has no genuine 1D radiative transfer - a slab is a 3D grid with mirror walls, and the ONEDIMENSIONAL chemistry path (11 of 12 rays blanked, one source-ward column) is a 1D shortcut inside a 3D model. **Agreed in principle; the 3D path needs fixing first.** (1) `computeRayColumns` (`pdr_mod.f90:1374`) `exit`s a ray the moment it leaves the box, while `photon_mod` REFLECTS packets at the `lgSymmetricXYZ` planes - so in hiipdr every inward-looking ray stops at x/y/z = 0 and misses the column of the mirrored octants. (2) It marches at the SMALLEST cell spacing with `nstep = min(2000, dmax/ds+1)`; on the slabs' non-uniform depth axis (4.68e15-5.28e16 cm) 6931 steps are needed, so rays reach only **58.9% of the depth** in d233-v1slab (hiipdr is uniform, 52 steps, unaffected). (3) `radSurf = chi/12` (`:2438`) with a per-ray H2/CO/C column is 3D-PDR's ISOTROPIC-field model; MOCASSIN's direct field is one-sided (point source or illuminated face). (4) The tracer's HEALPix rings are about z while planeIonization illuminates along y; the closed-form fallback in pdrStep assumes rings about the slab normal (only used before the first trace). **Also unknown: which geometry the reference-comparison runs used.** `PDRGEOM ?= 1D` is the Makefile default, no run records its flags, and a symbol-name fingerprint is useless - `nm` shows no `computeRayColumns` even in a binary known to be 3D, because the private routine is inlined. **A claim of mine corrected while auditing**: I said oblique rays leave the slab sideways within ~2.5 cells; the slab is 2.0e19 cm wide against 1.59e19 cm deep, so they travel up to 169% of the depth first. **Plan**: reflect at symmetry planes and mirror walls; cell-by-cell traversal instead of capped marching; decide the angular model (recommended: direct stellar field shielded along the source direction, only the diffuse part over 12 rays); make PDRGEOM=3D the single flavour and print the geometry in every run log. **Validation**: in an infinite slab each ray's traced column must equal N_normal/|mu| exactly, and v1/v2 now reproduce bit-for-bit (D-257). **Decision taken (s7)**: PDRGEOM=3D is the required mode for physical consistency and its ~3x chemistry-iteration runtime is accepted. **Still open**: the angular model | Open | 2026-09-13 |
 | D-260 | **Linked recombination and C/Mg photoionization restored inside the chemistry solve: H3+ recovers to 73-113% of a matched reference, and the C+ cliff it was hiding becomes the leading molecular defect.** D-163 zeroed reactions 242-246, 248, 249 (radiative recombination of H+, He+, C+, O+, Mg+) and 269, 289 (C, Mg photoionization) because MOCASSIN owns them. The generated ODE builds x(e-) from its own cations (odes_reduced.c:52), so with no recombination the solve ran on 12-940x MOCASSIN's electrons and destroyed H3+ by dissociative recombination (D-258). D-260 keeps those rates in the solve; MOCASSIN still re-imposes its ions and electrons after it (D-162/D-231), so ownership is unchanged; no vendored edit. `runs/d260-recomb`, 11 iterations, 84.6% (d258c 85.2%). Internal/imposed x_e 0.94-0.98 at A_V 0.9-1.8 (was 12-940), still 1.8-3 at A_V >= 2.4. All 15039 PDR cells binned in A_V against `sec54g166c.pdr.fin` (tools/d260_profiles.py): H3+ 0.075/0.014/0.043/0.007/0.002 -> 0.11/0.73/0.79/0.92/1.13 at A_V 0.9/1.3/1.7/2.1/2.3; HCO+ up 30-600x to 0.003-0.97; but CO 0.54 -> 9.8 and 0.56 -> 11.6 at A_V 2.1/2.3, OH -> 3.8, CH 7-8x from A_V 1.3, because C+ collapses to 0.003 and x(e-) to 0.17 there (unchanged by D-260) with atomic C 11-18x. Unchanged: Tgas 0.22-0.40 of reference, Tdust 1.18-1.42, He+ 1.3-12x. H budget closes to 3e-8. Open: H2 at A_V 0.9 bin 1.01 -> 0.087 (transition edge, unexamined); single run vs D-242 scatter. **Section 6 correction (same day): the reference slab's lit face belongs at our ionization front (A_V 0.479), not at A_V 0; aligned, the shifted slab ends at 2.93 vs our 3.00, and dust temperature agrees to 12% (it looked 18-42% warm unshifted). Aligned, D-260 still restores H3+ (0.9-2.8x past A_V 1.7) but the model is more molecular than the reference throughout (H2 2-8x at A_V 0.9-1.3, CO 16-48x, CH 10-350x), fed by atomic C 7-15x high and gas 3-7x colder; C+ falls to 1e-7 from A_V 2.5. D-257's unshifted conclusions need re-reading** | Open | 2026-09-13 |
 | D-261 | **Three disagreements in the D-260 figures explained by measurement: cold gas = MOCASSIN's grain photoelectric heating ~80x below 3D-PDR's at the same field (no grains below 100 A); O+ = MOCASSIN zeroes H-ion charge exchange below 6000 K, the reference's only O+ source; missing molecules in the H II gas = a plotting defect of mine.** Tgas: MOCASSIN owns the balance and uses its own PE (pdrPEfromPDR = 0); D-217 budget over 15009 cold cells gives per H: photo 3.2e-28, MOCASSIN PE 1.0e-27, PDR extra 1.7e-27 erg/s, while 3D-PDR's PE evaluated at OUR local field and T averages 7.9e-26 per H. At aligned depths that 3D-PDR PE matches the reference's own PE (6.6e-23 vs 4.4e-23 at the front, 2.7e-24 vs 6.8e-24 at A_V 2.1) although our chi is 2-4x lower, so the heating RATE, not the field, sets the 3-7x cold gas. Grain sizes start at 0.01 um; BT94 heating is dominated by grains < 15 A. Tdust agreement is genuine: pdrRad writes grid%Tdust(0,0) and pdrDustModel = 0 (MOCASSIN only). O+: reference chemanalysis shows O+ 99-100% from 162 H+ + O -> O+ + H against 161 at every depth; update_mod.f90 `if (TeUsed < 6000. .or. TeUsed > 5.e4) chex = 0.` removes both directions in PDR gas, and MOCASSIN re-imposes its O+ after the solve, so ours is 1e-9 cm^-3 against 3e-6. An artificial gate by the project rule. C+: reference is 99% C photoionization (269) against recombination (244); ours agrees to 1% until A_V 2.1 then falls to 1e-7, matching the D-237/D-241 MC estimator floor (6e6 packets here; D-241 recovered C+ at 2e7) - consistent but not re-measured at the aligned depths. Molecules below A_V 0.5: the chemistry is solved in all 165 H II cells (x(H2) 4e-11-1.2e-8); tools/d260_roellig.py zeroed them. Fixed; H2 now rises continuously through the front | Open | 2026-09-13 |
+| D-262 | **The 6000 K charge-exchange gate is not a validity limit, and MOCASSIN's O reverse rate uses a threshold 10x too large; Cloudy c25's scheme is the recommended replacement.** MOCASSIN zeroes every H charge-exchange rate below 6000 K (update_mod.f90:2628). The KF96 fits it uses carry per-reaction validity ranges (Cloudy c25 ctrecombdata.dat): O+ + H is valid 10-1e4 K, and there MOCASSIN's own fit agrees with Stancil et al. 1999 (Cloudy) and UMIST 161 to 5-15% from 10 to 1000 K. Separately, the reverse O + H+ -> O+ + H is built by detailed balance with deltaE_k(8,1) = 2205 K; KF96/Cloudy give 230 K (0.02 eV). So ion/rec is 2.4e-10 against 0.14 at 100 K, and 0.43 against 0.77 at 3000 K. That affects partially ionized H II gas as well. At 1e4 K KF96 O+ + H is 1.04e-9 against Stancil/Cloudy 2.05e-9. He+ + H at 20 K: KF96 extrapolated 2e-19, UMIST 3e-15, Cloudy ~1.3e-15 (Stancil 1998 radiative, clamped). Mg + H+: UMIST 167 is a constant 1.1e-9, which Cloudy rejects ('UMIST is bogus', Stancil 2006) for the ORNL fit, 2e-18 at 20 K. Cloudy clamps T into each fit's range, keeps the true Boltzmann factor, and overrides O (Stancil 1999, 10 K-1e5 K), N (Lin 2005), O++/N++ (Barragan 2006) and Mg/Si (ORNL). zlib licence, portable with attribution. Not yet implemented | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -18869,3 +18870,90 @@ the aligned depths**: the per-bin field in the C I band is not in the outputs.
   - Explain the dip in H3+, CH and H2O in the first PDR bins just inside the
     front (visible in the corrected figure), where the gas falls from ~7000 K
     to ~23 K.
+
+## D-262 - charge exchange below 6000 K: MOCASSIN, 3D-PDR (UMIST) and Cloudy compared (2026-09-13)
+
+The user asked to validate MOCASSIN's 6000 K lower limit for charge exchange,
+and whether MOCASSIN's rates could be updated from what 3D-PDR or Cloudy uses.
+D-261 had found that this gate removes the reference's only O+ source.
+
+### 1. MOCASSIN
+
+`update_mod.f90` holds a KF96 recombination-fit table `chex(elem,ion,1:4)`
+(A^n+ + H -> A^(n-1)+ + H+) and builds the reverse ionization by detailed
+balance only where `deltaE_k > 1` (N: 10863 K, O: 2205 K):
+
+    if (TeUsed < 6000. .or. TeUsed > 5.e4) chex(elem,ion,1) = 0.
+
+This zeroes every element and both directions. There is no per-reaction range.
+
+### 2. Cloudy c25.00 (`~/software/cloudy-c25.00`, `atmdat_char_tran.cpp`)
+
+  - KF96 fits read from `data/ctiondata.dat` / `ctrecombdata.dat`, each with
+    its own [T_low, T_high] (columns 5-6). T is CLAMPED into that range, not
+    zeroed, and the Boltzmann factor is evaluated at the real T.
+  - O range: 10 - 1e4 K. ionization dE = 0.023 x 1e4 K = 230 K.
+  - Overrides: O+ <-> O from Stancil et al. (1999) TableCurve fits, 10 K up;
+    N from Lin et al. (2005) + Butler & Dalgarno (1979); O++ and N++ + H from
+    Barragan et al. (2006); He+ + H radiative from Stancil et al. (1998) plus
+    the KF96 term; Mg, Si and Li ionization from ORNL fits. The UMIST Mg and Si
+    constants are explicitly rejected ("UMIST is bogus", Stancil, 2006).
+  - Licence: zlib - may be ported and altered, with attribution, and altered
+    versions marked as such.
+
+### 3. 3D-PDR reduced network (UMIST)
+
+    156/157  H + He+ -> He + H+   4.85e-15 (T/300)^0.18 | 3.28e-15 (T/300)^0.5
+    161      H + O+  -> O + H+    5.66e-10 (T/300)^0.36 exp(8.6/T)
+    162/163  H+ + O  -> O+ + H    7.31e-10 (T/300)^0.23 exp(-225.9/T) | ...
+    167      H+ + Mg -> Mg+ + H   1.10e-9 constant
+
+### 4. Measured comparison (rate coefficients, cm^3 s^-1)
+
+    T[K]   O+ + H -> O + H+ (rec)           O + H+ -> O+ + H (ion)                ion/rec
+           MOC/KF96  Cloudy    UMIST     MOC dE=2205  MOC dE=230  Cloudy   UMIST   MOC     Cloudy  UMIST
+    20     3.44e-10  3.67e-10  3.28e-10  4.0e-58      3.1e-15     4.5e-15  4.9e-15 1e-48   1.2e-5  1.5e-5
+    100    4.02e-10  4.25e-10  4.15e-10  9.5e-20      3.6e-11     5.9e-11  5.9e-11 2.4e-10 0.14    0.14
+    1000   7.44e-10  8.51e-10  8.81e-10  7.3e-11      5.3e-10     5.8e-10  7.7e-10 0.098   0.68    0.87
+    3000   9.68e-10  1.28e-9   1.30e-9   4.1e-10      8.0e-10     9.8e-10  1.2e-9  0.43    0.77    0.89
+    10000  1.04e-9   2.05e-9   2.00e-9   7.4e-10      9.0e-10     1.65e-9  1.6e-9  0.71    0.81    0.80
+
+  - The 6000 K gate is not a validity limit for O. MOCASSIN's own fit is valid
+    to 10 K and agrees with both Cloudy and UMIST to 5-15% below 1000 K.
+  - `deltaE_k(8,1) = 2205` is 10x the published 0.02 eV (~230 K). The
+    detailed-balance factor itself, 2/(g0/g1) = 8/9, is correct. This bug acts
+    in partially ionized H II gas as well, not only in PDRs.
+  - At 1e4 K the KF96 O+ + H fit is half of Stancil's. Cloudy and UMIST agree
+    with each other there.
+  - He+ + H at 20 K: KF96 extrapolated 2e-19, UMIST 3e-15, Cloudy ~1.3e-15
+    (radiative term clamped at 6000 K). Relevant to the He+ excess (blocker 4)
+    where atomic H is abundant.
+  - Mg + H+: the UMIST constant 1.1e-9 used inside the chemistry is rejected
+    by Cloudy; the ORNL fit gives 2e-18 at 20 K.
+
+### 5. Recommendation (not yet implemented)
+
+Port Cloudy's scheme into MOCASSIN's ionization balance (`update_mod.f90`, not
+vendored code):
+
+  - read both data tables with their ranges;
+  - clamp rather than zero, keeping the real Boltzmann factor;
+  - use explicit ionization fits instead of the dE-only detailed balance;
+  - carry the O, N, O++/N++, He and Mg overrides with their references.
+
+Delete the 6000 K gate.
+
+Cloudy rather than UMIST, because MOCASSIN spans 10 K - 1e5 K. Cloudy's rates
+cover that whole range for both directions, per reaction, while UMIST's
+Arrhenius forms target cold gas and are wrong for Mg.
+
+Consequences to measure:
+
+  - H II benchmarks (HII40, PN) will move where O0/O+ matter ([O I] 6300,
+    partially ionized zones), because O+ + H doubles at 1e4 K and the O
+    reverse rate changes. MOCASSIN's Lexington results used KF96. Cloudy, also
+    a Lexington code, uses these rates.
+  - One reality: the chemistry keeps UMIST 161/162/156/167 inside the solve
+    (D-260). O agrees to 10-25%; Mg does not. The exact fix is to hand
+    MOCASSIN's rates to the chemistry's rate slots, the MOCASSIN-side injection
+    discussed before D-260.
