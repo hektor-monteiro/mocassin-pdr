@@ -267,6 +267,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-265 | **Following the user's reading of the Cloudy comparison: the coupling removes 80% of carbon and 52% of oxygen from the ionized gas (defect), MOCASSIN's A_V lags the geometric column by 0.05-0.19 mag, and H2 in the H II gas is 1e3-1e5x Cloudy's at matched radius with H0 and n_e agreeing.** User observations: temperatures agree well; H2 agrees in the PDR but not in the ionized gas; molecules in the ionized gas are much lower in Cloudy; O and C ions disagree in both zones. (1) Carbon/oxygen loss: in the 165 H II cells the chemistry's element total and MOCASSIN's ion-stage sum are identical and short - C 20% (5-95%: 1-85%), O 48% (3-99%); PDR cells 100%. Cause: seedAbunFromMocassin seeds only stages 1 and 2 (the reduced network has no C++/O++), so the doubly ionized part never enters the chemistry; setElemAvail returns (neutral+singly ionized)/total as the unlocked fraction, and ionBalance constrains all stages to sum to it. Consistent with O++ 3-50x and C++ 7-150x below Cloudy at matched radius, and with MOCASSIN's inner H II gas at 1.6e4 K vs 8.7e3 K (coolants missing) - the temperature link is a hypothesis. (2) A_V: MOCASSIN 0.052/0.164/0.297/0.479/0.611/1.071/2.837 at r = 1/2/3/4/5/8/19 pc against geometric (and Cloudy) 0.144/0.304/0.464/0.623/0.783/1.26/3.02; lag 0.09 -> 0.19 mag, per-pc 0.11-0.13 in the H II gas vs 0.16. computeAVradial skips ray steps whose nearest cell is inactive (the origin cell), worth 0.05-0.09 mag; the rest unexplained. This shifts MOCASSIN's H II curves left on the A_V figures; radius-matched comparison avoids it. (3) H2 in the ionized gas at matched radius: 4e-9..2.6e-7 vs 1e-14..9e-11 cm^-3 with H0 within 2x; the reduced network has H+ + H2 (154), collisional 316/321/322 and photodissociation 329 but no H2 photoionization; not yet measured which balance differs | Open | 2026-09-13 |
 | D-266 | **Carbon/oxygen fix: the network's ion carrier now stands for every ionized stage. C, O and Mg close at 100% in every H II cell (were 20%, 48%, 9% median); H II gas 8000 K against Cloudy's 8000-8700 K (was 1.6e4); C++ and O++ match Cloudy to two digits at matched radius; front 3.49 vs 3.48 pc; PDR unchanged; 84.3% converged.** source/pdr_mod.f90, no vendored edits: new mocIonizedFrac(grid,cell,elem) = sum of MOCASSIN's stages >= 2; seedAbunFromMocassin seeds the ion carrier (C+, O+, Mg+, He+) from it; the D-153 pre-solve and D-162 post-solve re-impositions split the chemistry's atomic total with it; the atomic ion coolant (C+) density is scaled by stage 2 / all ionized stages, so C++ does not enter the [C II] cooling that replaces MOCASSIN's C II lines. setElemAvail is unchanged and now returns 1 - molecular fraction. All four flavours build. runs/d266-cfull (11 it, 84.35%, d263 84.31%): at r = 1/2/3 pc, MOCASSIN/Cloudy T 8000/8700, 8000/8000, 8900/8800 K; C++ 0.021/0.021, 0.021/0.021, 0.018/0.018; O++ 0.032/0.032, 0.030/0.030, 0.019/0.018; O+ 6.6e-4/5.0e-4, 2.9e-3/3.0e-3, 0.014/0.015; Mg+ within 30%. Confirms D-265's hypothesis that the hot H II gas was the missing coolants. Front 3.55 -> 3.49 pc. PDR profiles identical to d263 beyond r = 5 pc. Remaining against Cloudy: H2 in the H II gas 1e6x (network balance, unmeasured); A_V lag (D-265); PDR T_gas ~2x colder; deep C+ drop | Open | 2026-09-13 |
 | D-267 | **Register of open questions and problems: 30 items (O-01..O-30; 5 high, 11 medium, 14 low) in five groups - physics against the references, coupling and code, numerics and convergence, validation, upstream and housekeeping - plus 7 recently closed (C-01..C-07).** High: O-01 deep C+ drop, O-02 PDR gas temperature, O-10 A_V lag, O-11 ion balance not reached, O-14 3D self-shielding tracer. Supersedes the scattered open lists of D-247..D-266 as the working list; later entries cite and close items by ID. Published in both hiipdr artifacts | Open | 2026-09-14 |
+| D-268 | **Review for backporting to MOCASSIN `dev`: 4 fixes already there, 8 bug fixes and 7 improvements/options to port, and the PDR-only work that does not apply.** Method: every core source file of this branch and of `dev` preprocessed WITHOUT -DPDR (gfortran -cpp -E), comments stripped, diffed; each difference traced to its DEVLOG entry. Already in dev: D-116 negative dielectronic rates, D-127 uninitialised IPerg, D-129 sticking-coefficient units, D-130 multi-component dust index. To port (bugs): D-263 charge exchange (6000 K cut-off, O dE 2205->229 K, n(H+)); D-227 He I/He II continua start at threshold; D-232/233 dust vs gas re-emission channel split; D-147 forced skip (exp(-tau) weight underflow) removed; D-025 readInput else-if chain shadowing up to 27 fatal checks; D-114 ionRatio zero-denominator cap and throttled 'insane eta' warning; getDustT flat emission-integral guard; recPDF/dustPDF empty-cell normalisation guards. Improvements/options: D-114..117 matrix ionBalance with stage trimming; D-155/D-228 convergence test against the iteration start with a Te test; D-174 iterDamp (defaults 0.25 here - dev must default 0); D-165 teSolver (Cloudy-shaped search) and teFloor keyword; D-160 initH0 keyword; D-238/239 composite path-length biasing (pathStretch, off, variance x8 without splitting); Makefile module dependencies and CO=bounds/EXTRA builds. Not applicable: everything under #ifdef PDR (incl. D-245/D-253 leaks and D-225 Jdif copy, which live only on pdrSplitField paths). Porting changes plain-MOCASSIN results (D-263 [OI] -16% in HII40, D-232 dust+gas models, D-147 optically thick cells, D-228 iteration counts), so the Lexington/dusty benchmarks must be re-run on dev | Open | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19494,3 +19495,121 @@ Next: Read both from the run's input.
   - C-05 3D-PDR reference compared 0.48 mag out of step (D-260 section 6).
   - C-06 Memory leaks in the recursive iterateMC (D-245, D-253).
   - C-07 He I continuum started below threshold (relaxation oscillation) (D-227).
+
+## D-268 - which of this branch's MOCASSIN changes belong in `dev` (2026-09-14)
+
+The user asked for a review of all bug fixes and code improvements made here
+that could be applied to the original MOCASSIN in the `dev` branch, as a list
+with short descriptions.
+
+### Method
+
+`dev` is at `e1c1804` and shares merge base `f37a67e` with this branch. Every
+core source file was preprocessed from both trees with the PDR switch OFF
+(`gfortran -cpp -E`), comments and blank lines stripped, and diffed. So only
+code a plain MOCASSIN build compiles is compared. Each difference was traced to
+the DEVLOG entry that introduced it. Differing files: update_mod (551 lines),
+iteration_mod (289), photon_mod (236), common_mod (142), emission_mod (75),
+ionization_mod (62), set_input_mod (58), grid_mod (51); the other core modules
+are identical.
+
+### A. Already in `dev`
+
+  - D-116 dielectronic recombination fit negative in cool gas (clamped, guarded)
+  - D-127 IPerg read uninitialised in gas-grain collisional heating
+  - D-129 grain sticking coefficient in grams instead of amu
+  - D-130 multi-component dust: species index offset twice
+
+### B. Bug fixes to port
+
+  1. **Charge exchange with H (D-263, update_mod ionBalance).** Rates zeroed
+     below 6000 K for every element, although the KF96 O fit is valid to
+     10 K. The O+ <-> O threshold was 2205 K instead of 229 K (IP(O)-IP(H)).
+     n(H+) taken as (1 - x(H0)) n_H. HII40: O0 and [O I] 6300 -16%, T(H+) and
+     every other line within 1%.
+  2. **He I and He II recombination continua start at their thresholds
+     (D-227, emission_mod).** They started two frequency bins below threshold,
+     where the Milne factor exp(+dE/kT) grows. Negligible (~1e-5) in nebular
+     gas, dominant below a few hundred K.
+  3. **Dust and gas re-emission channels split (D-232/D-233; photon_mod
+     pathSegment, emission_mod, grid_mod, iteration_mod).** Every
+     non-scattering absorption drew its new frequency from one pooled
+     gas+dust PDF, so dust-absorbed energy came back partly as ionizing gas
+     emission (3.8% above 13.6 eV in cold cells). Branches now on
+     sigma_abs,dust/sigma_abs,total. Dust+gas models only; hiipdr ionized gas
+     temperatures -0.2 to -2.6%.
+  4. **Forced skip removed (D-146/D-147, photon_mod).** Packets in cells with
+     tau > 20 were forced through with weight exp(-tau), which underflows to
+     exactly zero above tau ~ 87 and left 170 of 171 bins empty. It moved a
+     slab front from 0.915 to 0.853.
+  5. **readInput validation chain (D-025 and its follow-up, set_input_mod).**
+     Six non-fatal branches inside the if/else-if chain of fatal checks ended
+     the chain; the first (resonanceLinesTransfer, hit by every dust+gas model
+     without that keyword) shadowed 27 fatal checks. Moved to standalone ifs
+     after the chain.
+  6. **ionBalance ratio guards (D-114, update_mod).** A zero recombination
+     denominator made the stage ratio 0/0 = NaN, which propagated into
+     getGrainRecombination whose unthrottled "insane eta" warning wrote 38.5
+     million lines (3 GB) into a tmpfs. The ratio is capped at 1e30 and the
+     warning throttled (20 per iteration, count reported).
+  7. **getDustT flat emission-integral guard (update_mod).** Adjacent entries
+     of dustEmIntegral that are equal divide by zero in the interpolation; the
+     bin temperature is assigned instead.
+  8. **Empty-cell PDF normalisation guards (emission_mod).** recPDF and dustPDF
+     are normalised only when the cell has emission; a cell with none got a
+     0/0 PDF.
+
+### C. Improvements and options worth porting
+
+  1. **Matrix ionization solver with stage trimming (D-114/D-115/D-117,
+     `lgIonMatrix`, `ionTrim`).** Solves each element's stages as a linear
+     system with Cloudy-style trimming of trace stages. It agrees with the
+     chain solve to 2e-15 (balance rows) / 3e-8 (trace stages), is robust to
+     zero rates, and admits extra source/sink terms. Default on here;
+     benchmark before making it dev's default.
+  2. **Convergence test measured per MC iteration and including Te
+     (D-155/D-228/D-229).** x(H0) is compared with its value at the start of
+     the iteration (xHIiterStart), and Te must also be within XHILimit
+     (TeIterStart). Without Te a run could stop while the temperature was
+     still moving.
+  3. **Temperature damping across iterations (D-174, `iterDamp`).** It
+     defaults to 0.25 in this branch and is active in plain builds; for dev it
+     must default to 0 (off) and be offered as an option.
+  4. **Thermal solver option and floor keyword (D-165, `teSolver`,
+     `teFloor`).** `teSolver 1/2` is a Cloudy-shaped search: an Illinois-
+     modified regula falsi that always shrinks the bracket, a bracket-width
+     convergence condition, restart on stall, and |heating| in the tolerance.
+     `teSolver 0` is the original search. `teFloor` replaces the hardcoded
+     10 K floor.
+  5. **`initH0` keyword (D-160).** Replaces the hardcoded initial x(H0) =
+     1e-5, which silently selects the ionized branch where more than one
+     solution exists.
+  6. **Composite path-length biasing (D-238/D-239, `pathStretch`, off by
+     default).** Baes et al. (2016). The scheme was present but commented out;
+     it is now enabled behind a keyword, with an independent branch draw, the
+     correct per-flight tau (tauPath), and Russian roulette. Unbiased, but it
+     widened the radiated-energy scatter 8x without splitting (D-241), so it
+     is experimental.
+  7. **Build (Makefile, D-023 class).** Module dependency rules so editing
+     constants_mod/common_mod rebuilds dependents instead of failing with
+     "Mismatch in components of derived type"; `CO=bounds` optimised
+     bounds-checking build; `EXTRA` flag hook (D-125).
+
+Diagnostics that are optional to port (teProbe census, NaN locator, dust
+hot-grain report, pdfSrc, weight statistics) are not listed as improvements.
+
+### D. Not applicable to `dev`
+
+Everything under `#ifdef PDR`. This includes the D-245/D-253 memory leaks and
+the D-225 Jdif copy-back, which exist only on pdrSplitField/PDR paths. `dev`
+frees and copies correctly on its lgDebug path. The H2 photoionization
+continuum (Yan et al. cross-section) enters addOpacity only through an optional
+argument that plain builds never pass.
+
+### E. Before merging
+
+B1, B3, B4 and C2 change plain-MOCASSIN results (B2 at the 1e-5 level). Re-run
+the Lexington gas benchmarks (HII20, HII40, PN75, PN150) and the dusty PN on
+`dev` with and without the ported changes, and compare with the published
+tables. Port B as separate commits (one fix each), and C behind their keywords
+with dev's current behaviour as the default.
