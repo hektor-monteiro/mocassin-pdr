@@ -2489,6 +2489,9 @@ end subroutine iterateT
             double precision, dimension(4) :: eShare ! D-277: e- share of H, He, C, Mg
             integer, dimension(4), parameter :: eShEl = (/1, 2, 6, 12/)
             real                   :: avProbe       ! D-277
+            real, save             :: NeLoB, NeHiB  ! D-279: bracket on the n_e root
+            real                   :: deltaNe       ! D-279: (NeOut - NeIn)/NeIn
+            logical                :: lgNeSum       ! D-279: NeUsed is the ion sum
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -3335,10 +3338,15 @@ end subroutine iterateT
             ! maintained, x_e ~ 1e-8) - Gamma/(Ne alpha) then diverges harder and
             ! max x(H+) went 1.3e-2 -> 0.906. Off by default; the array and its
             ! exchange are kept because the diagnosis needed them.
+            lgNeSum = .true.
             if (lgPDR .and. pdrUseNePDR /= 0) then
-               if (grid%pdrZone(cellP) == 1 .and. grid%NePDR(cellP) > 0.) &
-                    & NeUsed = grid%NePDR(cellP)
+               if (grid%pdrZone(cellP) == 1 .and. grid%NePDR(cellP) > 0.) then
+                  NeUsed  = grid%NePDR(cellP)
+                  lgNeSum = .false.
+               end if
             end if
+#else
+            lgNeSum = .true.
 #endif
 
             if (NeUsed==0. .and.lgTalk) print*, '! ionBalance [warning]: cell ', xP,yP,zP, &
@@ -3359,6 +3367,41 @@ end subroutine iterateT
             grid%Ne(cellP) = NeUsed
 
 
+            ! ---------------------------------------------------------------- D-279
+            ! The charge balance is a ROOT in n_e, and it is solved as one.
+            !
+            ! Every stage above was built with NeIn and the sum of the ions is
+            ! NeUsed = NeOut(NeIn). Plain substitution - the next pass at NeOut -
+            ! is what this routine did, and it oscillates wherever the electrons
+            ! come only from trace ions, whose abundance is ionization/(n_e alpha):
+            ! then NeOut ~ K/NeIn, the map has slope -1, and n_e alternates
+            ! between two values for all maxIterateX passes (D-278: 18% of the
+            ! hiipdr cells, deep PDR, He+ and H+ carrying every electron).
+            !
+            ! NeOut is a non-increasing function of NeIn (more electrons, more
+            ! recombination, fewer ions), so the root always lies between NeIn
+            ! and NeOut. Each pass intersects the bracket with that interval and
+            ! the next pass is taken at the bracket's geometric mean - bisection
+            ! in log n_e, which lands on the root of a pure K/n_e map in one step.
+            ! Cloudy converges its electron density the same way, outside the
+            ! ionization solve. If the bracket inverts (the map is not strictly
+            ! monotone, e.g. through charge exchange with the neutral fraction
+            ! just updated), it restarts from the current interval.
+            deltaNe = 0.
+            if (lgNeSum .and. NeIn > 0. .and. NeUsed > 0. .and. .not.LgNeInput) then
+               if (nIterateX == 1) then
+                  NeLoB = 0.
+                  NeHiB = huge(1.)
+               end if
+               NeLoB = max(NeLoB, min(NeIn, NeUsed))
+               NeHiB = min(NeHiB, max(NeIn, NeUsed))
+               if (NeLoB > NeHiB) then
+                  NeLoB = min(NeIn, NeUsed)
+                  NeHiB = max(NeIn, NeUsed)
+               end if
+               deltaNe = (NeUsed - NeIn)/NeIn
+            end if
+
             ! calculate the residuals
             deltaHI   = (ionDenUsed(elementXref(1),1) - HIOld)   / HIOld
             deltaHeI  = (ionDenUsed(elementXref(2),1) - HeIOld)  / HeIOld
@@ -3371,7 +3414,7 @@ end subroutine iterateT
             if (ionBalProbe /= 0 .and. nIterateMC == maxIterateMC .and. &
                  & nIterateX >= maxIterateX - 5 .and. &
                  & ( (abs(deltaHI)>limit) .or. (abs(deltaHeI)>limit) .or. &
-                 &   (abs(deltaHeII)>limit) )) then
+                 &   (abs(deltaHeII)>limit) .or. (abs(deltaNe)>limit) )) then
                if (nIterateX == maxIterateX .or. nIonBalTrail < ionBalProbe) then
                   eShare = 0.d0
                   do i = 1, 4
@@ -3399,16 +3442,22 @@ end subroutine iterateT
             end if
 
             ! check for convergence
+            ! D-279: the balance is solved only if the n_e it was built with is
+            ! the n_e it produces, so that is tested alongside the ions.
             if ( ( (abs(deltaHI)>limit) .or. (abs(deltaHeI)>limit) .or. &
-                 &(abs(deltaHeII)>limit) ) .and. (nIterateX<maxIterateX) ) then
+                 &(abs(deltaHeII)>limit) .or. (abs(deltaNe)>limit) ) &
+                 & .and. (nIterateX<maxIterateX) ) then
 
                 ! stepa up X iteration
                 nIterateX = nIterateX + 1
+                ! D-279: next pass at the bracket's geometric mean
+                if (deltaNe /= 0.) NeUsed = sqrt(NeLoB)*sqrt(NeHiB)
                 call ionBalance(lgConv)
                 return
 
             else if (( (abs(deltaHI)>limit) .or. (abs(deltaHeI)>limit) .or. &
-                 &(abs(deltaHeII)>limit) ) .and. (nIterateX == maxIterateX) ) then
+                 &(abs(deltaHeII)>limit) .or. (abs(deltaNe)>limit) ) &
+                 & .and. (nIterateX == maxIterateX) ) then
 
                if (lgTalk)  print*, "! ionBalance: [warning] convergence not reached after ", &
                     &maxIterateX, " steps. Finishing up..."

@@ -278,6 +278,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-276 | **3D-PDR cannot run a sphere lit at its inner radius as shipped: 3D mode takes only an isotropic external field (Gext/nrays per HEALPix ray), 1D only a one-sided slab face.** Two feasible edits to the standalone copy: (a) diluted slab, rad_surface = Gext*(r_in/r)^2, which keeps 3D-PDR's own attenuation and grains and removes D-275's 25x geometry difference - recommended as the reference; (b) MOCASSIN's local chi imposed at each depth, which removes all radiative differences but makes the reference share MOCASSIN's transfer - a diagnostic only. Neither is expected to close the gas temperature gap (O-02) or the deep C+ drop (O-01). **Deferred by the user** | Deferred | 2026-09-14 |
 | D-277 | **O-10 closed: the "A_V lag" was the Cloudy reference, not MOCASSIN. The D-264 Cloudy model started its gas at 3e17 cm (`radius 17.4771`), but the fixture's `Rin 30.e17` is 3e18 cm, so Cloudy carried 0.87 pc (~0.14 mag) of extra gas and dust near the star. Measured on its own grid, MOCASSIN's A_V matches the exact dust column along each star-to-cell path: median -0.03 mag (1-2%), 5-95% +-0.05, no growth with radius.** The skipped inactive steps D-265 blamed are the Rin cavity, which has no gas, so skipping them is correct. Cloudy re-run with `radius 18.4771 19.7782` (runs/d277-cloudy, 700 zones, 3 it, A_V/N_H 5.177e-22). A_V at matched radius, MOCASSIN minus Cloudy: -0.005 to -0.07 (was -0.15 to -0.21). The extra dust had also been absorbing ionizing photons: Cloudy's front moves 3.47 -> 3.77 pc, against MOCASSIN's 3.80-3.83 pc measured directly in radial shells. The D-264/D-266 MOCASSIN value of 3.49 pc could not be reproduced radially. It is consistent with the A_V crossing converted through the lagging A_V(r); that is inferred, not confirmed. Markers, MOCASSIN / Cloudy new (old): IF A_V 0.461 / 0.446 (0.540); H/H2 1.194 / 1.090 (1.058); C+=C 2.119 / 2.950 (2.983). PDR profiles against A_V change by a few per cent. Artifact 'hiipdr Against Cloudy' updated (v4): geometry, tables and figures, and O-10, O-27 and O-28 moved to closed | Closed | 2026-09-14 |
 | D-278 | **O-11 diagnosed: the ion balance fails because its electron-density iteration is a two-cycle, not because the physics has no solution. Deep in the cloud every electron comes from trace ions whose abundance scales as 1/n_e (He+ 83%, H+ 17%, C and Mg 0), so the plain fixed-point update n_e -> sum of ions maps n_e to about K/n_e and alternates between two values for all 50 X-iterations.** Probe `ionBalProbe` (diagnostic, default off; source/update_mod.f90 ionBalance), run runs/d277-ionbal (hiipdr, 11 it, 83.8%, 18% failing as d266). At the last iteration 3752 cells end at least one T-step unconverged: A_V 2.15-2.92 (5-95%), T 10-22 K; the failing test is x(He+) in 3740 of them, never x(H0) or x(He0). Trails: NeIn alternates, e.g. 4.3414e-3, 2.5382e-3, 4.3408e-3, ..., contracting by only 3e-5 to 2e-4 per cycle. The two-cycle's amplitude, NeOut/NeIn, is 0.94-1.45 (5-95%); the stored n_e is 0.97-1.20x the geometric mean of the pair, the fixed point of a pure 1/n_e map. Consequence, not cause, of O-01: it appears only where C+ has collapsed and Mg+ with it, leaving no fully ionized donor to damp the update. Where C+ carries the electrons (A_V < 2.1) it converges. 94 of the 2767 flagged cells also fail the H0/H2 convergence test, so O-11 barely moves the convergence percentage. Fix proposed, not implemented: solve the charge balance as a bracketed root of n_e | Open | 2026-09-14 |
+| D-279 | **O-11 fixed: the charge balance is solved as a bracketed root in n_e. The ion-balance failure falls from 18% to 0 at every iteration of hiipdr (2788 flagged cells -> 0), with no change in run time and the profiles within +-4%.** source/update_mod.f90 ionBalance: NeOut(NeIn) is non-increasing, so the root lies between NeIn and NeOut. Each pass intersects a bracket with that interval, restarting if the bracket inverts, and takes the next pass at its geometric mean (bisection in log n_e, exact in one step for a pure K/n_e map). |NeOut-NeIn|/NeIn <= 1% joins the x(H0)/x(He0)/x(He+) test. Skipped when n_e is not the ion sum (pdrUseNePDR, lgNeInput). All four flavours build. runs/d279-nebracket (same input as d277-ionbal): converged 84.50% (d277 83.84, d266 84.35); 41:37 vs 41:32. In the cells flagged in d277, per cell d279/d277 (5/50/95%): n_e 0.73/0.99/1.08, He+ 0.66/0.96/1.03, H+ 0.68/0.96/1.03, C+ 0.63/0.96/1.05, CO 0.91/1.00/1.09, Tgas 0.94/1.00/1.04; d277/d266 in the same cells: n_e 0.82/1.00/1.25. Bin medians change <=4% (n_e -4% at A_V 2.8-3.1). Markers vs Cloudy unchanged: IF 0.461, H/H2 1.196, C+=C 2.115 (d266 0.461/1.194/2.119). The deep C+ drop (O-01) is untouched, as D-278 predicted. HII40 (no PDR), fixed against a pre-fix build of eb1c402: 0% failing in both, lines >0.01 Hbeta within 0.1%, Hbeta 18.771 vs 18.778 | Closed | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20427,3 +20428,124 @@ flavours and one hiipdr run.
     The probe fires only at the last iteration.
   - The 3% at the ionization front (A_V 0.45-0.60) in d266. None of the
     d277 failures are there, so those cells converged in this run.
+
+## D-279 - O-11 fixed: the charge balance solved as a root in n_e (2026-09-14)
+
+The user asked to implement the D-278 fix and re-run hiipdr to measure its
+effect.
+
+### 1. The change (source/update_mod.f90, ionBalance)
+
+Each pass still:
+  - builds every stage's rates with `NeIn`, the `NeUsed` at entry;
+  - solves the stages;
+  - sums the ions to `NeOut`.
+
+What changed is how the next pass's n_e is chosen, and what counts as
+converged.
+
+  - **The root is always between `NeIn` and `NeOut`.** More electrons mean more
+    recombination and fewer ions, so NeOut(n_e) is non-increasing and
+    NeOut(n_e) = n_e has one root. If NeIn is below the root, NeOut is above
+    it, and vice versa.
+  - **A bracket is kept** in saved `NeLoB`/`NeHiB`, reset at `nIterateX = 1`,
+    i.e. at every temperature step. Each pass intersects it with
+    [min(NeIn,NeOut), max(NeIn,NeOut)]. If the intersection is empty (the map is
+    not strictly monotone, e.g. charge exchange with a just-updated neutral
+    fraction), it restarts from the current interval.
+  - **The next pass runs at sqrt(NeLoB)*sqrt(NeHiB).** That is bisection in
+    log n_e. It is exact in one step for a pure K/n_e map, and the bracket
+    shrinks at least by half in log width per pass otherwise.
+  - **`|NeOut - NeIn|/NeIn <= limit` (1%) joins the convergence test.** The
+    balance is solved only if the n_e the rates were built with is the n_e they
+    produce. Before, nothing tested that directly.
+  - **Not applied** when n_e is not the ion sum: `pdrUseNePDR` (off by default)
+    or `lgNeInput`. There the old substitution stands.
+  - **If a cell exhausts `maxIterateX`**, the stored n_e is still `NeOut`,
+    consistent with the stored ions, as before.
+
+The `ionBalProbe` condition also counts the n_e test, so a remaining failure of
+that kind would print.
+
+This is D-278's proposal, but with log-bisection on an intersected bracket
+instead of Illinois steps. No residual values need to be carried between
+passes, and no coefficient is involved.
+
+All four flavours build.
+
+### 2. hiipdr (runs/d279-nebracket, same input as d277-ionbal, ionBalProbe 3)
+
+    run            ion balance not reached, it 1-11     flagged   converged   time
+    d266-cfull     0 24 23 22 18 19 18 18 16 18 18 %    2767      84.35%      41:54
+    d277-ionbal    - 23 23 22 18 18 17 18 17 18 18 %    2788      83.84%      41:32
+    d279-nebracket 0  0  0  0  0  0  0  0  0  0  0 %       0      84.50%      41:37
+
+No `[D277]` probe line was printed: no cell reached step 45 unconverged.
+
+Bin medians against A_V, d279 / d277 (d277 / d266 is the scatter):
+  - n_e: 1.000 to A_V 2.0; 0.980, 0.999, 0.994, 0.961 in the four bins from
+    2.0 to 3.1 (scatter 1.000-1.002).
+  - He+, H+: within 5%, the largest at 2.0-2.2 and 2.8-3.1, where the scatter
+    is also 4-5%.
+  - C+, CO, H2, Tgas, Tdust: within 1% outside the bins already dominated by
+    Monte Carlo scatter (C+ at 2.2-2.5, where d277/d266 is 1.85; H2 at 0.6-1.0).
+
+Per cell, in the 2788 cells flagged in d277 (5/50/95%):
+
+                 d279/d277              d277/d266 (no fix, scatter)
+    n_e          0.73 / 0.99 / 1.08     0.82 / 1.00 / 1.25
+    He+          0.66 / 0.96 / 1.03     0.86 / 1.03 / 1.40
+    H+           0.68 / 0.96 / 1.03     0.87 / 1.03 / 1.36
+    C+           0.63 / 0.96 / 1.05     0.60 / 1.02 / 1.54
+    CO           0.91 / 1.00 / 1.09     0.92 / 1.00 / 1.10
+    Tgas         0.94 / 1.00 / 1.04     0.94 / 1.00 / 1.05
+
+The fix moves n_e, He+ and H+ in the direction and by the size D-278 predicted:
+the stored n_e had been 1.03 (median) of the two-cycle's geometric mean. Without
+the fix, the phase at which each cell's cycle stopped made those cells
+scatter by up to 25% between identical runs. That part of the scatter is gone;
+it cannot be separated from Monte Carlo scatter with one run each.
+
+Markers against Cloudy (d277-cloudy):
+
+                     d266    d277    d279    Cloudy
+    x(H+) = x(H)     0.461   0.460   0.461   0.446
+    2n(H2) = n(H)    1.194   1.198   1.196   1.090
+    C+ = C           2.119   2.119   2.115   2.950
+
+Hydrogen budget |x(HI) + 2x(H2) + x(H+) - 1|, max over cells: 1.5e-4 (d277)
+and 4.0e-4 (d279), with 44 (d266), 53 (d277) and 65 (d279) cells above 1e-5.
+All are PDR cells at A_V 1-2.2 in every run. Pre-existing, and of the same
+size, so not introduced here. Not examined further.
+
+### 3. HII40, no PDR (the change is in plain MOCASSIN code)
+
+runs/d279-hii40 (fixed, `make mocassin`) against runs/d279-hii40-prefix (the
+same flavour built from eb1c402 in a temporary worktree), d263-hii40-new input,
+-np 14, 9.5 s each:
+  - ion balance not reached: 0% in both;
+  - converged 93.67% / 93.33%;
+  - Hbeta 18.7715 / 18.7777 (d263-hii40-new 18.7804);
+  - the 28 lines above 0.01 Hbeta agree to 0.09% median, 0.10% max (prefix
+    against d263: 0.01%, 0.02%);
+  - per-cell Te and Ne ratios 1-99%: 0.987-1.016 and 0.991-1.010, the same
+    spread as prefix against d263, i.e. run-to-run.
+In ionized gas the substitution already converged, and the bracket changes the
+answer by less than its 1% tolerance.
+
+### 4. What it means
+
+  - O-11 is closed (register C-11). Every cell's ionization balance is now
+    solved to its tolerance, including self-consistency in n_e, which was never
+    tested before.
+  - The physics that put these cells in the regime is unchanged:
+    - C+ collapse past A_V 2.1 (O-01);
+    - He+ carrying 83% of the electrons for lack of a molecular sink (O-04).
+  - O-17, the convergence plateau, is not moved by this (84.5%). The
+    unconverged cells are the x(H0)/x(H2) test, as D-278 found.
+
+### 5. Not yet known
+
+  - Whether iterations 2-4's 22-23% (before the chemistry) were the same
+    two-cycle. They are 0 now, which suggests so, but no probe ran there.
+  - The run-to-run scatter of the deep n_e with the fix. One run.
