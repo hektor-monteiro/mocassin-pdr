@@ -269,6 +269,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-267 | **Register of open questions and problems: 30 items (O-01..O-30; 5 high, 11 medium, 14 low) in five groups - physics against the references, coupling and code, numerics and convergence, validation, upstream and housekeeping - plus 7 recently closed (C-01..C-07).** High: O-01 deep C+ drop, O-02 PDR gas temperature, O-10 A_V lag, O-11 ion balance not reached, O-14 3D self-shielding tracer. Supersedes the scattered open lists of D-247..D-266 as the working list; later entries cite and close items by ID. Published in both hiipdr artifacts | Open | 2026-09-14 |
 | D-268 | **Review for backporting to MOCASSIN `dev`: 4 fixes already there, 8 bug fixes and 7 improvements/options to port, and the PDR-only work that does not apply.** Method: every core source file of this branch and of `dev` preprocessed WITHOUT -DPDR (gfortran -cpp -E), comments stripped, diffed; each difference traced to its DEVLOG entry. Already in dev: D-116 negative dielectronic rates, D-127 uninitialised IPerg, D-129 sticking-coefficient units, D-130 multi-component dust index. To port (bugs): D-263 charge exchange (6000 K cut-off, O dE 2205->229 K, n(H+)); D-227 He I/He II continua start at threshold; D-232/233 dust vs gas re-emission channel split; D-147 forced skip (exp(-tau) weight underflow) removed; D-025 readInput else-if chain shadowing up to 27 fatal checks; D-114 ionRatio zero-denominator cap and throttled 'insane eta' warning; getDustT flat emission-integral guard; recPDF/dustPDF empty-cell normalisation guards. Improvements/options: D-114..117 matrix ionBalance with stage trimming; D-155/D-228 convergence test against the iteration start with a Te test; D-174 iterDamp (defaults 0.25 here - dev must default 0); D-165 teSolver (Cloudy-shaped search) and teFloor keyword; D-160 initH0 keyword; D-238/239 composite path-length biasing (pathStretch, off, variance x8 without splitting); Makefile module dependencies and CO=bounds/EXTRA builds. Not applicable: everything under #ifdef PDR (incl. D-245/D-253 leaks and D-225 Jdif copy, which live only on pdrSplitField paths). Porting changes plain-MOCASSIN results (D-263 [OI] -16% in HII40, D-232 dust+gas models, D-147 optically thick cells, D-228 iteration counts), so the Lexington/dusty benchmarks must be re-run on dev | Open | 2026-09-14 |
 | D-269 | **Ported to `dev`: 16 commits (e1c1804..59bb06d), each bug fix on its own, each option behind a keyword defaulting to dev's behaviour. Benchmarks: charge exchange lowers [O I] 6300 10-13%; removing the forced skip lowers PN150 H0 20%, O0 32% and [O I] a further 31%; with default keywords nothing else moves; dust benchmarks unchanged within noise.** Bug fixes: charge exchange (c89a200), He continua thresholds (2f8990e), dust/gas re-emission split incl. recPDF guard and dustPDF allreduce size (4f3ac53), forced skip removed (d76035e), readInput chain - eight shadowing branches incl. lg1D and the dust-file test, which the branch had missed (d1f9fd4), insane-eta throttle reset on every rank (dad3f8e; dev already capped the ratio), getDustT flat-interval guard (95447de), dustPDF empty-cell guard (cf77241), stray cell-9249 debug print (e1c16e9). Options: H0Start wired to the hardcoded initial x(H0) with default 1e-5 (8fef087; replaces initH0), teSolver/teFloor (c4a27db), iterDamp default 0 (4c0fe1a), convTe (e6b2caa), pathStretch with tauPath and roulette (35ccf15), ionMatrix/ionTrim (cb8b4d7), Makefile module dependencies + CO=bounds + EXTRA (59bb06d). All dev targets build. Run-to-run scatter of the original binary <0.5% on main fractions; HII40 chain vs ionMatrix agree to 0.3% (2% trace stages). Not pushed; Lexington tables not yet compared | Done | 2026-09-14 |
+| D-270 | **Lexington 2000 benchmarks on dev before/after the D-269 port, against the benchmark codes (Ercolano et al. 2003 Tables 4-7): the port leaves agreement about where it was (in-range counts 16/9/26 unchanged in HII40/HII20/PN150, 15->16 in PN75; median |dex| 0.039->0.038, 0.086->0.082, 0.056->0.067, 0.047->0.045), while dev itself - before and after - is further from the medians than MOCASSIN 2003 in HII20 and PN150 and 4-6% hotter in both H II regions. This branch's readInput brought up to the dev version.** Medians recomputed from the listed codes (printed ones have typos: PN150 C III] 0.174 vs 1.68-1.89, O IV] 2.30 vs 0.18-0.36, PN75 [S II] 0.0020 vs 0.013-0.036). PN150 [O I] 6300 moves into range (0.271 -> 0.169, codes 0.101-0.245), [Ne V] 3426+3346 out by 1%; PN75 [O III] 51.8 um in by 1%. dev <T[NpNe]> 8358 K vs codes 7936-8199 (HII40), 7073 vs 6626-6749 (HII20); HII20 [O I] 6300 9x -> 6.7x the median. Artifact 'Lexington Benchmarks for MOCASSIN dev'. readInput here: lg1D moved before the chain and the dust-file test after it, as in dev d1f9fd4; all four flavours build and hiipdr, v1slab, v2slab, ifront pass input validation | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19708,3 +19709,73 @@ changes the neutral fractions and [O I] there by tens of percent.
     (Pequignot et al. 2001) before merging to main.
   - Bring this branch's readInput up to the dev version.
   - Push `dev` when the user decides.
+
+## D-270 - Lexington benchmarks for dev, and this branch's readInput completed (2026-09-14)
+
+The user said "proceed" (with the D-269 open items) and asked for an artifact
+with the benchmark comparisons.
+
+### 1. Reference values
+
+The published Lexington tables (Pequignot et al. 2001) are not on this machine,
+and the Cloudy test suite's `hii_paris`/`pn_paris` asserts are Cloudy's own
+predictions. Ercolano et al. (2003, MNRAS 340, 1136; astro-ph/0209378) Tables
+4-7 list every Lexington code (GF, HN, DP, TK, PH, RS, RR) and MOCASSIN 2003
+for HII40, HII20, PN150 and PN75.
+
+Several printed medians are typographical errors: PN150 C III] 0.174 where the
+codes give 1.68-1.89, PN150 O IV] 2.30 against 0.18-0.36, PN75 [S II] 0.0020
+against 0.013-0.036. Medians are therefore recomputed from the non-MOCASSIN
+codes, and "in range" means inside those codes' min-max.
+
+Left out:
+
+  - lines MOCASSIN does not write: He I 5876 and He II 4686 in the H II region
+    files, C II 1335, the Balmer jump;
+  - T_inner.
+
+Extraction and figures are in `~/software/dev_bench/lex` (lexington.py,
+figs.py).
+
+### 2. Result (dev e1c1804 before, 59bb06d after, single runs)
+
+    model   n    in range: before  after  MOC2003     median |dex|: before  after  MOC2003
+    HII40   24             16      16     17/24                     0.039   0.038  0.040
+    HII20   19              9       9     14/19                     0.086   0.082  0.049
+    PN150   35             26      26     32/35                     0.056   0.067  0.029
+    PN75    26             15      16     18/26                     0.047   0.045  0.048
+
+Observables that change side:
+
+  - PN150 [O I] 6300 enters the range (0.271 -> 0.169, codes 0.101-0.245).
+  - PN150 [Ne V] 3426+3346 leaves it by 1%.
+  - PN75 [O III] 51.8 um enters it by about 1%.
+
+The PN150 median deviation worsens through lines of the outer shells, which
+the forced skip had starved (D-269).
+
+Pre-existing in dev, and unchanged by the port:
+
+  - <T[NpNe]> is 8365/8358 K against the codes' 7936-8199 K in HII40, and
+    7086/7073 K against 6626-6749 K in HII20.
+  - HII20 [O I] 6300 is 9x the median before and 6.7x after.
+  - HII20 and PN150 sit further from the medians than MOCASSIN 2003 did.
+
+Candidates, not investigated: atomic data changes since 2003 (dev ships
+data.chianty directories) and the fixtures' 13^3 grids.
+
+Dust benchmarks unchanged within noise (D-269).
+
+### 3. This branch's readInput
+
+As found in D-269, `if (lg1D)` and `else if (lgDust)` still ended the
+validation chain here. Both are now out of the chain, as in dev `d1f9fd4`. All
+four flavours build. hiipdr, v1slab, v2slab and ifront (density files generated
+with their make_density.py) pass input validation and reach transport; the
+only added output is the nuMin 5 GHz warning.
+
+### 4. Open
+
+  - The dev temperature excess and the HII20 [O I] excess against the
+    Lexington codes (new; not caused by the port).
+  - Push dev: the user's decision.

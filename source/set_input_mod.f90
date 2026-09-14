@@ -998,11 +998,15 @@ module set_input_mod
         print*, "mother nx, ny, nz" , nxin(1), nyin(1), nzin(1)
 
         ! check for missing or invalid values in the model parameters input file
+        ! D-270: the 1D settings are not a check, and inside the chain they
+        ! ended it for every 1D model; they run first, on their own.
         if (lg1D) then
            nyIn = 1
            nzIn = 1
            lgSymmetricXYZ = .true.
-        else if (lgPlaneIonization .and. lg2d) then
+        end if
+
+        if (lgPlaneIonization .and. lg2d) then
            print*, "! readInput: planeIonization and 2D options are not compatible"
            stop
         else if (resLinesTransfer >= minConvergence .and. resLinesTransfer /= 101. .and. lgDust) then
@@ -1055,13 +1059,6 @@ module set_input_mod
             print*, "! readInput: invalid nPhotons in model parameter input &
                  & file", in_file, nPhotons
             stop
-        else if (lgDust) then
-            if ((dustFile(1) == "none" .or. dustFile(2)=="none") .and. &
-                 &.not.lgMultiDustChemistry) then
-               print*, "! readInput: dust files were not specified; please include dustFile field &
-                    & in the input files and specify name and location of dust files"
-               stop
-            end if
         else if (nxin(1) < 1 .or. nyin(1) < 1 .or. nzin(1) < 1) then
             print*, "! readInput: invalid grid boundaries in model parameter input &
                  & file", in_file, nxin(1), nyin(1), nzin(1)
@@ -1107,6 +1104,18 @@ module set_input_mod
                 &therefore an user density file of the type x,y,z,den,abIndex must also &
                 &be specified."
            stop
+        end if
+
+        ! D-270: fatal only for dust models, so outside the chain - as a
+        ! branch it matched every dust model and skipped the grid, TStellar,
+        ! XHILimit, luminosity, frequency and radius checks after it.
+        if (lgDust) then
+            if ((dustFile(1) == "none" .or. dustFile(2)=="none") .and. &
+                 &.not.lgMultiDustChemistry) then
+               print*, "! readInput: dust files were not specified; please include dustFile field &
+                    & in the input files and specify name and location of dust files"
+               stop
+            end if
         end if
 
         ! --- non-fatal advisories: these MUST live outside the else-if chain.
