@@ -30,9 +30,15 @@ extinction-per-length figures are 0.165 and 0.169 mag/pc.
 The upper axis is the model's radius: each tick sits at the median A_V of the
 active cells at that distance from the star.
 
+With --cloudy the reference is a Cloudy model instead (D-264): the argument is
+the save-file prefix, and its A_V is Cloudy's own AV(point) from the inner face,
+i.e. measured from the star like ours, so no alignment shift is applied.
+
 Needs numpy + matplotlib (the `astro` conda env):
     ~/miniforge3/envs/astro/bin/python tools/d260_roellig.py \
         <run-dir> <reference.pdr.fin> <out-dir> [model-label]
+    ~/miniforge3/envs/astro/bin/python tools/d260_roellig.py --cloudy \
+        <run-dir> <cloudy-prefix> <out-dir> [model-label]
 """
 import os
 import sys
@@ -156,6 +162,40 @@ def read_ref(path, a_front):
     return d
 
 
+def read_cloudy(prefix, amin=0.010, amax=0.300, slope=-3.5):
+    """A Cloudy model saved with `save species densities`, `save overview` and
+    `save grain temperature` (runs/d264-cloudy/hiipdr.in). Densities are
+    already n(i) in cm^-3. A_V is Cloudy's AV(point) from the illuminated face,
+    which for this sphere is measured from the star, as ours is.
+
+    T_dust: MOCASSIN's Tdust(0,0) is the NUMBER-weighted mean over size bins
+    (grainWeight, update_mod.f90), so Cloudy's bins are weighted the same way,
+    by the number of grains in each of its equal-log-width bins of the same
+    power law."""
+    def table(ext):
+        with open(f'{prefix}.{ext}') as fh:
+            head = fh.readline().lstrip('#').split('\t')
+        a = np.loadtxt(f'{prefix}.{ext}', comments='#', delimiter='\t')
+        return [h.strip() for h in head], a
+
+    hd, dens = table('dens')
+    ho, ovr = table('ovr')
+    hg, gt = table('gtemp')
+    d = {'depth': dens[:, 0], 'AV': ovr[:, ho.index('AV(point)')],
+         'Tgas': ovr[:, ho.index('Te')]}
+    for j, name in enumerate(hd[1:], start=1):
+        if name:
+            d[name] = dens[:, j]
+    d['He++'] = d.pop('He+2')
+    d['C++'] = d.pop('C+2')
+    d['O++'] = d.pop('O+2')
+    nb = gt.shape[1] - 1
+    edges = np.geomspace(amin, amax, nb + 1)
+    w = edges[:-1] ** (slope + 1) - edges[1:] ** (slope + 1)
+    d['Tdust'] = gt[:, 1:] @ (w / w.sum())
+    return d
+
+
 def median_profile(x, y, edges, nmin=3):
     xc, med = [], []
     for a, b in zip(edges[:-1], edges[1:]):
@@ -197,7 +237,8 @@ def place_labels(ax, inside, margin, ylo, yhi):
                                     shrinkA=1, shrinkB=0))
 
 
-def draw(run, ref, name, spec, ylab, ylim, outdir, model_label):
+def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
+         ref_label='3D-PDR reference', prefix='roellig'):
     fig, ax = plt.subplots(figsize=(4.6, 4.4))
     # the ionized gas has 165 cells, the PDR 15039: coarser bins in front
     af = run['A_front']
@@ -261,31 +302,38 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label):
 
     ax.legend([Line2D([], [], color='k', ls='-', lw=1.6),
                Line2D([], [], color='k', ls='--', lw=1.3)],
-              [model_label, '3D-PDR reference'], loc='upper center',
+              [model_label, ref_label], loc='upper center',
               bbox_to_anchor=(0.5, -0.13), ncol=2, handlelength=2.4,
               columnspacing=1.6)
     for ext in ('png', 'pdf', 'svg'):
-        fig.savefig(os.path.join(outdir, f'roellig_{name}.{ext}'),
+        fig.savefig(os.path.join(outdir, f'{prefix}_{name}.{ext}'),
                     dpi=240 if ext == 'png' else None)
     plt.close(fig)
 
 
 def main():
-    run_dir, ref_path, outdir = sys.argv[1:4]
-    model_label = sys.argv[4] if len(sys.argv) > 4 else 'MOCASSIN + 3D-PDR'
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    run_dir, ref_path, outdir = args[:3]
+    model_label = args[3] if len(args) > 3 else 'MOCASSIN + 3D-PDR'
+    cloudy = '--cloudy' in sys.argv
     os.makedirs(outdir, exist_ok=True)
     style()
     run = read_run(run_dir)
-    ref = read_ref(ref_path, run['A_front'])
+    if cloudy:
+        ref = read_cloudy(ref_path)
+        kw = dict(ref_label='Cloudy c25.00', prefix='cloudy')
+    else:
+        ref = read_ref(ref_path, run['A_front'])
+        kw = {}
     print(f"{len(run['AV'])} active cells, {int((run['zone'] == 1).sum())} "
-          f"PDR; front at A_V = {run['A_front']:.4f}; reference ends at "
-          f"{ref['AV'].max():.3f}")
+          f"PDR; front at A_V = {run['A_front']:.4f}; reference A_V "
+          f"{ref['AV'].min():.3g}-{ref['AV'].max():.3f}")
     draw(run, ref, 'chemistry', CHEM, r'$n(i)$ [cm$^{-3}$]', (1e-16, 1e3),
-         outdir, model_label)
+         outdir, model_label, **kw)
     draw(run, ref, 'ions', IONS, r'$n(i)$ [cm$^{-3}$]', (1e-12, 1e3),
-         outdir, model_label)
+         outdir, model_label, **kw)
     draw(run, ref, 'temperatures', TEMP, r'$T$ [K]', (5, 3e4), outdir,
-         model_label)
+         model_label, **kw)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,38 @@
+title hiipdr (Bisbas et al. 2015 sec 5.4): Cloudy equivalent of MOCASSIN runs/d263-chex
+init "common.inc"
+# ---- dust: MOCASSIN astroSilD2003, MRN 0.01-0.30 um slope -3.5 (compiled into
+# sdraine03_hiipdr_10.opc). Abundance scaled so A_V(point)/N_H = 5.177e-22,
+# MOCASSIN's measured mean (D-109 log line of runs/d263-chex): 3.048e-22 at
+# scale 1 -> factor 1.698. Matching the dust MASS (MdMg 0.011295) instead would
+# give 1.57x the grain cross-section, because Cloudy's rfi material density
+# (2.228 g/cm3) differs from MOCASSIN's.
+grains "sdraine03_hiipdr_10.opc" 0.2300 log
+# ---- PDR: no 4000 K stop, run to the outer radius
+stop temperature off
+set nend 5000
+iterate to convergence
+# ---- output (last iteration)
+save overview last "hiipdr.ovr"
+save pdr last "hiipdr.pdr"
+save grain temperature last "hiipdr.gtemp"
+save species densities last "hiipdr.dens"
+e-
+H+
+H
+H2
+He+
+He+2
+C+
+C+2
+C
+O+
+O+2
+O
+Mg+
+CO
+OH
+H2O
+CH
+HCO+
+H3+
+end

@@ -263,6 +263,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-261 | **Three disagreements in the D-260 figures explained by measurement: cold gas = MOCASSIN's grain photoelectric heating ~80x below 3D-PDR's at the same field (no grains below 100 A); O+ = MOCASSIN zeroes H-ion charge exchange below 6000 K, the reference's only O+ source; missing molecules in the H II gas = a plotting defect of mine.** Tgas: MOCASSIN owns the balance and uses its own PE (pdrPEfromPDR = 0); D-217 budget over 15009 cold cells gives per H: photo 3.2e-28, MOCASSIN PE 1.0e-27, PDR extra 1.7e-27 erg/s, while 3D-PDR's PE evaluated at OUR local field and T averages 7.9e-26 per H. At aligned depths that 3D-PDR PE matches the reference's own PE (6.6e-23 vs 4.4e-23 at the front, 2.7e-24 vs 6.8e-24 at A_V 2.1) although our chi is 2-4x lower, so the heating RATE, not the field, sets the 3-7x cold gas. Grain sizes start at 0.01 um; BT94 heating is dominated by grains < 15 A. Tdust agreement is genuine: pdrRad writes grid%Tdust(0,0) and pdrDustModel = 0 (MOCASSIN only). O+: reference chemanalysis shows O+ 99-100% from 162 H+ + O -> O+ + H against 161 at every depth; update_mod.f90 `if (TeUsed < 6000. .or. TeUsed > 5.e4) chex = 0.` removes both directions in PDR gas, and MOCASSIN re-imposes its O+ after the solve, so ours is 1e-9 cm^-3 against 3e-6. An artificial gate by the project rule. C+: reference is 99% C photoionization (269) against recombination (244); ours agrees to 1% until A_V 2.1 then falls to 1e-7, matching the D-237/D-241 MC estimator floor (6e6 packets here; D-241 recovered C+ at 2e7) - consistent but not re-measured at the aligned depths. Molecules below A_V 0.5: the chemistry is solved in all 165 H II cells (x(H2) 4e-11-1.2e-8); tools/d260_roellig.py zeroed them. Fixed; H2 now rises continuously through the front | Open | 2026-09-13 |
 | D-262 | **The 6000 K charge-exchange gate is not a validity limit, and MOCASSIN's O reverse rate uses a threshold 10x too large; Cloudy c25's scheme is the recommended replacement.** MOCASSIN zeroes every H charge-exchange rate below 6000 K (update_mod.f90:2628). The KF96 fits it uses carry per-reaction validity ranges (Cloudy c25 ctrecombdata.dat): O+ + H is valid 10-1e4 K, and there MOCASSIN's own fit agrees with Stancil et al. 1999 (Cloudy) and UMIST 161 to 5-15% from 10 to 1000 K. Separately, the reverse O + H+ -> O+ + H is built by detailed balance with deltaE_k(8,1) = 2205 K; KF96/Cloudy give 230 K (0.02 eV). So ion/rec is 2.4e-10 against 0.14 at 100 K, and 0.43 against 0.77 at 3000 K. That affects partially ionized H II gas as well. At 1e4 K KF96 O+ + H is 1.04e-9 against Stancil/Cloudy 2.05e-9. He+ + H at 20 K: KF96 extrapolated 2e-19, UMIST 3e-15, Cloudy ~1.3e-15 (Stancil 1998 radiative, clamped). Mg + H+: UMIST 167 is a constant 1.1e-9, which Cloudy rejects ('UMIST is bogus', Stancil 2006) for the ORNL fit, 2e-18 at 20 K. Cloudy clamps T into each fit's range, keeps the true Boltzmann factor, and overrides O (Stancil 1999, 10 K-1e5 K), N (Lin 2005), O++/N++ (Barragan 2006) and Mg/Si (ORNL). zlib licence, portable with attribution. Not yet implemented | Open | 2026-09-13 |
 | D-263 | **Charge exchange: the 6000 K lower cut-off removed, the O threshold corrected from 2205 K to 229 K, n(H+) taken as x(H+) n_H. O+ in the PDR now follows charge-exchange equilibrium to 1%; its remaining deficit is the cold gas.** The user chose MOCASSIN's own KF96 fits over a Cloudy port (a port was built, compiled and discarded unused). Changes in update_mod.f90: no lower T cut-off (upper 5e4 K kept); deltaE_k(8,1) = IP(O)-IP(H) = 0.0197 eV = 229 K (the same rule gives N 10858 K against the tabulated 10863); the reverse rate uses ionDen(H,2) instead of 1 - x(H0), which in molecular gas counted H2 as H+. All four flavours build. hiipdr (runs/d263-chex, 11 it, 84.3%): O+ ours/ref at aligned A_V 0.7/0.9/1.3/1.7/2.1/2.9 went 3e-4/5e-4/3e-3/0.022/0.39/18 -> 4e-5/1.2e-4/8e-4/2.7e-3/0.032/2e-3. Our O+/O equals n(H+)/n(H) x 0.889 exp(-229/T) to 1% at A_V 0.7-1.7, and the reference's equals its UMIST equivalent to 1-18%; so ours/ref follows (x(H+) 0.2-0.4 of ref) x exp(-229/23 K)/exp(-229/200 K), i.e. the gas temperature (D-261). Past A_V 2 another source dominates. Nothing else moved by more than a few %. HII40 (non-PDR, old vs new, single runs): T(H+) 8364 -> 8360 K; O0 -16%, [OI] 6300 6.16e-3 -> 5.16e-3 Hb; every other ion fraction and line within 1% | Open | 2026-09-13 |
+| D-264 | **Milestone tagged `pdr-coupling-v1.0` (3d30758), and hiipdr compared with an equivalent Cloudy c25.00 model: ionization front 3.55 vs 3.48 pc, H/H2 crossing A_V 1.17 vs 1.05, electrons and C+ within 10% through the PDR; PDR gas 21-26 K vs Cloudy 30-50 K (3D-PDR 100-200 K), so most of the 3D-PDR temperature gap is the dust; the deep C+ drop (C+=C at A_V 2.02 vs 2.97) reproduces against a second code.** The user judged the results a first working version and asked for a tag and a fair single-code comparison. Cloudy model (benchmarks/pdr/hiipdr/cloudy/): blackbody 40000 K, Q(H) 10^49.629, sphere 3e17-6e19 cm, n_H 100, abunV1 abundances with all other elements off, cosmic ray rate -16.638 (H0 2.30e-17 s^-1), sdraine03 silicate compiled with MOCASSIN's MRN 0.01-0.30 um -3.5 law, scaled to A_V/N_H = 5.177e-22 (MOCASSIN's measured value; matching dust MASS would give 1.57x the cross-section because the silicate densities differ; Cloudy D/G by mass is then 0.0068). 741 zones, 3 iterations, reaches A_V 3.09; cautions only for switched-off elements. Tdust MOCASSIN 10-15% cooler in the PDR, 15-25% in the H II gas (number-weighted bin means in both). Past A_V 2.2 MOCASSIN C+ is 1e-7 of Cloudy's, n_e 0.2x, CO 50-100x high. Unexamined: MOCASSIN inner H II gas 11000 K vs 8000 K and O++/C++ several times lower; the H II region spans ~5.5 cells at 31^3, so resolution first. Artifact 'hiipdr Against Cloudy'. tools/d260_roellig.py gained --cloudy | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19038,3 +19039,95 @@ scatter. It has not been compared against the Lexington benchmark tables.
   - x(H+) is 0.2-0.4 of the reference through the PDR, which enters O+ directly.
   - The O+ source past A_V 2.
   - Cold gas (D-261) now controls O+ as well as the chemistry.
+
+## D-264 - milestone tag, and hiipdr against an equivalent Cloudy model (2026-09-13)
+
+### 1. The milestone
+
+The user disagreed that gas temperature is now the main outstanding problem.
+The dust composition differs from 3D-PDR's assumptions and may well close the
+gap, and the results overall are physically sensible even where they do not
+match 3D-PDR. So this is a first working version. Tagged annotated
+`pdr-coupling-v1.0` at `3d30758` (D-263), locally, not pushed.
+
+The user asked for one final, fair test: hiipdr against an equivalent Cloudy
+run, with the D-260 figure style, on a separate artifact.
+
+### 2. The Cloudy model (`benchmarks/pdr/hiipdr/cloudy/`, run in `runs/d264-cloudy`)
+
+Cloudy c25.00, already built at `~/software/cloudy-c25.00`.
+
+    star          blackbody 40000, Q(H) 49.629   (MOCASSIN LPhot 4.26e13 x 1e36 phot/s)
+    geometry      sphere, radius 17.4771 19.7782 (3e17 - 6e19 cm)
+    gas           hden 2; He C N O Ne Mg S at abunV1.in values, all other elements off
+    cosmic rays   cosmic ray rate -16.638 -> H0 ionization 2.30e-17 s^-1
+                  (= 5.98e-18 x 5e-17/1.3e-17, MOCASSIN's and 3D-PDR's)
+    dust          sdraine03.rfi compiled with hiipdr.szd (power law 0.010-0.300 um,
+                  slope -3.5, 10 bins), abundance x1.698
+    run           stop temperature off, iterate to convergence (3), 741 zones, 345 s
+
+**Dust amount.** Cloudy's `cosmic ray rate` sets the H0 rate in neutral gas
+(`hextra.background_rate`). At scale 1 the grains give D/G = 3.984e-3 by mass
+and A_V(point)/N_H = 3.048e-22. MOCASSIN's MdMg = 0.011295 would need x2.835 in
+mass, but that gives A_V/N_H = 8.64e-22 against MOCASSIN's measured 5.177e-22.
+The ratio, 1.57, is the difference in assumed silicate material density
+(Cloudy's rfi lists 2.228 g cm^-3). The comparison axis is A_V, so the grains
+are matched on A_V/N_H (x1.698). Cloudy's run reports A(V)/N(H) = 5.177e-22 and
+D/G = 6.766e-3.
+
+No CMB and no background field, like MOCASSIN. The 22 cautions are all
+"element part of the chemistry network is turned off".
+
+**A_V axis.** Cloudy's AV(point) is measured from the inner face, i.e. from the
+star, as MOCASSIN's is. No alignment shift is applied, unlike the 3D-PDR slab
+(D-260 section 6).
+
+**T_dust.** MOCASSIN's Tdust(0,0) is the number-weighted mean over size bins
+(grainWeight). Cloudy's 10 bins are weighted by the number of grains per bin of
+the same power law.
+
+### 3. Results (MOCASSIN d263-chex / Cloudy)
+
+    ionization front x(H+) = x(H)    A_V 0.423 / 0.540   radius 3.55 / 3.48 pc
+    H/H2 2x(H2) = x(H)               A_V 1.168 / 1.050
+    C+ = C                           A_V 2.02 / 2.97
+
+    A_V   T_gas       T_dust       n_e              n(H2)        n(C+)          n(CO)
+    0.30  11040/8030  54.6/64.2    110/110          1e-7/5e-13   2.6e-4/6.3e-4  7e-15/4e-24
+    0.45  8890/8550   41.3/53.0    71/110           7e-7/1e-11   0.016/0.003    1e-12/2e-20
+    0.70  24/47       32.0/36.5    0.028/0.031      0.003/1e-4   0.022/0.022    9e-12/6e-12
+    1.00  26/50       26.0/29.1    0.027/0.029      3.7/17       0.022/0.022    2e-10/2e-9
+    1.50  25/46       18.7/22.0    0.024/0.025      45/47        0.022/0.022    4e-8/2e-8
+    2.00  21/30       15.0/17.7    0.023/0.024      49/48        0.020/0.022    2e-6/2e-8
+    2.50  11/21       13.1/15.3    0.0032/0.022     49/48        2e-9/0.020     9e-6/8e-8
+    2.90  10/15       12.0/14.0    0.0031/0.016     49/48        2e-9/0.014     1e-5/2e-7
+
+### 4. What it means
+
+  - **The ionization structure agrees.** The front radius is within 2%; n_e is
+    within 1-10% and C+ within 10% through the PDR to A_V 2; the H2 plateau and
+    crossing are within 0.12 mag.
+  - **Gas temperature.** Cloudy, with the same silicate grains and no PAHs,
+    gives 30-50 K where MOCASSIN gives 21-26 K and standalone 3D-PDR 100-200 K.
+    Most of the 3D-PDR gap is therefore the dust and its photoelectric heating
+    (D-261's hypothesis), consistent with the user's reading. A factor of ~2 to
+    Cloudy remains.
+  - **T_dust** agrees to 10-15% in the PDR, with MOCASSIN systematically cooler.
+  - **Deep carbon.** The C+ drop past A_V ~2.2 appears against Cloudy as well
+    as against 3D-PDR: C+ at 1e-7, n_e 0.2x, CO 50-100x high. So it is
+    MOCASSIN's, consistent with the MC-estimator-floor explanation (D-237,
+    D-241), and not an artefact of the 3D-PDR reference.
+  - **Ionized gas, not examined.** MOCASSIN's inner H II gas is hotter (11040 vs
+    8030 K at A_V 0.3) and O++ is 3.6x lower there, with C++ lower as well. The
+    H II region is ~5.5 cells in radius at 31^3 and each A_V bin holds a
+    handful of cells, so resolution must be ruled out first. Molecules in the
+    ionized gas are orders of magnitude above Cloudy's, where both are tiny
+    (reduced 33-species network against Cloudy's).
+
+### 5. Not yet known
+
+  - Whether the remaining factor ~2 in PDR T_gas against Cloudy is heating
+    (grain PE: MOCASSIN vs Cloudy's WD01) or cooling (3D-PDR coolants vs
+    Cloudy's).
+  - The H II temperature and O++ differences, at higher resolution.
+  - Scatter: one run of each code.

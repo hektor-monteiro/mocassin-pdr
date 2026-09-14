@@ -1,0 +1,7 @@
+# MOCASSIN hiipdr fixture dust: MRN power law, 0.010-0.300 micron, slope -3.5
+# (runs/d263-chex/input/dust_sizes.dat)
+2010403 # magic number for version control
+power  # choices are SSIZE, POWER, EXP1, EXP2, EXP3
+0.010  # lower limit for grain size (micron)
+0.300  # upper limit for grain size (micron)
+-3.5   # slope of power law distribution
