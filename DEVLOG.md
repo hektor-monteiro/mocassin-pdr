@@ -281,6 +281,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-279 | **O-11 fixed: the charge balance is solved as a bracketed root in n_e. The ion-balance failure falls from 18% to 0 at every iteration of hiipdr (2788 flagged cells -> 0), with no change in run time and the profiles within +-4%.** source/update_mod.f90 ionBalance: NeOut(NeIn) is non-increasing, so the root lies between NeIn and NeOut. Each pass intersects a bracket with that interval, restarting if the bracket inverts, and takes the next pass at its geometric mean (bisection in log n_e, exact in one step for a pure K/n_e map). |NeOut-NeIn|/NeIn <= 1% joins the x(H0)/x(He0)/x(He+) test. Skipped when n_e is not the ion sum (pdrUseNePDR, lgNeInput). All four flavours build. runs/d279-nebracket (same input as d277-ionbal): converged 84.50% (d277 83.84, d266 84.35); 41:37 vs 41:32. In the cells flagged in d277, per cell d279/d277 (5/50/95%): n_e 0.73/0.99/1.08, He+ 0.66/0.96/1.03, H+ 0.68/0.96/1.03, C+ 0.63/0.96/1.05, CO 0.91/1.00/1.09, Tgas 0.94/1.00/1.04; d277/d266 in the same cells: n_e 0.82/1.00/1.25. Bin medians change <=4% (n_e -4% at A_V 2.8-3.1). Markers vs Cloudy unchanged: IF 0.461, H/H2 1.196, C+=C 2.115 (d266 0.461/1.194/2.119). The deep C+ drop (O-01) is untouched, as D-278 predicted. HII40 (no PDR), fixed against a pre-fix build of eb1c402: 0% failing in both, lines >0.01 Hbeta within 0.1%, Hbeta 18.771 vs 18.778 | Closed | 2026-09-14 |
 | D-280 | **O-01, the deep C+ drop, decomposed into four measured parts; two MOCASSIN defects fixed. C+/Cloudy at A_V 2.5 goes 1e-7 (analog) -> 0.57 (path biasing) -> 0.61 (+ cosmic-ray ionization of metals) -> 0.72 (+ corrected scattering asymmetry); C+ = C moves A_V 2.12 -> 2.60 (Cloudy 2.95).** (1) Monte Carlo floor: without `pathStretch` the C I-ionizing field is exactly zero in 63-100% of cells past A_V 2.3 even with both fixes (d284); biasing reduces that to <=9% to A_V 2.8. (2) Missing physics, fixed: ionBalance gave cosmic-ray ionization to H and He only (D-193 literals, the D-234 gate); it now reads every CRP/CRPHOT ionization of a linked neutral from the network (293 H, 297 He, 298 C, 299 O, 301 C gamma 510, 312 Mg gamma 113), CRPHOT with the cell's own 11.2-13.6 eV grain albedo; 3D-PDR's omega = 0.42 is replaced by the same albedo per cell (D-247 wrongly called it dead: it divides every CRPHOT rate). Deep C+ at A_V 2.9 x8. (3) Bug, fixed, ph_mod: the size-averaged scattering cosine was weighted by pi a^2 instead of C_sca; FUV g 0.437 -> 0.607 (Cloudy, same silicate and MRN law: 0.59-0.64). (4) Divergence, not closed: MOCASSIN's C photoionization rate falls 3.83 e-folds per mag (after r^-2) against Cloudy's 2.65, with grain extinction at the C edge equal to 2% (4.39 vs 4.30/mag); and MOCASSIN's C+ recombination is 0.40-0.58 of Cloudy's, most likely Cloudy's grain-assisted recombination (inferred; inert in this 3D-PDR build, GRAINRECOMB undefined). Controls: ionization front A_V 0.461-0.463, H/H2 1.196-1.201, H budget <=4e-4 in all runs; biased radiated energy 2644-2681 vs analog 2650-2655. Converged: d279 84.5, d280 83.1, d282 84.5, d283 82.3, d284 81.0%. Probe `ionRateProbe`. Found and not pursued: the 1D Ivezic dust benchmark segfaults in transfer, identically before these changes | Open | 2026-09-14 |
 | D-281 | **The D-280 grain scattering-asymmetry fix ported to `dev` as 411ff93 (not pushed): g averaged over sizes with C_sca, not pi a^2, plus a zero-norm guard.** Worktree of `dev` at ~/software/mocassin_dev, removed afterwards; tracked binaries restored so only source/ph_mod.f90 changes. All four dev targets build clean. Against the pre-fix dev binary, 14 ranks: single-size dust 1D p0tau10 and 2D tau1.000 integrated SED 0.9999 and 0.998 (D-269 scatter 1.0005, 1.0015); test_Problem (35 sizes + PAH, shortened to 1e6 packets, 5 iterations) angle-integrated UV +1.2/+1.3% against a 0.1% repeat scatter, optical +0.3-0.6% (scatter 0.3%), IR, Hbeta, mean Te within scatter; the inclined viewpoint differs 18% between identical runs at this packet count and was not read. Also: 1D p0tau10 runs cleanly in dev (7 s), so the O-31 segfault is specific to this branch | Done | 2026-09-14 |
+| D-282 | **'hiipdr Against Cloudy' (v7) replotted from runs/d284-analog-fixes: the current code (D-279 + D-280) with the fixture's own settings, so no path biasing.** Figures from tools/d260_roellig.py --cloudy against runs/d277-cloudy; the headline numbers and both tables recomputed from the same run so the page is consistent: front 3.82-3.85 vs 3.77 pc, H/H2 A_V 1.20 vs 1.09, PDR T_gas 22-26 vs 29-49 K, C+ = C 2.27 vs 2.95 (2.12 before D-280, 2.60 biased). Deep-carbon bullet rewritten: C+ 0.2-0.4 of Cloudy past A_V 2.3 instead of 1e-7, n_e 0.3-0.4x, CO 50-120x high. T_dust 6-12% cooler in the PDR, 2-5% in the ionized gas; C2+ and O2+ within 10% to 3 pc | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20811,3 +20812,45 @@ Angle-integrated SED (viewpoint column 1):
 `dust/1D/p0tau10` runs cleanly in `dev` (7 s per run, both binaries). The
 segfault recorded in D-280 (O-31) is therefore specific to this branch, not
 inherited from `dev`.
+
+## D-282 - 'hiipdr Against Cloudy' replotted with the current code (2026-09-14)
+
+The user asked to update the plots of the Cloudy comparison page.
+
+**Which run.** The page had shown `runs/d266-cfull`. It now shows
+`runs/d284-analog-fixes`:
+  - the code at D-280 (the D-279 n_e solve, cosmic-ray ionization of the
+    metals, and the corrected grain g);
+  - the hiipdr fixture's own settings, so no `pathStretch`.
+
+The biased run (d283-gsca) gives a better deep carbon profile. But biasing is
+not the default until splitting exists (O-34), so it is quoted in the text,
+not plotted. The run's input also carries `ionBalProbe 3` and `ionRateProbe 6`,
+which print diagnostics only.
+
+**Figures.** `tools/d260_roellig.py --cloudy runs/d284-analog-fixes
+runs/d277-cloudy/hiipdr runs/d284-analog-fixes/figs`. The three SVGs are
+embedded in place of the D-277 ones.
+
+**Numbers refreshed from the same run**, so the page is consistent with its
+figures:
+
+    ionization front (radial shells)   3.82-3.85 pc   Cloudy 3.77
+    H/H2 crossing                      A_V 1.201      1.090
+    PDR T_gas (A_V 0.7-2.0 bins)       21.5-25.7 K    29-49 K
+    C+ = C                             A_V 2.273      2.950
+    T_dust / Cloudy                    0.955, 0.977 (A_V 0.30, 0.45); 0.876-0.943 (0.7-2.9)
+    at r = 1 / 2 / 3 / 3.3 pc          T 7950 / 8020 / 8730 / 9480 K
+                                       (Cloudy 9220 / 8080 / 8200 / 8810)
+
+The selected-depths table changes mainly at A_V 2.5 and 2.9:
+  - n_e: 0.0060 and 0.0058 (were 0.0032 and 0.0031);
+  - C+: 0.0041 (was 2e-9).
+
+Text updated:
+  - the deep-carbon bullet now describes the D-280 state: C+ 0.2-0.4 of Cloudy
+    past A_V 2.3, what remains, and the biased value 2.60;
+  - the matched-quantities table's cosmic-ray row;
+  - the run labels.
+
+The register was already current (D-280).
