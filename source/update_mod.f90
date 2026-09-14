@@ -2607,8 +2607,14 @@ end subroutine iterateT
             chex(26,3,:) = (/3.42   , 0.51 , -2.06 , -8.99/)! Fe+2.
 
 
+            ! D-263: deltaE/k is the difference of the ionization potentials,
+            ! IP(X) - IP(H) with IP(H) = 13.5984 eV. N: 14.5341 eV -> 10858 K,
+            ! as tabulated. O: 13.6181 eV -> 0.0197 eV = 229 K; it had been
+            ! 2205 K, ten times too large (Kingdon & Ferland 1996 give 0.02 eV,
+            ! UMIST 225.9 K), which held O + H+ -> O+ + H at 2e-9 of its value
+            ! at 100 K and 0.5 of it at 3000 K (D-262).
             deltaE_k(7,1) = 10863.
-            deltaE_k(8,1) = 2205.
+            deltaE_k(8,1) = 229.
 
             chex(:,:,1) = chex(:,:,1)*1.e-9
 
@@ -2625,7 +2631,12 @@ end subroutine iterateT
                          & (1.+chex(elem,ion,3)*exp(chex(elem,ion,4)*t4))
 
                     if (chex(elem,ion,1) < 0. ) chex(elem,ion,1) = 0.
-                    if (TeUsed < 6000. .or. TeUsed>5.e4) chex(elem,ion,1) = 0.
+                    ! D-263: no lower cut-off. It had been 6000 K for every
+                    ! element, which is not the fits' validity limit (O+ + H is
+                    ! valid to 10 K and agrees with Stancil et al. 1999 and
+                    ! UMIST to 5-15% below 1000 K) and removed the only O+
+                    ! source in PDR gas (D-261, D-262). The upper cut-off stays.
+                    if (TeUsed > 5.e4) chex(elem,ion,1) = 0.
 
                     ! find the number of electron in this ion
                     nElec = elem - ion +1
@@ -2636,9 +2647,13 @@ end subroutine iterateT
                     ! calculate the reverse charge exchange rate (only if deltaE_k > 1.)
                     if ( deltaE_k(elem,ion) > 1.) then
 
+                       ! D-263: n(H+) is x(H+)*n_H. It was (1 - x(H0))*n_H,
+                       ! the same thing in ionized gas but in molecular gas it
+                       ! also counts the hydrogen in H2 - harmless while the
+                       ! 6000 K cut-off zeroed this in cold gas, not after.
                        revRate = chex(elem,ion,1) * &
-                            & (1.-grid%ionDen(cellP, &
-                            & elementXref(1),1))*grid%Hden(cellP)*&
+                            & grid%ionDen(cellP, &
+                            & elementXref(1),2)*grid%Hden(cellP)*&
                             & 2. * exp(-deltaE_k(elem,ion)/TeUsed)/(real(g0)/real(g1))
                     else
                        revRate = 0.
@@ -2665,11 +2680,11 @@ end subroutine iterateT
                     ! A negative rate coefficient is meaningless. The real
                     ! source of them is the dielectronic fit going negative in
                     ! cool gas (see calcAlpha above), which drives ionDn below
-                    ! zero. ionUp is NOT a second route: revRate carries
-                    ! (1 - x(H0)), and xMax = 0.99999 caps every ionDen, so the
-                    ! factor is bounded below by 1e-5. An earlier comment here
-                    ! claimed otherwise; measured on two models, the numerator
-                    ! is never negative. The clamps stay as cheap insurance.
+                    ! zero. ionUp is NOT a second route: revRate is a product
+                    ! of non-negative factors (x(H+) since D-263). An earlier
+                    ! comment here claimed otherwise; measured on two models,
+                    ! the numerator is never negative. The clamps stay as cheap
+                    ! insurance.
 #ifdef PDR
                     ! D-193: cosmic-ray ionization, as MOCASSIN's own physics.
                     !
@@ -2707,8 +2722,9 @@ end subroutine iterateT
                     ! wrong" from "the balance splits by element" - and two
                     ! things here are element-dependent by construction:
                     !
-                    !   - chex is zeroed below 6000 K (line ~2585), for every
-                    !     element, so no metal has a charge-exchange sink here
+                    !   - chex was zeroed below 6000 K, for every element, so
+                    !     no metal had a charge-exchange sink here (removed by
+                    !     D-263)
                     !   - the cosmic-ray source is added only for elem 1 and 2
                     !     (the D-193 block below), so H and He keep a source in
                     !     shielded gas that every metal loses
@@ -2808,7 +2824,7 @@ end subroutine iterateT
                             & grid%ionDen(cellP,elementXref(1),1), &
                             & "  -> term2 =", chex(elem,ion,1) &
                             & *grid%Hden(cellP)*grid%ionDen(cellP,elementXref(1),1)
-                       print*, "! [D116]   Te =", TeUsed, " (chex is zeroed outside 6000-50000 K)"
+                       print*, "! [D116]   Te =", TeUsed, " (chex is zeroed above 50000 K)"
                        print*, "! [D116]   ionUp =", ionUp(elem,ion)
                     end if
 

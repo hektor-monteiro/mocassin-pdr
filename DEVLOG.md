@@ -262,6 +262,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-260 | **Linked recombination and C/Mg photoionization restored inside the chemistry solve: H3+ recovers to 73-113% of a matched reference, and the C+ cliff it was hiding becomes the leading molecular defect.** D-163 zeroed reactions 242-246, 248, 249 (radiative recombination of H+, He+, C+, O+, Mg+) and 269, 289 (C, Mg photoionization) because MOCASSIN owns them. The generated ODE builds x(e-) from its own cations (odes_reduced.c:52), so with no recombination the solve ran on 12-940x MOCASSIN's electrons and destroyed H3+ by dissociative recombination (D-258). D-260 keeps those rates in the solve; MOCASSIN still re-imposes its ions and electrons after it (D-162/D-231), so ownership is unchanged; no vendored edit. `runs/d260-recomb`, 11 iterations, 84.6% (d258c 85.2%). Internal/imposed x_e 0.94-0.98 at A_V 0.9-1.8 (was 12-940), still 1.8-3 at A_V >= 2.4. All 15039 PDR cells binned in A_V against `sec54g166c.pdr.fin` (tools/d260_profiles.py): H3+ 0.075/0.014/0.043/0.007/0.002 -> 0.11/0.73/0.79/0.92/1.13 at A_V 0.9/1.3/1.7/2.1/2.3; HCO+ up 30-600x to 0.003-0.97; but CO 0.54 -> 9.8 and 0.56 -> 11.6 at A_V 2.1/2.3, OH -> 3.8, CH 7-8x from A_V 1.3, because C+ collapses to 0.003 and x(e-) to 0.17 there (unchanged by D-260) with atomic C 11-18x. Unchanged: Tgas 0.22-0.40 of reference, Tdust 1.18-1.42, He+ 1.3-12x. H budget closes to 3e-8. Open: H2 at A_V 0.9 bin 1.01 -> 0.087 (transition edge, unexamined); single run vs D-242 scatter. **Section 6 correction (same day): the reference slab's lit face belongs at our ionization front (A_V 0.479), not at A_V 0; aligned, the shifted slab ends at 2.93 vs our 3.00, and dust temperature agrees to 12% (it looked 18-42% warm unshifted). Aligned, D-260 still restores H3+ (0.9-2.8x past A_V 1.7) but the model is more molecular than the reference throughout (H2 2-8x at A_V 0.9-1.3, CO 16-48x, CH 10-350x), fed by atomic C 7-15x high and gas 3-7x colder; C+ falls to 1e-7 from A_V 2.5. D-257's unshifted conclusions need re-reading** | Open | 2026-09-13 |
 | D-261 | **Three disagreements in the D-260 figures explained by measurement: cold gas = MOCASSIN's grain photoelectric heating ~80x below 3D-PDR's at the same field (no grains below 100 A); O+ = MOCASSIN zeroes H-ion charge exchange below 6000 K, the reference's only O+ source; missing molecules in the H II gas = a plotting defect of mine.** Tgas: MOCASSIN owns the balance and uses its own PE (pdrPEfromPDR = 0); D-217 budget over 15009 cold cells gives per H: photo 3.2e-28, MOCASSIN PE 1.0e-27, PDR extra 1.7e-27 erg/s, while 3D-PDR's PE evaluated at OUR local field and T averages 7.9e-26 per H. At aligned depths that 3D-PDR PE matches the reference's own PE (6.6e-23 vs 4.4e-23 at the front, 2.7e-24 vs 6.8e-24 at A_V 2.1) although our chi is 2-4x lower, so the heating RATE, not the field, sets the 3-7x cold gas. Grain sizes start at 0.01 um; BT94 heating is dominated by grains < 15 A. Tdust agreement is genuine: pdrRad writes grid%Tdust(0,0) and pdrDustModel = 0 (MOCASSIN only). O+: reference chemanalysis shows O+ 99-100% from 162 H+ + O -> O+ + H against 161 at every depth; update_mod.f90 `if (TeUsed < 6000. .or. TeUsed > 5.e4) chex = 0.` removes both directions in PDR gas, and MOCASSIN re-imposes its O+ after the solve, so ours is 1e-9 cm^-3 against 3e-6. An artificial gate by the project rule. C+: reference is 99% C photoionization (269) against recombination (244); ours agrees to 1% until A_V 2.1 then falls to 1e-7, matching the D-237/D-241 MC estimator floor (6e6 packets here; D-241 recovered C+ at 2e7) - consistent but not re-measured at the aligned depths. Molecules below A_V 0.5: the chemistry is solved in all 165 H II cells (x(H2) 4e-11-1.2e-8); tools/d260_roellig.py zeroed them. Fixed; H2 now rises continuously through the front | Open | 2026-09-13 |
 | D-262 | **The 6000 K charge-exchange gate is not a validity limit, and MOCASSIN's O reverse rate uses a threshold 10x too large; Cloudy c25's scheme is the recommended replacement.** MOCASSIN zeroes every H charge-exchange rate below 6000 K (update_mod.f90:2628). The KF96 fits it uses carry per-reaction validity ranges (Cloudy c25 ctrecombdata.dat): O+ + H is valid 10-1e4 K, and there MOCASSIN's own fit agrees with Stancil et al. 1999 (Cloudy) and UMIST 161 to 5-15% from 10 to 1000 K. Separately, the reverse O + H+ -> O+ + H is built by detailed balance with deltaE_k(8,1) = 2205 K; KF96/Cloudy give 230 K (0.02 eV). So ion/rec is 2.4e-10 against 0.14 at 100 K, and 0.43 against 0.77 at 3000 K. That affects partially ionized H II gas as well. At 1e4 K KF96 O+ + H is 1.04e-9 against Stancil/Cloudy 2.05e-9. He+ + H at 20 K: KF96 extrapolated 2e-19, UMIST 3e-15, Cloudy ~1.3e-15 (Stancil 1998 radiative, clamped). Mg + H+: UMIST 167 is a constant 1.1e-9, which Cloudy rejects ('UMIST is bogus', Stancil 2006) for the ORNL fit, 2e-18 at 20 K. Cloudy clamps T into each fit's range, keeps the true Boltzmann factor, and overrides O (Stancil 1999, 10 K-1e5 K), N (Lin 2005), O++/N++ (Barragan 2006) and Mg/Si (ORNL). zlib licence, portable with attribution. Not yet implemented | Open | 2026-09-13 |
+| D-263 | **Charge exchange: the 6000 K lower cut-off removed, the O threshold corrected from 2205 K to 229 K, n(H+) taken as x(H+) n_H. O+ in the PDR now follows charge-exchange equilibrium to 1%; its remaining deficit is the cold gas.** The user chose MOCASSIN's own KF96 fits over a Cloudy port (a port was built, compiled and discarded unused). Changes in update_mod.f90: no lower T cut-off (upper 5e4 K kept); deltaE_k(8,1) = IP(O)-IP(H) = 0.0197 eV = 229 K (the same rule gives N 10858 K against the tabulated 10863); the reverse rate uses ionDen(H,2) instead of 1 - x(H0), which in molecular gas counted H2 as H+. All four flavours build. hiipdr (runs/d263-chex, 11 it, 84.3%): O+ ours/ref at aligned A_V 0.7/0.9/1.3/1.7/2.1/2.9 went 3e-4/5e-4/3e-3/0.022/0.39/18 -> 4e-5/1.2e-4/8e-4/2.7e-3/0.032/2e-3. Our O+/O equals n(H+)/n(H) x 0.889 exp(-229/T) to 1% at A_V 0.7-1.7, and the reference's equals its UMIST equivalent to 1-18%; so ours/ref follows (x(H+) 0.2-0.4 of ref) x exp(-229/23 K)/exp(-229/200 K), i.e. the gas temperature (D-261). Past A_V 2 another source dominates. Nothing else moved by more than a few %. HII40 (non-PDR, old vs new, single runs): T(H+) 8364 -> 8360 K; O0 -16%, [OI] 6300 6.16e-3 -> 5.16e-3 Hb; every other ion fraction and line within 1% | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -18957,3 +18958,83 @@ Consequences to measure:
     (D-260). O agrees to 10-25%; Mg does not. The exact fix is to hand
     MOCASSIN's rates to the chemistry's rate slots, the MOCASSIN-side injection
     discussed before D-260.
+
+## D-263 - charge exchange: cut-off removed, O threshold corrected (2026-09-13)
+
+Following D-262, the user first approved porting Cloudy c25's charge-transfer
+treatment. The port was written (a `chargetransfer_mod` reading Cloudy's two
+data files) and compiled in all four flavours. The user then asked to keep
+MOCASSIN's own data: its original Kingdon & Ferland (1996) fits, with the
+cut-off removed and the oxygen threshold fixed. The port was deleted unused,
+together with its data files and Makefile change. D-262 still records what the
+Cloudy scheme would add.
+
+### 1. Changes (`source/update_mod.f90`, ionization ratio loop)
+
+  - `if (TeUsed < 6000. .or. TeUsed > 5.e4) chex = 0.` becomes
+    `if (TeUsed > 5.e4) chex = 0.`. The upper cut-off stays, since only the
+    lower one was questioned.
+  - `deltaE_k(8,1) = 2205.` becomes `229.`. The threshold is IP(O) - IP(H) =
+    13.6181 - 13.5984 eV = 0.0197 eV; KF96 give 0.02 eV and UMIST 225.9 K. The
+    same rule gives N 10858 K against the tabulated 10863 K, which stays.
+  - The reverse (ionization) rate took n(H+) as (1 - x(H0)) n_H. Since the H2
+    continuum work, ionDen(H,1) is the ATOMIC fraction, so in molecular gas
+    this also counted the hydrogen in H2 as H+. It was harmless while the
+    cut-off zeroed the rate in cold gas, but not after, so it is now
+    ionDen(H,2) n_H. Identical in ionized gas.
+
+All four flavours build.
+
+### 2. hiipdr (`runs/d263-chex`, same set-up as d260: 11 iterations, 6e6 packets)
+
+84.3% converged (d260 84.6%). Ours / reference, aligned at the front, d260 -> d263:
+
+    A_V     0.70      0.90       1.30       1.70       2.10      2.50      2.90
+    O+      3.2e-4 -> 4.3e-5   5.1e-4 -> 1.2e-4   2.9e-3 -> 8.3e-4   0.022 -> 2.7e-3
+            0.39 -> 0.032      1.7 -> 0.035       18 -> 2.3e-3
+
+Every other species, T_gas and T_dust moved by at most a few percent (H2 at
+A_V 0.7, 0.055 -> 0.09, is within scatter).
+
+**O+ went down, not up**, and the closure explains why. With charge exchange
+active in both directions the balance is
+
+    O+/O = n(H+)/n(H) x k_ion/k_rec = n(H+)/n(H) x 0.889 exp(-229/T)
+
+    A_V   T ours  T ref   O+/O ours  CT equilibrium   O+/O ref  its UMIST equilibrium
+    0.70   23.9   200     2.52e-9    2.44e-9          5.87e-5   5.88e-5
+    0.90   25.3   169     4.38e-9    4.33e-9          3.79e-5   3.82e-5
+    1.30   25.9   122     6.09e-9    6.10e-9          7.32e-6   8.69e-6
+    1.70   23.7   106     2.69e-9    2.66e-9          1.00e-6   3.54e-6
+
+Both codes sit on charge-exchange equilibrium: ours to 1%, the reference to
+1-18%, drifting where its H2 + O+ sink takes over. The O+ deficit is therefore
+no longer a missing process. It is
+
+  - exp(-229/T): at 24 K instead of 200 K, a factor ~5000;
+  - times x(H+) being 0.2-0.4 of the reference.
+
+The first of these is the cold gas (D-261: grain photoelectric heating). In
+d260, O+ had no charge-exchange sink at all, which is why it ran 18x high
+deep in.
+
+Past A_V 2 our O+/O exceeds the charge-exchange equilibrium (exp(-229/11 K) ~
+1e-9), so another O+ source dominates there. Not identified.
+
+### 3. HII40 (plain build, old code vs new, single runs each, 13^3, 1e6 packets)
+
+    T(H+)     8364 -> 8360 K
+    O0        0.004198 -> 0.003543   (-16%)
+    [OI] 6300 6.157e-3 -> 5.163e-3 Hb (-16%), 6363 likewise
+    every other ion fraction with x > 1e-3, and every tabulated line: within 1%
+    (He++ and HeII 4686 -7%, at x ~ 1e-4 and 2e-4 Hb)
+
+The O0 drop is the corrected threshold: O + H+ -> O+ + H is ~20% faster at
+8000 K. It is well outside the <= 1% movement of everything else, so it is not
+scatter. It has not been compared against the Lexington benchmark tables.
+
+### 4. Open
+
+  - x(H+) is 0.2-0.4 of the reference through the PDR, which enters O+ directly.
+  - The O+ source past A_V 2.
+  - Cold gas (D-261) now controls O+ as well as the chemistry.
