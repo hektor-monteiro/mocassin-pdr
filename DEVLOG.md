@@ -268,6 +268,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-266 | **Carbon/oxygen fix: the network's ion carrier now stands for every ionized stage. C, O and Mg close at 100% in every H II cell (were 20%, 48%, 9% median); H II gas 8000 K against Cloudy's 8000-8700 K (was 1.6e4); C++ and O++ match Cloudy to two digits at matched radius; front 3.49 vs 3.48 pc; PDR unchanged; 84.3% converged.** source/pdr_mod.f90, no vendored edits: new mocIonizedFrac(grid,cell,elem) = sum of MOCASSIN's stages >= 2; seedAbunFromMocassin seeds the ion carrier (C+, O+, Mg+, He+) from it; the D-153 pre-solve and D-162 post-solve re-impositions split the chemistry's atomic total with it; the atomic ion coolant (C+) density is scaled by stage 2 / all ionized stages, so C++ does not enter the [C II] cooling that replaces MOCASSIN's C II lines. setElemAvail is unchanged and now returns 1 - molecular fraction. All four flavours build. runs/d266-cfull (11 it, 84.35%, d263 84.31%): at r = 1/2/3 pc, MOCASSIN/Cloudy T 8000/8700, 8000/8000, 8900/8800 K; C++ 0.021/0.021, 0.021/0.021, 0.018/0.018; O++ 0.032/0.032, 0.030/0.030, 0.019/0.018; O+ 6.6e-4/5.0e-4, 2.9e-3/3.0e-3, 0.014/0.015; Mg+ within 30%. Confirms D-265's hypothesis that the hot H II gas was the missing coolants. Front 3.55 -> 3.49 pc. PDR profiles identical to d263 beyond r = 5 pc. Remaining against Cloudy: H2 in the H II gas 1e6x (network balance, unmeasured); A_V lag (D-265); PDR T_gas ~2x colder; deep C+ drop | Open | 2026-09-13 |
 | D-267 | **Register of open questions and problems: 30 items (O-01..O-30; 5 high, 11 medium, 14 low) in five groups - physics against the references, coupling and code, numerics and convergence, validation, upstream and housekeeping - plus 7 recently closed (C-01..C-07).** High: O-01 deep C+ drop, O-02 PDR gas temperature, O-10 A_V lag, O-11 ion balance not reached, O-14 3D self-shielding tracer. Supersedes the scattered open lists of D-247..D-266 as the working list; later entries cite and close items by ID. Published in both hiipdr artifacts | Open | 2026-09-14 |
 | D-268 | **Review for backporting to MOCASSIN `dev`: 4 fixes already there, 8 bug fixes and 7 improvements/options to port, and the PDR-only work that does not apply.** Method: every core source file of this branch and of `dev` preprocessed WITHOUT -DPDR (gfortran -cpp -E), comments stripped, diffed; each difference traced to its DEVLOG entry. Already in dev: D-116 negative dielectronic rates, D-127 uninitialised IPerg, D-129 sticking-coefficient units, D-130 multi-component dust index. To port (bugs): D-263 charge exchange (6000 K cut-off, O dE 2205->229 K, n(H+)); D-227 He I/He II continua start at threshold; D-232/233 dust vs gas re-emission channel split; D-147 forced skip (exp(-tau) weight underflow) removed; D-025 readInput else-if chain shadowing up to 27 fatal checks; D-114 ionRatio zero-denominator cap and throttled 'insane eta' warning; getDustT flat emission-integral guard; recPDF/dustPDF empty-cell normalisation guards. Improvements/options: D-114..117 matrix ionBalance with stage trimming; D-155/D-228 convergence test against the iteration start with a Te test; D-174 iterDamp (defaults 0.25 here - dev must default 0); D-165 teSolver (Cloudy-shaped search) and teFloor keyword; D-160 initH0 keyword; D-238/239 composite path-length biasing (pathStretch, off, variance x8 without splitting); Makefile module dependencies and CO=bounds/EXTRA builds. Not applicable: everything under #ifdef PDR (incl. D-245/D-253 leaks and D-225 Jdif copy, which live only on pdrSplitField paths). Porting changes plain-MOCASSIN results (D-263 [OI] -16% in HII40, D-232 dust+gas models, D-147 optically thick cells, D-228 iteration counts), so the Lexington/dusty benchmarks must be re-run on dev | Open | 2026-09-14 |
+| D-269 | **Ported to `dev`: 16 commits (e1c1804..59bb06d), each bug fix on its own, each option behind a keyword defaulting to dev's behaviour. Benchmarks: charge exchange lowers [O I] 6300 10-13%; removing the forced skip lowers PN150 H0 20%, O0 32% and [O I] a further 31%; with default keywords nothing else moves; dust benchmarks unchanged within noise.** Bug fixes: charge exchange (c89a200), He continua thresholds (2f8990e), dust/gas re-emission split incl. recPDF guard and dustPDF allreduce size (4f3ac53), forced skip removed (d76035e), readInput chain - eight shadowing branches incl. lg1D and the dust-file test, which the branch had missed (d1f9fd4), insane-eta throttle reset on every rank (dad3f8e; dev already capped the ratio), getDustT flat-interval guard (95447de), dustPDF empty-cell guard (cf77241), stray cell-9249 debug print (e1c16e9). Options: H0Start wired to the hardcoded initial x(H0) with default 1e-5 (8fef087; replaces initH0), teSolver/teFloor (c4a27db), iterDamp default 0 (4c0fe1a), convTe (e6b2caa), pathStretch with tauPath and roulette (35ccf15), ionMatrix/ionTrim (cb8b4d7), Makefile module dependencies + CO=bounds + EXTRA (59bb06d). All dev targets build. Run-to-run scatter of the original binary <0.5% on main fractions; HII40 chain vs ionMatrix agree to 0.3% (2% trace stages). Not pushed; Lexington tables not yet compared | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19613,3 +19614,97 @@ the Lexington gas benchmarks (HII20, HII40, PN75, PN150) and the dusty PN on
 `dev` with and without the ported changes, and compare with the published
 tables. Port B as separate commits (one fix each), and C behind their keywords
 with dev's current behaviour as the default.
+
+## D-269 - the D-268 fixes and options ported to `dev` (2026-09-14)
+
+The user asked to port each bug fix as its own commit in `dev`, and to put the
+options behind keywords with `dev`'s current behaviour as the default. Work was
+done in a git worktree of `dev`, so this branch was never switched. Nothing is
+pushed.
+
+### Commits on `dev` (e1c1804 -> 59bb06d)
+
+Bug fixes:
+
+    c89a200  charge exchange: 6000 K cut-off removed, O dE 2205 -> 229 K, n(H+) = x(H+)
+    2f8990e  He I / He II recombination continua start at their thresholds
+    4f3ac53  dust and gas re-emission channels split; recPDF empty-cell guard;
+             dustPDF allreduce resets size (the lgDebug branch changed it)
+    d76035e  forced skip through tau > 20 cells removed (kept as a comment)
+    d1f9fd4  readInput: every non-fatal branch out of the fatal chain
+    dad3f8e  'insane eta' warning throttled (20/rank/iteration), counter reset on all ranks
+    95447de  getDustT: flat emission-table interval guard
+    cf77241  setDustPDF: empty dust PDF not normalised
+    e1c16e9  stray debug print for cell 9249 in iterateT removed
+
+Options, all off or at dev's value by default:
+
+    8fef087  H0Start (existing, never used) now sets the initial x(H0); default 1e-5
+    c4a27db  teSolver 0/1/2 and teFloor (default 0, 10 K)
+    4c0fe1a  iterDamp (default 0)
+    e6b2caa  convTe (default off)
+    35ccf15  pathStretch <xi> (default off), with tauPath and Russian roulette
+    cb8b4d7  ionMatrix, ionTrim (default off, 1e-8)
+    59bb06d  Makefile: module dependency lines from USE statements, CO=bounds, EXTRA
+
+### Differences from the branch versions, found while porting
+
+  - **readInput.** The branch's D-025/D-046 fix had left two chain-ending
+    branches in place: `if (lg1D)` (every 1D model) and `else if (lgDust)`
+    with its conditional stop (every dust model, shadowing the nxin, TStellar,
+    XHILimit, LPhot, LStar, nu and radius checks). In dev both are out of the
+    chain. Every dev gas and dust benchmark starts identically with the old and
+    new reader; the only visible difference is the nuMin 5 GHz warning, now
+    printed. **This branch still carries the incomplete version** (open).
+  - **Zero-denominator guard.** dev already had it from the dielectronic port,
+    so only the warning throttle was new. The branch reset its counter on rank
+    0 only, which silences other ranks after 20 hits; dev resets on all ranks.
+  - **initH0.** dev has an `H0Start` keyword ("initial guess at X(H0)") that is
+    read and used nowhere, while the grid hardcodes 1e-5. Wiring it (with its
+    default changed from 3e-5 to 1e-5) replaces a new keyword.
+  - **Thermal-loop stray print** (`cellP == 9249`), present in dev and absent
+    here (D-079).
+  - **iterDamp and lgIonMatrix** default to 0.25 and .true. in this branch and
+    are active in non-PDR builds of it. In dev they are off.
+  - **Build.** The Makefile change was needed during the port itself: adding a
+    component to grid_type failed with "Mismatch in components of derived
+    type" until a clean build.
+  - **Line endings.** photon_mod.f90 is CRLF in dev. A first edit converted it
+    to LF (a 6382-line diff) and was restored before committing.
+
+### Validation (dev benchmarks, 14 ranks; outputs in ~/software/dev_bench/bench)
+
+All four dev targets build. Run-to-run scatter of the original binary (repeat
+runs): main ion fractions < 0.5%.
+
+Per-commit attribution, final/original:
+
+    PN150                  H0     N0     O0     O+     [O I] 6300
+    + charge exchange      1.001  1.002  0.906  1.032  0.900
+    + He cont, dust split  1.003  1.008  0.908  1.030  0.901
+    + forced skip removed  0.796  0.735  0.680  1.141  0.623
+    all 16 commits         0.799  0.740  0.683  1.141  0.625
+
+    HII20
+    + charge exchange      1.005  1.017  0.899  1.006  0.866
+    + He cont, dust split  1.000  1.005  0.894  1.006  0.872
+    + forced skip removed  0.963  1.004  0.864  1.008  0.759
+    all 16 commits         0.955  1.000  0.857  1.008  0.746
+
+  - HII40: [O I] 6300 0.750, T(H+) 8365 -> 8358 K.
+  - PN75: [O I] 0.915, all ion fractions within 1%.
+  - PN150: T(H+) 12110 -> 12037 K.
+  - Dust benchmarks 1D p0tau10 and 2D tau1.000: integrated SED ratio 1.0005 and
+    1.0015, median per-bin ratio 1.00.
+  - HII40 chain vs ionMatrix: major ions within 0.3%, trace stages 2%.
+
+So in plain MOCASSIN the forced skip mattered most. It was silently removing
+packets in the optically thick outer shells of PN150 and HII20, and removing it
+changes the neutral fractions and [O I] there by tens of percent.
+
+### Open
+
+  - Compare HII20, HII40, PN75 and PN150 with the published Lexington tables
+    (Pequignot et al. 2001) before merging to main.
+  - Bring this branch's readInput up to the dev version.
+  - Push `dev` when the user decides.
