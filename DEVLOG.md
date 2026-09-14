@@ -272,6 +272,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-270 | **Lexington 2000 benchmarks on dev before/after the D-269 port, against the benchmark codes (Ercolano et al. 2003 Tables 4-7): the port leaves agreement about where it was (in-range counts 16/9/26 unchanged in HII40/HII20/PN150, 15->16 in PN75; median |dex| 0.039->0.038, 0.086->0.082, 0.056->0.067, 0.047->0.045), while dev itself - before and after - is further from the medians than MOCASSIN 2003 in HII20 and PN150 and 4-6% hotter in both H II regions. This branch's readInput brought up to the dev version.** Medians recomputed from the listed codes (printed ones have typos: PN150 C III] 0.174 vs 1.68-1.89, O IV] 2.30 vs 0.18-0.36, PN75 [S II] 0.0020 vs 0.013-0.036). PN150 [O I] 6300 moves into range (0.271 -> 0.169, codes 0.101-0.245), [Ne V] 3426+3346 out by 1%; PN75 [O III] 51.8 um in by 1%. dev <T[NpNe]> 8358 K vs codes 7936-8199 (HII40), 7073 vs 6626-6749 (HII20); HII20 [O I] 6300 9x -> 6.7x the median. Artifact 'Lexington Benchmarks for MOCASSIN dev'. readInput here: lg1D moved before the chain and the dust-file test after it, as in dev d1f9fd4; all four flavours build and hiipdr, v1slab, v2slab, ifront pass input validation | Done | 2026-09-14 |
 | D-271 | **Rename and licence audit: the combined work is legal only as GPL v3, which MOCASSIN's "v2 or later" headers permit alongside 3D-PDR's GPL v3; the LICENSE file is right.** Gaps before distribution: modified MOCASSIN files carry no modification notice (GPL v3 s.5a), README does not state GPL v3 for the combination, and the LAMDA/UMIST data citations are missing. A GPL rename is unrestricted; proposed MOCASSIN-3DPDR, MOCASSIN-PDR, MOLCASSIN. Prior UCL thesis on the same coupling noted. No name chosen | Discussion | 2026-09-14 |
 | D-272 | **Project renamed MOCASSIN-PDR (executables unchanged; directory/repo `mocassin-pdr`).** README title and intro, plus a Licence and credits section: GPL v3 for the combination, per-component licences, citations. Modification notices added to the 18 changed MOCASSIN sources and the 6 changed vendored 3D-PDR files, GPL v3 headers to pdr_mod/pdrSmokeTest, and the missing D-113/D-195 entries to UPSTREAM.md. Benchmark pdrDataDir now points at the new path. Correction to D-271: the Vasta (2010) thesis coupled MOCASSIN to UCL_PDR, not 3D-PDR. Directory move and GitHub rename left to the user | Done | 2026-09-14 |
+| D-273 | **New GitHub repository `hektor-monteiro/mocassin-pdr`, kept separate from the `mocassin_HM_2026` core fork.** Pushes `pdr-photoionization` as remote `main` plus the tags `pdr-coupling-v1.0` and `d193-d195-reverted`. The core branches (main/dev/compBias/feature1) and tags 1.0.0-1.1.1 stay out. Largest blob 25.8 MB, pack 60 MB. `origin` added and `push.default=upstream` set. No credentials on this machine, so the user runs the first push | Pending push | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19898,3 +19899,47 @@ that point.
     fork. The user's decision.
   - Personal script paths in `accessories/` and `dustData/` point to other,
     older checkouts (`mocassin_HM_2025`, `mocassin_HM_2026`). Left alone.
+
+## D-273 - New GitHub repository `mocassin-pdr`, separate from `mocassin_HM_2026` (2026-09-14)
+
+The user chose a new repository and does not want it mixed with the
+`hektor-monteiro/mocassin_HM_2026` core fork.
+
+### 1. What goes into it
+
+    local ref              remote ref             note
+    pdr-photoionization    main                   the current PDR line
+    pdr-coupling-v1.0      tag                    PDR milestone
+    d193-d195-reverted     tag                    reverted work (not an ancestor of HEAD)
+
+Left out, because they belong to the core fork:
+
+  - the branches `main`, `dev`, `compBias` and `feature1`;
+  - the tags `1.0.0`, `1.1.0` and `1.1.1`.
+
+`pdr-coupling` is left out as well: it is an ancestor of `pdr-photoionization`
+(0 commits not contained), so `pdr-coupling-v1.0` covers it.
+
+`main` of the new repository still contains the core commits the PDR work grew
+from. That is where the code came from, and it shares no refs with
+`mocassin_HM_2026`.
+
+### 2. Checks before the push
+
+  - Largest blob in the pushed history: `benchmarks/test_Problem/output/dustGrid.out`,
+    25.8 MB. GitHub's hard limit is 100 MB and its warning threshold is 50 MB.
+    The pack is 60 MB.
+  - 70 tracked `mocassin.*` binaries of about 1 MB each (`mocassin.d131`, ...).
+    They are harmless, but they are clutter. Untracking them would not shrink
+    the history.
+
+### 3. Local setup
+
+  - `origin` = `https://github.com/hektor-monteiro/mocassin-pdr.git`. This
+    clone had no remote.
+  - `push.default=upstream` in the repository config, so that a plain
+    `git push` from `pdr-photoionization` goes to the remote `main`.
+  - This machine has no git credential helper, SSH key or stored token, so
+    the user runs the first push. The repository must be created empty: no
+    README, LICENSE or .gitignore, otherwise the first push is rejected as
+    non-fast-forward.
