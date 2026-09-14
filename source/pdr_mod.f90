@@ -2167,6 +2167,27 @@ module pdr_mod
       ! Two rules for one quantity is the failure this project keeps finding.
       ! There is now one.
       !-----------------------------------------------------------------
+      !-----------------------------------------------------------------
+      ! D-266: MOCASSIN's fraction of element iEl in all ionized stages.
+      ! The reduced network carries one ion per element, so that species
+      ! stands for every stage above neutral; this is the MOCASSIN quantity it
+      ! corresponds to. Stages sum to elemAvail, not 1, so this is on the same
+      ! footing as ionDen(.,1).
+      !-----------------------------------------------------------------
+      double precision function mocIonizedFrac(grid, cellP, iEl)
+        implicit none
+        type(grid_type), intent(in) :: grid
+        integer, intent(in)         :: cellP, iEl
+        integer :: ist
+
+        mocIonizedFrac = 0.d0
+        do ist = 2, min(iEl+1, nstages)
+           mocIonizedFrac = mocIonizedFrac + &
+                & dble(grid%ionDen(cellP, elementXref(iEl), ist))
+        end do
+      end function mocIonizedFrac
+
+
       subroutine seedAbunFromMocassin(grid, cellP, iAb, abun)
         implicit none
 
@@ -2175,6 +2196,7 @@ module pdr_mod
         double precision, intent(out) :: abun(:)
 
         integer :: iLnk, iEl
+        double precision :: fracL                      ! D-266
 
         abun = 0.d0
         do iLnk = 1, pdrNlink
@@ -2184,13 +2206,22 @@ module pdr_mod
            if (.not.lgElementOn(iEl)) cycle
            ! elemAbun is relative to hydrogen; ionDen is the fraction of the
            ! element in that stage. Hydrogen's elemAbun is 1 by definition.
-           if (iEl == 1) then
-              abun(pdrLinkSpec(iLnk)) = &
-                   & dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+           ! D-266: the network's ion carrier (C+, O+, Mg+, He+) stands for
+           ! EVERY ionized stage MOCASSIN has, not stage 2 alone. The reduced
+           ! network has no doubly ionized species, so seeding C+ from stage 2
+           ! left the C++ (and O++) share out of the chemistry's element total
+           ! for good - setElemAvail then reported it as locked in molecules
+           ! and ionBalance removed it: 80% of the carbon and 52% of the
+           ! oxygen were missing from the H II gas (D-265).
+           if (pdrLinkIon(iLnk) == 2) then
+              fracL = mocIonizedFrac(grid, cellP, iEl)
            else
-              abun(pdrLinkSpec(iLnk)) = &
-                   & dble(grid%elemAbun(iAb, iEl)) &
-                   & * dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+              fracL = dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
+           end if
+           if (iEl == 1) then
+              abun(pdrLinkSpec(iLnk)) = fracL
+           else
+              abun(pdrLinkSpec(iLnk)) = dble(grid%elemAbun(iAb, iEl))*fracL
            end if
         end do
         ! electrons: MOCASSIN's own, per hydrogen nucleus
@@ -2242,6 +2273,7 @@ module pdr_mod
         logical            :: lgChemOnly   ! D-131: outside the zone, chemistry only
         character(len=1)   :: prevChange, illLast
         double precision   :: TdMoc, TdHTT, T0HTT
+        double precision   :: fIonL                      ! D-266
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
         double precision   :: lline(pdrMaxLev,pdrMaxLev)
@@ -2507,7 +2539,8 @@ module pdr_mod
               availTot = abun(iSpN) + abun(iSpI)     ! non-molecular part
               if (availTot <= 0.d0) cycle
               mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
-              mocIon  = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 2))
+              ! D-266: all ionized stages, which the ion carrier stands for
+              mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
               if (mocNeut + mocIon <= 0.d0) cycle
               abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
               abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
@@ -2655,7 +2688,8 @@ module pdr_mod
                  availTot = abun(iSpN) + abun(iSpI)
                  if (availTot <= 0.d0) cycle
                  mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
-                 mocIon  = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 2))
+                 ! D-266: all ionized stages, which the ion carrier stands for
+                 mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
                  if (mocNeut + mocIon <= 0.d0) cycle
                  abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
                  abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
@@ -2939,6 +2973,17 @@ module pdr_mod
            do ik = 1, pdrNcool
               nlev = pdrCoolant2(ik)%cnlev
               nSpec = abun(pdrCoolant2(ik)%cspec)*nH
+              ! D-266: an atomic ION coolant (C+) must be excited at the
+              ! density of its own stage. Its carrier holds every ionized
+              ! stage, so take the stage-2 share of MOCASSIN's ionized total.
+              ! In the PDR that share is 1 and nothing changes; in the H II
+              ! gas it keeps C++ out of the [C II] cooling that replaces
+              ! MOCASSIN's own C II lines.
+              if (.not.pdrCoolIsMol(ik) .and. pdrCoolIon(ik) == 2) then
+                 fIonL = mocIonizedFrac(grid, cellP, pdrCoolElem(ik))
+                 if (fIonL > 0.d0) nSpec = nSpec &
+                      & *dble(grid%ionDen(cellP, elementXref(pdrCoolElem(ik)), 2))/fIonL
+              end if
 
               ! Skip a coolant whose carrier has been chemically destroyed.
               ! Below this the level populations are numerically meaningless
@@ -3382,8 +3427,10 @@ module pdr_mod
 
       !-----------------------------------------------------------------
       ! Record how much of one element the chemistry did NOT lock into
-      ! molecules: (neutral + singly ionised)/total, from the network's own
-      ! abundances. D-193: this is the whole handback for an element. The
+      ! molecules: (neutral + ion carrier)/total, from the network's own
+      ! abundances. Since D-266 the ion carrier holds every ionized stage, so
+      ! this is 1 - molecular fraction; before it, it also dropped the doubly
+      ! ionized share and removed it from MOCASSIN's gas (D-265). D-193: this is the whole handback for an element. The
       ! ion stages themselves are MOCASSIN's and are not written here.
       !
       ! The fractions are taken relative to MOCASSIN's own elemAbun, which is
