@@ -274,6 +274,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-272 | **Project renamed MOCASSIN-PDR (executables unchanged; directory/repo `mocassin-pdr`).** README title and intro, plus a Licence and credits section: GPL v3 for the combination, per-component licences, citations. Modification notices added to the 18 changed MOCASSIN sources and the 6 changed vendored 3D-PDR files, GPL v3 headers to pdr_mod/pdrSmokeTest, and the missing D-113/D-195 entries to UPSTREAM.md. Benchmark pdrDataDir now points at the new path. Correction to D-271: the Vasta (2010) thesis coupled MOCASSIN to UCL_PDR, not 3D-PDR. Directory move and GitHub rename left to the user | Done | 2026-09-14 |
 | D-273 | **New GitHub repository `hektor-monteiro/mocassin-pdr`, kept separate from the `mocassin_HM_2026` core fork.** Pushes `pdr-photoionization` as remote `main` plus the tags `pdr-coupling-v1.0` and `d193-d195-reverted`. The core branches (main/dev/compBias/feature1) and tags 1.0.0-1.1.1 stay out. Largest blob 25.8 MB, pack 60 MB. `origin` added and `push.default=upstream` set. No credentials on this machine, so the user runs the first push | Pending push | 2026-09-14 |
 | D-274 | **The 70 tracked build snapshots `mocassin.*` (1d, 3d, d131..d201, dbgchk, splitchk; all ELF) were removed with git rm, and `/mocassin.*` is ignored.** Nothing outside DEVLOG referred to them. Kept: `./mocassin` and `runs/*/mocassin`. They remain in the history, so the push size is unchanged | Done | 2026-09-14 |
+| D-275 | **hiipdr against a re-matched standalone 3D-PDR: the old reference (sec54g166c) was set against an older model - face G0 165.56 vs the 123.8 Draine the current run delivers, A_V/N_H 5.34e-22 vs MOCASSIN's 5.177e-22, slab 14.89 vs 15.86 pc - and is replaced.** tools/d275_3dpdr_reference.py reads G0, the A_V span, zeta and n_H from runs/d266-cfull; runs/d275-3dpdr-hiipdr (budgets close to 1e-8). Against it: H/H2 crossing A_V 1.20 vs 1.56; n_e 0.74-1.02 and C+ 0.94-1.00 to A_V 2; Tdust within 3-19%; PDR gas 4-9x colder (Cloudy 30-50 K); O+ 1e2-1e4 low via exp(-229/T); C+ = C at 2.13 vs never; model field 0.37-0.49 of the slab at depth - the sphere's r^-2 dilution (25x) the slab lacks, reported not tuned. Re-matching moved the reference's H/H2 crossing 1.65->1.56 and Tgas at A_V 1 153->140 K. Artifact 'hiipdr Against 3D-PDR' | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19974,3 +19975,128 @@ Nothing outside DEVLOG refers to them. They are removed with `git rm`, and
   - A DEVLOG entry that names one of them (for example a before/after run with
     `mocassin.d165`) can still be reproduced by checking out that entry's
     commit and building it.
+
+## D-275 - hiipdr against a re-matched standalone 3D-PDR reference (2026-09-14)
+
+The user asked for an artifact comparing hiipdr with 3D-PDR using the same
+figures as the Cloudy page (D-264), and for the 3D-PDR model to have the
+correct setup for that comparison.
+
+### 1. The previous reference was matched to an older model
+
+`sec54g166c` (D-257) had been set up against the model of D-252 to D-258.
+Measured against `runs/d266-cfull`:
+
+    input          sec54g166c                     d266-cfull measures
+    face G0        165.56 (analytic dilution      123.8 Draine: median chiFUV of the 12 PDR
+                   at the Stromgren radius,       cells within 0.02 mag of the shallowest
+                   D-255)                         (16-84%: 119-131)
+    A_V / N_H      5.34153e-22                    5.177e-22 (D-264); PDR fit 5.171e-22
+    slab length    14.89 pc, ends A_V 2.92        A_V span 0.466 -> 2.999, i.e. 15.86 pc
+    zeta           5e-17                          5e-17 (pdrZeta), unchanged
+    C, O, Mg, He   2.2e-4, 3.3e-4, 2.7e-6, 0.1    abunV1, unchanged
+
+The composition, zeta, network, rates and build options were already right.
+The first three inputs were not.
+
+### 2. The new reference
+
+`tools/d275_3dpdr_reference.py <run> <target>` reads G0, the face A_V, the
+edge A_V, zeta and n_H from the run. It writes a 250-point slab with the sec54
+grid shape (geometric ratio 1.02533) and a `params.dat` changed from
+`params_sec54_G166c.dat` in exactly four places: ICs file, prefix, G0 and
+AV_fac.
+
+The target directory is `runs/d275-3dpdr-hiipdr/`. It uses:
+
+  - `chemfiles` = `chemfiles_sec54`, which differs from `dataPDR` only in
+    C+ 2.2e-4 and O 3.3e-4;
+  - the D-257 binary, which was validated bit-for-bit.
+
+The run took 14 OpenMP threads. Checks on the output:
+
+  - x(H) + 2x(H2) + x(H+) (+H2+, H3+) lies between 1 - 1.5e-8 and 1 + 6e-9 at
+    every depth;
+  - total carbon is 2.2e-4;
+  - shifted by A_front = 0.4659, the slab spans A_V 0.466-2.999, ending at
+    the model's edge.
+
+3D-PDR's dust-to-gas parameter also multiplies AV_fac (`input_parameters.F90`:
+`AV_fac = AV_fac*metallicity`). It therefore stays 1, and AV_fac is set
+directly. 3D-PDR's own grain model (radius 0.1 um, HTT91, CT02 constants,
+UV factor 3.02) cannot take MOCASSIN's grains. The coupled run forms H2 on
+MOCASSIN's measured grain area (D-195), and the reference does not.
+
+### 3. Effect of re-matching (old -> new reference)
+
+  - H/H2 crossing: A_V 1.65 -> 1.56.
+  - Tgas at A_V 1.0: 153 -> 140 K.
+  - n(H2) at A_V 0.7: 0.043 -> 0.107.
+  - chi at A_V 1.5: 7.3 -> 5.5.
+  - Tgas at A_V 0.7-2.0: 92-198 -> 83-181 K.
+
+### 4. Model against the new reference (MOCASSIN / 3D-PDR, bin medians +-0.05 mag)
+
+    A_V   Tgas     Tdust      chi          n_e            H2          C+            CO
+    0.55  23/206   37.5/33.0  78/96        0.028/0.037    7e-5/4e-4   0.022/0.022   2e-12/4e-13
+    0.70  24/182   32.0/30.2  34/61        0.028/0.035    0.004/0.11  0.022/0.022   1e-11/1e-12
+    1.00  26/140   26.0/25.3  11.4/24.7    0.027/0.030    3.8/1.1     0.022/0.022   2e-10/5e-11
+    1.50  25/107   18.7/19.3  2.0/5.5      0.024/0.024    45/21       0.022/0.022   4e-8/6e-9
+    2.00  21/83    15.0/14.6  0.47/1.2     0.023/0.023    49/45       0.021/0.022   2e-6/8e-8
+    2.50  11/46    13.1/11.5  0.12/0.27    0.0032/0.023   49/49       2e-9/0.021    9e-6/4e-7
+    2.90  10/31    11.9/10.0  0.039/0.080  0.0031/0.020   49/49       2e-9/0.019    1e-5/1e-6
+
+**Crossings.**
+
+  - H/H2: A_V 1.20 against 1.56.
+  - C+ = C: A_V 2.13 against never. The reference keeps C+ above C to the
+    edge, as Cloudy does.
+
+**Agreement.** Up to A_V 2:
+
+  - n_e is 0.74-1.02 of the reference;
+  - C+ is 0.94-1.00;
+  - H+ is 0.25-0.56;
+  - Tdust agrees to 3-19% at every depth.
+
+**Divergence.**
+
+  - The PDR gas is 4-9x colder: 22-26 K against 83-206 K, with Cloudy at
+    30-50 K (O-02).
+  - O+ is 1e2-1e4 below the reference. It follows charge exchange with
+    exp(-229/T) (D-263).
+  - Deep in the cloud, past A_V 2.1: C+ falls seven decades, n_e is 0.14x,
+    He+ 12-14x and CO 11-25x (O-01, O-04).
+  - CO is 4-9x high out to A_V 1.5.
+
+**The field.** It is equal at the face by construction, then falls to 0.81 of
+the reference at A_V 0.55 and to 0.37-0.49 from A_V 1.5 to the edge. MOCASSIN
+has d ln(chi)/dA_V = -3.34 over A_V 0.5-2.0, against the slab's prescribed
+-3.02. The sphere dilutes the starlight by (19.44/3.89)^2 = 25 across the PDR
+and the slab does not; scattered light (D-255) puts part of it back. This is
+a geometry difference and is reported, not tuned.
+
+**H2.** Shallower than A_V 0.8 the reference has more H2 (30x at 0.7). The
+model rises more steeply after that and crosses first. The weaker field and
+the colder gas both push in that direction. The different grain area (D-195)
+may too; this is not separated.
+
+### 5. Artifact
+
+'hiipdr Against 3D-PDR'
+(https://claude.ai/code/artifact/f2cc9d8a-7ca5-4b3d-9622-8f6b1957ac15). It has
+the same three Roellig figures (`tools/d260_roellig.py`, unchanged), a setup
+table, an old-versus-new reference table, a selected-depths table and the
+reading above. Figures are in `runs/d275-3dpdr-hiipdr/figs/`.
+
+### 6. Not known
+
+  - How much of the field gap is dilution and how much scattered light; a
+    spherical 3D-PDR run would separate them.
+  - Whether the earlier H2 transition is the field, the temperature or the
+    grain area.
+  - Single runs of each code; deep CO/OH scatter is up to a decade (D-242).
+  - Every earlier 3D-PDR comparison used sec54g166c, including the
+    'Ionization Front to Molecular Cloud' page and D-260..D-263. Their
+    conclusions stand qualitatively. Their shallow-PDR H2 and temperature
+    ratios moved by the amounts in section 3.
