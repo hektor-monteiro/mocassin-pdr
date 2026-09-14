@@ -1,8 +1,9 @@
 # ---- star: MOCASSIN TStellar 40000, contShape blackbody, LPhot 4.26e13 [1e36 phot/s]
 blackbody 40000
 Q(H) 49.629
-# ---- geometry: Rin 3e17 cm, Rout 6e19 cm, closed sphere (MOCASSIN symmetricXYZ octant)
-radius 17.4771 19.7782
+# ---- geometry: Rin 3e18 cm (MOCASSIN "Rin 30.e17"; 3e17 before D-277), Rout 6e19 cm,
+#      closed sphere (MOCASSIN symmetricXYZ octant)
+radius 18.4771 19.7782
 sphere
 # ---- gas: Hdensity 100, abunV1.in (H He C N O Ne Mg S only)
 hden 2

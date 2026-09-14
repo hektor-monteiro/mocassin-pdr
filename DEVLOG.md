@@ -276,6 +276,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-274 | **The 70 tracked build snapshots `mocassin.*` (1d, 3d, d131..d201, dbgchk, splitchk; all ELF) were removed with git rm, and `/mocassin.*` is ignored.** Nothing outside DEVLOG referred to them. Kept: `./mocassin` and `runs/*/mocassin`. They remain in the history, so the push size is unchanged | Done | 2026-09-14 |
 | D-275 | **hiipdr against a re-matched standalone 3D-PDR: the old reference (sec54g166c) was set against an older model - face G0 165.56 vs the 123.8 Draine the current run delivers, A_V/N_H 5.34e-22 vs MOCASSIN's 5.177e-22, slab 14.89 vs 15.86 pc - and is replaced.** tools/d275_3dpdr_reference.py reads G0, the A_V span, zeta and n_H from runs/d266-cfull; runs/d275-3dpdr-hiipdr (budgets close to 1e-8). Against it: H/H2 crossing A_V 1.20 vs 1.56; n_e 0.74-1.02 and C+ 0.94-1.00 to A_V 2; Tdust within 3-19%; PDR gas 4-9x colder (Cloudy 30-50 K); O+ 1e2-1e4 low via exp(-229/T); C+ = C at 2.13 vs never; model field 0.37-0.49 of the slab at depth - the sphere's r^-2 dilution (25x) the slab lacks, reported not tuned. Re-matching moved the reference's H/H2 crossing 1.65->1.56 and Tgas at A_V 1 153->140 K. Artifact 'hiipdr Against 3D-PDR' | Done | 2026-09-14 |
 | D-276 | **3D-PDR cannot run a sphere lit at its inner radius as shipped: 3D mode takes only an isotropic external field (Gext/nrays per HEALPix ray), 1D only a one-sided slab face.** Two feasible edits to the standalone copy: (a) diluted slab, rad_surface = Gext*(r_in/r)^2, which keeps 3D-PDR's own attenuation and grains and removes D-275's 25x geometry difference - recommended as the reference; (b) MOCASSIN's local chi imposed at each depth, which removes all radiative differences but makes the reference share MOCASSIN's transfer - a diagnostic only. Neither is expected to close the gas temperature gap (O-02) or the deep C+ drop (O-01). **Deferred by the user** | Deferred | 2026-09-14 |
+| D-277 | **O-10 closed: the "A_V lag" was the Cloudy reference, not MOCASSIN. The D-264 Cloudy model started its gas at 3e17 cm (`radius 17.4771`), but the fixture's `Rin 30.e17` is 3e18 cm, so Cloudy carried 0.87 pc (~0.14 mag) of extra gas and dust near the star. Measured on its own grid, MOCASSIN's A_V matches the exact dust column along each star-to-cell path: median -0.03 mag (1-2%), 5-95% +-0.05, no growth with radius.** The skipped inactive steps D-265 blamed are the Rin cavity, which has no gas, so skipping them is correct. Cloudy re-run with `radius 18.4771 19.7782` (runs/d277-cloudy, 700 zones, 3 it, A_V/N_H 5.177e-22). A_V at matched radius, MOCASSIN minus Cloudy: -0.005 to -0.07 (was -0.15 to -0.21). The extra dust had also been absorbing ionizing photons: Cloudy's front moves 3.47 -> 3.77 pc, against MOCASSIN's 3.80-3.83 pc measured directly in radial shells. The D-264/D-266 MOCASSIN value of 3.49 pc could not be reproduced radially. It is consistent with the A_V crossing converted through the lagging A_V(r); that is inferred, not confirmed. Markers, MOCASSIN / Cloudy new (old): IF A_V 0.461 / 0.446 (0.540); H/H2 1.194 / 1.090 (1.058); C+=C 2.119 / 2.950 (2.983). PDR profiles against A_V change by a few per cent. Artifact 'hiipdr Against Cloudy' updated (v4): geometry, tables and figures, and O-10, O-27 and O-28 moved to closed | Closed | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20161,3 +20162,131 @@ diagnostic if the temperature question needs it.
 **Decision (same day): deferred.** The user chose to leave both variants for
 another time. D-275's flat-slab reference stands as the current 3D-PDR
 comparison.
+
+## D-277 - O-10: the A_V lag was the Cloudy model's inner radius (2026-09-14)
+
+The user asked to start on O-10, the top item of the D-267 register. D-265 had
+measured MOCASSIN's A_V running 0.09 mag behind the geometric column at 1 pc and
+0.19 mag from 8 pc outward. It blamed part of this on `computeAVradial` skipping
+inactive cells near the star and left the rest unexplained.
+
+### 1. MOCASSIN's A_V against its own dust column
+
+`runs/d266-cfull`. For every active cell the path from the star to the cell
+centre was sampled at 3000 points. Each point was assigned to its cell by
+nearest axis point, which is exact cell membership on this grid. From that come
+the active path length and the gas column N_H. Hden is 100 in every active
+cell, and A_V/N_H = 5.177e-22 as in D-264.
+
+    r [pc]   AVeff - 5.177e-22 N_H(exact path)
+             median   5-95%              cells
+    0-3      0.000    0.000  0.000        77
+    3-6      0.000   -0.055 +0.034       438
+    6-10    -0.027   -0.055 +0.052      1710
+    10-15   -0.028   -0.054 +0.041      4901
+    15-20   -0.030   -0.053 +0.035      8078
+
+There is no lag that grows with radius. The march is 1-2% low beyond 6 pc, with
++-0.05 mag of scatter per cell. That is the midpoint sampling with a step of
+about one cell (`nstep = seg/dx`). The offset is set where the step first lands
+on the staircase edge of the cavity.
+
+The median of `r - L_active` is 1.03-1.06 pc. The Rin cavity is 0.97 pc; the
+extra 0.08 pc is cells whose centre lies inside Rin but whose volume extends
+past it. Skipping the inactive steps is correct, because the cavity has no gas.
+D-265's "0.3-0.5 pc of missing column" was the cavity itself.
+
+### 2. The reference was set up with the wrong inner radius
+
+`benchmarks/pdr/hiipdr/cloudy/common.inc` had `radius 17.4771 19.7782`, i.e.
+3e17 cm, with a comment reading "Rin 3e17 cm". MOCASSIN's `Rin 30.e17` is
+3e18 cm. D-264's table and the Cloudy artifact both repeated the misreading, and
+the artifact even listed MOCASSIN's R_in as 3e17. The "5.177e-22 N_H" row of
+D-265 was measured from 0.097 pc and so matched the wrong Cloudy model.
+
+This was a setup error in the reference, not a tuning choice. The Cloudy model
+now starts where MOCASSIN's gas starts.
+
+    radius 18.4771 19.7782    (common.inc, and runs/d277-cloudy)
+
+Cloudy c25.00: 700 zones, 3 iterations, 309 s, the same 22 cautions (switched-off
+elements), A(V)/N(H)(pnt) 5.177e-22, cloud edge A_V 2.950 (was 3.090). The
+grain opacity file is a symlink to `runs/d264-cloudy`.
+
+### 3. Result
+
+A_V at matched radius, median of MOCASSIN cells within 0.3 pc:
+
+    r [pc]     1.5    2      3      4      5      8      12     16     19
+    MOCASSIN   0.058  0.164  0.297  0.479  0.611  1.071  1.712  2.352  2.837
+    Cloudy old 0.229  0.310  0.467  0.629  0.784  1.284  1.921  2.566  3.029
+    Cloudy new 0.088  0.171  0.329  0.484  0.646  1.126  1.781  2.421  2.893
+
+The remaining 0.05-0.07 mag at large radius is accounted for, roughly, by three
+parts:
+  - the march offset (-0.03);
+  - the cavity staircase (0.08 pc, 0.013 mag);
+  - about 0.01 mag in Cloudy's AV(point) against 5.177e-22 x n_H (r - R_in)
+    (2.893 against 2.880 at 19 pc).
+
+**The ionization front moved in Cloudy, not in MOCASSIN.** Radius where
+x(H+) = x(H), measured directly:
+
+    Cloudy, R_in 3e17 (d264)          3.474 pc
+    Cloudy, R_in 3e18 (d277)          3.765 pc
+    MOCASSIN d266-cfull, radial-shell medians of x(H+), 0.2/0.3/0.5 pc bins
+                                      3.833 / 3.816 / 3.800 pc
+    MOCASSIN d263-chex, same          3.94 / 3.89 / 3.93 pc
+
+The hole volume alone would move the front only to ~3.50 pc. The rest is the
+0.87 pc of dust the old model had near the star absorbing ionizing photons.
+That is a statement about Cloudy's old geometry, not measured further.
+
+MOCASSIN's front was quoted as 3.55 (D-264) and 3.49 pc (D-266). Neither is
+reproduced by a radial measurement, which gives 3.80-3.94. The quoted values are
+consistent with taking the A_V crossing (0.42) through MOCASSIN's median A_V(r),
+whose 3.4-3.6 pc bin reads 0.418. That is inferred, not confirmed. The
+"3.49 vs 3.48 pc" agreement was a coincidence of two errors.
+
+Markers from bin medians against A_V (tools as in D-264; MOCASSIN d266-cfull):
+
+                        MOCASSIN   Cloudy old   Cloudy new
+    x(H+) = x(H)        0.461      0.540        0.446
+    2n(H2) = n(H)       1.194      1.058        1.090
+    C+ = C              2.119      2.983        2.950
+
+At fixed A_V, Cloudy new against old: the PDR changes by a few per cent, more
+on the H/H2 transition (T_gas 48/47 K at 0.7, 44/46 at 1.5; n(H2) at 1.0,
+mid-transition, 14 vs 17). T_dust in the
+ionized gas is lower by 12-20% (56.8 vs 64.2 K at 0.3). MOCASSIN's dust is now
+3-5% cooler there, not 15-25%, and 7-13% cooler through the PDR. Matched in
+radius, the ionized gas still agrees: T 8000-8900 against 8100-9200 K, and
+C++ and O++ within 25% out to 3 pc.
+
+### 4. What changes
+
+  - O-10 is closed (register C-08). No code change. The A_V figures and every
+    MOCASSIN-vs-Cloudy A_V comparison since D-264 were offset by the reference,
+    by 0.15-0.21 mag. Shielding and chemistry inside MOCASSIN were never
+    affected.
+  - The H/H2 crossing gap to Cloudy is 0.10 mag. The ionization front agrees
+    in both A_V (0.015 mag) and radius (1-2%).
+  - The D-275 3D-PDR reference is unaffected. Its face and span come from
+    MOCASSIN's own A_V, which section 1 shows is right.
+  - The midpoint march leaves +-0.05 mag per cell and a -0.03 mag median. An
+    exact cell traversal (segment lengths per cell) would remove both. It
+    would also sharpen the shielding columns taken on the same ray. Not done:
+    the effect is a few per cent, and it needs a full re-run to show.
+  - The artifact 'hiipdr Against Cloudy' (v4) has:
+    - the corrected geometry, tables and figures (`runs/d277-cloudy/figs`);
+    - a correction note;
+    - the register with O-10, O-27 (D-272) and O-28 (D-274) moved to closed.
+
+### 5. Not yet known
+
+  - Whether the -0.03 mag march offset matters to any comparison at the
+    current resolution. It is below the bin width of the figures.
+  - The method behind the D-264/D-266 front radii (section 3).
+
+Updated high-priority order: O-01 deep C+ drop, O-11 ion balance not reached,
+O-02 PDR gas temperature, O-14 3D self-shielding tracer.
