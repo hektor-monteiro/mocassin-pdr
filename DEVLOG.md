@@ -280,6 +280,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-278 | **O-11 diagnosed: the ion balance fails because its electron-density iteration is a two-cycle, not because the physics has no solution. Deep in the cloud every electron comes from trace ions whose abundance scales as 1/n_e (He+ 83%, H+ 17%, C and Mg 0), so the plain fixed-point update n_e -> sum of ions maps n_e to about K/n_e and alternates between two values for all 50 X-iterations.** Probe `ionBalProbe` (diagnostic, default off; source/update_mod.f90 ionBalance), run runs/d277-ionbal (hiipdr, 11 it, 83.8%, 18% failing as d266). At the last iteration 3752 cells end at least one T-step unconverged: A_V 2.15-2.92 (5-95%), T 10-22 K; the failing test is x(He+) in 3740 of them, never x(H0) or x(He0). Trails: NeIn alternates, e.g. 4.3414e-3, 2.5382e-3, 4.3408e-3, ..., contracting by only 3e-5 to 2e-4 per cycle. The two-cycle's amplitude, NeOut/NeIn, is 0.94-1.45 (5-95%); the stored n_e is 0.97-1.20x the geometric mean of the pair, the fixed point of a pure 1/n_e map. Consequence, not cause, of O-01: it appears only where C+ has collapsed and Mg+ with it, leaving no fully ionized donor to damp the update. Where C+ carries the electrons (A_V < 2.1) it converges. 94 of the 2767 flagged cells also fail the H0/H2 convergence test, so O-11 barely moves the convergence percentage. Fix proposed, not implemented: solve the charge balance as a bracketed root of n_e | Open | 2026-09-14 |
 | D-279 | **O-11 fixed: the charge balance is solved as a bracketed root in n_e. The ion-balance failure falls from 18% to 0 at every iteration of hiipdr (2788 flagged cells -> 0), with no change in run time and the profiles within +-4%.** source/update_mod.f90 ionBalance: NeOut(NeIn) is non-increasing, so the root lies between NeIn and NeOut. Each pass intersects a bracket with that interval, restarting if the bracket inverts, and takes the next pass at its geometric mean (bisection in log n_e, exact in one step for a pure K/n_e map). |NeOut-NeIn|/NeIn <= 1% joins the x(H0)/x(He0)/x(He+) test. Skipped when n_e is not the ion sum (pdrUseNePDR, lgNeInput). All four flavours build. runs/d279-nebracket (same input as d277-ionbal): converged 84.50% (d277 83.84, d266 84.35); 41:37 vs 41:32. In the cells flagged in d277, per cell d279/d277 (5/50/95%): n_e 0.73/0.99/1.08, He+ 0.66/0.96/1.03, H+ 0.68/0.96/1.03, C+ 0.63/0.96/1.05, CO 0.91/1.00/1.09, Tgas 0.94/1.00/1.04; d277/d266 in the same cells: n_e 0.82/1.00/1.25. Bin medians change <=4% (n_e -4% at A_V 2.8-3.1). Markers vs Cloudy unchanged: IF 0.461, H/H2 1.196, C+=C 2.115 (d266 0.461/1.194/2.119). The deep C+ drop (O-01) is untouched, as D-278 predicted. HII40 (no PDR), fixed against a pre-fix build of eb1c402: 0% failing in both, lines >0.01 Hbeta within 0.1%, Hbeta 18.771 vs 18.778 | Closed | 2026-09-14 |
 | D-280 | **O-01, the deep C+ drop, decomposed into four measured parts; two MOCASSIN defects fixed. C+/Cloudy at A_V 2.5 goes 1e-7 (analog) -> 0.57 (path biasing) -> 0.61 (+ cosmic-ray ionization of metals) -> 0.72 (+ corrected scattering asymmetry); C+ = C moves A_V 2.12 -> 2.60 (Cloudy 2.95).** (1) Monte Carlo floor: without `pathStretch` the C I-ionizing field is exactly zero in 63-100% of cells past A_V 2.3 even with both fixes (d284); biasing reduces that to <=9% to A_V 2.8. (2) Missing physics, fixed: ionBalance gave cosmic-ray ionization to H and He only (D-193 literals, the D-234 gate); it now reads every CRP/CRPHOT ionization of a linked neutral from the network (293 H, 297 He, 298 C, 299 O, 301 C gamma 510, 312 Mg gamma 113), CRPHOT with the cell's own 11.2-13.6 eV grain albedo; 3D-PDR's omega = 0.42 is replaced by the same albedo per cell (D-247 wrongly called it dead: it divides every CRPHOT rate). Deep C+ at A_V 2.9 x8. (3) Bug, fixed, ph_mod: the size-averaged scattering cosine was weighted by pi a^2 instead of C_sca; FUV g 0.437 -> 0.607 (Cloudy, same silicate and MRN law: 0.59-0.64). (4) Divergence, not closed: MOCASSIN's C photoionization rate falls 3.83 e-folds per mag (after r^-2) against Cloudy's 2.65, with grain extinction at the C edge equal to 2% (4.39 vs 4.30/mag); and MOCASSIN's C+ recombination is 0.40-0.58 of Cloudy's, most likely Cloudy's grain-assisted recombination (inferred; inert in this 3D-PDR build, GRAINRECOMB undefined). Controls: ionization front A_V 0.461-0.463, H/H2 1.196-1.201, H budget <=4e-4 in all runs; biased radiated energy 2644-2681 vs analog 2650-2655. Converged: d279 84.5, d280 83.1, d282 84.5, d283 82.3, d284 81.0%. Probe `ionRateProbe`. Found and not pursued: the 1D Ivezic dust benchmark segfaults in transfer, identically before these changes | Open | 2026-09-14 |
+| D-281 | **The D-280 grain scattering-asymmetry fix ported to `dev` as 411ff93 (not pushed): g averaged over sizes with C_sca, not pi a^2, plus a zero-norm guard.** Worktree of `dev` at ~/software/mocassin_dev, removed afterwards; tracked binaries restored so only source/ph_mod.f90 changes. All four dev targets build clean. Against the pre-fix dev binary, 14 ranks: single-size dust 1D p0tau10 and 2D tau1.000 integrated SED 0.9999 and 0.998 (D-269 scatter 1.0005, 1.0015); test_Problem (35 sizes + PAH, shortened to 1e6 packets, 5 iterations) angle-integrated UV +1.2/+1.3% against a 0.1% repeat scatter, optical +0.3-0.6% (scatter 0.3%), IR, Hbeta, mean Te within scatter; the inclined viewpoint differs 18% between identical runs at this packet count and was not read. Also: 1D p0tau10 runs cleanly in dev (7 s), so the O-31 segfault is specific to this branch | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20755,3 +20756,58 @@ component) and not changed.
     predates D-280. The planned single-size no-op check of the g fix could not
     be run.
   - D-247's statement about `omega` is corrected above.
+
+## D-281 - the grain scattering-asymmetry fix ported to `dev` (2026-09-14)
+
+The user asked to apply the D-280 grain scattering bug fix to `dev`.
+
+### Port
+
+  - **Worktree.** `git worktree add ~/software/mocassin_dev dev`, the path the
+    D-269 benchmark runner uses. It was removed again afterwards.
+  - **Code.** `dev`'s `makeDustXsec` (source/ph_mod.f90) had the same code as
+    this branch before D-280. Csca is converted to cm^2 a few lines earlier in
+    both. The same change was applied: gCos weighted by Csca*grainWeight*
+    grainAbun, with a guard for norm = 0. The comment is written for `dev`,
+    without PDR references.
+  - **Line endings.** ph_mod.f90 is LF in `dev`, and stays LF.
+  - **Binaries.** `dev` tracks its binaries (mocassin, mocassinWarm,
+    mocassinOutput, mocassinPlot), which `make clean` deletes. They were
+    restored with `git checkout --` before committing, so the commit touches
+    only ph_mod.f90.
+  - **Commit.** 411ff93 on `dev`, parent 59bb06d. Not pushed.
+
+All four `dev` targets build from clean.
+
+### Validation (~/software/dev_bench, run_gsca.sh; 14 ranks; pre-fix `mocassin.gbase` vs `mocassin.gfix`)
+
+Single-size models, where the fix cannot change g:
+
+    benchmark          integrated SED fix/base   D-269 base/final (scatter)
+    dust 1D p0tau10    0.9999                    1.0005
+    dust 2D tau1.000   0.9980                    1.0015
+
+A size distribution: `test_Problem` (dusty PN, astroSilD2003 35 sizes plus
+PAH). It was shortened to nPhotons 1e6, maxIterateMC 5 and no autoPackets
+(1:27 per run), and the pre-fix binary was run twice for the scatter.
+Angle-integrated SED (viewpoint column 1):
+
+    band            base2/base   fix/base   fix/base2
+    UV 0.09-0.3 um  0.9988       1.0119     1.0131
+    optical 0.3-1   1.0027       1.0055     1.0028
+    NIR/MIR 1-10    0.9844       0.9810     0.9965
+    FIR 10-1000     1.0038       1.0032     0.9995
+    total           0.9995       1.0038     1.0042
+    Hbeta           0.62655 / 0.62760 (base, base2)  0.62708 (fix)
+    mean Te         2556.7 / 2572.5                  2549.5 K
+
+  - Only the escaping UV moves outside the scatter, by +1.2-1.3%. That is the
+    expected direction: a larger g scatters more light forward and out.
+  - The inclined viewpoint (column 2) differs by 18% between the two identical
+    base runs at this packet count, so it was not used.
+
+### Also found
+
+`dust/1D/p0tau10` runs cleanly in `dev` (7 s per run, both binaries). The
+segfault recorded in D-280 (O-31) is therefore specific to this branch, not
+inherited from `dev`.
