@@ -2485,6 +2485,10 @@ end subroutine iterateT
 
             real                   :: revRate       ! reverse charge exchange rate
             double precision       :: chainVal, diffVal   ! D-114 self-check
+            real                   :: NeIn          ! D-277: Ne the rates were built with
+            double precision, dimension(4) :: eShare ! D-277: e- share of H, He, C, Mg
+            integer, dimension(4), parameter :: eShEl = (/1, 2, 6, 12/)
+            real                   :: avProbe       ! D-277
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -2529,6 +2533,7 @@ end subroutine iterateT
             ionProd     = 1.
             denominator = 1.
             lgConv      = .true.
+            NeIn        = NeUsed
 
             ! take into account collisional ionization of H
             ! Drake & Ulrich, ApJS42(1980)351
@@ -3358,6 +3363,40 @@ end subroutine iterateT
             deltaHI   = (ionDenUsed(elementXref(1),1) - HIOld)   / HIOld
             deltaHeI  = (ionDenUsed(elementXref(2),1) - HeIOld)  / HeIOld
             deltaHeII = (ionDenUsed(elementXref(2),2) - HeIIOld) / HeIIOld
+
+            ! D-277 (O-11): the failing cells. The rates of every stage are
+            ! built with NeIn and return NeUsed; a settled balance has
+            ! NeUsed = NeIn. Printed per step: both, the three residuals
+            ! the test uses, and who carries the electrons.
+            if (ionBalProbe /= 0 .and. nIterateMC == maxIterateMC .and. &
+                 & nIterateX >= maxIterateX - 5 .and. &
+                 & ( (abs(deltaHI)>limit) .or. (abs(deltaHeI)>limit) .or. &
+                 &   (abs(deltaHeII)>limit) )) then
+               if (nIterateX == maxIterateX .or. nIonBalTrail < ionBalProbe) then
+                  eShare = 0.d0
+                  do i = 1, 4
+                     elem = eShEl(i)
+                     if (.not.lgElementOn(elem)) cycle
+                     do ion = 2, min(elem+1, nstages)
+                        eShare(i) = eShare(i) + dble(ion-1)* &
+                             & dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem))* &
+                             & dble(ionDenUsed(elementXref(elem),ion))
+                     end do
+                  end do
+                  eShare = eShare*dble(grid%Hden(cellP))/max(dble(NeUsed),1.d-30)
+                  avProbe = -1.
+#ifdef PDR
+                  if (lgPDR) avProbe = grid%AVeff(cellP)
+#endif
+                  print '(a,i3,a,i7,a,i3,a,f6.3,a,es10.3,a,es11.4,a,es11.4,a,3es10.2,a,2es10.2,a,4f7.4)', &
+                       & ' ! [D277] rank', taskid, ' cell', cellP, ' step', nIterateX, &
+                       & ' AV', avProbe, ' Te', TeUsed, ' NeIn', NeIn, ' NeOut', NeUsed, &
+                       & ' dHI/dHeI/dHeII', deltaHI, deltaHeI, deltaHeII, &
+                       & ' xH+ xHe+', ionDenUsed(elementXref(1),2), ionDenUsed(elementXref(2),2), &
+                       & ' eShare H/He/C/Mg', eShare
+               end if
+               if (nIterateX == maxIterateX) nIonBalTrail = nIonBalTrail + 1
+            end if
 
             ! check for convergence
             if ( ( (abs(deltaHI)>limit) .or. (abs(deltaHeI)>limit) .or. &

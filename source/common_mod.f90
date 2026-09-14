@@ -1113,6 +1113,11 @@ module common_mod
          &    'C+    ', 'C     ', 'e-    ', '<Te>  ' /)
     integer(kind=8)     :: cvUnstable = 0, cvDeriv = 0
     integer             :: teProbe = 0
+    ! D-277 (O-11): which cells fail the ionization balance, and how. At the
+    ! last MC iteration every cell whose X-iteration ends unconverged prints
+    ! one line; the first ionBalProbe such cells per rank also print their
+    ! last six steps. Diagnostic only.
+    integer             :: ionBalProbe = 0, nIonBalTrail = 0
     ! D-165. Cloudy's temperature solver, for comparison with MOCASSIN's:
     !   * bracket with a step capped at 20% of T, then van Wijngaarden-Dekker-
     !     Brent INSIDE the bracket, which therefore always shrinks;
