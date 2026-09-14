@@ -264,6 +264,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-262 | **The 6000 K charge-exchange gate is not a validity limit, and MOCASSIN's O reverse rate uses a threshold 10x too large; Cloudy c25's scheme is the recommended replacement.** MOCASSIN zeroes every H charge-exchange rate below 6000 K (update_mod.f90:2628). The KF96 fits it uses carry per-reaction validity ranges (Cloudy c25 ctrecombdata.dat): O+ + H is valid 10-1e4 K, and there MOCASSIN's own fit agrees with Stancil et al. 1999 (Cloudy) and UMIST 161 to 5-15% from 10 to 1000 K. Separately, the reverse O + H+ -> O+ + H is built by detailed balance with deltaE_k(8,1) = 2205 K; KF96/Cloudy give 230 K (0.02 eV). So ion/rec is 2.4e-10 against 0.14 at 100 K, and 0.43 against 0.77 at 3000 K. That affects partially ionized H II gas as well. At 1e4 K KF96 O+ + H is 1.04e-9 against Stancil/Cloudy 2.05e-9. He+ + H at 20 K: KF96 extrapolated 2e-19, UMIST 3e-15, Cloudy ~1.3e-15 (Stancil 1998 radiative, clamped). Mg + H+: UMIST 167 is a constant 1.1e-9, which Cloudy rejects ('UMIST is bogus', Stancil 2006) for the ORNL fit, 2e-18 at 20 K. Cloudy clamps T into each fit's range, keeps the true Boltzmann factor, and overrides O (Stancil 1999, 10 K-1e5 K), N (Lin 2005), O++/N++ (Barragan 2006) and Mg/Si (ORNL). zlib licence, portable with attribution. Not yet implemented | Open | 2026-09-13 |
 | D-263 | **Charge exchange: the 6000 K lower cut-off removed, the O threshold corrected from 2205 K to 229 K, n(H+) taken as x(H+) n_H. O+ in the PDR now follows charge-exchange equilibrium to 1%; its remaining deficit is the cold gas.** The user chose MOCASSIN's own KF96 fits over a Cloudy port (a port was built, compiled and discarded unused). Changes in update_mod.f90: no lower T cut-off (upper 5e4 K kept); deltaE_k(8,1) = IP(O)-IP(H) = 0.0197 eV = 229 K (the same rule gives N 10858 K against the tabulated 10863); the reverse rate uses ionDen(H,2) instead of 1 - x(H0), which in molecular gas counted H2 as H+. All four flavours build. hiipdr (runs/d263-chex, 11 it, 84.3%): O+ ours/ref at aligned A_V 0.7/0.9/1.3/1.7/2.1/2.9 went 3e-4/5e-4/3e-3/0.022/0.39/18 -> 4e-5/1.2e-4/8e-4/2.7e-3/0.032/2e-3. Our O+/O equals n(H+)/n(H) x 0.889 exp(-229/T) to 1% at A_V 0.7-1.7, and the reference's equals its UMIST equivalent to 1-18%; so ours/ref follows (x(H+) 0.2-0.4 of ref) x exp(-229/23 K)/exp(-229/200 K), i.e. the gas temperature (D-261). Past A_V 2 another source dominates. Nothing else moved by more than a few %. HII40 (non-PDR, old vs new, single runs): T(H+) 8364 -> 8360 K; O0 -16%, [OI] 6300 6.16e-3 -> 5.16e-3 Hb; every other ion fraction and line within 1% | Open | 2026-09-13 |
 | D-264 | **Milestone tagged `pdr-coupling-v1.0` (3d30758), and hiipdr compared with an equivalent Cloudy c25.00 model: ionization front 3.55 vs 3.48 pc, H/H2 crossing A_V 1.17 vs 1.05, electrons and C+ within 10% through the PDR; PDR gas 21-26 K vs Cloudy 30-50 K (3D-PDR 100-200 K), so most of the 3D-PDR temperature gap is the dust; the deep C+ drop (C+=C at A_V 2.02 vs 2.97) reproduces against a second code.** The user judged the results a first working version and asked for a tag and a fair single-code comparison. Cloudy model (benchmarks/pdr/hiipdr/cloudy/): blackbody 40000 K, Q(H) 10^49.629, sphere 3e17-6e19 cm, n_H 100, abunV1 abundances with all other elements off, cosmic ray rate -16.638 (H0 2.30e-17 s^-1), sdraine03 silicate compiled with MOCASSIN's MRN 0.01-0.30 um -3.5 law, scaled to A_V/N_H = 5.177e-22 (MOCASSIN's measured value; matching dust MASS would give 1.57x the cross-section because the silicate densities differ; Cloudy D/G by mass is then 0.0068). 741 zones, 3 iterations, reaches A_V 3.09; cautions only for switched-off elements. Tdust MOCASSIN 10-15% cooler in the PDR, 15-25% in the H II gas (number-weighted bin means in both). Past A_V 2.2 MOCASSIN C+ is 1e-7 of Cloudy's, n_e 0.2x, CO 50-100x high. Unexamined: MOCASSIN inner H II gas 11000 K vs 8000 K and O++/C++ several times lower; the H II region spans ~5.5 cells at 31^3, so resolution first. Artifact 'hiipdr Against Cloudy'. tools/d260_roellig.py gained --cloudy | Open | 2026-09-13 |
+| D-265 | **Following the user's reading of the Cloudy comparison: the coupling removes 80% of carbon and 52% of oxygen from the ionized gas (defect), MOCASSIN's A_V lags the geometric column by 0.05-0.19 mag, and H2 in the H II gas is 1e3-1e5x Cloudy's at matched radius with H0 and n_e agreeing.** User observations: temperatures agree well; H2 agrees in the PDR but not in the ionized gas; molecules in the ionized gas are much lower in Cloudy; O and C ions disagree in both zones. (1) Carbon/oxygen loss: in the 165 H II cells the chemistry's element total and MOCASSIN's ion-stage sum are identical and short - C 20% (5-95%: 1-85%), O 48% (3-99%); PDR cells 100%. Cause: seedAbunFromMocassin seeds only stages 1 and 2 (the reduced network has no C++/O++), so the doubly ionized part never enters the chemistry; setElemAvail returns (neutral+singly ionized)/total as the unlocked fraction, and ionBalance constrains all stages to sum to it. Consistent with O++ 3-50x and C++ 7-150x below Cloudy at matched radius, and with MOCASSIN's inner H II gas at 1.6e4 K vs 8.7e3 K (coolants missing) - the temperature link is a hypothesis. (2) A_V: MOCASSIN 0.052/0.164/0.297/0.479/0.611/1.071/2.837 at r = 1/2/3/4/5/8/19 pc against geometric (and Cloudy) 0.144/0.304/0.464/0.623/0.783/1.26/3.02; lag 0.09 -> 0.19 mag, per-pc 0.11-0.13 in the H II gas vs 0.16. computeAVradial skips ray steps whose nearest cell is inactive (the origin cell), worth 0.05-0.09 mag; the rest unexplained. This shifts MOCASSIN's H II curves left on the A_V figures; radius-matched comparison avoids it. (3) H2 in the ionized gas at matched radius: 4e-9..2.6e-7 vs 1e-14..9e-11 cm^-3 with H0 within 2x; the reduced network has H+ + H2 (154), collisional 316/321/322 and photodissociation 329 but no H2 photoionization; not yet measured which balance differs | Open | 2026-09-13 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19131,3 +19132,93 @@ the same power law.
     Cloudy's).
   - The H II temperature and O++ differences, at higher resolution.
   - Scatter: one run of each code.
+
+## D-265 - the ionized gas against Cloudy: carbon and oxygen loss, A_V lag, H2 excess (2026-09-13)
+
+The user read the D-264 comparison as very reassuring and made four
+observations:
+
+  - temperatures agree very well;
+  - H2 agrees in the PDR but not in the ionized zone;
+  - all molecular species are much lower in Cloudy in the ionized zone, but
+    agree more or less in the PDR (resolution and diffuse field suspected);
+  - all O and C ions disagree in both PDR and ionized zones.
+
+This entry records what was measured to explain them.
+
+### 1. Carbon and oxygen are missing from the ionized gas (a coupling defect)
+
+Per cell, `runs/d263-chex`, fraction of the element present:
+
+    zone   cells   carbon: chemistry total = MOCASSIN stage sum   oxygen: likewise
+    H II   165     median 0.202  (5-95%: 0.012 - 0.846)           0.479  (0.034 - 0.989)
+    PDR    15039   1.000                                          1.000
+
+Mechanism, read from `source/pdr_mod.f90`:
+
+  - `seedAbunFromMocassin` fills each linked element's network carriers from
+    MOCASSIN's stages 1 and 2 only. The reduced network has C, C+, O, O+ and
+    no doubly ionized species, so in gas where C++ and O++ dominate, that
+    part of the element never enters the chemistry.
+  - The D-153 and D-162 re-impositions conserve the chemistry's atomic total
+    `abun(C) + abun(C+)` and only re-split it.
+  - `setElemAvail` returns `(neutral + singly ionized)/total` as the fraction
+    "not locked in molecules".
+  - `ionBalance` constrains ALL of MOCASSIN's stages to sum to that (D-193).
+
+So the doubly ionized share is removed from the element as if it were
+molecular. In the PDR there are no doubly ionized stages and the budget closes.
+
+Consistent with, at matched radius (MOCASSIN / Cloudy, cm^-3):
+
+    r [pc]  T_gas         C++             O++            O+
+    1.0     1.6e4/8.7e3   1.4e-4/0.021    6.4e-4/0.032   8.4e-6/5.0e-4
+    2.0     1.4e4/8.0e3   6.7e-4/0.021    2.6e-3/0.030   1.6e-4/3.0e-3
+    3.0     1.1e4/8.8e3   3.1e-3/0.018    9.1e-3/0.018   3.8e-3/0.015
+
+Hypothesis, not tested: the hotter H II gas is the missing C and O forbidden-
+line cooling.
+
+Fix direction (not implemented, not vendored code): seed and conserve the
+WHOLE element in the network's atomic carriers (the ion carrier standing for
+every ionized stage), and hand back 1 - molecular fraction, not
+(neutral + singly ionized)/total.
+
+### 2. MOCASSIN's A_V lags the geometric column
+
+    r [pc]            1      2      3      4      5      8      12     16     19
+    MOCASSIN median   0.052  0.164  0.297  0.479  0.611  1.071  1.712  2.352  2.837
+    Cloudy AV(point)  0.147  0.310  0.467  0.629  0.784  1.284  1.921  2.566  3.029
+    5.177e-22 N_H     0.144  0.304  0.464  0.623  0.783  1.262  1.901  2.540  3.020
+
+The lag grows from 0.09 mag at 1 pc to a constant ~0.19 mag from 8 pc. The
+slope is 0.11-0.13 mag/pc in the ionized gas against 0.16 outside it.
+
+`computeAVradial` marches from the star and skips steps whose nearest cell is
+inactive; the origin cell (inside R_in) is, which removes up to 0.3-0.5 pc of
+column (0.05-0.09 mag). The rest is unexplained. Every MOCASSIN curve in the
+ionized zone of the A_V figures is shifted left accordingly, which matters on a
+log axis. The ionization front position in radius (3.55 vs 3.48 pc, D-264) is
+unaffected.
+
+The earlier D-257 slope measurement (2.07/mag) and the D-260 section 6 front
+alignment used MOCASSIN's own A_V and are affected only through this offset.
+
+### 3. H2 and molecules in the ionized gas
+
+At matched radius H0 agrees within 2x (0.0035/0.0047 at 1 pc, 0.11/0.22 at
+3 pc), n_e and He+ agree, but H2 is 4e-9/1e-14 at 1 pc and 2.6e-7/9e-11 at
+3.3 pc. OH, CO and H3+ are higher by similar or larger factors. So it is the
+H2 formation/destruction balance in hot ionized gas, not the axis.
+
+The reduced network carries H+ + H2 -> H2+ + H (154, exp(-21200/T)),
+collisional dissociation (316, 321, 322) and photodissociation (329), but no H2
+photoionization, which dominates in an EUV field. Not measured: formation vs
+destruction rates in an H II cell (the D-258 probe can do it), and whether the
+grain formation rate is applied at 1e4 K gas temperature.
+
+### 4. In the PDR
+
+  - O+ follows charge-exchange equilibrium (D-263). exp(-229/T) at 24 K
+    against Cloudy's 47 K is a factor ~100, and ours is 290x lower.
+  - C+ agrees within 10% to A_V 2, then collapses (the deep drop, D-264).
