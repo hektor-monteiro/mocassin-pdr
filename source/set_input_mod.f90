@@ -795,6 +795,9 @@ module set_input_mod
             case ("ionBalProbe")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, ionBalProbe
+            case ("ionRateProbe")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, ionRateProbe
             ! D-238: composite biasing of the interaction depth, Baes et al.
             ! 2016. The argument is xi, the composite parameter: the fraction
             ! of packets still drawn from the analog exp(-tau). Weights are

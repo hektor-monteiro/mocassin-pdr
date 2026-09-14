@@ -1468,9 +1468,18 @@ module xSec_mod
                             & + xSecArrayTemp(dustAbsXsecP(dustComPoint(icomp)-1+nSpec,ai)+i-1)*&
                             & grainWeight(ai)
 
-                       gSca(i) = gSca(i)+gCos(nSpec,ai,i)*Pi*grainRadius(ai)**2*&
+                       ! D-280: the mean scattering cosine of a mixture is
+                       ! weighted by each grain's SCATTERING cross-section,
+                       ! <g> = sum g C_sca n / sum C_sca n. It was weighted by
+                       ! the geometric area pi a^2. With an a^-3.5 size law that
+                       ! hands the average to the smallest grains, which barely
+                       ! scatter in the FUV and do so almost isotropically:
+                       ! hiipdr's FUV g came out 0.44 where Cloudy, from the same
+                       ! Draine silicate and size law, has 0.59-0.64. Csca is
+                       ! already in cm^2 here (converted above).
+                       gSca(i) = gSca(i)+gCos(nSpec,ai,i)*Csca(nSpec,ai,i)*&
                             & grainWeight(ai)*grainAbun(icomp, nSpec)
-                       norm(i) = norm(i) + Pi*grainRadius(ai)**2*&
+                       norm(i) = norm(i) + Csca(nSpec,ai,i)*&
                             & grainWeight(ai)*grainAbun(icomp, nSpec)
                             
                     endif
@@ -1480,7 +1489,11 @@ module xSec_mod
            end do
 
            do i = 1, nbins
-              gSca(i)=gSca(i)/norm(i)
+              if (norm(i) > 0.) then
+                 gSca(i)=gSca(i)/norm(i)
+              else
+                 gSca(i)=0.
+              end if
 !              write(6,'(i5,2es12.4)')i,c/(nuArray(i)*fr1Ryd)*1.e4,gSca(i)
            enddo
                       

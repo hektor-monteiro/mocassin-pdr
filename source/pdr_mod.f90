@@ -31,6 +31,7 @@ module pdr_mod
     use common_mod
     use constants_mod
     use continuum_mod, only : inSpectrumProbDen
+    use update_mod,    only : grainAlbedoLW     ! D-280
 
     ! KB and PC are 3D-PDR's own constants; use theirs rather than MOCASSIN's
     ! equivalents so the level-population arithmetic matches upstream exactly.
@@ -131,6 +132,7 @@ module pdr_mod
         character(len=10)  :: sNeut, sIon  ! D-163: linked neutral / ion labels
         integer            :: iR, iLnk, jLnk   ! D-163
         logical            :: lgDupPhot, lgDupRec
+        integer            :: iTyp280          ! D-280: 1 CRP, 2 CRPHOT
         integer            :: ios, iS, iC
         logical            :: lgAtomic
         ! D-131. Element symbols, lower case. Cobalt is deliberately ABSENT -
@@ -215,7 +217,12 @@ module pdr_mod
         ! ---- parameters readparams would have supplied (D-022) ----------
         pdrMetalMod   = dble(pdrMetal)
         pdrGrainRadM  = dble(pdrGrainRad)
-        pdrOmega      = 0.42d0                      ! grain albedo, hardcoded upstream
+        ! D-280: upstream's fixed grain albedo. It enters every CRPHOT rate
+        ! (calc_reac_rates.F90, gamma/(1-omega)) - D-247 was wrong to call it
+        ! dead. pdrStep overwrites it with each cell's own Lyman-Werner albedo
+        ! before the rates are evaluated; this value survives only in the smoke
+        ! test, which has no grid.
+        pdrOmega      = 0.42d0
         pdrAVfacMod   = dble(pdrAVfac)*dble(pdrMetal)
         pdrUVfacMod   = dble(pdrUVfac)
         pdrZetaMod    = dble(pdrZeta)/1.3d-17       ! stored normalised, as upstream
@@ -353,6 +360,50 @@ module pdr_mod
              & count(pdrLinkSpec > 0), "of", pdrNlink
         call READ_RATES(pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
              &          pdrGamma, pdrRate, pdrDuplicate, pdrRtmin, pdrRtmax)
+
+        ! D-280: the cosmic-ray ionization of every linked neutral, from the
+        ! network itself: reactant = the neutral + CRP or CRPHOT, products = its
+        ! linked ion + e-. ionBalance adds these to MOCASSIN's up rates, so both
+        ! codes ionize from the same coefficients (D-193 did this for H and He
+        ! with literals, and for nothing else).
+        pdrNcr = 0
+        do iR = 1, pdrNreacMod
+           do iLnk = 1, pdrNlink
+              if (pdrLinkSpec(iLnk) <= 0 .or. pdrLinkIon(iLnk) /= 1) cycle
+              sNeut = adjustl(pdrSpecies(pdrLinkSpec(iLnk)))
+              sIon  = ''
+              do jLnk = 1, pdrNlink
+                 if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
+                      & pdrLinkIon(jLnk) == 2 .and. pdrLinkSpec(jLnk) > 0) &
+                      & sIon = adjustl(pdrSpecies(pdrLinkSpec(jLnk)))
+              end do
+              if (len_trim(sIon) == 0) cycle
+              if (.not. any(adjustl(pdrReactant(iR,:)) == sNeut)) cycle
+              if (.not. any(adjustl(pdrProduct(iR,:)) == sIon)) cycle
+              if (.not. any(adjustl(pdrProduct(iR,:)) == 'e-')) cycle
+              if (any(adjustl(pdrReactant(iR,:)) == 'CRP')) then
+                 iTyp280 = 1
+              else if (any(adjustl(pdrReactant(iR,:)) == 'CRPHOT')) then
+                 iTyp280 = 2
+              else
+                 cycle
+              end if
+              if (pdrNcr >= pdrMaxCr) then
+                 print*, "! initPDRnetwork: more cosmic-ray ionizations than pdrMaxCr", pdrMaxCr
+                 stop
+              end if
+              pdrNcr = pdrNcr + 1
+              pdrCrElem (pdrNcr) = pdrLinkElem(iLnk)
+              pdrCrType (pdrNcr) = iTyp280
+              pdrCrAlpha(pdrNcr) = pdrAlpha(iR)
+              pdrCrBeta (pdrNcr) = pdrBeta(iR)
+              pdrCrGamma(pdrNcr) = pdrGamma(iR)
+              if (taskid == 0) print '(a,i4,a,a,a,a,a,es10.3,a,f6.2,a,f8.2)', &
+                   & " ! [D280] cosmic-ray ionization: reaction", iR, "  ", trim(sNeut), &
+                   & merge(" + CRP    -> ", " + CRPHOT -> ", iTyp280 == 1), trim(sIon), &
+                   & "  alpha", pdrAlpha(iR), " beta", pdrBeta(iR), " gamma", pdrGamma(iR)
+           end do
+        end do
 
         ! D-163: MOCASSIN owns every ion stage, so the network must not compute
         ! them too. These are exactly the reactions Cloudy deletes from its own
@@ -2654,6 +2705,7 @@ module pdr_mod
 
 
         abunPre = abun                                 ! D-258c
+        pdrOmega = dble(grainAlbedoLW(grid, cellP))    ! D-280
         do it = 1, pdrChemIter
            call CALCULATE_REACTION_RATES(Tg, Td, nraysLoc, radSurf, AVray, &
                 & colH2, colHD, colCO, colC, colS, &

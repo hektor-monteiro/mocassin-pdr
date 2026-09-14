@@ -279,6 +279,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-277 | **O-10 closed: the "A_V lag" was the Cloudy reference, not MOCASSIN. The D-264 Cloudy model started its gas at 3e17 cm (`radius 17.4771`), but the fixture's `Rin 30.e17` is 3e18 cm, so Cloudy carried 0.87 pc (~0.14 mag) of extra gas and dust near the star. Measured on its own grid, MOCASSIN's A_V matches the exact dust column along each star-to-cell path: median -0.03 mag (1-2%), 5-95% +-0.05, no growth with radius.** The skipped inactive steps D-265 blamed are the Rin cavity, which has no gas, so skipping them is correct. Cloudy re-run with `radius 18.4771 19.7782` (runs/d277-cloudy, 700 zones, 3 it, A_V/N_H 5.177e-22). A_V at matched radius, MOCASSIN minus Cloudy: -0.005 to -0.07 (was -0.15 to -0.21). The extra dust had also been absorbing ionizing photons: Cloudy's front moves 3.47 -> 3.77 pc, against MOCASSIN's 3.80-3.83 pc measured directly in radial shells. The D-264/D-266 MOCASSIN value of 3.49 pc could not be reproduced radially. It is consistent with the A_V crossing converted through the lagging A_V(r); that is inferred, not confirmed. Markers, MOCASSIN / Cloudy new (old): IF A_V 0.461 / 0.446 (0.540); H/H2 1.194 / 1.090 (1.058); C+=C 2.119 / 2.950 (2.983). PDR profiles against A_V change by a few per cent. Artifact 'hiipdr Against Cloudy' updated (v4): geometry, tables and figures, and O-10, O-27 and O-28 moved to closed | Closed | 2026-09-14 |
 | D-278 | **O-11 diagnosed: the ion balance fails because its electron-density iteration is a two-cycle, not because the physics has no solution. Deep in the cloud every electron comes from trace ions whose abundance scales as 1/n_e (He+ 83%, H+ 17%, C and Mg 0), so the plain fixed-point update n_e -> sum of ions maps n_e to about K/n_e and alternates between two values for all 50 X-iterations.** Probe `ionBalProbe` (diagnostic, default off; source/update_mod.f90 ionBalance), run runs/d277-ionbal (hiipdr, 11 it, 83.8%, 18% failing as d266). At the last iteration 3752 cells end at least one T-step unconverged: A_V 2.15-2.92 (5-95%), T 10-22 K; the failing test is x(He+) in 3740 of them, never x(H0) or x(He0). Trails: NeIn alternates, e.g. 4.3414e-3, 2.5382e-3, 4.3408e-3, ..., contracting by only 3e-5 to 2e-4 per cycle. The two-cycle's amplitude, NeOut/NeIn, is 0.94-1.45 (5-95%); the stored n_e is 0.97-1.20x the geometric mean of the pair, the fixed point of a pure 1/n_e map. Consequence, not cause, of O-01: it appears only where C+ has collapsed and Mg+ with it, leaving no fully ionized donor to damp the update. Where C+ carries the electrons (A_V < 2.1) it converges. 94 of the 2767 flagged cells also fail the H0/H2 convergence test, so O-11 barely moves the convergence percentage. Fix proposed, not implemented: solve the charge balance as a bracketed root of n_e | Open | 2026-09-14 |
 | D-279 | **O-11 fixed: the charge balance is solved as a bracketed root in n_e. The ion-balance failure falls from 18% to 0 at every iteration of hiipdr (2788 flagged cells -> 0), with no change in run time and the profiles within +-4%.** source/update_mod.f90 ionBalance: NeOut(NeIn) is non-increasing, so the root lies between NeIn and NeOut. Each pass intersects a bracket with that interval, restarting if the bracket inverts, and takes the next pass at its geometric mean (bisection in log n_e, exact in one step for a pure K/n_e map). |NeOut-NeIn|/NeIn <= 1% joins the x(H0)/x(He0)/x(He+) test. Skipped when n_e is not the ion sum (pdrUseNePDR, lgNeInput). All four flavours build. runs/d279-nebracket (same input as d277-ionbal): converged 84.50% (d277 83.84, d266 84.35); 41:37 vs 41:32. In the cells flagged in d277, per cell d279/d277 (5/50/95%): n_e 0.73/0.99/1.08, He+ 0.66/0.96/1.03, H+ 0.68/0.96/1.03, C+ 0.63/0.96/1.05, CO 0.91/1.00/1.09, Tgas 0.94/1.00/1.04; d277/d266 in the same cells: n_e 0.82/1.00/1.25. Bin medians change <=4% (n_e -4% at A_V 2.8-3.1). Markers vs Cloudy unchanged: IF 0.461, H/H2 1.196, C+=C 2.115 (d266 0.461/1.194/2.119). The deep C+ drop (O-01) is untouched, as D-278 predicted. HII40 (no PDR), fixed against a pre-fix build of eb1c402: 0% failing in both, lines >0.01 Hbeta within 0.1%, Hbeta 18.771 vs 18.778 | Closed | 2026-09-14 |
+| D-280 | **O-01, the deep C+ drop, decomposed into four measured parts; two MOCASSIN defects fixed. C+/Cloudy at A_V 2.5 goes 1e-7 (analog) -> 0.57 (path biasing) -> 0.61 (+ cosmic-ray ionization of metals) -> 0.72 (+ corrected scattering asymmetry); C+ = C moves A_V 2.12 -> 2.60 (Cloudy 2.95).** (1) Monte Carlo floor: without `pathStretch` the C I-ionizing field is exactly zero in 63-100% of cells past A_V 2.3 even with both fixes (d284); biasing reduces that to <=9% to A_V 2.8. (2) Missing physics, fixed: ionBalance gave cosmic-ray ionization to H and He only (D-193 literals, the D-234 gate); it now reads every CRP/CRPHOT ionization of a linked neutral from the network (293 H, 297 He, 298 C, 299 O, 301 C gamma 510, 312 Mg gamma 113), CRPHOT with the cell's own 11.2-13.6 eV grain albedo; 3D-PDR's omega = 0.42 is replaced by the same albedo per cell (D-247 wrongly called it dead: it divides every CRPHOT rate). Deep C+ at A_V 2.9 x8. (3) Bug, fixed, ph_mod: the size-averaged scattering cosine was weighted by pi a^2 instead of C_sca; FUV g 0.437 -> 0.607 (Cloudy, same silicate and MRN law: 0.59-0.64). (4) Divergence, not closed: MOCASSIN's C photoionization rate falls 3.83 e-folds per mag (after r^-2) against Cloudy's 2.65, with grain extinction at the C edge equal to 2% (4.39 vs 4.30/mag); and MOCASSIN's C+ recombination is 0.40-0.58 of Cloudy's, most likely Cloudy's grain-assisted recombination (inferred; inert in this 3D-PDR build, GRAINRECOMB undefined). Controls: ionization front A_V 0.461-0.463, H/H2 1.196-1.201, H budget <=4e-4 in all runs; biased radiated energy 2644-2681 vs analog 2650-2655. Converged: d279 84.5, d280 83.1, d282 84.5, d283 82.3, d284 81.0%. Probe `ionRateProbe`. Found and not pursued: the 1D Ivezic dust benchmark segfaults in transfer, identically before these changes | Open | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20549,3 +20550,208 @@ answer by less than its 1% tolerance.
   - Whether iterations 2-4's 22-23% (before the chemistry) were the same
     two-cycle. They are 0 now, which suggests so, but no probe ran there.
   - The run-to-run scatter of the deep n_e with the fix. One run.
+
+## D-280 - O-01: the deep C+ drop, taken apart (2026-09-14)
+
+The user asked to proceed with O-01: past A_V ~2.1 MOCASSIN's C+ falls about
+seven decades below both Cloudy and 3D-PDR (C+ = C at A_V 2.12 against
+Cloudy's 2.95).
+
+### 1. Where the history stood
+
+  - D-237: the collapse coincides with the Monte Carlo estimator's floor. The
+    C I-ionizing field tracks exp(-tau)(r0/r)^2 with MOCASSIN's own opacity
+    for four decades, then reads exactly zero.
+  - D-238 to D-242: composite path-length biasing (`pathStretch`) restored
+    x(C+) to 0.98-1.13 of the old reference out to A_V 2.56.
+    - It inflates the variance of the radiated energy ~8x, with no detectable
+      bias.
+    - Splitting is the missing variance control (D-240 item C), so it never
+      became the default.
+  - Every run since D-264 is analog, so O-01 as registered is the known floor,
+    measured against a deeper reference (Cloudy to A_V 2.95).
+
+### 2. Runs
+
+All are hiipdr, 31^3, 11 iterations, 14 ranks, `ionBalProbe 3`, compared with
+runs/d277-cloudy and the D-275 3D-PDR reference. "biased" = `pathStretch 0.5`.
+
+    run                 binary                  biased  converged  time
+    d279-nebracket      D-279                   no      84.50%     41:37
+    d280-stretch        D-279                   yes     83.06%     34:10
+    d280-rates          D-280 probe             yes     82.48%     -
+    d282-crion          + cosmic-ray table      yes     84.54%     34:10
+    d283-gsca           + g fix                 yes     82.34%     34:08
+    d284-analog-fixes   + g fix                 no      80.97%     38:29
+
+C+ against Cloudy at matched A_V (bin median / Cloudy):
+
+    A_V                 2.2     2.5      2.7      2.9      C+ = C at A_V
+    d279 analog         0.17    1.1e-7   1.3e-7   1.7e-7   2.115
+    d280 biased         0.91    0.57     0.21     0.042    2.501
+    d282 + CR           0.90    0.61     0.36     0.34     2.531
+    d283 + g            0.94    0.72     0.45     0.38     2.599
+    d284 analog + both  0.73    0.21     0.24     0.32     2.273
+    Cloudy                                                 2.950
+
+Controls in every run:
+  - ionization front at A_V 0.461-0.463;
+  - H/H2 crossing at 1.196-1.201;
+  - hydrogen budget max <= 4.0e-4;
+  - T_dust within 2% between runs.
+
+Radiated energy over the last five iterations:
+  - analog (d279, d284): 2650-2655;
+  - biased (d280, d283): 2644-2681, with one excursion to +1% (the D-242
+    variance).
+
+### 3. Rates, cell by cell (`ionRateProbe 6`, d280-rates) against Cloudy
+
+`ionRateProbe` (common_mod, set_input_mod, update_mod; default 0, diagnostic
+only). At the last MC iteration, where each cell's ionization balance ends, it
+prints for one element's first stage:
+  - up, split into its photoionization part `phot`;
+  - dn, alpha and the charge-exchange term;
+  - x1 and x2.
+
+Cloudy was re-run with `save ionization rates carbon`
+(runs/d281-cloudy-rates, identical to d277-cloudy otherwise). Its
+RateIonizTot/RateRecomTot close the C0/C+ balance to three digits.
+
+d280-rates, biased, before the fixes:
+
+    A_V   up/Cloudy  alpha/(Cloudy recom/n_e)  cells with phot at the 1e-20 floor
+    0.7   0.65       0.58                      0%
+    1.5   0.34       0.53                      0%
+    2.0   0.16       0.44                      0%
+    2.5   0.028      0.44                      0%
+    2.7   0.0077     0.45                      6%
+    2.9   0.00046    0.42                      46%
+
+With biasing, the deficit to A_V 2.6 is not the floor. Two separate things
+diverge:
+  - the ionizing field falls faster with A_V;
+  - MOCASSIN recombines C+ about half as fast as Cloudy, even in colder gas.
+
+Slope of ln(rate * r^2) against A_V over 0.7-2.2, i.e. after geometric
+dilution:
+  - MOCASSIN: -3.99 (d280), -4.05 (d282), -3.83 (d283);
+  - Cloudy: -2.65.
+
+### 4. Missing physics: cosmic-ray ionization of the metals (fixed)
+
+`ionBalance` added cosmic-ray ionization for elem == 1 and elem == 2 only, as
+two literals (D-193). D-234 had named this as a gate. The network carries:
+
+    298  C  + CRP    -> C+  + e-   2.30e-17
+    299  O  + CRP    -> O+  + e-   3.40e-17
+    301  C  + CRPHOT -> C+  + e-   1.30e-17  gamma 510
+    312  Mg + CRPHOT -> Mg+ + e-   1.30e-17  gamma 113
+
+calc_reac_rates.F90 evaluates CRPHOT as alpha*zeta*(T/300)^beta*gamma/(1-omega).
+At zeta = 5e-17 that is ~4.3e-14 s^-1 for carbon, larger than MOCASSIN's
+biased photoionization rate beyond A_V ~2.7.
+
+**Change.**
+  - `initPDRnetwork` builds a table (`pdrNcr`, `pdrCrElem/Type/Alpha/Beta/Gamma`,
+    common_mod) of every reaction whose reactants are a linked neutral plus
+    CRP or CRPHOT and whose products include its linked ion and e-.
+  - `ionBalance` adds each entry to up for that element, evaluated as upstream
+    does.
+  - The literals are gone. The table reproduces them (293 H 5.98e-18, 297 He
+    6.50e-18) and adds 298, 299, 301 and 312. H2 + CRP (294) is not a linked
+    neutral and stays in the chemistry.
+
+**omega.** CRPHOT photons are H2 Lyman-Werner emission.
+  - New `grainAlbedoLW(grid, cell)` (update_mod): scaOpac/(absOpac+scaOpac)
+    over 11.2-13.6 eV (`nuLWlo`, constants_mod), weighted by bin width.
+  - Used in ionBalance and set as the chemistry's `omega` before each cell's
+    rates.
+  - The init value 0.42 remains only for the smoke test.
+
+**Correction to D-247.** D-247 said `omega` "never enters a rate expression".
+It does, in every CRPHOT rate (calc_reac_rates.F90:369). It was a rule-1
+violation, and it is now fixed.
+
+**Measured (d282 against d280, both biased).**
+  - The table printed as listed.
+  - C+ at A_V 2.9: x8.2 (0.042 -> 0.34 of Cloudy).
+  - n_e at 2.9: x1.8.
+  - Shallower than 2.3: within 1%.
+  - Deep up minus phot: 4.2e-14 s^-1, matching the estimate.
+
+### 5. Bug: the scattering asymmetry of a grain mixture (fixed)
+
+Cloudy's grain opacity for the same material and size law (one-zone run,
+runs/d282-cloudy-gopac):
+
+    band         ext/mag  albedo  g      abs/mag  abs+(1-g)sca per mag
+    C I edge     4.30     0.41    0.62   2.54     3.21
+    12.4 eV      4.49     0.40    0.62   2.68     3.36
+    8 eV         3.55     0.50    0.59   1.79     2.51
+
+MOCASSIN, same grains:
+  - extinction at the C edge 4.39/mag (D-237's opacity), within 2%;
+  - FUV albedo 0.45;
+  - FUV g 0.437.
+
+`makeDustXsec` (ph_mod) averaged g over sizes weighted by pi a^2 * n(a), not
+by C_sca * n(a). The number-weighted MRN law is dominated by small grains,
+which scatter weakly and almost isotropically in the FUV, so g came out low.
+Now weighted by `Csca` (already in cm^2 there), with a zero-norm guard.
+
+Results:
+  - Short check: FUV g = 0.607, albedo and R_FUV unchanged.
+  - d283 against d282: the photoionization slope goes -4.05 -> -3.83; up/Cloudy
+    at A_V 2.5 goes 0.037 -> 0.059; C+ at 2.5 goes 0.61 -> 0.72 of Cloudy;
+    C+ = C goes 2.53 -> 2.60.
+
+This is core MOCASSIN, not PDR code. It affects every model with a size
+distribution (not single-size ones), and it belongs in the D-268 list for
+`dev`. `gSca` is also reset inside the component loop, so with several dust
+components only the last one's g survives. That is latent here (one
+component) and not changed.
+
+### 6. What the analog run says (d284: both fixes, no biasing)
+
+  - The cosmic-ray term replaces the collapse with a floor.
+    - C+ past A_V 2.3 is 0.2-0.3 of Cloudy, not 1e-7.
+    - n_e is 0.28-0.39 of Cloudy.
+    - C+ = C moves to A_V 2.27.
+  - The photoionization estimator is still empty: phot sits at 1e-20 in 63%,
+    79%, 91%, 96% and 98-100% of cells at A_V 2.3, 2.4, 2.5, 2.6 and 2.7-2.9.
+    With biasing (d283) it is 0-9% to A_V 2.8 and 21% at 2.9.
+  - So resolving the deep field still needs biasing, and biasing still needs
+    splitting before it can be the default (D-240).
+  - Converged 81.0% against 84.5% for d279. Not investigated: the deep cells now
+    carry a finite, noisy C ionization where they had a stable zero, the same
+    effect D-238 predicted for biasing.
+
+### 7. What remains of O-01
+
+  - **Floor (numerics).** Needs `pathStretch` plus splitting to become default.
+  - **Attenuation slope, -3.83 against Cloudy's -2.65 per mag.** Same grain
+    extinction to 2%, similar albedo, now similar g. What remains is the
+    transfer itself:
+    - MOCASSIN transports scattered light in 3D.
+    - Cloudy's slope sits just above its own absorption-only value (2.54) and
+      below its (1-g) forward-scattering attenuation (3.21), which is how Cloudy
+      treats scattering in the attenuation of the incident beam.
+    - Which is closer to exact for a central source in this geometry is not
+      settled. A divergence to report, not tune.
+  - **Recombination, MOCASSIN 0.40-0.58 of Cloudy.**
+    - Most likely Cloudy's grain-assisted recombination of C+ (Weingartner &
+      Draine 2001). This is inferred, not verified.
+    - The reduced network carries 331 C+ + e- + # -> C, but with GRAINRECOMB
+      undefined it evaluates as a two-body rate ~1e-17 cm^3 s^-1, so neither
+      MOCASSIN nor this 3D-PDR recombines on grains.
+    - Adding it would lower C+, i.e. widen the gap against Cloudy's C+ while
+      bringing the rates together.
+
+### 8. Also found
+
+  - `benchmarks/dust/1D/p0tau10` (Ivezic, dust only, no gas) segfaults (139) in
+    the first transfer, at 2 ranks. Identical with a build of ecedfab, so it
+    predates D-280. The planned single-size no-op check of the g fix could not
+    be run.
+  - D-247's statement about `omega` is corrected above.

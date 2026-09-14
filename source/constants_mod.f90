@@ -19,6 +19,10 @@ module constants_mod
     ! expressed in Rydbergs: 2400 A = 0.44066 Ryd, 912 A = 1.0 Ryd (Lyman limit).
     real, parameter :: nuFUVlo = 0.44066            ! 2400 A [Ryd]
     real, parameter :: nuFUVhi = 1.0                ! 912 A  [Ryd]
+    ! D-280: the H2 Lyman-Werner band, 11.2-13.6 eV, where cosmic-ray-excited
+    ! H2 emits the photons behind the CRPHOT reactions (Gredel et al. 1989).
+    ! 11.2 eV / 13.6057 eV = 0.8232 Ryd.
+    real, parameter :: nuLWlo = 0.8232              ! 11.2 eV [Ryd]
     ! Integrated FUV energy density of the Draine (1978) field, chi = 1.
     ! The Habing equivalent is 5.29e-14; their ratio, 1.69, is the 1.68 factor
     ! that 3D-PDR's heatingfunctions.F90 uses to convert Draine -> Habing.

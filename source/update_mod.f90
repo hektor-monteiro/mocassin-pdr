@@ -2492,6 +2492,8 @@ end subroutine iterateT
             real, save             :: NeLoB, NeHiB  ! D-279: bracket on the n_e root
             real                   :: deltaNe       ! D-279: (NeOut - NeIn)/NeIn
             logical                :: lgNeSum       ! D-279: NeUsed is the ion sum
+            integer                :: iCr280        ! D-280: cosmic-ray table entry
+            real                   :: omega280      ! D-280: cell Lyman-Werner albedo
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -2537,6 +2539,7 @@ end subroutine iterateT
             denominator = 1.
             lgConv      = .true.
             NeIn        = NeUsed
+            omega280    = -1.
 
             ! take into account collisional ionization of H
             ! Drake & Ulrich, ApJS42(1980)351
@@ -2712,11 +2715,30 @@ end subroutine iterateT
                     ! RATE = ALPHA*(zeta/1.3e-17). Secondary ionization by the
                     ! knock-on electrons is folded into those coefficients
                     ! upstream, as it is in UMIST.
-                    if (lgPDR .and. ion == 1) then
-                       if (elem == 1) ionUp(elem,ion) = ionUp(elem,ion) &
-                            & + 5.98d-18*dble(pdrZeta)/1.3d-17
-                       if (elem == 2) ionUp(elem,ion) = ionUp(elem,ion) &
-                            & + 6.50d-18*dble(pdrZeta)/1.3d-17
+                    ! D-280: for EVERY linked neutral, not only H and He, and
+                    ! from the network's reactions rather than two literals.
+                    ! The elem == 1/2 gate left carbon, oxygen and magnesium
+                    ! with no cosmic-ray source (D-234): past A_V ~2.6 their
+                    ! only source was the Monte Carlo field, while the network
+                    ! carries C + CRP (298), C + CRPHOT (301, gamma 510) and
+                    ! Mg + CRPHOT (312, gamma 113). Rates exactly as
+                    ! calc_reac_rates.F90: CRP alpha*zeta; CRPHOT
+                    ! alpha*zeta*(T/300)^beta*gamma/(1-omega), with omega the
+                    ! cell's own Lyman-Werner albedo.
+                    if (lgPDR .and. ion == 1 .and. pdrNcr > 0) then
+                       do iCr280 = 1, pdrNcr
+                          if (pdrCrElem(iCr280) /= elem) cycle
+                          if (pdrCrType(iCr280) == 1) then
+                             ionUp(elem,ion) = ionUp(elem,ion) &
+                                  & + pdrCrAlpha(iCr280)*dble(pdrZeta)/1.3d-17
+                          else
+                             if (omega280 < 0.) omega280 = grainAlbedoLW(grid, cellP)
+                             ionUp(elem,ion) = ionUp(elem,ion) &
+                                  & + pdrCrAlpha(iCr280)*dble(pdrZeta)/1.3d-17 &
+                                  & * (dble(TeUsed)/300.d0)**pdrCrBeta(iCr280) &
+                                  & * pdrCrGamma(iCr280)/(1.d0 - dble(omega280))
+                          end if
+                       end do
                     end if
 #endif
 
@@ -3463,6 +3485,31 @@ end subroutine iterateT
                     &maxIterateX, " steps. Finishing up..."
 
                 lgConv = .false.
+            end if
+
+            ! D-280 (O-01): the rates this balance ended with, for one element's
+            ! first ionization, in every cell. up = photoionization (stellar Jste)
+            ! + collisional + reverse charge exchange + cosmic rays; dn = Ne*alpha
+            ! + charge exchange with H0. Compared per A_V with Cloudy's
+            ! RateIonizTot and RateRecomTot, it separates a missing field from a
+            ! different recombination.
+            if (ionRateProbe > 0 .and. nIterateMC == maxIterateMC) then
+               elem = ionRateProbe
+               if (elem <= nElements .and. elem >= 1) then
+                  if (lgElementOn(elem)) then
+                     avProbe = -1.
+#ifdef PDR
+                     if (lgPDR) avProbe = grid%AVeff(cellP)
+#endif
+                     print '(a,i3,a,i7,a,f6.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,2es10.3)', &
+                          & ' ! [D280] rank', taskid, ' cell', cellP, ' AV', avProbe, &
+                          & ' Te', TeUsed, ' Ne', NeUsed, ' up', ionUp(elem,1), &
+                          & ' phot', dble(nPhotoSte(elem,1)), ' dn', ionDn(elem,1), &
+                          & ' alpha', dble(alphaTot(elem,1)), ' chexH0', &
+                          & dble(chex(elem,1,1))*dble(grid%Hden(cellP))*dble(grid%ionDen(cellP,elementXref(1),1)), &
+                          & ' x1 x2', ionDenUsed(elementXref(elem),1), ionDenUsed(elementXref(elem),2)
+                  end if
+               end if
             end if
 
             ! this was added to help MPI implementation
@@ -4432,6 +4479,31 @@ end subroutine iterateT
 
 
         end subroutine updateCell
+
+#ifdef PDR
+        ! D-280: the grain albedo that sets the cosmic-ray-induced photorates,
+        ! RATE = alpha*zeta*gamma/(1-omega) (Gredel et al. 1989, as
+        ! calc_reac_rates.F90 evaluates CRPHOT). The photons are H2 Lyman-Werner
+        ! emission, so the albedo is this cell's own, scaOpac/(absOpac+scaOpac)
+        ! over the 11.2-13.6 eV bins weighted by bin width. It replaces 3D-PDR's
+        ! fixed omega = 0.42: MOCASSIN has the grains.
+        real function grainAlbedoLW(grid, cellP)
+            implicit none
+            type(grid_type), intent(in) :: grid
+            integer, intent(in)         :: cellP
+            integer          :: j
+            double precision :: sA, sS
+            sA = 0.d0; sS = 0.d0
+            grainAlbedoLW = 0.
+            if (.not. lgDust .or. cellP <= 0) return
+            do j = 1, nbins
+               if (nuArray(j) < nuLWlo .or. nuArray(j) >= nuFUVhi) cycle
+               sA = sA + dble(grid%absOpac(cellP,j))*dble(widFlx(j))
+               sS = sS + dble(grid%scaOpac(cellP,j))*dble(widFlx(j))
+            end do
+            if (sA + sS > 0.d0) grainAlbedoLW = real(sS/(sA + sS))
+        end function grainAlbedoLW
+#endif
 
 end module update_mod
 

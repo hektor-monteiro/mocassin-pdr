@@ -858,6 +858,15 @@ module common_mod
     integer             :: pdrLinkElem(pdrNlink) = 0
     integer             :: pdrLinkIon (pdrNlink) = 0
     integer             :: pdrLinkSpec(pdrNlink) = 0
+    ! D-280: cosmic-ray ionization of every linked neutral, read from the
+    ! network's own reactions (CRP direct, CRPHOT through cosmic-ray-induced
+    ! photons) so MOCASSIN and the chemistry ionize with identical coefficients.
+    ! One entry per reaction: element, type (1 CRP, 2 CRPHOT), alpha, beta, gamma.
+    integer, parameter  :: pdrMaxCr = 16
+    integer             :: pdrNcr = 0
+    integer             :: pdrCrElem(pdrMaxCr) = 0, pdrCrType(pdrMaxCr) = 0
+    double precision    :: pdrCrAlpha(pdrMaxCr) = 0.d0, pdrCrBeta(pdrMaxCr) = 0.d0, &
+         &                 pdrCrGamma(pdrMaxCr) = 0.d0
     ! Stage-trimming threshold, as a fraction of the most populated stage.
     ! Cloudy's equivalent (ionbal.trimlo) is 1e-10 of the element; 1e-12 here
     ! keeps a little more of the tail while still bounding the system to twelve
@@ -1118,6 +1127,10 @@ module common_mod
     ! one line; the first ionBalProbe such cells per rank also print their
     ! last six steps. Diagnostic only.
     integer             :: ionBalProbe = 0, nIonBalTrail = 0
+    ! D-280 (O-01): at the last MC iteration, the ionization and recombination
+    ! rates of stage 1 -> 2 of element ionRateProbe (atomic number) in every
+    ! cell, printed where each ionization balance ends. Diagnostic only.
+    integer             :: ionRateProbe = 0
     ! D-165. Cloudy's temperature solver, for comparison with MOCASSIN's:
     !   * bracket with a step capped at 20% of T, then van Wijngaarden-Dekker-
     !     Brent INSIDE the bracket, which therefore always shrinks;
