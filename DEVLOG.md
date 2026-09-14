@@ -275,6 +275,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-273 | **New GitHub repository `hektor-monteiro/mocassin-pdr`, kept separate from the `mocassin_HM_2026` core fork.** Pushes `pdr-photoionization` as remote `main` plus the tags `pdr-coupling-v1.0` and `d193-d195-reverted`. The core branches (main/dev/compBias/feature1) and tags 1.0.0-1.1.1 stay out. Largest blob 25.8 MB, pack 60 MB. `origin` added and `push.default=upstream` set. No credentials on this machine, so the user runs the first push | Pending push | 2026-09-14 |
 | D-274 | **The 70 tracked build snapshots `mocassin.*` (1d, 3d, d131..d201, dbgchk, splitchk; all ELF) were removed with git rm, and `/mocassin.*` is ignored.** Nothing outside DEVLOG referred to them. Kept: `./mocassin` and `runs/*/mocassin`. They remain in the history, so the push size is unchanged | Done | 2026-09-14 |
 | D-275 | **hiipdr against a re-matched standalone 3D-PDR: the old reference (sec54g166c) was set against an older model - face G0 165.56 vs the 123.8 Draine the current run delivers, A_V/N_H 5.34e-22 vs MOCASSIN's 5.177e-22, slab 14.89 vs 15.86 pc - and is replaced.** tools/d275_3dpdr_reference.py reads G0, the A_V span, zeta and n_H from runs/d266-cfull; runs/d275-3dpdr-hiipdr (budgets close to 1e-8). Against it: H/H2 crossing A_V 1.20 vs 1.56; n_e 0.74-1.02 and C+ 0.94-1.00 to A_V 2; Tdust within 3-19%; PDR gas 4-9x colder (Cloudy 30-50 K); O+ 1e2-1e4 low via exp(-229/T); C+ = C at 2.13 vs never; model field 0.37-0.49 of the slab at depth - the sphere's r^-2 dilution (25x) the slab lacks, reported not tuned. Re-matching moved the reference's H/H2 crossing 1.65->1.56 and Tgas at A_V 1 153->140 K. Artifact 'hiipdr Against 3D-PDR' | Done | 2026-09-14 |
+| D-276 | **3D-PDR cannot run a sphere lit at its inner radius as shipped: 3D mode takes only an isotropic external field (Gext/nrays per HEALPix ray), 1D only a one-sided slab face.** Two feasible edits to the standalone copy: (a) diluted slab, rad_surface = Gext*(r_in/r)^2, which keeps 3D-PDR's own attenuation and grains and removes D-275's 25x geometry difference - recommended as the reference; (b) MOCASSIN's local chi imposed at each depth, which removes all radiative differences but makes the reference share MOCASSIN's transfer - a diagnostic only. Neither is expected to close the gas temperature gap (O-02) or the deep C+ drop (O-01) | Discussion | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20100,3 +20101,59 @@ reading above. Figures are in `runs/d275-3dpdr-hiipdr/figs/`.
     'Ionization Front to Molecular Cloud' page and D-260..D-263. Their
     conclusions stand qualitatively. Their shallow-PDR H2 and temperature
     ratios moved by the amounts in section 3.
+
+## D-276 - Can 3D-PDR run a sphere lit at its inner radius? (2026-09-14)
+
+The user asked whether 3D-PDR can run a spherical model whose inner radius is
+illuminated by MOCASSIN's field, to improve the D-275 comparison. Discussion
+only; nothing built yet.
+
+### 1. What the code supports: not natively
+
+In `UVfield.F90` (upstream, not compiled into the coupled build):
+
+  - **3D:** the field is isotropic and external. Every cell gets
+    `rad_surface(j) = Gext/nrays` on each HEALPix ray, attenuated by that ray's
+    A_V to the box boundary.
+  - **1D:** the whole field arrives on ray 6 from the slab face.
+
+There are no internal or point sources and no inner-radius boundary. A 3D run
+of the hiipdr octant would be lit from outside, which is the wrong direction.
+
+### 2. Two feasible variants, both edits to the standalone copy in `runs/` only
+
+**(a) Diluted slab.** In the ONEDIMENSIONAL branch, depth x becomes radius
+r = r_in + x, and the face field is multiplied by (r_in/r)^2:
+`rad_surface(6) = Gext(1)*(r_in/(r_in+x))**2`.
+
+  - What stays 3D-PDR's own: its attenuation law exp(-3.02 A_V), its grains
+    and its thermal balance.
+  - What changes: the one geometry difference found in D-275 is removed, a
+    factor of 25 over the PDR.
+  - Why this is not tuning: the sphere is the model's geometry, so matching
+    it is an input, like the density.
+  - Still absent: scattered and diffuse light.
+  - A known approximation: self-shielding and line-escape columns stay those
+    of the radial ray.
+
+**(b) MOCASSIN's local field imposed at each depth.** Feed chi(r) into the
+heating and HTT91, and the de-attenuated surface value into the rates (3D-PDR
+rebuilds `rad_surface*exp(-gamma*A_V)`).
+
+  - What it does: removes every radiative difference, so what remains is the
+    thermal balance and chemistry.
+  - What it costs: the reference then shares MOCASSIN's radiation transfer.
+    It becomes a diagnostic, the mirror image of the coupled code's
+    `pdrFUVmode = 1` (D-089), not an independent reference.
+
+### 3. Expectation, not measured
+
+  - **(a):** should test whether the model's 0.37-0.49 field ratio and the
+    earlier H/H2 transition (1.20 vs 1.56) are dilution. Because the reference
+    would lack scattered light, its deep field could fall below the model's.
+  - **Neither:** is expected to close the 4-9x gas temperature gap, which
+    Cloudy with MOCASSIN's grains places in the grain photoelectric heating
+    (O-02), or the deep C+ drop (O-01).
+
+Recommendation given: build (a) as the reference, and (b) only as a labelled
+diagnostic if the temperature question needs it. Awaiting the user's choice.
