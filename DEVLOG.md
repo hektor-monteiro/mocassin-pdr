@@ -266,6 +266,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-264 | **Milestone tagged `pdr-coupling-v1.0` (3d30758), and hiipdr compared with an equivalent Cloudy c25.00 model: ionization front 3.55 vs 3.48 pc, H/H2 crossing A_V 1.17 vs 1.05, electrons and C+ within 10% through the PDR; PDR gas 21-26 K vs Cloudy 30-50 K (3D-PDR 100-200 K), so most of the 3D-PDR temperature gap is the dust; the deep C+ drop (C+=C at A_V 2.02 vs 2.97) reproduces against a second code.** The user judged the results a first working version and asked for a tag and a fair single-code comparison. Cloudy model (benchmarks/pdr/hiipdr/cloudy/): blackbody 40000 K, Q(H) 10^49.629, sphere 3e17-6e19 cm, n_H 100, abunV1 abundances with all other elements off, cosmic ray rate -16.638 (H0 2.30e-17 s^-1), sdraine03 silicate compiled with MOCASSIN's MRN 0.01-0.30 um -3.5 law, scaled to A_V/N_H = 5.177e-22 (MOCASSIN's measured value; matching dust MASS would give 1.57x the cross-section because the silicate densities differ; Cloudy D/G by mass is then 0.0068). 741 zones, 3 iterations, reaches A_V 3.09; cautions only for switched-off elements. Tdust MOCASSIN 10-15% cooler in the PDR, 15-25% in the H II gas (number-weighted bin means in both). Past A_V 2.2 MOCASSIN C+ is 1e-7 of Cloudy's, n_e 0.2x, CO 50-100x high. Unexamined: MOCASSIN inner H II gas 11000 K vs 8000 K and O++/C++ several times lower; the H II region spans ~5.5 cells at 31^3, so resolution first. Artifact 'hiipdr Against Cloudy'. tools/d260_roellig.py gained --cloudy | Open | 2026-09-13 |
 | D-265 | **Following the user's reading of the Cloudy comparison: the coupling removes 80% of carbon and 52% of oxygen from the ionized gas (defect), MOCASSIN's A_V lags the geometric column by 0.05-0.19 mag, and H2 in the H II gas is 1e3-1e5x Cloudy's at matched radius with H0 and n_e agreeing.** User observations: temperatures agree well; H2 agrees in the PDR but not in the ionized gas; molecules in the ionized gas are much lower in Cloudy; O and C ions disagree in both zones. (1) Carbon/oxygen loss: in the 165 H II cells the chemistry's element total and MOCASSIN's ion-stage sum are identical and short - C 20% (5-95%: 1-85%), O 48% (3-99%); PDR cells 100%. Cause: seedAbunFromMocassin seeds only stages 1 and 2 (the reduced network has no C++/O++), so the doubly ionized part never enters the chemistry; setElemAvail returns (neutral+singly ionized)/total as the unlocked fraction, and ionBalance constrains all stages to sum to it. Consistent with O++ 3-50x and C++ 7-150x below Cloudy at matched radius, and with MOCASSIN's inner H II gas at 1.6e4 K vs 8.7e3 K (coolants missing) - the temperature link is a hypothesis. (2) A_V: MOCASSIN 0.052/0.164/0.297/0.479/0.611/1.071/2.837 at r = 1/2/3/4/5/8/19 pc against geometric (and Cloudy) 0.144/0.304/0.464/0.623/0.783/1.26/3.02; lag 0.09 -> 0.19 mag, per-pc 0.11-0.13 in the H II gas vs 0.16. computeAVradial skips ray steps whose nearest cell is inactive (the origin cell), worth 0.05-0.09 mag; the rest unexplained. This shifts MOCASSIN's H II curves left on the A_V figures; radius-matched comparison avoids it. (3) H2 in the ionized gas at matched radius: 4e-9..2.6e-7 vs 1e-14..9e-11 cm^-3 with H0 within 2x; the reduced network has H+ + H2 (154), collisional 316/321/322 and photodissociation 329 but no H2 photoionization; not yet measured which balance differs | Open | 2026-09-13 |
 | D-266 | **Carbon/oxygen fix: the network's ion carrier now stands for every ionized stage. C, O and Mg close at 100% in every H II cell (were 20%, 48%, 9% median); H II gas 8000 K against Cloudy's 8000-8700 K (was 1.6e4); C++ and O++ match Cloudy to two digits at matched radius; front 3.49 vs 3.48 pc; PDR unchanged; 84.3% converged.** source/pdr_mod.f90, no vendored edits: new mocIonizedFrac(grid,cell,elem) = sum of MOCASSIN's stages >= 2; seedAbunFromMocassin seeds the ion carrier (C+, O+, Mg+, He+) from it; the D-153 pre-solve and D-162 post-solve re-impositions split the chemistry's atomic total with it; the atomic ion coolant (C+) density is scaled by stage 2 / all ionized stages, so C++ does not enter the [C II] cooling that replaces MOCASSIN's C II lines. setElemAvail is unchanged and now returns 1 - molecular fraction. All four flavours build. runs/d266-cfull (11 it, 84.35%, d263 84.31%): at r = 1/2/3 pc, MOCASSIN/Cloudy T 8000/8700, 8000/8000, 8900/8800 K; C++ 0.021/0.021, 0.021/0.021, 0.018/0.018; O++ 0.032/0.032, 0.030/0.030, 0.019/0.018; O+ 6.6e-4/5.0e-4, 2.9e-3/3.0e-3, 0.014/0.015; Mg+ within 30%. Confirms D-265's hypothesis that the hot H II gas was the missing coolants. Front 3.55 -> 3.49 pc. PDR profiles identical to d263 beyond r = 5 pc. Remaining against Cloudy: H2 in the H II gas 1e6x (network balance, unmeasured); A_V lag (D-265); PDR T_gas ~2x colder; deep C+ drop | Open | 2026-09-13 |
+| D-267 | **Register of open questions and problems: 30 items (O-01..O-30; 5 high, 11 medium, 14 low) in five groups - physics against the references, coupling and code, numerics and convergence, validation, upstream and housekeeping - plus 7 recently closed (C-01..C-07).** High: O-01 deep C+ drop, O-02 PDR gas temperature, O-10 A_V lag, O-11 ion balance not reached, O-14 3D self-shielding tracer. Supersedes the scattered open lists of D-247..D-266 as the working list; later entries cite and close items by ID. Published in both hiipdr artifacts | Open | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19293,3 +19294,203 @@ outward every quantity is identical to d263.
   - MOCASSIN's A_V lag (D-265).
   - PDR T_gas about 2x colder than Cloudy's.
   - The deep C+ drop (C+ = C at A_V 2.01 vs 2.97).
+
+## D-267 - register of open questions and problems (2026-09-14)
+
+Requested by the user after D-266: every standing question and problem
+identified so far, in one place. This register supersedes the scattered
+"open" lists of D-247 to D-266 as the working list. Items keep these IDs,
+and later entries should cite and close them (`closes O-nn`).
+
+Priority reflects the effect on the coupled model's physics, not effort.
+State of the model at this entry: `pdr-coupling-v1.0` plus D-264 to D-266,
+run `runs/d266-cfull` (84.3% converged). Compared against Cloudy c25.00 and
+a matched standalone 3D-PDR.
+
+### Physics against the references
+
+**O-01 [High] Deep C+ drop past A_V ~2.1.**
+Evidence: C+ falls to 1e-7 of both Cloudy and 3D-PDR, n_e to 0.15-0.2x, CO
+50-100x high, C+ = C at A_V 2.01 vs Cloudy 2.97 (D-233, D-241, D-264, D-266).
+Next: Most likely the Monte Carlo floor on the C I-ionizing field (D-237). Re-
+run at 2e7 packets and re-measure at matched depth; composite biasing needs
+splitting before it can be the default.
+
+**O-02 [High] PDR gas ~2x colder than Cloudy, 3-7x colder than 3D-PDR.**
+Evidence: 21-26 K vs Cloudy 30-50 K vs 3D-PDR 100-200 K at A_V 0.7-2.
+MOCASSIN's grain photoelectric heating is ~80x below 3D-PDR's formula at the
+same field; grains start at 100 A (D-261, D-264).
+Next: Write MOCASSIN's per-cell photoelectric term, compare heating and cooling
+term by term with Cloudy, and test a small-grain/PAH distribution.
+
+**O-03 [Medium] H2 and molecules in the ionized gas far above Cloudy.**
+Evidence: H2 1e6-1e7x Cloudy at 1-3 pc with H0 and n_e agreeing; OH, CO, H3+
+likewise. The reduced network has no H2 photoionization (D-265, D-266).
+Next: Probe formation and destruction rates in an H II cell (D-258 probe);
+check the grain formation rate at 1e4 K.
+
+**O-04 [Medium] He+ excess deep in the PDR.**
+Evidence: 12-14x the 3D-PDR reference past A_V 2. The reference's He+ sink is
+molecular (He+ + H2, 82%), not charge exchange (0.4%). He+ + H charge exchange
+at 20 K is 2e-19 in MOCASSIN's extrapolated fit vs 1-3e-15 elsewhere (D-246,
+D-254, D-262).
+Next: Decide how chemical sinks of a MOCASSIN-owned ion reach ionBalance;
+linked to O-11.
+
+**O-05 [Medium] x(H+) in the PDR 0.2-0.4 of 3D-PDR.**
+Evidence: Enters O+ directly through charge exchange (D-263).
+Next: Compare H+ production/destruction with both references.
+
+**O-06 [Low] Unidentified O+ source past A_V 2.**
+Evidence: O+/O exceeds charge-exchange equilibrium there (D-263).
+Next: Decompose MOCASSIN's O ionization terms in a deep cell.
+
+**O-07 [Low] H3+, CH and H2O dip just inside the ionization front.**
+Evidence: Visible in the whole-model figures where T falls 7000 -> 23 K
+(D-261).
+Next: Probe the chain in the first PDR cells.
+
+**O-08 [Low] Dust temperature systematically cooler than Cloudy.**
+Evidence: 10-15% in the PDR, 15-25% in the H II gas; agrees with 3D-PDR's HTT91
+to 12% (D-260, D-264).
+Next: Compare absorbed energy per grain size bin.
+
+**O-09 [Medium] Slabs V1/V2 not re-run since D-260/D-263/D-266.**
+Evidence: Their last comparison had gas temperature in the opposite sense to
+hiipdr (2.3x, 6x hotter) (D-247).
+Next: Re-run both slabs in PDRGEOM=3D (after O-14) and compare.
+
+### Coupling and code
+
+**O-10 [High] MOCASSIN's A_V lags the geometric column.**
+Evidence: 0.09 mag at 1 pc to 0.19 mag from 8 pc; 0.11-0.13 mag/pc in the H II
+gas vs 0.16. computeAVradial skips ray steps whose nearest cell is inactive
+(the origin), worth 0.05-0.09 mag; the rest unexplained (D-265).
+Next: Fix the ray march near the star and find the remainder; it shifts every
+A_V-based comparison and the chemistry's shielding.
+
+**O-11 [High] Ion balance not reached in 16-18% of cells.**
+Evidence: Final-iteration counter, all zones, never diagnosed; lgBlack flags
+the same failure (blocker 4, D-247, D-252).
+Next: Instrument which elements, stages and cells fail, and why.
+
+**O-12 [Medium] Rate coefficients are not single-source.**
+Evidence: Inside the solve the chemistry uses UMIST recombination, C/Mg
+photoionization and charge exchange (161/162/156/167) while MOCASSIN uses its
+own; He+ recombination differs 1.6x at 20 K; UMIST's constant Mg + H+ rate is
+rejected by Cloudy (D-254, D-260, D-262).
+Next: Hand MOCASSIN's per-cell alphaTot, nPhotoSte and charge-exchange rates to
+the chemistry's rate slots from pdr_mod.
+
+**O-13 [Low] C++/O++ react as C+/O+ inside the chemistry solve.**
+Evidence: Accepted side effect of D-266; negligible for molecules in ionized
+gas. The chemistry's C+ output in H II cells means all ionized carbon.
+Next: Keep in mind when reading pdrGrid.out; no action.
+
+**O-14 [High] 3D self-shielding tracer not fit to be the only geometry.**
+Evidence: No reflection at mirror walls, slab rays truncated at 59% of depth,
+isotropic chi/12 weighting of a one-sided field, HEALPix rings about z (D-259).
+Next: Fix the tracer, decide the angular model, then make PDRGEOM=3D the single
+flavour.
+
+**O-15 [Low] Ownership-switch debt and the pdrZone flag.**
+Evidence: ~9 live pdr* ownership switches, 7 retired but still parsed; x(H+) <
+0.3 (latched) still decides lgChemOnly (D-031, D-247).
+Next: Remove dead switches; replace the zone flag by what the physics needs.
+
+**O-16 [Low] Element abundances of the two codes reconciled only by a guard.**
+Evidence: setElemAvail fractions are relative to MOCASSIN's elemAbun; the
+network's species file holds its own (D-250, D-251).
+Next: Seed the network's elemental totals from MOCASSIN at initialisation.
+
+### Numerics and convergence
+
+**O-17 [Medium] Convergence plateau below the 90% target.**
+Evidence: 84.3% at 11 iterations; the unconverged cells are the Te test against
+Monte Carlo noise (D-248) plus the ion-balance population (O-11).
+Next: Make the Te tolerance noise-aware, or measure the noise and set the
+target from it.
+
+**O-18 [Medium] Monte Carlo scatter in deep molecules.**
+Evidence: Deep CO/OH differ up to 25x between identical runs; composite biasing
+widens the radiated-energy scatter 8x (D-241, D-242).
+Next: Quantify scatter per profile with repeats before reading deep ratios;
+implement splitting.
+
+**O-19 [Medium] Memory 1.74x the documented model.**
+Evidence: 685 MB/rank vs 393 MB predicted at 15204 cells; the D-245/D-253 leaks
+were fixed, the baseline is not understood (blocker 5).
+Next: Build an older commit and measure; list the per-cell arrays.
+
+### Validation
+
+**O-20 [Medium] HII40 after the charge-exchange fix not compared with the Lexington tables.**
+Evidence: O0 and [O I] 6300 fell 16% (D-263).
+Next: Compare against the published Lexington HII40 values.
+
+**O-21 [Medium] Conclusions drawn on unshifted A_V need re-reading.**
+Evidence: D-256/D-257 compared with 3D-PDR 0.48 mag out of step (D-260 section
+6).
+Next: Re-derive the D-257 band table with the alignment.
+
+**O-22 [Medium] The H II region is resolved by ~5.5 cells.**
+Evidence: 31^3 over 19.4 pc; ionized-gas medians rest on a handful of cells
+(D-264).
+Next: Run a higher-resolution or nested-grid hiipdr within the memory limit
+(O-19).
+
+**O-23 [Low] Warm start not exercised since the recent changes.**
+Evidence: mocassinWarm builds but has not resumed a PDR run since D-260.
+Next: Resume d266-cfull for one iteration and compare.
+
+**O-24 [Low] 1D PDR flavour still built and maintained.**
+Evidence: PDRGEOM=3D is the required mode (D-259); the 1D path is a shortcut
+inside a 3D model.
+Next: Retire it once O-14 is done.
+
+**O-25 [Low] Cloudy comparison is one run of each code.**
+Evidence: Cloudy's chemistry network is much larger; small molecular abundances
+are not expected to match (D-264).
+Next: Repeat MOCASSIN once to bound the scatter on the published profiles.
+
+### Upstream and housekeeping
+
+**O-26 [Low] 3D-PDR species labelling defect not reported upstream.**
+Evidence: species_reduced.d slots 3/5 are H2+/CH5+ but odes_reduced.c
+integrates them as CH5+/H2+; labels only (D-258).
+Next: Open an issue at itamos-ism/3D-PDR.
+
+**O-27 [Low] D-113 vendored C edits not recorded in source/pdr/UPSTREAM.md.**
+Evidence: UPSTREAM.md claims byte-identical sources.
+Next: Record the edits and their reason.
+
+**O-28 [Low] 66 dated mocassin.dNNN binaries tracked in git.**
+Evidence: .gitignore covers mocassin but not the dated copies (D-247).
+Next: Untrack them and extend .gitignore.
+
+**O-29 [Low] Cosmetic probe output.**
+Evidence: The D-234 probe prints nu_th 0 for helium (D-246).
+Next: Fix the print or drop it.
+
+**O-30 [Low] Figure tools with hardcoded fixture assumptions.**
+Evidence: d196_axis.py hardcodes 31^3; d260_roellig.py hardcodes abunV1 element
+order and abundances.
+Next: Read both from the run's input.
+
+### High priority, in suggested order
+
+  1. O-10 A_V lag - it offsets every A_V-based comparison and the shielding.
+  2. O-01 deep C+ drop - a packet-count re-run settles or refutes the floor.
+  3. O-11 ion balance not reached - underlies O-01, O-04 and O-17.
+  4. O-02 PDR gas temperature - heating/cooling budget against Cloudy.
+  5. O-14 3D tracer - prerequisite for the slabs (O-09) and a single flavour (O-24).
+
+### Closed in the D-245 to D-266 work, for reference
+
+  - C-01 Carbon, oxygen and magnesium removed from the ionized gas by the handback (80/52/91%); also the front-cell carbon loss (D-265, D-266).
+  - C-02 Charge exchange zeroed below 6000 K; O threshold 2205 K instead of 229 K; n(H+) counted H2 (D-262, D-263).
+  - C-03 H3+ destroyed inside the solve by unrecombined internal electrons (D-258, D-260).
+  - C-04 Molecules zeroed in the ionized gas by the figure script (D-261).
+  - C-05 3D-PDR reference compared 0.48 mag out of step (D-260 section 6).
+  - C-06 Memory leaks in the recursive iterateMC (D-245, D-253).
+  - C-07 He I continuum started below threshold (relaxation oscillation) (D-227).
