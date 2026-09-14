@@ -270,6 +270,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-268 | **Review for backporting to MOCASSIN `dev`: 4 fixes already there, 8 bug fixes and 7 improvements/options to port, and the PDR-only work that does not apply.** Method: every core source file of this branch and of `dev` preprocessed WITHOUT -DPDR (gfortran -cpp -E), comments stripped, diffed; each difference traced to its DEVLOG entry. Already in dev: D-116 negative dielectronic rates, D-127 uninitialised IPerg, D-129 sticking-coefficient units, D-130 multi-component dust index. To port (bugs): D-263 charge exchange (6000 K cut-off, O dE 2205->229 K, n(H+)); D-227 He I/He II continua start at threshold; D-232/233 dust vs gas re-emission channel split; D-147 forced skip (exp(-tau) weight underflow) removed; D-025 readInput else-if chain shadowing up to 27 fatal checks; D-114 ionRatio zero-denominator cap and throttled 'insane eta' warning; getDustT flat emission-integral guard; recPDF/dustPDF empty-cell normalisation guards. Improvements/options: D-114..117 matrix ionBalance with stage trimming; D-155/D-228 convergence test against the iteration start with a Te test; D-174 iterDamp (defaults 0.25 here - dev must default 0); D-165 teSolver (Cloudy-shaped search) and teFloor keyword; D-160 initH0 keyword; D-238/239 composite path-length biasing (pathStretch, off, variance x8 without splitting); Makefile module dependencies and CO=bounds/EXTRA builds. Not applicable: everything under #ifdef PDR (incl. D-245/D-253 leaks and D-225 Jdif copy, which live only on pdrSplitField paths). Porting changes plain-MOCASSIN results (D-263 [OI] -16% in HII40, D-232 dust+gas models, D-147 optically thick cells, D-228 iteration counts), so the Lexington/dusty benchmarks must be re-run on dev | Open | 2026-09-14 |
 | D-269 | **Ported to `dev`: 16 commits (e1c1804..59bb06d), each bug fix on its own, each option behind a keyword defaulting to dev's behaviour. Benchmarks: charge exchange lowers [O I] 6300 10-13%; removing the forced skip lowers PN150 H0 20%, O0 32% and [O I] a further 31%; with default keywords nothing else moves; dust benchmarks unchanged within noise.** Bug fixes: charge exchange (c89a200), He continua thresholds (2f8990e), dust/gas re-emission split incl. recPDF guard and dustPDF allreduce size (4f3ac53), forced skip removed (d76035e), readInput chain - eight shadowing branches incl. lg1D and the dust-file test, which the branch had missed (d1f9fd4), insane-eta throttle reset on every rank (dad3f8e; dev already capped the ratio), getDustT flat-interval guard (95447de), dustPDF empty-cell guard (cf77241), stray cell-9249 debug print (e1c16e9). Options: H0Start wired to the hardcoded initial x(H0) with default 1e-5 (8fef087; replaces initH0), teSolver/teFloor (c4a27db), iterDamp default 0 (4c0fe1a), convTe (e6b2caa), pathStretch with tauPath and roulette (35ccf15), ionMatrix/ionTrim (cb8b4d7), Makefile module dependencies + CO=bounds + EXTRA (59bb06d). All dev targets build. Run-to-run scatter of the original binary <0.5% on main fractions; HII40 chain vs ionMatrix agree to 0.3% (2% trace stages). Not pushed; Lexington tables not yet compared | Done | 2026-09-14 |
 | D-270 | **Lexington 2000 benchmarks on dev before/after the D-269 port, against the benchmark codes (Ercolano et al. 2003 Tables 4-7): the port leaves agreement about where it was (in-range counts 16/9/26 unchanged in HII40/HII20/PN150, 15->16 in PN75; median |dex| 0.039->0.038, 0.086->0.082, 0.056->0.067, 0.047->0.045), while dev itself - before and after - is further from the medians than MOCASSIN 2003 in HII20 and PN150 and 4-6% hotter in both H II regions. This branch's readInput brought up to the dev version.** Medians recomputed from the listed codes (printed ones have typos: PN150 C III] 0.174 vs 1.68-1.89, O IV] 2.30 vs 0.18-0.36, PN75 [S II] 0.0020 vs 0.013-0.036). PN150 [O I] 6300 moves into range (0.271 -> 0.169, codes 0.101-0.245), [Ne V] 3426+3346 out by 1%; PN75 [O III] 51.8 um in by 1%. dev <T[NpNe]> 8358 K vs codes 7936-8199 (HII40), 7073 vs 6626-6749 (HII20); HII20 [O I] 6300 9x -> 6.7x the median. Artifact 'Lexington Benchmarks for MOCASSIN dev'. readInput here: lg1D moved before the chain and the dust-file test after it, as in dev d1f9fd4; all four flavours build and hiipdr, v1slab, v2slab, ifront pass input validation | Done | 2026-09-14 |
+| D-271 | **Rename and licence audit: the combined work is legal only as GPL v3, which MOCASSIN's "v2 or later" headers permit alongside 3D-PDR's GPL v3; the LICENSE file is right.** Gaps before distribution: modified MOCASSIN files carry no modification notice (GPL v3 s.5a), README does not state GPL v3 for the combination, and the LAMDA/UMIST data citations are missing. A GPL rename is unrestricted; proposed MOCASSIN-3DPDR, MOCASSIN-PDR, MOLCASSIN. Prior UCL thesis on the same coupling noted. No name chosen | Discussion | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19779,3 +19780,66 @@ only added output is the nuMin 5 GHz warning.
   - The dev temperature excess and the HII20 [O I] excess against the
     Lexington codes (new; not caused by the port).
   - Push dev: the user's decision.
+
+## D-271 - Renaming the project; licence audit (2026-09-14)
+
+The user asked whether the project and repository can be renamed, for names
+that keep the MOCASSIN connection, and whether the work has licence problems.
+Discussion only; no name chosen, nothing renamed.
+
+### 1. Licences found
+
+    component                    licence                         source of the claim
+    MOCASSIN sources             GPL v2 "or any later version"   file headers (Ercolano 2005)
+    rwesson/mocassin upstream    no LICENSE file                 LICENSE and main/LICENSE both 404
+    this repo LICENSE            GPL v3                          added ae68548, 2026-06-24
+    3D-PDR (vendored, 44 files)  GPL v3                          upstream LICENSE fetched
+    healpix_types.F90            GPL v2 or later                 file header
+    SUNDIALS (linked, not        BSD-3-Clause                    not vendored
+      vendored)
+    dataPDR/*.dat (LAMDA)        no licence; citation requested  LAMDA home page
+    dataPDR/rates_*.d (UMIST     citation                        vendored via 3D-PDR
+      RATE-format)
+
+The combined work can be distributed only under GPL v3. That is allowed
+because MOCASSIN says "or later"; a GPL-v2-only MOCASSIN could not have been
+combined with 3D-PDR. The LICENSE file is therefore correct, and it is what
+makes the combination legal.
+
+### 2. Gaps, not violations yet (they matter on distribution)
+
+  - GPL v3 s.5(a): modified files must carry a notice saying they were
+    modified, with a date. The vendored 3D-PDR edits are listed in
+    `source/pdr/UPSTREAM.md`. The modified MOCASSIN files still carry only the
+    2005 Ercolano header. Fix: add a modification line to each header, or a
+    NOTICE file listing them, and keep every original copyright line.
+  - The headers say "v2 or later" and LICENSE says v3. That is consistent, but
+    the README should state that the combined work is GPL v3.
+  - Data citations (LAMDA: Schoier et al. 2005 plus the per-molecule papers;
+    UMIST: McElroy et al. 2013) belong in the README or a CITATION file.
+
+### 3. Name
+
+GPL places no restriction on names. A rename separates the fork from
+Ercolano's and Wesson's MOCASSIN, which avoids confusion. Proposed:
+MOCASSIN-3DPDR (follows the TORUS-3DPDR precedent, Bisbas et al. 2015),
+MOCASSIN-PDR, and MOLCASSIN (a web search found no existing code by that name).
+Prior art: a UCL thesis, "Modelling ionised and photodissociated regions"
+(discovery.ucl.ac.uk/id/eprint/20312), already aimed to couple 3D-PDR with
+MOCASSIN. Any paper should cite it.
+
+### 4. Mechanics, if a rename goes ahead
+
+  - This clone has no git remote. The GitHub rename is done in the repo
+    settings, and GitHub redirects the old URL.
+  - Absolute paths containing `mocassin_HM_2026` appear in README, DEVLOG,
+    `accessories/`, and 9 `benchmarks/pdr/*/input/input.in` files.
+  - The Claude Code memory directory is keyed on the working-directory path,
+    so it has to move with the directory.
+  - Executable names (`mocassin`, `mocassinWarm`) can stay as they are.
+
+### 5. Open
+
+  - Choice of name, and whether to rename executables: the user's decision.
+  - Not a legal opinion. The UMIST redistribution terms were not verified
+    directly.
