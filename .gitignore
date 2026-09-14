@@ -39,6 +39,9 @@ mocassinOutput
 
 mocassinPlot
 
+# per-entry build snapshots (mocassin.d131, mocassin.1d, ...), D-274
+/mocassin.*
+
 # vendored 3D-PDR object files
 source/pdr/*.o
 pdrSmokeTest

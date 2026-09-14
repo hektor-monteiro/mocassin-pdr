@@ -273,6 +273,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-271 | **Rename and licence audit: the combined work is legal only as GPL v3, which MOCASSIN's "v2 or later" headers permit alongside 3D-PDR's GPL v3; the LICENSE file is right.** Gaps before distribution: modified MOCASSIN files carry no modification notice (GPL v3 s.5a), README does not state GPL v3 for the combination, and the LAMDA/UMIST data citations are missing. A GPL rename is unrestricted; proposed MOCASSIN-3DPDR, MOCASSIN-PDR, MOLCASSIN. Prior UCL thesis on the same coupling noted. No name chosen | Discussion | 2026-09-14 |
 | D-272 | **Project renamed MOCASSIN-PDR (executables unchanged; directory/repo `mocassin-pdr`).** README title and intro, plus a Licence and credits section: GPL v3 for the combination, per-component licences, citations. Modification notices added to the 18 changed MOCASSIN sources and the 6 changed vendored 3D-PDR files, GPL v3 headers to pdr_mod/pdrSmokeTest, and the missing D-113/D-195 entries to UPSTREAM.md. Benchmark pdrDataDir now points at the new path. Correction to D-271: the Vasta (2010) thesis coupled MOCASSIN to UCL_PDR, not 3D-PDR. Directory move and GitHub rename left to the user | Done | 2026-09-14 |
 | D-273 | **New GitHub repository `hektor-monteiro/mocassin-pdr`, kept separate from the `mocassin_HM_2026` core fork.** Pushes `pdr-photoionization` as remote `main` plus the tags `pdr-coupling-v1.0` and `d193-d195-reverted`. The core branches (main/dev/compBias/feature1) and tags 1.0.0-1.1.1 stay out. Largest blob 25.8 MB, pack 60 MB. `origin` added and `push.default=upstream` set. No credentials on this machine, so the user runs the first push | Pending push | 2026-09-14 |
+| D-274 | **The 70 tracked build snapshots `mocassin.*` (1d, 3d, d131..d201, dbgchk, splitchk; all ELF) were removed with git rm, and `/mocassin.*` is ignored.** Nothing outside DEVLOG referred to them. Kept: `./mocassin` and `runs/*/mocassin`. They remain in the history, so the push size is unchanged | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19943,3 +19944,33 @@ from. That is where the code came from, and it shares no refs with
     the user runs the first push. The repository must be created empty: no
     README, LICENSE or .gitignore, otherwise the first push is rejected as
     non-fast-forward.
+
+## D-274 - Build snapshots `mocassin.*` removed from the tree (2026-09-14)
+
+The user asked for all the compiled `mocassin.*` binaries to be deleted.
+
+### 1. What was removed
+
+70 files at the repository root, all ELF executables and all tracked:
+
+  - `mocassin.1d` and `mocassin.3d`;
+  - `mocassin.d131` .. `mocassin.d201`, including the lettered variants;
+  - `mocassin.dbgchk` and `mocassin.splitchk`.
+
+Nothing outside DEVLOG refers to them. They are removed with `git rm`, and
+`/mocassin.*` is now in `.gitignore`. The pattern is anchored at the root, so
+`man/mocassin.1` and `source/mocassin.f90` are unaffected.
+
+### 2. Kept
+
+  - `./mocassin`, the current build. It was already ignored.
+  - The per-run copies `runs/*/mocassin`. They are not named `mocassin.*`, and
+    `runs/` is not tracked.
+
+### 3. Consequences
+
+  - The binaries are no longer in the working tree. They stay in the history,
+    so the D-273 push size (60 MB pack) does not change.
+  - A DEVLOG entry that names one of them (for example a before/after run with
+    `mocassin.d165`) can still be reproduced by checking out that entry's
+    commit and building it.
