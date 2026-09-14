@@ -1,4 +1,6 @@
 ! Copyright (C) 2003 Barbara Ercolano
+! Modified 2025-2026 by Hektor Monteiro for MOCASSIN-PDR; the changes are
+! recorded in the git history and in DEVLOG.md.
 !
 ! MoCaSSiNwarm = MOnte CArlo SImulationS of Nebulae
 ! this is the warm-start driver of the simulation

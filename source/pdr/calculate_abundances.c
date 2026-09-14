@@ -1,3 +1,4 @@
+/* Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md. */
 /*=======================================================================
 
  Calculate the abundances of all species at the specified end time

@@ -1,3 +1,4 @@
+/* Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md. */
 /*=======================================================================
 
  User-supplied f (ODEs) routine. Compute the function ydot = f(t,y)

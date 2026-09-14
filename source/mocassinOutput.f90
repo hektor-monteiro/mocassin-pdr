@@ -1,4 +1,6 @@
 ! Copyright (C) 2005 Barbara Ercolano
+! Modified 2025-2026 by Hektor Monteiro for MOCASSIN-PDR; the changes are
+! recorded in the git history and in DEVLOG.md.
 !
 ! MoCaSSiNoutput = MOnte CArlo SImulationS of Nebulae
 ! this is the output-only driver of the simulation

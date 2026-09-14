@@ -1,3 +1,4 @@
+! Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md.
 module maincode_local
   use definitions
   use healpix_types

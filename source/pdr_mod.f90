@@ -1,3 +1,12 @@
+! Copyright (C) 2026 Hektor Monteiro
+! Part of MOCASSIN-PDR.
+!
+! This program is free software: you can redistribute it and/or modify it
+! under the terms of the GNU General Public License as published by the Free
+! Software Foundation, either version 3 of the License, or (at your option)
+! any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+! General Public License (LICENSE) for details.
+!
 ! MOCASSIN <-> 3D-PDR bridge (DEVLOG D-005, D-021, D-022).
 !
 ! Everything that crosses between the two codes goes through here. Four entry

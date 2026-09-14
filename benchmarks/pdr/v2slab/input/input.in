@@ -18,7 +18,7 @@ convLimit 0.10
 dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
 MdMg constant 0.011295
 pdr 1
-pdrDataDir "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/dataPDR"
+pdrDataDir "/home/hmonteiro/software/mocassin-pdr/dataPDR"
 pdrNetwork "reduced"
 pdrZeta 5.0e-17
 pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"

@@ -1,4 +1,4 @@
-# MOCASSIN + 3D-PDR
+# MOCASSIN-PDR
 
 MOCASSIN (3D Monte Carlo photoionization + dust radiative transfer, Fortran/MPI)
 with 3D-PDR's photodissociation-region chemistry coupled into it. 3D-PDR is

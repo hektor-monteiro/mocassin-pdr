@@ -1,3 +1,4 @@
+! Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md.
 !C***********************************************************************
 !C     Read in the chemical reaction rates and the species, masses and
 !C     initial abundances (if specified). The  rates and species files

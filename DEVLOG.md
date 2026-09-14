@@ -1,4 +1,4 @@
-# MOCASSIN–PDR Development Log
+# MOCASSIN-PDR Development Log
 
 Running history of the design discussions, decisions and rationale behind coupling the
 [3D-PDR](https://github.com/itamos-ism/3D-PDR) photodissociation-region chemistry code into
@@ -271,6 +271,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-269 | **Ported to `dev`: 16 commits (e1c1804..59bb06d), each bug fix on its own, each option behind a keyword defaulting to dev's behaviour. Benchmarks: charge exchange lowers [O I] 6300 10-13%; removing the forced skip lowers PN150 H0 20%, O0 32% and [O I] a further 31%; with default keywords nothing else moves; dust benchmarks unchanged within noise.** Bug fixes: charge exchange (c89a200), He continua thresholds (2f8990e), dust/gas re-emission split incl. recPDF guard and dustPDF allreduce size (4f3ac53), forced skip removed (d76035e), readInput chain - eight shadowing branches incl. lg1D and the dust-file test, which the branch had missed (d1f9fd4), insane-eta throttle reset on every rank (dad3f8e; dev already capped the ratio), getDustT flat-interval guard (95447de), dustPDF empty-cell guard (cf77241), stray cell-9249 debug print (e1c16e9). Options: H0Start wired to the hardcoded initial x(H0) with default 1e-5 (8fef087; replaces initH0), teSolver/teFloor (c4a27db), iterDamp default 0 (4c0fe1a), convTe (e6b2caa), pathStretch with tauPath and roulette (35ccf15), ionMatrix/ionTrim (cb8b4d7), Makefile module dependencies + CO=bounds + EXTRA (59bb06d). All dev targets build. Run-to-run scatter of the original binary <0.5% on main fractions; HII40 chain vs ionMatrix agree to 0.3% (2% trace stages). Not pushed; Lexington tables not yet compared | Done | 2026-09-14 |
 | D-270 | **Lexington 2000 benchmarks on dev before/after the D-269 port, against the benchmark codes (Ercolano et al. 2003 Tables 4-7): the port leaves agreement about where it was (in-range counts 16/9/26 unchanged in HII40/HII20/PN150, 15->16 in PN75; median |dex| 0.039->0.038, 0.086->0.082, 0.056->0.067, 0.047->0.045), while dev itself - before and after - is further from the medians than MOCASSIN 2003 in HII20 and PN150 and 4-6% hotter in both H II regions. This branch's readInput brought up to the dev version.** Medians recomputed from the listed codes (printed ones have typos: PN150 C III] 0.174 vs 1.68-1.89, O IV] 2.30 vs 0.18-0.36, PN75 [S II] 0.0020 vs 0.013-0.036). PN150 [O I] 6300 moves into range (0.271 -> 0.169, codes 0.101-0.245), [Ne V] 3426+3346 out by 1%; PN75 [O III] 51.8 um in by 1%. dev <T[NpNe]> 8358 K vs codes 7936-8199 (HII40), 7073 vs 6626-6749 (HII20); HII20 [O I] 6300 9x -> 6.7x the median. Artifact 'Lexington Benchmarks for MOCASSIN dev'. readInput here: lg1D moved before the chain and the dust-file test after it, as in dev d1f9fd4; all four flavours build and hiipdr, v1slab, v2slab, ifront pass input validation | Done | 2026-09-14 |
 | D-271 | **Rename and licence audit: the combined work is legal only as GPL v3, which MOCASSIN's "v2 or later" headers permit alongside 3D-PDR's GPL v3; the LICENSE file is right.** Gaps before distribution: modified MOCASSIN files carry no modification notice (GPL v3 s.5a), README does not state GPL v3 for the combination, and the LAMDA/UMIST data citations are missing. A GPL rename is unrestricted; proposed MOCASSIN-3DPDR, MOCASSIN-PDR, MOLCASSIN. Prior UCL thesis on the same coupling noted. No name chosen | Discussion | 2026-09-14 |
+| D-272 | **Project renamed MOCASSIN-PDR (executables unchanged; directory/repo `mocassin-pdr`).** README title and intro, plus a Licence and credits section: GPL v3 for the combination, per-component licences, citations. Modification notices added to the 18 changed MOCASSIN sources and the 6 changed vendored 3D-PDR files, GPL v3 headers to pdr_mod/pdrSmokeTest, and the missing D-113/D-195 entries to UPSTREAM.md. Benchmark pdrDataDir now points at the new path. Correction to D-271: the Vasta (2010) thesis coupled MOCASSIN to UCL_PDR, not 3D-PDR. Directory move and GitHub rename left to the user | Done | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -19843,3 +19844,57 @@ MOCASSIN. Any paper should cite it.
   - Choice of name, and whether to rename executables: the user's decision.
   - Not a legal opinion. The UMIST redistribution terms were not verified
     directly.
+
+## D-272 - The project is MOCASSIN-PDR; licence notices added (2026-09-14)
+
+The user chose **MOCASSIN-PDR**. The executable names stay unchanged
+(`mocassin`, `mocassinWarm`, ...), so existing input files and scripts keep
+working. The local directory and repository name is `mocassin-pdr`.
+
+### 1. In the tree
+
+  - README: new title and introduction. The stale "PDR support (in
+    development)" text, which said `PDR=1` had not landed yet, is corrected.
+    A new "Licence and credits" section states GPL v3 for the combined work,
+    the licence of each component, and the citations (MOCASSIN, 3D-PDR, LAMDA,
+    UMIST, HEALPix, SUNDIALS) with related work.
+  - CLAUDE.md and DEVLOG headings renamed.
+  - The 18 MOCASSIN sources changed since the import commit 38aca36 now carry
+    a modification line under Ercolano's copyright line (GPL s.5(a)). The 8
+    sources unchanged since that import are untouched.
+  - The new files `pdr_mod.f90` and `pdrSmokeTest.f90` now carry a copyright
+    and GPL-v3-or-later header.
+  - A one-line notice was added at the top of each of the six vendored 3D-PDR
+    files changed since the import commit 49244b1: modules, h2_form,
+    read_rates, read_species, calculate_abundances, odes_reduced.
+  - `UPSTREAM.md` had listed only the D-022 and D-028 changes. The D-113 rate
+    export (modules, calculate_abundances, odes_reduced) and the D-195 grain
+    area (modules, h2_form) are now listed as well.
+  - `pdrDataDir` in the nine `benchmarks/pdr/*/input/input.in` files now points
+    to `/home/hmonteiro/software/mocassin-pdr/dataPDR`. The fixtures fail until
+    the directory is actually renamed.
+
+All changes are comments or documentation. All four flavours build.
+
+### 2. Correction to D-271
+
+The UCL thesis (discovery.ucl.ac.uk/id/eprint/20312) is M. Vasta, 2010. It
+combined MOCASSIN with **UCL_PDR**, not 3D-PDR. D-271's "already aimed to
+couple 3D-PDR with MOCASSIN" repeated a search summary, which was wrong on
+that point.
+
+### 3. Not done here
+
+  - **Directory rename** (`~/software/mocassin_HM_2026_3DPDR` ->
+    `~/software/mocassin-pdr`): left to the user, because it removes this
+    session's working directory. The Claude Code project memory directory,
+    `~/.claude/projects/-home-hmonteiro-software-mocassin-HM-2026-3DPDR`, must
+    move to `-home-hmonteiro-software-mocassin-pdr`.
+  - **GitHub**: this clone has no remote. The other clones push to
+    `hektor-monteiro/mocassin_HM_2026`, whose `main`, `dev`, `compBias` and
+    `feature1` are MOCASSIN core with no PDR code, and the PDR branches have
+    never been pushed. Two options: rename that repository to `mocassin-pdr`,
+    or create a new `mocassin-pdr` and keep `mocassin_HM_2026` as the core
+    fork. The user's decision.
+  - Personal script paths in `accessories/` and `dustData/` point to other,
+    older checkouts (`mocassin_HM_2025`, `mocassin_HM_2026`). Left alone.

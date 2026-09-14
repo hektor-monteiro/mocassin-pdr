@@ -1,4 +1,6 @@
 ! Copyright (C) 2005 Barbara Ercolano
+! Modified 2025-2026 by Hektor Monteiro for MOCASSIN-PDR; the changes are
+! recorded in the git history and in DEVLOG.md.
 !
 ! Version 2.02
 module ionization_mod

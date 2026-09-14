@@ -1,4 +1,10 @@
-# mocassin_HM_2026: Monte Carlo Simulations of Ionised Nebulae
+# MOCASSIN-PDR: Monte Carlo photoionisation and photodissociation-region modelling
+
+**MOCASSIN-PDR** is MOCASSIN with the photodissociation-region chemistry and thermal balance of
+[3D-PDR](https://github.com/itamos-ism/3D-PDR) coupled into it. The Monte Carlo radiation field,
+dust and ionisation structure computed by MOCASSIN drive the chemistry, so that one model follows the
+gas from the H II region through the PDR into the molecular gas. It is not the official MOCASSIN; see
+[Licence and credits](#licence-and-credits).
 
 **MOCASSIN** is a fully 3D or 2D photoionisation and dust radiative transfer code which employs a Monte Carlo approach to the transfer of radiation through media of arbitrary geometry and density distribution. It was originally developed by Barbara Ercolano (https://mocassin.nebulousresearch.org/publications) for the modelling of photoionised regions like HII regions and planetary nebulae and has since expanded and been applied to a variety of astrophysical problems, including modelling clumpy dusty supernova envelopes, star forming galaxies, protoplanetary disks and inner shell fluorescence emission in the photospheres of stars and disk atmospheres.
 
@@ -36,13 +42,12 @@ To install locally:
 make install
 ```
 
-### PDR support (in development)
+### PDR support
 
-Work is under way to couple the [3D-PDR](https://github.com/itamos-ism/3D-PDR) photodissociation-region
-chemistry code into MOCASSIN. This is **not yet part of the default build** — `make` is unaffected and
-needs no extra dependencies.
+The 3D-PDR chemistry is compiled in with `make PDR=1` (1D slab columns) or `make PDR=1 PDRGEOM=3D`
+(ray-traced columns). A plain `make` builds MOCASSIN without it and needs no extra dependencies.
 
-When the `PDR=1` build switch lands it will additionally require **SUNDIALS >= 7.0.0** (3D-PDR's link
+`PDR=1` additionally requires **SUNDIALS >= 7.0.0** (3D-PDR's link
 line uses `-lsundials_core`, which does not exist in 6.x). A verified local install lives at
 `~/software/sundials-7.8.0`; source its environment file before building with PDR support:
 
@@ -96,6 +101,35 @@ There are also 1D and 2D benchmark models included under `benchmarks/dust/1D` an
 - **Output files**: Saved in the `output/` directory (e.g. `ionratio.out`, `lineFlux.out`, `temperature.out`, `SED.out`, `grid0.out`, `grid1.out`, `grid2.out`, `grid3.out`, `dustGrid.out`).
 
 See `man/mocassin.1` for a complete list of keywords that can be configured in the `input.in` file.
+
+## Licence and credits
+
+MOCASSIN-PDR is distributed under the **GNU General Public License, version 3** ([LICENSE](LICENSE)).
+
+- **MOCASSIN** is Copyright (C) 2003-2005 Barbara Ercolano and is licensed under GPL version 2 or any
+  later version. This fork starts from R. Wesson's version ([rwesson/mocassin](https://github.com/rwesson/mocassin)).
+  Files changed here keep their original copyright notice and carry a modification note.
+- **3D-PDR** ([itamos-ism/3D-PDR](https://github.com/itamos-ism/3D-PDR)) is GPL version 3. It is
+  vendored under `source/pdr/`, and the local changes are listed in
+  [source/pdr/UPSTREAM.md](source/pdr/UPSTREAM.md). Because 3D-PDR is GPL v3, the combined program
+  can only be distributed under GPL v3.
+- `source/pdr/healpix_types.F90` comes from HEALPix (Górski et al.) and is GPL version 2 or later.
+- **SUNDIALS/CVODE** is BSD-3-Clause. It is linked, not included.
+
+Work that uses MOCASSIN-PDR should cite:
+
+- MOCASSIN: Ercolano et al. 2003, MNRAS 340, 1136; Ercolano, Barlow & Storey 2005, MNRAS 362, 1038;
+  Ercolano et al. 2008, ApJS 175, 534
+- 3D-PDR: Bisbas et al. 2012, MNRAS 427, 2100
+- Molecular data, `dataPDR/*.dat` (LAMDA): Schöier et al. 2005, A&A 432, 369, plus the original paper for
+  each molecule used, and the date the database was accessed
+- Reaction rates, `dataPDR/rates_*.d` (UMIST format): McElroy et al. 2013, A&A 550, A36
+- HEALPix: Górski et al. 2005, ApJ 622, 759
+- SUNDIALS: Hindmarsh et al. 2005, ACM TOMS 31, 363; Gardner et al. 2022, ACM TOMS 48, 31
+
+Related work: TORUS-3DPDR (Bisbas et al. 2015, MNRAS 454, 2828) couples 3D-PDR to a different
+photoionisation code. M. Vasta's PhD thesis (UCL, 2010, *Modelling ionised and photodissociated
+regions*) combined MOCASSIN with the UCL PDR code.
 
 ---
 

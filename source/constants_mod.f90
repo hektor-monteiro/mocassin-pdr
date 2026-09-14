@@ -1,4 +1,6 @@
 ! Copyright (C) 2005 Barbara Ercolano
+! Modified 2025-2026 by Hektor Monteiro for MOCASSIN-PDR; the changes are
+! recorded in the git history and in DEVLOG.md.
 ! changed nStages from 6 to 9 for the modelling of higher energy ions (nw2006)
 !
 ! Version 2.02
