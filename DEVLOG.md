@@ -283,6 +283,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-281 | **The D-280 grain scattering-asymmetry fix ported to `dev` as 411ff93 (not pushed): g averaged over sizes with C_sca, not pi a^2, plus a zero-norm guard.** Worktree of `dev` at ~/software/mocassin_dev, removed afterwards; tracked binaries restored so only source/ph_mod.f90 changes. All four dev targets build clean. Against the pre-fix dev binary, 14 ranks: single-size dust 1D p0tau10 and 2D tau1.000 integrated SED 0.9999 and 0.998 (D-269 scatter 1.0005, 1.0015); test_Problem (35 sizes + PAH, shortened to 1e6 packets, 5 iterations) angle-integrated UV +1.2/+1.3% against a 0.1% repeat scatter, optical +0.3-0.6% (scatter 0.3%), IR, Hbeta, mean Te within scatter; the inclined viewpoint differs 18% between identical runs at this packet count and was not read. Also: 1D p0tau10 runs cleanly in dev (7 s), so the O-31 segfault is specific to this branch | Done | 2026-09-14 |
 | D-282 | **'hiipdr Against Cloudy' (v7) replotted from runs/d284-analog-fixes: the current code (D-279 + D-280) with the fixture's own settings, so no path biasing.** Figures from tools/d260_roellig.py --cloudy against runs/d277-cloudy; the headline numbers and both tables recomputed from the same run so the page is consistent: front 3.82-3.85 vs 3.77 pc, H/H2 A_V 1.20 vs 1.09, PDR T_gas 22-26 vs 29-49 K, C+ = C 2.27 vs 2.95 (2.12 before D-280, 2.60 biased). Deep-carbon bullet rewritten: C+ 0.2-0.4 of Cloudy past A_V 2.3 instead of 1e-7, n_e 0.3-0.4x, CO 50-120x high. T_dust 6-12% cooler in the PDR, 2-5% in the ionized gas; C2+ and O2+ within 10% to 3 pc | Done | 2026-09-14 |
 | D-283 | **A collaborator's Cloudy test model (150k_PDR: 150 kK blackbody, L 10^36.583, n_H 1e3, R_in 1e16 cm, GASS with Si Mg Ca Al x0.01, ISM graphite, cosmic-ray background, stop at 40 K) run in Cloudy and in MOCASSIN-PDR, and published as '150 kK PN Against Cloudy'. The ionized nebula agrees closely (Hbeta 2.71 vs 2.78e34 erg/s; [O III] 5007, 4363, 88 um within 2%; H+ front 0.131 vs 0.128 pc, He2+ 0.083 vs 0.088); the PDR is again ~2x too cold (24-30 vs 42-70 K), H2 crosses at A_V 0.27 vs 0.37, and the chemistry's O and C+ fine-structure cooling are 7.3x and 2.6x Cloudy's lines.** MOCASSIN stops on Ca VII (27 levels) and Fe VI (19) > nForLevels 17; on the user's instruction Ca and Fe were dropped, and Cloudy re-run with them off (the user asked for the with/without comparison too: H II gas 2-9% hotter without them, 40 K stop 1.799 -> 1.872e18 cm, deep PDR within 10%). Matched: A_V/N_H 3.648e-22 (MdMg 2.4827e-3, calibrated), pdrZeta 4.293e-16 for Cloudy's background H0 rate 1.975e-16, R_out = Cloudy's stop radius. runs/d283-pn150k: 41^3, converged 91.2% at iteration 9, 2 h 39 min (iterations 3-29 min; grain charging and grain-gas heating dominate), 1.2 GB/rank, no ion or Te balance failures. Also: [Ne III] +35-48%, [Ne II] +36%, [O II] 3726 +28%, [O I] 6300 +40%, [O IV]/[Ne V] -11/-14%; T_dust 8-25% warmer. tools/d260_roellig.py generalized (elements from the run's input, --xlim/--rticks/--grains/--model-cloudy-rin/--ref-label/--prefix; hiipdr figures pixel-identical) | Open | 2026-09-14 |
+| D-284 | **D-283's fine-structure pointer withdrawn: the chemistry's cooling functions agree with Cloudy's, and the cold PDR is not a cooling excess. What remains is a data defect in the vendored 3D-PDR coolant files, confined to warm gas.** D-283's 7.3x (O) and 2.6x (C+) compared 5-level coolant totals, over every cell, with Cloudy's 63/145/158 um lines alone. The coolants include [O I] 6300/6363/5577 and C II] 2326, and 69% of the O and 76% of the C+ sat in ionized cells. In the PDR, cooling per emitter per H nucleus agrees with Cloudy to 0.84-1.28 (O) and 0.84-1.26 (C+) over 45-1200 K, so O-02 is on the heating side (Cloudy: grain PE 80-96% of heating; MOCASSIN's D-217 cold-group mean PE 4.2e-26 per H against Cloudy's ~2-5e-25, a pointer only). Against a Cloudy rerun with every transition's emissivity (runs/d284-fs-cloudy, overview identical to D-283's), C+ in the H II gas is 1.10-1.17x per ion and O 2.0x per atom. Cause: dataPDR/16o.dat and 12c.dat give each 1D->3P_J and 1S->3P_J electron rate the same value, about the whole-term collision strength (Upsilon 0.29 per J at 1e4 K, against Barklem 2007's 0.15/0.09/0.03 split by 2J+1). tools/d284_o5lev.py reproduces pdrCoolSp to 1-4% from 27 K to 12 kK, and with Barklem's rates gives 2.07-2.16x less O I cooling in the H II gas and 1.00x below ~1000 K. At the front MOCASSIN's O I cooling is 1.4-1.8x Cloudy's total cooling there, while MOCASSIN is 900-2000 K hotter. Not fixed | Open | 2026-09-15 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -21096,3 +21097,137 @@ D-282's.
 
 Artifact: '150 kK PN Against Cloudy'
 https://claude.ai/code/artifact/67b186b5-96f7-4e21-875b-ba515c61fe26
+
+## D-284 - the [C II] and [O I] cooling: the pointer was a mis-comparison, and a coolant data defect sits in warm gas (2026-09-15)
+
+Hektor: "[C II] 158 um and [O I] 63 um cooling seems like an important thing to
+investigate." D-283 had reported the chemistry's O and C+ cooling at 7.3x and
+2.6x Cloudy's lines and called it the first heating/cooling pointer for O-02.
+
+### 1. Where the D-283 numbers came from
+
+The integral was pdrCoolSp over every active cell (x8 for the octant),
+compared with Cloudy's 63 + 145 um and 158 um intensities. Two mismatches:
+
+  - **Region.** Binned by radius, 69% of the O cooling and 76% of the C+
+    cooling are in ionized cells (pdrZone 0). There the coolant is 12-65x
+    Cloudy's far-IR O I emissivity and ~100x its 158 um emissivity. In the
+    PDR proper MOCASSIN's far-IR cooling is *below* Cloudy's (0.01-0.5x
+    beyond 0.19 pc), as its colder gas implies.
+  - **Lines.** dataPDR/16o.dat, 12c+.dat and 12c.dat are 5-level atoms.
+    16o.dat includes 1D2 and 1S0 ([O I] 6300, 6363, 5577, 2972), 12c+.dat
+    the 4P term (C II] 2326), and 12c.dat 1D2 and 1S0 ([C I] 9850, 8727,
+    4621). A coolant total is not a far-IR line.
+
+Also checked on the way: D-266 already excites the C+ coolant at MOCASSIN's C+
+share. pdrGrid.out's C+ (0.269 cm^-3, all carbon) is the chemistry's carrier,
+and dividing by it gives a wrong per-ion rate.
+
+### 2. The PDR: the cooling functions agree
+
+Cooling per emitter per H nucleus against T, over PDR cells, MOCASSIN at the
+coolant-table temperature nearest its Tg (table points are 1.94x apart, so bins
+overlap only near them) and Cloudy zones in the same T bin:
+
+| T [K] | O m/c | C+ m/c | f(H2) m / c |
+|---|---|---|---|
+| 45-70 | 0.98 | 1.26 | 0.42 / 0.73 |
+| 70-110 | 1.28 | 1.00 | 0.10 / 0.06 |
+| 170-260 | 0.86 | 0.84 | 0 / 0 |
+| 260-400 | 1.20 | 0.96 | 0 / 0 |
+| 700-1200 | 0.86 | 0.96 | 0 / 0 |
+
+So at a given temperature the chemistry cools like Cloudy. The PDR is ~2x too
+cold because it is heated less, not because it cools more.
+
+Heating, as far as the outputs allow:
+  - Cloudy (.heat): grain photoelectric is 34% of heating at 632 K, 81-96%
+    from 127 K inward. Total ~2.3-5.4e-25 erg s^-1 per H at 0.29-0.48 pc.
+  - MOCASSIN: per-cell budget terms (mocBud) exist only in memory. The D-217
+    group means at the last iteration, for the 34688 "stayed cold" cells, are
+    photoionization 1.05e-25, PE 4.2e-26 and PDR extra 1.2e-26 per H.
+
+A group mean over the whole deep PDR is a pointer, not a measurement: PE looks
+5-10x below Cloudy's, and MOCASSIN's photoionization heating is 2/3 of its
+total where Cloudy's is a few %. A per-depth split needs mocBud written out.
+
+### 3. The ionized gas: a data defect
+
+Cloudy was rerun (runs/d284-fs-cloudy, the Ca/Fe-off model, overview identical
+to D-283's) with emissivities for every transition of the three 5-level atoms.
+In the ionized zone Cloudy's O I cooling is 89% optical and its C II cooling 99%
+C II] 2326.
+
+MOCASSIN's pdrCoolSp is written at the table point nearest T, which for 23-62
+kK excitation energies moves values by factors 0.4-3. Rescaled to each cell's
+Te with the dominant line's Boltzmann factor (an estimate), per emitter where
+the temperatures agree within 1% (0.08-0.125 pc):
+
+  - C+: 1.10-1.17x Cloudy;
+  - O: 1.99-2.18x Cloudy.
+
+Cause. In 16o.dat's O + e block the three 1D2 -> 3P2,1,0 rates are identical
+(5.06e-9 cm^3 s^-1 at 1e4 K each), and so are the three 1S0 -> 3P_J rates.
+5.06e-9 is Upsilon = 0.29, about the whole 3P-1D collision strength. Cloudy's
+o_1.coll (Barklem 2007, partitioned by statistical weight, as its header
+says) gives 0.15, 0.09 and 0.03 for J = 2, 1, 0 near 1e4 K. 3P1 and 3P0 are
+sub-thermally populated at these densities, so excitation starts almost only
+from 3P2, and the excess is ~2x rather than the 3x a sum would suggest.
+
+tools/d284_o5lev.py (a standalone optically thin solve reading 16o.dat):
+  - reproduces pdrCoolSp to 1-4% in 21 sampled cells from 27 K to 12 kK;
+  - with Barklem's 1D/1S electron rates swapped in, gives 2.07-2.16x less O I
+    cooling in the H II gas, 1.08-1.94x at the front, and exactly 1.00x below
+    ~1000 K.
+
+The same identical-per-J pattern is in 12c.dat (C + e, 1D and 1S) and in
+16o.dat's O + H block. The O + H 1D rates are ~1e-13 cm^3 s^-1 and do not
+matter. 12c+.dat's electron rates are J-resolved and look right. The files are
+unchanged since the Phase 1 vendoring (49244b1).
+
+### 4. Does it reach the temperature?
+
+Yes, in principle: D-182 removed the zone gate, so these coolants replace
+MOCASSIN's own oi.dat / ci.dat cooling in every cell. Its size, against
+Cloudy's total cooling in each shell:
+
+| shell [pc] | T_m | T_c | O I share (Cloudy) | MOCASSIN O I / Cloudy total |
+|---|---|---|---|---|
+| 0.10-0.12 | 11894 | 11934 | 0.003 | 0.006 |
+| 0.12-0.13 | 10854 | 10702 | 0.025 | 0.046 |
+| 0.13-0.135 | 9755 | 9054 | 0.10 | 0.37 |
+| 0.135-0.14 | 8575 | 6716 | 0.29 | 1.76 |
+| 0.14-0.145 | 6874 | 5029 | 0.42 | 1.83 |
+| 0.15-0.16 | 2866 | 918 | 0.68 | 1.85 |
+
+Negligible in the H II gas; at the front O I is a large term in both codes, and
+there MOCASSIN is both hotter and cooling harder, so its heating there is
+higher too. Correcting the rates would remove cooling from the front. The
+expectation is warmer front gas, which widens the existing temperature gap
+there. Not measured.
+
+### 5. What it means
+
+  - **O-02 is a heating problem.** The fine-structure cooling is right at a
+    given T; D-283's pointer is withdrawn.
+  - **A 2x O I (and likely C I) optical cooling excess in warm gas**, from the
+    vendored data, which matters at the ionization front.
+  - The standalone 3D-PDR reference uses the same files, but its gas never
+    reaches the temperatures where 1D is excited, so the reference
+    comparisons are unaffected.
+  - lineFlux.out still reports MOCASSIN's electron-only [C II] 158 um / [O I]
+    63 um while the thermal balance uses the coolants - two realities of one
+    line (register item).
+
+### 6. Not yet known / not done
+
+  - The fix is not applied. The candidates differ: partition the file's own
+    totals by 2J+1 (keeps its cited source), or adopt Barklem 2007 (what
+    Cloudy uses). Not decided.
+  - The per-depth heating split (needs mocBud written, then a warm-start
+    iteration or a rerun).
+  - 12c.dat's size of effect was not solved separately (C I coolant total 3.9x
+    Cloudy's all-line C I, 0.09 Hbeta).
+  - The coolant table's log-log interpolation under-reads an exponential by
+    ~20-37% midway between points for 23-62 kK lines; not measured in the run.
+  - One run of each code.
