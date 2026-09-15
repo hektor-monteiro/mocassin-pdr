@@ -282,6 +282,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-280 | **O-01, the deep C+ drop, decomposed into four measured parts; two MOCASSIN defects fixed. C+/Cloudy at A_V 2.5 goes 1e-7 (analog) -> 0.57 (path biasing) -> 0.61 (+ cosmic-ray ionization of metals) -> 0.72 (+ corrected scattering asymmetry); C+ = C moves A_V 2.12 -> 2.60 (Cloudy 2.95).** (1) Monte Carlo floor: without `pathStretch` the C I-ionizing field is exactly zero in 63-100% of cells past A_V 2.3 even with both fixes (d284); biasing reduces that to <=9% to A_V 2.8. (2) Missing physics, fixed: ionBalance gave cosmic-ray ionization to H and He only (D-193 literals, the D-234 gate); it now reads every CRP/CRPHOT ionization of a linked neutral from the network (293 H, 297 He, 298 C, 299 O, 301 C gamma 510, 312 Mg gamma 113), CRPHOT with the cell's own 11.2-13.6 eV grain albedo; 3D-PDR's omega = 0.42 is replaced by the same albedo per cell (D-247 wrongly called it dead: it divides every CRPHOT rate). Deep C+ at A_V 2.9 x8. (3) Bug, fixed, ph_mod: the size-averaged scattering cosine was weighted by pi a^2 instead of C_sca; FUV g 0.437 -> 0.607 (Cloudy, same silicate and MRN law: 0.59-0.64). (4) Divergence, not closed: MOCASSIN's C photoionization rate falls 3.83 e-folds per mag (after r^-2) against Cloudy's 2.65, with grain extinction at the C edge equal to 2% (4.39 vs 4.30/mag); and MOCASSIN's C+ recombination is 0.40-0.58 of Cloudy's, most likely Cloudy's grain-assisted recombination (inferred; inert in this 3D-PDR build, GRAINRECOMB undefined). Controls: ionization front A_V 0.461-0.463, H/H2 1.196-1.201, H budget <=4e-4 in all runs; biased radiated energy 2644-2681 vs analog 2650-2655. Converged: d279 84.5, d280 83.1, d282 84.5, d283 82.3, d284 81.0%. Probe `ionRateProbe`. Found and not pursued: the 1D Ivezic dust benchmark segfaults in transfer, identically before these changes | Open | 2026-09-14 |
 | D-281 | **The D-280 grain scattering-asymmetry fix ported to `dev` as 411ff93 (not pushed): g averaged over sizes with C_sca, not pi a^2, plus a zero-norm guard.** Worktree of `dev` at ~/software/mocassin_dev, removed afterwards; tracked binaries restored so only source/ph_mod.f90 changes. All four dev targets build clean. Against the pre-fix dev binary, 14 ranks: single-size dust 1D p0tau10 and 2D tau1.000 integrated SED 0.9999 and 0.998 (D-269 scatter 1.0005, 1.0015); test_Problem (35 sizes + PAH, shortened to 1e6 packets, 5 iterations) angle-integrated UV +1.2/+1.3% against a 0.1% repeat scatter, optical +0.3-0.6% (scatter 0.3%), IR, Hbeta, mean Te within scatter; the inclined viewpoint differs 18% between identical runs at this packet count and was not read. Also: 1D p0tau10 runs cleanly in dev (7 s), so the O-31 segfault is specific to this branch | Done | 2026-09-14 |
 | D-282 | **'hiipdr Against Cloudy' (v7) replotted from runs/d284-analog-fixes: the current code (D-279 + D-280) with the fixture's own settings, so no path biasing.** Figures from tools/d260_roellig.py --cloudy against runs/d277-cloudy; the headline numbers and both tables recomputed from the same run so the page is consistent: front 3.82-3.85 vs 3.77 pc, H/H2 A_V 1.20 vs 1.09, PDR T_gas 22-26 vs 29-49 K, C+ = C 2.27 vs 2.95 (2.12 before D-280, 2.60 biased). Deep-carbon bullet rewritten: C+ 0.2-0.4 of Cloudy past A_V 2.3 instead of 1e-7, n_e 0.3-0.4x, CO 50-120x high. T_dust 6-12% cooler in the PDR, 2-5% in the ionized gas; C2+ and O2+ within 10% to 3 pc | Done | 2026-09-14 |
+| D-283 | **A collaborator's Cloudy test model (150k_PDR: 150 kK blackbody, L 10^36.583, n_H 1e3, R_in 1e16 cm, GASS with Si Mg Ca Al x0.01, ISM graphite, cosmic-ray background, stop at 40 K) run in Cloudy and in MOCASSIN-PDR, and published as '150 kK PN Against Cloudy'. The ionized nebula agrees closely (Hbeta 2.71 vs 2.78e34 erg/s; [O III] 5007, 4363, 88 um within 2%; H+ front 0.131 vs 0.128 pc, He2+ 0.083 vs 0.088); the PDR is again ~2x too cold (24-30 vs 42-70 K), H2 crosses at A_V 0.27 vs 0.37, and the chemistry's O and C+ fine-structure cooling are 7.3x and 2.6x Cloudy's lines.** MOCASSIN stops on Ca VII (27 levels) and Fe VI (19) > nForLevels 17; on the user's instruction Ca and Fe were dropped, and Cloudy re-run with them off (the user asked for the with/without comparison too: H II gas 2-9% hotter without them, 40 K stop 1.799 -> 1.872e18 cm, deep PDR within 10%). Matched: A_V/N_H 3.648e-22 (MdMg 2.4827e-3, calibrated), pdrZeta 4.293e-16 for Cloudy's background H0 rate 1.975e-16, R_out = Cloudy's stop radius. runs/d283-pn150k: 41^3, converged 91.2% at iteration 9, 2 h 39 min (iterations 3-29 min; grain charging and grain-gas heating dominate), 1.2 GB/rank, no ion or Te balance failures. Also: [Ne III] +35-48%, [Ne II] +36%, [O II] 3726 +28%, [O I] 6300 +40%, [O IV]/[Ne V] -11/-14%; T_dust 8-25% warmer. tools/d260_roellig.py generalized (elements from the run's input, --xlim/--rticks/--grains/--model-cloudy-rin/--ref-label/--prefix; hiipdr figures pixel-identical) | Open | 2026-09-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -20854,3 +20855,244 @@ Text updated:
   - the run labels.
 
 The register was already current (D-280).
+
+## D-283 - a 150 kK planetary nebula test model: Cloudy and MOCASSIN-PDR (2026-09-14)
+
+The user supplied a collaborator's Cloudy input (`150k_PDR.in`) and asked to:
+  - run it;
+  - run an equivalent MOCASSIN-PDR model;
+  - publish a comparison with the hiipdr-vs-Cloudy plots.
+
+During the work the user decided to:
+  - drop Ca and Fe;
+  - re-run Cloudy without them;
+  - compare Cloudy with and without them on the same page;
+  - let the long MOCASSIN run finish, as a measure of cost for complex models.
+
+### 1. The Cloudy model
+
+`benchmarks/pdr/pn150k/cloudy/150k_PDR.in`, verbatim:
+
+  - star: `Blackbody 150000`, `luminosity (total) 36.583`;
+  - geometry: `radius 16`, `sphere`;
+  - gas: `hden 3`, `filling factor 1`;
+  - abundances: `abundances GASS no grains`, with Si, Mg, Ca, Al scaled by 0.01;
+  - grains: `grains ISM graphite 1`;
+  - `Cosmic rays background`;
+  - `Database H2 limit -10`;
+  - `stop temperature 40K`;
+  - `iterate to converge` followed by `iterate`, and a list of saves.
+
+runs/d283-150k-cloudy: 661 zones, 2 iterations, 442 s.
+  - "lowest Te reached" at depth 1.789e18 cm (R_out 1.7987e18).
+  - Front (HII = 0.5) at r = 3.91e17 cm, A_V 0.139.
+  - A_V(point) 0.656 at the edge.
+  - D/G by mass 2.450e-3, A(V)/N(H)(pnt) 3.648e-22.
+  - The PDR is warm and thin: T 938 K just past the front, 64 K at 9.3e17 cm,
+    40 K at the edge; 2H2/H reaches 0.9 only at the edge; CO/C <= 2e-5;
+    carbon stays C+.
+
+**Cosmic-ray background** (hextra.h): background_rate = 2.5e-17 * 7.9 =
+1.975e-16 s^-1 for H0 in neutral gas. MOCASSIN's H0 rate is
+5.98e-18 * zeta/1.3e-17 (D-280 table, reaction 293), so
+pdrZeta = 1.975e-16 * 1.3e-17 / 5.98e-18 = 4.293e-16.
+
+**Saves.** The input saves neither species densities nor grain temperature,
+which the figures need. runs/d283-150k-cloudy-saves is the same input with
+`save last species densities ".dens"` (the hiipdr species list) and
+`save last grain temperature ".gtemp"` added. Its overview file is identical
+to the original's in every column, row for row (max relative difference 0).
+
+### 2. Calcium and iron
+
+MOCASSIN stopped at startup:
+
+    equilibrium: model ion has more levels than allowed by nForLevels - please enlarge 27 17 17 data/cavii.dat
+
+Every data file with more than 17 levels, over elements 3-30 up to stage 7 of
+data/fileNames.dat:
+  - Ca VII, 27 levels;
+  - Fe VI, 19;
+  - Fe II, 142, handled separately by `forbiddenLinesLarge`.
+
+The data.chianty-7 and -10 sets in `dev` have the same level counts, so this
+is a MOCASSIN limit that no earlier model reached (hiipdr has neither
+element; the Lexington sets have no Ca or Fe).
+
+Raising `nForLevels` to 27 would grow nLines from ~43400 to ~78200 for this
+composition. nLines sizes the per-cell `linePackets`/`linePDF` arrays, and the
+emission loops go as nForLevels^2 per ion. I raised this. **The user decided:
+drop those elements**, and then asked for Cloudy to be re-run without them,
+and later for the with/without comparison.
+
+  - MOCASSIN abundance file: Ca and Fe set to 0, with a comment saying why.
+  - runs/d283-150k-cloudy-noCaFe: the saves input plus `element calcium off`
+    and `element iron off` (`benchmarks/pdr/pn150k/cloudy/150k_noCaFe.in`).
+    671 zones, 2 iterations, 489 s. The 2 cautions are "molecules are
+    important, but Ca/Fe, part of the chemistry network, is turned off".
+
+Cloudy without Ca and Fe, against the original:
+
+    front A_V                     0.141  (0.139)
+    40 K stop                     1.8718e18 cm, A_V 0.683  (1.7987e18, 0.656)
+    <T> in the H II region        16632 K  (15751)
+    ratio (no Ca,Fe / with) at A_V 0.01  0.05  0.10  0.16  0.20  0.30  0.50  0.65
+      Tgas                         1.08  1.09  1.02  4.71  1.11  1.00  1.03  1.05
+      n_e                          1.00  1.00  1.00  1.77  1.09  0.98  0.91  0.91
+      He+                          0.95  0.94  0.96  1.52  1.11  1.13  1.04  1.03
+      H2                           0.84  0.82  0.90  0.33  0.70  0.96  0.99  1.00
+      CO                           0.95  0.69  0.85  9.25  0.78  0.90  1.02  1.27
+      Tdust                        1.00-1.02 everywhere
+
+The factors at A_V 0.16 are the steep temperature drop after the front moving
+slightly deeper.
+
+### 3. The MOCASSIN model (`benchmarks/pdr/pn150k/input`)
+
+    TStellar 150000, contShape blackbody, LStar 3.8282   (10^36.583 / 1e36)
+    symmetricXYZ, nx = ny = nz = 41, Rin 1.0e16, Rout = edges = 1.8718e18
+    Hdensity 1000, TeStart 15000, nbins 600, nuMax 30, nuMin 1.001e-5
+    nebComposition abunGASS_pn150k.in   GASS10 (Cloudy solar_GASS10.abn),
+                                         Si Mg Al x0.01, Ca and Fe 0
+    dustFile: 'dustData/grph2-dl.nk' 0.6667 and 'dustData/grph1-dl.nk' 0.3333,
+              0.005-0.25 um; dust_sizes.dat 35 log-spaced sizes, dn/da = a^-3.5
+    MdMg constant 2.4827e-3
+    pdr 1, reduced network, pdrZeta 4.293e-16, pdrCoolants 4, pdrStartIter 4
+    maxIterateMC 11 90., nPhotons 6e6, convLimit 0.10
+
+Choices, and why:
+  - **Graphite orientations.** grph2-dl has n = 2.74, k = 1.56 at 0.55 um, the
+    metallic E perp c constants, so it takes the 2/3 weight; grph1-dl (2.34,
+    0.26) is E par c.
+  - **Size weights.** MOCASSIN multiplies the size-file weight by da
+    (ph_mod:978-993), so the file holds dn/da.
+  - **Size law.** Cloudy's ISM law is data/ism.szd: power law 0.005-0.25 um,
+    slope -3.5.
+  - **Dust amount.** A short run (11^3, 1 iteration, pdrStartIter 1, 2e5
+    packets, 26 s) at MdMg 2.45e-3 gave calibratePDRdust A_V/N_H = 3.5999e-22,
+    FUV albedo 0.410, g 0.554, R_FUV 2.63. Scaled to Cloudy's 3.648e-22:
+    MdMg 2.4827e-3, which is also within 1.3% of Cloudy's D/G by mass.
+  - **R_out.** Cloudy's no-Ca/Fe stop radius. MOCASSIN has no temperature
+    stop.
+  - **Grid.** 41^3: cells 0.0152 pc; H II region 8.6 cells, He2+ zone 5.5.
+    Memory, measured before the run: 1.2 GB/rank, 16.6 GB total, 28 GB free.
+  - **Code.** Current, no path biasing; the binary was built at 00215dc plus
+    the uncommitted script edits.
+
+### 4. Run and cost (runs/d283-pn150k)
+
+    iteration     1    2     3     4 (PDR)  5     6     7     8     9
+    minutes       3    22.5  25.1  28.8     22.2  17.5  13.9  13.2  12.9
+    converged %   0    0.01  0.17  0.42     0.53  0.67  1.36  52.7  91.2
+
+Stopped at iteration 9 ("convergence reached", minConvergence 90):
+  - total run time per processor 2:39:18;
+  - no ion-balance or Te-balance failures in any iteration;
+  - radiated continuum 2.65, then 1.24 falling to 1.15, of the 3.83 input
+    (x1e36 erg/s): the line luminosity is tallied separately.
+
+During iteration 2, 8 ranks had finished updateCell and were waiting in an
+allreduce. The other 6 were sampled with gdb, in `getGrainRecombination`
+(twice, once inside libm's `xflowf`), `setDustGasCollHeatCool` (three) and
+`getGrainEmission`.
+
+The grain charge and grain-gas terms dominate: two graphite components x 35
+sizes against hiipdr's one silicate x 35, in a 150 kK field. For scale:
+hiipdr 31^3 takes 42 min for 11 iterations, and Cloudy 8 min on one core.
+
+### 5. Results (MOCASSIN / Cloudy no Ca,Fe)
+
+Structure:
+  - H+ front (x = 1/2, radial shells): 0.1306 / 0.1280 pc, A_V 0.129 / 0.141.
+  - He2+ half radius: 0.0832 / 0.0880 pc.
+  - A_V per pc near 0.05 pc: 0.985 / 1.065, 7.5% low in MOCASSIN (the cell
+    staircase near the star; O-10's residual). In the A_V figures the ionized
+    zone therefore sits slightly left, and the He2+ front looks further off than
+    it is.
+  - 2n(H2) = n(H): A_V 0.270 / 0.368 (0.366 with Ca, Fe).
+
+    A_V   Tgas          Tdust     n_e          n(H2)          n(CO)
+    0.05  14500/14700   109/87    1170/1170    1.7e-6/2.1e-11 6e-11/3e-23
+    0.10  11900/11900   82/71     1080/1110    3.9e-6/8.3e-10 4e-10/3e-18
+    0.15  4460/7030     53/47     30/65        1.8e-3/4.3e-6  2e-7/2e-10
+    0.20  101/187       48/42     0.98/3.9     24/0.015       8e-7/1e-9
+    0.30  30/70         41/36     0.30/0.49    330/110        2e-6/3e-6
+    0.50  26/55         32/29     0.29/0.30    460/400        3e-5/5e-6
+    0.65  24/42         28/26     0.29/0.30    480/450        1e-4/4e-6
+
+Lines, intrinsic, relative to Hbeta:
+  - MOCASSIN from lineFlux.out.
+  - Cloudy from the first line table of 150k.out, whose Hbeta
+    (10^-9.634 erg cm^-2 s^-1 at 1000 pc) = 2.78e34 erg/s. The second table has
+    Halpha/Hbeta 3.61 and is taken to be the emergent one.
+
+    Hbeta [1e34 erg/s] 2.712/2.78    He I 5876 0.095/0.077 (Cloudy blend)
+    He II 4686 0.296/0.279           [O III] 5007 13.27/13.19, 4363 0.156/0.155
+    [O III] 88um 0.643/0.630         [O IV] 25.9um 4.21/4.75   [Ne V] 24.3um 0.256/0.299
+    [Ne III] 3869 1.31/0.97, 15.6um 1.29/0.87                  [Ne II] 12.8um 0.083/0.061
+    [S IV] 10.5um 1.51/1.49          [S III] 18.7um 0.80/0.67  [S II] 6716,6731 0.63,0.64/0.76,0.85
+    [Ar III] 7135 0.286/0.305        [Cl III] 5518 0.0224/0.0243
+    [N II] 6584 1.65/1.47, 122um 0.018/0.014                   [O II] 3726,3729 3.64,2.68/2.86,2.50
+    [O I] 6300 0.403/0.288
+
+Fine-structure lines of the neutral gas:
+  - MOCASSIN's lineFlux.out gives [C II] 158 um 0.118 and [O I] 63 um 0.0056
+    (Cloudy 0.308, 0.188). lineFlux excites them with electrons only.
+  - The chemistry's coolant rates (pdrCoolSp.out, erg s^-1 cm^-3) integrated
+    over the grid (x8 for the octant) give:
+    - C+ 2.21e34 erg/s = 0.81 Hbeta, against Cloudy's [C II] 0.31;
+    - O 3.98e34 = 1.47 Hbeta, against [O I] 63 + 145 um 0.20;
+    - C 2.39e33 = 0.088;
+    - CO 1.7e29.
+
+### 6. What it means
+
+  - **The photoionized nebula is reproduced.** Hbeta, the [O III] lines, the
+    front radii and T_e in the H II gas agree to 1-6%. This is a hotter, harder
+    and more line-dominated case than hiipdr, with different grains, and it
+    gives no sign of a coupling problem there.
+  - **Neon and the low ions run high.** [Ne III] is 35-48% high and [Ne II] 36%;
+    [O II] 3726 is 28% high and [O I] 6300 40%. The inner gas carries 2-100x
+    more C+, O+ and Mg+ at A_V < 0.1. [O IV] and [Ne V] are 11-14% low. None of
+    this is investigated. Candidates, not tested:
+    - charge exchange and dielectronic recombination at 15000-25000 K;
+    - nuMax 30 Ryd truncating the 150 kK tail;
+    - resolution near the star.
+  - **O-02 reproduces with graphite.** The PDR gas is ~2x colder than Cloudy's.
+    The chemistry's fine-structure cooling is several times Cloudy's line
+    intensities: 7.3x for O, 2.6x for C+. That is the first direct
+    heating/cooling pointer for O-02. Cooling that strong in 40-190 K gas
+    points at the 3D-PDR coolant treatment or at the heating it balances. Not
+    yet separated.
+  - **O-03 again.** H2 in the ionized gas is ~1e5x Cloudy's, and H2 and CO form
+    shallower.
+  - **The Ca/Fe removal does not separate the codes.** Cloudy with and without
+    them differs by <10% outside the front.
+
+### 7. Not yet known
+
+  - Whether nForLevels can be made per-ion, so GASS-type compositions run with
+    Ca and Fe (register item to add).
+  - The neon and low-ion excess in the H II gas.
+  - Which side of the PDR energy balance is wrong: coolant level populations
+    against Cloudy's, or grain photoelectric heating with graphite.
+  - Scatter: one run of each.
+
+### 8. Tools
+
+`tools/d260_roellig.py`:
+  - elements and abundances come from the run's own nebComposition file
+    (`read_composition`) instead of the hardcoded abunV1 lists, which fixes
+    part of O-30;
+  - new options `--xlim`, `--rticks`, `--grains` (Cloudy's size law for the
+    T_dust weights), `--model-cloudy-rin` (a Cloudy model on the model side),
+    `--ref-label` and `--prefix`;
+  - chemistry and ion y ranges grow with n_H, the temperature range with
+    T_max;
+  - inside-label positions scale with the front's A_V.
+
+The hiipdr figures regenerated with the new script are pixel-identical to
+D-282's.
+
+Artifact: '150 kK PN Against Cloudy'
+https://claude.ai/code/artifact/67b186b5-96f7-4e21-875b-ba515c61fe26

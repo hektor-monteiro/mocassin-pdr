@@ -81,6 +81,12 @@ IONS = [('e-', '#000000', (0.07, 0.35)), ('H+', '#CC3311', (0.16, 0.35)),
         ('C++', '#33BBEE', (0.1, -0.5)), ('O++', '#EE3377', (0.2, 0.4)),
         ('O+', '#009988', 'R'), ('C+', '#0077BB', 'R'), ('Mg+', '#7A5195', 'R')]
 TEMP = [('Tgas', '#CC3311', (0.1, 0.13)), ('Tdust', '#0077BB', (0.1, 0.13))]
+# D-283: plot ranges and Cloudy's grain size law, overridable on the command
+# line (--xlim=lo,hi --rticks=a,b,.. --grains=amin,amax,slope); the defaults
+# are hiipdr's, so its figures are unchanged
+XLIM = (0.04, 3.2)
+RTICKS = None
+GRAINS = (0.010, 0.300, -3.5)
 
 
 def style():
@@ -97,7 +103,29 @@ def style():
     })
 
 
+LABELS = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg',
+          'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr',
+          'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn']
+
+
+def read_composition(run):
+    """D-283: the switched-on elements, in the order grid2.out writes them, and
+    their abundances, from the run's own nebComposition file. ELEM/ABUND above
+    were abunV1.in's and are kept only as the fallback."""
+    import re
+    try:
+        inp = open(os.path.join(run, 'input', 'input.in')).read()
+        m = re.search(r'^\s*nebComposition\s+"?([^"\s]+)"?', inp, re.M)
+        vals = [float(ln.split()[0]) for ln in
+                open(os.path.join(run, m.group(1))) if ln.split()][:30]
+    except (OSError, AttributeError, ValueError):
+        return ELEM, ABUND
+    elem = [LABELS[i] for i, v in enumerate(vals) if v > 0]
+    return elem, {LABELS[i]: v for i, v in enumerate(vals) if v > 0}
+
+
 def read_run(run):
+    ELEM, ABUND = read_composition(run)
     if os.path.exists(os.path.join(run, 'INCOMPLETE')):
         raise SystemExit(f'REFUSING {run}: marked INCOMPLETE')
     out = os.path.join(run, 'output')
@@ -162,7 +190,7 @@ def read_ref(path, a_front):
     return d
 
 
-def read_cloudy(prefix, amin=0.010, amax=0.300, slope=-3.5):
+def read_cloudy(prefix, amin=None, amax=None, slope=None):
     """A Cloudy model saved with `save species densities`, `save overview` and
     `save grain temperature` (runs/d264-cloudy/hiipdr.in). Densities are
     already n(i) in cm^-3. A_V is Cloudy's AV(point) from the illuminated face,
@@ -189,10 +217,25 @@ def read_cloudy(prefix, amin=0.010, amax=0.300, slope=-3.5):
     d['He++'] = d.pop('He+2')
     d['C++'] = d.pop('C+2')
     d['O++'] = d.pop('O+2')
+    if amin is None:
+        amin, amax, slope = GRAINS
     nb = gt.shape[1] - 1
     edges = np.geomspace(amin, amax, nb + 1)
     w = edges[:-1] ** (slope + 1) - edges[1:] ** (slope + 1)
     d['Tdust'] = gt[:, 1:] @ (w / w.sum())
+    return d
+
+
+def cloudy_as_run(prefix, rin):
+    """D-283: a Cloudy model on the model side of a comparison (e.g. Cloudy
+    against Cloudy). r from the inner radius plus depth; the front is where
+    n(H+) = n(H)."""
+    d = read_cloudy(prefix)
+    d['r'] = (rin + d['depth']) / PC
+    x = np.log(np.maximum(d['H+'], 1e-300)) - np.log(np.maximum(d['H'], 1e-300))
+    i = np.where(np.diff(np.sign(x)) != 0)[0][0]
+    d['A_front'] = d['AV'][i] + (0 - x[i]) / (x[i + 1] - x[i]) * (d['AV'][i + 1] - d['AV'][i])
+    d['zone'] = (d['AV'] >= d['A_front']).astype(int)
     return d
 
 
@@ -242,8 +285,9 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
     fig, ax = plt.subplots(figsize=(4.6, 4.4))
     # the ionized gas has 165 cells, the PDR 15039: coarser bins in front
     af = run['A_front']
-    edges = np.concatenate([np.geomspace(0.04, af * 0.999, 9),
-                            np.geomspace(af * 0.999, 3.2, 32)[1:]])
+    x0, x1 = XLIM
+    edges = np.concatenate([np.geomspace(x0, af * 0.999, 9),
+                            np.geomspace(af * 0.999, x1, 32)[1:]])
     inside, margin = [], []
     for key, col, where in spec:
         xc, med = median_profile(run['AV'], run[key], edges)
@@ -257,15 +301,20 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
                            else np.nan))
         else:
             xa, nudge = where
+            # positions were placed for hiipdr (front at A_V 0.4659); keep
+            # them at the same place relative to this model's front
+            xa = xa * af / 0.4659
             ya = np.exp(np.interp(np.log(xa), np.log(xc[good]),
                                   np.log(med[good]))) if good.any() else np.nan
             inside.append((TEX[key], col, xa, ya * 10 ** nudge))
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_xlim(0.04, 3.2)
+    ax.set_xlim(x0, x1)
     ax.set_ylim(*ylim)
-    ax.xaxis.set_major_locator(FixedLocator([0.05, 0.1, 0.2, 0.5, 1, 2, 3]))
+    ax.xaxis.set_major_locator(FixedLocator([v for v in
+        [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 3]
+        if x0 <= v <= x1]))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
     ax.xaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(2, 10) * .1,
                                           numticks=30))
@@ -290,10 +339,14 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
     top = ax.twiny()
     top.set_xscale('log')
     top.set_xlim(ax.get_xlim())
-    edges_r = np.arange(0.0, 19.8, 0.5)
+    if RTICKS is None:
+        edges_r = np.arange(0.0, 19.8, 0.5)
+        rt = np.array([1, 2, 3, 5, 10, 15])
+    else:
+        edges_r = np.linspace(0.0, run['r'].max() * 1.001, 41)
+        rt = np.array(RTICKS)
     rc, avr = median_profile(run['r'], run['AV'], edges_r)
     ok = np.isfinite(avr)
-    rt = np.array([1, 2, 3, 5, 10, 15])
     top.xaxis.set_major_locator(FixedLocator(np.interp(rt, rc[ok], avr[ok])))
     top.xaxis.set_major_formatter(FixedFormatter([f'{v:g}' for v in rt]))
     top.xaxis.set_minor_locator(FixedLocator([]))
@@ -316,23 +369,40 @@ def main():
     run_dir, ref_path, outdir = args[:3]
     model_label = args[3] if len(args) > 3 else 'MOCASSIN + 3D-PDR'
     cloudy = '--cloudy' in sys.argv
+    global XLIM, RTICKS, GRAINS
+    opt = {a.split('=')[0]: a.split('=', 1)[1] for a in sys.argv[1:]
+           if a.startswith('--') and '=' in a}
+    if '--xlim' in opt:
+        XLIM = tuple(float(v) for v in opt['--xlim'].split(','))
+    if '--rticks' in opt:
+        RTICKS = [float(v) for v in opt['--rticks'].split(',')]
+    if '--grains' in opt:
+        GRAINS = tuple(float(v) for v in opt['--grains'].split(','))
     os.makedirs(outdir, exist_ok=True)
     style()
-    run = read_run(run_dir)
+    if '--model-cloudy-rin' in opt:
+        run = cloudy_as_run(run_dir, float(opt['--model-cloudy-rin']))
+    else:
+        run = read_run(run_dir)
     if cloudy:
         ref = read_cloudy(ref_path)
-        kw = dict(ref_label='Cloudy c25.00', prefix='cloudy')
+        kw = dict(ref_label=opt.get('--ref-label', 'Cloudy c25.00'),
+                  prefix=opt.get('--prefix', 'cloudy'))
     else:
         ref = read_ref(ref_path, run['A_front'])
         kw = {}
+    nh = np.nanmax(run['H'] + 2 * run['H2'] + run['H+'])
+    top = max(1e3, 10 ** np.ceil(np.log10(3 * nh)))
+    tmax = 1.2 * np.nanmax(run['Tgas'])
+    ttop = 3e4 if tmax <= 3e4 else 10 ** np.ceil(np.log10(tmax))
     print(f"{len(run['AV'])} active cells, {int((run['zone'] == 1).sum())} "
           f"PDR; front at A_V = {run['A_front']:.4f}; reference A_V "
           f"{ref['AV'].min():.3g}-{ref['AV'].max():.3f}")
-    draw(run, ref, 'chemistry', CHEM, r'$n(i)$ [cm$^{-3}$]', (1e-16, 1e3),
+    draw(run, ref, 'chemistry', CHEM, r'$n(i)$ [cm$^{-3}$]', (1e-16, top),
          outdir, model_label, **kw)
-    draw(run, ref, 'ions', IONS, r'$n(i)$ [cm$^{-3}$]', (1e-12, 1e3),
+    draw(run, ref, 'ions', IONS, r'$n(i)$ [cm$^{-3}$]', (1e-12, top),
          outdir, model_label, **kw)
-    draw(run, ref, 'temperatures', TEMP, r'$T$ [K]', (5, 3e4), outdir,
+    draw(run, ref, 'temperatures', TEMP, r'$T$ [K]', (5, ttop), outdir,
          model_label, **kw)
 
 

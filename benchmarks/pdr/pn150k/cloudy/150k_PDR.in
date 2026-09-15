@@ -1,0 +1,173 @@
+set punch prefix "150k_PDR"
+Blackbody 150000.000000 linear
+luminosity (total) = 36.583 log
+radius = 16.000
+sphere
+hden = 3.000 log
+filling factor = 1.0
+abundances GASS no grains
+distance = 1000.0 parsecs linear
+Cosmic rays background
+Database H2 limit -10
+stop temperature linear 40K
+print line faint -8
+print last
+iterate to converge
+Save lines, intensity, column, emergent, ".lines"
+print line flux earth
+print line precision 6
+grains ISM graphite 1 linear
+element scale factor silicon 0.01
+element scale factor magnesium 0.01
+element scale factor calcium 0.01
+element scale factor aluminium 0.01
+iterate
+save PDR ".pdr"
+save last radius ".rad"
+save last continuum ".cont"
+save last physical conditions ".phy"
+save last overview ".ovr"
+save last heating ".heat"
+save last cooling ".cool"
+save last optical depth ".opd"
+save last element hydrogen ".ele_H"
+save last element helium ".ele_He"
+save last element carbon ".ele_C"
+save last element nitrogen ".ele_N"
+save last element oxygen ".ele_O"
+save last element argon ".ele_Ar"
+save last element neon ".ele_Ne"
+save last element sulphur ".ele_S"
+save last element chlorin ".ele_Cl"
+save last element silicon ".ele_Si"
+save last lines emissivity ".emis"
+H  1  4861.32A
+H  1  6562.80A
+H  1  4340.46A
+H  1  2.16553m
+H  1  7.45782m
+H  1  12.3685m
+H  1  7.50045m
+H  1  19.0567m
+H  1  11.3056m
+H  1  27.7958m
+He 1  5875.64A
+Ca B  5875.64A
+He 1  4471.49A
+Ca B  4471.49A
+He 1  5015.68A
+He 1  6678.15A
+He 1  7065.22A
+He 2  4685.68A
+He 2  7.38026m
+He 1  7.38026m
+N  2  6583.45A
+N  2  6548.05A
+N  2  5679.00A
+N  2  121.769m
+N  2  205.283m
+N  3  57.3238m
+O  1  6300.30A
+O  3  4363.21A
+O  2  3726.03A
+O  2  3728.81A
+O  2  7319.99A
+O  2  7329.67A
+O  2  7330.73A
+BLND  7323.00A
+BLND  7332.00A
+O  3  4958.91A
+O  3  5006.84A
+O  3  88.3323m
+O  3  51.8004m
+O  4  25.8863m
+S  2  6716.44A
+S  2  6730.82A
+S  3  6312.06A
+S  3  18.7078m
+S  3  33.4704m
+S  4  10.5076m
+Cl 3  5517.71A
+Cl 3  5537.87A
+O  1  63.1679m
+O  1  145.495m
+C  2  7231.33A
+C  2  7237.17A
+C  3  1906.68A
+C  3  1908.73A
+BLND  1909.00A
+C  2  157.636m
+C  1  370.269m
+Ar 2  6.98337m
+Ar 3  7135.79A
+Ar 3  8.98898m
+Ar 3  21.8253m
+Ar 5  7.89971m
+Ar 5  13.0985m
+Ne 2  12.8101m
+Ne 3  15.5509m
+Ne 3  36.0036m
+Ne 5  24.3108m
+Ne 5  14.3178m
+Ne 6  7.65019m
+Na 3  7.31570m
+Na 4  9.03096m
+Na 6  8.60825m
+Ni 2  6.63416m
+Ni 2  10.6793m
+Ni 3  7.34716m
+He 1  5.66957m
+Fe 2  5.67236m
+Fe 2  22.8961m
+Fe 2  35.7675m
+Fe 3  33.0270m
+Fe 2  51.2868m
+Fe 3  4658.05A
+Fe 3  5270.40A
+Fe 3  22.9190m
+FIR   83.0000m
+F12   12.0000m
+F25   25.0000m
+F60   60.0000m
+F100  100.000m
+H2    28.2111m
+H2    17.0302m
+H2    12.2753m
+H2    9.66228m
+H2    8.02285m
+H2    6.90763m
+H2    6.10690m
+H2    5.50968m
+H2    5.05174m
+H2    2.12125m
+H2    2.22268m
+H2    2.03320m
+H2    2.24710m
+H2    2.20080m
+CO    2600.05m
+CO    1300.05m
+CO    866.727m
+CO    650.074m
+CO    520.089m
+CO    433.438m
+CO    371.549m
+CO    325.137m
+CO    289.041m
+CO    260.169m
+CO    236.549m
+CO    216.868m
+CO    200.218m
+CO    185.949m
+CO    173.584m
+CO    162.767m
+CO    153.225m
+CO    144.745m
+CO    137.159m
+CO    130.333m
+CO    124.160m
+CO    118.548m
+CO    113.427m
+CO    108.733m
+CO    104.416m
+CO    100.433m
+end of lines
