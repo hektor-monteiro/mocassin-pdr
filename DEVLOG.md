@@ -21361,10 +21361,43 @@ the grain size range (nothing below 0.005 um here, and BT94-type heating is
 carried by the smallest grains), the charging balance, or the FUV field the
 term is evaluated on.
 
-### 6. Not yet known
+### 6. hiipdr re-run (runs/d285-hiipdr): unmoved, as predicted
+
+11 iterations, 39 min, converged 80.3% (D-282's run: 81.0%). The prediction was
+that nothing would move, because this fixture's PDR is at 21-26 K, far below
+the temperature at which electrons reach 1D, and its H II gas is 8000 K rather
+than 12000. Measured:
+
+| | D-282 run | D-285 |
+|---|---|---|
+| front (radial shells) | 3.832 pc | 3.835 |
+| H/H2 crossing | A_V 1.198 | 1.199 |
+| C+ = C | A_V 2.269 | 2.276 |
+| PDR T_gas, A_V 0.7-2.0 | 21-26 K | 21-26 K |
+| T_gas at A_V 0.30 / 0.45 | 8560 / 8210 K | 8690 / 8360 |
+| T_gas at r = 1, 2, 3, 3.3 pc | 7950, 8030, 8730, 9450 K | 8000, 8120, 8840, 9560 |
+| deep C+/Cloudy, e-/Cloudy, CO/Cloudy | 0.21-0.36, 0.27-0.39, 54-125 | same to 2 digits |
+
+The ionized gas warms by ~1%, which is the [O I] 6300 cooling the fix removed;
+everything neutral is unchanged. Convergence differs by 0.7 points, within what
+two Monte Carlo runs of this fixture give.
+
+### 7. Both pages republished
+
+'150 kK PN Against Cloudy' and 'hiipdr Against Cloudy' are rebuilt from the
+re-runs: figures regenerated, every number recomputed by tools/d285_kpis.py and
+tools/d285_kpis_hiipdr.py (each validated first by reproducing the published
+numbers from the run the page was built on), the withdrawn 7.3x/2.6x claim
+replaced by the coolant-total-against-all-lines comparison, and the O-02
+heating measurement written into both.
+
+### 8. Not yet known
 
   - Whether the photoelectric deficit is the size distribution, the grain
-    charge, or the field (above).
+    charge, or the field (section 5).
+  - The per-cell budget has not been read for hiipdr, only for the 150 kK
+    model.
+  - 12c.dat's effect was never sized separately from 16o.dat's.
   - Expectation, from D-284: the front loses cooling and should get hotter,
     which would widen the temperature gap against Cloudy there. If it does,
     that is a result about the front's heating, not about these rates.
