@@ -21303,10 +21303,68 @@ the solver's last trial temperature - term 10 records it so any gap is visible.
 
 All four flavours build.
 
-### 4. Not yet known
+### 4. The re-run: the 150 kK model (runs/d285-pn150k)
 
-  - The re-run (runs/d285-pn150k) is in flight; nothing here is measured in a
-    coupled model yet.
+9 iterations, converged 91.9% (D-283: 91.2%), 3 h 24 min, no ion or Te balance
+failure in any iteration. Iterations 2-4 shared the machine with the analysis
+of the previous run, so 205 min against D-283's 159 is not a like-for-like
+cost. Against the same Cloudy reference:
+
+| | D-283 | D-285 | Cloudy |
+|---|---|---|---|
+| O coolant, all lines | 1.469 Hbeta | **0.834** | 0.608 |
+| C coolant, all lines | 0.088 | **0.036** | 0.024 |
+| C+ coolant, all lines | 0.814 | 0.818 | 0.939 |
+| Hbeta | 2.712e34 | 2.710e34 | 2.78e34 |
+| H+ / He2+ front | 0.1293 / 0.0829 pc | 0.1294 / 0.0830 | 0.128 / 0.088 |
+| H/H2 crossing | A_V 0.269 | A_V 0.269 | 0.368 |
+| PDR T_gas, A_V > 0.3 | 24-29 K | 24-29 K | 42-67 K |
+
+  - **The O I excess is gone**: 2.4x Cloudy's all-line O I total before, 1.37x
+    now. C I follows (3.9x -> 1.5x); C+ was never affected.
+  - **The deep PDR did not move at all** - same crossing, same temperatures,
+    same molecules - as predicted, because electrons cannot reach 1D there.
+  - **The front got slightly hotter**, also as predicted, but *towards* Cloudy,
+    not away: 4760 against 4540 K at A_V 0.15, where Cloudy is 7450. The D-284
+    expectation that this would widen the gap was wrong; the front is colder
+    than Cloudy's, not hotter, at that depth.
+  - Line intensities move 1-3%, which is Monte Carlo scatter; [S III] 18.7 um
+    -11% and [O II] 3729 +10% are larger and not attributed to the fix.
+
+### 5. O-02 measured: the PDR is heated too little
+
+The first per-depth budget (output/thermBudget.out, tools/d285_heatprofile.py),
+per H nucleus, against Cloudy's `save heating`:
+
+| shell [pc] | T_m / T_c | MOCASSIN | Cloudy | MOCASSIN split | Cloudy |
+|---|---|---|---|---|---|
+| 0.25-0.32 | 30 / 69 | 7.9e-26 | 6.4e-25 | PE 0.72, PDR 0.23 | GrnP 0.96 |
+| 0.32-0.42 | 28 / 61 | 6.0e-26 | 3.7e-25 | PE 0.78, PDR 0.17 | GrnP 0.97 |
+| 0.42-0.55 | 26 / 50 | 4.5e-26 | 2.1e-25 | PE 0.77, PDR 0.17 | GrnP 0.96 |
+| 0.55-0.62 | 24 / 43 | 3.8e-26 | 1.6e-25 | PE 0.73, PDR 0.20 | GrnP 0.95 |
+
+Both codes are heated almost entirely by grain photoelectric heating there, and
+MOCASSIN's total is 5-8x below Cloudy's - 5-11x on the photoelectric term
+itself. With D-284's result that the cooling functions agree to 0.84-1.28 per
+emitter at a given temperature, **O-02 is a heating deficit**, and it is the
+same term D-261 measured against 3D-PDR (80x there, on silicate).
+
+Two more things the split shows:
+  - just outside the front (0.14-0.17 pc) MOCASSIN heats **3x more** than
+    Cloudy, almost all of it H and He photoionization, and sits at 6960 K
+    against 3886;
+  - deep in, MOCASSIN's residual photoionization heating is 91% carbon, where
+    Cloudy's C I term is 1-3%.
+
+Not yet known: why the photoelectric rate is low. Candidates not separated -
+the grain size range (nothing below 0.005 um here, and BT94-type heating is
+carried by the smallest grains), the charging balance, or the FUV field the
+term is evaluated on.
+
+### 6. Not yet known
+
+  - Whether the photoelectric deficit is the size distribution, the grain
+    charge, or the field (above).
   - Expectation, from D-284: the front loses cooling and should get hotter,
     which would widen the temperature gap against Cloudy there. If it does,
     that is a result about the front's heating, not about these rates.
