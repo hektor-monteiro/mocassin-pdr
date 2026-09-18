@@ -1677,6 +1677,7 @@ end subroutine iterateT
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
             real                   :: budL(10)             ! D-217: this call's budget
+            real                   :: heatElL(nElements)   ! D-285: heatSte by element
             real                   :: heatH0win, heatH0hi  ! D-221: H0 heating by band
             integer, save          :: iH2thrP = 0          ! D-221: first bin >= 15.43 eV
             real                   :: heatH0b(5)           ! D-222: H0 heating by band
@@ -1865,6 +1866,7 @@ end subroutine iterateT
 
              ! re-initialize heatSte and heatDif
              heatSte = 0.
+             heatElL = 0.                                    ! D-285
              hMaxV = 0.; hMaxE = 0; hMaxI = 0; iH1nuP = 0    ! D-168
              ! D-221: H0 photoionization heating split where H2's continuum
              ! starts, 15.43 eV = 1.1345 Ryd (addOpacity). The energy grid is
@@ -2011,6 +2013,10 @@ end subroutine iterateT
                          &grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)
 
                     heatSte    = heatSte + heatIonSte
+                    ! D-285: the same sum, kept per element, so a per-depth
+                    ! comparison can say which absorber the heating is on.
+                    if (elem >= 1 .and. elem <= nElements) &
+                         & heatElL(elem) = heatElL(elem) + heatIonSte
                     ! D-168: hydrogen's OWN threshold index, saved. IPnuP is a
                     ! loop variable and by the time the budget prints it holds
                     ! whichever ion came last - reading it there was a mislabelled
@@ -2383,6 +2389,9 @@ end subroutine iterateT
                budL(9)  = heatInt - coolInt
                budL(10) = TeUsed
                grid%mocBud(cellP, 2, :) = budL
+               ! D-285: the same slot-2 call, element by element. budL(1) is
+               ! its sum (plus heatDif under lgDebug, which this is not).
+               if (allocated(grid%mocHeatEl)) grid%mocHeatEl(cellP, :) = heatElL
                if (lgBudEntry) then
                   grid%mocBud(cellP, 1, :) = budL
                   if (allocated(grid%mocBand)) then           ! D-221: entry only

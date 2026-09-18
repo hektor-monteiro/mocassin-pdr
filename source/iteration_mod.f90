@@ -129,6 +129,8 @@ module iteration_mod
            integer                   :: nB226, kB226, kTopP, kTopJ  ! D-226
            real(kind=8)              :: spSum(4)                    ! D-213
            integer                   :: iCoolD                      ! D-213
+           real, allocatable         :: budCellTemp(:,:,:)          ! D-285
+           real, allocatable         :: heatElTemp(:,:)             ! D-285
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -2310,6 +2312,48 @@ module iteration_mod
               ! here - that the handover had to follow the Te allreduce, which
               ! overwrites grid%Te wholesale - applied when pdrToMocassin still
               ! wrote Te; D-193 removed that write.
+              ! ---------------------------------------------------- D-285
+              ! Gather the per-cell thermal budget (D-217) and its new
+              ! photoionization split, so writeGrid can publish them: every
+              ! diagnostic built on them so far has been a group mean, and a
+              ! mean cannot be read against Cloudy depth by depth.
+              !
+              ! A rank holds only the cells it updated - ownership is fixed by
+              ! mod(iCell-(taskid+1),numtasks), the same test updateCell uses -
+              ! so each rank contributes those and zero elsewhere, and the sum
+              ! counts every cell once however many iterations have run.
+              ! Unconditional on all ranks: a collective some ranks skip
+              ! deadlocks.
+              if (lgPDR .and. allocated(grid(iG)%mocBud)) then
+                 allocate(budCellTemp(0:grid(iG)%nCells, 1:2, 1:10), stat = err)
+                 allocate(heatElTemp(0:grid(iG)%nCells, 1:nElements), stat = err)
+                 budCellTemp = 0.
+                 heatElTemp  = 0.
+                 iCell = 0
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yTop
+                       do k = 1, grid(iG)%nz
+                          iCell = iCell + 1
+                          if (mod(iCell-(taskid+1),numtasks) /= 0) cycle
+                          if (grid(iG)%active(i,j,k) <= 0) cycle
+                          budCellTemp(grid(iG)%active(i,j,k),:,:) = &
+                               & grid(iG)%mocBud(grid(iG)%active(i,j,k),:,:)
+                          if (allocated(grid(iG)%mocHeatEl)) &
+                               & heatElTemp(grid(iG)%active(i,j,k),:) = &
+                               & grid(iG)%mocHeatEl(grid(iG)%active(i,j,k),:)
+                       end do
+                    end do
+                 end do
+                 call mpi_allreduce(budCellTemp, grid(iG)%mocBud, &
+                      & (grid(iG)%nCells+1)*2*10, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 if (allocated(grid(iG)%mocHeatEl)) &
+                      & call mpi_allreduce(heatElTemp, grid(iG)%mocHeatEl, &
+                      & (grid(iG)%nCells+1)*nElements, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 deallocate(budCellTemp)
+                 deallocate(heatElTemp)
+              end if
 #endif
 
 

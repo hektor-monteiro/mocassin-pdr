@@ -480,6 +480,13 @@ module common_mod
         ! does not decide where the field lands, so the photons carrying the
         ! heating must sit where the gas is thinner - this says which band.
         real, allocatable         :: mocBand(:,:)          ! (cell, 7): 1-2 D-221, 3-7 D-222 by band
+        ! D-285. Photoionization heating per H nucleus split by element, summed
+        ! over that element's stages, at the same call that fills mocBud slot 2.
+        ! D-284 left the deep PDR's budget resting on a group mean in which
+        ! MOCASSIN's photoionization heating was two thirds of the total while
+        ! Cloudy's was a few percent; a per-depth comparison needs the split,
+        ! and the mean cannot say which absorber carries it.
+        real, allocatable         :: mocHeatEl(:,:)        ! (cell, nElements)
         ! D-222. Each gas absorber's share of the opacity the photons saw, at the
         ! representative bin of each hard band (cell, band 2-5 -> 1-4, absorber):
         ! 1 H2, 2 free-free, 3 H0, 4 He0, 5 He+, 6 heavier elements. Captured in

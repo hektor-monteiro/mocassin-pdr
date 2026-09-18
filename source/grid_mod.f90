@@ -1489,6 +1489,11 @@ module grid_mod
                    print*, "! setMotherGrid: can't allocate mocBand memory"; stop
                 end if
                 grid%mocBand = 0.
+                allocate(grid%mocHeatEl(0:grid%nCells, 1:nElements), stat = err)   ! D-285
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate mocHeatEl memory"; stop
+                end if
+                grid%mocHeatEl = 0.
                 allocate(grid%opaRep(0:grid%nCells, 1:4, 1:6), stat = err)   ! D-222
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate opaRep memory"; stop
@@ -2958,6 +2963,18 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  stop
               end if
               write(53,*) "# A_V  totalLines  J(>1Ryd)  J(FUV)  J(0.01-0.44)  J(<0.01Ryd)  Tdust"
+              ! D-285: MOCASSIN's own thermal budget per cell, per H nucleus,
+              ! at the balance point (mocBud slot 2), with the photoionization
+              ! heating split by element. Everything built on these so far has
+              ! been a group mean over the whole deep PDR (D-217, D-284).
+              close(54)
+              open(unit=54, file="output/thermBudget.out", action="write",position="rewind",status="unknown", iostat = ios)
+              if (ios /= 0 ) then
+                 print*, "! writeGrid: can't open file for writing - output/thermBudget.out"
+                 stop
+              end if
+              write(54,*) "# heat: phot PE PDR | cool: coll rec ff gasDust PDR | H-C Te | ", &
+                   & "phot by element 1..", nElements
            end if
 #endif
 
@@ -3049,6 +3066,11 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        end do
                        write(53, *) grid(iG)%AVeff(cellP), grid(iG)%totalLines(cellP), &
                             & radI, radF, radO, radR, grid(iG)%Tdust(0,0,cellP)
+                       ! D-285: one record per cell, same order as the others
+                       if (allocated(grid(iG)%mocBud)) then
+                          write(54, *) (grid(iG)%mocBud(cellP, 2, iPdrS), iPdrS = 1, 10), &
+                               & (grid(iG)%mocHeatEl(cellP, elem), elem = 1, nElements)
+                       end if
                     end if
 #endif
                     if (lgDust) then
@@ -3078,6 +3100,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
         end if
 #ifdef PDR
         if (lgPDR) close(51)
+        if (lgPDR) close(54)            ! D-285
 #endif
         if (lgDust) then
            write(50,*) ' '
@@ -3804,6 +3827,11 @@ end function getVolume
                   print*, "! resetGrid: can't allocate mocBand memory"; stop
                end if
                grid(iG)%mocBand = 0.
+               allocate(grid(iG)%mocHeatEl(0:grid(iG)%nCells, 1:nElements), stat = err) ! D-285
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate mocHeatEl memory"; stop
+               end if
+               grid(iG)%mocHeatEl = 0.
                allocate(grid(iG)%opaRep(0:grid(iG)%nCells, 1:4, 1:6), stat = err)   ! D-222
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate opaRep memory"; stop

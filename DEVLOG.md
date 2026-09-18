@@ -284,6 +284,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-282 | **'hiipdr Against Cloudy' (v7) replotted from runs/d284-analog-fixes: the current code (D-279 + D-280) with the fixture's own settings, so no path biasing.** Figures from tools/d260_roellig.py --cloudy against runs/d277-cloudy; the headline numbers and both tables recomputed from the same run so the page is consistent: front 3.82-3.85 vs 3.77 pc, H/H2 A_V 1.20 vs 1.09, PDR T_gas 22-26 vs 29-49 K, C+ = C 2.27 vs 2.95 (2.12 before D-280, 2.60 biased). Deep-carbon bullet rewritten: C+ 0.2-0.4 of Cloudy past A_V 2.3 instead of 1e-7, n_e 0.3-0.4x, CO 50-120x high. T_dust 6-12% cooler in the PDR, 2-5% in the ionized gas; C2+ and O2+ within 10% to 3 pc | Done | 2026-09-14 |
 | D-283 | **A collaborator's Cloudy test model (150k_PDR: 150 kK blackbody, L 10^36.583, n_H 1e3, R_in 1e16 cm, GASS with Si Mg Ca Al x0.01, ISM graphite, cosmic-ray background, stop at 40 K) run in Cloudy and in MOCASSIN-PDR, and published as '150 kK PN Against Cloudy'. The ionized nebula agrees closely (Hbeta 2.71 vs 2.78e34 erg/s; [O III] 5007, 4363, 88 um within 2%; H+ front 0.131 vs 0.128 pc, He2+ 0.083 vs 0.088); the PDR is again ~2x too cold (24-30 vs 42-70 K), H2 crosses at A_V 0.27 vs 0.37, and the chemistry's O and C+ fine-structure cooling are 7.3x and 2.6x Cloudy's lines.** MOCASSIN stops on Ca VII (27 levels) and Fe VI (19) > nForLevels 17; on the user's instruction Ca and Fe were dropped, and Cloudy re-run with them off (the user asked for the with/without comparison too: H II gas 2-9% hotter without them, 40 K stop 1.799 -> 1.872e18 cm, deep PDR within 10%). Matched: A_V/N_H 3.648e-22 (MdMg 2.4827e-3, calibrated), pdrZeta 4.293e-16 for Cloudy's background H0 rate 1.975e-16, R_out = Cloudy's stop radius. runs/d283-pn150k: 41^3, converged 91.2% at iteration 9, 2 h 39 min (iterations 3-29 min; grain charging and grain-gas heating dominate), 1.2 GB/rank, no ion or Te balance failures. Also: [Ne III] +35-48%, [Ne II] +36%, [O II] 3726 +28%, [O I] 6300 +40%, [O IV]/[Ne V] -11/-14%; T_dust 8-25% warmer. tools/d260_roellig.py generalized (elements from the run's input, --xlim/--rticks/--grains/--model-cloudy-rin/--ref-label/--prefix; hiipdr figures pixel-identical) | Open | 2026-09-14 |
 | D-284 | **D-283's fine-structure pointer withdrawn: the chemistry's cooling functions agree with Cloudy's, and the cold PDR is not a cooling excess. What remains is a data defect in the vendored 3D-PDR coolant files, confined to warm gas.** D-283's 7.3x (O) and 2.6x (C+) compared 5-level coolant totals, over every cell, with Cloudy's 63/145/158 um lines alone. The coolants include [O I] 6300/6363/5577 and C II] 2326, and 69% of the O and 76% of the C+ sat in ionized cells. In the PDR, cooling per emitter per H nucleus agrees with Cloudy to 0.84-1.28 (O) and 0.84-1.26 (C+) over 45-1200 K, so O-02 is on the heating side (Cloudy: grain PE 80-96% of heating; MOCASSIN's D-217 cold-group mean PE 4.2e-26 per H against Cloudy's ~2-5e-25, a pointer only). Against a Cloudy rerun with every transition's emissivity (runs/d284-fs-cloudy, overview identical to D-283's), C+ in the H II gas is 1.10-1.17x per ion and O 2.0x per atom. Cause: dataPDR/16o.dat and 12c.dat give each 1D->3P_J and 1S->3P_J electron rate the same value, about the whole-term collision strength (Upsilon 0.29 per J at 1e4 K, against Barklem 2007's 0.15/0.09/0.03 split by 2J+1). tools/d284_o5lev.py reproduces pdrCoolSp to 1-4% from 27 K to 12 kK, and with Barklem's rates gives 2.07-2.16x less O I cooling in the H II gas and 1.00x below ~1000 K. At the front MOCASSIN's O I cooling is 1.4-1.8x Cloudy's total cooling there, while MOCASSIN is 900-2000 K hotter. Not fixed | Open | 2026-09-15 |
+| D-285 | **The D-284 defect fixed in the data: dataPDR/16o.dat and 12c.dat now split each 1D/1S -> 3P_J electron (and O + H) collision rate by g_J/9, which is what the sources they cite already do.** Verified against the cited data: the split O + e values reproduce CHIANTI's J-resolved Zatsarinny & Tayal entries to <1% (2.811/1.687/0.562e-9 against 2.83/1.70/0.566e-9 at 1e4 K), and tools/d284_o5lev.py, re-run on the corrected file, gives 1.84e-18 erg s^-1 per O atom at 12.1 kK where Cloudy's emissivity is 1.85e-18 (was 3.8e-18), and is unchanged below 1000 K. Re-applicable after an upstream merge with tools/d285_split_3p.py (only touches rows still identical across J, so it is idempotent); recorded in source/pdr/UPSTREAM.md. Also, so that O-02's heating question stops resting on a group mean: MOCASSIN's per-cell thermal budget is now published as output/thermBudget.out - mocBud slot 2 (D-217) plus a new per-element split of the photoionization heating (grid%mocHeatEl), gathered across ranks by cell ownership. All four flavours build. runs/d285-pn150k re-runs the 150 kK model | Open | 2026-09-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -21231,3 +21232,84 @@ there. Not measured.
   - The coolant table's log-log interpolation under-reads an exponential by
     ~20-37% midway between points for 23-62 kK lines; not measured in the run.
   - One run of each code.
+
+## D-285 - the coolant rates split by J, and the per-cell budget published (2026-09-18)
+
+Hektor: "ok, proceed as suggested" - D-284's two recommendations, the data fix
+by statistical weight and the per-depth heating split.
+
+### 1. The fix, and why it is not tuning
+
+D-284 measured each 1D -> 3P_J and 1S -> 3P_J electron rate in 16o.dat and
+12c.dat carrying the whole-term value. The question left open was which total
+to use. It turned out not to be a choice: the files' own cited sources are
+J-resolved, and resolve exactly by statistical weight.
+
+  - CHIANTI's o_1.splups - Zatsarinny & Tayal (2003) plus Bell et al. (1998),
+    the two papers 16o.dat's header names - gives Upsilon(3P_J, 1D) in the
+    ratio 5:3:1 and totals 0.0326, 0.150, 0.295, 0.544 at 1, 5, 10, 20 kK.
+    16o.dat's per-J value is 0.032, 0.146, 0.293, 0.541: the term total, on
+    every line of the grid.
+  - The same for 1S: file 0.0323 at 1e4 K, source total 0.0322.
+  - 12c.dat: per-J 1D Upsilon 0.125, 0.602, 1.141 at 1, 5, 10 kK against
+    Cloudy's c_1.coll (Mendoza 1983) totals 0.125, 0.605, 1.149.
+
+So multiplying each u -> 3P_J rate by g_J/9 restores the cited data rather than
+importing Cloudy's. Check: the split O + e values are 2.811, 1.687 and
+0.562e-9 cm^3 s^-1 at 1e4 K; CHIANTI's J-resolved entries are 2.83, 1.70 and
+0.566e-9, under 1%.
+
+Applied by `tools/d285_split_3p.py`, which splits only rows still identical
+across J - so it is idempotent, and re-applicable after an upstream merge.
+Blocks touched: O + e (1D, 1S), O + H (1D, rates ~1e-13 and irrelevant, done
+for consistency), C + e (1D, 1S). 12c+.dat was already J-resolved.
+Recorded in source/pdr/UPSTREAM.md as a vendored-data modification.
+
+### 2. What it changes, before any re-run
+
+tools/d284_o5lev.py on the corrected file, same cells as D-284:
+
+| r [pc] | T_e | per O atom, was | now | Cloudy |
+|---|---|---|---|---|
+| 0.082 | 12130 | 3.83e-18 | 1.84e-18 | 1.85e-18 |
+| 0.103 | 11839 | 3.45e-18 | 1.67e-18 | 1.66e-18 |
+| 0.126 | 10658 | 1.93e-18 | 0.97e-18 | 0.93e-18 |
+| 0.180 | 189 | 2.97e-21 | 2.97e-21 | - |
+
+Below ~1000 K nothing moves at all: electrons cannot reach 1D there, which is
+why the PDR cooling functions already agreed (D-284) and why the standalone
+3D-PDR reference comparisons are unaffected.
+
+### 3. The budget, per cell
+
+D-284 had to answer the heating question with a group mean over 34688 cells,
+because MOCASSIN's own budget lives in `mocBud` and never left memory. Now:
+
+  - `grid%mocHeatEl(cell, nElements)`: photoionization heating per H nucleus
+    split by element, accumulated in the same loop that builds heatSte and
+    stored at the same call that fills mocBud slot 2, so budL(1) is its sum.
+  - both gathered after the updateCell reduction. Ownership is fixed -
+    `mod(iCell-(taskid+1),numtasks)`, the test updateCell itself uses - so each
+    rank contributes its own cells and zero elsewhere, and the sum counts each
+    cell once however many iterations have run. The collective is
+    unconditional on every rank.
+  - written by writeGrid as `output/thermBudget.out`, one record per cell in
+    the same order as the other per-cell files: the ten mocBud terms (heating
+    phot/PE/PDR, cooling coll/rec/ff/gas-dust/PDR, H-C, and the Te the balance
+    was evaluated at) then nElements photoionization columns.
+
+Slot 2 is the last thermBalance call of the cell, i.e. the balance point, at
+the solver's last trial temperature - term 10 records it so any gap is visible.
+
+All four flavours build.
+
+### 4. Not yet known
+
+  - The re-run (runs/d285-pn150k) is in flight; nothing here is measured in a
+    coupled model yet.
+  - Expectation, from D-284: the front loses cooling and should get hotter,
+    which would widen the temperature gap against Cloudy there. If it does,
+    that is a result about the front's heating, not about these rates.
+  - 12c.dat's effect was never sized separately.
+  - hiipdr has not been re-run on the corrected data. Its PDR is cold enough
+    that nothing should move; that is a prediction, not a measurement.
