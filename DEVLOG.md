@@ -21975,10 +21975,32 @@ What remains, in order of what the evidence supports:
     2-4 in the mean is not known and has not been estimated here.
   - The field half (D-287) is unaddressed and is the larger of the two.
 
-### 5. Not yet known
+### 5. '150 kK PN Against Cloudy' rebuilt
+
+The page was three code changes behind - it still showed the pre-Case-A run -
+and is rebuilt from `runs/d289-pn150k-wd01`, which carries the corrected
+coolant data (D-285), Case A (D-286) and the WD01 yield together. All three
+Roellig figures regenerated, and every number in the headline, selected-depths,
+line-intensity and cost tables recomputed.
+
+A new section, *The photoelectric term, measured*, carries a new figure
+(`tools/d289_pefig.py`): the FUV field, the grain potential and the heating
+per H against depth, with the Baldwin and WD01 runs and Cloudy on one axis.
+Panel (c) is the self-regulation - the two MOCASSIN curves lie almost on top
+of each other although their yields differ by a factor two. The section states
+the two factors and that the yield change bought 8%.
+
+Two other corrections to the page: the dust inventory is now excluded as a
+suspect by measurement rather than assumption, and the cost table shows this
+run's undisturbed 2 h 54 min rather than the previous run's contended timings.
+
+### 6. Not yet known
 
   - Nothing has been measured on hiipdr, whose star is far cooler; neither
     the yield change nor the Lya deficit should be assumed to carry over.
+  - **The hiipdr page is now the one that is behind**: it is on Case A but
+    predates the WD01 yield, and its PDR is at 21-26 K where this model's is
+    at 24-30, so the yield change there is a prediction, not a measurement.
   - The +47% photoelectric heating in the ionized gas changes no temperature
     there, photoionization dominating, but it has not been checked against the
     dust temperature, which D-283 already had 8-25% warm.
