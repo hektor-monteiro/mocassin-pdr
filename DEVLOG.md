@@ -21525,7 +21525,7 @@ nor does the structure: front 3.835 -> 3.825 pc, H/H2 crossing A_V 1.199 ->
 1.196, C+ = C 2.276 -> 2.275. So this changes the ionized gas and leaves O-02
 and the deep-carbon questions where they were.
 
-**The published pages are now one commit behind the code.** 'hiipdr Against
-Cloudy' and '150 kK PN Against Cloudy' were rebuilt from the D-285 runs, which
-are Case B. Updating them needs this fixture re-plotted (cheap, the run
-exists) and the 150 kK model re-run (3.5 h). Not done.
+**'hiipdr Against Cloudy' re-plotted from the Case A run** (figures, both
+tables and the ionized-gas numbers), with the change written into the page.
+**'150 kK PN Against Cloudy' is still Case B** - it needs a 3.5 h re-run,
+not done.
