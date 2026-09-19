@@ -21493,3 +21493,39 @@ blend across a narrow interval.
     print, which is not in this branch.
 
 All four flavours build from clean.
+
+### 5. Measured: hiipdr, Case B against Case A
+
+runs/d286-hiipdr-caseA against runs/d285-hiipdr - the same fixture, the same
+build, this change and nothing else. 11 iterations, 39 min, converged 80.9%
+(80.3%). The Te-balance transient at iterations 2-4 is 18/17/14% against the
+baseline's 16/18/15%, so the stronger cooling does not destabilise the solve.
+
+Ionized gas, matched in radius (MOCASSIN Case B -> Case A, Cloudy):
+
+    r = 1.0 pc   8000 -> 7620 K   (Cloudy 9230)
+    r = 2.0 pc   8120 -> 7750     (8060)
+    r = 3.0 pc   8840 -> 8510     (8180)
+    r = 3.3 pc   9560 -> 9250     (8760)
+
+About 4% cooler everywhere, which is the expected size: recombination cooling
+roughly doubles but is a minority coolant in H II gas. Against Cloudy the
+change cuts both ways - it improves the outer H II gas, where MOCASSIN ran
+hot (3.0 pc: 8% high -> 4% high; 3.3 pc: 9% -> 6%), and worsens the inner,
+where it already matched or ran cool (2.0 pc: 1% high -> 4% low). Cloudy
+transports its own diffuse field, so its values are already the Case A-like
+ones and the comparison is fair.
+
+The neutral gas does not move at all:
+
+    A_V 0.70   23.8 -> 23.9 K       A_V 2.00   21.6 -> 21.7
+    A_V 1.00   25.7 -> 25.7         A_V 2.90   11.1 -> 11.1
+
+nor does the structure: front 3.835 -> 3.825 pc, H/H2 crossing A_V 1.199 ->
+1.196, C+ = C 2.276 -> 2.275. So this changes the ionized gas and leaves O-02
+and the deep-carbon questions where they were.
+
+**The published pages are now one commit behind the code.** 'hiipdr Against
+Cloudy' and '150 kK PN Against Cloudy' were rebuilt from the D-285 runs, which
+are Case B. Updating them needs this fixture re-plotted (cheap, the run
+exists) and the 150 kK model re-run (3.5 h). Not done.
