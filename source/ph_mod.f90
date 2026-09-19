@@ -897,6 +897,18 @@ module xSec_mod
            if (taskid == 0) print*, "! makeDustXsec: Weingartner & Draine (2001) photoelectric yield"
         end if
 
+        ! D-290: the grain charge balance's units, read in the same place and
+        ! with the same spelling as the yield above.
+        call get_environment_variable("MOCASSIN_GRAINQ", yieldEnv, status=envStat)
+        if (envStat == 0 .and. (trim(yieldEnv) == "legacy" .or. &
+             & trim(yieldEnv) == "4pi")) then
+           lgGrainQ4pi = .true.
+           if (taskid == 0) print*, "! makeDustXsec: legacy grain charge balance (photoemission x 4 pi^2)"
+        else
+           lgGrainQ4pi = .false.
+           if (taskid == 0) print*, "! makeDustXsec: grain charge balance in matched units (D-290)"
+        end if
+
         MsurfAtom=0
         allocate(componentMinRadius(1:nDustComponents,1:nSpecies), stat = err)
         componentMinRadius=0.

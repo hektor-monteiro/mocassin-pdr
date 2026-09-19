@@ -1319,9 +1319,30 @@ end subroutine iterateT
 !                     & (hcRyd*nuArray(ifreq))
              end if
 
-             photFlux = photFlux*fourPi
-
-             Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/(1.e-8*grainRadius(ai)**2)
+             ! D-290. This term and getGrainRecombination must be in the same
+             ! units, and they were not. getGrainRecombination returns
+             ! n<v>eta, which is the collection rate per unit GEOMETRIC CROSS
+             ! SECTION (electrons reach a sphere at n<v>/4 per unit surface
+             ! area, and 4 pi a^2 / pi a^2 = 4). The emission term has to be
+             ! Y Q_abs N in the same units, with N = Jste/(h nu) photons per
+             ! cm^2 per s - Jste is already the ANGLE-INTEGRATED flux, which
+             ! is how setPhotoelHeatCool reads it and what pdrFUV.out's
+             ! chi/chi_thin -> 1 near the star confirms.
+             !
+             ! It carried a second fourPi, and XSecArray holds
+             ! sigma_abs = Q_abs pi a^2 (ph_mod), so dividing by a^2 gave
+             ! pi Q_abs rather than Q_abs. Together 4 pi x pi = 39.478, and
+             ! the balance converged where the true photoemission was ~39x
+             ! below the true collection - measured flat at 35-39 over a
+             ! factor 7 in field strength in D-290.
+             if (lgGrainQ4pi) then
+                photFlux = photFlux*fourPi
+                Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/ &
+                     & (1.e-8*grainRadius(ai)**2)
+             else
+                Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/ &
+                     & (Pi*1.e-8*grainRadius(ai)**2)
+             end if
 
              getGrainEmission = getGrainEmission+Yhat*photFlux*Qa
 

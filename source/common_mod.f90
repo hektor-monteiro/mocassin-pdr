@@ -46,6 +46,13 @@ module common_mod
     ! near threshold, which holds this model's grains at 2-4.8 V against
     ! Cloudy's 0.35-1.4 and suppresses the heating through the Coulomb barrier.
     logical         :: lgWD01Yield = .true.
+    ! D-290. The grain charge balance's units. getGrainEmission carried a
+    ! spurious 4 pi (Jste is already the angle-integrated flux) and used
+    ! pi Q_abs where the balance against getGrainRecombination's n<v>eta needs
+    ! Q_abs - together 4 pi^2 = 39.478 too much photoemission, which held the
+    ! grains far too positive. Default false = fixed; MOCASSIN_GRAINQ=legacy
+    ! restores it, so every result recorded before D-290 stays reproducible.
+    logical         :: lgGrainQ4pi = .false.
     logical         :: lgGrainSpiking = .true.  ! temperature spiking for small grains
     logical         :: lgEcho = .false.         ! light time travel included?
     logical         :: lgforceTDust = .false.   !
