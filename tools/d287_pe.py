@@ -59,15 +59,26 @@ def read_moc(run):
     return d
 
 
+def rows(path, ncol):
+    """Rows of a Cloudy save file that have the header's column count.
+
+    A save file read while Cloudy is still writing ends in a partial line,
+    and a multi-iteration save can carry a short trailing record; numpy's
+    loadtxt refuses the whole file for either. Take the well-formed rows.
+    """
+    out = [ln.split() for ln in open(path).read().splitlines()[1:]]
+    return np.array([r for r in out if len(r) == ncol], float)
+
+
 def read_cloudy(prefix):
     """A_V, G0, GrnP heating per H, n_e, T from the .pdr/.ovr/.heat set."""
     hdr = open(f'{prefix}.pdr').readline().lstrip('#').rstrip().split('\t')
-    pdr = np.loadtxt(f'{prefix}.pdr', skiprows=1)
+    pdr = rows(f'{prefix}.pdr', len(hdr))
     g0 = pdr[:, hdr.index('G0')]
     av = pdr[:, hdr.index('AV(point)')]
 
     oh = open(f'{prefix}.ovr').readline().lstrip('#').rstrip().split('\t')
-    ovr = np.loadtxt(f'{prefix}.ovr', skiprows=1)
+    ovr = rows(f'{prefix}.ovr', len(oh))
     nh = ovr[:, oh.index('hden')]
     ne = ovr[:, oh.index('eden')]
     te = ovr[:, oh.index('Te')]
