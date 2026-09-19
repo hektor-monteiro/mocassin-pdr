@@ -1494,6 +1494,11 @@ module grid_mod
                    print*, "! setMotherGrid: can't allocate mocHeatEl memory"; stop
                 end if
                 grid%mocHeatEl = 0.
+                allocate(grid%mocGrain(0:grid%nCells, 1:6), stat = err)   ! D-288
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate mocGrain memory"; stop
+                end if
+                grid%mocGrain = 0.
                 allocate(grid%opaRep(0:grid%nCells, 1:4, 1:6), stat = err)   ! D-222
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate opaRep memory"; stop
@@ -2974,7 +2979,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  stop
               end if
               write(54,*) "# heat: phot PE PDR | cool: coll rec ff gasDust PDR | H-C Te | ", &
-                   & "phot by element 1..", nElements
+                   & "phot by element 1..", nElements, &
+                   & " | D-288 grain: Vg[Ryd] <Y> <E>[Ryd] Nabs/H Eabs/H area/H"
            end if
 #endif
 
@@ -3069,7 +3075,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        ! D-285: one record per cell, same order as the others
                        if (allocated(grid(iG)%mocBud)) then
                           write(54, *) (grid(iG)%mocBud(cellP, 2, iPdrS), iPdrS = 1, 10), &
-                               & (grid(iG)%mocHeatEl(cellP, elem), elem = 1, nElements)
+                               & (grid(iG)%mocHeatEl(cellP, elem), elem = 1, nElements), &
+                               & (grid(iG)%mocGrain(cellP, iPdrS), iPdrS = 1, 6)   ! D-288
                        end if
                     end if
 #endif
@@ -3832,6 +3839,11 @@ end function getVolume
                   print*, "! resetGrid: can't allocate mocHeatEl memory"; stop
                end if
                grid(iG)%mocHeatEl = 0.
+               allocate(grid(iG)%mocGrain(0:grid(iG)%nCells, 1:6), stat = err) ! D-288
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate mocGrain memory"; stop
+               end if
+               grid(iG)%mocGrain = 0.
                allocate(grid(iG)%opaRep(0:grid(iG)%nCells, 1:4, 1:6), stat = err)   ! D-222
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate opaRep memory"; stop

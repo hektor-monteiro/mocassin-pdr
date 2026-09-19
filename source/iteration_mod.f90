@@ -131,6 +131,7 @@ module iteration_mod
            integer                   :: iCoolD                      ! D-213
            real, allocatable         :: budCellTemp(:,:,:)          ! D-285
            real, allocatable         :: heatElTemp(:,:)             ! D-285
+           real, allocatable         :: grainTemp(:,:)              ! D-288
 #endif
            real, allocatable :: JDifTemp(:,:)        ! temporary diffuse field array
            real, allocatable :: JSteTemp(:,:)        ! temporary stellar field array
@@ -2327,8 +2328,10 @@ module iteration_mod
               if (lgPDR .and. allocated(grid(iG)%mocBud)) then
                  allocate(budCellTemp(0:grid(iG)%nCells, 1:2, 1:10), stat = err)
                  allocate(heatElTemp(0:grid(iG)%nCells, 1:nElements), stat = err)
+                 allocate(grainTemp(0:grid(iG)%nCells, 1:6), stat = err)   ! D-288
                  budCellTemp = 0.
                  heatElTemp  = 0.
+                 grainTemp   = 0.
                  iCell = 0
                  do i = 1, grid(iG)%nx
                     do j = 1, yTop
@@ -2341,6 +2344,9 @@ module iteration_mod
                           if (allocated(grid(iG)%mocHeatEl)) &
                                & heatElTemp(grid(iG)%active(i,j,k),:) = &
                                & grid(iG)%mocHeatEl(grid(iG)%active(i,j,k),:)
+                          if (allocated(grid(iG)%mocGrain)) &
+                               & grainTemp(grid(iG)%active(i,j,k),:) = &
+                               & grid(iG)%mocGrain(grid(iG)%active(i,j,k),:)
                        end do
                     end do
                  end do
@@ -2351,8 +2357,13 @@ module iteration_mod
                       & call mpi_allreduce(heatElTemp, grid(iG)%mocHeatEl, &
                       & (grid(iG)%nCells+1)*nElements, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 if (allocated(grid(iG)%mocGrain)) &
+                      & call mpi_allreduce(grainTemp, grid(iG)%mocGrain, &
+                      & (grid(iG)%nCells+1)*6, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  deallocate(budCellTemp)
                  deallocate(heatElTemp)
+                 deallocate(grainTemp)
               end if
 #endif
 

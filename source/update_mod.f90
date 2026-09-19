@@ -1423,6 +1423,7 @@ end subroutine iterateT
           implicit none
 
           real    :: Qa, photFlux, EY, Yhat,Yn,th
+          real    :: grnAbs, grnEne, grnEle, grnVg, grnArea, grnWgt  ! D-288
 
           integer :: ns,na,ifreq,thP
           integer :: global_ns ! DECLARE GLOBAL INDEX
@@ -1433,6 +1434,13 @@ end subroutine iterateT
 
           photoelHeat_d=0.
           photoelHeat_g=0.
+          ! D-288: the same integral, decomposed. grnAbs/grnEne are the photons
+          ! and the energy absorbed ABOVE THRESHOLD (not the whole FUV band);
+          ! grnEle is the escaping electrons, so grnEle/grnAbs is the yield net
+          ! of the Coulomb barrier and photoelHeat_g/grnEle the energy each one
+          ! carries away. grnVg is weighted by absorbed photons, which is what
+          ! the suppression is felt on.
+          grnAbs = 0.; grnEne = 0.; grnEle = 0.; grnVg = 0.; grnArea = 0.
           do ns = 1, nSpeciesPart(nspU)
              ! Calculate the correct global index for the species
              global_ns = dustComPoint(nspU) + ns - 1
@@ -1472,14 +1480,40 @@ end subroutine iterateT
                       photoelHeat_g = photoelHeat_g+Qa*photFlux*(EY-Yhat*grainPot(global_ns,na))*&
                            & grainAbun(nspU,ns)*grainWeight(na)
 
+                      ! D-288
+                      grnWgt = Qa*photFlux*grainAbun(nspU,ns)*grainWeight(na)
+                      grnAbs = grnAbs + grnWgt
+                      grnEne = grnEne + grnWgt*nuArray(ifreq)
+                      grnEle = grnEle + grnWgt*Yhat
+                      grnVg  = grnVg  + grnWgt*grainPot(global_ns,na)
+
                    end do
-                   
+
+                   ! D-288: geometric area on the same weighting as the heating
+                   grnArea = grnArea + Pi*1.e-8*grainRadius(na)**2 * &
+                        & grainAbun(nspU,ns)*grainWeight(na)
+
                 endif
                    
              end do
           end do
 
           photoelHeat_g = photoelHeat_g*grid%Ndust(cellP)*hcRyd/grid%Hden(cellP)
+
+          ! D-288: per H, on the same Ndust/Hden normalisation as the heating.
+          ! mocGrain lives in the PDR part of grid_type, so this is guarded the
+          ! way the D-285 element split is.
+#ifdef PDR
+          if (allocated(grid%mocGrain)) then
+             grid%mocGrain(cellP,1) = grnVg  / max(grnAbs, 1.e-35)
+             grid%mocGrain(cellP,2) = grnEle / max(grnAbs, 1.e-35)
+             grid%mocGrain(cellP,3) = photoelHeat_g / &
+                  & max(grnEle*grid%Ndust(cellP)*hcRyd/grid%Hden(cellP), 1.e-35)
+             grid%mocGrain(cellP,4) = grnAbs*grid%Ndust(cellP)/grid%Hden(cellP)
+             grid%mocGrain(cellP,5) = grnEne*grid%Ndust(cellP)*hcRyd/grid%Hden(cellP)
+             grid%mocGrain(cellP,6) = grnArea*grid%Ndust(cellP)/grid%Hden(cellP)
+          end if
+#endif
 
         end subroutine setPhotoelHeatCool
 

@@ -492,6 +492,21 @@ module common_mod
         ! Cloudy's was a few percent; a per-depth comparison needs the split,
         ! and the mean cannot say which absorber carries it.
         real, allocatable         :: mocHeatEl(:,:)        ! (cell, nElements)
+        ! D-288. The photoelectric term decomposed, so O-02's remaining factor
+        ! stops being inferred from the heating alone. D-287 could measure the
+        ! FUV field and the charging PARAMETER psi on both sides, but not the
+        ! grain potential itself, which is the quantity Cloudy prints (<Pot>
+        ! 0.5-1.4 V) and the one the Coulomb suppression actually runs on.
+        ! Accumulated in setPhotoelHeatCool over exactly its own integral, so
+        !   heating per H = slot 4 * slot 2 * slot 3 * hcRyd
+        ! holds identically. Slots (cell, 1:6):
+        !   1 <V_g> [Ryd], weighted by absorbed photons above threshold
+        !   2 <Y>, electrons per absorbed photon (yield AFTER Coulomb escape)
+        !   3 <E> [Ryd], net energy carried per escaping electron
+        !   4 absorbed photons per H per s, above threshold
+        !   5 absorbed energy per H per s [erg], above threshold
+        !   6 geometric grain area per H [cm^2]
+        real, allocatable         :: mocGrain(:,:)         ! (cell, 6)
         ! D-222. Each gas absorber's share of the opacity the photons saw, at the
         ! representative bin of each hard band (cell, band 2-5 -> 1-4, absorber):
         ! 1 H2, 2 free-free, 3 H0, 4 He0, 5 He+, 6 heavier elements. Captured in
