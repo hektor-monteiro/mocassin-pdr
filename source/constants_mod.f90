@@ -44,7 +44,12 @@ module constants_mod
     real, parameter :: RydInf = 109737.315         ! Ryd for infinitme mass nuclei [1/cm]
     real, parameter :: sigma = 5.66956e-5          ! Stefan-Boltzmann constant [erg*cm^-2deg^-4s-1]
     real, parameter :: Te1Ryd = 1.578866e5         ! Te at 1 Ryd [K]
-    real, parameter :: Y1 = 0.2                    ! see Baldwin et al. 1991, ApJ 374, 580
+    ! Baldwin et al. (1991), ApJ 374, 580: the photoelectric yield
+    ! Y = min(Y0*(1 - nu_0/nu), Y1). D-289 moved Y0 here from a duplicate
+    ! declaration inside updateCell, so that ph_mod's yield table and the
+    ! legacy branch it replaces read the same two numbers.
+    real, parameter :: Y0 = 0.5
+    real, parameter :: Y1 = 0.2
     real, parameter :: FeKaCold = 470.388          ![ryd] =6.4keV -> energy of Fe K alpha for cold iron
 
     ! numerical constants

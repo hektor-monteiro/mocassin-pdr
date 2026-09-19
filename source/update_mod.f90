@@ -19,7 +19,7 @@ module update_mod
 
         type(grid_type), intent(inout) :: grid         ! the grid
 
-        real, parameter :: Y0 = 0.5, Y1 = 0.2          ! see Baldwin et al. 1991
+        ! D-289: Y0 and Y1 now come from constants_mod, one declaration.
 
         real                           :: deltaXHI        ! delta ionDen of H0
         real                           :: convRef         ! D-155 iteration-start x(H0)
@@ -1302,7 +1302,10 @@ end subroutine iterateT
           do ifreq = ip, nbins
 
 
-             Yn = min(Y0*(1.-grainVn(isp)/nuArray(ifreq)), Y1)
+             ! D-289: the neutral yield from the one table ph_mod built, so
+             ! the charge balance and setPhotoelHeatCool's heating cannot run
+             ! on different photoemission.
+             Yn = grainYield(global_isp, ai, ifreq)
 
              Yhat = Yn*min(1., max(0.,1.-Vg/(nuArray(ifreq)-grainVn(isp))))
 
@@ -1461,7 +1464,7 @@ end subroutine iterateT
 
                    do ifreq = thP, nbins
 
-                      Yn = min(Y0*(1.-grainVn(global_ns)/nuArray(ifreq)), Y1)
+                      Yn = grainYield(global_ns, na, ifreq)   ! D-289
                       Yhat = Yn*min(1., max(0.,1.-grainPot(global_ns,na)/(nuArray(ifreq)-grainVn(global_ns))))
 
                       if (.not. lgDebug) then

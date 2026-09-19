@@ -40,6 +40,12 @@ module common_mod
     ! transported and its re-absorption heats) or the legacy Case B, selected
     ! with MOCASSIN_RECCOOL=legacy. Ported from mocassin_HM_2026 dd3006c.
     logical         :: lgCaseARecCool = .true.
+    ! D-289. The photoelectric yield: Weingartner & Draine (2001) by default,
+    ! Baldwin et al. (1991) - what MOCASSIN used through D-288 - under
+    ! MOCASSIN_YIELD=baldwin. D-288 measured Baldwin's to be 100-400x too high
+    ! near threshold, which holds this model's grains at 2-4.8 V against
+    ! Cloudy's 0.35-1.4 and suppresses the heating through the Coulomb barrier.
+    logical         :: lgWD01Yield = .true.
     logical         :: lgGrainSpiking = .true.  ! temperature spiking for small grains
     logical         :: lgEcho = .false.         ! light time travel included?
     logical         :: lgforceTDust = .false.   !
@@ -188,6 +194,17 @@ module common_mod
     real, allocatable :: grainVn(:)             ! potential of neutral grain
     real, allocatable :: MsurfAtom(:)           ! mass of surf atom of a grain [amu]
     real, allocatable :: rho(:)                 ! intrinsic density (nspecies)
+    ! D-289. The neutral-grain photoelectric yield, tabulated once per
+    ! (species, size, frequency). It does not depend on the grain potential -
+    ! the Coulomb part is Yhat at the point of use - so it is built at setup
+    ! and read by BOTH getGrainEmission (the charge balance) and
+    ! setPhotoelHeatCool (the heating). One yield, one reality: the charge and
+    ! the heating cannot run on different photoemission.
+    real, allocatable :: grainYield(:,:,:)      ! (nSpecies, nSizes, nbins)
+    ! Carbonaceous, from MsurfAtom in the grain's own data file (12.004 for
+    ! graphite and amorphous carbon; 20-36 for the silicates and oxides),
+    ! which selects WD01's carbonaceous or silicate bulk-yield fit.
+    logical, allocatable :: grainCarb(:)        ! (nSpecies)
     real, allocatable :: dustHeatingBudget(:,:) ! heating budget of grains (nAbComponents, nResLines+1)
     real, allocatable :: SEDnoExt(:)            ! SED no extinction
     real, allocatable :: equivalentTau(:)       ! SED no extinction

@@ -809,6 +809,8 @@ module xSec_mod
       ! makes dust xsections [cm^2] ( pi a^2 Q )
       subroutine makeDustXsec()
 
+        integer :: envStat                 ! D-289
+        character(len=32) :: yieldEnv      ! D-289
         real :: normWeight ! normalization constant for grain size weighting
         real :: readReal     ! real number reader
         real :: value ! general value variable
@@ -877,6 +879,24 @@ module xSec_mod
         allocate(grainVn(1:nSpecies), stat = err)
         grainVn=0.
         allocate(MsurfAtom(1:nSpecies), stat = err)
+
+        ! D-289. The photoelectric yield: Weingartner & Draine (2001) by
+        ! default, Baldwin et al. (1991) - what MOCASSIN used through D-288 -
+        ! under MOCASSIN_YIELD=baldwin, the same spelling as MOCASSIN_RECCOOL
+        ! (D-286). Read here rather than in readData because the yield table is
+        ! built below, and mocassin.f90 calls initXSecArray BEFORE readData -
+        ! while mocassinWarm does not call readInput at all. Where it is used
+        ! is the one place every executable passes through.
+        call get_environment_variable("MOCASSIN_YIELD", yieldEnv, status=envStat)
+        if (envStat == 0 .and. (trim(yieldEnv) == "baldwin" .or. &
+             & trim(yieldEnv) == "legacy" .or. trim(yieldEnv) == "Baldwin")) then
+           lgWD01Yield = .false.
+           if (taskid == 0) print*, "! makeDustXsec: legacy Baldwin et al. (1991) photoelectric yield"
+        else
+           lgWD01Yield = .true.
+           if (taskid == 0) print*, "! makeDustXsec: Weingartner & Draine (2001) photoelectric yield"
+        end if
+
         MsurfAtom=0
         allocate(componentMinRadius(1:nDustComponents,1:nSpecies), stat = err)
         componentMinRadius=0.
@@ -1002,6 +1022,20 @@ module xSec_mod
            print*, '! makeDustXSec : Invalid nSizes', nSizes
            stop
         end if
+
+        ! D-289: the yield table needs nSizes and grainRadius, which are only
+        ! known once the size distribution above has been read - allocating it
+        ! beside MsurfAtom, as the first version did, sized it on nSizes = 0.
+        allocate(grainYield(1:nSpecies, 1:nSizes, 1:nbins), stat = err)
+        if (err/=0) then
+           print*, "! makeDustXsec: can't allocate grainYield memory"; stop
+        end if
+        grainYield = 0.
+        allocate(grainCarb(1:nSpecies), stat = err)
+        if (err/=0) then
+           print*, "! makeDustXsec: can't allocate grainCarb memory"; stop
+        end if
+        grainCarb = .false.
         
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! print final data read to screen 
@@ -1196,6 +1230,10 @@ module xSec_mod
                  ! calculate efficiencies
                  call getQs(Ere,Eim,Cabs(nSpec,1:nSizes,1:nbins),Csca(nSpec,1:nSizes,1:nbins), &
                             & Gcos(nSpec,1:nSizes,1:nbins), componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec))
+
+                 ! D-289: the neutral-grain photoelectric yield, while this
+                 ! species' Eim is still in scope and already on nuArray.
+                 call setGrainYield(dustComPoint(icomp)-1+nSpec, Eim)
 
                  if (allocated(wav)) deallocate(wav)
                  if (allocated(Ere)) deallocate(Ere)
@@ -1509,6 +1547,128 @@ module xSec_mod
 
 
       end subroutine makeDustXsec
+
+
+      ! D-289. The neutral-grain photoelectric yield for one species, on
+      ! MOCASSIN's frequency grid and its own size grid.
+      !
+      ! Weingartner & Draine (2001, ApJS 134, 263) eqs 12-16:
+      !
+      !     Y = min( yBulk(Theta) * yEsc(hnu, a),  1 )
+      !
+      ! yEsc is the small-grain escape enhancement - the probability that a
+      ! photoelectron generated inside the grain reaches the surface, which
+      ! tends to 1 for a grain much larger than the electron escape length and
+      ! rises towards 1 + la/le below it. It needs the photon attenuation
+      ! length la = lambda/(4 pi k), so it is built from the SAME optical
+      ! constants the absorption cross sections are built from, not from a
+      ! constant: a grey yield cannot track the grain population, and D-288
+      ! measured what that costs.
+      !
+      ! yBulk is the bulk photoemission fit, which is material-specific; the
+      ! grain's own work function grainVn is used for W rather than WD01's
+      ! tabulated 4.4 / 8 eV, again so the model's data sets it.
+      !
+      ! Theta = hnu - grainVn is MOCASSIN's threshold, the same one the
+      ! integrals start at and the same one Yhat's Coulomb term is measured
+      ! from. WD01 add a size-dependent shift to the threshold for a neutral
+      ! grain (+0.16 eV at 50 A, 4%); it is not applied here, because a
+      ! threshold inside the yield that differed from the threshold bounding
+      ! the integral would be two realities for one quantity.
+      !
+      ! The Coulomb suppression is NOT here. It is Yhat at the point of use,
+      ! as it was before, so this function is exactly the neutral yield it
+      ! replaces.
+      subroutine setGrainYield(iSp, EimSp)
+        implicit none
+
+        integer, intent(in) :: iSp            ! global species index
+        real, intent(in)    :: EimSp(:)       ! Im(m) on nuArray, 1:nbins
+
+        real, parameter :: leEsc = 1.e-3      ! electron escape length, 10 A [um]
+        real            :: theta, ratio, yBulk, yEsc, lam, be, al
+        integer         :: ai, i
+
+        ! Carbonaceous or not, from the mass of the surface atom the grain's
+        ! own data file declares: 12.004 for graphite and amorphous carbon,
+        ! 20-36 for the silicates and oxides, 6.005 for the ices.
+        grainCarb(iSp) = abs(MsurfAtom(iSp) - 12.0) < 1.0
+
+        do ai = 1, nSizes
+           do i = 1, nbins
+
+              theta = nuArray(i) - grainVn(iSp)
+              if (theta <= 0.) then
+                 grainYield(iSp, ai, i) = 0.
+                 cycle
+              end if
+
+              if (.not. lgWD01Yield) then
+                 grainYield(iSp, ai, i) = &
+                      & min(Y0*(1.-grainVn(iSp)/nuArray(i)), Y1)
+                 cycle
+              end if
+
+              ! lambda [um] from the photon energy [Ryd]
+              lam = 0.0911267/nuArray(i)
+              ! a/la with la = lambda/(4 pi k), written so k = 0 is safe
+              be  = fourPi*max(EimSp(i), 0.)*grainRadius(ai)/lam
+              al  = be + grainRadius(ai)/leEsc
+              yEsc = (be/al)**2 * wdEsc(al)/wdEsc(be)
+
+              ratio = theta/grainVn(iSp)
+              if (grainCarb(iSp)) then
+                 yBulk = 9.e-3*ratio**5/(1.+3.7e-2*ratio**5)
+              else
+                 yBulk = 0.5*ratio/(1.+5.*ratio)
+              end if
+
+              grainYield(iSp, ai, i) = min(yBulk*yEsc, 1.)
+
+           end do
+        end do
+
+        ! The material classification is the one judgement call in here - it
+        ! picks which laboratory fit applies - so report it rather than leave
+        ! it implicit, with the yield at two energies for the smallest and
+        ! largest grain of this species.
+        if (taskid == 0) then
+           call locate(nuArray, 8.0/13.605693, i)
+           call locate(nuArray, 13.0/13.605693, ai)
+           if (grainCarb(iSp)) then
+              print*, "! setGrainYield: species", iSp, "carbonaceous (MsurfAtom", &
+                   & MsurfAtom(iSp), ", W", grainVn(iSp)*13.605693, "eV)"
+           else
+              print*, "! setGrainYield: species", iSp, "silicate/other (MsurfAtom", &
+                   & MsurfAtom(iSp), ", W", grainVn(iSp)*13.605693, "eV)"
+           end if
+           print*, "!   Y at  8 eV:", grainYield(iSp,1,i), "(a=", grainRadius(1), &
+                & "um)", grainYield(iSp,nSizes,i), "(a=", grainRadius(nSizes), "um)"
+           print*, "!   Y at 13 eV:", grainYield(iSp,1,ai), "(a=", grainRadius(1), &
+                & "um)", grainYield(iSp,nSizes,ai), "(a=", grainRadius(nSizes), "um)"
+        end if
+
+      end subroutine setGrainYield
+
+
+      ! x^2 - 2x + 2 - 2exp(-x), the integral WD01's escape factor is built
+      ! from. It vanishes as x^3/3 for small x, where the direct form loses
+      ! every significant digit to cancellation, so use the series there.
+      function wdEsc(x)
+        implicit none
+        real             :: wdEsc
+        real, intent(in) :: x
+
+        if (x > 1.e-2) then
+           wdEsc = x*x - 2.*x + 2. - 2.*exp(-min(x, 50.))
+        else
+           wdEsc = x*x*x/3. - x*x*x*x/12.
+        end if
+        wdEsc = max(wdEsc, 1.e-30)
+
+      end function wdEsc
+
+
 
 
 

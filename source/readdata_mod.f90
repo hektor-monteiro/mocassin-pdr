@@ -10,7 +10,7 @@ contains
         implicit none
         integer :: i, ios                    ! counter, io state
         integer :: env_stat                  ! D-286
-        character(len=32) :: reccool_env     ! D-286
+        character(len=32) :: reccool_env
         integer :: iup, ilow                 ! H counters
 
     ! initialise all the arrays that we are reading in
