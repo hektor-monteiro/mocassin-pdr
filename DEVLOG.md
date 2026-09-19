@@ -289,7 +289,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-287 | **O-02's photoelectric deficit separated into two independent factors, neither of them the grain size distribution.** At matched radius MOCASSIN's local FUV field is a near-constant **0.29-0.39** of Cloudy's through the whole PDR (0.98 at A_V 0.05, so the offset is established across the front, and the attenuation slopes agree). Cause: MOCASSIN **discards every diffuse line packet at creation** - newPhotonPacket gives it nuP = 0 and lgLine, energyPacketRun never calls pathSegment for it, and it is binned only under lgDebug - so Lya never enters Jste, the array both setPhotoelHeatCool and the PDR's chi are built from. In this model Cloudy's intrinsic Lya is 4.03e35 erg/s against the entire stellar FUV band's 1.33e35, i.e. **3.0x**, and 83% of it is absorbed; Cloudy's PDR G0 is 4.6x the unattenuated stellar FUV, MOCASSIN's 1.3x. resLinesTransfer (default 101 = never; the run warns 14 times) would not fix this - it re-emits the dust-absorbed line energy as extra diffuse packets drawn from the local re-emission PDF, i.e. as infrared, not as 10.2 eV photons. Second factor: at **matched charging parameter** psi = G0 sqrt(T)/n_e, heating per H per unit G0 is 0.30 (psi 100-300), 0.23 (300-1000), 0.15 (1000-3000) of Cloudy's - so the rate physics is 3-7x low independently of the field. It is not the charge (MOCASSIN's psi is 4-5x *lower*, which should raise its efficiency), not the threshold (grainVn 0.323 Ryd = 4.39 eV, the standard graphite work function), and not the size distribution (both codes are graphite, MRN 0.005-0.25 um, A_V/N_H matched): it is the Baldwin et al. 1991 yield Y = min(0.5(1 - nu_0/nu), 0.2), which has **no grain-size dependence**, against WD01's, which approaches unity for the small grains that carry most of an MRN's surface area. The two factors do not simply multiply to the observed 5-11x because a larger field charges the grains further. tools/d287_pe.py. Nothing changed in the code | Open | 2026-09-19 |
 | D-288 | **D-287's attribution of the residual 3-7x to a too-low yield is WITHDRAWN: WD01's yield is *lower* than MOCASSIN's here, not higher.** Checked before implementing it, on this grain population and spectrum (tools/d288_yield.py, la = lambda/4 pi k from the same optical constants MOCASSIN builds its cross sections from): the absorbed-photon-weighted neutral-grain yield is WD01 **0.47-0.79 x** MOCASSIN's, and falling with depth (0.79 at the front, 0.48 at A_V 1). Adopting WD01 at fixed grain charge would *reduce* MOCASSIN's heating. What the yield table does show is a spectral-shape error, not a normalisation one: at 6 / 7 / 8 eV WD01 gives 0.0003 / 0.0062 / 0.0505 for a 0.005 um grain against MOCASSIN's flat 0.134 / 0.186 / 0.200, i.e. MOCASSIN is 100-400x too high exactly where the deep PDR's surviving photons are, and ~1.5-2x too low at 13-13.6 eV. **New hypothesis, not yet measured: over-charging.** Too much emission near threshold drives the equilibrium grain potential up and the Coulomb barrier then suppresses the heating - which would explain why MOCASSIN's efficiency falls as psi^-0.53 against Cloudy's psi^-0.29, and why reproducing its heating per absorbed photon with Y = 0.2 needs V_g ~ 4.6 V against Cloudy's printed <Pot> 0.5-1.4 V. The grain potential had never been written out, so this was inference; it now is - `mocGrain`, 6 slots on thermBudget.out (<V_g>, <Y>, <E> per electron, absorbed photons and energy per H, grain area per H), decomposing the photoelectric integral exactly, and validated two ways: the identity holds to 7e-6, and the grain area per H comes out 5.453e-22 cm^2 against 5.60e-22 computed analytically from the MRN and MdMg, so the dust inventory is now excluded by measurement rather than by assumption. **Measured (runs/d288-pn150k, 9 iterations, 91.4%, 2h51m; Cloudy re-run with `save grain potential`): MOCASSIN's grains sit at 1.96-4.77 V through the PDR against Cloudy's 0.35-1.43 V, a factor 2.8-5.6**, peaking at 4.77 V where 4.6 was predicted. In the ionized gas the sign differs - Cloudy -1.15 V, MOCASSIN +1.05. The Coulomb barrier then cuts the yield to <Y> 0.048-0.098 against a neutral ~0.15-0.20 and the energy per electron to 1.5-2.1 eV. The whole 5-11x now decomposes: field 3.0-3.5x (D-287's Lya) times conversion efficiency 1.8-5.2x. So the WD01 yield IS the right change, but for the opposite reason to D-287's - being *lower* near threshold it discharges the grains, and the net heating should rise. Not yet implemented | Open | 2026-09-19 |
 | D-289 | **The WD01 photoelectric yield implemented in the charge balance and the heating together, and measured: it halves the over-charging and leaves O-02 where it was.** One yield, one reality - ph_mod tabulates the neutral-grain yield once per (species, size, frequency), and both getGrainEmission and setPhotoelHeatCool read that table, where each previously carried its own copy of the Baldwin expression. WD01 eqs 12-16 with the escape length from la = lambda/(4 pi k) on the model's own optical constants, the bulk fit selected per species from MsurfAtom in the grain's data file, and W and Theta from the model's own grainVn, so nothing here is a constant standing in for something MOCASSIN knows. MOCASSIN_YIELD=baldwin restores the old yield. Validated against tools/d288_yield.py to 4-6% before the run. **Measured (runs/d289-pn150k-wd01, 9 iterations, 91.9%, 2h54m): the grain potential falls 2.59 -> 1.61 V in the PDR (Cloudy 0.41-1.43) and 1.96 -> 0.89 V at 0.6 pc, so the over-charging is roughly halved at depth; but the heating moves +8% and the gas temperature not at all (23.9-29.3 -> 23.6-30.3 K against Cloudy's 42-67).** The three terms very nearly cancel: <Y> falls 0.070 -> 0.037, <E> rises 1.63 -> 2.58 eV because the lower barrier lets each electron keep more, and N_abs rises because the threshold max(Vn+Vg, Vn) drops with the potential. The photoelectric heating is self-regulating in this regime, which is why D-288's prediction was right in direction and wrong in size. O-02's efficiency factor goes 1.8-5.2x -> 1.7-4.8x. The better physics is in; the gap is not closed, and is not to be closed by tuning it. Remaining: the potential is still 2.2-4.3x Cloudy's, and the electron-collection side of the balance (getGrainRecombination) has never been examined. All four flavours build | Open | 2026-09-19 |
-| D-290 | **The grain charge balance overstates photoemission by 4 pi^2 = 39.5: `getGrainEmission` and `setPhotoelHeatCool` read `Jste` in different conventions, and only one of them is right.** `Jste` is the ANGLE-INTEGRATED flux [erg cm^-2 s^-1], confirmed two independent ways: `chi/chi_thin` -> 1 near the star in pdrFUV.out, where chi_thin is L/(4 pi r^2 c u_Draine); and D-288's measured absorbed energy per H matches G0 x 1.6e-3 x (area/H) with <Q_abs> = 0.68. `setPhotoelHeatCool` uses it correctly (flux x sigma_abs). `getGrainEmission` multiplies it by `fourPi` a second time AND divides the cross section by a^2 rather than pi a^2, giving pi Q_abs - together 4 pi x pi = **4 pi^2**, while `getGrainRecombination` returns n<v>eta, which is the collection rate per unit geometric cross section and is correct. **Measured, not inferred:** at the converged potential of runs/d289, collection / emission recomputed in correct units is 38.8, 35.3, 37.1, 37.9, 38.7, 38.9 at r = 0.20-0.60 pc against 4 pi^2 = 39.478 - flat across a factor 7 in field and 3 in temperature, the residual being the ion collection term. So the code converges where the true photoemission is ~39x below the true collection, which is why the grains sit at 0.9-4.8 V against Cloudy's 0.4-1.5 (D-288) and why D-289's factor-two yield change moved the heating only 8%. This is the efficiency half of O-02, and it is a units defect, not a physics choice. Not yet fixed | Open | 2026-09-19 |
+| D-290 | **The grain charge balance overstates photoemission by 4 pi^2 = 39.5: `getGrainEmission` and `setPhotoelHeatCool` read `Jste` in different conventions, and only one of them is right.** `Jste` is the ANGLE-INTEGRATED flux [erg cm^-2 s^-1], confirmed two independent ways: `chi/chi_thin` -> 1 near the star in pdrFUV.out, where chi_thin is L/(4 pi r^2 c u_Draine); and D-288's measured absorbed energy per H matches G0 x 1.6e-3 x (area/H) with <Q_abs> = 0.68. `setPhotoelHeatCool` uses it correctly (flux x sigma_abs). `getGrainEmission` multiplies it by `fourPi` a second time AND divides the cross section by a^2 rather than pi a^2, giving pi Q_abs - together 4 pi x pi = **4 pi^2**, while `getGrainRecombination` returns n<v>eta, which is the collection rate per unit geometric cross section and is correct. **Measured, not inferred:** at the converged potential of runs/d289, collection / emission recomputed in correct units is 38.8, 35.3, 37.1, 37.9, 38.7, 38.9 at r = 0.20-0.60 pc against 4 pi^2 = 39.478 - flat across a factor 7 in field and 3 in temperature, the residual being the ion collection term. So the code converges where the true photoemission is ~39x below the true collection, which is why the grains sit at 0.9-4.8 V against Cloudy's 0.4-1.5 (D-288) and why D-289's factor-two yield change moved the heating only 8%. This is the efficiency half of O-02, and it is a units defect, not a physics choice. **Fixed and measured (runs/d290-pn150k-grainq, 11 iterations, 89.6%, 2h42m, 0% balance failures): this closes the efficiency half of O-02.** The grain potential falls 1.61 -> **0.059 V** in the PDR (Cloudy 0.41-1.43) and the sign in the ionized gas now AGREES with Cloudy's (-2.00 against -1.15, where it was +1.05); the energy per escaping electron rises 2.58 -> 3.31 eV; photoelectric heating rises 75% overall and 4-6x at 0.2-0.3 pc; **and heating per absorbed erg is now 0.57-1.40 of Cloudy's, against 1.7-4.8x low before** - the conversion efficiency deficit is gone. PDR gas 23.6-30.3 -> **24.6-47.3 K** against Cloudy's 42-67; at A_V 0.30, 31 -> 52 K against 70, and at r = 0.20 pc 87 -> 123 K against 117. What is left of O-02 is the field alone, 3.06-3.54x, which is D-287's discarded Lya; MOCASSIN's grains are now slightly LESS charged than Cloudy's, consistent with its field still being 3x low. MOCASSIN_GRAINQ=legacy restores the defect. Costs: convergence 91.9% at iteration 9 -> 89.6% at 11, Hbeta 0.98 -> 0.96 of Cloudy's, H2 at A_V 0.2 higher | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22092,3 +22092,66 @@ should sit near neutral is driven positive until the Coulomb factor
   - D-289's `<E>` and `<Y>` and the dust temperature are all downstream of the
     potential and will move too.
   - The field half (D-287, discarded Lya) is untouched by this.
+
+### 6. Fixed, and measured
+
+`getGrainEmission` now returns `Y Q_abs N` per unit geometric cross section:
+the second `fourPi` dropped, and the cross section divided by
+`Pi*1.e-8*grainRadius**2` so it is Q_abs rather than pi Q_abs.
+`MOCASSIN_GRAINQ=legacy` restores the defect, so every result recorded before
+this entry stays reproducible. All four flavours build.
+`runs/d290-pn150k-grainq`: 11 iterations, 89.6%, 2 h 42 min, clean exit, 0%
+ion or Te balance failures in any iteration.
+
+Over the PDR (A_V > 0.3), against the two runs before it:
+
+| | D-288 Baldwin | D-289 WD01 | **D-290 WD01, fixed** | Cloudy |
+|---|---|---|---|---|
+| V_g [V] | 2.594 | 1.607 | **0.059** | 0.41-1.43 |
+| <Y> | 0.0705 | 0.0371 | 0.0318 | |
+| <E> [eV] | 1.63 | 2.58 | **3.31** | |
+| PE heating | 3.61e-26 | 3.91e-26 | **6.84e-26** | |
+| T_gas [K] | 23.9-29.3 | 23.6-30.3 | **24.6-47.3** | 42-67 |
+
+and depth by depth:
+
+| r [pc] | V_g D-289 | V_g D-290 | V_g Cloudy | T D-289 | T D-290 | T Cloudy |
+|---|---|---|---|---|---|---|
+| 0.13 | +0.22 | **-2.00** | **-1.15** | 10025 | 9953 | 9797 |
+| 0.20 | 4.34 | 0.38 | 1.00 | 87 | **123** | 117 |
+| 0.30 | 3.44 | 0.26 | 1.35 | 31 | **52** | 63 |
+| 0.40 | 2.29 | 0.11 | 0.78 | 28 | 38 | 57 |
+| 0.60 | 0.89 | 0.03 | 0.41 | 24 | 25 | 44 |
+
+Three things worth stating separately:
+
+  - **The sign now agrees in the ionized gas.** MOCASSIN's grains were +1.05 V
+    at 0.13 pc where Cloudy's are -1.15; they are now -2.00. Electron
+    collisional charging wins there in both codes, as it should. That is a
+    qualitative check the defect was hiding, and not something the fix was
+    tuned to produce.
+  - **The conversion efficiency deficit is gone.** Heating per absorbed erg is
+    0.78, 0.57, 0.74, 1.01, 1.40 of Cloudy's at r = 0.2-0.6 pc, against
+    1.7-4.8x low in D-289. MOCASSIN's is now almost flat at 1.41-1.49% where
+    Cloudy's varies 0.84-1.97%, because MOCASSIN's grains are near neutral
+    everywhere and have no charging suppression left to vary with depth.
+  - **What remains of O-02 is the field**, 3.06-3.54x, and nothing else. The
+    residual under-charging is consistent with it: a field 3x low gives a
+    charging parameter 3x low, so the potential should sit below Cloudy's
+    until the Lya is restored.
+
+### 7. What this cost
+
+Not everything improved, and the fix stays regardless:
+
+  - Convergence 91.9% at iteration 9 (D-289) -> 89.6% at iteration 11, using
+    every iteration allowed and never reaching the 90% target. The
+    temperatures now have much further to move, so this is expected rather
+    than alarming, but the model is harder to converge than it was.
+  - Hbeta 2.737 -> 2.669e34 against Cloudy's 2.78, i.e. 0.98 -> 0.96.
+  - H2 at A_V 0.20 rises from 18 to 58 cm^-3 against Cloudy's 0.015, and the
+    H/H2 crossing moves from A_V 0.269 to 0.261 against Cloudy's 0.368 -
+    slightly the wrong way, in a hotter PDR where it should have gone the
+    other. Not understood; not investigated.
+  - He2+ front 0.0828 -> 0.0855 pc against Cloudy's 0.0880, which is better.
+  - Dust temperature essentially unmoved.
