@@ -286,6 +286,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-284 | **D-283's fine-structure pointer withdrawn: the chemistry's cooling functions agree with Cloudy's, and the cold PDR is not a cooling excess. What remains is a data defect in the vendored 3D-PDR coolant files, confined to warm gas.** D-283's 7.3x (O) and 2.6x (C+) compared 5-level coolant totals, over every cell, with Cloudy's 63/145/158 um lines alone. The coolants include [O I] 6300/6363/5577 and C II] 2326, and 69% of the O and 76% of the C+ sat in ionized cells. In the PDR, cooling per emitter per H nucleus agrees with Cloudy to 0.84-1.28 (O) and 0.84-1.26 (C+) over 45-1200 K, so O-02 is on the heating side (Cloudy: grain PE 80-96% of heating; MOCASSIN's D-217 cold-group mean PE 4.2e-26 per H against Cloudy's ~2-5e-25, a pointer only). Against a Cloudy rerun with every transition's emissivity (runs/d284-fs-cloudy, overview identical to D-283's), C+ in the H II gas is 1.10-1.17x per ion and O 2.0x per atom. Cause: dataPDR/16o.dat and 12c.dat give each 1D->3P_J and 1S->3P_J electron rate the same value, about the whole-term collision strength (Upsilon 0.29 per J at 1e4 K, against Barklem 2007's 0.15/0.09/0.03 split by 2J+1). tools/d284_o5lev.py reproduces pdrCoolSp to 1-4% from 27 K to 12 kK, and with Barklem's rates gives 2.07-2.16x less O I cooling in the H II gas and 1.00x below ~1000 K. At the front MOCASSIN's O I cooling is 1.4-1.8x Cloudy's total cooling there, while MOCASSIN is 900-2000 K hotter. Not fixed | Open | 2026-09-15 |
 | D-285 | **The D-284 defect fixed in the data: dataPDR/16o.dat and 12c.dat now split each 1D/1S -> 3P_J electron (and O + H) collision rate by g_J/9, which is what the sources they cite already do.** Verified against the cited data: the split O + e values reproduce CHIANTI's J-resolved Zatsarinny & Tayal entries to <1% (2.811/1.687/0.562e-9 against 2.83/1.70/0.566e-9 at 1e4 K), and tools/d284_o5lev.py, re-run on the corrected file, gives 1.84e-18 erg s^-1 per O atom at 12.1 kK where Cloudy's emissivity is 1.85e-18 (was 3.8e-18), and is unchanged below 1000 K. Re-applicable after an upstream merge with tools/d285_split_3p.py (only touches rows still identical across J, so it is idempotent); recorded in source/pdr/UPSTREAM.md. Also, so that O-02's heating question stops resting on a group mean: MOCASSIN's per-cell thermal budget is now published as output/thermBudget.out - mocBud slot 2 (D-217) plus a new per-element split of the photoionization heating (grid%mocHeatEl), gathered across ranks by cell ownership. All four flavours build. runs/d285-pn150k re-runs the 150 kK model | Open | 2026-09-18 |
 | D-286 | **Case A recombination cooling ported from mocassin_HM_2026 `dd3006c` (both branches), and audited.** MOCASSIN transports the ground-state recombination continuum (D-227) and counts its re-absorption in the photoionization heating, so the kinetic energy those recombinations remove belongs in the budget too: Case B under-counts it. Audit: the new H+ fit implies 0.78 kT per recombination at 1e4 K against the legacy fit's 0.67, which are Osterbrock's Case A and Case B values; beta_A/beta_B runs 1.46 (1e3 K) to 2.81 (1e5 K), 1.87 at 1e4 K, consistent with alpha_1/alpha_B = 0.61 at 0.95 kT per ground-state recombination. **Defect found and ported as-is, not silently fixed:** the He+ Case A branch switches from Hummer & Storey (1998) to Hummer (1994) at log10Te 4.4, where the two fits differ by 24% - a step in a term the temperature solver brackets. Switch MOCASSIN_RECCOOL=legacy restores Case B, same spelling as the source repository. All four flavours build | Open | 2026-09-19 |
+| D-287 | **O-02's photoelectric deficit separated into two independent factors, neither of them the grain size distribution.** At matched radius MOCASSIN's local FUV field is a near-constant **0.29-0.39** of Cloudy's through the whole PDR (0.98 at A_V 0.05, so the offset is established across the front, and the attenuation slopes agree). Cause: MOCASSIN **discards every diffuse line packet at creation** - newPhotonPacket gives it nuP = 0 and lgLine, energyPacketRun never calls pathSegment for it, and it is binned only under lgDebug - so Lya never enters Jste, the array both setPhotoelHeatCool and the PDR's chi are built from. In this model Cloudy's intrinsic Lya is 4.03e35 erg/s against the entire stellar FUV band's 1.33e35, i.e. **3.0x**, and 83% of it is absorbed; Cloudy's PDR G0 is 4.6x the unattenuated stellar FUV, MOCASSIN's 1.3x. resLinesTransfer (default 101 = never; the run warns 14 times) would not fix this - it re-emits the dust-absorbed line energy as extra diffuse packets drawn from the local re-emission PDF, i.e. as infrared, not as 10.2 eV photons. Second factor: at **matched charging parameter** psi = G0 sqrt(T)/n_e, heating per H per unit G0 is 0.30 (psi 100-300), 0.23 (300-1000), 0.15 (1000-3000) of Cloudy's - so the rate physics is 3-7x low independently of the field. It is not the charge (MOCASSIN's psi is 4-5x *lower*, which should raise its efficiency), not the threshold (grainVn 0.323 Ryd = 4.39 eV, the standard graphite work function), and not the size distribution (both codes are graphite, MRN 0.005-0.25 um, A_V/N_H matched): it is the Baldwin et al. 1991 yield Y = min(0.5(1 - nu_0/nu), 0.2), which has **no grain-size dependence**, against WD01's, which approaches unity for the small grains that carry most of an MRN's surface area. The two factors do not simply multiply to the observed 5-11x because a larger field charges the grains further. tools/d287_pe.py. Nothing changed in the code | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -21529,3 +21530,154 @@ and the deep-carbon questions where they were.
 tables and the ionized-gas numbers), with the change written into the page.
 **'150 kK PN Against Cloudy' is still Case B** - it needs a 3.5 h re-run,
 not done.
+
+## D-287 - The photoelectric rate: a missing Lya field and a size-independent yield (2026-09-19)
+
+Hektor: "now lets work on the photoelectric rate investigation."
+
+D-285 left O-02 as a grain photoelectric heating deficit of 5-11x against
+Cloudy, with three candidates named and none separated: the grain size range,
+the charging balance, or the FUV field the term is evaluated on. This entry
+separates them. Nothing in the code was changed.
+
+The comparison is `runs/d285-pn150k` against `runs/d283-150k-cloudy-noCaFe`,
+both graphite, both MRN 0.005-0.25 um in 35/10 sizes, A_V/N_H matched at
+3.648e-22 (MdMg 2.4827e-3), n_H = 1e3 uniform - so A_V and radius are the same
+axis in both and matching on either gives the same answer. `tools/d287_pe.py`.
+
+### 1. The size distribution is not a candidate at all
+
+Cloudy's input is `grains ISM graphite 1 linear`, which is the same MRN
+0.005-0.25 um, and it has no PAHs (they need an explicit `grains PAH`). So
+"nothing below 0.005 um here", the first candidate in D-285, cannot be the
+difference *against Cloudy*: Cloudy has nothing below 0.005 um either. It
+remains a difference against 3D-PDR, whose WD01 formula assumes PAHs and a
+gas-to-dust of 100 (this model's is 403).
+
+### 2. The field is 3.2x low, and by a constant
+
+Cloudy's `save PDR` writes G0 per zone (`hmi.UV_Cont_rel2_Habing_TH85_depth`:
+the 6-13.6 eV flux, incident plus diffuse continuum plus outward lines, over
+1.6e-3). MOCASSIN's `pdrFUV.out` writes chi over 0.472-1.0 Ryd in Draine units,
+and with lgDebug off Jste carries the diffuse field too (D-158), so both sides
+are the full local field. Draine/Habing = 8.94e-14/5.29e-14 = 1.69.
+
+| r [pc] | G0 MOCASSIN | G0 Cloudy | ratio | PE_m/PE_c | T_m/T_c |
+|---|---|---|---|---|---|
+| 0.13 | 134 | 342 | 0.39 | 0.29 | 10035 / 9797 |
+| 0.16 | 75.4 | 221 | 0.34 | 0.11 | 1016 / 381 |
+| 0.20 | 44.1 | 134 | 0.33 | 0.06 | 89 / 117 |
+| 0.30 | 16.7 | 53.7 | 0.31 | 0.13 | 30 / 63 |
+| 0.50 | 4.41 | 14.9 | 0.30 | 0.16 | 25 / 50 |
+| 0.60 | 2.58 | 9.05 | 0.29 | 0.16 | 24 / 44 |
+
+At A_V 0.05, inside the ionized gas, the ratio is 0.98. So the offset is
+established across the front and then held: the two codes attenuate at the
+same rate, and MOCASSIN starts the PDR with 3.2x less field. That is a
+normalisation difference, not a transfer-slope difference.
+
+Where it comes from: at 0.6 pc Cloudy's G0 is **4.6x** the unattenuated
+stellar FUV flux at that radius, MOCASSIN's only 1.3x. A field larger than the
+unattenuated direct field can only be diffuse, so Cloudy's PDR is lit mostly by
+radiation made in the H II region, and MOCASSIN's is not.
+
+### 3. Why: MOCASSIN throws away every line photon at creation
+
+`newPhotonPacket`, `case("diffuse")`, on drawing a line rather than a continuum
+photon (photon_mod.f90:921):
+
+    ! line photons escape so don't care which one it is unless debugging
+    if (lgDebug) then
+       call getNu2( grid(gP)%linePDF(...), nuP )
+    else
+       nuP = 0
+    end if
+
+`initPhotonPacket` then sets `nu = 0.` and `lgLine = .true.`, and
+`energyPacketRun` calls `pathSegment` only for `.not. lgLine`; the else branch
+bins the packet into `linePackets` under lgDebug and otherwise does nothing.
+The packet is never traced. So no line photon is ever in Jste - not Lya, not
+the heavy-element resonance lines.
+
+This is a deliberate assumption of MOCASSIN's, and a sound one for a dust-poor
+ionized nebula where the line escapes. It is not sound at a PDR front, where
+Lya is a first-order heating agent.
+
+Its size here, from Cloudy's own `.lines` (intrinsic intensities per unit inner
+area, x 4 pi Rin^2):
+
+    L(Lya) intrinsic   4.03e35 erg/s     = 3.0 x L_FUV(stellar)
+    L_FUV(stellar)     1.33e35 erg/s     (pdrFUV.out header, 0.472-1.0 Ryd)
+    L(Lya) emergent    0.70e35 erg/s     - 83% is absorbed, nearly all by dust
+
+Three times the stellar FUV luminosity, mostly deposited - which is the
+observed factor, arriving from the right direction and with the right size.
+
+`resLinesTransfer` does not repair this. It defaults to 101 (never; the run
+log carries MOCASSIN's own warning 14 times) and no fixture here sets it, but
+turning it on would not put Lya in the field either: `initResLinePackets`
+computes the resonance-line energy *absorbed by grains*, `(1 - fEscape)`, and
+emits it as extra `chTypeD = "diffuse"` packets, whose frequency is then drawn
+from the local re-emission PDF. The energy comes back as infrared. It warms the
+dust - which is what the keyword is documented to do - and leaves the
+photoelectric integrand untouched.
+
+### 4. The rate is 3-7x low as well, at matched grain charge
+
+Dividing the field out is not enough, because the photoelectric efficiency
+depends on the charging parameter psi = G0 sqrt(T) / n_e, and MOCASSIN's lower
+field gives it a lower psi. Binning each code's own cells by psi and comparing
+the heating per H nucleus per unit G0:
+
+| psi | MOCASSIN | Cloudy | ratio |
+|---|---|---|---|
+| 100-300 | 5.18e-27 | 1.74e-26 | 0.30 |
+| 300-1000 | 2.57e-27 | 1.14e-26 | 0.23 |
+| 1000-3000 | 1.38e-27 | 8.93e-27 | 0.15 |
+
+(The T medians differ between the bins - 27-60 K against 45-128 K - but the
+BT94 numerator moves 3% over that range, so this is not a temperature effect.)
+
+So at the same field *and* the same charge, MOCASSIN heats 3-7x less. The
+charging is excluded as the cause and excluded in the informative direction:
+MOCASSIN's psi is 4-5x lower than Cloudy's at matched radius, which should make
+its grains *more* efficient, not less. The threshold is excluded too - grainVn
+is 0.323 Ryd = 4.39 eV for both graphite files, the standard work function.
+
+What is left is the yield. `setPhotoelHeatCool` uses Baldwin et al. (1991):
+
+    Yn = min( Y0*(1 - nu_0/nu), Y1 )        Y0 = 0.5, Y1 = 0.2
+
+which depends on frequency and on the material's work function and **not on
+the grain radius**. WD01's, which Cloudy uses, rises towards unity as the grain
+radius falls below the electron escape length - and an MRN distribution has
+most of its *surface area* in the smallest grains, so a grey yield capped at
+0.2 loses exactly where the absorption happens. A flat 0.2 is generous for a
+0.25 um grain and several times too small for a 0.005 um one.
+
+### 5. Why the two factors do not multiply to 5-11x
+
+3.2 x (3 to 7) is 10-22, and the measured total gap is 5-11x. They do not
+multiply because they are coupled: supplying the missing Lya would raise psi
+by the same 3.2x and charge the grains further, and MOCASSIN's efficiency falls
+with psi more steeply (about psi^-0.53 over its range) than Cloudy's
+(psi^-0.29). Fixing only the field would move the heating far less than 3.2x.
+The two have to be considered together, and the yield is the one that does not
+cancel against itself.
+
+### 6. What this does not establish
+
+  - The 3-7x is attributed to the yield by elimination - charge, threshold,
+    size distribution and field are each excluded by measurement - not by a
+    direct calculation of WD01's yield on this grain population. That
+    calculation has not been done.
+  - Nothing has been measured on hiipdr. Its central star is far cooler, so
+    the Lya-to-stellar-FUV ratio there will be quite different and the split
+    between the two factors should not be assumed to carry over.
+  - MOCASSIN's FUV band starts at 0.4724 Ryd against Cloudy's 0.441, about 6%
+    of the band for a 150 kK blackbody, and the photoelectric integral itself
+    runs from the work function 0.323 Ryd rather than from either. These are
+    small against a factor 3 and have not been corrected for.
+  - No claim is made here about which yield is right. WD01 is the modern
+    treatment and Cloudy's, but this project's rule is that a difference
+    against a reference is measured and reported, not closed.
