@@ -35,6 +35,11 @@ module common_mod
     logical         :: lgQheat = .false.        ! temperature spiking on?
     logical         :: lgWritePss=.false.       ! write Pss for qHeat file?
     logical         :: lgTraceHeating = .false. ! trace thermal balance?
+    ! D-286. Recombination cooling in thermBalance: Case A (default, and the
+    ! consistent choice while the ground-state recombination continuum is
+    ! transported and its re-absorption heats) or the legacy Case B, selected
+    ! with MOCASSIN_RECCOOL=legacy. Ported from mocassin_HM_2026 dd3006c.
+    logical         :: lgCaseARecCool = .true.
     logical         :: lgGrainSpiking = .true.  ! temperature spiking for small grains
     logical         :: lgEcho = .false.         ! light time travel included?
     logical         :: lgforceTDust = .false.   !

@@ -1728,11 +1728,25 @@ end subroutine iterateT
             end if
 
             ! cooling of gas due to recombination of H+
-            ! fits to Hummer, MNRAS 268(1994) 109, Table 1.
-            ! least square fitting to m=4
-            betaRec = 9.4255985E-11 -4.04794384E-12*log10Te &
-                 & -1.0055237E-11*log10Te*log10Te +  1.99266862E-12*log10Te*log10Te*log10Te&
-                 & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
+            ! D-286, ported from mocassin_HM_2026 dd3006c. MOCASSIN transports
+            ! the ground-state recombination continuum (emission_mod builds
+            ! gammaHI from the H threshold up, D-227) and counts its
+            ! re-absorption in the photoionization heating, so the kinetic
+            ! energy those recombinations remove must be counted too: the
+            ! consistent coefficient is Case A, not Case B.
+            if (lgCaseARecCool) then
+               ! Case A: beta_A = beta_B + beta_1, fits to Hummer,
+               ! MNRAS 268(1994) 109, Table 1, least squares to m=4
+               betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
+                    & + 3.27948717E-12*log10Te*log10Te &
+                    & - 7.94872006E-13*log10Te*log10Te*log10Te &
+                    & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
+            else
+               ! legacy Case B, same table and fit order
+               betaRec = 9.4255985E-11 -4.04794384E-12*log10Te &
+                    & -1.0055237E-11*log10Te*log10Te +  1.99266862E-12*log10Te*log10Te*log10Te&
+                    & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
+            end if
 
             coolRec = Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed)
 
@@ -1770,11 +1784,18 @@ end subroutine iterateT
 
             ! cooling of gas due to recombination of He++
             ! fits to Hummer, MNRAS 268(1994) 109, Table 1.  least square fitting to m=4
-            ! and scaled to Z=2
-            betaRec = 2.*(9.4255985E-11 -4.04794384E-12*log10TeScaled &
-                 & -1.0055237E-11*log10TeScaled*log10TeScaled  &
-                 & +1.99266862E-12*log10TeScaled*log10TeScaled*log10TeScaled&
-                 & -1.06681387E-13*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
+            ! and scaled to Z=2: beta(Te,Z) = Z*beta(Te/Z^2,1)   [D-286]
+            if (lgCaseARecCool) then
+               betaRec = 2.*(1.25738653E-10 - 2.88316073E-11*log10TeScaled &
+                    & + 3.27948717E-12*log10TeScaled*log10TeScaled &
+                    & - 7.94872006E-13*log10TeScaled*log10TeScaled*log10TeScaled &
+                    & + 7.99438786E-14*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
+            else
+               betaRec = 2.*(9.4255985E-11 -4.04794384E-12*log10TeScaled &
+                    & -1.0055237E-11*log10TeScaled*log10TeScaled  &
+                    & +1.99266862E-12*log10TeScaled*log10TeScaled*log10TeScaled&
+                    & -1.06681387E-13*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
+            end if
 
             coolRec = coolRec + Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed/4.)
 
@@ -1798,12 +1819,37 @@ end subroutine iterateT
             end if
 
 
-            ! cooling of gas due to recombination of He+
-            ! fits to Hummer and Storey, MNRAS 297(1998) 1073, Table 6. least square fitting to m=4
-            betaRec =    9.4255985E-11 -4.04794384E-12*log10Te &
-                 & -1.0055237E-11*log10Te*log10Te  &
-                 & +1.99266862E-12*log10Te*log10Te*log10Te &
-                 & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
+            ! cooling of gas due to recombination of He+   [D-286]
+            if (lgCaseARecCool) then
+               ! Case A (beta_A = beta_B + beta_1) from Hummer & Storey,
+               ! MNRAS 297(1998) 1073, Table 6, which is tabulated to
+               ! log10Te = 4.4; above that the hydrogenic Case A fit of
+               ! Hummer (1994) is used.
+               !
+               ! NOTE (D-286): the two branches do not meet - at log10Te 4.4
+               ! the He-specific fit is 1.244x the hydrogenic one, so this is
+               ! a 24% step in a term the temperature solver brackets. Ported
+               ! as-is to keep this repository identical to mocassin_HM_2026
+               ! dd3006c; the step is measured in the DEVLOG entry.
+               if (log10Te <= 4.4) then
+                  betaRec = 1.22981534E-10 - 2.49951255E-11*log10Te &
+                       & + 1.80059252E-12*log10Te*log10Te &
+                       & - 7.31249870E-13*log10Te*log10Te*log10Te &
+                       & + 1.20240231E-13*log10Te*log10Te*log10Te*log10Te
+               else
+                  betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
+                       & + 3.27948717E-12*log10Te*log10Te &
+                       & - 7.94872006E-13*log10Te*log10Te*log10Te &
+                       & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
+               end if
+            else
+               ! legacy Case B
+               ! fits to Hummer and Storey, MNRAS 297(1998) 1073, Table 6. least square fitting to m=4
+               betaRec =    9.4255985E-11 -4.04794384E-12*log10Te &
+                    & -1.0055237E-11*log10Te*log10Te  &
+                    & +1.99266862E-12*log10Te*log10Te*log10Te &
+                    & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
+            end if
 
             coolRec = coolRec + Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed)
 

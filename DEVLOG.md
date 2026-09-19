@@ -285,6 +285,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-283 | **A collaborator's Cloudy test model (150k_PDR: 150 kK blackbody, L 10^36.583, n_H 1e3, R_in 1e16 cm, GASS with Si Mg Ca Al x0.01, ISM graphite, cosmic-ray background, stop at 40 K) run in Cloudy and in MOCASSIN-PDR, and published as '150 kK PN Against Cloudy'. The ionized nebula agrees closely (Hbeta 2.71 vs 2.78e34 erg/s; [O III] 5007, 4363, 88 um within 2%; H+ front 0.131 vs 0.128 pc, He2+ 0.083 vs 0.088); the PDR is again ~2x too cold (24-30 vs 42-70 K), H2 crosses at A_V 0.27 vs 0.37, and the chemistry's O and C+ fine-structure cooling are 7.3x and 2.6x Cloudy's lines.** MOCASSIN stops on Ca VII (27 levels) and Fe VI (19) > nForLevels 17; on the user's instruction Ca and Fe were dropped, and Cloudy re-run with them off (the user asked for the with/without comparison too: H II gas 2-9% hotter without them, 40 K stop 1.799 -> 1.872e18 cm, deep PDR within 10%). Matched: A_V/N_H 3.648e-22 (MdMg 2.4827e-3, calibrated), pdrZeta 4.293e-16 for Cloudy's background H0 rate 1.975e-16, R_out = Cloudy's stop radius. runs/d283-pn150k: 41^3, converged 91.2% at iteration 9, 2 h 39 min (iterations 3-29 min; grain charging and grain-gas heating dominate), 1.2 GB/rank, no ion or Te balance failures. Also: [Ne III] +35-48%, [Ne II] +36%, [O II] 3726 +28%, [O I] 6300 +40%, [O IV]/[Ne V] -11/-14%; T_dust 8-25% warmer. tools/d260_roellig.py generalized (elements from the run's input, --xlim/--rticks/--grains/--model-cloudy-rin/--ref-label/--prefix; hiipdr figures pixel-identical) | Open | 2026-09-14 |
 | D-284 | **D-283's fine-structure pointer withdrawn: the chemistry's cooling functions agree with Cloudy's, and the cold PDR is not a cooling excess. What remains is a data defect in the vendored 3D-PDR coolant files, confined to warm gas.** D-283's 7.3x (O) and 2.6x (C+) compared 5-level coolant totals, over every cell, with Cloudy's 63/145/158 um lines alone. The coolants include [O I] 6300/6363/5577 and C II] 2326, and 69% of the O and 76% of the C+ sat in ionized cells. In the PDR, cooling per emitter per H nucleus agrees with Cloudy to 0.84-1.28 (O) and 0.84-1.26 (C+) over 45-1200 K, so O-02 is on the heating side (Cloudy: grain PE 80-96% of heating; MOCASSIN's D-217 cold-group mean PE 4.2e-26 per H against Cloudy's ~2-5e-25, a pointer only). Against a Cloudy rerun with every transition's emissivity (runs/d284-fs-cloudy, overview identical to D-283's), C+ in the H II gas is 1.10-1.17x per ion and O 2.0x per atom. Cause: dataPDR/16o.dat and 12c.dat give each 1D->3P_J and 1S->3P_J electron rate the same value, about the whole-term collision strength (Upsilon 0.29 per J at 1e4 K, against Barklem 2007's 0.15/0.09/0.03 split by 2J+1). tools/d284_o5lev.py reproduces pdrCoolSp to 1-4% from 27 K to 12 kK, and with Barklem's rates gives 2.07-2.16x less O I cooling in the H II gas and 1.00x below ~1000 K. At the front MOCASSIN's O I cooling is 1.4-1.8x Cloudy's total cooling there, while MOCASSIN is 900-2000 K hotter. Not fixed | Open | 2026-09-15 |
 | D-285 | **The D-284 defect fixed in the data: dataPDR/16o.dat and 12c.dat now split each 1D/1S -> 3P_J electron (and O + H) collision rate by g_J/9, which is what the sources they cite already do.** Verified against the cited data: the split O + e values reproduce CHIANTI's J-resolved Zatsarinny & Tayal entries to <1% (2.811/1.687/0.562e-9 against 2.83/1.70/0.566e-9 at 1e4 K), and tools/d284_o5lev.py, re-run on the corrected file, gives 1.84e-18 erg s^-1 per O atom at 12.1 kK where Cloudy's emissivity is 1.85e-18 (was 3.8e-18), and is unchanged below 1000 K. Re-applicable after an upstream merge with tools/d285_split_3p.py (only touches rows still identical across J, so it is idempotent); recorded in source/pdr/UPSTREAM.md. Also, so that O-02's heating question stops resting on a group mean: MOCASSIN's per-cell thermal budget is now published as output/thermBudget.out - mocBud slot 2 (D-217) plus a new per-element split of the photoionization heating (grid%mocHeatEl), gathered across ranks by cell ownership. All four flavours build. runs/d285-pn150k re-runs the 150 kK model | Open | 2026-09-18 |
+| D-286 | **Case A recombination cooling ported from mocassin_HM_2026 `dd3006c` (both branches), and audited.** MOCASSIN transports the ground-state recombination continuum (D-227) and counts its re-absorption in the photoionization heating, so the kinetic energy those recombinations remove belongs in the budget too: Case B under-counts it. Audit: the new H+ fit implies 0.78 kT per recombination at 1e4 K against the legacy fit's 0.67, which are Osterbrock's Case A and Case B values; beta_A/beta_B runs 1.46 (1e3 K) to 2.81 (1e5 K), 1.87 at 1e4 K, consistent with alpha_1/alpha_B = 0.61 at 0.95 kT per ground-state recombination. **Defect found and ported as-is, not silently fixed:** the He+ Case A branch switches from Hummer & Storey (1998) to Hummer (1994) at log10Te 4.4, where the two fits differ by 24% - a step in a term the temperature solver brackets. Switch MOCASSIN_RECCOOL=legacy restores Case B, same spelling as the source repository. All four flavours build | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -21404,3 +21405,91 @@ heating measurement written into both.
   - 12c.dat's effect was never sized separately.
   - hiipdr has not been re-run on the corrected data. Its PDR is cold enough
     that nothing should move; that is a prediction, not a measurement.
+
+## D-286 - Case A recombination cooling, ported and audited (2026-09-19)
+
+Hektor: a bug found while working in `mocassin_HM_2026` - the thermal balance
+used Case B recombination cooling fits where Case A is correct - with the
+instruction to audit that commit and port it to both branches here.
+
+Source commit: `dd3006c` on that repository's `dev`, "Implement Case A
+recombination cooling in thermal balance".
+
+### 1. Is the premise true in this repository?
+
+Yes. The argument for Case A is that the code does not assume on-the-spot
+re-absorption: it emits the ground-state recombination continuum into the
+diffuse field and transports it, and where those photons are re-absorbed the
+photoionization heating integral counts them. Cooling must then count the
+kinetic energy the same recombinations removed, which is what Case A
+(beta_A = beta_B + beta_1) does. Checked here:
+
+  - `emission_mod` builds `gammaHI` from the H threshold bin `HIPnuP` upward
+    (and the He continua from their own thresholds since D-227), so the
+    ground-state continuum is emitted, not dropped;
+  - there is no on-the-spot option anywhere in `source/` - nothing switches
+    that transport off, so the Case A choice is unconditional rather than
+    mode-dependent.
+
+### 2. Are the coefficients right?
+
+Checked against values not taken from the commit. The fits give a cooling
+coefficient `betaRec` used as `coolRec = n_i n_e betaRec k Te / sqrt(Te)`, so
+`betaRec k sqrt(Te) / alpha` is the mean energy removed per recombination:
+
+| | at 1e4 K | Osterbrock |
+|---|---|---|
+| legacy fit / alpha_B | 0.672 kT | 0.68 kT (Case B) |
+| new fit / alpha_A | 0.779 kT | 0.78 kT (Case A) |
+
+with alpha_B = 2.59e-13, alpha_A = 4.17e-13. The implied ground-state term is
+0.95 kT per recombination, which is the expected value for direct-to-n=1.
+beta_A/beta_B over the fitted range:
+
+    log10Te   3.0    3.4    3.7    4.0    4.3    4.6    5.0
+    ratio     1.46   1.59   1.71   1.87   2.06   2.31   2.81
+
+So the H+ and He++ fits are sound, and the change makes recombination cooling
+1.5-2.8x larger. Recombination is a minority coolant in H II gas, so the
+expected effect on Te is a small cooling, not a restructuring.
+
+### 3. A defect in the He+ branch, ported as-is
+
+The He+ (He+ + e -> He0) coefficient is piecewise: Hummer & Storey (1998)
+Table 6 up to log10Te = 4.4, the hydrogenic Hummer (1994) fit above it,
+because HS98 stops there. **The two branches do not meet.** At the join:
+
+    HS98 branch   3.0639e-11
+    H94 branch    2.4624e-11      ratio 1.244
+
+a 24% step at Te = 25119 K, in a term `iterateT` brackets a root of. The two
+fits also diverge steadily below the join (1.008 at log10Te 3.0, 1.031 at 3.5,
+1.102 at 4.0), so the step is the accumulated difference between a He-specific
+and a hydrogenic fit, not a typo.
+
+It is ported unchanged, so that this repository and `mocassin_HM_2026` compute
+the same numbers and any comparison between them is exact. It is recorded here
+rather than silently smoothed. Its practical weight is small - above 25000 K
+helium is mostly He++ and this term is a few per cent of `coolRec`, which is
+itself a minority of the budget - but this project has twice been bitten by
+discontinuities in the function the temperature solver brackets (D-166, D-168),
+and the same fix should be made in both repositories. Extrapolating the HS98
+quartic past the join instead is well behaved to log10Te 5.0 (2.68e-11, still
+falling smoothly), which is one of the two candidate fixes; the other is a
+blend across a narrow interval.
+
+### 4. The port
+
+  - `source/update_mod.f90`: the three `betaRec` assignments (H+, He++, He+),
+    each behind `lgCaseARecCool`, legacy retained in the `else`.
+  - `source/common_mod.f90`: `lgCaseARecCool = .true.`.
+  - `source/readdata_mod.f90`: reads `MOCASSIN_RECCOOL`, accepting `legacy`,
+    `caseB` or `caseb` for the old behaviour, and prints which is in use on
+    rank 0. Same variable and spellings as the source commit. This repository
+    normally configures through input keywords; the environment variable is
+    kept so a run here and a run there are put in the same mode the same way.
+  - Not ported: the source commit's rebuilt executables (this repository does
+    not track them on this branch) and its `taskid` guards on the Badnell
+    print, which is not in this branch.
+
+All four flavours build from clean.
