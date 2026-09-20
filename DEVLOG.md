@@ -22391,3 +22391,28 @@ or a mid-run probe.
 Lya is still untreated, and D-291's account of it stands: Cloudy's deep-PDR
 Lya is an artifact of attenuating outward line flux by continuum opacity
 alone, and 3D-PDR has none. Option 2 remains parked.
+
+### 7. '150 kK PN Against Cloudy' rebuilt on D-290 (option 3)
+
+The page is rebuilt from `runs/d290-pn150k-grainq`, all four figures
+regenerated and every number recomputed. The photoelectric section is
+rewritten around what the week actually established:
+
+  - the charge balance was out by 4 pi^2, and fixing it closed the conversion
+    efficiency half - 0.57-1.40 of Cloudy's where it had been 1.7-4.8x low -
+    and warmed the PDR from 24-30 to 25-47 K against Cloudy's 42-67;
+  - the field half, 3.0-3.5x, is all that remains;
+  - **and Cloudy's field is not the target.** The page now states that 66% of
+    Cloudy's PDR FUV field is outward lines, that Lya is 46 of those points,
+    and that Cloudy attenuates outward line flux by continuum opacity alone -
+    with the flat 46.3/46.1/46.0% at A_V 0.22/0.54/0.70 given as the evidence,
+    and tau(Lya) ~ 1e8 as the reason it cannot be real.
+
+The two checks the fix was not tuned to produce are on the page as well: the
+grain charge now agrees with Cloudy in SIGN in the ionized gas, and
+MOCASSIN's grains end up slightly less charged than Cloudy's, which is what a
+field still 3x low should give.
+
+The photoelectric figure now contrasts the fixed run against the unfixed one
+and Cloudy, so panel (b) shows the 4.4 V peak collapsing to near zero while
+panel (a) is unmoved - the field is untouched by anything done to the grains.

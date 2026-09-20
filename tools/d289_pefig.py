@@ -77,11 +77,11 @@ def main(wd01, baldwin, prefix, outdir):
     x, y = shells(a['r'], a['Vg'], edges)
     ax.plot(x, y, color=MOC, lw=1.7, label='MOCASSIN, WD01 yield')
     x2, y2 = shells(b['r'], b['Vg'], edges)
-    ax.plot(x2, y2, color=MOC2, lw=1.5, ls=':', label='MOCASSIN, Baldwin yield')
+    ax.plot(x2, y2, color=MOC2, lw=1.5, ls=':', label='MOCASSIN, before the fix')
     ax.plot(c['r'], c['Vg'], color=REF, ls='--', lw=1.3, label='Cloudy')
     ax.axhline(0, color='#9A9284', lw=0.7)
     ax.set_ylabel(r'grain potential $V_g$ [V]')
-    ax.set_ylim(-1.9, 5.3)
+    ax.set_ylim(-2.4, 5.3)
     ax.set_title('(b)  Grain charge', fontsize=10.5, loc='left')
 
     # ---- (c) the photoelectric heating
@@ -107,8 +107,8 @@ def main(wd01, baldwin, prefix, outdir):
     h = [plt.Line2D([], [], color=MOC, lw=1.7),
          plt.Line2D([], [], color=MOC2, lw=1.5, ls=':'),
          plt.Line2D([], [], color=REF, lw=1.3, ls='--')]
-    fig.legend(h, ['MOCASSIN-PDR, WD01 yield (D-289)',
-                   'MOCASSIN-PDR, Baldwin yield (through D-288)',
+    fig.legend(h, ['MOCASSIN-PDR, charge balance fixed (D-290)',
+                   'MOCASSIN-PDR, before the fix (D-289)',
                    'Cloudy c25.00 (Ca, Fe off)'],
                loc='lower center', ncol=3, bbox_to_anchor=(0.5, -0.10),
                handlelength=2.4, columnspacing=2.0)
