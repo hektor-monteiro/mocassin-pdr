@@ -126,3 +126,70 @@ def main(run):
 
 if __name__ == '__main__':
     main(sys.argv[1])
+
+
+def escape(run):
+    """MOCASSIN's own Lya escape probability, evaluated on this run.
+
+    setResLineEscapeProb walks 125 directions accumulating the line-centre
+    optical depth tau_mu, converts each to a Kwan & Krolik (1981) escape
+    probability, averages, and then applies the Harrington, Cohen & Hess
+    (1984) eq A5 dust-destruction factor
+
+        fEsc = 1 / (1 + 2 k_d dx / (k_l Pbar))
+
+    with k_d the dust absorption opacity at the line and k_l = sigma_0 n(H0).
+    The model is spherical, so the 125 directions are approximated here by two
+    streams - inward to the star and outward to the edge - which is the split
+    that matters: inward the gas is ionized and nearly transparent to Lya,
+    outward it is not. The routine is never called in any run (it is gated
+    behind resLinesTransfer, default off), so this is the formula evaluated
+    offline rather than a reading of its output.
+    """
+    d = C.read_grain(run)
+    r = d['r'] * PC
+    o = np.argsort(r)
+    r, H0, T, nH = r[o], d['H'][o], d['Tgas'][o], np.full(len(r), 1000.)
+    # radial bins
+    edges = np.linspace(r.min(), r.max(), 160)
+    rc = 0.5 * (edges[:-1] + edges[1:])
+    h0 = np.array([np.median(H0[(r >= a) & (r < b)]) if ((r >= a) & (r < b)).sum()
+                   else np.nan for a, b in zip(edges[:-1], edges[1:])])
+    tt = np.array([np.median(T[(r >= a) & (r < b)]) if ((r >= a) & (r < b)).sum()
+                   else np.nan for a, b in zip(edges[:-1], edges[1:])])
+    ok = np.isfinite(h0) & np.isfinite(tt)
+    rc, h0, tt = rc[ok], h0[ok], tt[ok]
+
+    sig0 = 5.9e-14 * (tt / 1e4) ** -0.5
+    k_l = sig0 * h0                                    # cm^-1
+    k_d = 1000. * AV_PER_NH / 1.086 * EXT_1216_OVER_V * (1 - ALBEDO)
+
+    dr = np.gradient(rc)
+    cum = np.cumsum(k_l * dr)
+    tau_in = cum                                       # to the star
+    tau_out = cum[-1] - cum                            # to the edge
+
+    def P(tau):
+        tau = np.maximum(tau, 1e-30)
+        b = np.sqrt(np.log(np.maximum(tau, 1.000001))) / (1. + tau / 1e5)
+        hi = 1. / (tau * np.sqrt(np.pi) * (1.2 + b))
+        lo = (1. - np.exp(-2. * np.minimum(tau, 300.))) / (2. * tau)
+        return np.where(tau >= 1., hi, lo)
+
+    def dx(tau):
+        v = np.log(np.maximum(tau, 1e-30) / np.sqrt(np.pi))
+        return np.where(v > 0., np.sqrt(np.maximum(v, 0.)), 0.)
+
+    Pbar = 0.5 * (P(tau_in) + P(tau_out))
+    dxb = 0.5 * (dx(tau_in) + dx(tau_out))
+    fEsc = 1. / (1. + 2. * k_d * dxb / np.maximum(k_l * Pbar, 1e-300))
+
+    print('\n== MOCASSIN\'s own escape formula, evaluated on %s ==' % run)
+    print('   k_d(1216 A) = %.3g cm^-1' % k_d)
+    print('   r[pc]   n(H0)     T[K]    tau_in    tau_out    Pbar      fEsc   destroyed')
+    for rad in (0.05, 0.10, 0.125, 0.14, 0.16, 0.20, 0.30, 0.50):
+        j = np.argmin(abs(rc / PC - rad))
+        print('   %5.2f %9.3g %7.0f %9.3g %9.3g %9.3g %8.4f %8.1f%%'
+              % (rad, h0[j], tt[j], tau_in[j], tau_out[j], Pbar[j], fEsc[j],
+                 100 * (1 - fEsc[j])))
+    return rc, fEsc, h0, tt
