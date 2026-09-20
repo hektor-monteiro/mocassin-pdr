@@ -292,6 +292,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-290 | **The grain charge balance overstates photoemission by 4 pi^2 = 39.5: `getGrainEmission` and `setPhotoelHeatCool` read `Jste` in different conventions, and only one of them is right.** `Jste` is the ANGLE-INTEGRATED flux [erg cm^-2 s^-1], confirmed two independent ways: `chi/chi_thin` -> 1 near the star in pdrFUV.out, where chi_thin is L/(4 pi r^2 c u_Draine); and D-288's measured absorbed energy per H matches G0 x 1.6e-3 x (area/H) with <Q_abs> = 0.68. `setPhotoelHeatCool` uses it correctly (flux x sigma_abs). `getGrainEmission` multiplies it by `fourPi` a second time AND divides the cross section by a^2 rather than pi a^2, giving pi Q_abs - together 4 pi x pi = **4 pi^2**, while `getGrainRecombination` returns n<v>eta, which is the collection rate per unit geometric cross section and is correct. **Measured, not inferred:** at the converged potential of runs/d289, collection / emission recomputed in correct units is 38.8, 35.3, 37.1, 37.9, 38.7, 38.9 at r = 0.20-0.60 pc against 4 pi^2 = 39.478 - flat across a factor 7 in field and 3 in temperature, the residual being the ion collection term. So the code converges where the true photoemission is ~39x below the true collection, which is why the grains sit at 0.9-4.8 V against Cloudy's 0.4-1.5 (D-288) and why D-289's factor-two yield change moved the heating only 8%. This is the efficiency half of O-02, and it is a units defect, not a physics choice. **Fixed and measured (runs/d290-pn150k-grainq, 11 iterations, 89.6%, 2h42m, 0% balance failures): this closes the efficiency half of O-02.** The grain potential falls 1.61 -> **0.059 V** in the PDR (Cloudy 0.41-1.43) and the sign in the ionized gas now AGREES with Cloudy's (-2.00 against -1.15, where it was +1.05); the energy per escaping electron rises 2.58 -> 3.31 eV; photoelectric heating rises 75% overall and 4-6x at 0.2-0.3 pc; **and heating per absorbed erg is now 0.57-1.40 of Cloudy's, against 1.7-4.8x low before** - the conversion efficiency deficit is gone. PDR gas 23.6-30.3 -> **24.6-47.3 K** against Cloudy's 42-67; at A_V 0.30, 31 -> 52 K against 70, and at r = 0.20 pc 87 -> 123 K against 117. What is left of O-02 is the field alone, 3.06-3.54x, which is D-287's discarded Lya; MOCASSIN's grains are now slightly LESS charged than Cloudy's, consistent with its field still being 3x low. MOCASSIN_GRAINQ=legacy restores the defect. Costs: convergence 91.9% at iteration 9 -> 89.6% at 11, Hbeta 0.98 -> 0.96 of Cloudy's, H2 at A_V 0.2 higher | Open | 2026-09-19 |
 | D-291 | **Cloudy's deep-PDR Lya is largely an artifact of its line transport, and 3D-PDR has no Lya at all - so neither reference settles what MOCASSIN should do, and D-287's framing of the field half is corrected.** Measured with `save ionizing continuum every zone` (runs/d290-cloudy-field): across the PDR Cloudy's 6-13.6 eV field is 66.4% outward LINES, 24.7% outward continuum, 8.8% attenuated stellar, 0.1% OTS; per line at A_V 0.54, H I 1216 is **46% of the whole field**, C III] 1909 8.4%, He II 1640 6.3%, C IV 1.9%. But Cloudy attenuates outward line flux by CONTINUUM opacity only - `opac.ExpZone[i] = sexp(opac.opacity_abs[i]*drad...)` - so escaped Lya streams through the PDR like a 1216 A continuum photon and is never re-absorbed in the line; the signature is that H I holds a flat 46.3/46.1/46.0% at A_V 0.22/0.54/0.70, which is what a continuum-attenuated component does. Physically tau(Lya) ~ 1e8 there and Lya should be destroyed in a thin layer at the front. **Also corrected: MOCASSIN never had Lya in its line channel.** `linePDF` and `totalLines` are both built with ilow >= 2 for H and He II, so the Lyman series is excluded by construction - D-287's conclusion that Lya never reaches Jste stands, but not because it is discarded as a line packet. What MOCASSIN does discard is the ~17% of Cloudy's PDR field that is optically thin lines (C III], He II 1640, C IV, C II), which legitimately stream. **3D-PDR:** UVfield is purely external (rad_surface = Gext/nrays, dust-attenuated per HEALPix ray), its only internal photons are the 15 CRPHOT cosmic-ray-induced reactions which enter reaction rates and never UV_FIELD, and XRLYA/XRPHOT are hard-coded to zero. Nothing decided or implemented | Open | 2026-09-19 |
 | D-292 | **Transporting the optically thin diffuse lines destroys the PDR; DEFAULT OFF, cause not found. Three pre-existing defects found and fixed on the way, and together they are the lgDebug segfault D-158 could not explain.** The change: `setLineNuP` builds a line-index -> frequency-bin map in linePDF's order (Rydberg for H I and He II at Z=2, column 4 of HeIrecLines.dat for He I, `equilibrium`'s existing optional `wav` for the forbidden lines); all 419 of 419 map, and a drawn line packet is emitted at its own frequency and traced instead of being given nuP = 0 and dropped. **Result (runs/d292-pn150k-lines, killed at iteration 3): mean Te 302 -> 7576 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, CO per H 3.7e-28 -> 2.0e-36.** Forbidden and recombination lines cannot do that, so it is a defect in the change. Two hypotheses tested and both insufficient: **(a) stray ionizing photons - 0 of 419 lines map at or above 1 Ryd**; **(b) a mis-normalised totalLines - measured P(line) = 0.298**, a plausible share that would raise the diffuse field 1.4x, not 25x. Also measured, from the model's own lineFlux.out: MOCASSIN's He II recombination lines put 3.52 Hbeta into 912-1930 A = **0.70 x the stellar FUV band luminosity** (1640 A alone 2.09 Hbeta) and 0.79 Hbeta into the Lyman-Werner band, so the line budget is real but roughly doubles the FUV field rather than swamping it. Remaining hypothesis, untested: a diffuse packet is the RE-EMISSION of an absorbed packet, so killing line packets was a 30%-per-absorption sink on the whole radiation field; removing it lets packets recirculate. Defects fixed and kept: `makeElements` now runs BEFORE the grid (it computes nLines, which initCartesianGrid sizes linePackets and linePDF with - both were allocated 1:0); nLines counted 20 He I lines where the data file, linePDF, normRec and outputGas all have 34; and linePDF's MPI reduction was gated on lgDebug so each rank held zeros for cells it did not own. All four flavours build | Open | 2026-09-19 |
+| D-293 | **Option 2 sized before spending a run on it: the Lya deposition is real and large, and lands in ONE CELL. This grid cannot resolve it, and it cannot reach the deep PDR either way.** From the model's own recombination structure (tools/d293_lya.py, nothing taken from Cloudy): L(Lya) = 8.3e35 erg/s Case B - 31 x Hbeta, against the 23 x Hbeta the Case B ratio predicts, so good to ~30% - giving **235 Habing at the front against the stellar FUV's 38, a factor 6.2**. Destruction depth from the standard dusty-medium criterion (a tau_0)^(1/3) tau_a ~ 1: **A_V 0.020 past the front**, i.e. Lya is gone 27x shallower than the A_V 0.54 at which Cloudy still shows it as 46% of the field - and the criterion would have to be wrong by 10x, moving the depth only 5.6x to A_V 0.11, to change that conclusion, so D-291 is robust. The heating in that layer would be 6.9e-21 erg/s per H total and 9.9e-23 into the gas at the measured 1.5% conversion efficiency, **157x the photoelectric heating the model has there** - but the layer is A_V 0.020 and a 41^3 cell is A_V 0.0171, so it is **1.17 cells thick**. Implementing option 2 would therefore dump 157x the local heating into the first PDR cell and let the cell size, not the physics, set the answer; and the deep PDR (A_V 0.3-0.7), which is where O-02's remaining factor lives, receives nothing. Not implemented | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22416,3 +22417,93 @@ field still 3x low should give.
 The photoelectric figure now contrasts the fixed run against the unfixed one
 and Cloudy, so panel (b) shows the 4.4 V peak collapsing to near zero while
 panel (a) is unmoved - the field is untouched by anything done to the grains.
+
+## D-293 - Sizing the Lya deposition before implementing it (2026-09-19)
+
+Option 2 of D-291 - deposit Lya where it is actually destroyed, using the
+escape-probability machinery already in the tree - is the only route left to
+O-02's remaining factor. Before spending a run on it, three numbers decide
+whether it is worth building: how much energy, over what depth, and whether
+this grid can resolve the answer. `tools/d293_lya.py`, everything from
+`runs/d290-pn150k-grainq`'s own structure.
+
+### 1. How much
+
+L(Lya) from the model's own recombinations, Case B with 0.68 Lya photons per
+recombination:
+
+    L(Lya)          8.26e35 erg/s   = 31 x Hbeta
+    Case B expects  23 x Hbeta      -> this estimate is good to about 30%
+    Cloudy, same model, intrinsic   4.03e35 erg/s = 14.5 x Hbeta
+
+Cloudy's is *below* the Case B ratio, which is consistent with some of its Lya
+already being destroyed before the intrinsic tally. Either way Lya is several
+times the stellar FUV band:
+
+    Lya flux at the front       0.375 erg cm^-2 s^-1 = 235 Habing
+    stellar FUV at the front    0.061                =  38 Habing
+    ratio                                               6.2
+
+### 2. Over what depth
+
+Lya entering neutral gas random-walks and is destroyed by dust. The standard
+criterion for essentially complete absorption in a dusty medium is
+`(a tau_0)^(1/3) tau_a >~ 1`, with `a` the Voigt parameter and tau_0, tau_a
+the line-centre and dust-absorption optical depths from the front. Just past
+the front this model has T = 193 K and n(H0) = 922, giving sigma_0 = 4.3e-13
+cm^2 and a = 3.4e-3; the dust absorption cross-section is 5.0e-22 cm^2 per H.
+
+| A_V past the front | tau_0 | tau_a | (a tau_0)^1/3 tau_a |
+|---|---|---|---|
+| 0.005 | 5.8e6 | 0.0069 | 0.19 |
+| 0.010 | 1.2e7 | 0.0138 | 0.47 |
+| 0.015 | 1.8e7 | 0.0207 | 0.81 |
+| **0.020** | 2.3e7 | 0.0276 | **1.18** |
+| 0.100 | 1.2e8 | 0.138 | 10.1 |
+
+**Lya is destroyed within A_V 0.020 of the front** - 27 times shallower than
+the A_V 0.54 at which Cloudy still reports it as 46% of the FUV field. The
+criterion scales as N^(4/3), so being wrong by a factor 10 moves the depth
+only 10^(3/4) = 5.6x, to A_V 0.11 - still nowhere near 0.54. **D-291's
+conclusion is robust to an order of magnitude.**
+
+### 3. And whether the grid can see it
+
+    heating in that layer   6.9e-21 erg s^-1 per H  (nearly all into grains)
+    into the gas at 1.5%    9.9e-23 erg s^-1 per H
+    the model has there     6.3e-25                 -> a factor 157
+
+    41^3 cell               0.0152 pc = A_V 0.0171
+    deposition layer        A_V 0.020 = 1.17 cells
+
+So the physics is real and very large - 157x the local photoelectric heating -
+and it lands in **one cell**. Implementing option 2 on this grid would put
+that energy into the first PDR cell and let the cell size, not the physics,
+set the temperature there. Worse for the purpose: the deep PDR, A_V 0.3-0.7,
+where O-02's remaining factor actually lives, receives **nothing**.
+
+### 4. What this means for O-02
+
+  - **Option 2 will not close the remaining factor.** It heats a layer the
+    deep PDR does not see, and it would need a grid refined near the front -
+    a much larger change than the transfer itself - before its answer meant
+    anything.
+  - It is still worth doing eventually, for the front and for the dust
+    temperature there, but as a physics improvement rather than as a route to
+    O-02.
+  - **The remaining 3.0-3.5x in the FUV field is therefore not Lya.** With Lya
+    excluded by depth and the thin lines worth ~17% (D-291) and currently
+    broken (D-292), what is left of O-02 no longer has an identified cause,
+    and the honest position is that a large part of Cloudy's deep-PDR field is
+    its own line-transport artifact rather than something MOCASSIN is missing.
+
+### 5. Not known
+
+  - The destruction criterion is a scaling, not a transfer calculation.
+    MOCASSIN's own `setResLineEscapeProb` would do it properly, per cell, with
+    direction sampling - and it is never called. Running it purely as a
+    diagnostic, without the packet re-emission, is the cheap way to replace
+    this estimate with a measurement.
+  - L(Lya) is good to ~30%, and the Case B branching and alpha_B fit here are
+    approximations.
+  - Nothing has been measured on hiipdr, whose front conditions differ.
