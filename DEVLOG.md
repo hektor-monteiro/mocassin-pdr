@@ -290,6 +290,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-288 | **D-287's attribution of the residual 3-7x to a too-low yield is WITHDRAWN: WD01's yield is *lower* than MOCASSIN's here, not higher.** Checked before implementing it, on this grain population and spectrum (tools/d288_yield.py, la = lambda/4 pi k from the same optical constants MOCASSIN builds its cross sections from): the absorbed-photon-weighted neutral-grain yield is WD01 **0.47-0.79 x** MOCASSIN's, and falling with depth (0.79 at the front, 0.48 at A_V 1). Adopting WD01 at fixed grain charge would *reduce* MOCASSIN's heating. What the yield table does show is a spectral-shape error, not a normalisation one: at 6 / 7 / 8 eV WD01 gives 0.0003 / 0.0062 / 0.0505 for a 0.005 um grain against MOCASSIN's flat 0.134 / 0.186 / 0.200, i.e. MOCASSIN is 100-400x too high exactly where the deep PDR's surviving photons are, and ~1.5-2x too low at 13-13.6 eV. **New hypothesis, not yet measured: over-charging.** Too much emission near threshold drives the equilibrium grain potential up and the Coulomb barrier then suppresses the heating - which would explain why MOCASSIN's efficiency falls as psi^-0.53 against Cloudy's psi^-0.29, and why reproducing its heating per absorbed photon with Y = 0.2 needs V_g ~ 4.6 V against Cloudy's printed <Pot> 0.5-1.4 V. The grain potential had never been written out, so this was inference; it now is - `mocGrain`, 6 slots on thermBudget.out (<V_g>, <Y>, <E> per electron, absorbed photons and energy per H, grain area per H), decomposing the photoelectric integral exactly, and validated two ways: the identity holds to 7e-6, and the grain area per H comes out 5.453e-22 cm^2 against 5.60e-22 computed analytically from the MRN and MdMg, so the dust inventory is now excluded by measurement rather than by assumption. **Measured (runs/d288-pn150k, 9 iterations, 91.4%, 2h51m; Cloudy re-run with `save grain potential`): MOCASSIN's grains sit at 1.96-4.77 V through the PDR against Cloudy's 0.35-1.43 V, a factor 2.8-5.6**, peaking at 4.77 V where 4.6 was predicted. In the ionized gas the sign differs - Cloudy -1.15 V, MOCASSIN +1.05. The Coulomb barrier then cuts the yield to <Y> 0.048-0.098 against a neutral ~0.15-0.20 and the energy per electron to 1.5-2.1 eV. The whole 5-11x now decomposes: field 3.0-3.5x (D-287's Lya) times conversion efficiency 1.8-5.2x. So the WD01 yield IS the right change, but for the opposite reason to D-287's - being *lower* near threshold it discharges the grains, and the net heating should rise. Not yet implemented | Open | 2026-09-19 |
 | D-289 | **The WD01 photoelectric yield implemented in the charge balance and the heating together, and measured: it halves the over-charging and leaves O-02 where it was.** One yield, one reality - ph_mod tabulates the neutral-grain yield once per (species, size, frequency), and both getGrainEmission and setPhotoelHeatCool read that table, where each previously carried its own copy of the Baldwin expression. WD01 eqs 12-16 with the escape length from la = lambda/(4 pi k) on the model's own optical constants, the bulk fit selected per species from MsurfAtom in the grain's data file, and W and Theta from the model's own grainVn, so nothing here is a constant standing in for something MOCASSIN knows. MOCASSIN_YIELD=baldwin restores the old yield. Validated against tools/d288_yield.py to 4-6% before the run. **Measured (runs/d289-pn150k-wd01, 9 iterations, 91.9%, 2h54m): the grain potential falls 2.59 -> 1.61 V in the PDR (Cloudy 0.41-1.43) and 1.96 -> 0.89 V at 0.6 pc, so the over-charging is roughly halved at depth; but the heating moves +8% and the gas temperature not at all (23.9-29.3 -> 23.6-30.3 K against Cloudy's 42-67).** The three terms very nearly cancel: <Y> falls 0.070 -> 0.037, <E> rises 1.63 -> 2.58 eV because the lower barrier lets each electron keep more, and N_abs rises because the threshold max(Vn+Vg, Vn) drops with the potential. The photoelectric heating is self-regulating in this regime, which is why D-288's prediction was right in direction and wrong in size. O-02's efficiency factor goes 1.8-5.2x -> 1.7-4.8x. The better physics is in; the gap is not closed, and is not to be closed by tuning it. Remaining: the potential is still 2.2-4.3x Cloudy's, and the electron-collection side of the balance (getGrainRecombination) has never been examined. All four flavours build | Open | 2026-09-19 |
 | D-290 | **The grain charge balance overstates photoemission by 4 pi^2 = 39.5: `getGrainEmission` and `setPhotoelHeatCool` read `Jste` in different conventions, and only one of them is right.** `Jste` is the ANGLE-INTEGRATED flux [erg cm^-2 s^-1], confirmed two independent ways: `chi/chi_thin` -> 1 near the star in pdrFUV.out, where chi_thin is L/(4 pi r^2 c u_Draine); and D-288's measured absorbed energy per H matches G0 x 1.6e-3 x (area/H) with <Q_abs> = 0.68. `setPhotoelHeatCool` uses it correctly (flux x sigma_abs). `getGrainEmission` multiplies it by `fourPi` a second time AND divides the cross section by a^2 rather than pi a^2, giving pi Q_abs - together 4 pi x pi = **4 pi^2**, while `getGrainRecombination` returns n<v>eta, which is the collection rate per unit geometric cross section and is correct. **Measured, not inferred:** at the converged potential of runs/d289, collection / emission recomputed in correct units is 38.8, 35.3, 37.1, 37.9, 38.7, 38.9 at r = 0.20-0.60 pc against 4 pi^2 = 39.478 - flat across a factor 7 in field and 3 in temperature, the residual being the ion collection term. So the code converges where the true photoemission is ~39x below the true collection, which is why the grains sit at 0.9-4.8 V against Cloudy's 0.4-1.5 (D-288) and why D-289's factor-two yield change moved the heating only 8%. This is the efficiency half of O-02, and it is a units defect, not a physics choice. **Fixed and measured (runs/d290-pn150k-grainq, 11 iterations, 89.6%, 2h42m, 0% balance failures): this closes the efficiency half of O-02.** The grain potential falls 1.61 -> **0.059 V** in the PDR (Cloudy 0.41-1.43) and the sign in the ionized gas now AGREES with Cloudy's (-2.00 against -1.15, where it was +1.05); the energy per escaping electron rises 2.58 -> 3.31 eV; photoelectric heating rises 75% overall and 4-6x at 0.2-0.3 pc; **and heating per absorbed erg is now 0.57-1.40 of Cloudy's, against 1.7-4.8x low before** - the conversion efficiency deficit is gone. PDR gas 23.6-30.3 -> **24.6-47.3 K** against Cloudy's 42-67; at A_V 0.30, 31 -> 52 K against 70, and at r = 0.20 pc 87 -> 123 K against 117. What is left of O-02 is the field alone, 3.06-3.54x, which is D-287's discarded Lya; MOCASSIN's grains are now slightly LESS charged than Cloudy's, consistent with its field still being 3x low. MOCASSIN_GRAINQ=legacy restores the defect. Costs: convergence 91.9% at iteration 9 -> 89.6% at 11, Hbeta 0.98 -> 0.96 of Cloudy's, H2 at A_V 0.2 higher | Open | 2026-09-19 |
+| D-291 | **Cloudy's deep-PDR Lya is largely an artifact of its line transport, and 3D-PDR has no Lya at all - so neither reference settles what MOCASSIN should do, and D-287's framing of the field half is corrected.** Measured with `save ionizing continuum every zone` (runs/d290-cloudy-field): across the PDR Cloudy's 6-13.6 eV field is 66.4% outward LINES, 24.7% outward continuum, 8.8% attenuated stellar, 0.1% OTS; per line at A_V 0.54, H I 1216 is **46% of the whole field**, C III] 1909 8.4%, He II 1640 6.3%, C IV 1.9%. But Cloudy attenuates outward line flux by CONTINUUM opacity only - `opac.ExpZone[i] = sexp(opac.opacity_abs[i]*drad...)` - so escaped Lya streams through the PDR like a 1216 A continuum photon and is never re-absorbed in the line; the signature is that H I holds a flat 46.3/46.1/46.0% at A_V 0.22/0.54/0.70, which is what a continuum-attenuated component does. Physically tau(Lya) ~ 1e8 there and Lya should be destroyed in a thin layer at the front. **Also corrected: MOCASSIN never had Lya in its line channel.** `linePDF` and `totalLines` are both built with ilow >= 2 for H and He II, so the Lyman series is excluded by construction - D-287's conclusion that Lya never reaches Jste stands, but not because it is discarded as a line packet. What MOCASSIN does discard is the ~17% of Cloudy's PDR field that is optically thin lines (C III], He II 1640, C IV, C II), which legitimately stream. **3D-PDR:** UVfield is purely external (rad_surface = Gext/nrays, dust-attenuated per HEALPix ray), its only internal photons are the 15 CRPHOT cosmic-ray-induced reactions which enter reaction rates and never UV_FIELD, and XRLYA/XRPHOT are hard-coded to zero. Nothing decided or implemented | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22155,3 +22156,126 @@ Not everything improved, and the fix stays regardless:
     other. Not understood; not investigated.
   - He2+ front 0.0828 -> 0.0855 pc against Cloudy's 0.0880, which is better.
   - Dust temperature essentially unmoved.
+
+## D-291 - What the two references do with Lya, and what MOCASSIN does (2026-09-19)
+
+Hektor, after D-290 landed: "lets work on the discarded Lya", then "how does
+3DPDR handles this?". This entry is what the measurements say before any code
+is written. Nothing has been implemented.
+
+### 1. Cloudy's PDR field is two thirds lines - measured, not inferred
+
+D-287 argued from the Lya *luminosity* (3.0x the stellar FUV band) that the
+missing field must be Lya. That was an inference. `save ionizing continuum
+every zone` decomposes the local field per bin into incident / OTS / outward
+line / outward continuum, and `runs/d290-cloudy-field` measures it directly.
+Over the whole PDR, 6-13.6 eV:
+
+| source | share |
+|---|---|
+| outward lines | 66.4% |
+| outward continuum | 24.7% |
+| attenuated stellar | 8.8% |
+| on-the-spot | 0.1% |
+
+The non-line fraction is **33.5%**, and D-287 measured MOCASSIN's field at
+29-39% of Cloudy's. Those agree, which is a far stronger confirmation than the
+luminosity argument: what MOCASSIN is missing is exactly the line channel.
+
+Per line, at A_V 0.54:
+
+| line | share of the whole field |
+|---|---|
+| H I 1216 (Lya) | 46.1% |
+| C III] 1909 | 8.4% |
+| He II 1640 | 6.3% |
+| C IV 1548/51 | 1.9% |
+| C II 1335 | 0.4% |
+
+### 2. But Cloudy's Lya should not be there
+
+`rt_continuum.cpp` attenuates the outward line flux by
+`AttenuationDilutionFactor = opac.ExpZone[i]*DilutionHere`, and
+`opac.ExpZone[i] = sexp(opac.opacity_abs[i]*radius.drad/2.*...)` - the
+**continuum** opacity. Once a line photon is in the outward beam Cloudy
+propagates it as if it were a continuum photon at that wavelength, with no
+re-absorption in the line.
+
+The data show it: H I holds 46.3%, 46.1% and 46.0% of the field at A_V 0.22,
+0.54 and 0.70. A share that is flat to three digits over half a magnitude of
+extinction is the signature of a component attenuated by exactly the same
+opacity as the continuum it is being compared with.
+
+Physically, at A_V 0.54 the H I column is 1.2e21 cm^-2 and the Lya line-centre
+cross-section ~6e-14 cm^2, so tau(Lya) ~ 1e8. Lya entering neutral gas is
+resonantly scattered and destroyed by dust within a very thin layer at the
+ionization front. It cannot be 46% of the field at A_V 0.54.
+
+**So reproducing Cloudy's deep-PDR field would be tuning to a reference's
+approximation**, which the project rule forbids. The defensible statement is
+that Lya deposits its energy AT the front, not through the PDR.
+
+### 3. D-287's account of the MOCASSIN side needs correcting
+
+D-287 said MOCASSIN "discards every diffuse line packet at creation, so Lya
+never enters Jste". The first clause is true and the conclusion is true, but
+they are not connected: **Lya was never in MOCASSIN's line channel to begin
+with.** `linePDF` is built over `iup = 3,15 / ilow = 2,min(8,iup-1)` for H I
+and `iup = 3,30 / ilow = 2,min(16,iup-1)` for He II, and `totalLines =
+normRec + normFor` sums exactly the same set. The Lyman series is excluded by
+construction, in both the PDF and its normalisation - consistently, so there
+is no energy-accounting error either.
+
+What MOCASSIN discards is therefore the **optically thin** lines: the Balmer
+and higher H series, the He I and He II recombination lines, and every
+forbidden and intercombination line. In Cloudy's decomposition that family is
+C III] 1909 + He II 1640 + C IV + C II ~ **17% of the PDR field**, and those
+do legitimately stream and are dust-attenuated.
+
+### 4. 3D-PDR does not address this at all
+
+  - **The FUV field is a boundary condition.** `UVfield.F90`:
+    `rad_surface = Gext(1)/nrays`, then
+    `UVfield = sum_j rad_surface(j)*EXP(-AV(j)*UV_fac)`. External, isotropic,
+    dust-attenuated along each HEALPix ray. There is no internal source, and
+    3D-PDR does not model an ionized region, so Lya has nowhere to come from.
+  - **Internally generated photons exist only as chemistry rates.** The
+    cosmic-ray-induced secondary photon field (Prasad-Tarafdar) is present as
+    15 `CRPHOT` reactions in the reduced network, at
+    `ALPHA*ZETALOCAL*(T/300)^BETA*GAMMA/(1-OMEGA)`. It photodissociates
+    molecules and never enters `UV_FIELD`, so it never reaches the
+    photoelectric heating, which runs on `HABING_FIELD = 1.68*UV_FIELD`.
+  - **X-ray induced Lya is declared and disabled:** `130 RATE(I)=0.0D0` for
+    `XRLYA`, and the same for `XRPHOT`.
+
+### 5. Where that leaves it
+
+Neither reference can settle this. Cloudy transports Lya into the PDR without
+line re-absorption; 3D-PDR has no Lya at all. MOCASSIN-PDR is in a position
+neither is in - it models the ionized region and the PDR in one calculation,
+with 3D transfer and an existing resonance-line escape-probability routine
+(`setResLineEscapeProb`, 64 directions per cell, dust destruction against the
+line opacity) - so it can put Lya where it is actually destroyed rather than
+copy either shortcut.
+
+Options, none taken yet:
+
+  1. **Transport the optically thin lines.** Correct regardless of the Lya
+     question, worth ~17% of the field (field factor 3.0 -> ~2.0). Needs a
+     line-index -> frequency-bin map in `linePDF` order, which does not exist;
+     `getNu2(linePDF)` returns a line index and `linePackets` is indexed the
+     same way.
+  2. **Deposit Lya at the front** through `fEscapeResPhotons`. Physically the
+     right thing and the one place MOCASSIN can beat both references. It will
+     heat a thin layer near the front and will NOT warm the deep PDR.
+  3. Neither, and record the deep-PDR field difference as a divergence from
+     Cloudy caused by Cloudy's line transport.
+
+### 6. Not known
+
+  - How much of the front's heating Lya actually supplies here has not been
+    estimated; only that its luminosity is 3.0x the stellar FUV band.
+  - Whether Cloudy's escape probabilities let Lya into the outward beam at all
+    behind the front, or whether the 46% is emitted closer in and then
+    streams, has not been separated.
+  - Nothing has been measured on hiipdr.
