@@ -291,6 +291,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-289 | **The WD01 photoelectric yield implemented in the charge balance and the heating together, and measured: it halves the over-charging and leaves O-02 where it was.** One yield, one reality - ph_mod tabulates the neutral-grain yield once per (species, size, frequency), and both getGrainEmission and setPhotoelHeatCool read that table, where each previously carried its own copy of the Baldwin expression. WD01 eqs 12-16 with the escape length from la = lambda/(4 pi k) on the model's own optical constants, the bulk fit selected per species from MsurfAtom in the grain's data file, and W and Theta from the model's own grainVn, so nothing here is a constant standing in for something MOCASSIN knows. MOCASSIN_YIELD=baldwin restores the old yield. Validated against tools/d288_yield.py to 4-6% before the run. **Measured (runs/d289-pn150k-wd01, 9 iterations, 91.9%, 2h54m): the grain potential falls 2.59 -> 1.61 V in the PDR (Cloudy 0.41-1.43) and 1.96 -> 0.89 V at 0.6 pc, so the over-charging is roughly halved at depth; but the heating moves +8% and the gas temperature not at all (23.9-29.3 -> 23.6-30.3 K against Cloudy's 42-67).** The three terms very nearly cancel: <Y> falls 0.070 -> 0.037, <E> rises 1.63 -> 2.58 eV because the lower barrier lets each electron keep more, and N_abs rises because the threshold max(Vn+Vg, Vn) drops with the potential. The photoelectric heating is self-regulating in this regime, which is why D-288's prediction was right in direction and wrong in size. O-02's efficiency factor goes 1.8-5.2x -> 1.7-4.8x. The better physics is in; the gap is not closed, and is not to be closed by tuning it. Remaining: the potential is still 2.2-4.3x Cloudy's, and the electron-collection side of the balance (getGrainRecombination) has never been examined. All four flavours build | Open | 2026-09-19 |
 | D-290 | **The grain charge balance overstates photoemission by 4 pi^2 = 39.5: `getGrainEmission` and `setPhotoelHeatCool` read `Jste` in different conventions, and only one of them is right.** `Jste` is the ANGLE-INTEGRATED flux [erg cm^-2 s^-1], confirmed two independent ways: `chi/chi_thin` -> 1 near the star in pdrFUV.out, where chi_thin is L/(4 pi r^2 c u_Draine); and D-288's measured absorbed energy per H matches G0 x 1.6e-3 x (area/H) with <Q_abs> = 0.68. `setPhotoelHeatCool` uses it correctly (flux x sigma_abs). `getGrainEmission` multiplies it by `fourPi` a second time AND divides the cross section by a^2 rather than pi a^2, giving pi Q_abs - together 4 pi x pi = **4 pi^2**, while `getGrainRecombination` returns n<v>eta, which is the collection rate per unit geometric cross section and is correct. **Measured, not inferred:** at the converged potential of runs/d289, collection / emission recomputed in correct units is 38.8, 35.3, 37.1, 37.9, 38.7, 38.9 at r = 0.20-0.60 pc against 4 pi^2 = 39.478 - flat across a factor 7 in field and 3 in temperature, the residual being the ion collection term. So the code converges where the true photoemission is ~39x below the true collection, which is why the grains sit at 0.9-4.8 V against Cloudy's 0.4-1.5 (D-288) and why D-289's factor-two yield change moved the heating only 8%. This is the efficiency half of O-02, and it is a units defect, not a physics choice. **Fixed and measured (runs/d290-pn150k-grainq, 11 iterations, 89.6%, 2h42m, 0% balance failures): this closes the efficiency half of O-02.** The grain potential falls 1.61 -> **0.059 V** in the PDR (Cloudy 0.41-1.43) and the sign in the ionized gas now AGREES with Cloudy's (-2.00 against -1.15, where it was +1.05); the energy per escaping electron rises 2.58 -> 3.31 eV; photoelectric heating rises 75% overall and 4-6x at 0.2-0.3 pc; **and heating per absorbed erg is now 0.57-1.40 of Cloudy's, against 1.7-4.8x low before** - the conversion efficiency deficit is gone. PDR gas 23.6-30.3 -> **24.6-47.3 K** against Cloudy's 42-67; at A_V 0.30, 31 -> 52 K against 70, and at r = 0.20 pc 87 -> 123 K against 117. What is left of O-02 is the field alone, 3.06-3.54x, which is D-287's discarded Lya; MOCASSIN's grains are now slightly LESS charged than Cloudy's, consistent with its field still being 3x low. MOCASSIN_GRAINQ=legacy restores the defect. Costs: convergence 91.9% at iteration 9 -> 89.6% at 11, Hbeta 0.98 -> 0.96 of Cloudy's, H2 at A_V 0.2 higher | Open | 2026-09-19 |
 | D-291 | **Cloudy's deep-PDR Lya is largely an artifact of its line transport, and 3D-PDR has no Lya at all - so neither reference settles what MOCASSIN should do, and D-287's framing of the field half is corrected.** Measured with `save ionizing continuum every zone` (runs/d290-cloudy-field): across the PDR Cloudy's 6-13.6 eV field is 66.4% outward LINES, 24.7% outward continuum, 8.8% attenuated stellar, 0.1% OTS; per line at A_V 0.54, H I 1216 is **46% of the whole field**, C III] 1909 8.4%, He II 1640 6.3%, C IV 1.9%. But Cloudy attenuates outward line flux by CONTINUUM opacity only - `opac.ExpZone[i] = sexp(opac.opacity_abs[i]*drad...)` - so escaped Lya streams through the PDR like a 1216 A continuum photon and is never re-absorbed in the line; the signature is that H I holds a flat 46.3/46.1/46.0% at A_V 0.22/0.54/0.70, which is what a continuum-attenuated component does. Physically tau(Lya) ~ 1e8 there and Lya should be destroyed in a thin layer at the front. **Also corrected: MOCASSIN never had Lya in its line channel.** `linePDF` and `totalLines` are both built with ilow >= 2 for H and He II, so the Lyman series is excluded by construction - D-287's conclusion that Lya never reaches Jste stands, but not because it is discarded as a line packet. What MOCASSIN does discard is the ~17% of Cloudy's PDR field that is optically thin lines (C III], He II 1640, C IV, C II), which legitimately stream. **3D-PDR:** UVfield is purely external (rad_surface = Gext/nrays, dust-attenuated per HEALPix ray), its only internal photons are the 15 CRPHOT cosmic-ray-induced reactions which enter reaction rates and never UV_FIELD, and XRLYA/XRPHOT are hard-coded to zero. Nothing decided or implemented | Open | 2026-09-19 |
+| D-292 | **Transporting the optically thin diffuse lines destroys the PDR; DEFAULT OFF, cause not found. Three pre-existing defects found and fixed on the way, and together they are the lgDebug segfault D-158 could not explain.** The change: `setLineNuP` builds a line-index -> frequency-bin map in linePDF's order (Rydberg for H I and He II at Z=2, column 4 of HeIrecLines.dat for He I, `equilibrium`'s existing optional `wav` for the forbidden lines); all 419 of 419 map, and a drawn line packet is emitted at its own frequency and traced instead of being given nuP = 0 and dropped. **Result (runs/d292-pn150k-lines, killed at iteration 3): mean Te 302 -> 7576 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, CO per H 3.7e-28 -> 2.0e-36.** Forbidden and recombination lines cannot do that, so it is a defect in the change. Two hypotheses tested and both insufficient: **(a) stray ionizing photons - 0 of 419 lines map at or above 1 Ryd**; **(b) a mis-normalised totalLines - measured P(line) = 0.298**, a plausible share that would raise the diffuse field 1.4x, not 25x. Also measured, from the model's own lineFlux.out: MOCASSIN's He II recombination lines put 3.52 Hbeta into 912-1930 A = **0.70 x the stellar FUV band luminosity** (1640 A alone 2.09 Hbeta) and 0.79 Hbeta into the Lyman-Werner band, so the line budget is real but roughly doubles the FUV field rather than swamping it. Remaining hypothesis, untested: a diffuse packet is the RE-EMISSION of an absorbed packet, so killing line packets was a 30%-per-absorption sink on the whole radiation field; removing it lets packets recirculate. Defects fixed and kept: `makeElements` now runs BEFORE the grid (it computes nLines, which initCartesianGrid sizes linePackets and linePDF with - both were allocated 1:0); nLines counted 20 He I lines where the data file, linePDF, normRec and outputGas all have 34; and linePDF's MPI reduction was gated on lgDebug so each rank held zeros for cells it did not own. All four flavours build | Open | 2026-09-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22279,3 +22280,114 @@ Options, none taken yet:
     behind the front, or whether the 46% is emitted closer in and then
     streams, has not been separated.
   - Nothing has been measured on hiipdr.
+
+## D-292 - The thin lines transported, and the PDR destroyed (2026-09-19)
+
+Hektor: "proceed with 1, then 3, then we re evaluate option 2" - D-291's
+option 1 being to transport the optically thin diffuse lines, which MOCASSIN
+creates as packets and throws away, and which D-291 measured at ~17% of
+Cloudy's PDR FUV field.
+
+### 1. The change
+
+`setLineNuP` builds `lineNuP(1:nLines)`, the frequency bin of every line in
+`linePDF`'s exact order:
+
+  - H I and He II recombination lines from the Rydberg formula, the latter at
+    Z = 2 - no data needed, and exact;
+  - He I from column 4 of `HeIrecLines.dat`, which is the wavelength in A and
+    was simply never read;
+  - forbidden and intercombination lines from `equilibrium`'s optional `wav`
+    argument, which already existed and was never used. The wavelengths are
+    atomic data, so one call per ion at a nominal 1e4 K tabulates them.
+
+All **419 of 419** lines map. `newPhotonPacket` then emits the packet at that
+frequency with `lgLine = .false.`, so `pathSegment` transports it, instead of
+setting `nuP = 0` and letting `energyPacketRun` drop it.
+
+### 2. Three pre-existing defects, and D-158's segfault explained
+
+None of this could run until three older defects were fixed. D-158 recorded
+that MOCASSIN's debug mode "segfaults on an array sized before nLines is
+known" and could not say why. It is all three of these together:
+
+  - **`linePackets` and `linePDF` were allocated with `nLines = 0`.**
+    `initCartesianGrid` sizes them with `nLines`, and `nLines` is computed by
+    `makeElements`, which `mocassin.f90` called *after* the grid. Both arrays
+    were `(0:nCells, 1:0)`. `makeElements` now runs before the grid - the same
+    ordering the D-022 comment three lines above already established for the
+    PDR network.
+  - **`nLines` counted 20 He I lines.** `HeIrecLines.dat` holds 34 per
+    density, `linePDF` writes 34, `normRec` sums 34 and `outputGas` applies
+    the extinction curve to 34. The counter's `9 + 11` was the only place that
+    said otherwise, so the PDF overran its own array by 14 elements per cell.
+    nLines is now 419, not 405.
+  - **`linePDF`'s MPI reduction was gated on `lgDebug`.** Each rank fills only
+    the cells it owns, so a packet emitted anywhere else sampled an all-zero
+    PDF and `getNu2` ran off the end.
+
+These are kept regardless of what happens to the line transport: they are
+correct independently, and they make the debug path usable for the first time.
+
+### 3. What it did: the PDR does not form
+
+`runs/d292-pn150k-lines`, killed at iteration 3, against `runs/d290-pn150k-
+grainq` at the same point:
+
+| | D-290 | D-292 |
+|---|---|---|
+| mean Te | 301.8 K | **7576 K** |
+| hot cells | 5.13% | **100.00%** |
+| f_mol | 0.9105 | **0.0000** |
+| CO per H | 3.66e-28 | 2.04e-36 |
+
+Optically thin forbidden and recombination lines cannot heat a PDR to 7600 K.
+`f_mol = 0` says the H2 is being photodissociated outright, so the sub-Lyman
+field became enormous. This is a defect in the change, not a result, and the
+switch now defaults off.
+
+### 4. Two hypotheses tested, both insufficient
+
+  - **Stray ionizing photons.** Short-wavelength transitions among the upper
+    levels of highly charged ions could in principle land above 1 Ryd and
+    ionize hydrogen. Instrumented and measured: **0 of 419 lines** map at or
+    above 1 Ryd. Refuted.
+  - **A mis-normalised `totalLines`.** It is the probability that a diffuse
+    packet is a line, formed as `totalLines/(normHI + normHeI + normHeII +
+    totalLines)`, and the line sums (`normRec + normFor`, the forbidden part
+    already scaled by 1.9865e9) do not obviously share units with the
+    continuum sums (`diffuse_scale*widFlx*emissionHI` summed over bins).
+    Because every line packet was discarded before, this number never had to
+    be right. Probed: **P(line) = 0.298**, four cells, identical. That is a
+    plausible share and would raise the delivered diffuse field by 1/(1-0.3)
+    = 1.43x, not the ~25x the temperatures imply. Not the explanation.
+
+Also measured, from the model's own `lineFlux.out`, to size the physical
+budget independently of the packet machinery: MOCASSIN's 315 He II
+recombination lines carry 4.59 Hbeta in total, of which **3.52 Hbeta falls in
+912-1930 A = 0.70 x the stellar FUV band luminosity**, and 0.79 Hbeta in the
+912-1108 A Lyman-Werner band. He II 1640 alone is 2.09 Hbeta. So the line
+emission is real and substantial - it should roughly double the PDR's FUV
+field - but it is not 25x, and it is not fictitious.
+
+### 5. What is left to test
+
+Untested hypothesis, and the one that now fits best: **a diffuse packet is the
+re-emission of an absorbed packet, not a draw on a luminosity budget.**
+Killing line packets was therefore a sink of ~30% *per absorption event* on
+the entire radiation field, not a one-off loss of the line channel. Removing
+it lets a packet survive repeated absorb-and-re-emit cycles, and the energy
+density can rise far more than the 1.43x the single-event arithmetic suggests.
+If so the fix is not to restore the sink but to stop line photons being
+re-absorbed by gas at all: below 1 Ryd hydrogen is transparent and dust should
+be the only absorber, so a 1640 A photon should stream until a grain takes it.
+
+Not yet done: measure the FUV field directly with transport on and off - the
+number that would settle this - which needs `pdrFUV.out` from a completed run
+or a mid-run probe.
+
+### 6. Unchanged by any of this
+
+Lya is still untreated, and D-291's account of it stands: Cloudy's deep-PDR
+Lya is an artifact of attenuating outward line flux by continuum opacity
+alone, and 3D-PDR has none. Option 2 remains parked.
