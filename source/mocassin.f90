@@ -76,14 +76,16 @@ program MoCaSSiN
     if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
 
-    ! D-292: and for the same reason the atomic data must be read before any
-    ! grid allocation: initCartesianGrid sizes linePackets and linePDF with
-    ! nLines, which makeElements is what computes. It ran after the grid, so
-    ! both arrays were allocated (0:nCells, 1:0) and the first write to
-    ! linePDF ran off the end - which is the lgDebug segfault D-158 recorded
-    ! and could not explain.
-    if (lgGas) call makeElements()
-
+    ! D-294: makeElements is NOT moved here, though initCartesianGrid below
+    ! sizes linePackets and linePDF with the nLines it computes and therefore
+    ! gets zero. Moving it before the grid - which is what D-292 did, and what
+    ! the D-022 comment above does for the PDR network - changes the model from
+    ! iteration 1: convergence 0.00 -> 0.19% at iteration 2, and by the first
+    ! PDR pass mean Te 302 -> 7578 K with f_mol 0.91 -> 0.00. Bisected against
+    ! runs/d294-probe-off and runs/d294-probe-bisect, which differ in this line
+    ! alone. Why it matters is NOT understood: the two arrays are zeroed at
+    ! allocation and every read of them is behind lgDebug. Until it is, the
+    ! ordering stays as it was and the undersized allocation is caught below.
     print*, " "
 
     ! initialize the 3D cartesian grid
@@ -112,6 +114,7 @@ program MoCaSSiN
 
     ! prepare atomica data stuff
     if (lgGas) then
+      call makeElements()
       call readData()
     endif
 

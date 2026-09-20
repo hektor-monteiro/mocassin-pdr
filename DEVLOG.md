@@ -293,6 +293,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-291 | **Cloudy's deep-PDR Lya is largely an artifact of its line transport, and 3D-PDR has no Lya at all - so neither reference settles what MOCASSIN should do, and D-287's framing of the field half is corrected.** Measured with `save ionizing continuum every zone` (runs/d290-cloudy-field): across the PDR Cloudy's 6-13.6 eV field is 66.4% outward LINES, 24.7% outward continuum, 8.8% attenuated stellar, 0.1% OTS; per line at A_V 0.54, H I 1216 is **46% of the whole field**, C III] 1909 8.4%, He II 1640 6.3%, C IV 1.9%. But Cloudy attenuates outward line flux by CONTINUUM opacity only - `opac.ExpZone[i] = sexp(opac.opacity_abs[i]*drad...)` - so escaped Lya streams through the PDR like a 1216 A continuum photon and is never re-absorbed in the line; the signature is that H I holds a flat 46.3/46.1/46.0% at A_V 0.22/0.54/0.70, which is what a continuum-attenuated component does. Physically tau(Lya) ~ 1e8 there and Lya should be destroyed in a thin layer at the front. **Also corrected: MOCASSIN never had Lya in its line channel.** `linePDF` and `totalLines` are both built with ilow >= 2 for H and He II, so the Lyman series is excluded by construction - D-287's conclusion that Lya never reaches Jste stands, but not because it is discarded as a line packet. What MOCASSIN does discard is the ~17% of Cloudy's PDR field that is optically thin lines (C III], He II 1640, C IV, C II), which legitimately stream. **3D-PDR:** UVfield is purely external (rad_surface = Gext/nrays, dust-attenuated per HEALPix ray), its only internal photons are the 15 CRPHOT cosmic-ray-induced reactions which enter reaction rates and never UV_FIELD, and XRLYA/XRPHOT are hard-coded to zero. Nothing decided or implemented | Open | 2026-09-19 |
 | D-292 | **Transporting the optically thin diffuse lines destroys the PDR; DEFAULT OFF, cause not found. Three pre-existing defects found and fixed on the way, and together they are the lgDebug segfault D-158 could not explain.** The change: `setLineNuP` builds a line-index -> frequency-bin map in linePDF's order (Rydberg for H I and He II at Z=2, column 4 of HeIrecLines.dat for He I, `equilibrium`'s existing optional `wav` for the forbidden lines); all 419 of 419 map, and a drawn line packet is emitted at its own frequency and traced instead of being given nuP = 0 and dropped. **Result (runs/d292-pn150k-lines, killed at iteration 3): mean Te 302 -> 7576 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, CO per H 3.7e-28 -> 2.0e-36.** Forbidden and recombination lines cannot do that, so it is a defect in the change. Two hypotheses tested and both insufficient: **(a) stray ionizing photons - 0 of 419 lines map at or above 1 Ryd**; **(b) a mis-normalised totalLines - measured P(line) = 0.298**, a plausible share that would raise the diffuse field 1.4x, not 25x. Also measured, from the model's own lineFlux.out: MOCASSIN's He II recombination lines put 3.52 Hbeta into 912-1930 A = **0.70 x the stellar FUV band luminosity** (1640 A alone 2.09 Hbeta) and 0.79 Hbeta into the Lyman-Werner band, so the line budget is real but roughly doubles the FUV field rather than swamping it. Remaining hypothesis, untested: a diffuse packet is the RE-EMISSION of an absorbed packet, so killing line packets was a 30%-per-absorption sink on the whole radiation field; removing it lets packets recirculate. Defects fixed and kept: `makeElements` now runs BEFORE the grid (it computes nLines, which initCartesianGrid sizes linePackets and linePDF with - both were allocated 1:0); nLines counted 20 He I lines where the data file, linePDF, normRec and outputGas all have 34; and linePDF's MPI reduction was gated on lgDebug so each rank held zeros for cells it did not own. All four flavours build | Open | 2026-09-19 |
 | D-293 | **Option 2 sized before spending a run on it: the Lya deposition is real and large, and lands in ONE CELL. This grid cannot resolve it, and it cannot reach the deep PDR either way.** From the model's own recombination structure (tools/d293_lya.py, nothing taken from Cloudy): L(Lya) = 8.3e35 erg/s Case B - 31 x Hbeta, against the 23 x Hbeta the Case B ratio predicts, so good to ~30% - giving **235 Habing at the front against the stellar FUV's 38, a factor 6.2**. Destruction depth from the standard dusty-medium criterion (a tau_0)^(1/3) tau_a ~ 1: **A_V 0.020 past the front**, i.e. Lya is gone 27x shallower than the A_V 0.54 at which Cloudy still shows it as 46% of the field - and the criterion would have to be wrong by 10x, moving the depth only 5.6x to A_V 0.11, to change that conclusion, so D-291 is robust. The heating in that layer would be 6.9e-21 erg/s per H total and 9.9e-23 into the gas at the measured 1.5% conversion efficiency, **157x the photoelectric heating the model has there** - but the layer is A_V 0.020 and a 41^3 cell is A_V 0.0171, so it is **1.17 cells thick**. Implementing option 2 would therefore dump 157x the local heating into the first PDR cell and let the cell size, not the physics, set the answer; and the deep PDR (A_V 0.3-0.7), which is where O-02's remaining factor lives, receives nothing. **Then measured with MOCASSIN's own formula instead of the scaling** - Kwan & Krolik (1981) direction probabilities with Harrington, Cohen & Hess (1984) eq A5 dust destruction, the routine `setResLineEscapeProb` that is in the tree and never called - evaluated on this run's structure: **72-76% of the Lya produced in the ionized gas is destroyed by dust there**, 45-52% near the front, 82% deep in. So Lya does not merely fail to reach A_V 0.54, it largely fails to reach the front at all, and its contribution to the deep PDR field is essentially nil by MOCASSIN's own physics. Side prediction: the ~6e35 erg/s this deposits in the ionized gas is dust heating the model does not currently have, and D-283 already has its dust 8-25% WARMER than Cloudy's, so implementing it should make that disagreement worse. Not implemented | Open | 2026-09-19 |
+| D-294 | **D-292's attribution WITHDRAWN: transporting the lines never destroyed the PDR. Moving `makeElements` before the grid did, and why is not understood.** D-292 changed several things at once and blamed the headline one without a control. The control, run afterwards: with line transport OFF and the D-292 code, mean Te 7578 K, hot 100%, f_mol 0.0000 - the same destroyed PDR as with transport ON (7576 K, 100%, 0.0000), against pre-D-292's 302 K, 5.13%, 0.9105. Bisected with two runs differing in that one line: **runs/d294-probe-bisect, which only puts `makeElements` back, restores the PDR exactly** (304.6 K, 5.21%, f_mol 0.9100) and tracks pre-D-292 convergence from the start (it2 0.00 vs 0.00, it3 0.161% vs 0.170%), where the D-292 code had already diverged at iteration 2 (0.187%) and reached 4.56% at iteration 3. The divergence begins at iteration 2, before the PDR engages, so it is in the ionization structure and has nothing to do with lines. **Mechanism unknown:** linePackets and linePDF are zeroed at allocation and every read of them is behind lgDebug, so the larger allocation should be inert; the suspicion is that it perturbs something else in the initialisation. The reordering is reverted, `MOCASSIN_LINES=on` now STOPS rather than writing past a linePDF sized with nLines = 0, and the other two D-292 fixes (34 He I lines, the MPI reduction guard) are kept since both are correct and inert here. Also refuted this entry: the recirculation hypothesis - interactions per iteration are 530886 off against 537094 on, +1.3% | Open | 2026-09-20 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22544,3 +22545,100 @@ a reason not to expect it to improve the comparison overall.
   - L(Lya) is good to ~30%, and the Case B branching and alpha_B fit here are
     approximations.
   - Nothing has been measured on hiipdr, whose front conditions differ.
+
+## D-294 - D-292 blamed the wrong change (2026-09-20)
+
+D-292 concluded that transporting the optically thin diffuse lines destroys
+the PDR. It does not. The change that does is moving `makeElements` before the
+grid, which D-292 made in the same commit as one of three "pre-existing defect
+fixes" and never tested on its own.
+
+This is a process failure before it is a physics one: several things were
+changed at once and the result was attributed to the headline one. The control
+cost 30 minutes and should have been run first.
+
+### 1. The control
+
+`runs/d294-probe-off` - the D-292 code with `MOCASSIN_LINES` off - against
+`runs/d292-pn150k-lines` with it on, and `runs/d290-pn150k-grainq` from before
+D-292, all at the first PDR pass:
+
+| run | transport | code | mean Te | hot | f_mol |
+|---|---|---|---|---|---|
+| d290 | off | pre-D-292 | 301.8 K | 5.13% | 0.9105 |
+| d292 | **on** | D-292 | 7576 K | 100% | 0.0000 |
+| d294-probe-off | **off** | D-292 | 7578 K | 100% | 0.0000 |
+
+Transport off and on give the same destroyed PDR to three digits.
+
+### 2. The bisect
+
+`runs/d294-probe-bisect` is the same binary with `makeElements` put back where
+it was, and nothing else changed. It restores the PDR:
+
+| | mean Te | hot | f_mol |
+|---|---|---|---|
+| d290 (pre-D-292) | 301.8 K | 5.13% | 0.9105 |
+| **bisect** | **304.6 K** | **5.21%** | **0.9100** |
+| d294-probe-off | 7578 K | 100% | 0.0000 |
+
+and it tracks the old convergence from the first iterations, where the D-292
+code had already left it:
+
+    iteration          1        2           3
+    d290 (pre-D-292)   0.00     0.00        0.170%
+    bisect             0.00     0.00        0.161%
+    d294-probe-off     0.00     0.187%      4.561%
+
+These first iterations are deterministic in this fixture - every earlier run
+gave bit-identical values at iteration 2 - so 0.00 against 0.187% is not
+scatter. The divergence is there before `pdrStartIter`, i.e. before any PDR
+chemistry runs at all.
+
+### 3. Why it matters is not known
+
+The reordering exists because `initCartesianGrid` sizes `linePackets` and
+`linePDF` with `nLines`, and `makeElements` is what computes `nLines` - so
+both were allocated `(0:nCells, 1:0)`. That is a real bug. But:
+
+  - both arrays are zeroed immediately after allocation;
+  - every read of either is behind `lgDebug`, which is off;
+  - so allocating them at their true size should be inert, and it is not.
+
+The remaining suspicion is that the earlier call perturbs something else in
+the initialisation - the two arrays together are ~120 MB per rank, so heap
+layout changes - but nothing has been demonstrated. **This is an open
+question, and it is worth answering: something in this initialisation depends
+on order or on memory layout in a way nobody has accounted for.**
+
+### 4. What was done
+
+  - **The reordering is reverted.** `makeElements` runs where it did.
+  - **`MOCASSIN_LINES=on` now stops** with a message rather than writing past
+    a `linePDF` sized with `nLines = 0`. The failure is loud instead of silent.
+  - The other two D-292 fixes are kept: `nLines` counting 34 He I lines rather
+    than 20, and `linePDF`'s MPI reduction no longer gated on `lgDebug`. Both
+    are correct, and both are inert with the transport off.
+  - D-158's segfault therefore still has no complete explanation. The
+    undersized allocation is certainly part of it; the He I miscount is
+    certainly part of it; whether either is sufficient is untested.
+
+### 5. And the recirculation hypothesis is refuted too
+
+D-292 guessed that discarding line packets had been a ~30%-per-absorption sink
+on the whole radiation field. Free test, from the two logs: interactions per
+iteration are 530886 with transport off and 537094 with it on, **+1.3%**, not
+the large factor recirculation implies. The transported lines are optical and
+this model's total extinction is only A_V 0.68, so they mostly stream out
+without interacting - while still adding to Jste on every path segment, which
+needs no interaction.
+
+So nothing is known about what line transport does to this model, because it
+has never been run without the confound. The measurement D-294 set out to make
+- the FUV field with transport on and off - still has not been made.
+
+### 6. What this costs elsewhere
+
+Nothing published moves. Every result on the two artifact pages, and D-290's
+measurement of the charge-balance fix, predates D-292 and is unaffected: d290
+was run on code without the reordering.
