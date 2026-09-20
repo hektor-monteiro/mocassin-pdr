@@ -127,7 +127,14 @@ module common_mod
     ! as packets and discarded them, which removed ~17% of the local FUV field
     ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is
     ! built from ilow >= 2 - so this adds no resonance-line transfer.
-    logical :: lgLineTransfer = .true.
+    ! D-292: DEFAULT OFF. Transporting them destroyed the PDR outright -
+    ! mean Te 302 -> 7576 K, f_mol 0.91 -> 0.00 - which optically thin
+    ! forbidden lines cannot do, and no line maps at or above 1 Ryd, so it is
+    ! not stray ionizing photons. The leading suspect is totalLines itself:
+    ! it is the probability that a diffuse packet is a line, and because every
+    ! such packet was discarded before, a mis-normalisation against the
+    ! continuum normHI/normHeI/normHeII could never show. Not yet measured.
+    logical :: lgLineTransfer = .false.
 
     integer :: iOrigin, jOrigin, kOrigin       ! pointers to the origin of the axes
 

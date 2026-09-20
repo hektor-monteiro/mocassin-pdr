@@ -770,8 +770,17 @@ module emission_mod
          end do
       end do
 
-      if (taskid == 0) print*, "! setLineNuP: mapped ", count(lineNuP > 0), &
-           & " of ", nLines, " diffuse lines to a frequency bin"
+      if (taskid == 0) then
+         print*, "! setLineNuP: mapped ", count(lineNuP > 0), &
+              & " of ", nLines, " diffuse lines to a frequency bin"
+         j = 0
+         do i = 1, nLines
+            if (lineNuP(i) > 0) then
+               if (nuArray(lineNuP(i)) >= 1.) j = j + 1
+            end if
+         end do
+         print*, "! setLineNuP: of those, ", j, " sit at or above 1 Ryd"
+      end if
 
     end subroutine setLineNuP
 
