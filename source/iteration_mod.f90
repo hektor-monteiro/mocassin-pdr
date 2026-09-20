@@ -479,7 +479,11 @@ module iteration_mod
 
               end if
 
-              if (lgDebug) then
+              ! D-292: linePDF must be reduced across ranks whenever it is
+              ! drawn from, not only under lgDebug - each rank fills only the
+              ! cells it owns, and a packet emitted from any other cell would
+              ! sample an all-zero PDF.
+              if (lgDebug .or. lgLineTransfer) then
                  allocate(linePDFTemp(0:grid(iG)%nCells, nLines),&
                       & stat = err)
                  if (err /= 0) then
@@ -504,7 +508,7 @@ module iteration_mod
                       & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%pdfSrc, &
                       & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
-                 if (lgDebug) then
+                 if (lgDebug .or. lgLineTransfer) then
                     size =  (grid(iG)%nCells+1)*nLines
 
                     call mpi_allreduce(grid(iG)%linePDF, linePDFTemp, size,&
@@ -552,7 +556,7 @@ module iteration_mod
                              do freq = 1, nbins
                                 grid(iG)%recPDF(grid(iG)%active(i,j,k),freq) = recPDFTemp(grid(iG)%active(i,j,k) ,freq)
                              end do
-                             if (lgDebug) then
+                             if (lgDebug .or. lgLineTransfer) then
                                 do freq = 1, nLines
                                    grid(iG)%linePDF(grid(iG)%active(i,j,k),freq) = linePDFTemp(grid(iG)%active(i,j,k),freq)
                                 end do
@@ -566,7 +570,7 @@ module iteration_mod
 
                  if ( allocated(totalLinesTemp) )&
                       & deallocate(totalLinesTemp)
-                 if (lgDebug) then
+                 if (lgDebug .or. lgLineTransfer) then
                     if ( allocated(linePDFTemp) ) deallocate(linePDFTemp)
                  end if
                  if ( allocated(recPDFTemp) ) deallocate(recPDFTemp)

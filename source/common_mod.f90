@@ -119,6 +119,15 @@ module common_mod
     integer :: nflux = 1                       ! number of energy bins to the high energy end
                                                ! of the incident spectrum
     integer :: nLines = 0                      ! total number of lines
+    ! D-292. The frequency bin of every line in linePDF's order, so a diffuse
+    ! line packet can be emitted at its own frequency and traced instead of
+    ! being dropped. 0 where the line has no usable wavelength.
+    integer, allocatable :: lineNuP(:)         ! (nLines)
+    ! D-292. Transport the optically thin diffuse lines. MOCASSIN created them
+    ! as packets and discarded them, which removed ~17% of the local FUV field
+    ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is
+    ! built from ilow >= 2 - so this adds no resonance-line transfer.
+    logical :: lgLineTransfer = .true.
 
     integer :: iOrigin, jOrigin, kOrigin       ! pointers to the origin of the axes
 

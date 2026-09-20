@@ -777,6 +777,7 @@ module photon_mod
                                                                  ! packet
 
             integer                            :: nuP            ! the frequency index of the photon packet
+            integer                            :: lineP          ! D-292: index of the line in linePDF order
             integer, dimension(2)         :: orX,orY,orZ    ! dummy
             integer, dimension(2), intent(in) :: xP, yP, &
                  & zP                                            ! cartesian axes indeces
@@ -921,19 +922,32 @@ module photon_mod
 
                 if (random <= grid(gP)%totalLines(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)))) then
                    ! line photon
-                   ! line photons escape so don't care which one it is unless debugging
-                   if (lgDebug) then
-                      call getNu2( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), nuP )
+                   ! D-292. These were dropped here: the packet was given
+                   ! nuP = 0 and lgLine, and energyPacketRun never traces a
+                   ! line packet. Assuming line photons escape is sound for the
+                   ! emergent spectrum of a dust-poor nebula, and wrong for the
+                   ! local field of a dusty PDR - D-291 measured this channel at
+                   ! ~17% of Cloudy's 6-13.6 eV field there. They are optically
+                   ! thin lines (linePDF starts at ilow = 2, so the Lyman series
+                   ! and with it Lya is excluded), so they stream like continuum
+                   ! and tracing them at their own frequency is the whole fix.
+                   if (lgDebug .or. lgLineTransfer) then
+                      call getNu2( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), lineP )
 
-                      if (nuP < 1) then
+                      if (lineP < 1) then
                          print*, "! newPhotonPacket: insanity occurred in line photon &
                               & nuP assignment"
                          stop
+                      end if
+                      nuP = 0
+                      if (lgLineTransfer .and. allocated(lineNuP)) then
+                         if (lineP <= nLines) nuP = lineNuP(lineP)
                       end if
 
                    else
 
                       nuP = 0
+                      lineP = 0
 
                    end if
 
@@ -946,8 +960,17 @@ module photon_mod
                    end if
 
 
-                   newPhotonPacket = initPhotonPacket(nuP, position, &
-                        & nullUnitVector, .true., .false., xP, yP, zP, gP, .false., 1.0)
+                   ! D-292: with a frequency the packet is a normal diffuse
+                   ! photon and pathSegment transports it; without one - a line
+                   ! outside the grid, or transport off - it keeps the old
+                   ! behaviour and is dropped.
+                   if (nuP > 0) then
+                      newPhotonPacket = initPhotonPacket(nuP, position, &
+                           & nullUnitVector, .false., .false., xP, yP, zP, gP, .false., 1.0)
+                   else
+                      newPhotonPacket = initPhotonPacket(lineP, position, &
+                           & nullUnitVector, .true., .false., xP, yP, zP, gP, .false., 1.0)
+                   end if
 
                 else
                     ! continuum photon

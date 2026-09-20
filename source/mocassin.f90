@@ -76,6 +76,14 @@ program MoCaSSiN
     if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
 
+    ! D-292: and for the same reason the atomic data must be read before any
+    ! grid allocation: initCartesianGrid sizes linePackets and linePDF with
+    ! nLines, which makeElements is what computes. It ran after the grid, so
+    ! both arrays were allocated (0:nCells, 1:0) and the first write to
+    ! linePDF ran off the end - which is the lgDebug segfault D-158 recorded
+    ! and could not explain.
+    if (lgGas) call makeElements()
+
     print*, " "
 
     ! initialize the 3D cartesian grid
@@ -104,7 +112,6 @@ program MoCaSSiN
 
     ! prepare atomica data stuff
     if (lgGas) then
-      call makeElements()
       call readData()
     endif
 

@@ -678,13 +678,14 @@ module elements_mod
           end do
        end do
 
-       ! HeI singlet recombination lines
-       do i = 1, 9
-          nLines = nLines + 1
-       end do
-
-       ! HeI triplet recombination lines
-       do i = 1, 11
+       ! HeI recombination lines.
+       ! D-292: 34, not 9 + 11. HeIrecLines.dat holds 34 lines per density,
+       ! setDiffusePDF writes 34 entries into linePDF, normRec sums 34 and
+       ! outputGas applies the extinction curve to 34 - this counter was the
+       ! only place that said 20. Since nLines is what linePDF is ALLOCATED
+       ! with, the PDF overran its own array by 14 elements per cell, which
+       ! is the lgDebug segfault D-158 recorded and could not explain.
+       do i = 1, 34
           nLines = nLines + 1
        end do
 
