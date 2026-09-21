@@ -3298,6 +3298,45 @@ function getVolume(grid, xP, yP, zP)
 end function getVolume
     
 
+    ! D-294. linePackets and linePDF are sized with nLines, and every place
+    ! that allocates them - initCartesianGrid, setMotherGrid, resetGrid - runs
+    ! before makeElements, which is what computes nLines. So on a normal run
+    ! nLines is 0 there, the `if (nLines > 0)` guard skips them, and anything
+    ! that later draws from linePDF walks off an unallocated array. That is
+    ! part of the lgDebug segfault D-158 recorded.
+    !
+    ! D-292 fixed it by moving makeElements before the grid. That silently
+    ! changed the ionization structure from iteration 1 and destroyed the PDR
+    ! (D-294), for reasons still not understood, so the ordering was put back
+    ! and the arrays are allocated here instead - after nLines is known, with
+    ! nothing else moved.
+    subroutine allocLineArrays(grid)
+      implicit none
+
+      type(grid_type), intent(inout) :: grid
+      integer                        :: err
+
+      if (nLines <= 0) return
+
+      if (.not. allocated(grid%linePackets)) then
+         allocate(grid%linePackets(0:grid%nCells, 1:nLines), stat = err)
+         if (err /= 0) then
+            print*, "! allocLineArrays: can't allocate linePackets memory"; stop
+         end if
+         grid%linePackets = 0.
+      end if
+
+      if (.not. allocated(grid%linePDF)) then
+         allocate(grid%linePDF(0:grid%nCells, 1:nLines), stat = err)
+         if (err /= 0) then
+            print*, "! allocLineArrays: can't allocate linePDF memory"; stop
+         end if
+         grid%linePDF = 0.
+      end if
+
+    end subroutine allocLineArrays
+
+
     subroutine resetGrid(grid)
       implicit none
 

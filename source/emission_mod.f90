@@ -1094,6 +1094,14 @@ module emission_mod
         ! from, so it is now built whenever the lines are transported, not only
         ! under lgDebug. It is allocated unconditionally (nLines > 0).
         if (lgDebug .or. lgLineTransfer) then
+           ! D-294: allocLineArrays sizes this after makeElements; if it is
+           ! still unallocated something has run out of order, and writing to
+           ! it would corrupt memory silently.
+           if (.not. allocated(grids(iG)%linePDF)) then
+              print*, "! setDiffusePDF: linePDF unallocated with line transport on -"
+              print*, "!   allocLineArrays did not run (D-294). nLines =", nLines
+              stop
+           end if
            call setLineNuP()
            i = 1
            do iup = 3, 15

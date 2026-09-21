@@ -116,6 +116,12 @@ program MoCaSSiN
     if (lgGas) then
       call makeElements()
       call readData()
+      ! D-294: nLines is known only now, and the three places that size
+      ! linePackets/linePDF with it have all already run. Allocate them here
+      ! rather than moving makeElements, which changes the model (D-294).
+      do iGrid = 1, nGrids
+         call allocLineArrays(grid3D(iGrid))
+      end do
     endif
 
     print*, 'active elements: ', nElementsUsed

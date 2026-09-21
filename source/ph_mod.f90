@@ -917,14 +917,6 @@ module xSec_mod
              & trim(yieldEnv) == "transport")) then
            lgLineTransfer = .true.
            if (taskid == 0) print*, "! makeDustXsec: transporting the optically thin diffuse lines (D-292)"
-           ! D-294: linePDF is sized with nLines by initCartesianGrid, and
-           ! nLines is zero there because makeElements has not run yet - see
-           ! mocassin.f90. Refuse rather than write past the end of it.
-           if (nLines <= 0) then
-              print*, "! makeDustXsec: MOCASSIN_LINES=on needs linePDF sized with nLines,"
-              print*, "!   and nLines is 0 at grid allocation (D-294). Not supported yet."
-              stop
-           end if
         else
            lgLineTransfer = .false.
         end if
