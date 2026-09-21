@@ -296,6 +296,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-294 | **D-292's attribution WITHDRAWN: transporting the lines never destroyed the PDR. Moving `makeElements` before the grid did, and why is not understood.** D-292 changed several things at once and blamed the headline one without a control. The control, run afterwards: with line transport OFF and the D-292 code, mean Te 7578 K, hot 100%, f_mol 0.0000 - the same destroyed PDR as with transport ON (7576 K, 100%, 0.0000), against pre-D-292's 302 K, 5.13%, 0.9105. Bisected with two runs differing in that one line: **runs/d294-probe-bisect, which only puts `makeElements` back, restores the PDR exactly** (304.6 K, 5.21%, f_mol 0.9100) and tracks pre-D-292 convergence from the start (it2 0.00 vs 0.00, it3 0.161% vs 0.170%), where the D-292 code had already diverged at iteration 2 (0.187%) and reached 4.56% at iteration 3. The divergence begins at iteration 2, before the PDR engages, so it is in the ionization structure and has nothing to do with lines. **Mechanism unknown:** linePackets and linePDF are zeroed at allocation and every read of them is behind lgDebug, so the larger allocation should be inert; the suspicion is that it perturbs something else in the initialisation. The reordering is reverted, `MOCASSIN_LINES=on` now STOPS rather than writing past a linePDF sized with nLines = 0, and the other two D-292 fixes (34 He I lines, the MPI reduction guard) are kept since both are correct and inert here. Also refuted this entry: the recirculation hypothesis - interactions per iteration are 530886 off against 537094 on, +1.3% | Open | 2026-09-20 |
 | D-295 | **The line arrays are allocated after `nLines` is known, instead of moving `makeElements`.** D-294 established that reordering `makeElements` before the grid destroys the model for reasons still unknown, but the reason D-292 reordered it was real: `initCartesianGrid` sizes `linePackets` and `linePDF` with an `nLines` that is still 0, so with transport on `setDiffusePDF` wrote past a 1:0 array. New `allocLineArrays(grid)` in grid_mod allocates and zeroes both after `readData()`, where `nLines` is settled, and `mocassin.f90` calls it per grid; the ordering stays as it was. `setDiffusePDF` stops rather than writing to an unallocated array. Superseded within a day by D-296, which found the allocation it introduced to be 7.6 GB a rank | Superseded | 2026-09-20 |
 | D-296 | **D-295's allocation asked for 116 GB on a 61 GB machine, because `nLines` is 26718 and not 419. Fixed by storing only the 1663 lines that can actually be transported - exactly, not approximately. Two older defects found on the way, one of which means D-292's line-transport run was drawing garbage.** `nLines = 419` is the RECOMBINATION lines only; the forbidden block adds `nForLevelsLarge**2` = 20164 for Fe II alone plus `nForLevels**2` = 289 per other ion, for **26718**. At `(0:nCells, 1:nLines)` real that is 3.8 GB per array, and D-295 allocated both unconditionally: **measured 8318 MB per rank against 1218 MB for the pre-D-295 binary**, same input, both at -np 4. At -np 14 that is 116 GB against 61 GB of RAM, so the run was SIGKILLed within ~8 s three times, leaving an empty `output/` and an identical 46059-byte log each time. It is not a cgroup limit - `memory.max` is `max` on this session's scope - it is the machine. **The fix is a compaction, not a truncation:** only the 1663 of 26718 lines that map to a frequency bin can ever be transported, the rest are drawn and dropped, so `linePDF` now stores just those. Each kept line keeps mass `emiss_k/totalLines`, and the shortfall `1 - linePDF(cell,nLinesPDF)` is exactly the probability of drawing a line with no bin - dropped before, dropped now - so the draw is reproduced identically at 6% of the memory. With transport off the map is the identity and the array keeps its old extent and meaning, so there is one code path. `linePackets` is now allocated only under `lgDebug`, which is the only place it is ever read. **Measured after: 1330 MB per rank at startup - but the run still OOM-killed at a 58.3 GB peak, because `linePDFTemp`, the reduction's second full copy of linePDF, had kept the full `nLines` extent when the rest of the block moved to `nLinesPDF`. Reduced in place instead (MPI_IN_PLACE, as D-232 already does for `pdfSrc`), removing the array and its copy-back rather than resizing it. Peak now 20.8 GB against 19.4 GB for the same fixture with transport off, i.e. the channel costs 1.4 GB.** Two pre-existing defects found while reading the draw path: (a) **both copies of `getNu2` search `do isearch = 1, nbins`** - a hardcoded 600 - instead of `size(probDen)`, so `linePDF` had everything above index 600 collapsed onto line 600, which means **D-292's run was drawing garbage**, and `KNsigmaArray(fPacket%nuP,1:180)` in fluorescence_mod was reading 420 elements past the end; (b) `linePDF` was zeroed under `lgDebug` alone while the copy-back after the allreduce populates EVERY cell on EVERY rank, so with transport on the next iteration would have summed 14 stale copies of each cell - the D-225 defect, in this array. New `getLineP` does the line draw correctly (first index above the draw, 0 for the dropped remainder); `getNu2` is not reused because it returns the last index BELOW the draw and then adds one, a bin convention that would hand a line its neighbour's frequency. `setLineNuP`/`setOneLineNuP` hoisted out of `emissionDriver` to module level so `mocassin.f90` can settle `nLinesPDF` before sizing. All four flavours build. **Still not known:** D-294's initialisation-order sensitivity is untouched and unexplained; and the measurement itself - the FUV field with transport on against off - is running, not yet read | Open | 2026-09-21 |
+| D-297 | **Transporting the optically thin diffuse lines is SAFE and raises the FUV field a flat 1.41x - the measurement D-292 claimed to have made, finally made without a confound. It narrows O-02's field half from 0.53 to 0.75 of Cloudy, and does NOT close it, against my prediction of ~0.95.** Two runs of ONE binary, `MOCASSIN_LINES` the only difference, both 4 iterations and clean exits (runs/d296-lines-on 53m42s, runs/d296-lines-off 56m11s). This is the first run in which the line draw has ever been correct - D-296 found `getNu2` searching a hardcoded `nbins`, so of linePDF's 26718 entries only the first 600 were reachable and everything above collapsed onto line 600 - so no earlier number for this channel means anything. **The PDR is not destroyed:** OFF 506.4 K, 6.82% hot, f_mol 0.4152 against ON 540.7 K, 7.51%, f_mol 0.4094, where D-292 reported 7576 K, 100%, 0.0000. D-294 had already withdrawn the attribution on a control; this settles it on a clean A/B. **The field ratio is 1.410 median and remarkably flat - 1.375 to 1.421 over r = 0.126-0.581 pc**, across a factor ~50 in field strength. That flatness is the physics, not a coincidence: the thin lines are emitted mostly in the centrally concentrated ionized gas, so their field dilutes as r^-2 exactly as the stellar continuum does, and the ratio is therefore a constant. **Against Cloudy with its artifact Lya removed** (D-291's flat 46%), stable for A_V >= 0.175: transport OFF sits at 0.51-0.55 of corrected Cloudy and transport ON at 0.72-0.78. **So O-02's field half narrows from ~0.53 to ~0.75 and about 1.33x remains.** I predicted 0.55 -> ~0.95 and that this would close O-02; it does not, and the prediction is withdrawn rather than the correction adjusted to meet it. Also confirmed independently: iteration-1 interactions are 531202 at 69.48% absorption OFF against 536099 at 69.44% ON, +0.9%, reproducing D-294's +1.3% and confirming that the extra field comes from the lines themselves and not from packets recirculating. Costs: T_mean +6.8%, f_mol -1.4%, memory 17.8 -> 23.8 GB at -np 14. **Not known:** what the residual 1.33x is; whether the 46% Lya correction is the right one to apply in full, given D-293 measured only 72-76% of Lya as dust-destroyed in the ionized gas; and D-294's initialisation-order sensitivity, still untouched | Open | 2026-09-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22835,3 +22836,109 @@ Runs are now launched as transient systemd user units
 `mpirun -np 14` holds ~19 GB, and when that lives in the session's process
 tree the session is killed along with it; `setsid` does not escape teardown,
 and a backgrounded tool call does not either.
+
+---
+
+## D-297 - what line transport actually does (2026-09-21)
+
+The measurement D-292 announced, D-294 showed had never been made, and D-296
+made possible by fixing the draw. Two runs, one binary, `MOCASSIN_LINES` the
+only difference between them.
+
+    runs/d296-lines-off   4 iterations, 56m11s, clean exit
+    runs/d296-lines-on    4 iterations, 53m42s, clean exit
+
+Both converge on the same path - 0.00 / 0.00 / 0.178 / 1.020 % off against
+0.00 / 0.00 / 0.187 / 1.176 % on - which is the healthy pattern D-294
+recorded for the restored model, not the runaway the D-292 code showed.
+
+### 1. It does not destroy the PDR
+
+                     cells    T_mean    hot%    f_mol
+    transport OFF    34547     506.4    6.82   0.4152
+    transport ON     34545     540.7    7.51   0.4094
+    D-292's claim        -      7576     100   0.0000
+
+D-294 had already withdrawn D-292's attribution using a transport-OFF control
+of the D-292 code. This settles it the other way round: with the confound
+gone, turning transport ON moves the PDR by 7% in temperature and 1% in
+molecular fraction. It is a perturbation, not a catastrophe.
+
+### 2. The field rises 1.41x, and the same 1.41x at every depth
+
+    r [pc]   chi_off   chi_on   on/off
+     0.126      89.3      123    1.375
+     0.185      32.8     45.9    1.400
+     0.271      13.1     18.5    1.411
+     0.397      5.07     7.17    1.414
+     0.581      1.74     2.47    1.419
+                        median   1.410
+
+Flat to +/-1.6% over a factor ~50 in field strength. This is not an accident
+of normalisation: the optically thin lines are emitted overwhelmingly in the
+centrally concentrated ionized gas, so the line field falls as r^-2 through
+the PDR exactly as the diluted stellar continuum does. A constant ratio is
+what the geometry demands, and getting it is a check on the implementation.
+
+The slight rise with radius (1.375 -> 1.42) is the extinction difference: the
+lines are optical and the continuum FUV is not, so the line component is very
+slightly less attenuated with depth.
+
+### 3. It narrows O-02's field half, and does not close it
+
+Matched in A_V against Cloudy, with Cloudy's Lya removed on D-291's grounds
+(it attenuates outward line flux by continuum opacity alone, so its deep-PDR
+Lya streams like a 1216 A continuum photon and is an artifact; D-291 measured
+that component at a flat 46% of the field):
+
+    A_V     G0_corr   G0_off   G0_on   on/corr   off/corr
+    0.175       138     65.6    91.9     0.668      0.476
+    0.275      47.8     24.4    34.4     0.720      0.512
+    0.375      22.2     12.0    17.0     0.765      0.539
+    0.475      12.4     6.68    9.48     0.764      0.538
+    0.575      7.51     4.01     5.7     0.759      0.534
+    0.675      4.89     2.68    3.81     0.779      0.548
+
+So the field goes from **0.53** to **0.75** of corrected Cloudy. The two
+shallowest bins (A_V 0.075, 0.125) are erratic - 2.66 and 1.13 - and are
+discarded here: that is the ionization front, where matching two codes in A_V
+is least meaningful and where the two grids disagree about where the front is.
+
+**I predicted 0.55 -> ~0.95, i.e. that this would close O-02's field half. It
+does not.** About 1.33x remains. The prediction is withdrawn; the correction
+is not being adjusted to meet it.
+
+### 4. And the recirculation hypothesis is refuted a second time
+
+Iteration-1 interactions: **531202 at 69.48% absorption with transport off,
+536099 at 69.44% with it on** - +0.9%, independently reproducing D-294's
++1.3% on different binaries. The extra field is the lines' own emission, not
+packets surviving longer. Absorption fraction is unchanged to 0.04
+percentage points, which is what it should be for a channel that adds photons
+without changing the opacity.
+
+### 5. What is not known
+
+  - **What the residual 1.33x is.** It is flat with depth, like the line
+    contribution itself, which argues for a missing emission component rather
+    than a transfer error.
+  - **Whether removing 100% of Cloudy's Lya is right.** D-293 measured, with
+    MOCASSIN's own escape formula, that 72-76% of the Lya produced in the
+    ionized gas is destroyed by dust there - not 100%. If only ~75% of
+    Cloudy's Lya should be removed, corrected Cloudy rises and the ON ratio
+    falls to ~0.62, i.e. the gap is larger than stated here, not smaller.
+    This is the single largest uncertainty in the number above and it is a
+    property of the reference, not of MOCASSIN.
+  - **D-294's initialisation-order sensitivity** is untouched and unexplained.
+
+### 6. Costs
+
+    T_mean          +6.8%
+    f_mol           -1.4%
+    memory at -np 14   17.8 -> 23.8 GB
+    runtime          56m11s -> 53m42s (no cost; MC scatter)
+
+`MOCASSIN_LINES` remains the switch. It stays DEFAULT OFF for now, because the
+channel is real but the residual 1.33x means the field is still not settled,
+and turning it on would change every published comparison for a reason that
+is not yet fully understood.
