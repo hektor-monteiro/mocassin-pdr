@@ -22931,7 +22931,20 @@ without changing the opacity.
     property of the reference, not of MOCASSIN.
   - **D-294's initialisation-order sensitivity** is untouched and unexplained.
 
-### 6. Costs
+### 6. The figure
+
+`tools/d297_linesfig.py` builds the three-panel Roellig-style comparison at
+`runs/d296-lines-on/figs/lines.{svg,png,pdf}`: the field, the ratios, and the
+gas temperature, against log A_V from the star with the front marked and the
+radius on the upper axis. The Cloudy ratio curves in panel (b) are drawn only
+outside the front, for the reason given in section 3 - across the H II region
+the two codes do not agree which cells are at the same depth, and the ratio
+swings 1.1-2.7 with no physical content.
+
+Panel (c) is the clearest statement of what D-292 got wrong: the transported
+and discarded curves lie on top of each other through the whole PDR.
+
+### 7. Costs
 
     T_mean          +6.8%
     f_mol           -1.4%
