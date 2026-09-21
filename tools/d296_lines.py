@@ -38,9 +38,57 @@ import d260_roellig as R
 
 PC = R.PC
 DRAINE_PER_HABING = 1.71
-# D-291: H I 1216 is a flat 46% of Cloudy's PDR field at A_V 0.22/0.54/0.70,
-# and is an artifact of attenuating outward line flux by continuum opacity.
+# D-291: H I 1216 is a flat ~46% of Cloudy's PDR field, and is an artifact of
+# attenuating outward line flux by continuum opacity alone. D-298 derives this
+# from the save file rather than carrying it as a constant; the value here is
+# only the fallback when no .ioncont is available.
 LYA_FRAC = 0.46
+FUV_LO, FUV_HI = 6.0 / 13.6057, 1.0      # 6 - 13.6 eV, in Ryd
+
+
+def cloudy_lya_fraction(ioncont, zone_frac=0.5):
+    """H I's share of Cloudy's 6-13.6 eV field, from `save ionizing continuum
+    every zone`.
+
+    Each bin carries a flux and the fractions it is composed of - incident,
+    OTS line/continuum, outward line/continuum - plus the label of the line
+    that dominates it. H I's share is the outward-line flux in the bins
+    labelled `H  1`, over the band total. At 1216.4 A (0.74917 Ryd) that bin
+    is outlin = 1.000 and outweighs every other line by a factor 5.
+
+    Removing ALL of it is right for the deep PDR: D-291 showed Cloudy's
+    outward line flux is attenuated by continuum opacity alone, so this
+    component streams like a 1216 A continuum photon; and D-293 measured, with
+    MOCASSIN's own escape formula, that 72-76% of Lya is destroyed by dust
+    before it even reaches the front, with the remainder destroyed within
+    A_V 0.020 of it. Past the front, physical Lya is nil.
+    """
+    zones, cur = [], None
+    for ln in open(ioncont):
+        if ln.startswith('#save every zone'):
+            if cur:
+                zones.append(cur)
+            cur = []
+            continue
+        if ln.startswith('#') or cur is None:
+            continue
+        f = ln.rstrip('\n').split('\t')
+        if len(f) < 12:
+            continue
+        try:
+            nu, flux, outlin = float(f[1]), float(f[2]), float(f[7])
+        except ValueError:
+            continue
+        if FUV_LO <= nu <= FUV_HI:
+            cur.append((flux, outlin, f[11].strip()))
+    if cur:
+        zones.append(cur)
+    if not zones:
+        return LYA_FRAC
+    z = zones[int(zone_frac * (len(zones) - 1))]
+    tot = sum(r[0] for r in z)
+    hi = sum(r[0] * r[1] for r in z if r[2].startswith('H  1'))
+    return hi / tot if tot > 0 else LYA_FRAC
 
 
 def fuv(run):
