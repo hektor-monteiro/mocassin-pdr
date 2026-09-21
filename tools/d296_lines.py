@@ -38,6 +38,9 @@ import d260_roellig as R
 
 PC = R.PC
 DRAINE_PER_HABING = 1.71
+# D-291: H I 1216 is a flat 46% of Cloudy's PDR field at A_V 0.22/0.54/0.70,
+# and is an artifact of attenuating outward line flux by continuum opacity.
+LYA_FRAC = 0.46
 
 
 def fuv(run):
@@ -101,12 +104,34 @@ def main(on, off, cloudy=None):
 
     if cloudy:
         import d287_pe as P
-        c = P.read_cloudy_pdr(cloudy) if hasattr(P, 'read_cloudy_pdr') else None
-        if c is None:
-            print('\n   (no Cloudy reader available for %s)' % cloudy)
-            return
-        print('\n== against Cloudy ==')
-        print('   see tools/d287_pe.py for the matched-A_V comparison')
+        c = P.read_cloudy(cloudy)
+        # MOCASSIN's A_V per active cell, in pdrFUV.out's order
+        da = R.read_run(on)
+        db = R.read_run(off)
+        av_edges = np.linspace(0.05, 0.75, 15)
+
+        print('\n== against Cloudy, matched in A_V ==')
+        print('   Cloudy %s' % cloudy)
+        print('   D-291 measured H I 1216 at a flat %.0f%% of Cloudy\'s PDR'
+              % (100 * LYA_FRAC))
+        print('   field, and showed it to be an artifact of attenuating')
+        print('   outward line flux by continuum opacity alone. "corrected"')
+        print('   below is Cloudy with that component removed.')
+        print()
+        print('   A_V      G0_cl   G0_corr    G0_off     G0_on   on/corr  off/corr')
+        for lo, hi in zip(av_edges[:-1], av_edges[1:]):
+            mc = (c['AV'] >= lo) & (c['AV'] < hi)
+            ma = (da['AV'] >= lo) & (da['AV'] < hi)
+            mb = (db['AV'] >= lo) & (db['AV'] < hi)
+            if mc.sum() < 2 or ma.sum() < 3 or mb.sum() < 3:
+                continue
+            gc = np.median(c['G0'][mc])
+            gcorr = gc * (1.0 - LYA_FRAC)
+            ga = np.median(a['chi'][ma]) * DRAINE_PER_HABING
+            gb = np.median(b['chi'][mb]) * DRAINE_PER_HABING
+            print('   %5.3f %9.3g %9.3g %9.3g %9.3g %8.3f %9.3f'
+                  % (0.5 * (lo + hi), gc, gcorr, gb, ga, ga / gcorr,
+                     gb / gcorr))
 
 
 if __name__ == '__main__':
