@@ -138,7 +138,6 @@ module iteration_mod
            real, allocatable :: linePacketsTemp(:,:) ! temporary line packets array
            real, allocatable :: opacityTemp(:,:)     ! temporary opacities array
            real, allocatable :: recPDFTemp(:,:)      ! temporary rec prob distribution function
-           real, allocatable :: linePDFTemp(:,:)     ! temporary line prob distribution function
            real, allocatable :: totalLinesTemp(:)    ! temporary fraction of non-ionizing line phots
 
            real, allocatable          :: noHitPercent(:)    ! percentage of no Hit cells
@@ -487,16 +486,11 @@ module iteration_mod
               ! drawn from, not only under lgDebug - each rank fills only the
               ! cells it owns, and a packet emitted from any other cell would
               ! sample an all-zero PDF.
-              if (lgDebug .or. lgLineTransfer) then
-                 allocate(linePDFTemp(0:grid(iG)%nCells, nLines),&
-                      & stat = err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate array memory:&
-                         & opacityTemp "
-                    stop
-                 end if
-                 linePDFTemp = 0.
-              end if
+              ! D-296: reduced in place. linePDFTemp was a second full copy
+              ! of linePDF - 235 MB a rank here - and this model already peaks
+              ! near the machine's memory at -np 14. Only the owning rank
+              ! writes a cell in emissionDriver and the rest hold zeros, so a
+              ! plain sum reassembles it, exactly as D-232 does for pdfSrc.
 
               size =  (grid(iG)%nCells+1)*nbins
 
@@ -512,10 +506,10 @@ module iteration_mod
                       & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%pdfSrc, &
                       & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
-                 if (lgDebug .or. lgLineTransfer) then
+                 if ((lgDebug .or. lgLineTransfer) .and. allocated(grid(iG)%linePDF)) then
                     size =  (grid(iG)%nCells+1)*nLinesPDF
 
-                    call mpi_allreduce(grid(iG)%linePDF, linePDFTemp, size,&
+                    call mpi_allreduce(MPI_IN_PLACE, grid(iG)%linePDF, size,&
                          & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  end if
               end if
@@ -560,11 +554,7 @@ module iteration_mod
                              do freq = 1, nbins
                                 grid(iG)%recPDF(grid(iG)%active(i,j,k),freq) = recPDFTemp(grid(iG)%active(i,j,k) ,freq)
                              end do
-                             if (lgDebug .or. lgLineTransfer) then
-                                do freq = 1, nLinesPDF
-                                   grid(iG)%linePDF(grid(iG)%active(i,j,k),freq) = linePDFTemp(grid(iG)%active(i,j,k),freq)
-                                end do
-                             end if
+                             ! D-296: linePDF was reduced in place, no copy-back.
                           end if
                        end do
                     end do
@@ -574,9 +564,6 @@ module iteration_mod
 
                  if ( allocated(totalLinesTemp) )&
                       & deallocate(totalLinesTemp)
-                 if (lgDebug .or. lgLineTransfer) then
-                    if ( allocated(linePDFTemp) ) deallocate(linePDFTemp)
-                 end if
                  if ( allocated(recPDFTemp) ) deallocate(recPDFTemp)
               end if
 
