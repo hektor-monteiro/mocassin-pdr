@@ -88,11 +88,24 @@ def read_cloudy(prefix):
         if ln.startswith('#'):
             continue
         s = ln.rstrip('\n').split('\t')
-        dep.append(float(s[0]))
-        tot.append(float(s[2]))
+        # D-300: a .heat saved with extra diagnostics carries interleaved
+        # non-data lines (per-level heating traces). Skip anything whose
+        # first field is not a depth.
+        if len(s) < 3:
+            continue
+        try:
+            d0, t0 = float(s[0]), float(s[2])
+        except ValueError:
+            continue
+        dep.append(d0)
+        tot.append(t0)
         pairs = [x for x in s[5:] if x.strip()]
-        f = dict((pairs[i].strip(), float(pairs[i + 1]))
-                 for i in range(0, len(pairs) - 1, 2))
+        f = {}
+        for i in range(0, len(pairs) - 1, 2):
+            try:
+                f[pairs[i].strip()] = float(pairs[i + 1])
+            except ValueError:
+                pass
         grnp.append(f.get('GrnP', 0.0))
     tot, grnp = np.array(tot), np.array(grnp)
     m = min(len(av), len(tot), len(nh))

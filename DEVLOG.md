@@ -299,6 +299,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-297 | **CAVEAT FIRST: both runs are 4-iteration probes at 1.0-1.2% converged cells, inherited from the D-294 probe input, against the 11 iterations and 89.6% of the D-290 production run. The on/off ratio is a controlled A/B and stands; the absolute comparison against Cloudy is measured on an unconverged model - its PDR sits at 200-500 K where the converged model has 25-47 K - and is WITHDRAWN pending a converged re-run.** Transporting the optically thin diffuse lines is SAFE and raises the FUV field a flat 1.41x - the measurement D-292 claimed to have made, finally made without a confound. It narrows O-02's field half from 0.53 to 0.75 of Cloudy, and does NOT close it, against my prediction of ~0.95.** Two runs of ONE binary, `MOCASSIN_LINES` the only difference, both 4 iterations and clean exits (runs/d296-lines-on 53m42s, runs/d296-lines-off 56m11s). This is the first run in which the line draw has ever been correct - D-296 found `getNu2` searching a hardcoded `nbins`, so of linePDF's 26718 entries only the first 600 were reachable and everything above collapsed onto line 600 - so no earlier number for this channel means anything. **The PDR is not destroyed:** OFF 506.4 K, 6.82% hot, f_mol 0.4152 against ON 540.7 K, 7.51%, f_mol 0.4094, where D-292 reported 7576 K, 100%, 0.0000. D-294 had already withdrawn the attribution on a control; this settles it on a clean A/B. **The field ratio is 1.410 median and remarkably flat - 1.375 to 1.421 over r = 0.126-0.581 pc**, across a factor ~50 in field strength. That flatness is the physics, not a coincidence: the thin lines are emitted mostly in the centrally concentrated ionized gas, so their field dilutes as r^-2 exactly as the stellar continuum does, and the ratio is therefore a constant. **Against Cloudy with its artifact Lya removed** (D-291's flat 46%), stable for A_V >= 0.175: transport OFF sits at 0.51-0.55 of corrected Cloudy and transport ON at 0.72-0.78. **So O-02's field half narrows from ~0.53 to ~0.75 and about 1.33x remains.** I predicted 0.55 -> ~0.95 and that this would close O-02; it does not, and the prediction is withdrawn rather than the correction adjusted to meet it. Also confirmed independently: iteration-1 interactions are 531202 at 69.48% absorption OFF against 536099 at 69.44% ON, +0.9%, reproducing D-294's +1.3% and confirming that the extra field comes from the lines themselves and not from packets recirculating. Costs: T_mean +6.8%, f_mol -1.4%, memory 17.8 -> 23.8 GB at -np 14. **Not known:** what the residual 1.33x is; whether the 46% Lya correction is the right one to apply in full, given D-293 measured only 72-76% of Lya as dust-destroyed in the ionized gas; and D-294's initialisation-order sensitivity, still untouched | Open | 2026-09-21 |
 | D-298 | **D-291's 46% Lya fraction verified from the raw save file, and my stated worry about over-correcting it WITHDRAWN - removing all of Cloudy's Lya past the front is right, not an over-correction.** D-297 flagged as its largest systematic the possibility that only ~75% of Cloudy's Lya should be removed, which would have dropped the transport-ON field from 0.75 to ~0.62 of corrected Cloudy. That was a misreading of D-293: its 72-76% is the fraction of Lya destroyed by dust BEFORE reaching the front, and D-293 separately measured the remainder as destroyed within A_V 0.020 of it. The front here is at A_V 0.168, so at A_V >= 0.19 - every bin in the comparison - physical Lya is nil by both analyses and Cloudy's is entirely artifact. Removing 100% is correct. **Verified independently from `150k.ioncont`** (`save ionizing continuum every zone`, the same model as the .pdr/.ovr set - the two inputs differ only in save commands): the 6-13.6 eV band decomposes as Finc 0.089, otsl 0.001, otsc 0.000, outlin 0.66, outcon 0.25, reproducing D-291's 8.8/0.1/66.4/24.7 exactly; **H I's share is 0.4614**, against D-291's 46.1% at A_V 0.54, and the Lya bin sits at 0.74917 Ryd (1216.4 A) with outlin = 1.000, outweighing the next contributor - a blend at 8.7% - by a factor 5. Across depth the share is 0.457/0.461/0.463/0.460, i.e. flat, which is itself the signature D-291 identified of a continuum-attenuated component. `cloudy_lya_fraction()` now derives it from the save file rather than carrying 0.46 as a constant; the two agree to 0.7%, so no D-297 number moves | Closed | 2026-09-21 |
 | D-299 | **D-294's open question is ANSWERED: moving `makeElements` before the grid made it read `lgElementOn` before anything had set it, which silently switched off ALL forbidden-line cooling.** `setComposition` is what sets `lgElementOn = .true.`, and it is called from **inside `initCartesianGrid`** (grid_mod.f90:98). D-292 put `call makeElements()` before `initCartesianGrid`, so it ran with `lgElementOn` unset - the array is declared `logical, dimension(nElements) :: lgElementOn` with **no initialiser**, so the value read was formally undefined and in practice zero-filled. `makeElements`'s forbidden-line block opens `if (.not.lgElementOn(elem)) exit`, so it exited on its first test, leaving **`nLines` at 419 - the recombination lines alone, which is exactly the "419 of 419" D-292 reported and believed was the full line list - and `lgDataAvailable` entirely `.false.`** Nothing complained, because `update_mod`'s `forLines()` cooling driver is itself gated on `lgDataAvailable(elem,ion)`: with it false, `forbiddenLines` stays zero, `coolColl` loses every collisionally excited line, and the ionized gas and warm PDR lose their dominant coolant. The gas then cannot cool - mean Te 302 -> 7578 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, exactly D-294's measurement. **Verified, not inferred:** a probe printing `count(lgElementOn)` at both positions gives **0 of 30 at D-292's insertion point and 28 at the correct one**, with `nLines = 26718` and `count(lgDataAvailable) = 91` after `makeElements` in the correct order. This also explains why D-294's memory reasoning found nothing: the arrays were never the mechanism, and the run stayed at 1218 MB a rank precisely BECAUSE nLines was 419 rather than 26718. Fixed two ways: `lgElementOn` now has an explicit `.false.` initialiser so the behaviour is defined, and `makeElements` stops with a message naming the cause if no elements are switched on. The guard was verified to fire by temporarily reintroducing the reordering. All four flavours build | Closed | 2026-09-21 |
+| D-300 | **Dropping the 16 trace elements is SAFE for MOCASSIN, but not for the reason assumed - and the check turned up the source of MOCASSIN's deep-PDR electron deficit.** The proposal was to drop Li Be B F Na Al P K Sc Ti V Cr Mn Co Ni Cu Zn (Ca and Fe already off) during implementation, since each costs an `equilibrium` level-population solve per cell per iteration and they are 28 elements against hiipdr's 8 - the reason a pn150k MC-only iteration is 14 min where hiipdr's is 2. Tested in Cloudy rather than MOCASSIN, at 7 min a run against hours, on the identical physical model with only `element ... off` lines added. **As coolants they are indeed negligible: median 0.000%, max 5.35% of the cooling.** But T_e still moved, and DOWNWARD - backwards for removing a coolant - because the real channel is electron donation: the low-ionization-potential metals set n_e in the molecular gas, and removing them raises the grain potential and cuts photoelectric heating. First pass suggested up to -12% in T_e, but that was contaminated: the colder trimmed model hit `stop temperature 40K` at A_V 0.645 against the baseline's 0.736, so the deepest bins compared against a terminating model. Re-run with `stop temperature 15K` so both reach A_V 9+, **inside the span this model actually has (A_V 0.17-0.68): dT_e is <=1.5% through the mid-PDR, rising to -4.9% at the outer edge, with dn_e -1.6 to -3.2% and dPE -2.6 to -12.9%.** Deeper still (A_V 2-9, which this model does not reach) the metals dominate n_e outright, -20 to -45%. **The decisive point is that MOCASSIN's PDR never had them:** the REDUCED 33-species network's only metal is Mg/Mg+ - Na, Al, K, Ni, Cr, Mn and also Si, S, Fe are all absent - so the Cloudy sensitivity OVERSTATES the effect on MOCASSIN, whose PDR electron budget cannot change. Their only role in MOCASSIN is the ionized-gas solver, where n_e is H+-dominated and their cooling is the measured ~0%. **Bonus, and the most useful thing to come out of it: MOCASSIN's converged PDR n_e is 0.983-0.984 of Cloudy's at A_V 0.41-0.65, a steady 1.6-1.7% deficit that matches the 1.6-1.9% the Cloudy test attributes to exactly those missing donors.** So that divergence is now explained, quantified, and attributable to the network's species list rather than to any defect. Verdict: trim, and apply the same removal to Cloudy so the residual ionized-gas effect is common-mode | Closed | 2026-09-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -23087,3 +23088,92 @@ hazard from the other side. This is the second defect in eight entries whose
 root cause is initialisation order in that file, and the pattern is worth
 watching: a value that is legal to read before it is set, and whose wrong
 value is a plausible-looking number rather than a crash.
+
+---
+
+## D-300 - the trace elements, and what testing it in Cloudy found (2026-09-21)
+
+### 1. Why it came up
+
+D-299's timing question: a `pn150k` MC-only iteration costs 14 min where
+`hiipdr`'s costs 2. It is not the radiative transfer - `hiipdr` has MORE
+interactions per iteration (972,875 against 530,729) through thicker material
+(max A_V 3.0 against 0.68). It is the per-cell atomic data: `equilibrium()`
+solves a level-population system for every heavy ion in every active cell,
+every iteration, and `pn150k` has 26 elements with Z >= 3 against `hiipdr`'s
+6, on 2.33x the cells.
+
+So the proposal: drop the 16 that cannot matter. They sum to 4.78e-6 against
+oxygen's 4.90e-4.
+
+### 2. Test it in Cloudy, not MOCASSIN
+
+Seven minutes a run against hours, on the same physical model, with only
+`element ... off` lines added. And since the same removal can be applied to
+both codes, like-for-like is never at risk.
+
+### 3. As coolants, negligible - as electron donors, not
+
+    share of the baseline cooling held by the dropped species
+        median 0.000%      max 5.35%
+
+Confirmed. But T_e moved, and **downward**, which is backwards for removing a
+coolant. The channel is electron donation: Na, Al, K, Ni and the iron-peak
+metals have low ionization potentials and set n_e in the molecular gas.
+Remove them, n_e falls, the grains charge more positively, the photoelectric
+yield drops, and the gas cools.
+
+A first pass put this at -12% in T_e, which was wrong. The trimmed model, being
+colder, reached `stop temperature 40K` at A_V 0.645 where the baseline reached
+0.736, so the deepest bins compared a zone against another model's edge. Re-run
+with `stop temperature 15K`, both reaching A_V 9+:
+
+    A_V      dTe/Te    dne/ne    dPE/PE      (inside this model's span)
+    0.29      -1.09%    -3.24%    -2.59%
+    0.44      -0.94%    -1.72%    -3.57%
+    0.53      -1.54%    -1.62%    -4.31%
+    0.68      -4.88%    -1.89%   -12.85%
+
+    A_V 2-9 (this model does not reach):  dne/ne  -20% to -45%
+
+### 4. The decisive point: MOCASSIN's PDR never had them
+
+The REDUCED 33-species network carries exactly one metal, Mg/Mg+:
+
+    C C+ CH CH+ CH2 CH2+ CH3 CH3+ CH4 CH4+ CH5+ CO CO+ H H+ H2 H2+ H2O
+    H2O+ H3+ H3O+ HCO+ He He+ Mg Mg+ O O+ O2 O2+ OH OH+ e-
+
+Na, Al, K, Ni, Cr, Mn - and Si, S and Fe besides - are absent. So the Cloudy
+sensitivity is an upper bound that does not apply: MOCASSIN's PDR electron
+budget cannot change when these elements leave the element list, because they
+were never in its PDR chemistry. Their only role is in the ionized-gas
+ionization and cooling solver, where n_e is H+-dominated and their cooling is
+the ~0% measured above.
+
+### 5. What that explains
+
+MOCASSIN's converged PDR electron density against Cloudy's:
+
+    A_V     ne_MOC   ne_Cloudy   ratio
+    0.410   0.2961      0.3049   0.971
+    0.470   0.2936      0.2990   0.982
+    0.530   0.2917      0.2966   0.984
+    0.590   0.2900      0.2950   0.983
+    0.650   0.2885      0.2935   0.983
+
+A steady **1.6-1.7% deficit**, against the 1.6-1.9% the Cloudy test attributes
+to the missing donors over the same range. The two agree, so this divergence
+is now explained: it is the network's species list, not a defect, and it is
+the expected consequence of a 33-species reduced network. Its knock-on for
+photoelectric heating is the -2.6 to -4.3% of the mid-PDR column above -
+small against O-02's remaining 1.33x, but identified rather than unexplained.
+
+(The much larger ratios at A_V 0.23-0.29, 0.31 and 0.57, are the two codes
+placing the ionization front differently and are a separate matter.)
+
+### 6. Verdict
+
+Trim, and apply the same `element ... off` set to Cloudy so the residual
+ionized-gas difference is common-mode and cancels in every ratio we quote.
+Not yet applied: the converged A/B (runs/d298-conv-*) is mid-flight on the
+28-element composition and must finish on it.
