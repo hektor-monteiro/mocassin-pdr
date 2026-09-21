@@ -301,6 +301,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-299 | **D-294's open question is ANSWERED: moving `makeElements` before the grid made it read `lgElementOn` before anything had set it, which silently switched off ALL forbidden-line cooling.** `setComposition` is what sets `lgElementOn = .true.`, and it is called from **inside `initCartesianGrid`** (grid_mod.f90:98). D-292 put `call makeElements()` before `initCartesianGrid`, so it ran with `lgElementOn` unset - the array is declared `logical, dimension(nElements) :: lgElementOn` with **no initialiser**, so the value read was formally undefined and in practice zero-filled. `makeElements`'s forbidden-line block opens `if (.not.lgElementOn(elem)) exit`, so it exited on its first test, leaving **`nLines` at 419 - the recombination lines alone, which is exactly the "419 of 419" D-292 reported and believed was the full line list - and `lgDataAvailable` entirely `.false.`** Nothing complained, because `update_mod`'s `forLines()` cooling driver is itself gated on `lgDataAvailable(elem,ion)`: with it false, `forbiddenLines` stays zero, `coolColl` loses every collisionally excited line, and the ionized gas and warm PDR lose their dominant coolant. The gas then cannot cool - mean Te 302 -> 7578 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, exactly D-294's measurement. **Verified, not inferred:** a probe printing `count(lgElementOn)` at both positions gives **0 of 30 at D-292's insertion point and 28 at the correct one**, with `nLines = 26718` and `count(lgDataAvailable) = 91` after `makeElements` in the correct order. This also explains why D-294's memory reasoning found nothing: the arrays were never the mechanism, and the run stayed at 1218 MB a rank precisely BECAUSE nLines was 419 rather than 26718. Fixed two ways: `lgElementOn` now has an explicit `.false.` initialiser so the behaviour is defined, and `makeElements` stops with a message naming the cause if no elements are switched on. The guard was verified to fire by temporarily reintroducing the reordering. All four flavours build | Closed | 2026-09-21 |
 | D-300 | **Dropping the 16 trace elements is SAFE for MOCASSIN, but not for the reason assumed - and the check turned up the source of MOCASSIN's deep-PDR electron deficit.** The proposal was to drop Li Be B F Na Al P K Sc Ti V Cr Mn Co Ni Cu Zn (Ca and Fe already off) during implementation, since each costs an `equilibrium` level-population solve per cell per iteration and they are 28 elements against hiipdr's 8 - the reason a pn150k MC-only iteration is 14 min where hiipdr's is 2. Tested in Cloudy rather than MOCASSIN, at 7 min a run against hours, on the identical physical model with only `element ... off` lines added. **As coolants they are indeed negligible: median 0.000%, max 5.35% of the cooling.** But T_e still moved, and DOWNWARD - backwards for removing a coolant - because the real channel is electron donation: the low-ionization-potential metals set n_e in the molecular gas, and removing them raises the grain potential and cuts photoelectric heating. First pass suggested up to -12% in T_e, but that was contaminated: the colder trimmed model hit `stop temperature 40K` at A_V 0.645 against the baseline's 0.736, so the deepest bins compared against a terminating model. Re-run with `stop temperature 15K` so both reach A_V 9+, **inside the span this model actually has (A_V 0.17-0.68): dT_e is <=1.5% through the mid-PDR, rising to -4.9% at the outer edge, with dn_e -1.6 to -3.2% and dPE -2.6 to -12.9%.** Deeper still (A_V 2-9, which this model does not reach) the metals dominate n_e outright, -20 to -45%. **The decisive point is that MOCASSIN's PDR never had them:** the REDUCED 33-species network's only metal is Mg/Mg+ - Na, Al, K, Ni, Cr, Mn and also Si, S, Fe are all absent - so the Cloudy sensitivity OVERSTATES the effect on MOCASSIN, whose PDR electron budget cannot change. Their only role in MOCASSIN is the ionized-gas solver, where n_e is H+-dominated and their cooling is the measured ~0%. **Bonus, and the most useful thing to come out of it: MOCASSIN's converged PDR n_e is 0.983-0.984 of Cloudy's at A_V 0.41-0.65, a steady 1.6-1.7% deficit that matches the 1.6-1.9% the Cloudy test attributes to exactly those missing donors.** So that divergence is now explained, quantified, and attributable to the network's species list rather than to any defect. Verdict: trim, and apply the same removal to Cloudy so the residual ionized-gas effect is common-mode | Closed | 2026-09-21 |
 | D-301 | **The converged A/B: line transport is worth 1.74x in the field and CLOSES most of O-02's field half - 0.51 -> 0.90 of corrected Cloudy - but does NOT close the temperature half, which is the real finding.** Two 11-iteration runs of one binary, `MOCASSIN_LINES` the only difference, both clean exits at matched convergence (runs/d298-conv-on 89.40%, 2:57:39; runs/d298-conv-off 89.27%, 2:53:21), tracking D-290's production trajectory (it8 67.3/58.8 against 59.2, it11 89.4/89.3 against 89.6). This supersedes D-297, whose 4-iteration probes were 1.0-1.2% converged. **Convergence mattered a great deal:** the on/off field ratio is **1.738** (flat 1.68-1.76 over r = 0.126-0.581 pc), against 1.410 unconverged, and the converged PDR is a different object - T_mean 92.4 K, f_mol 0.9405, against the probe's 540.7 K and 0.409. **Against Cloudy with its artifact Lya removed** (0.4609, derived in D-298), stable for A_V >= 0.175: transport OFF 0.49-0.52, transport ON **0.85-0.92**. So the discarded thin lines were most of O-02's field half, and D-297's withdrawn prediction of 0.55 -> ~0.95 was right in substance and wrong only in having been tested three iterations before the structure locks in. **The PDR is untouched:** 87.9 -> 92.4 K (+5.1%), f_mol 0.9394 -> 0.9405, which retires D-292's claim for good. **But the temperature gap barely moves.** T_gas against Cloudy goes from 0.50-0.54 (off) to 0.53-0.59 (on) at A_V > 0.5: a 74% increase in the field bought ~7% in temperature. That is the expected weak scaling - in the photoelectric-heated regime T goes roughly as G_0^0.25, giving 1.74^0.25 = 1.15 - and it redirects O-02: **with the field at 0.90 of Cloudy's the gas is still ~1.8x colder, so the temperature deficit is not primarily a field problem.** Photoelectric heating per H is 0.26-0.47 (off) and 0.34-0.59 (on) of Cloudy's, but that reference is itself inflated because Cloudy's heating is computed from its full field including the Lya artifact, so those are a lower bound and a like-for-like heating comparison is not available from a switch. What remains for O-02 is the heating-to-temperature conversion - efficiency or excess cooling - not the field. Figure rebuilt on the converged pair at runs/d298-conv-on/figs/lines.{svg,png,pdf} | Open | 2026-09-21 |
+| D-302 | **Two defects in the Cloudy reference setup, found while building the trimmed comparison. Both real, one of them present in every Cloudy comparison this project has published - though it changes no conclusion.** (1) **`save PDR` is written WITHOUT `last`** where every other save in the model input has it, so `150k.pdr` holds all iterations concatenated - 1348 rows against the `.ovr`'s 671 - and `read_cloudy` took the whole file. So the Cloudy G0 behind D-287, D-291, D-297, D-300 and D-301 mixed the unconverged first pass into the reference. Split by the depth column resetting: iteration 1 runs 677 rows to A_V 0.792, iteration 2 671 rows to A_V 0.683. **Measured impact: G0 mixed/iteration-2 is 0.955-1.014 across the PDR and D-301's on/corrected-Cloudy ratios move from 0.856-0.914 to 0.856-0.920, i.e. by <=0.02** - so nothing published changes in substance, because the two iterations nearly coincide at a given A_V. Fixed with `last_iteration()`, which keeps the final block; the reader now returns 671 rows reaching A_V 0.6830, matching the `.ovr` exactly. (2) **The reference's `stop temperature linear 40K` was doing double duty**, both ending the model and - by coincidence - placing its outer edge at MOCASSIN's R_out of 1.8718e18 cm. That coupling breaks the moment anything changes the temperature: trimmed Cloudy is colder, hits 40 K at A_V 0.645 and stops short of the model's 0.683. Replaced with an explicit `stop radius 1.8718e18 linear`, which pins the two codes to the same volume whatever the temperature does. **A trap on the way:** removing the temperature stop entirely hands control to Cloudy's DEFAULT lowest temperature of 4000 K, and the run then stops at **A_V 0.160**, at the ionization front, with no PDR at all - caught only by checking the depth reached. Cloudy stops on whichever criterion fires first, so the low temperature stop must stay alongside the radius pin; the reference now carries `stop temperature linear 3K` and the radius | Closed | 2026-09-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -23282,3 +23283,83 @@ D-300 identified one contributor already: MOCASSIN's PDR electron density is
 1.6-1.7% below Cloudy's because the reduced network carries no metal but Mg,
 which costs a few per cent of the photoelectric heating. A few per cent is not
 1.8x.
+
+---
+
+## D-302 - the Cloudy reference was not what it looked like (2026-09-21)
+
+Found while building the trimmed-element reference for the artifact rebuild.
+Neither defect changes a published conclusion, and both would have if the
+model had been slightly different.
+
+### 1. `save PDR` writes every iteration
+
+The model input has `save last` on every save but one:
+
+    save PDR ".pdr"              <- no `last`
+    save last overview ".ovr"
+    save last heating ".heat"
+    ...
+
+So `.pdr` holds 1348 rows where `.ovr` holds 671 - iteration 1 and iteration 2
+concatenated, separated by a repeated header and visible as the depth column
+resetting:
+
+    iteration 1   677 rows   depth max 2.1584e18   A_V max 0.792
+    iteration 2   671 rows   depth max 1.8618e18   A_V max 0.683
+
+`read_cloudy` takes A_V and **G0** from that file, so the Cloudy field behind
+D-287, D-291, D-297, D-300 and D-301 has been a mixture of the converged model
+and the pass before it.
+
+**Measured, before deciding it did not matter:**
+
+    A_V     G0_mixed   G0_iter2   ratio    D-301 on/corr: mixed -> iter2
+    0.201        150        157   0.955          0.996 -> 0.951
+    0.359       45.8       45.8   1.000          0.897 -> 0.897
+    0.516       18.4      18.15   1.014          0.908 -> 0.920
+    0.674      9.145       9.34   0.979          0.914 -> 0.895
+
+Within +/-1.5% through the PDR, and D-301's ratios move by at most 0.02. The
+two iterations nearly coincide at a given A_V, which is why this survived
+unnoticed - and is not a reason to leave it. `last_iteration()` now keeps the
+final block.
+
+### 2. The stop condition was carrying two meanings
+
+`stop temperature linear 40K` ended the model AND, by coincidence of this
+particular model, placed its outer edge at 1.8718e18 cm - MOCASSIN's R_out.
+The page documents the coincidence as though it were the design.
+
+It breaks as soon as anything moves the temperature. Trimmed Cloudy is colder
+(D-300), reaches 40 K at A_V 0.645, and stops short of MOCASSIN's 0.683 - so
+every depth-resolved comparison would have run off the end of the reference,
+and the integrated line intensities would have been taken over a smaller
+volume than the model's.
+
+The fix is to say what is meant: `stop radius 1.8718e18 linear`, which pins
+the two codes to the same volume whatever the temperature does. The trimmed
+reference then reaches A_V 0.679 against the full model's 0.683.
+
+**And a trap worth recording.** Removing the temperature stop and keeping only
+the radius gives:
+
+    Calculation stopped because lowest Te reached. Iteration 2 of 2
+    ...  A_V max 0.160
+
+Cloudy's *default* lowest temperature is 4000 K, which in this model is the
+ionization front. The run completes normally, writes every save file, and
+contains no PDR whatsoever. Nothing in the output announces this except the
+one stop line and the depth reached. Cloudy stops on whichever criterion fires
+first, so the reference now carries `stop temperature linear 3K` as well as
+the radius pin.
+
+### 3. Why this is worth an entry even though nothing moved
+
+Both defects are of the same kind as D-299's and D-295's: a value that is
+legal to read, whose wrong version is a plausible number rather than an error.
+A reference that silently contains no PDR, or that mixes two iterations, does
+not announce itself in any figure - the curves look entirely reasonable. The
+only defence is checking what a reference actually spans before comparing
+against it, which is now done in `read_cloudy` for the iterations and by the
+explicit radius for the extent.

@@ -70,10 +70,26 @@ def rows(path, ncol):
     return np.array([r for r in out if len(r) == ncol], float)
 
 
+def last_iteration(a, depth_col=0):
+    """D-302: keep only the final iteration of a Cloudy save file.
+
+    The model input writes `save PDR` without `last`, where every other save
+    is `save last`, so the .pdr file holds ALL iterations concatenated - 1348
+    rows against the .ovr's 671 - and a reader that takes the whole file mixes
+    the unconverged first pass into the reference. An iteration restart shows
+    as the depth column decreasing.
+    """
+    if len(a) < 2:
+        return a
+    brk = np.where(np.diff(a[:, depth_col]) < 0)[0]
+    return a if not len(brk) else a[brk[-1] + 1:]
+
+
 def read_cloudy(prefix):
     """A_V, G0, GrnP heating per H, n_e, T from the .pdr/.ovr/.heat set."""
     hdr = open(f'{prefix}.pdr').readline().lstrip('#').rstrip().split('\t')
-    pdr = rows(f'{prefix}.pdr', len(hdr))
+    pdr = last_iteration(rows(f'{prefix}.pdr', len(hdr)),
+                         hdr.index('depth') if 'depth' in hdr else 0)
     g0 = pdr[:, hdr.index('G0')]
     av = pdr[:, hdr.index('AV(point)')]
 
