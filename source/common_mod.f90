@@ -123,6 +123,19 @@ module common_mod
     ! line packet can be emitted at its own frequency and traced instead of
     ! being dropped. 0 where the line has no usable wavelength.
     integer, allocatable :: lineNuP(:)         ! (nLines)
+    ! D-296. linePDF is a per-cell cumulative PDF over lines, and nLines is
+    ! 26718 - the forbidden block contributes nForLevelsLarge**2 = 20164 for
+    ! Fe II alone. At (0:nCells, 1:nLines) that is 3.8 GB per rank, and with
+    ! linePackets beside it 7.6 GB, which is why -np 14 could not start.
+    ! Only the lines that map to a frequency bin (1663 of 26718) can ever be
+    ! transported; the rest are drawn and dropped. Storing just the former
+    ! reproduces the draw exactly - each kept line kappa still carries mass
+    ! emiss_k/totalLines, and the shortfall 1 - linePDF(cell,nLinesPDF) is the
+    ! probability of landing on a dropped line - at 6% of the memory.
+    ! With transport off the map is the identity, so there is one code path.
+    integer :: nLinesPDF = 0                   ! second extent of linePDF
+    integer, allocatable :: lineTrSlot(:)      ! (nLines) -> slot, 0 = not stored
+    integer, allocatable :: lineTrNuP(:)       ! (nLinesPDF) -> freq bin, 0 = drop
     ! D-292. Transport the optically thin diffuse lines. MOCASSIN created them
     ! as packets and discarded them, which removed ~17% of the local FUV field
     ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is

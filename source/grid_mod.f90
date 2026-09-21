@@ -1662,7 +1662,7 @@ module grid_mod
                    stop
                 end if
 
-                allocate(grid%linePDF(0:grid%nCells, 1:nLines), stat = err)
+                allocate(grid%linePDF(0:grid%nCells, 1:nLinesPDF), stat = err)
                 if (err /= 0) then
                    print*, "! initCartesianGrid: can't allocate grid%linePDF memory"
                    stop
@@ -2598,7 +2598,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        stop
                     end if
 
-                    allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLines), stat = err)
+                    allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF), stat = err)
                     if (err /= 0) then
                        print*, "! initCartesianGrid: can't allocate grid(iG)%linePDF memory"
                        stop
@@ -3318,7 +3318,14 @@ end function getVolume
 
       if (nLines <= 0) return
 
-      if (.not. allocated(grid%linePackets)) then
+      ! D-296: nLinesPDF comes from setLineNuP, which must have run by now.
+      if (nLinesPDF <= 0) then
+         print*, "! allocLineArrays: setLineNuP has not run - nLinesPDF = 0"; stop
+      end if
+
+      ! linePackets is only ever read back under lgDebug (photon_mod), and at
+      ! (0:nCells, 1:nLines) it is 3.8 GB a rank. Do not pay for it otherwise.
+      if (lgDebug .and. .not. allocated(grid%linePackets)) then
          allocate(grid%linePackets(0:grid%nCells, 1:nLines), stat = err)
          if (err /= 0) then
             print*, "! allocLineArrays: can't allocate linePackets memory"; stop
@@ -3327,7 +3334,7 @@ end function getVolume
       end if
 
       if (.not. allocated(grid%linePDF)) then
-         allocate(grid%linePDF(0:grid%nCells, 1:nLines), stat = err)
+         allocate(grid%linePDF(0:grid%nCells, 1:nLinesPDF), stat = err)
          if (err /= 0) then
             print*, "! allocLineArrays: can't allocate linePDF memory"; stop
          end if
@@ -4005,7 +4012,7 @@ end function getVolume
                   stop
                end if
 
-               allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLines), stat = err)
+               allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate grid(iG)%linePDF memory"
                   stop

@@ -721,6 +721,9 @@ module photon_mod
 
             real                           :: random     ! random number
             integer                        :: ilow, ihigh, imid ! bisection indices
+            integer                        :: n          ! D-296: probDen's own length
+
+            n = size(probDen)
 
             ! get a random number
             call random_number(random)
@@ -733,7 +736,7 @@ module photon_mod
             ! Binary search (bisection) matching the exact index mapping of the legacy code
             nuP = 1
             ilow = 1
-            ihigh = nbins
+            ihigh = n
 
             do while (ilow <= ihigh)
                imid = (ilow + ihigh) / 2
@@ -748,17 +751,55 @@ module photon_mod
             ! Legacy clamp: The original code manually shifts indices away from 
             ! the lower boundary and clamps the upper boundary. 
             ! This prevents nuP=1 which causes zero-opacity divide-by-zero crashes.
-            if (nuP < nbins - 1) then
+            if (nuP < n - 1) then
                nuP = nuP + 1
             end if
 
             ! Preserved legacy debug output
-            if (nuP >= nbins) then
+            if (nuP >= n) then
                print*, 'random: ', random
                print*, 'probDen: ', probDen
             end if
 
         end subroutine getNu2
+
+
+        ! D-296. Draw a line from a cell's compact cumulative line PDF.
+        !
+        ! Returns the slot whose interval [probDen(k-1), probDen(k)) holds the
+        ! draw, or 0 when the draw lands above probDen(nLinesPDF) - the mass
+        ! held by lines with no frequency bin, which are dropped as before.
+        ! getNu2 is not reused: it returns the last index BELOW the draw and
+        ! then adds one, a bin convention that would hand a line its
+        ! neighbour's frequency, and it assumes the PDF closes at 1.
+        subroutine getLineP(probDen, k)
+
+            real, dimension(:), intent(in) :: probDen
+            integer, intent(out)           :: k
+
+            real                           :: random
+            integer                        :: lo, hi, mid, n
+
+            k = 0
+            n = size(probDen)
+            if (n < 1) return
+
+            call random_number(random)
+            if (random >= probDen(n)) return
+
+            lo = 1
+            hi = n
+            do while (lo < hi)
+               mid = (lo + hi)/2
+               if (random < probDen(mid)) then
+                  hi = mid
+               else
+                  lo = mid + 1
+               end if
+            end do
+            k = lo
+
+        end subroutine getLineP
                    
         !#############################################################################
 
@@ -932,16 +973,14 @@ module photon_mod
                    ! and with it Lya is excluded), so they stream like continuum
                    ! and tracing them at their own frequency is the whole fix.
                    if (lgDebug .or. lgLineTransfer) then
-                      call getNu2( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), lineP )
+                      ! D-296: getLineP draws from the compact PDF and returns
+                      ! 0 when the draw lands on the mass held by lines with no
+                      ! frequency bin, which are dropped as they always were.
+                      call getLineP( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), lineP )
 
-                      if (lineP < 1) then
-                         print*, "! newPhotonPacket: insanity occurred in line photon &
-                              & nuP assignment"
-                         stop
-                      end if
                       nuP = 0
-                      if (lgLineTransfer .and. allocated(lineNuP)) then
-                         if (lineP <= nLines) nuP = lineNuP(lineP)
+                      if (lineP >= 1 .and. allocated(lineTrNuP)) then
+                         if (lineP <= nLinesPDF) nuP = lineTrNuP(lineP)
                       end if
 
                    else

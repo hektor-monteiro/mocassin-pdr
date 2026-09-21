@@ -294,6 +294,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-292 | **Transporting the optically thin diffuse lines destroys the PDR; DEFAULT OFF, cause not found. Three pre-existing defects found and fixed on the way, and together they are the lgDebug segfault D-158 could not explain.** The change: `setLineNuP` builds a line-index -> frequency-bin map in linePDF's order (Rydberg for H I and He II at Z=2, column 4 of HeIrecLines.dat for He I, `equilibrium`'s existing optional `wav` for the forbidden lines); all 419 of 419 map, and a drawn line packet is emitted at its own frequency and traced instead of being given nuP = 0 and dropped. **Result (runs/d292-pn150k-lines, killed at iteration 3): mean Te 302 -> 7576 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, CO per H 3.7e-28 -> 2.0e-36.** Forbidden and recombination lines cannot do that, so it is a defect in the change. Two hypotheses tested and both insufficient: **(a) stray ionizing photons - 0 of 419 lines map at or above 1 Ryd**; **(b) a mis-normalised totalLines - measured P(line) = 0.298**, a plausible share that would raise the diffuse field 1.4x, not 25x. Also measured, from the model's own lineFlux.out: MOCASSIN's He II recombination lines put 3.52 Hbeta into 912-1930 A = **0.70 x the stellar FUV band luminosity** (1640 A alone 2.09 Hbeta) and 0.79 Hbeta into the Lyman-Werner band, so the line budget is real but roughly doubles the FUV field rather than swamping it. Remaining hypothesis, untested: a diffuse packet is the RE-EMISSION of an absorbed packet, so killing line packets was a 30%-per-absorption sink on the whole radiation field; removing it lets packets recirculate. Defects fixed and kept: `makeElements` now runs BEFORE the grid (it computes nLines, which initCartesianGrid sizes linePackets and linePDF with - both were allocated 1:0); nLines counted 20 He I lines where the data file, linePDF, normRec and outputGas all have 34; and linePDF's MPI reduction was gated on lgDebug so each rank held zeros for cells it did not own. All four flavours build | Open | 2026-09-19 |
 | D-293 | **Option 2 sized before spending a run on it: the Lya deposition is real and large, and lands in ONE CELL. This grid cannot resolve it, and it cannot reach the deep PDR either way.** From the model's own recombination structure (tools/d293_lya.py, nothing taken from Cloudy): L(Lya) = 8.3e35 erg/s Case B - 31 x Hbeta, against the 23 x Hbeta the Case B ratio predicts, so good to ~30% - giving **235 Habing at the front against the stellar FUV's 38, a factor 6.2**. Destruction depth from the standard dusty-medium criterion (a tau_0)^(1/3) tau_a ~ 1: **A_V 0.020 past the front**, i.e. Lya is gone 27x shallower than the A_V 0.54 at which Cloudy still shows it as 46% of the field - and the criterion would have to be wrong by 10x, moving the depth only 5.6x to A_V 0.11, to change that conclusion, so D-291 is robust. The heating in that layer would be 6.9e-21 erg/s per H total and 9.9e-23 into the gas at the measured 1.5% conversion efficiency, **157x the photoelectric heating the model has there** - but the layer is A_V 0.020 and a 41^3 cell is A_V 0.0171, so it is **1.17 cells thick**. Implementing option 2 would therefore dump 157x the local heating into the first PDR cell and let the cell size, not the physics, set the answer; and the deep PDR (A_V 0.3-0.7), which is where O-02's remaining factor lives, receives nothing. **Then measured with MOCASSIN's own formula instead of the scaling** - Kwan & Krolik (1981) direction probabilities with Harrington, Cohen & Hess (1984) eq A5 dust destruction, the routine `setResLineEscapeProb` that is in the tree and never called - evaluated on this run's structure: **72-76% of the Lya produced in the ionized gas is destroyed by dust there**, 45-52% near the front, 82% deep in. So Lya does not merely fail to reach A_V 0.54, it largely fails to reach the front at all, and its contribution to the deep PDR field is essentially nil by MOCASSIN's own physics. Side prediction: the ~6e35 erg/s this deposits in the ionized gas is dust heating the model does not currently have, and D-283 already has its dust 8-25% WARMER than Cloudy's, so implementing it should make that disagreement worse. Not implemented | Open | 2026-09-19 |
 | D-294 | **D-292's attribution WITHDRAWN: transporting the lines never destroyed the PDR. Moving `makeElements` before the grid did, and why is not understood.** D-292 changed several things at once and blamed the headline one without a control. The control, run afterwards: with line transport OFF and the D-292 code, mean Te 7578 K, hot 100%, f_mol 0.0000 - the same destroyed PDR as with transport ON (7576 K, 100%, 0.0000), against pre-D-292's 302 K, 5.13%, 0.9105. Bisected with two runs differing in that one line: **runs/d294-probe-bisect, which only puts `makeElements` back, restores the PDR exactly** (304.6 K, 5.21%, f_mol 0.9100) and tracks pre-D-292 convergence from the start (it2 0.00 vs 0.00, it3 0.161% vs 0.170%), where the D-292 code had already diverged at iteration 2 (0.187%) and reached 4.56% at iteration 3. The divergence begins at iteration 2, before the PDR engages, so it is in the ionization structure and has nothing to do with lines. **Mechanism unknown:** linePackets and linePDF are zeroed at allocation and every read of them is behind lgDebug, so the larger allocation should be inert; the suspicion is that it perturbs something else in the initialisation. The reordering is reverted, `MOCASSIN_LINES=on` now STOPS rather than writing past a linePDF sized with nLines = 0, and the other two D-292 fixes (34 He I lines, the MPI reduction guard) are kept since both are correct and inert here. Also refuted this entry: the recirculation hypothesis - interactions per iteration are 530886 off against 537094 on, +1.3% | Open | 2026-09-20 |
+| D-295 | **The line arrays are allocated after `nLines` is known, instead of moving `makeElements`.** D-294 established that reordering `makeElements` before the grid destroys the model for reasons still unknown, but the reason D-292 reordered it was real: `initCartesianGrid` sizes `linePackets` and `linePDF` with an `nLines` that is still 0, so with transport on `setDiffusePDF` wrote past a 1:0 array. New `allocLineArrays(grid)` in grid_mod allocates and zeroes both after `readData()`, where `nLines` is settled, and `mocassin.f90` calls it per grid; the ordering stays as it was. `setDiffusePDF` stops rather than writing to an unallocated array. Superseded within a day by D-296, which found the allocation it introduced to be 7.6 GB a rank | Superseded | 2026-09-20 |
+| D-296 | **D-295's allocation asked for 116 GB on a 61 GB machine, because `nLines` is 26718 and not 419. Fixed by storing only the 1663 lines that can actually be transported - exactly, not approximately. Two older defects found on the way, one of which means D-292's line-transport run was drawing garbage.** `nLines = 419` is the RECOMBINATION lines only; the forbidden block adds `nForLevelsLarge**2` = 20164 for Fe II alone plus `nForLevels**2` = 289 per other ion, for **26718**. At `(0:nCells, 1:nLines)` real that is 3.8 GB per array, and D-295 allocated both unconditionally: **measured 8318 MB per rank against 1218 MB for the pre-D-295 binary**, same input, both at -np 4. At -np 14 that is 116 GB against 61 GB of RAM, so the run was SIGKILLed within ~8 s three times, leaving an empty `output/` and an identical 46059-byte log each time. It is not a cgroup limit - `memory.max` is `max` on this session's scope - it is the machine. **The fix is a compaction, not a truncation:** only the 1663 of 26718 lines that map to a frequency bin can ever be transported, the rest are drawn and dropped, so `linePDF` now stores just those. Each kept line keeps mass `emiss_k/totalLines`, and the shortfall `1 - linePDF(cell,nLinesPDF)` is exactly the probability of drawing a line with no bin - dropped before, dropped now - so the draw is reproduced identically at 6% of the memory. With transport off the map is the identity and the array keeps its old extent and meaning, so there is one code path. `linePackets` is now allocated only under `lgDebug`, which is the only place it is ever read. **Measured after: 1330 MB per rank, 14 ranks = 19.6 GB.** Two pre-existing defects found while reading the draw path: (a) **both copies of `getNu2` search `do isearch = 1, nbins`** - a hardcoded 600 - instead of `size(probDen)`, so `linePDF` had everything above index 600 collapsed onto line 600, which means **D-292's run was drawing garbage**, and `KNsigmaArray(fPacket%nuP,1:180)` in fluorescence_mod was reading 420 elements past the end; (b) `linePDF` was zeroed under `lgDebug` alone while the copy-back after the allreduce populates EVERY cell on EVERY rank, so with transport on the next iteration would have summed 14 stale copies of each cell - the D-225 defect, in this array. New `getLineP` does the line draw correctly (first index above the draw, 0 for the dropped remainder); `getNu2` is not reused because it returns the last index BELOW the draw and then adds one, a bin convention that would hand a line its neighbour's frequency. `setLineNuP`/`setOneLineNuP` hoisted out of `emissionDriver` to module level so `mocassin.f90` can settle `nLinesPDF` before sizing. All four flavours build. **Still not known:** D-294's initialisation-order sensitivity is untouched and unexplained; and the measurement itself - the FUV field with transport on against off - is running, not yet read | Open | 2026-09-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22642,3 +22644,162 @@ has never been run without the confound. The measurement D-294 set out to make
 Nothing published moves. Every result on the two artifact pages, and D-290's
 measurement of the charge-balance fix, predates D-292 and is unaffected: d290
 was run on code without the reordering.
+
+---
+
+## D-295 - allocate the line arrays, do not reorder the initialisation (2026-09-20)
+
+D-294 reverted D-292's move of `makeElements` before the grid, having shown it
+was what destroyed the model. But the problem that move was solving is real:
+
+  - `initCartesianGrid` and `resetGrid` size `linePackets` and `linePDF` with
+    `nLines`, and `nLines` is computed in `makeElements`, which runs *after*
+    the grid is built. Both arrays are therefore allocated `1:0`.
+  - With `lgDebug` off nothing ever read them, so this was inert for years.
+    With line transport on, `setDiffusePDF` writes to them.
+
+The fix is to allocate them where the size is known rather than to move the
+thing that computes the size:
+
+  - new `allocLineArrays(grid)` in grid_mod allocates and zeroes both if
+    `nLines > 0` and they are not already allocated;
+  - `mocassin.f90` calls it for each grid immediately after `readData()`;
+  - `setDiffusePDF` stops with a message if it finds `linePDF` unallocated,
+    so an ordering mistake is loud rather than silent memory corruption.
+
+The initialisation order is otherwise untouched, and D-294's open question -
+why moving `makeElements` changes the model from iteration 1 - is unaffected
+and still open.
+
+This entry was written retrospectively on 2026-09-21: the change was committed
+as `3a5aafb` without one, which is a lapse against the standing rule.
+
+---
+
+## D-296 - the allocation D-295 introduced is 7.6 GB a rank (2026-09-21)
+
+### 1. Three identical crashes
+
+`runs/d295-lines-on` died three times within about eight seconds of starting,
+leaving an empty `output/` and a 46059-byte log each time, with no error. The
+first two were launched detached and the third in the foreground, where mpirun
+got as far as printing `Abort is in progress...` - the message it prints when
+it is *signalled*, not when it crashes.
+
+I first attributed this to a harness memory watchdog killing the tool call's
+process tree. That was wrong in its mechanism: the session's cgroup has
+`memory.max = max` and a peak of 1.39 GB, so nothing was limiting it there.
+The limit was the machine.
+
+### 2. `nLines` is 26718, not 419
+
+This is the whole entry. The figure 419 has been carried in this project since
+D-292 and it is the count of the **recombination** lines only:
+
+    H I    iup 3..15, ilow 2..min(8,iup-1)      70
+    He I   HeIrecLines.dat                      34
+    He II  iup 3..30, ilow 2..min(16,iup-1)    315
+                                              ----
+                                               419
+
+`hydro_mod` then adds the collisional block, which is a full level *matrix*
+per ion, not a transition list:
+
+    Fe II    nForLevelsLarge**2 = 142**2  = 20164
+    each other ion with data
+             nForLevels**2      =  17**2  =   289
+                                           ------
+    total nLines                           26718
+
+`linePDF` is dimensioned `(0:nCells, 1:nLines)`. On this fixture that is
+35385 x 26718 x 4 B = **3.78 GB**, and D-295 allocated `linePackets` beside it
+at the same size, for 7.6 GB a rank on top of the ~1.2 GB a rank the model
+already needs.
+
+Measured directly, same input, both at -np 4:
+
+    binary                              per rank    x14
+    pre-D-295 (runs/d294-probe-off)      1218 MB    17 GB   ran, 28m17s
+    D-295 (3a5aafb)                      8318 MB   116 GB   SIGKILL at ~8 s
+
+The machine has 61 GB. That is the crash, and it is entirely mine - the
+pre-D-295 code never allocated `linePDF` outside `lgDebug`, so the cost had
+never been paid.
+
+### 3. The fix is a compaction, and it is exact
+
+`setLineNuP` already reports that **1663 of 26718** lines map to a frequency
+bin. The other 25055 are drawn, found to have `nuP = 0`, and the packet is
+dropped - they cannot produce a transported photon, and never could. So they
+occupy 94% of the array in order to encode nothing but "dropped".
+
+`linePDF` now stores only the mapped lines, in the same order, with a running
+sum that skips the unmapped ones. This is not an approximation:
+
+  - a stored line `k` still carries mass `linePDF(k) - linePDF(k-1)
+    = emiss_k / totalLines`, exactly as before;
+  - the PDF no longer closes at 1, and the shortfall
+    `1 - linePDF(cell, nLinesPDF)` is exactly the summed emissivity fraction
+    of the unmapped lines, i.e. the probability of a dropped draw - which is
+    what the old array's unmapped entries encoded;
+  - so the distribution over emitted frequencies AND the drop rate are both
+    unchanged.
+
+With transport off the map is the identity, `nLinesPDF = nLines`, and the
+array keeps its old extent and its old closing `= 1.`, so `lgDebug` is
+untouched and there is one code path rather than two.
+
+`linePackets` is read in exactly one place, behind `lgDebug` (photon_mod), so
+it is now allocated only when `lgDebug` is set.
+
+Measured after: **1330 MB a rank, 19.6 GB at -np 14**, against 37 GB free.
+
+### 4. Two older defects found while reading the draw path
+
+**(a) `getNu2` searches a hardcoded `nbins`.** Both copies - fluorescence_mod
+(contained in `fluorescencePacketRun`) and photon_mod (contained in
+`energyPacketDriver`) - do `do isearch = 1, nbins` rather than
+`size(probDen)`. For the continuum PDFs, which are `nbins` long, this is
+right by coincidence. For the two callers that are not:
+
+  - `linePDF(cell,:)` is 26718 long, so only the first 600 entries were
+    reachable and **all probability above index 600 collapsed onto line
+    600**. The D-292 line-transport run therefore emitted a nonsense line
+    distribution, which is worth remembering before that run's numbers are
+    quoted again for anything.
+  - `KNsigmaArray(fPacket%nuP,1:180)` is 180 long, so the search read **420
+    elements past the end of the array**.
+
+Both now use `size(probDen)`, along with the legacy clamp and the debug print
+that also hardcoded `nbins`.
+
+**(b) `linePDF` was zeroed under `lgDebug` alone.** The copy-back after the
+`mpi_allreduce` writes the reduced PDF into every cell on every rank, so
+leaving the array standing means the next iteration reduces 14 populated
+copies of each cell and sums them. This is precisely the defect D-225 found in
+`Jdif`. The zeroing is now guarded on `lgDebug .or. lgLineTransfer`, like the
+reduction itself.
+
+Separately, `getNu2` is no longer used for lines at all. It returns the last
+index *below* the draw and then adds one - a bin convention that for a line
+PDF hands a line its neighbour's frequency - and it assumes the PDF closes at
+1, which the compact one deliberately does not. The new `getLineP` returns the
+first index above the draw, or 0 for the dropped remainder.
+
+### 5. What is not known
+
+  - D-294's open question is untouched: moving `makeElements` before the grid
+    still changes the model from iteration 1, and still for no reason anyone
+    has identified. Nothing in this entry explains it.
+  - The measurement this whole line of work exists to make - the FUV field
+    with thin-line transport on against off, without the D-292 confound - is
+    running as `runs/d296-lines-on` and has not been read. Note that it is the
+    first run in which the line draw has ever been correct, because of 4(a).
+
+### 6. Process note
+
+Runs are now launched as transient systemd user units
+(`systemd-run --user --unit=...`) rather than from inside a tool call.
+`mpirun -np 14` holds ~19 GB, and when that lives in the session's process
+tree the session is killed along with it; `setsid` does not escape teardown,
+and a backgrounded tool call does not either.

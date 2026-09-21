@@ -1847,8 +1847,12 @@ module fluorescence_mod
    end if
 
    ! see what frequency random corresponds to
+   ! D-296: search probDen's own length, not nbins. Every caller but the
+   ! continuum PDFs passes something else - KNsigmaArray(,1:180) was reading
+   ! 420 elements past the end, and linePDF (nLines = 26718) had everything
+   ! above index 600 collapsed onto line 600.
    nuP=1
-   do isearch = 1, nbins
+   do isearch = 1, size(probDen)
       if (random>=probDen(isearch)) then
          nuP=isearch
       else
@@ -1856,7 +1860,7 @@ module fluorescence_mod
       end if
    end do
 
-   if (nuP>=nbins) then
+   if (nuP>=size(probDen)) then
       print*, 'random: ', random
       print*, 'probDen: ', probDen
    end if

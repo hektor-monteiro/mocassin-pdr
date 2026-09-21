@@ -206,8 +206,12 @@ module iteration_mod
                  ! still 0 when the grid is built and is set later in hydro_mod,
                  ! so the allocation guard and any use guard read different
                  ! values. Test the allocation itself.
-                 if (lgDebug .and. allocated(grid(iG)%linePDF)) &
-                      & grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLines) = 0.
+                 ! D-296: and not under lgDebug alone. The copy-back after the
+                 ! allreduce populates EVERY cell on every rank, so leaving the
+                 ! PDF standing would have the next iteration sum 14 stale copies
+                 ! of each cell - the D-225 defect, in this array.
+                 if ((lgDebug .or. lgLineTransfer) .and. allocated(grid(iG)%linePDF)) &
+                      & grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF) = 0.
                  grid(iG)%totalLines(0:grid(iG)%nCells) = 0.
 
                  ! zero out Balmer jump
@@ -509,7 +513,7 @@ module iteration_mod
                       & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
                  if (lgDebug .or. lgLineTransfer) then
-                    size =  (grid(iG)%nCells+1)*nLines
+                    size =  (grid(iG)%nCells+1)*nLinesPDF
 
                     call mpi_allreduce(grid(iG)%linePDF, linePDFTemp, size,&
                          & mpi_real, mpi_sum, mpi_comm_world, ierr)
@@ -557,7 +561,7 @@ module iteration_mod
                                 grid(iG)%recPDF(grid(iG)%active(i,j,k),freq) = recPDFTemp(grid(iG)%active(i,j,k) ,freq)
                              end do
                              if (lgDebug .or. lgLineTransfer) then
-                                do freq = 1, nLines
+                                do freq = 1, nLinesPDF
                                    grid(iG)%linePDF(grid(iG)%active(i,j,k),freq) = linePDFTemp(grid(iG)%active(i,j,k),freq)
                                 end do
                              end if

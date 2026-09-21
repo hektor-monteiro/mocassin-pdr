@@ -34,6 +34,7 @@ program MoCaSSiN
     use common_mod
     use constants_mod
     use dust_mod
+    use emission_mod        ! D-296: setLineNuP, before the line arrays are sized
     use grid_mod
     use iteration_mod
     use output_mod
@@ -119,6 +120,10 @@ program MoCaSSiN
       ! D-294: nLines is known only now, and the three places that size
       ! linePackets/linePDF with it have all already run. Allocate them here
       ! rather than moving makeElements, which changes the model (D-294).
+      ! D-296: setLineNuP first - it settles nLinesPDF, the compact extent
+      ! linePDF is allocated with. Its inputs (nuArray, HeIrecLineCoeff,
+      ! dataFile/lgDataAvailable) are all in place by this point.
+      call setLineNuP()
       do iGrid = 1, nGrids
          call allocLineArrays(grid3D(iGrid))
       end do

@@ -678,128 +678,6 @@ module emission_mod
 
     end subroutine forLines
 
-    ! D-292. The frequency bin of each line in linePDF's order, built once.
-    !
-    ! MOCASSIN drew a diffuse line photon, set nuP = 0 and threw the packet
-    ! away: line photons were assumed to escape, which is sound for the
-    ! emergent spectrum of a dust-poor nebula and wrong for the local field of
-    ! a dusty PDR, where D-291 measured this channel at ~17% of Cloudy's
-    ! 6-13.6 eV field. With a frequency the packet can simply be traced.
-    !
-    ! Only optically thin lines are here. linePDF is built from ilow >= 2 for
-    ! both H I and He II, so the Lyman series - and with it Lya - is excluded
-    ! by construction, and nothing in this routine introduces resonance-line
-    ! transfer. Lya remains untreated (D-291).
-    !
-    ! The order below must match setDiffusePDF's exactly, line for line.
-    subroutine setLineNuP()
-      implicit none
-
-      double precision, allocatable :: wavLoc(:,:), emLoc(:,:)
-      real    :: nuLine
-      integer :: iup, ilow, i, j, elem, ion, err
-
-      if (allocated(lineNuP)) return
-
-      allocate(lineNuP(1:nLines), stat=err)
-      if (err /= 0) then
-         print*, "! setLineNuP: can't allocate lineNuP memory"; stop
-      end if
-      lineNuP = 0
-
-      i = 1
-
-      ! H I recombination lines: Rydberg, nu[Ryd] = 1/ilow^2 - 1/iup^2
-      do iup = 3, 15
-         do ilow = 2, min(8, iup-1)
-            nuLine = 1./real(ilow*ilow) - 1./real(iup*iup)
-            call setOneLineNuP(i, nuLine)
-            i = i+1
-         end do
-      end do
-
-      ! He I recombination lines: wavelength [A] is column 4 of HeIrecLines.dat
-      do j = 1, 34
-         if (HeIrecLineCoeff(j,1,4) > 0.) then
-            nuLine = 911.2671/real(HeIrecLineCoeff(j,1,4))
-            call setOneLineNuP(i, nuLine)
-         end if
-         i = i+1
-      end do
-
-      ! He II recombination lines: hydrogenic with Z = 2
-      do iup = 3, 30
-         do ilow = 2, min(16, iup-1)
-            nuLine = 4.*(1./real(ilow*ilow) - 1./real(iup*iup))
-            call setOneLineNuP(i, nuLine)
-            i = i+1
-         end do
-      end do
-
-      ! Forbidden and intercombination lines. equilibrium already returns the
-      ! transition wavelengths through its optional wav argument, and they are
-      ! atomic data - independent of Te and Ne - so one call per ion at a
-      ! nominal 1e4 K is enough to tabulate them.
-      do elem = 3, nElements
-         do ion = 1, min(elem+1, nstages)
-            if (.not.lgElementOn(elem)) exit
-            if (lgDataAvailable(elem, ion)) then
-               if (elem == 26 .and. ion == 2) then
-                  allocate(wavLoc(nForLevelsLarge,nForLevelsLarge))
-                  allocate(emLoc(nForLevelsLarge,nForLevelsLarge))
-               else
-                  allocate(wavLoc(nForLevels,nForLevels))
-                  allocate(emLoc(nForLevels,nForLevels))
-               end if
-               wavLoc = 0.d0
-               emLoc  = 0.d0
-               call equilibrium(file_name=dataFile(elem, ion), ionDenUp=0., &
-                    & Te=1.e4, Ne=1.e3, fLineEm=emLoc, wav=wavLoc)
-               do iup = 1, size(wavLoc,1)
-                  do ilow = 1, size(wavLoc,2)
-                     if (wavLoc(iup,ilow) > 0.d0) then
-                        nuLine = 911.2671/real(wavLoc(iup,ilow))
-                        call setOneLineNuP(i, nuLine)
-                     end if
-                     i = i+1
-                  end do
-               end do
-               deallocate(wavLoc)
-               deallocate(emLoc)
-            end if
-         end do
-      end do
-
-      if (taskid == 0) then
-         print*, "! setLineNuP: mapped ", count(lineNuP > 0), &
-              & " of ", nLines, " diffuse lines to a frequency bin"
-         j = 0
-         do i = 1, nLines
-            if (lineNuP(i) > 0) then
-               if (nuArray(lineNuP(i)) >= 1.) j = j + 1
-            end if
-         end do
-         print*, "! setLineNuP: of those, ", j, " sit at or above 1 Ryd"
-      end if
-
-    end subroutine setLineNuP
-
-
-    ! Place one line at its bin, ignoring anything outside the grid.
-    subroutine setOneLineNuP(idx, nuLine)
-      implicit none
-      integer, intent(in) :: idx
-      real, intent(in)    :: nuLine
-      integer             :: nuPloc
-
-      if (idx < 1 .or. idx > nLines) return
-      if (nuLine <= nuArray(1) .or. nuLine >= nuArray(nbins)) return
-      call locate(nuArray, nuLine, nuPloc)
-      if (nuPloc < 1) nuPloc = 1
-      if (nuPloc > nbins) nuPloc = nbins
-      lineNuP(idx) = nuPloc
-
-    end subroutine setOneLineNuP
 
 
     subroutine setDiffusePDF()
@@ -822,6 +700,7 @@ module emission_mod
         integer           :: iB243                    ! D-243
         real              :: ionTot243, gasTot243     ! D-243
         real              :: ionHI243, ionHeI243, ionHeII243   ! D-244
+        real              :: lineAcc                   ! D-296: running line PDF sum
 
         cShapeLoc = 'blackbody'
         call locate(nuArray, 1.45673, j2TsP)
@@ -1103,28 +982,40 @@ module emission_mod
               stop
            end if
            call setLineNuP()
+           ! D-296: one running sum over the lines that are actually stored.
+           ! A line that is not stored contributes nothing, so the PDF ends at
+           ! the transportable fraction and the remainder up to 1 is the
+           ! probability of drawing a line with no frequency bin - dropped,
+           ! exactly as before.
+           lineAcc = 0.
            i = 1
            do iup = 3, 15
               do ilow = 2, min(8, iup-1)
-                 if (i == 1) then
-                    grids(iG)%linePDF(cellPUsed, i) = real(HIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
-                 else
-                    grids(iG)%linePDF(cellPUsed, i) = grids(iG)%linePDF(cellPUsed, i-1) + &
-&                        real(HIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
+                 if (lineTrSlot(i) > 0) then
+                    lineAcc = lineAcc + real(HIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
+                    if (lineAcc > 1.) lineAcc = 1.
+                    grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
                  end if
                  i = i+1
               end do
            end do
 
            do j = 1, 34
-              grids(iG)%linePDF(cellPUsed, i) = grids(iG)%linePDF(cellPUsed, i-1) + &
-&                           real(HeIRecLines(j) / grids(iG)%totalLines(cellPUsed))
+              if (lineTrSlot(i) > 0) then
+                 lineAcc = lineAcc + real(HeIRecLines(j) / grids(iG)%totalLines(cellPUsed))
+                 if (lineAcc > 1.) lineAcc = 1.
+                 grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+              end if
               i = i+1
            end do
 
            do iup = 3, 30
               do ilow = 2, min(16, iup -1)
-                 grids(iG)%linePDF(cellPUsed, i) = grids(iG)%linePDF(cellPUsed, i-1) + real(HeIIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
+                 if (lineTrSlot(i) > 0) then
+                    lineAcc = lineAcc + real(HeIIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
+                    if (lineAcc > 1.) lineAcc = 1.
+                    grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+                 end if
                  i = i+1
               end do
            end do
@@ -1136,18 +1027,24 @@ module emission_mod
                     if (elem == 26 .and. ion == 2) then
                        do iup = 1, nForLevelsLarge
                           do ilow = 1, nForLevelsLarge
-                             grids(iG)%linePDF(cellPUsed, i) = grids(iG)%linePDF(cellPUsed, i-1) + real(forbiddenLinesLarge(iup, ilow)&
-                                  & / grids(iG)%totalLines(cellPUsed))
-                             if (grids(iG)%linePDF(cellPUsed, i) > 1. ) grids(iG)%linePDF(cellPUsed, i) = 1.
+                             if (lineTrSlot(i) > 0) then
+                                lineAcc = lineAcc + real(forbiddenLinesLarge(iup, ilow)&
+                                     & / grids(iG)%totalLines(cellPUsed))
+                                if (lineAcc > 1.) lineAcc = 1.
+                                grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+                             end if
                              i = i+1
                           end do
                        end do
                     else
                        do iup = 1, nForLevels
                           do ilow = 1, nForLevels
-                             grids(iG)%linePDF(cellPUsed, i) = grids(iG)%linePDF(cellPUsed, i-1) + real(forbiddenLines(elem, ion, iup, ilow)&
-                                  & / grids(iG)%totalLines(cellPUsed))
-                             if (grids(iG)%linePDF(cellPUsed, i) > 1. ) grids(iG)%linePDF(cellPUsed, i) = 1.
+                             if (lineTrSlot(i) > 0) then
+                                lineAcc = lineAcc + real(forbiddenLines(elem, ion, iup, ilow)&
+                                     & / grids(iG)%totalLines(cellPUsed))
+                                if (lineAcc > 1.) lineAcc = 1.
+                                grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+                             end if
                              i = i+1
                           end do
                        end do
@@ -1155,7 +1052,9 @@ module emission_mod
                   end if
               end do
            end do
-           grids(iG)%linePDF(cellPUsed, nLines) = 1.
+           ! With transport off every line is stored and the PDF must close at
+           ! 1, as it always did. With it on the shortfall is the dropped mass.
+           if (.not. lgLineTransfer) grids(iG)%linePDF(cellPUsed, nLinesPDF) = 1.
 
            HbetaProb = real(HIRecLines(4,2) / (grids(iG)%totalLines(cellPUsed)&
                 &+normalize))
@@ -1627,6 +1526,169 @@ module emission_mod
     end subroutine cheat
 
   end subroutine emissionDriver
+
+  ! D-296: hoisted out of emissionDriver to module level so mocassin.f90
+  ! can settle nLinesPDF before the line arrays are sized. Neither routine
+  ! touched an emissionDriver local.
+
+    ! D-292. The frequency bin of each line in linePDF's order, built once.
+    !
+    ! MOCASSIN drew a diffuse line photon, set nuP = 0 and threw the packet
+    ! away: line photons were assumed to escape, which is sound for the
+    ! emergent spectrum of a dust-poor nebula and wrong for the local field of
+    ! a dusty PDR, where D-291 measured this channel at ~17% of Cloudy's
+    ! 6-13.6 eV field. With a frequency the packet can simply be traced.
+    !
+    ! Only optically thin lines are here. linePDF is built from ilow >= 2 for
+    ! both H I and He II, so the Lyman series - and with it Lya - is excluded
+    ! by construction, and nothing in this routine introduces resonance-line
+    ! transfer. Lya remains untreated (D-291).
+    !
+    ! The order below must match setDiffusePDF's exactly, line for line.
+    subroutine setLineNuP()
+      implicit none
+
+      double precision, allocatable :: wavLoc(:,:), emLoc(:,:)
+      real    :: nuLine
+      integer :: iup, ilow, i, j, elem, ion, err
+
+      if (allocated(lineNuP)) return
+
+      allocate(lineNuP(1:nLines), stat=err)
+      if (err /= 0) then
+         print*, "! setLineNuP: can't allocate lineNuP memory"; stop
+      end if
+      lineNuP = 0
+
+      i = 1
+
+      ! H I recombination lines: Rydberg, nu[Ryd] = 1/ilow^2 - 1/iup^2
+      do iup = 3, 15
+         do ilow = 2, min(8, iup-1)
+            nuLine = 1./real(ilow*ilow) - 1./real(iup*iup)
+            call setOneLineNuP(i, nuLine)
+            i = i+1
+         end do
+      end do
+
+      ! He I recombination lines: wavelength [A] is column 4 of HeIrecLines.dat
+      do j = 1, 34
+         if (HeIrecLineCoeff(j,1,4) > 0.) then
+            nuLine = 911.2671/real(HeIrecLineCoeff(j,1,4))
+            call setOneLineNuP(i, nuLine)
+         end if
+         i = i+1
+      end do
+
+      ! He II recombination lines: hydrogenic with Z = 2
+      do iup = 3, 30
+         do ilow = 2, min(16, iup-1)
+            nuLine = 4.*(1./real(ilow*ilow) - 1./real(iup*iup))
+            call setOneLineNuP(i, nuLine)
+            i = i+1
+         end do
+      end do
+
+      ! Forbidden and intercombination lines. equilibrium already returns the
+      ! transition wavelengths through its optional wav argument, and they are
+      ! atomic data - independent of Te and Ne - so one call per ion at a
+      ! nominal 1e4 K is enough to tabulate them.
+      do elem = 3, nElements
+         do ion = 1, min(elem+1, nstages)
+            if (.not.lgElementOn(elem)) exit
+            if (lgDataAvailable(elem, ion)) then
+               if (elem == 26 .and. ion == 2) then
+                  allocate(wavLoc(nForLevelsLarge,nForLevelsLarge))
+                  allocate(emLoc(nForLevelsLarge,nForLevelsLarge))
+               else
+                  allocate(wavLoc(nForLevels,nForLevels))
+                  allocate(emLoc(nForLevels,nForLevels))
+               end if
+               wavLoc = 0.d0
+               emLoc  = 0.d0
+               call equilibrium(file_name=dataFile(elem, ion), ionDenUp=0., &
+                    & Te=1.e4, Ne=1.e3, fLineEm=emLoc, wav=wavLoc)
+               do iup = 1, size(wavLoc,1)
+                  do ilow = 1, size(wavLoc,2)
+                     if (wavLoc(iup,ilow) > 0.d0) then
+                        nuLine = 911.2671/real(wavLoc(iup,ilow))
+                        call setOneLineNuP(i, nuLine)
+                     end if
+                     i = i+1
+                  end do
+               end do
+               deallocate(wavLoc)
+               deallocate(emLoc)
+            end if
+         end do
+      end do
+
+      if (taskid == 0) then
+         print*, "! setLineNuP: mapped ", count(lineNuP > 0), &
+              & " of ", nLines, " diffuse lines to a frequency bin"
+         j = 0
+         do i = 1, nLines
+            if (lineNuP(i) > 0) then
+               if (nuArray(lineNuP(i)) >= 1.) j = j + 1
+            end if
+         end do
+         print*, "! setLineNuP: of those, ", j, " sit at or above 1 Ryd"
+      end if
+
+      ! D-296. The compact linePDF index. With transport on only the lines
+      ! that reach a frequency bin are stored; with it off the map is the
+      ! identity and linePDF keeps its old full extent and meaning.
+      if (lgLineTransfer) then
+         nLinesPDF = count(lineNuP > 0)
+      else
+         nLinesPDF = nLines
+      end if
+      if (nLinesPDF < 1) nLinesPDF = 1
+
+      allocate(lineTrSlot(1:nLines), stat=err)
+      if (err /= 0) then
+         print*, "! setLineNuP: can't allocate lineTrSlot memory"; stop
+      end if
+      allocate(lineTrNuP(1:nLinesPDF), stat=err)
+      if (err /= 0) then
+         print*, "! setLineNuP: can't allocate lineTrNuP memory"; stop
+      end if
+      lineTrSlot = 0
+      lineTrNuP  = 0
+
+      j = 0
+      do i = 1, nLines
+         if (lgLineTransfer .and. lineNuP(i) <= 0) cycle
+         j = j + 1
+         if (j > nLinesPDF) exit
+         lineTrSlot(i) = j
+         lineTrNuP(j)  = lineNuP(i)
+      end do
+
+      if (taskid == 0) print*, "! setLineNuP: linePDF stores ", nLinesPDF, &
+           & " lines per cell (was ", nLines, ")"
+
+    end subroutine setLineNuP
+
+
+
+
+    ! Place one line at its bin, ignoring anything outside the grid.
+    subroutine setOneLineNuP(idx, nuLine)
+      implicit none
+      integer, intent(in) :: idx
+      real, intent(in)    :: nuLine
+      integer             :: nuPloc
+
+      if (idx < 1 .or. idx > nLines) return
+      if (nuLine <= nuArray(1) .or. nuLine >= nuArray(nbins)) return
+      call locate(nuArray, nuLine, nuPloc)
+      if (nuPloc < 1) nuPloc = 1
+      if (nuPloc > nbins) nuPloc = nbins
+      lineNuP(idx) = nuPloc
+
+    end subroutine setOneLineNuP
+
 
 
 
