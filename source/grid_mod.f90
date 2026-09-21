@@ -3333,7 +3333,15 @@ end function getVolume
          grid%linePackets = 0.
       end if
 
-      if (.not. allocated(grid%linePDF)) then
+      ! D-296: and linePDF only when something will read it. With transport
+      ! OFF the compact map is the identity, so nLinesPDF is the full 26718
+      ! and this is 3.8 GB a rank for an array no one touches - which is how
+      ! the transport-OFF control OOM-killed at 58.2 GB. Every read is behind
+      ! `lgDebug .or. lgLineTransfer` (setDiffusePDF's fill, photon_mod's
+      ! draw, iteration_mod's zeroing and reduction), so allocate on exactly
+      ! that condition. Pre-D-295 the array was allocated under lgDebug alone
+      ! and this cost was never paid.
+      if ((lgDebug .or. lgLineTransfer) .and. .not. allocated(grid%linePDF)) then
          allocate(grid%linePDF(0:grid%nCells, 1:nLinesPDF), stat = err)
          if (err /= 0) then
             print*, "! allocLineArrays: can't allocate linePDF memory"; stop
@@ -4004,21 +4012,26 @@ end function getVolume
 
             ! allocate pointers depending on nLines
 
-            if (nLines > 0) then
+            ! D-296: same guards as allocLineArrays. These are 3.8 GB a rank
+            ! each at the full nLines, and nothing reads either outside
+            ! lgDebug (linePackets) or lgDebug/lgLineTransfer (linePDF).
+            if (nLines > 0 .and. lgDebug) then
 
                allocate(grid(iG)%linePackets(0:grid(iG)%nCells, 1:nLines), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate grid(iG)%linePackets memory"
                   stop
                end if
+               grid(iG)%linePackets = 0.
+            end if
 
+            if (nLines > 0 .and. (lgDebug .or. lgLineTransfer)) then
                allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate grid(iG)%linePDF memory"
                   stop
                end if
 
-               grid(iG)%linePackets = 0.
                grid(iG)%linePDF     = 0.
 
             end if
