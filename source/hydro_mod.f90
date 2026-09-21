@@ -494,6 +494,23 @@ module elements_mod
        integer  :: i1, j1, i2, j2, i3, j3  ! counters/indices
        integer, parameter :: safeLim = 100000 ! loop safety limit
 
+       ! D-299. makeElements must run AFTER setComposition, which is called
+       ! from initCartesianGrid and is what switches the elements on. Run it
+       ! earlier and the forbidden-line loop below exits on its first test,
+       ! leaving nLines at 419 - the recombination lines alone - and
+       ! lgDataAvailable entirely false. Nothing complains: update_mod's
+       ! forLines() is gated on lgDataAvailable, so forbiddenLines stays zero,
+       ! coolColl loses every collisionally excited line, and the gas simply
+       ! cannot cool - mean Te 302 -> 7578 K, f_mol 0.91 -> 0.00. That is what
+       ! D-292 did and what D-294 could not explain. Fail loudly instead.
+       if (count(lgElementOn) == 0) then
+          print*, "! makeElements: no elements are switched on. This routine "
+          print*, "!   must run after setComposition (initCartesianGrid), "
+          print*, "!   which is what sets lgElementOn. Running it earlier "
+          print*, "!   silently disables all forbidden-line cooling - D-299."
+          stop
+       end if
+
        close(17)
        open(file=PREFIX//'/share/mocassin/data/fileNames.dat', action="read", unit=17, status='old', position='rewind', iostat=ios)
 

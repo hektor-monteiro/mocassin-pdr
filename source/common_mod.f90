@@ -258,7 +258,10 @@ module common_mod
     logical :: lgRecombination=.false.
 
     ! composition switches
-    logical, dimension(nElements) :: lgElementOn ! is this element present?
+    ! D-299: initialised. setComposition (called from initCartesianGrid) is
+    ! what sets this, and makeElements reads it. With no initialiser its value
+    ! before that was formally undefined, and D-292 read it - see D-299.
+    logical, dimension(nElements) :: lgElementOn = .false. ! is this element present?
 
     ! dust arrays
     real, allocatable :: dustEmIntegral(:,:,:)   ! dust emission integral (species,size,temperature)

@@ -298,6 +298,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-296 | **D-295's allocation asked for 116 GB on a 61 GB machine, because `nLines` is 26718 and not 419. Fixed by storing only the 1663 lines that can actually be transported - exactly, not approximately. Two older defects found on the way, one of which means D-292's line-transport run was drawing garbage.** `nLines = 419` is the RECOMBINATION lines only; the forbidden block adds `nForLevelsLarge**2` = 20164 for Fe II alone plus `nForLevels**2` = 289 per other ion, for **26718**. At `(0:nCells, 1:nLines)` real that is 3.8 GB per array, and D-295 allocated both unconditionally: **measured 8318 MB per rank against 1218 MB for the pre-D-295 binary**, same input, both at -np 4. At -np 14 that is 116 GB against 61 GB of RAM, so the run was SIGKILLed within ~8 s three times, leaving an empty `output/` and an identical 46059-byte log each time. It is not a cgroup limit - `memory.max` is `max` on this session's scope - it is the machine. **The fix is a compaction, not a truncation:** only the 1663 of 26718 lines that map to a frequency bin can ever be transported, the rest are drawn and dropped, so `linePDF` now stores just those. Each kept line keeps mass `emiss_k/totalLines`, and the shortfall `1 - linePDF(cell,nLinesPDF)` is exactly the probability of drawing a line with no bin - dropped before, dropped now - so the draw is reproduced identically at 6% of the memory. With transport off the map is the identity and the array keeps its old extent and meaning, so there is one code path. `linePackets` is now allocated only under `lgDebug`, which is the only place it is ever read. **Measured after: 1330 MB per rank at startup - but the run still OOM-killed at a 58.3 GB peak, because `linePDFTemp`, the reduction's second full copy of linePDF, had kept the full `nLines` extent when the rest of the block moved to `nLinesPDF`. Reduced in place instead (MPI_IN_PLACE, as D-232 already does for `pdfSrc`), removing the array and its copy-back rather than resizing it. Peak now 20.8 GB against 19.4 GB for the same fixture with transport off, i.e. the channel costs 1.4 GB.** Two pre-existing defects found while reading the draw path: (a) **both copies of `getNu2` search `do isearch = 1, nbins`** - a hardcoded 600 - instead of `size(probDen)`, so `linePDF` had everything above index 600 collapsed onto line 600, which means **D-292's run was drawing garbage**, and `KNsigmaArray(fPacket%nuP,1:180)` in fluorescence_mod was reading 420 elements past the end; (b) `linePDF` was zeroed under `lgDebug` alone while the copy-back after the allreduce populates EVERY cell on EVERY rank, so with transport on the next iteration would have summed 14 stale copies of each cell - the D-225 defect, in this array. New `getLineP` does the line draw correctly (first index above the draw, 0 for the dropped remainder); `getNu2` is not reused because it returns the last index BELOW the draw and then adds one, a bin convention that would hand a line its neighbour's frequency. `setLineNuP`/`setOneLineNuP` hoisted out of `emissionDriver` to module level so `mocassin.f90` can settle `nLinesPDF` before sizing. All four flavours build. **Still not known:** D-294's initialisation-order sensitivity is untouched and unexplained; and the measurement itself - the FUV field with transport on against off - is running, not yet read | Open | 2026-09-21 |
 | D-297 | **CAVEAT FIRST: both runs are 4-iteration probes at 1.0-1.2% converged cells, inherited from the D-294 probe input, against the 11 iterations and 89.6% of the D-290 production run. The on/off ratio is a controlled A/B and stands; the absolute comparison against Cloudy is measured on an unconverged model - its PDR sits at 200-500 K where the converged model has 25-47 K - and is WITHDRAWN pending a converged re-run.** Transporting the optically thin diffuse lines is SAFE and raises the FUV field a flat 1.41x - the measurement D-292 claimed to have made, finally made without a confound. It narrows O-02's field half from 0.53 to 0.75 of Cloudy, and does NOT close it, against my prediction of ~0.95.** Two runs of ONE binary, `MOCASSIN_LINES` the only difference, both 4 iterations and clean exits (runs/d296-lines-on 53m42s, runs/d296-lines-off 56m11s). This is the first run in which the line draw has ever been correct - D-296 found `getNu2` searching a hardcoded `nbins`, so of linePDF's 26718 entries only the first 600 were reachable and everything above collapsed onto line 600 - so no earlier number for this channel means anything. **The PDR is not destroyed:** OFF 506.4 K, 6.82% hot, f_mol 0.4152 against ON 540.7 K, 7.51%, f_mol 0.4094, where D-292 reported 7576 K, 100%, 0.0000. D-294 had already withdrawn the attribution on a control; this settles it on a clean A/B. **The field ratio is 1.410 median and remarkably flat - 1.375 to 1.421 over r = 0.126-0.581 pc**, across a factor ~50 in field strength. That flatness is the physics, not a coincidence: the thin lines are emitted mostly in the centrally concentrated ionized gas, so their field dilutes as r^-2 exactly as the stellar continuum does, and the ratio is therefore a constant. **Against Cloudy with its artifact Lya removed** (D-291's flat 46%), stable for A_V >= 0.175: transport OFF sits at 0.51-0.55 of corrected Cloudy and transport ON at 0.72-0.78. **So O-02's field half narrows from ~0.53 to ~0.75 and about 1.33x remains.** I predicted 0.55 -> ~0.95 and that this would close O-02; it does not, and the prediction is withdrawn rather than the correction adjusted to meet it. Also confirmed independently: iteration-1 interactions are 531202 at 69.48% absorption OFF against 536099 at 69.44% ON, +0.9%, reproducing D-294's +1.3% and confirming that the extra field comes from the lines themselves and not from packets recirculating. Costs: T_mean +6.8%, f_mol -1.4%, memory 17.8 -> 23.8 GB at -np 14. **Not known:** what the residual 1.33x is; whether the 46% Lya correction is the right one to apply in full, given D-293 measured only 72-76% of Lya as dust-destroyed in the ionized gas; and D-294's initialisation-order sensitivity, still untouched | Open | 2026-09-21 |
 | D-298 | **D-291's 46% Lya fraction verified from the raw save file, and my stated worry about over-correcting it WITHDRAWN - removing all of Cloudy's Lya past the front is right, not an over-correction.** D-297 flagged as its largest systematic the possibility that only ~75% of Cloudy's Lya should be removed, which would have dropped the transport-ON field from 0.75 to ~0.62 of corrected Cloudy. That was a misreading of D-293: its 72-76% is the fraction of Lya destroyed by dust BEFORE reaching the front, and D-293 separately measured the remainder as destroyed within A_V 0.020 of it. The front here is at A_V 0.168, so at A_V >= 0.19 - every bin in the comparison - physical Lya is nil by both analyses and Cloudy's is entirely artifact. Removing 100% is correct. **Verified independently from `150k.ioncont`** (`save ionizing continuum every zone`, the same model as the .pdr/.ovr set - the two inputs differ only in save commands): the 6-13.6 eV band decomposes as Finc 0.089, otsl 0.001, otsc 0.000, outlin 0.66, outcon 0.25, reproducing D-291's 8.8/0.1/66.4/24.7 exactly; **H I's share is 0.4614**, against D-291's 46.1% at A_V 0.54, and the Lya bin sits at 0.74917 Ryd (1216.4 A) with outlin = 1.000, outweighing the next contributor - a blend at 8.7% - by a factor 5. Across depth the share is 0.457/0.461/0.463/0.460, i.e. flat, which is itself the signature D-291 identified of a continuum-attenuated component. `cloudy_lya_fraction()` now derives it from the save file rather than carrying 0.46 as a constant; the two agree to 0.7%, so no D-297 number moves | Closed | 2026-09-21 |
+| D-299 | **D-294's open question is ANSWERED: moving `makeElements` before the grid made it read `lgElementOn` before anything had set it, which silently switched off ALL forbidden-line cooling.** `setComposition` is what sets `lgElementOn = .true.`, and it is called from **inside `initCartesianGrid`** (grid_mod.f90:98). D-292 put `call makeElements()` before `initCartesianGrid`, so it ran with `lgElementOn` unset - the array is declared `logical, dimension(nElements) :: lgElementOn` with **no initialiser**, so the value read was formally undefined and in practice zero-filled. `makeElements`'s forbidden-line block opens `if (.not.lgElementOn(elem)) exit`, so it exited on its first test, leaving **`nLines` at 419 - the recombination lines alone, which is exactly the "419 of 419" D-292 reported and believed was the full line list - and `lgDataAvailable` entirely `.false.`** Nothing complained, because `update_mod`'s `forLines()` cooling driver is itself gated on `lgDataAvailable(elem,ion)`: with it false, `forbiddenLines` stays zero, `coolColl` loses every collisionally excited line, and the ionized gas and warm PDR lose their dominant coolant. The gas then cannot cool - mean Te 302 -> 7578 K, hot cells 5% -> 100%, f_mol 0.91 -> 0.00, exactly D-294's measurement. **Verified, not inferred:** a probe printing `count(lgElementOn)` at both positions gives **0 of 30 at D-292's insertion point and 28 at the correct one**, with `nLines = 26718` and `count(lgDataAvailable) = 91` after `makeElements` in the correct order. This also explains why D-294's memory reasoning found nothing: the arrays were never the mechanism, and the run stayed at 1218 MB a rank precisely BECAUSE nLines was 419 rather than 26718. Fixed two ways: `lgElementOn` now has an explicit `.false.` initialiser so the behaviour is defined, and `makeElements` stops with a message naming the cause if no elements are switched on. The guard was verified to fire by temporarily reintroducing the reordering. All four flavours build | Closed | 2026-09-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -22931,7 +22932,10 @@ without changing the opacity.
     reaching the front, and the remainder dies within A_V 0.020 of it; past
     A_V 0.19 physical Lya is nil, so Cloudy's is entirely artifact. The 46%
     itself is verified from the save file at 0.4614, flat with depth.
-  - **D-294's initialisation-order sensitivity** is untouched and unexplained.
+  - ~~D-294's initialisation-order sensitivity is untouched and unexplained.~~
+    **Answered in D-299:** the reordering made `makeElements` read
+    `lgElementOn` before `setComposition` had set it, which left
+    `lgDataAvailable` false and switched off all forbidden-line cooling.
 
 ### 6. The figure
 
@@ -22994,3 +22998,92 @@ What this does and does not invalidate:
 
 This is my error: I copied the probe input without checking its iteration
 count against what the published comparisons use.
+
+---
+
+## D-299 - why the reordering destroyed the model (2026-09-21)
+
+D-294 established that moving `makeElements()` before the grid changes the
+model from iteration 1, bisected it to that single line, and left the
+mechanism open. It is this.
+
+### 1. The chain
+
+    setComposition(grid)            sets lgElementOn = .true.
+      ^ called from initCartesianGrid, grid_mod.f90:98
+
+    D-292 put `call makeElements()` BEFORE initCartesianGrid.
+
+    makeElements, forbidden-line block:
+        do elem = 3, nElements
+           do ion = 1, min(elem+1, nstages)
+              if (.not.lgElementOn(elem)) exit        <-- exits immediately
+              ...
+              lgDataAvailable(elem, ion) = .true.     <-- never reached
+              nLines = nLines + nForLevels**2         <-- never reached
+
+    update_mod, forLines() - the COOLING driver:
+        if (.not.lgElementOn(elem)) exit
+        if (lgDataAvailable(elem, ion)) then          <-- false for everything
+           ... equilibrium(...) -> forbiddenLines
+
+    update_mod, coolColl:
+        coolColl = coolColl + real(forbiddenLines(elem,ion,j,k))   <-- all zero
+
+Collisionally excited metal lines are the dominant coolant of the ionized gas
+and of the warm PDR. With `lgDataAvailable` false everywhere they contribute
+nothing, the gas cannot cool, and it sits at the heating-dominated
+temperature: **mean Te 302 -> 7578 K, hot cells 5% -> 100%, f_mol 0.91 ->
+0.00.** That is D-294's measurement, to the digit.
+
+### 2. Measured, not argued
+
+A probe printing `count(lgElementOn)` at both candidate positions, `-np 2`:
+
+    [D299probe] BEFORE the grid (where D-292 put makeElements):
+                count(lgElementOn) = 0  of 30
+    [D299probe] at makeElements (current, correct order):
+                count(lgElementOn) = 28
+    [D299probe] after makeElements:
+                nLines = 26718   count(lgDataAvailable) = 91
+
+Zero of thirty at the D-292 position. The forbidden-line loop could not have
+run.
+
+### 3. The tell was in D-292's own report, and in the memory
+
+D-292 wrote "all 419 of 419 lines map". 419 is precisely what `nLines`
+evaluates to when the forbidden block is skipped: 70 H I + 34 He I + 315
+He II. The full count is 26718. So D-292 measured, reported and reasoned
+about a line list that had been silently truncated by 98%, and read the
+truncation as the complete set.
+
+It also resolves the contradiction that started this investigation. D-294
+reasoned that the reordering's larger allocation should be inert. The
+allocation was never larger: `runs/d294-probe-off`, which HAS the reordering,
+measures 1218 MB a rank - and it stayed small **because** `nLines` was 419
+instead of 26718. The memory and the physics had the same single cause, in
+opposite directions.
+
+### 4. Fixed two ways
+
+  - `lgElementOn` is declared with an explicit `.false.` initialiser. It had
+    none, so every read before `setComposition` was formally undefined
+    behaviour, not merely early.
+  - `makeElements` now stops with a message naming the cause if no elements
+    are switched on. Verified to fire by temporarily reintroducing D-292's
+    line, then reverted.
+
+The second is an assertion against an ordering error, not a gate on physics:
+there is no legitimate path where `makeElements` runs with no elements on,
+because both it and `setComposition` sit inside `if (lgGas)`.
+
+### 5. What this says about the codebase
+
+`nLines`, `lgElementOn` and `lgDataAvailable` are module state written by one
+routine and read by three others, with the ordering implicit in a single
+sequence of calls in `mocassin.f90` and documented nowhere. D-295 hit the same
+hazard from the other side. This is the second defect in eight entries whose
+root cause is initialisation order in that file, and the pattern is worth
+watching: a value that is legal to read before it is set, and whose wrong
+value is a plausible-looking number rather than a crash.
