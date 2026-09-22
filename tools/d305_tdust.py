@@ -23,13 +23,21 @@ import d260_roellig as R
 from d287_pe import rows
 
 
-def read_dustgrid(run, nsizes=35, nspec=2):
+def n_species(run):
+    """However many species dust_species.dat lists - D-313 made it one."""
+    return int(open(os.path.join(run, 'input',
+                                 'dust_species.dat')).readline().split()[0])
+
+
+def read_dustgrid(run, nsizes=35, nspec=None):
     """Tdust(size, species) per active cell, from output/dustGrid.out.
 
     Per cell the file holds Ndust then (nSizes+1) rows of (nSpeciesMax+1)
     values: row 0 and column 0 are the averages MOCASSIN accumulates, so the
     per-size per-species block is rows 1.. and columns 1...
     """
+    if nspec is None:
+        nspec = n_species(run)
     p = os.path.join(run, 'output', 'dustGrid.out')
     lines = [l for l in open(p).read().splitlines() if 'mass' not in l]
     tok = np.array(' '.join(lines).split(), float)
@@ -47,8 +55,11 @@ def main(run, prefix):
     sz = np.loadtxt(os.path.join(run, 'input', 'dust_sizes.dat'), skiprows=2)
     a_um, nofa = sz[:, 1], sz[:, 2]
     # dust_species.dat order and weights
-    spec = open(os.path.join(run, 'input', 'dust_species.dat')).read().split()
-    abun = np.array([float(spec[2]), float(spec[6])])
+    # abundances, one per species record, whatever the count
+    recs = [l.split() for l in
+            open(os.path.join(run, 'input', 'dust_species.dat'))
+            .read().splitlines()[1:] if l.strip()]
+    abun = np.array([float(r[1]) for r in recs])
 
     ndust, T = read_dustgrid(run)
     t = open(os.path.join(run, 'output', 'grid0.out')).read().split()

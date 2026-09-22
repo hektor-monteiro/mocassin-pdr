@@ -314,6 +314,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-312 | **D-310/D-311's implementation is replaced at the user's direction: the axis-set declaration moves from a keyword on the species COUNT line to a per-species `axes:<name>` tag, which is where it belongs. Plus `doc/dust.md`, the first usage manual in this project.** The objection was that the count-line keyword was confusing and that the files listed in `dust_species.dat` should be correct per species. Both fair. The proposal of a per-species flag grouping species to be averaged together is better than what it replaced: it reads on the line it governs, it supports several independent axis sets and untagged species coexisting in one component, and it needs no global state. Format: `<file> <abundance> [<amin> <amax>] [axes:<name>]`, backward compatible - every existing species file parses unchanged and gets the old per-species temperature. **A hard constraint had to be reported rather than implemented around.** The instruction was that the user should supply properly averaged n,k files and MOCASSIN should do nothing. That cannot be done correctly: the 1/3-2/3 rule averages CROSS SECTIONS, Mie is non-linear in (n,k), and no single (n,k) reproduces (2/3)Q(eps_perp)+(1/3)Q(eps_par) across size and wavelength. Measured on the project's own graphite, naive-averaged-n,k over correct: **0.96/1.21/2.14/0.09 at 0.1/0.55/10/100 um for a = 0.005 um**, and 1.02/1.01/1.44/0.12 at 0.25 um. Acceptable in the UV where the grain absorbs, **8-11x too LITTLE emissivity at 100 um where it radiates** - which would drive the dust far hotter than the 1.3x error the change exists to fix. Averaging the dielectric function instead is no better (0.07-1.77). So the average must happen after Mie, inside the code; what the data declares is only WHICH files are axes of one grain. **The `Q`-file route stays blocked** and is now documented as a trap: `setGrainYield` is called only from the `nk` branch, so a `Q` species silently gets zero photoelectric yield - fatal in a PDR model whose gas temperature is set by that term. **Verified both ways on the 5^3 fixture in seconds:** tagged, both members report **26.6857 K** against D-309's independent prediction of 26.76 K for that cell (0.3%); untagged, they report **44.44 K and 22.27 K** separately with no averaging message - the pre-existing behaviour intact, which is the regression that matters, since distinct species must keep distinct temperatures. Validation retained: a group needs >= 2 members and they must share density, work function, surface-atom mass and sublimation temperature, else the run stops. **`doc/dust.md`** documents the input files, the size distribution and MdMg conversion, the `axes:` tag with the numbers above, the `nk` and `Q` formats with the yield warning, what MOCASSIN computes, the diagnostics, and the known limitations (graphite-only R_V = 4.57, undepleted carbon, H2 missing from gas-grain coupling, the size-parameter cap) | Open | 2026-09-22 |
 | D-313 | **The orientation average moves OUT of MOCASSIN at the user's direction: `tools/mkqfile.py` pre-averages the principal axes into one Q file, and the species list is one correct file per species. Two latent bugs had to be fixed first - the `Q` path could never have run.** D-310/D-311/D-312's in-code averaging is reverted; the objection was that a keyword coupling species together is confusing and that each file listed should simply be correct on its own. **`tools/mkqfile.py`** runs Mie per axis, sums the CROSS SECTIONS with the axis weights, and writes a Draine-style Q table on the model's own radii; it refuses if the axes disagree on density, work function, surface-atom mass or sublimation temperature. `dust_species.dat` becomes `1` / `'dustData/grph-avg.cat' 1.0000 0.005 0.25`. **Two bugs in the `Q` branch, both fatal, both showing it had never been exercised:** (1) it allocated `CTsca`/`CTabs` a second time - they are already allocated before the component loop, and the `nk` branch has the identical two lines commented out - so `err /= 0` and the model stopped; (2) `setGrainYield` is called only from the `nk` branch, so a `Q` species got `grainYield = 0` and lost all photoelectric heating **silently**, which in a PDR model whose gas temperature is set by that term would have been fatal and invisible. Fixed with an optional sixth column carrying Im(m), which `mkqfile.py` writes; **absent it, MOCASSIN now stops rather than running with no yield**. Also made the Q header reader skip comment lines until NRAD parses instead of assuming exactly two - my own generated file had four and failed with "Bad integer for item 1 in list input" pointing at the data block, a poor first experience for exactly the users this route serves. **Verified three ways.** The generated file reproduces direct Mie of the mixture to a ratio of **1.000 at every energy from 0.001 to 25 Ryd**, for Q_abs and Q_sca, with a 150 kK blackbody-weighted absorbed energy ratio of **1.0000**. MOCASSIN's own arrays built from it match the two-file `nk` mixture at the same size and bin to **0.12%** at 0.44 Ryd and **exactly** at 2.0 Ryd (0.6667x7.86287e-11 + 0.3333x3.47691e-11 = 6.4012e-11 against 6.3933e-11). And the internal balance closes, `dustAbsIntegral` bracketing `emInt(iT)`. **Two generator pitfalls found by measurement and now documented:** the table must span the model grid - `nuMin = 1.001e-5 Ryd` is 9104 um, so a default `--lmax 1e3` clamps the far-IR tail where the grain radiates and cost 0.7 K - and the radii must be written with enough digits to match `grainRadius`, since MOCASSIN locates the model radius in the table and interpolates. **`doc/dust.md` rewritten** for this route, including the measurement showing why a pre-averaged n,k file cannot work (0.09-0.12 of the correct Q at 100 um) | Open | 2026-09-22 |
 | D-314 | **Regression check of this cycle's changes, and a first consolidated validation status with its limitations register: `doc/pdr-status.md`.** Heavy slab/ifront reruns deferred at the user's direction in favour of establishing what the PDR implementation is validated to do and where its bounds are. **The regression first.** The functional change surface is narrower than the diff suggests: `lgLineTransfer` now defaults ON (D-307), the `MOCASSIN_LINES` read moved to `readInput` and inverted, and the previously-unrunnable `Q` path was fixed (D-313); everything else is probes inert behind `MOCASSIN_DUSTPROBE`. So the decisive test is whether `MOCASSIN_LINES=off` on the new binary reproduces the pre-change binary. **Two methodological findings had to come first.** (1) **MOCASSIN is not bitwise reproducible** - two runs of one binary on one input differ - so the comparison must be read against the run-to-run scatter, which `tools/regress_cmp.py` measures by running the reference twice. (2) **A short fixture does not exercise the PDR at all**: at 2 iterations with `pdrStartIter 4` the chemistry never engages and A_V is identically zero, which would have made the whole check vacuous. **Result, on a 5^3 nk-path fixture at 6 iterations, new-vs-baseline against the same-binary floor:** T_gas 18.49% against a floor of **36.71%**, n_e 2.35% against 4.03%, T_dust 0.11% against 0.08%, J(FUV) 0.03% against 0.73%, J(0.01-0.44) 0.35% against 0.83%, J(<0.01 Ryd) 0.68% against 1.49%, totalLines 1.00% against 8.15%, and **A_V exactly 0.00% in both** - which proves the dust cross-section and opacity chain is byte-identical through D-307 and D-313. **Every quantity is inside the floor; the inertness test passes.** An 18.5% T_gas difference was flagged and then retired by the control: the same binary swings it 36.7%, so **this fixture has no sensitivity to gas temperature at all** - 125 cells, a bimodal ionized/neutral median - which is a real limitation of the harness and is recorded as such rather than papered over. **Two register items verified closed from the converged run:** O-11 ion balance failures are **0%** where D-267 recorded 16-18%, and O-17 convergence reaches **90.4%** against the 90% target. **`doc/pdr-status.md`** then consolidates: what is validated (conservation, the internal [C II] thermostat at 0.986-1.014, the grain diagnostic closing at 1.00, N_H/A_V against Cloudy at 0.4%, Mie against Draine at 0.1-1%, x(C+) at 1.001-1.006, PE efficiency at 0.66-1.10), eighteen known limitations L-1..L-18 graded by effect on a published number - led by **L-1**, that every result predating D-307 was computed on a model that deleted ~60% of the PDR's bolometric flux, and **L-2**, the dust-temperature averaging defect whose re-measurement is in flight - and, explicitly, **six things that have NOT been checked**, because absence of a reported problem is not evidence: the slabs, ifront, hiipdr, the warm start beyond compiling, the 1D PDR flavour beyond compiling, any model reaching A_V > 0.7, and Cloudy's own charging exponent | Open | 2026-09-22 |
+| D-315 | **L-2 closed by measurement: with the crystal axes pre-averaged, MOCASSIN's dust goes from 26-30% HOTTER than Cloudy's to 9-13% COOLER, and the residual is a spectral-shape difference, not a magnitude one.** `runs/d313-qavg`, 11 iterations, 89.58% converged, 2h00m, one species from `dustData/grph-avg.cat`. **Convergence tracks the pre-fix run almost exactly** - it3 0.175 against 0.175, it4 1.204 against 1.2, it9 **88.61 against 88.6**, it11 89.58 against 90.4 - which is the evidence that a change confined to the grain temperature left the ionization and thermal solve undisturbed. **Result, MOCASSIN/Cloudy at A_V 0.20/0.30/0.50/0.65: 1.289/1.304/1.272/1.256 becomes 0.906/0.902/0.873/0.869.** D-309 predicted 0.951/0.952/0.931/0.929 by recovering the absorbed energy from the old run's balance and re-solving for the averaged cross section; the measured values sit ~5% below that, which is the field responding rather than being held fixed - cooler grains re-emit less infrared, which lowers the diffuse field, which cools them a little further. **The residual now has the opposite sign to the defect, and an explanation.** Re-measuring the bolometric field on this run gives 1.35/1.30/1.28/1.23/1.16 of Cloudy's at A_V 0.15-0.65, **unchanged from the pre-fix run**, so MOCASSIN holds MORE total radiative energy at every depth and yet its grains are cooler. The band shares say why: at A_V 0.30 Cloudy carries **0.255 of its field in the FUV against MOCASSIN's 0.107**, while MOCASSIN carries more in 0.01-0.44 Ryd (0.504 against 0.362) and the far-IR shares are comparable. C_abs is orders of magnitude larger in the FUV than in the infrared, so Cloudy's field - smaller in total - is concentrated where grains actually absorb. **So O-02's dust half is closed as a defect and reopened, much smaller, as a question about where each code puts its reprocessed energy in frequency**, which is the same diffuse-transport difference D-307 measured from the other side. Tooling: `tools/d305_tdust.py` generalised to any species count, since it assumed the two-file graphite layout D-313 removed. `doc/pdr-status.md` L-2 updated from predicted to measured | Closed | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24765,3 +24766,74 @@ one model, at one density, over A_V 0 to 0.68, against one code, with the
 run-to-run scatter now measured for the first time but no published comparison
 yet carrying an error bar. That is a defensible first version, and the
 limitations register is the honest part of it.
+
+## D-315 - the dust fix, measured (2026-09-22)
+
+`runs/d313-qavg`: 11 iterations, 89.58% converged, 2h00m, one species read
+from `dustData/grph-avg.cat` - the orientation average built outside the code
+by `tools/mkqfile.py`.
+
+### Convergence is undisturbed
+
+    iter      pre-fix (d302-trim-on)    dust fixed (d313-qavg)
+     3              0.2%                      0.175%
+     4              1.2%                      1.204%
+     7              1.2%                      1.385%
+     8             68.7%                     65.08%
+     9             88.6%                     88.61%
+    11             90.4%                     89.58%
+
+Iteration 9 landing on 88.61% against 88.6% is the evidence that a change
+confined to the grain temperature left the ionization and thermal solve alone.
+The characteristic shape is intact: flat through iterations 1-7 while the
+front is still moving, then the jump once the structure locks in.
+
+### The result
+
+Dust temperature against Cloudy, number-weighted over the size distribution
+on both sides:
+
+    A_V     before (D-306)    after (D-315)
+    0.20        1.289             0.906
+    0.30        1.304             0.902
+    0.50        1.272             0.873
+    0.65        1.256             0.869
+
+**L-2 is closed.** The 26-30% excess is gone.
+
+D-309 predicted 0.951/0.952/0.931/0.929, by recovering each cell's absorbed
+energy from the old run's own balance and re-solving it for the averaged cross
+section. The measured values sit about 5% below that, and the reason is that
+the prediction held the field fixed while the run does not: cooler grains
+re-emit less infrared, which lowers the diffuse field, which cools them
+slightly further. A small positive feedback, in the expected direction.
+
+### The residual has the opposite sign, and an explanation
+
+Re-measuring the bolometric field on this run gives 1.35, 1.30, 1.28, 1.23,
+1.16 of Cloudy's at A_V 0.15 to 0.65 - **unchanged from the pre-fix run**. So
+MOCASSIN holds *more* total radiative energy at every depth, and its grains
+are nonetheless cooler.
+
+The band shares say why. At A_V 0.30:
+
+                     >1 Ryd    FUV    0.01-0.44    <0.01 Ryd
+    MOCASSIN          0.000   0.107     0.504        0.389
+    Cloudy            0.000   0.255     0.362        0.383
+
+Cloudy carries **2.4 times MOCASSIN's share in the FUV**, where C_abs is
+orders of magnitude larger than in the infrared, while MOCASSIN carries more
+in the broad 0.01-0.44 Ryd band. A smaller field concentrated where grains
+actually absorb heats them more than a larger field that is not.
+
+So O-02's dust half is closed as a defect and reopened, far smaller, as a
+question about **where each code puts its reprocessed energy in frequency**.
+That is the same diffuse-transport difference D-307 measured from the other
+side - MOCASSIN's angle-integrated 4 pi J exceeding the undimmed stellar flux,
+which a 1D outward-only treatment will not reproduce. Registered as L-19.
+
+### Tooling
+
+`tools/d305_tdust.py` assumed the two-file graphite layout and indexed
+`dust_species.dat` positionally; it now reads whatever species count the file
+declares. `doc/pdr-status.md` L-2 updated from predicted to measured.

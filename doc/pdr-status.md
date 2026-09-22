@@ -100,8 +100,11 @@ each given its own equilibrium temperature, and the reported value was their
 arithmetic mean: 44.79 K and 22.45 K where the real randomly-oriented grain
 sits at 26.85 K (D-309). Worth 26-30% against Cloudy. Fixed in D-313 by
 pre-averaging the axes into one species with `tools/mkqfile.py`.
-**Re-measurement against Cloudy is in flight** (`runs/d313-qavg`); D-309
-predicts reported/Cloudy moving from 1.26-1.30 to about 0.93-0.95.
+**Measured and closed** (D-315, `runs/d313-qavg`, 11 iterations, 89.58%):
+reported/Cloudy moves from 1.289/1.304/1.272/1.256 to
+**0.906/0.902/0.873/0.869** at A_V 0.20/0.30/0.50/0.65. The residual now has
+the *opposite* sign, 9-13% cool, and is a spectral-shape difference rather
+than a magnitude one - see L-19.
 
 **L-3. O-01: deep C+ drop past A_V ~2.1.** Not revisited in this cycle. The
 reference model reaches only A_V 0.68, so it does not exercise the affected
@@ -110,6 +113,16 @@ defect is gone.
 
 **L-4. O-14: the 3D self-shielding tracer is not fit to be the only
 geometry.** Unchanged.
+
+**L-19. The two codes put their reprocessed energy in different places in
+frequency.** MOCASSIN's bolometric field is 1.16-1.35x Cloudy's at every depth
+(D-307, unchanged by the L-2 fix), yet its grains are 9-13% cooler. The band
+shares explain the sign: at A_V 0.30 Cloudy carries 0.255 of its field in the
+FUV against MOCASSIN's 0.107, while MOCASSIN carries more at 0.01-0.44 Ryd
+(0.504 against 0.362). C_abs is orders of magnitude larger in the FUV, so
+Cloudy's smaller field is concentrated where grains absorb. This is the same
+diffuse-transport difference D-307 measured from the other side, and it is
+what remains of O-02's dust half (D-315).
 
 ### Medium
 
