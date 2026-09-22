@@ -320,6 +320,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-318 | **The read-before-set sweep, prompted by D-317: the same defect is in `mocassinPlot` and `mocassinOutput`, where it fails SILENTLY rather than loudly.** D-317 fixed `lgPDR` being consumed before anything set it in `mocassinWarm`, and noted the pattern had now appeared twice (D-299's `lgElementOn` being the first). Grepping for the signature found two more instances immediately: both `mocassinPlot` and `mocassinOutput` carry the identical line `if (lgPDR) call initPDRnetwork()` and **neither calls `readInput`**, so `lgPDR` sits at its `.false.` default, the network is never initialised, and `resetGrid` skips every PDR allocation. **The failure mode is the dangerous one.** `mocassinWarm` crashed, which is how the defect was found at all; `resetGrid` skips its PDR block silently, so these two post-processing tools would emit output with the PDR state simply absent - no error, no warning, just missing physics in whatever they write. Fixed the same way, `call readInput()` before `initPDRnetwork`, which is only safe because D-317's `.not. allocated(...)` guards on `resetGrid`'s fifteen module-level allocations cover exactly this overlap. `mocassinFluorescence` is clean: it calls `setFluorescenceInput()`, which plays the same role. **Four occurrences of one pattern now** - `lgElementOn` in D-299, `lgPDR` in `mocassinWarm`, `mocassinPlot` and `mocassinOutput` - and in three of the four the symptom was silence. **Stated as a limitation, not a clean bill:** both tools are verified to COMPILE with the fix, not to run. Checking them properly needs a grid and a statement of what their output should contain, which is the same distinction L-14 was about, so it is recorded the same way. **What made the sweep cheap** is worth keeping: fixing the first instance produced a greppable signature, and the search then took one command. The pattern to look for is a module logical guarding initialisation in a driver that never runs the routine which sets it | Open | 2026-09-22 |
 | D-319 | **The published PN figures were drawn on hiipdr's axis: A_V out to 3.2 for a model that ends at 0.67, so a third of every panel was empty and the four inside labels below A_V 0.04 fell off the left edge. The axis is now derived from the run rather than carried as a constant.** The user reported it from the artifact. `tools/d260_roellig.py` carried `XLIM = (0.04, 3.2)` and `RTICKS = [1,2,3,5,10,15]` pc, hiipdr's numbers, kept as defaults at D-283 so hiipdr's figures would stay pixel-identical; pn150k inherited them silently because it was plotted without `--xlim`. The top radius axis was worse than empty: the model spans 0.015-0.61 pc, every default tick (1-15 pc) sits outside it, and `np.interp` clamps, so all six piled up at the right edge. Both now come from the data - `auto_xlim` takes the model's own A_V extent (lower edge from the model, not the reference, whose first zone is far thinner than a MOCASSIN cell) padded 5%, `auto_rticks` takes the round distances that fall inside the model's radial extent - and `--xlim`/`--rticks` still override. Checked on both fixtures: pn150k 0.0080-0.713 with ticks 0.02-0.5 pc; hiipdr 0.0493-3.149 against the old 0.04-3.2, and r ticks 2-15 pc against 1-15, dropping a 1 pc tick that was extrapolated below the model's 1.12 pc inner radius. The tool now prints the resolved axis and whether it was given or derived. '150 kK PN Against Cloudy' rebuilt (v9) from figures generated with no flags at all, so the page reproduces from the run; the cell census in its lede corrected from 464/34920 to the run's own 450/34934 | Done | 2026-09-22 |
 | D-320 | **hiipdr re-run on the current code (line transport on, dust fixed, warm-start defects out) closes the rest of L-1 - and the result reverses the published sign: MOCASSIN's PDR gas is no longer 2x too COLD, it is 1.3-1.5x too WARM just behind the front and colder only past A_V 1.5.** `runs/d316-hiipdr`: 31^3, 22 iterations, 73.75% converged, 0% ion-balance and 0% Te-balance failures, 1h40m. Against `runs/d277-cloudy`: H+ front 3.795 vs 3.765 pc (was 3.82-3.85 vs 3.77), H/H2 A_V 1.168 vs 1.090, C+ = C 2.242 vs 2.950 (unchanged), H II gas 9027 vs 9274 K. T_gas at A_V 0.7/1.0/1.5/2.0/3.0 = 72/62/39/23/11 K against Cloudy's 48/49/44/29/13 - crossing over near A_V 1.4 - where D-282 published 22-26 vs 29-49 K throughout. The added energy is D-292's line transport, on by default since D-307. Dust, number-weighted on both sides, 0.906-0.957 of Cloudy through the PDR (was 6-12% cooler): same sign and the same L-19 explanation as pn150k's 0.869-0.906, and a smaller residual. Deep-carbon behaviour unchanged: past A_V 2.3 C+ 0.21-0.38x, n_e 0.28-0.45x, CO 50-100x high. **Three more fixture-specific constants found by running the tools on a second fixture**, all the same disease as D-319: `GRAINS = (0.005, 0.25, -3.5)` was pn150k's and was weighting hiipdr's Cloudy dust (whose grains are 0.01-0.30) with the wrong span - now derived from Cloudy's own `<D/G>` block, which recovers 29.987 for hiipdr and 50.002 for pn150k against the true 30 and 50; `d305_tdust.py` could not read hiipdr's `dust_sizes.dat` at all (a trailing ` slope (p): -3.5` line pn150k does not have); and its four sample depths were pn150k's 0.20-0.65, which on a model reaching A_V 3 sampled the first fifth of the PDR. All three fixed by deriving from the run. Regression: pn150k's dust ratios reproduce D-315 exactly (0.906/0.902/0.873/0.869) and its figures move by 1.2e-5 pt | Done | 2026-09-22 |
+| D-321 | **L-1 CLOSED: both published Cloudy comparisons now rest on energy-conserving runs. 'hiipdr Against Cloudy' rebuilt (v10) on `runs/d316-hiipdr`, and the rebuild retracts that page's headline claim.** The page had read '21-26 K against Cloudy's 29-50, about twice too cold' since D-264; it now reads 72/62/39/23/11 K at A_V 0.7/1.0/1.5/2.0/2.9 against 48/49/44/29/14 - warm behind the front, crossing near 1.4, cold beyond - and says so as a withdrawal rather than an update. Also rewritten from the new run: both comparison tables, the ionized gas (7-12% hotter than Cloudy where the previous version had it 4-8% cooler, the same added line energy), the dust bullet (4-9% cool, from 6-12%), front 3.80 vs 3.77 pc, H/H2 1.17 vs 1.09, C+ = C 2.24 vs 2.95. The ionization structure is the control: it did not move at all when the line energy was added, which is what one expects of a front set by the Lyman continuum and the geometry. The page's D-267 issue register is now explicitly labelled a 2026-09-14 snapshot, with O-02, O-08, O-23 and O-30 restated, and points at `doc/pdr-status.md` as the maintained one. Figures produced with no command-line options at all, so the page reproduces from the two run directories. `doc/pdr-status.md`: L-1 closed, **L-21 added** - the four fixture-specific constants of D-319/D-320, recorded with the general risk rather than only the four instances | Done | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25266,3 +25267,68 @@ became silently wrong on the other. None produced an error; two produced
 figures that looked entirely reasonable. The general form is that **a tool
 that has only ever been run on one model cannot distinguish a property of that
 model from a property of the physics**, and neither can its author.
+
+## D-321 - L-1 closed, and a published headline withdrawn (2026-09-22)
+
+D-320 measured hiipdr on the current code. This entry is what was done with
+the measurement.
+
+### The page
+
+'hiipdr Against Cloudy' rebuilt as v10 from `runs/d316-hiipdr`. What changed:
+
+  - **The headline.** Four KPI tiles, the "Selected depths" table, the
+    ionized-gas table and two of the "what agrees" bullets all carried the
+    lines-off numbers. All recomputed.
+  - **A withdrawal, written as one.** The page had said "the PDR is about
+    twice too cold" since D-264, and that reading is now wrong. The new
+    section does not quietly replace the number; it states that the old one
+    was measured on a model losing ~60% of its bolometric flux in the PDR,
+    gives 0.384 against 1.215, and says what replaces it - a disagreement
+    about the *shape* of the temperature profile rather than its level.
+  - **The ionized gas**, which nobody was looking at, moved by the same
+    mechanism and in the same direction: 4-8% below Cloudy before, 7-12%
+    above now.
+  - **The issue register** on that page is a D-267 snapshot from 2026-09-14
+    and had drifted badly - its O-02 row still asserted the claim the page
+    now withdraws. Rather than silently editing thirty rows, the register is
+    labelled as a snapshot, the four rows this work actually moved (O-02,
+    O-08, O-23, O-30) are restated, and it points at `doc/pdr-status.md` as
+    the maintained register.
+
+### The control worth naming
+
+The ionization structure did not move. Front 3.795 against 3.765 pc, H/H2
+crossing 1.168 against 1.090, C+ = C 2.242 against 2.950, deep C+ 0.21-0.38x,
+n_e 0.28-0.45x, CO 50-100x - every one of these is within its own run-to-run
+scatter of what D-282 published on the lines-off run.
+
+That is the useful part of a result that changes a headline. The added energy
+is real and it moved what it should move: the gas and dust temperatures, which
+are energy balances. It did not move the front, which is set by the Lyman
+continuum and the geometry, and it did not move the deep carbon, which is set
+by the cosmic-ray rate and the chemistry. An energy change that had moved
+everything would have been a reason to distrust it.
+
+### L-1 closed
+
+Both artifacts that rested on lines-off runs are rebuilt:
+`150 kK PN Against Cloudy` on `runs/d313-qavg` (D-315, v9) and
+`hiipdr Against Cloudy` on `runs/d316-hiipdr` (v10). Stated narrowly in
+`doc/pdr-status.md`: nothing *standing* now rests on a lines-off run, but
+conclusions in DEVLOG entries before D-307 still do, and they are marked
+where they are quoted rather than rewritten.
+
+### L-21 added
+
+The four constants of D-319 and D-320 are registered as one limitation rather
+than four fixed bugs, because the fixing is the smaller half. The risk that
+remains is the general one:
+
+> a tool that has only ever been run on one fixture cannot distinguish a
+> property of that model from a property of the physics, and neither can its
+> author.
+
+Two of the four produced no error and no visibly wrong figure. The test that
+found all four was simply running each tool on a second fixture, and
+`tools/d196_axis.py` still hardcodes 31^3 and has not had it.

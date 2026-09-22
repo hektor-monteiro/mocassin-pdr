@@ -90,9 +90,15 @@ D-307 was computed that way.** Diffuse line photons were deleted rather than
 allowed to escape, costing the PDR about 60% of its bolometric flux
 (Fbol/Fbol_thin 0.384 against 1.215 at A_V 0.30, D-306). Transport is now on
 by default. **Consequence: any artifact or conclusion built on a lines-off run
-is on a non-energy-conserving model** - this includes the current
-`150 kK PN Against Cloudy` page, built on `runs/d302-trim-off` (D-303).
-Closes when the artifacts are rebuilt.
+is on a non-energy-conserving model.**
+**CLOSED 2026-09-22.** Both affected artifacts are rebuilt on energy-conserving
+runs: `150 kK PN Against Cloudy` on `runs/d313-qavg` (D-315, page v9) and
+`hiipdr Against Cloudy` on `runs/d316-hiipdr` (D-320, page v10). The hiipdr
+rebuild reversed that page's headline: its PDR gas was published as 21-26 K
+against Cloudy's 29-50 and now runs 72/62/39/23/11 K at A_V 0.7/1.0/1.5/2.0/2.9
+against 48/49/44/29/14 - warm behind the front, crossing near A_V 1.4, cold
+beyond. Nothing else standing rests on a lines-off run; conclusions in DEVLOG
+entries before D-307 still do, and are marked where they are quoted.
 
 **L-2. The dust temperature was the mean of two temperatures, not a
 temperature.** The two graphite crystal axes were listed as separate species,
@@ -195,6 +201,20 @@ skipped every PDR allocation and the tools would have emitted output with the
 PDR state silently absent. `readInput()` is now called in both and both
 compile, but neither has been run against a grid, so the fix is verified only
 to the extent that D-317's was before it was exercised (D-318).
+
+**L-21. The comparison tools carried four fixture-specific constants, and one
+of them was in every published figure.** `tools/d260_roellig.py` held hiipdr's
+A_V plot range and radius ticks as defaults (D-283 kept them so hiipdr's
+figures would stay pixel-identical) and pn150k's Cloudy grain size span; it
+drew the pn150k axis out to A_V 3.2 for a model ending at 0.67, clipped four
+curve labels off the left edge, and collapsed the radius axis onto one point.
+`tools/d305_tdust.py` could not read hiipdr's `dust_sizes.dat` at all, and its
+sample depths covered the first fifth of hiipdr's PDR. All four are now derived
+from the run or from Cloudy's own output (D-319, D-320), and the tools print
+what they resolved. **The general risk stands:** a tool run on only one fixture
+cannot tell a property of that model from a property of the physics, and
+neither can its author. Running each tool on a second fixture is the test;
+`tools/d196_axis.py` still hardcodes 31^3 and has not had it.
 
 **L-15.** `getQs` caps the Mie size parameter at 100, which for a 0.25 um
 grain bites above 5.8 Ryd against a `nuMax` of 30. Affects EUV/X-ray dust
