@@ -324,6 +324,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-322 | **The hiipdr budget decomposes the new profile-shape disagreement, and it is NOT the field: 72% of the crossover is the photoelectric conversion efficiency at matched field, and the mechanism is that MOCASSIN's absorbed-photon count above threshold falls 2.7x faster with depth than its own Habing-band field.** Cloudy re-run with the five saves the budget needs (`runs/d322-cloudy-hb`, 700 zones, 3 iterations, 305 s; .ovr/.pdr/.dens/.gtemp byte-identical to `runs/d277-cloudy`, so the published reference is unchanged). **Cooling exonerated at every depth**: the [C II] thermostat predicts T_m from the heating ratio alone to 1.035/0.952/0.940/0.994/0.904 at A_V 0.73-2.21 - D-304 showed this on pn150k, which never reaches the crossover, and hiipdr does. **Heating is GrnP on both sides**, and PE_m/PE_c = 1.71/1.49/1.03/0.51/0.245 crosses 1 at A_V ~1.3, exactly where T_m/T_c crosses. Factoring it: field ratio 0.81->0.47, efficiency (PE/G0) ratio 2.17->0.52; in logs the efficiency carries 72% of the swing and the field 28%. The FUV attenuation slopes nearly agree over the warm half (-3.24 vs -3.13 e-folds/mag over A_V 0.7-1.7) and part only deep (-2.59 vs -2.02 over 1.2-2.9), so **O-33's C I-edge excess does not carry over to the Habing band**. The efficiency loss is not the grain charge (MOCASSIN's potential is BELOW Cloudy's at every depth, 0.80x falling to 0.14x, which would RAISE its yield) and not the yield (<Y> rises 0.041->0.081 with depth as the grain discharges): it is that Nabs/H falls 242x while G0 falls 89x over the same span. That is a spectral-shape difference inside the FUV band - **the same quantity as L-19**, where MOCASSIN carries 0.107 of its energy in the FUV against Cloudy's 0.255, measured there from the dust side. One root, two symptoms. At A_V 2.91 MOCASSIN's PE is exactly zero: the Monte Carlo field floor (O-01/O-34), so the deepest point is sampling, not physics. Also: `d304_budget.py`'s sample depths were pn150k's 0.05-0.65 - a fifth instance of L-21, and this one would have stopped short of the crossover the run was made for. **PARTLY CORRECTED BY D-324: the 2.7x is mostly the moving threshold, which both codes have, not a spectral difference; threshold-matched the spectral residual is 1.26x and the dominant term is the yield recovery, i.e. grain charge - which this entry wrongly excluded** | Open | 2026-09-22 |
 | D-323 | **The optics are NOT the cause of D-322: MOCASSIN's and Cloudy's grain cross sections across the Habing band agree in SHAPE to 2% and in albedo to 1%, so the photoelectric/energy divergence is transport, not extinction.** New `tools/d323_fuvshape.py` computes MOCASSIN's C_abs/C_sca per H from the run's own `dust_species.dat` + `dust_sizes.dat` with Mie (`d305_mie.py`) and reads Cloudy's compiled `.opc` `abs_cs`/`sct_cs` blocks, which are already per H per bin. Normalised at the band's red edge, C_abs/C_abs(0.44 Ryd) is 1.988/3.969/4.809/5.282/5.692/5.775 against Cloudy's 1.988/3.975/4.793/5.240/5.607/5.661 - ratios 1.000 to 1.020. d ln C_abs/d ln E = +1.852 vs +1.828; for C_ext, +0.730 vs +0.708. Albedo 0.808/0.674/0.476/0.419/0.407/0.400/0.392 against 0.810/0.676/0.478/0.421/0.410/0.404/0.397. **This is also the first independent check of MOCASSIN's Mie path against a second code's compiled silicate**, and it passes. **A near-miss worth recording:** the first run of this tool weighted the size distribution by n(a) rather than n(a) da, which on a logarithmic radius grid over-weights small grains by ~a and gave d ln C_ext/d ln E = 1.923 against 0.708 - a difference of 1.21, which over the band's factor 2.27 is 2.66, against the 2.71 D-322 measured. **It looked like a quantitative confirmation of the hypothesis it was built to test.** `ph_mod.f90` makeDustXsec normalises n(a) da/sum(n(a) da); reading that settled it. With the code's own weighting the difference is 0.022. So L-19's remaining candidate is 3D diffuse transport against 1D outward-only | Open | 2026-09-22 |
 | D-324 | **D-322's mechanism is corrected: the 2.7x is mostly an artefact of comparing a MOVING threshold against a fixed band, and grain charge - which D-322 excluded - is the dominant term.** `grnAbs` in update_mod.f90 integrates from `th = grainVn + grainPot`, so as grains discharge with depth MOCASSIN's integral widens; D-322 compared that against a fixed 0.44-1 Ryd energy integral and read the difference as spectral shape. Measured properly on Cloudy's per-zone spectrum (`save last ionizing continuum ... every`, 262 MB): Cloudy's N/G0 falls 4.93x with a FIXED 0.5883 Ryd threshold, **1.65x with its own moving threshold**, and 2.15x when driven with MOCASSIN's threshold history. Against MOCASSIN's 2.71x that leaves a threshold-matched spectral residual of **1.26x**, not 2.7x. Decomposing the efficiency swing instead: (PE/G0) RISES 2.75x with depth in Cloudy and FALLS to 0.66x in MOCASSIN, and since PE = Nabs x <Y> x <E>, the yield-and-energy factor rises ~4.54x in Cloudy against a measured 1.94x in MOCASSIN (<Y> 0.0405->0.0811, <E> 0.0712->0.0693). **That is grain charge**, and D-322's argument for excluding it was wrong: it compared the LEVEL of the potential (MOCASSIN's is lower, which would raise its yield) when what matters is the CHANGE in Coulomb suppression as the grain discharges - Cloudy starts more charged (2.711 V against 2.178) and therefore has more to recover. What survives D-322 unchanged: cooling exonerated by the thermostat test, heating is GrnP on both sides, PE_m/PE_c crosses 1 at A_V ~1.3 where T does, and the 72/28 efficiency/field split | Open | 2026-09-22 |
+| D-325 | **The user's hint paid off: 3D-PDR's charging parameter psi = G0 sqrt(T)/x(e) reframes the crossover, and MOCASSIN's hardcoded electron sticking S = 1 is the discrepancy. At MATCHED psi MOCASSIN's photoelectric efficiency is 2.09/1.73/1.36/1.04x Cloudy's - always ABOVE, never crossing - so there is no sign reversal in the photoelectric physics at all.** Both codes' PE/G0 is a PEAKED function of psi (MOCASSIN peaks near 2e5, Cloudy near 1e5); the temperature crossover is the two sliding down opposite sides of that peak, because MOCASSIN's psi falls **113x** across the PDR against Cloudy's **55x** - its G0 falls 89x against 50x and its T falls faster too, and both enter psi. **So the field is the driver after all, through psi, and D-322's '28% field / 72% efficiency' understates it by dividing G0 out linearly when G0 also sets psi.** The offset at matched psi has a named cause: `getGrainRecombination` hardcodes `S = 1.` for electron sticking (and again for ions), while Cloudy's grains.cpp uses STICK_ELEC = 0.5*(1-exp(-a/l_esc)) - and MOCASSIN adopted Weingartner & Draine's YIELD at D-289 while leaving Baldwin's sticking, so two halves of one prescription now come from different sources. Dividing psi by each code's own S collapses the efficiency ratio from 2.087/1.730/1.361/1.043 (spread 4.1) to **1.151/1.164/1.129/1.307** - flat to 15% where it drifted by a factor 2. New `tools/d325_psi.py`. 3D-PDR's own `STICKING=0.3` is freeze-out, a different process, and is NOT evidence about the charge balance - noted so it is not later miscited. Caveats: psi is a similarity variable and dividing by S is a scaling argument, not a derivation; the A_V 2.21 point (0.506 in every row) sits near MOCASSIN's Monte Carlo field floor | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25668,3 +25669,118 @@ that balance, so it is a place where this code has been wrong before.
 
 `tools/d304_budget.py` already prints `Vg_m` against Cloudy's per-bin range.
 The next step is to read the charge balance term by term, not the temperature.
+
+## D-325 - psi, and the hardcoded sticking coefficient (2026-09-22)
+
+The user suggested looking at 3D-PDR's source for clues. It has two, and the
+second one reframes the whole question.
+
+### What 3D-PDR has
+
+`source/pdr/heatingfunctions.F90` carries the Weingartner & Draine (2001)
+photoelectric heating formula, whose only variables are
+
+    psi = G0 sqrt(T) / x(e)
+
+That is not a fitting variable. It is the ratio of the photoemission rate to
+the electron collection rate, so it is what sets the equilibrium grain charge,
+and every treatment of this physics is a function of it.
+
+Evaluating WD01's formula directly was a dead end and is recorded as such:
+hiipdr's PDR runs at psi ~ 1e6, two decades outside the diffuse-ISM range the
+coefficients were fitted in, and both codes sit 30-120x above it. The formula
+also assumes PAHs and a 100:1 gas-to-dust ratio that this model does not have.
+**The variable is the useful part, not the fit.**
+
+### The reframing
+
+Comparing PE/G0 *at matched psi* separates the photoelectric physics from the
+field, temperature and ionisation that feed it:
+
+    A_V      psi_m     PE/G0_m  |    psi_c     PE/G0_c  | ratio at matched psi
+    0.73   1.438e+06  1.741e-27 | 1.453e+06  8.274e-28  |  2.087
+    0.97   5.866e+05  3.052e-27 | 6.356e+05  1.682e-27  |  1.730
+    1.27   2.122e+05  3.895e-27 | 3.088e+05  2.586e-27  |  1.361
+    1.68   5.333e+04  3.014e-27 | 9.822e+04  3.523e-27  |  1.043
+    2.21   1.271e+04  1.165e-27 | 2.654e+04  2.303e-27  |  0.506
+
+**At matched psi MOCASSIN is always at or above Cloudy - it never crosses.**
+The crossover in the raw numbers is not in the photoelectric physics.
+
+What it is: both efficiencies are **peaked** in psi - the grain must discharge
+enough to lift the Coulomb barrier, but not so deep that the field has gone -
+and the two codes peak at different psi (MOCASSIN near 2e5, Cloudy near 1e5).
+MOCASSIN's psi falls **113x** across this range against Cloudy's **55x**,
+because its G0 falls 89x against 50x and its temperature falls faster as well,
+and both enter psi. So it passes its own peak earlier in A_V and is descending
+the far side while Cloudy is still near the top.
+
+**This puts the field back as the driver**, through psi rather than linearly.
+D-322's "28% field, 72% efficiency" divided G0 out once and called the
+remainder efficiency - but G0 also sets psi, which sets the efficiency. The
+split is arithmetic and correct; reading it as *causal* was not.
+
+### The offset, and its name
+
+`update_mod.f90`, `getGrainRecombination`:
+
+    S  =1. ! electron sticking probability
+    ...
+    S = 1.            ! again, for every ion
+
+Cloudy, `grains.cpp`:
+
+    static const double STICK_ELEC = 0.5;
+    static const double STICK_ION  = 1.0;
+    gv.bin[nd].StickElecPos = STICK_ELEC*(1.-exp(-AvRadius/elec_esc_length(...)))
+
+The ion values agree. The **electron** sticking does not: MOCASSIN sticks every
+electron it collects, Cloudy sticks half. Sticking multiplies the collection
+rate, so at the same nominal psi MOCASSIN's grains charge less - which is the
+direction and roughly the size of the offset.
+
+Testing it: divide psi by each code's own S and re-interpolate.
+
+    efficiency ratio at matched psi     0.73   0.97   1.27   1.68
+    S equal (nominal psi)              2.087  1.730  1.361  1.043   spread 4.13
+    each code's own S (1.0 vs 0.5)     1.151  1.164  1.129  1.307   spread 2.58
+
+**Flat to 15% where it drifted by a factor two.** The two codes' photoelectric
+physics agrees once the sticking convention is matched.
+
+### Why this is a defect and not a choice
+
+D-289 replaced Baldwin et al. (1991)'s photoelectric yield with Weingartner &
+Draine (2001)'s, in the grain charge balance and the gas heating together. It
+did not touch the sticking coefficient, which is still Baldwin's 1.0. **Two
+halves of one prescription now come from different papers** - WD01's yield
+against a collection rate WD01 does not use - which is the project rule about
+one reality per quantity, in a place where the two halves multiply.
+
+`tools/d325_psi.py` holds the test.
+
+### A thing not to miscite later
+
+3D-PDR's `calc_reac_rates.F90` also has `STICKING=0.3D0`, twice. That is
+**freeze-out** - accretion of neutrals and of singly charged ions onto grain
+surfaces - not the charge balance, and it is not evidence about electron
+sticking. Recorded because the constant is easy to find and easy to quote for
+the wrong quantity.
+
+### Caveats
+
+  - psi is a similarity variable. Dividing it by S is the leading-order way
+    sticking enters the collection rate, not a derivation.
+  - Cloudy's curve is interpolated log-linearly through five points.
+  - The A_V 2.21 column is 0.506 in every row because MOCASSIN's field there
+    is approaching its Monte Carlo floor (PE is exactly zero by 2.91). It is
+    not evidence for or against any of this.
+
+### Next
+
+Set the electron sticking to WD01's own value, which is what D-289's yield
+assumes, and re-run hiipdr. That is a one-line change to
+`getGrainRecombination` with a measurable prediction: the PDR temperature
+behind the front should fall toward Cloudy's, and the crossover should move
+deeper or disappear. It is the first change in this cycle with a prediction
+attached before the run.
