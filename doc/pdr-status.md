@@ -120,18 +120,29 @@ defect is gone.
 **L-4. O-14: the 3D self-shielding tracer is not fit to be the only
 geometry.** Unchanged.
 
-**L-19 is now the leading open physics question, and it has two independent
-symptoms.** D-322 decomposed hiipdr's gas temperature and found the same
-quantity from the other side: MOCASSIN's count of absorbed photons above the
-photoelectric threshold falls **2.7x faster with depth than its own
-Habing-band field** (Nabs/H 242x against G0 89x over A_V 0.73-2.21), which
-makes the photoelectric conversion efficiency cross over and carries 72% of
-the gas-temperature crossover. The field itself is the smaller half (28%), and
-O-33's C I-edge attenuation excess does **not** carry over to the Habing band.
-So the dust running cool and the gas crossing over are one root - the spectral
-shape inside the FUV band - seen twice. Next measurement: the specific
-intensity per frequency bin at matched A_V in both codes, from runs already on
-disk.
+**L-22. The gas-temperature crossover is the grain charge balance** (D-322,
+corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly
+where the temperatures cross; cooling is exonerated at every depth by the
+[C II] thermostat test, and the split is 72% conversion efficiency, 28% field.
+The efficiency term is the photoelectric yield recovering as the grains
+discharge with depth: it rises ~4.5x in Cloudy against a measured 1.94x in
+MOCASSIN, because Cloudy's grains start more charged (2.711 V against 2.178)
+and have more Coulomb suppression to give back.
+
+D-322 originally read this as a spectral-shape difference inside the FUV band,
+from `Nabs/H` falling 2.7x faster than `G0`. **That was wrong**: `grnAbs`
+integrates from a threshold that moves with the grain potential, and it was
+being compared against a fixed band. Threshold-matched against Cloudy's own
+per-zone spectrum, the spectral residual is 1.26x, not 2.7x, and cannot carry
+an efficiency swing of 4.2. The optics are also eliminated - the two codes'
+grain cross sections agree in shape to 2% and in albedo to 1% across the band
+(D-323). **Next: read the grain charge balance term by term**, where D-290
+already found and fixed a 4 pi^2 units defect.
+
+This is *not* the same quantity as L-19 below. D-322 claimed it was; D-324
+withdrew that. The dust result stands on its own measurement.
+
+**L-19. The two codes put their reprocessed energy in different places in
 
 **L-19. The two codes put their reprocessed energy in different places in
 frequency.** MOCASSIN's bolometric field is 1.16-1.35x Cloudy's at every depth
