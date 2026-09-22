@@ -811,11 +811,14 @@ module xSec_mod
 
         integer :: envStat                 ! D-289
         character(len=32) :: yieldEnv      ! D-289
-        ! D-310/D-311: orientation averaging of one material's principal axes
-        logical :: lgOrient, lgAxesComp
-        integer :: gRef, gThis
+        ! D-312: per-species axis-group tag. Species of a component carrying
+        ! the same `axes:<name>` tag are the principal axes of ONE grain, so
+        ! their cross sections are averaged and the grain has one temperature.
+        character(len=32), allocatable :: axisGroup(:)
+        character(len=32) :: thisGroup
+        integer :: gRef, gThis, nInGroup
         real    :: wSum, avA, avS, avG
-        character(len=32) :: axisWord
+        logical :: lgDone
         real :: normWeight ! normalization constant for grain size weighting
         real :: readReal     ! real number reader
         real :: value ! general value variable
@@ -1097,33 +1100,15 @@ module xSec_mod
               stop
            end if
 
-           ! Read how many species are used. D-311: the count may carry the
-           ! word `axes`, declaring that the entries below are the principal
-           ! axes of ONE anisotropic material rather than distinct species -
-           ! see the averaging block after the species loop. Declared, never
-           ! inferred: D-310 tried to infer it from matching density, work
-           ! function, surface-atom mass and sublimation temperature, and
-           ! dustData shows that is unsafe - amC-zb1/zb2/zb3 are three
-           ! different amorphous carbons with byte-identical constants, as are
-           ! crSil and astroSilD2003. Merging those would be exactly the error
-           ! this is meant to avoid.
-           read (10, '(A)', iostat=ios) speciesLine
-           if (ios /= 0) then
-              print*, "! makeDustXsec: cannot read the species count from ", &
-                   & dustSpeciesFile(icomp)
-              stop
+           ! Read how many species are used
+           read (10, *) nSpeciesPart(icomp)
+
+           if (allocated(axisGroup)) deallocate(axisGroup)
+           allocate(axisGroup(1:max(nSpeciesPart(icomp),1)), stat=err)
+           if (err /= 0) then
+              print*, "! makeDustXsec: can't allocate axisGroup memory"; stop
            end if
-           read (speciesLine, *, iostat=ios) nSpeciesPart(icomp), axisWord
-           if (ios /= 0) then
-              axisWord = ''
-              read (speciesLine, *, iostat=ios) nSpeciesPart(icomp)
-              if (ios /= 0) then
-                 print*, "! makeDustXsec: cannot parse the species count; &
-                      &expected <n> [axes], got: ", trim(speciesLine)
-                 stop
-              end if
-           end if
-           lgAxesComp = (trim(axisWord) == 'axes' .or. trim(axisWord) == 'AXES')
+           axisGroup = ''
 
            do nSpec = 1, nSpeciesPart(icomp)
               
@@ -1136,19 +1121,48 @@ module xSec_mod
                  stop
               end if
 
+              ! D-312: an optional trailing `axes:<name>` tag. Species sharing
+              ! it are the principal axes of one anisotropic grain, not
+              ! distinct species - see the averaging block after this loop.
+              axisGroup(nSpec) = ''
               read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec), &
-                   & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec)
+                   & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec), &
+                   & axisGroup(nSpec)
 
               if (ios /= 0) then
+                 axisGroup(nSpec) = ''
+                 read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec), &
+                      & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec)
+              end if
+
+              if (ios /= 0) then
+                 axisGroup(nSpec) = ''
                  read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec)
                  if (ios /= 0) then
                     print*, "! makeDustXsec: cannot parse grain-species record; expected"
-                    print*, "!   <optical-data file> <abundance> [<amin/um> <amax/um>]"
+                    print*, "!   <optical-data file> <abundance> [<amin/um> <amax/um>] [axes:<name>]"
                     print*, "! got: ", trim(speciesLine)
                     stop
                  end if
                  componentMinRadius(icomp, nSpec) = grainRadius(1)
                  componentMaxRadius(icomp, nSpec) = grainRadius(nSizes)
+              end if
+
+              if (len_trim(axisGroup(nSpec)) > 0) then
+                 if (axisGroup(nSpec)(1:5) /= 'axes:') then
+                    print*, "! makeDustXsec: unrecognised trailing field '", &
+                         & trim(axisGroup(nSpec)), "' on the species record."
+                    print*, "!   the only trailing field is an axis-group tag, &
+                         &written axes:<name>"
+                    print*, "! got: ", trim(speciesLine)
+                    stop
+                 end if
+                 if (len_trim(axisGroup(nSpec)) == 5) then
+                    print*, "! makeDustXsec: axes: tag needs a group name, e.g. &
+                         &axes:graphite"
+                    print*, "! got: ", trim(speciesLine)
+                    stop
+                 end if
               end if
               
               ! Read dust optical constant data from file
@@ -1461,91 +1475,104 @@ module xSec_mod
            close(10)
 
            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-           ! D-310: the principal axes of ONE material are not two species.
+           ! D-312: principal axes of one grain, averaged as CROSS SECTIONS.
            !
-           ! dust_species.dat lists grph2-dl (E perp c, 2/3) and grph1-dl
-           ! (E par c, 1/3) as separate entries, and MOCASSIN was solving a
-           ! separate equilibrium temperature for each and reporting their
-           ! arithmetic mean. The two orientations differ enormously in far-IR
-           ! emissivity - D-309 measured 44.79 K against 22.45 K in one cell at
-           ! one size - and T goes as the absorbed energy to the ~1/5.8, so a
-           ! mean of temperatures is not the temperature of the mean. It ran
-           ! 26-30% hot against Cloudy for that reason alone.
+           ! An anisotropic material such as graphite has different optical
+           ! constants along different crystal axes, and its data comes as one
+           ! file per axis with the geometric weights of a randomly oriented
+           ! grain - 1/3 parallel, 2/3 perpendicular. Those weights are NOT
+           ! abundances of two grain populations. Listing the files as separate
+           ! species made MOCASSIN solve a temperature for a pure-parallel and
+           ! a pure-perpendicular grain, neither of which exists, and report
+           ! the mean: D-309 measured 44.79 K and 22.45 K in one cell where the
+           ! real grain sits at 26.85 K, which is why the dust ran 26-30% hot
+           ! against Cloudy.
            !
-           ! Draine's 1/3-2/3 rule is an ORIENTATION average for a randomly
-           ! oriented grain, so it belongs on the CROSS SECTIONS of one grain,
-           ! which then has one temperature. Cloudy does exactly this -
-           ! grains_mie.cpp runs Mie per axis and sums cs_abs/cs_sct with the
-           ! axis weights from graphite.rfi, which carries the same two axes at
-           ! the same 1:2 - so this is not merely defensible, it is what the
-           ! reference computes.
+           ! The average belongs on the cross sections of ONE grain, which then
+           ! has ONE temperature. Cloudy does exactly this - grains_mie.cpp
+           ! runs Mie per axis and sums cs_abs/cs_sct with the axis weights.
+           ! It cannot be done by pre-averaging n,k: Mie is non-linear, and a
+           ! single averaged n,k reproduces only 0.09-0.12 of the correct Q at
+           ! 100 um, where the grain radiates (D-312).
            !
-           ! Cabs/Csca still hold Q here (pi a^2 is applied below), so averaging
-           ! them IS averaging the cross sections. gCos is weighted by Csca, for
-           ! the reason D-280 gives - the mean cosine of a mixture belongs to
-           ! the grains that actually scatter - which is also what Cloudy's
-           ! a1g does.
+           ! Which species are axes of one grain is DECLARED, per species, by
+           ! an `axes:<name>` tag on its record. Species sharing a tag are
+           ! averaged together; untagged species are independent and keep their
+           ! own temperature, which is the default and is right for real
+           ! mixtures - silicate and graphite in one nebula genuinely sit at
+           ! different temperatures. It is never inferred: dustData carries
+           ! three different Zubko amorphous carbons with byte-identical
+           ! material constants, so "same constants" does not mean "same
+           ! material" (D-311).
            !
-           ! D-311: this applies ONLY where the species file declares `axes`.
-           ! Distinct species keep distinct temperatures, always - silicate and
-           ! graphite in the same nebula really do sit at different
-           ! temperatures, and so do two different amorphous carbons. An
-           ! earlier version inferred "one material" from matching density,
-           ! work function, surface-atom mass and sublimation temperature, and
-           ! that is unsafe: dustData/amC-zb1, -zb2 and -zb3 are three
-           ! different Zubko carbons with byte-identical constants, as are
-           ! crSil and astroSilD2003. Inferring would have merged genuinely
-           ! distinct species onto one temperature - the very error this is
-           ! meant to prevent. It is declared in the data or it does not happen.
-           lgOrient = lgAxesComp .and. nSpeciesPart(icomp) > 1
-           if (lgAxesComp .and. nSpeciesPart(icomp) <= 1) then
-              print*, "! makeDustXsec: `axes` declared for component", icomp, &
-                   & "but it has only", nSpeciesPart(icomp), "entry - ignored."
-           end if
+           ! Cabs/Csca still hold Q here - pi a^2 is applied below - so
+           ! averaging them IS averaging cross sections. gCos is weighted by
+           ! Csca per D-280, as Cloudy's a1g is.
+           do nSpec = 1, nSpeciesPart(icomp)
+              if (len_trim(axisGroup(nSpec)) == 0) cycle
+              thisGroup = axisGroup(nSpec)
 
-           ! Declared is not the same as true: an orientation average is only
-           ! meaningful for entries that really are one material over one size
-           ! range. Refuse rather than average something incoherent.
-           if (lgOrient) then
-              gRef = dustComPoint(icomp)
-              do nSpec = 2, nSpeciesPart(icomp)
-                 gThis = dustComPoint(icomp)-1+nSpec
+              ! only process each group once, at its first member
+              lgDone = .false.
+              do j = 1, nSpec-1
+                 if (axisGroup(j) == thisGroup) lgDone = .true.
+              end do
+              if (lgDone) cycle
+
+              nInGroup = 0
+              do j = 1, nSpeciesPart(icomp)
+                 if (axisGroup(j) == thisGroup) nInGroup = nInGroup + 1
+              end do
+              if (nInGroup < 2) then
+                 print*, "! makeDustXsec: axis group ", trim(thisGroup), &
+                      & " in component", icomp, "has only one member - nothing &
+                      &to average, and a single axis is not an orientation &
+                      &average."
+                 stop
+              end if
+
+              ! A declaration can be wrong. Members must really be one material
+              ! over one size range, or refuse rather than average nonsense.
+              gRef = 0
+              do j = 1, nSpeciesPart(icomp)
+                 if (axisGroup(j) /= thisGroup) cycle
+                 gThis = dustComPoint(icomp)-1+j
+                 if (gRef == 0) then
+                    gRef = gThis
+                    cycle
+                 end if
                  if (rho(gThis)          /= rho(gRef)          .or. &
                    & grainVn(gThis)      /= grainVn(gRef)      .or. &
                    & MsurfAtom(gThis)    /= MsurfAtom(gRef)    .or. &
-                   & TdustSublime(gThis) /= TdustSublime(gRef) .or. &
-                   & componentMinRadius(icomp,nSpec) /= componentMinRadius(icomp,1) .or. &
-                   & componentMaxRadius(icomp,nSpec) /= componentMaxRadius(icomp,1)) then
-                    print*, "! makeDustXsec: component", icomp, "declares `axes`, &
-                         &but entry", nSpec, "differs from entry 1 in density, &
-                         &work function, surface-atom mass, sublimation &
-                         &temperature or size range."
-                    print*, "! makeDustXsec: those are not axes of one material. &
-                         &Remove `axes` if they are distinct species."
+                   & TdustSublime(gThis) /= TdustSublime(gRef)) then
+                    print*, "! makeDustXsec: axis group ", trim(thisGroup), &
+                         & " mixes different materials - density, work &
+                         &function, surface-atom mass or sublimation &
+                         &temperature differ."
+                    print*, "!   axes of one grain must share all four. Drop &
+                         &the tag if these are distinct species."
                     stop
                  end if
               end do
-           end if
 
-           if (lgOrient) then
               if (taskid == 0) then
-                 print*, "! makeDustXsec: component", icomp, "declares its", &
-                      & nSpeciesPart(icomp), "entries to be principal AXES of one &
-                      &material."
-                 print*, "! makeDustXsec: averaging their cross sections with the &
-                      &listed weights, so the"
-                 print*, "! makeDustXsec: material has ONE temperature (D-310). &
-                      &Distinct species keep their own."
+                 print*, "! makeDustXsec: component", icomp, "- axis group '", &
+                      & trim(thisGroup(6:)), "' has", nInGroup, "members."
+                 print*, "! makeDustXsec:   averaging their cross sections with &
+                      &the listed weights, so this"
+                 print*, "! makeDustXsec:   grain has ONE temperature (D-312). &
+                      &Untagged species keep their own."
               end if
+
               do ai = 1, nSizes
                  do i = 1, nbins
                     wSum = 0.; avA = 0.; avS = 0.; avG = 0.
-                    do nSpec = 1, nSpeciesPart(icomp)
-                       wSum = wSum + grainAbun(icomp, nSpec)
-                       avA  = avA  + grainAbun(icomp, nSpec)*Cabs(nSpec,ai,i)
-                       avS  = avS  + grainAbun(icomp, nSpec)*Csca(nSpec,ai,i)
-                       avG  = avG  + grainAbun(icomp, nSpec)*Csca(nSpec,ai,i)* &
-                            &                                gCos(nSpec,ai,i)
+                    do j = 1, nSpeciesPart(icomp)
+                       if (axisGroup(j) /= thisGroup) cycle
+                       wSum = wSum + grainAbun(icomp, j)
+                       avA  = avA  + grainAbun(icomp, j)*Cabs(j,ai,i)
+                       avS  = avS  + grainAbun(icomp, j)*Csca(j,ai,i)
+                       avG  = avG  + grainAbun(icomp, j)*Csca(j,ai,i)*gCos(j,ai,i)
                     end do
                     if (wSum <= 0.) cycle
                     avA = avA/wSum
@@ -1555,14 +1582,15 @@ module xSec_mod
                     else
                        avG = 0.
                     end if
-                    do nSpec = 1, nSpeciesPart(icomp)
-                       Cabs(nSpec,ai,i) = avA
-                       Csca(nSpec,ai,i) = avS
-                       gCos(nSpec,ai,i) = avG
+                    do j = 1, nSpeciesPart(icomp)
+                       if (axisGroup(j) /= thisGroup) cycle
+                       Cabs(j,ai,i) = avA
+                       Csca(j,ai,i) = avS
+                       gCos(j,ai,i) = avG
                     end do
                  end do
               end do
-           end if
+           end do
 
            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
            ! Print the info about the grains to be used
