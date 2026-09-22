@@ -1213,13 +1213,13 @@ end subroutine iterateT
              grainPotOld = grainPot(isp,ai)
              lgGCBConv = .true.
              grainEmiOld = getGrainEmission(grainPot(isp,ai), isp, ai)
-             grainRecOld = getGrainRecombination(grainPot(isp,ai))
+             grainRecOld = getGrainRecombination(grainPot(isp,ai), ai)
              grainPot(isp,ai) = grainPotOld+0.05
           end if
 
           threshold = max(grainVn(isp)+grainPot(isp,ai),grainVn(isp))
           grainEmi = getGrainEmission(grainPot(isp,ai), isp, ai)
-          grainRec = getGrainRecombination(grainPot(isp,ai))
+          grainRec = getGrainRecombination(grainPot(isp,ai), ai)
           delta = grainEmi-grainRec
 
           delta1 = abs(delta/(0.5*max(1.e-35, grainEmi+grainRec)))
@@ -1354,11 +1354,12 @@ end subroutine iterateT
         ! calculate the grain recombination
         ! using eqn 23 etcof Baldwin et al. (1991)
         ! cellFactor is dependant on the physical conditions of the gas,
-        function getGrainRecombination(Vg)
+        function getGrainRecombination(Vg, ai)
           implicit none
 
           real :: getGrainRecombination
           real, intent(in) :: Vg ! grain potential [ryd]
+          integer, intent(in) :: ai   ! D-325: size bin, for the sticking law
 
           real :: eta   ! Coulomb correction
           real :: cpDen ! colliding particle number density [cm^-3]
@@ -1380,7 +1381,21 @@ end subroutine iterateT
 
           vmean = sqrt(eightkT_pi/me)
 
-          S  =1. ! electron sticking probability
+          ! D-325: electron sticking, Weingartner & Draine (2001) as Cloudy's
+          ! grains.cpp implements it - s_e = 0.5 (1 - exp(-a/l_e)) with
+          ! l_e = 10 A the zero-energy electron escape length. This read
+          ! S = 1. from Baldwin et al. (1991) while D-289 had already taken
+          ! WD01's YIELD into this same balance and into the heating, so the
+          ! two halves of one prescription came from different papers in a
+          ! place where they multiply: D-325 measured the two codes'
+          ! photoelectric efficiency agreeing to 15% at matched
+          ! psi = G0 sqrt(T)/x(e) once the conventions were matched, against a
+          ! factor-2 drift with S = 1.
+          ! The exponential matters only for a < ~50 A; over the 0.01-0.30 um
+          ! distributions used here it is 0.5 to four figures. It is written
+          ! out rather than folded to 0.5 so that a PAH-sized bin, if one is
+          ! ever added, gets the right value rather than a silently wrong one.
+          S  = 0.5 * (1. - exp(-grainRadius(ai)/1.e-3))   ! a, l_e both in um
 
 
           ! eq 24 of Baldwin et al 91
@@ -1413,6 +1428,9 @@ end subroutine iterateT
                    mcp = (aWeight(elem)*amu)
                    vmean = sqrt(eightkT_pi/mcp)
 
+                   ! D-325: ion sticking stays at 1, which is what Cloudy
+                   ! uses too (grains.cpp STICK_ION = 1.0). Only the electron
+                   ! value differed between the codes.
                    S = 1.
                    Z = real(istage-1)
 

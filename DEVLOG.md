@@ -25784,3 +25784,72 @@ assumes, and re-run hiipdr. That is a one-line change to
 behind the front should fall toward Cloudy's, and the crossover should move
 deeper or disappear. It is the first change in this cycle with a prediction
 attached before the run.
+
+## D-326 - the sticking fix, and its prediction stated first (2026-09-22)
+
+The change of D-325, written before the run so the prediction cannot be
+retrofitted to the result.
+
+### The change
+
+`source/update_mod.f90`, `getGrainRecombination`:
+
+    -  S  =1. ! electron sticking probability
+    +  S  = 0.5 * (1. - exp(-grainRadius(ai)/1.e-3))   ! a, l_e both in um
+
+Weingartner & Draine (2001)'s electron sticking, with l_e = 10 A the
+zero-energy escape length, which is what Cloudy's `grains.cpp` uses
+(`STICK_ELEC*(1.-exp(-AvRadius/elec_esc_length(0.,nd)))`). The function gains
+`ai` so it can see the grain size, matching `getGrainEmission(Vg, isp, ai)`
+which already took it. Ion sticking is left at 1.0, which is also Cloudy's
+value - only the electron term differed.
+
+The exponential is 0.5 to four figures over the 0.01-0.30 um distribution this
+fixture uses. It is written out rather than folded to a constant so that a
+PAH-sized bin, if one is ever added, gets the right value instead of a
+silently wrong one.
+
+### The prediction
+
+Halving the electron collection rate raises the equilibrium grain potential,
+which is the same as doubling the effective charging parameter. MOCASSIN's own
+measured efficiency-against-psi curve (D-325, `runs/d316-hiipdr`) is
+
+    psi        1.438e6   5.866e5   2.122e5   5.333e4   1.271e4
+    PE/G0      1.74e-27  3.05e-27  3.90e-27  3.01e-27  1.16e-27
+    A_V           0.73      0.97      1.27      1.68      2.21
+
+It **peaks near psi = 2e5**. Doubling psi moves every depth to the right along
+that curve, so the effect changes sign across the peak:
+
+  - **Behind the front** (A_V 0.73-1.27, psi above the peak) the efficiency
+    falls. PE should drop by roughly 20-40%, and the gas should cool toward
+    Cloudy from its present 72 and 62 K against 48 and 49.
+  - **Deep** (A_V 2.21, psi below the peak) doubling psi moves back *toward*
+    the peak and the efficiency **rises**, perhaps by a factor ~2. The gas
+    should warm toward Cloudy from 19.3 K against 24.1.
+
+So the prediction is not "everything cools". It is that **the profile rotates
+about A_V ~ 1.3**: too-warm becomes cooler, too-cold becomes warmer, and the
+crossover flattens or disappears. That is a sharper test than a level shift,
+because a simple normalisation error could not produce it.
+
+Second-order, and expected to blunt this: cooler gas behind the front lowers
+sqrt(T), which lowers psi again and partly undoes the move. The effect should
+therefore come out smaller than the curve above suggests.
+
+### What would falsify it
+
+  - The whole profile moving one way, which would mean the sticking is acting
+    as a normalisation and the psi picture is wrong.
+  - The ionization front, the H/H2 crossing or the deep carbon moving. None of
+    them should: this touches the grain charge balance only, and D-320 showed
+    those are set by the Lyman continuum, the geometry and the cosmic-ray rate.
+  - Dust temperature moving. Grain charge does not enter the grain's radiative
+    equilibrium.
+
+### Status
+
+Four flavours build. `runs/d326-stick` launching at 31^3, 22 iterations, the
+same fixture and settings as `runs/d316-hiipdr`, so the two are comparable
+run-to-run. Result in the next entry.
