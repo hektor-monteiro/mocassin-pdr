@@ -76,6 +76,13 @@ program MoCaSSiNplot
 
     ! reset the 3D cartesian grid
 #ifdef PDR
+    ! D-317: read the input first. Without it lgPDR stays at its module
+    ! default of .false., initPDRnetwork below never runs, and resetGrid
+    ! skips every PDR allocation - so this tool would emit output with the
+    ! PDR state silently absent. Same defect as mocassinWarm had; resetGrid's
+    ! module-level allocations are guarded against the overlap.
+    call readInput()
+
     ! network before resetGrid: it sizes pdrAbun (D-022)
     if (lgPDR) call initPDRnetwork()
     if (lgPDR) call initPDRcoolTab()          ! D-215

@@ -189,6 +189,13 @@ cells, the same 50 PDR cells, the chemistry continuing rather than re-seeding,
 test that would license production use: resume-and-converge compared against
 running cold to convergence.
 
+**L-20. `mocassinPlot` and `mocassinOutput` are fixed but unrun.** Both had
+the D-317 defect - `lgPDR` consumed before anything set it, so `resetGrid`
+skipped every PDR allocation and the tools would have emitted output with the
+PDR state silently absent. `readInput()` is now called in both and both
+compile, but neither has been run against a grid, so the fix is verified only
+to the extent that D-317's was before it was exercised (D-318).
+
 **L-15.** `getQs` caps the Mie size parameter at 100, which for a 0.25 um
 grain bites above 5.8 Ryd against a `nuMax` of 30. Affects EUV/X-ray dust
 absorption only, and is undocumented in the input (D-305).
