@@ -811,10 +811,11 @@ module xSec_mod
 
         integer :: envStat                 ! D-289
         character(len=32) :: yieldEnv      ! D-289
-        ! D-310: orientation averaging of a single material's principal axes
-        logical :: lgOrient
+        ! D-310/D-311: orientation averaging of one material's principal axes
+        logical :: lgOrient, lgAxesComp
         integer :: gRef, gThis
         real    :: wSum, avA, avS, avG
+        character(len=32) :: axisWord
         real :: normWeight ! normalization constant for grain size weighting
         real :: readReal     ! real number reader
         real :: value ! general value variable
@@ -1096,8 +1097,33 @@ module xSec_mod
               stop
            end if
 
-           ! Read how many species are used
-           read (10, *) nSpeciesPart(icomp)
+           ! Read how many species are used. D-311: the count may carry the
+           ! word `axes`, declaring that the entries below are the principal
+           ! axes of ONE anisotropic material rather than distinct species -
+           ! see the averaging block after the species loop. Declared, never
+           ! inferred: D-310 tried to infer it from matching density, work
+           ! function, surface-atom mass and sublimation temperature, and
+           ! dustData shows that is unsafe - amC-zb1/zb2/zb3 are three
+           ! different amorphous carbons with byte-identical constants, as are
+           ! crSil and astroSilD2003. Merging those would be exactly the error
+           ! this is meant to avoid.
+           read (10, '(A)', iostat=ios) speciesLine
+           if (ios /= 0) then
+              print*, "! makeDustXsec: cannot read the species count from ", &
+                   & dustSpeciesFile(icomp)
+              stop
+           end if
+           read (speciesLine, *, iostat=ios) nSpeciesPart(icomp), axisWord
+           if (ios /= 0) then
+              axisWord = ''
+              read (speciesLine, *, iostat=ios) nSpeciesPart(icomp)
+              if (ios /= 0) then
+                 print*, "! makeDustXsec: cannot parse the species count; &
+                      &expected <n> [axes], got: ", trim(speciesLine)
+                 stop
+              end if
+           end if
+           lgAxesComp = (trim(axisWord) == 'axes' .or. trim(axisWord) == 'AXES')
 
            do nSpec = 1, nSpeciesPart(icomp)
               
@@ -1460,36 +1486,56 @@ module xSec_mod
            ! the grains that actually scatter - which is also what Cloudy's
            ! a1g does.
            !
-           ! Whether the entries ARE axes of one material is asked of the data,
-           ! not of a keyword: identical density, work function, surface-atom
-           ! mass, sublimation temperature and size range. Silicate plus
-           ! graphite differ in all of them and stay separate species, which is
-           ! correct - they are genuinely two materials at two temperatures.
-           lgOrient = .false.
-           if (nSpeciesPart(icomp) > 1) then
-              lgOrient = .true.
+           ! D-311: this applies ONLY where the species file declares `axes`.
+           ! Distinct species keep distinct temperatures, always - silicate and
+           ! graphite in the same nebula really do sit at different
+           ! temperatures, and so do two different amorphous carbons. An
+           ! earlier version inferred "one material" from matching density,
+           ! work function, surface-atom mass and sublimation temperature, and
+           ! that is unsafe: dustData/amC-zb1, -zb2 and -zb3 are three
+           ! different Zubko carbons with byte-identical constants, as are
+           ! crSil and astroSilD2003. Inferring would have merged genuinely
+           ! distinct species onto one temperature - the very error this is
+           ! meant to prevent. It is declared in the data or it does not happen.
+           lgOrient = lgAxesComp .and. nSpeciesPart(icomp) > 1
+           if (lgAxesComp .and. nSpeciesPart(icomp) <= 1) then
+              print*, "! makeDustXsec: `axes` declared for component", icomp, &
+                   & "but it has only", nSpeciesPart(icomp), "entry - ignored."
+           end if
+
+           ! Declared is not the same as true: an orientation average is only
+           ! meaningful for entries that really are one material over one size
+           ! range. Refuse rather than average something incoherent.
+           if (lgOrient) then
               gRef = dustComPoint(icomp)
               do nSpec = 2, nSpeciesPart(icomp)
                  gThis = dustComPoint(icomp)-1+nSpec
-                 if (rho(gThis)           /= rho(gRef)           .or. &
-                   & grainVn(gThis)       /= grainVn(gRef)       .or. &
-                   & MsurfAtom(gThis)     /= MsurfAtom(gRef)     .or. &
-                   & TdustSublime(gThis)  /= TdustSublime(gRef)  .or. &
+                 if (rho(gThis)          /= rho(gRef)          .or. &
+                   & grainVn(gThis)      /= grainVn(gRef)      .or. &
+                   & MsurfAtom(gThis)    /= MsurfAtom(gRef)    .or. &
+                   & TdustSublime(gThis) /= TdustSublime(gRef) .or. &
                    & componentMinRadius(icomp,nSpec) /= componentMinRadius(icomp,1) .or. &
-                   & componentMaxRadius(icomp,nSpec) /= componentMaxRadius(icomp,1)) &
-                   & lgOrient = .false.
+                   & componentMaxRadius(icomp,nSpec) /= componentMaxRadius(icomp,1)) then
+                    print*, "! makeDustXsec: component", icomp, "declares `axes`, &
+                         &but entry", nSpec, "differs from entry 1 in density, &
+                         &work function, surface-atom mass, sublimation &
+                         &temperature or size range."
+                    print*, "! makeDustXsec: those are not axes of one material. &
+                         &Remove `axes` if they are distinct species."
+                    stop
+                 end if
               end do
            end if
 
            if (lgOrient) then
               if (taskid == 0) then
-                 print*, "! makeDustXsec: component", icomp, "has", &
-                      & nSpeciesPart(icomp), "entries with identical material &
-                      &constants and size range."
-                 print*, "! makeDustXsec: treating them as principal axes of ONE &
-                      &grain - averaging the cross"
-                 print*, "! makeDustXsec: sections with the listed weights, so &
-                      &the material has ONE temperature (D-310)."
+                 print*, "! makeDustXsec: component", icomp, "declares its", &
+                      & nSpeciesPart(icomp), "entries to be principal AXES of one &
+                      &material."
+                 print*, "! makeDustXsec: averaging their cross sections with the &
+                      &listed weights, so the"
+                 print*, "! makeDustXsec: material has ONE temperature (D-310). &
+                      &Distinct species keep their own."
               end if
               do ai = 1, nSizes
                  do i = 1, nbins

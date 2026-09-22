@@ -310,6 +310,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-308 | **Plan for cornering D-307's dust-temperature factor, and the deduction that narrows it.** D-307 established that MOCASSIN's dust is hotter than its own radiation field can make it - even with ALL the bolometric flux placed at the C_abs peak, a 0.05 um grain absorbs 0.44-0.88 of what it must radiate at the reported temperature - and could not localise the factor. **The narrowing deduction: a constant multiplicative error in C_abs CANNOT be the cause.** The balance is `sum C_abs Jste/Pi = 4 integral C_abs B dnu`, and `getDustT` and `dustEmissionInt` read the same `xSecArray` entries, so a common scale factor appears on both sides and cancels exactly - the temperature would not move. The cause must therefore be either **one-sided** (the `*4`/`hPlanck`/`fr1Ryd`/`widFlx` chain on the emission side, or the `/Pi` and the Jste scaling on the absorption side) or a **frequency-SHAPE** error in C_abs. That removes a whole class of candidates without a single run. **The test, deliberately small:** a one-shot diagnostic printing `dustEmIntegral` for a few (size, temperature) pairs from `dustEmissionInt`, and `dustAbsIntegral` with its `radField` sum for one named cell from `getDustT`, run on a few-cell single-iteration fixture rather than the 41^3 production grid - the factor is size- and depth-independent (D-306), so it must appear identically in a tiny model, and nothing about a 2-hour run helps find it. Both integrals are then computed independently in Python from the validated D-305 Mie and the same size distribution and compared number to number, which splits the factor to one side of the balance in one short run; if it lands on the emission side the table is small enough to bisect term by term. The bound in D-307 used only MOCASSIN's own numbers, so it must reproduce inside the code - if it does not, the error is in the reading and the probe shows that too. **Sequencing decided: find it, fix it, re-measure the dust against Cloudy, and only THEN rebuild the artifacts.** The `150 kK PN Against Cloudy` page is currently built on `runs/d302-trim-off`, the energy-losing configuration (D-306), and `hiipdr Against Cloudy` predates the line-transport result entirely; rebuilding either before the dust temperatures are trusted would bake in numbers that may be ~25% wrong. **Explicitly NOT doing yet:** any production-size run | Open | 2026-09-22 |
 | D-309 | **D-307's "MOCASSIN's dust is hotter than its own field can make it" is WITHDRAWN - it was my analysis error - and the probe built to chase it found the real cause: MOCASSIN averages the two graphite orientations' TEMPERATURES where Draine averages their CROSS SECTIONS. Correcting it closes O-02's dust half outright, 1.26-1.30 of Cloudy becoming 0.93-0.95.** The D-308 probe (`MOCASSIN_DUSTPROBE=on`, opt-in and inert otherwise, run on a 5^3 single-iteration fixture in seconds as planned) shows MOCASSIN's internals are **exact**: `dustEmIntegral` matches an independent 4 integral C_abs B_nu(T) dnu to **1.000** at every (species, size, temperature) tested across 0.005-0.199 um and 20-60 K, `sum(radField)` is `sum(Jste)/Pi` to five figures, and re-solving the balance independently reproduces MOCASSIN's own per-species temperatures to **0.9998 and 0.9988**. Nothing is wrong with the solve. **My error in D-307:** I computed the emitted power of a MIXTURE grain at the MEAN reported temperature. There is no mixture grain. `dust_species.dat` carries grph2-dl (E perp c, 0.6667) and grph1-dl (E par c, 0.3333) as two SPECIES, MOCASSIN solves a separate equilibrium temperature for each, and `Tdust(0,0)` is their abundance-weighted **arithmetic mean of temperatures** - not the temperature of anything. The probe shows the two differ by a factor two in one cell at one size: **44.79 K and 22.45 K**, because the two orientations differ enormously in far-IR emissivity. Averaging temperatures is not the temperature of the average when T goes as absorbed^(1/5.8). **The real defect, and it is in the model setup rather than the code:** grph1 and grph2 are not two materials, they are two polarisation directions of ONE material, and the 1/3-2/3 weights are Draine's orientation average for a randomly-oriented grain - which applies to the CROSS SECTIONS of a single grain, then one temperature. Cloudy's graphite does exactly that. For the probe cell: mean-of-temperatures 37.35 K against temperature-of-averaged-grain **26.76 K, a ratio of 1.396**. **Quantified across the production model** by recovering each cell's absorbed energy from the species-1 balance it already satisfies and re-solving for the averaged cross section (`tools/d309_tavg.py`, no new run): reported/Cloudy 1.289/1.304/1.272/1.256 at A_V 0.20/0.30/0.50/0.65 becomes corrected/Cloudy **0.951/0.952/0.931/0.929**. **So the entire D-283 dust-temperature excess was this artifact**, the corrected dust runs 5-7% COOLER than Cloudy's, which is the level its slightly different field would predict, and O-02's dust half is closed. Note the **opacity is unaffected** - `dustAbsXsecP(0,1)` is the cross-section-weighted mixture, so extinction, A_V and the FUV field were always right; only the reported temperature, which is solved per species and averaged after, is affected. Also retired: D-306's "trapped infrared" lead and D-307's search for a missing factor of ~3.5 - there is no missing factor. **Fix not yet applied:** the clean route is one species carrying orientation-averaged optical properties, for which `dustData/Car_90.cat` (Draine's tabulated graphite Q, already in the repo and already supported by the 'Q' file path) is the obvious candidate - though D-305 measured that its small-a entries are PAH physics rather than bulk graphite, which would change the 0.005 um bin at the same time | Open | 2026-09-22 |
 | D-310 | **The fix for D-309: the principal axes of one material are averaged as CROSS SECTIONS and carry ONE temperature - verified against Cloudy's own implementation rather than argued from a paper.** Asked whether Cloudy's n,k file could simply be adopted. **Checked, and the answer settled the design question.** `cloudy-c25.00/data/graphite.rfi` carries **two axes with weights `1 2`** - the same E par c / E perp c pair MOCASSIN has - so there is no single orientation-averaged n,k to grab in either code, and a drop-in was never available. But `grains_mie.cpp:565` shows exactly what Cloudy does with them: `for(cAxis...) { mie_cs_size_distr(...); acs_abs += cs_abs*wt[cAxis]; acs_sct += cs_sct*wt[cAxis]; a1g += cs_sct*(1.-cosb)*wt[cAxis]; }` - **Mie run per axis and the CROSS SECTIONS summed with the axis weights, giving one opacity and therefore one temperature.** So the in-code average is not merely the defensible reading of Draine's 1/3-2/3 rule, it is what the reference computes. (Cloudy's `a1g` is also scattering-cross-section weighted, which is independently the D-280 fix MOCASSIN already made.) Worth recording that the two codes' graphite is **not the same data** - Cloudy's is Martin & Rouleau 1991 at rho 2.26 and T_sub 1750 K, MOCASSIN's is Draine & Lee at 2.2 and 2200 K - yet D-305 measured their opacities agreeing to 0.4% on N_H/A_V, so the sources differ and the answers do not. **Also established: the Q-file route is blocked.** `setGrainYield` is called only in the `'nk'` branch of `makeDustXsec` (ph_mod.f90:1253), so a 'Q' species gets `grainYield = 0` and loses its photoelectric heating outright - `Car_90.cat` could not have been used without first extending that branch, and the WD01 yield needs Im(m), which a Q file does not carry. **Implementation:** after the species loop in `makeDustXsec`, while `Cabs`/`Csca` still hold Q (pi a^2 is applied below, so averaging them IS averaging cross sections), the entries of a component are averaged with their listed weights and written back to every entry, so each sees identical optics and the arithmetic mean over species becomes the correct single temperature - no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables, which is why this shape was chosen over collapsing the arrays. `gCos` is weighted by `Csca` per D-280. **Whether the entries ARE axes of one material is asked of the data, not of a keyword** - identical density, work function, surface-atom mass, sublimation temperature and size range - so silicate plus graphite differ in all of them and correctly stay two species at two temperatures. **Verified on the D-308 fixture in seconds:** both entries now report **26.8480 K** where they previously gave 44.79 and 22.45, and D-309's independent prediction for the averaged-Q grain in that same cell was **26.76 K** - agreement to 0.3%. All four flavours build. Production run `runs/d310-orient` launched to re-measure the dust against Cloudy; D-309 predicts the reported/Cloudy ratio moving from 1.26-1.30 to about 0.93-0.95 | Open | 2026-09-22 |
+| D-311 | **D-310's detection test was unsound and is replaced: whether two entries are the principal axes of one material is now DECLARED in the data, never inferred. Prompted by the user's objection that distinct species must not share a temperature - which was right.** D-310 decided "these are axes of one material" by inferring it from matching density, work function, surface-atom mass, sublimation temperature and size range. `dustData/` shows that inference is unsafe: **`amC-zb1.nk`, `amC-zb2.nk` and `amC-zb3.nk` are three different Zubko amorphous carbons carrying byte-identical constants** (`2200. 1.85 0.323 12.004`), and `crSil.nk` and `astroSilD2003.nk` are two different silicates likewise (`1400. 3.6 0.588 20.077`). A component listing two of those would have had them silently merged onto one temperature - precisely the error the change was meant to prevent, and precisely the objection raised. **The replacement:** the species-count line of `dust_species.dat` may carry the word `axes` (`2 axes`), declaring that the entries below are principal axes of one anisotropic material rather than distinct species; without it nothing is averaged and every entry keeps its own temperature, which is the pre-D-310 behaviour and is correct for real mixtures. This mirrors Cloudy's own `.rfi` convention, which states the axis count and weights explicitly rather than inferring them. A bare integer still parses, so every existing species file is unaffected. **A declaration can also be wrong, so it is validated rather than trusted:** if `axes` is declared but any entry differs from the first in density, work function, surface-atom mass, sublimation temperature or size range, the run STOPS and says they are not axes of one material. Only `benchmarks/pdr/pn150k` and the 150 kK model declare it; `benchmarks/test_Problem` (astro-silicate 0.98 plus PAH 0.02, different size ranges) and every single-species fixture are untouched and keep separate temperatures per species, which is physically required - silicate and graphite in one nebula genuinely sit at different temperatures. **Mechanically the averaging is unchanged from D-310** and still sits in `makeDustXsec` after the species loop, where `Cabs`/`Csca` hold Q before `pi a^2` is applied, so averaging them is averaging cross sections exactly as `grains_mie.cpp` does; the average is written back into every entry so each solves the same temperature and the existing abundance-weighted mean becomes that one temperature, with no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables. **Two self-inflicted build breaks recorded because both are avoidable:** editing `ph_mod.f90` while a `make` was running clobbered that build, and a Python-to-Fortran string replacement emitted `their own.""` for the closing quote, giving "Unterminated character constant". Both caught by the four-flavour rule before anything ran | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24368,3 +24369,100 @@ that same cell predicted **26.76 K** - 0.3%.
 All four flavours build. `runs/d310-orient` is running the production model to
 re-measure against Cloudy. D-309 predicts reported/Cloudy moving from
 1.26-1.30 to about 0.93-0.95.
+
+## D-311 - declared, not inferred (2026-09-22)
+
+D-310 made the principal axes of graphite share one temperature, which is
+right. It decided *which* entries were axes by inference, which is not.
+
+The objection that prompted this: distinct species must not be given one
+temperature. Correct, and the inference could have done exactly that.
+
+### Why the inference was unsafe
+
+D-310 treated a component's entries as axes of one material when they shared
+density, work function, surface-atom mass, sublimation temperature and size
+range. Checking `dustData/`:
+
+    grph1-dl.nk        grph1-dl    2200. 2.2  0.323 12.004
+    grph2-dl.nk        gr2_dl_hgk  2200. 2.2  0.323 12.004   <- genuinely axes
+    amC-zb1.nk         CamC-zb1    2200. 1.85 0.323 12.004
+    amC-zb2.nk         CamC-zb1    2200. 1.85 0.323 12.004   <- NOT axes
+    amC-zb3.nk         CamC-zb1    2200. 1.85 0.323 12.004   <- NOT axes
+    crSil.nk           ScrSil      1400. 3.6  0.588 20.077
+    astroSilD2003.nk   Ssil_dl     1400. 3.6  0.588 20.077   <- NOT axes
+
+The three Zubko amorphous carbons are three different laboratory samples with
+different optical constants and byte-identical header constants. So are the
+two silicates. A model listing `amC-zb1` and `amC-zb2` together would have had
+them averaged into one grain at one temperature, silently, with nothing in the
+output to say so.
+
+That is the same class of mistake as the one being fixed - deciding two things
+are one material without being told - and it would have been harder to find,
+because unlike the graphite case there would have been no reference
+disagreement pointing at it.
+
+### The replacement
+
+The species-count line may now carry the word `axes`:
+
+    2 axes
+    'dustData/grph2-dl.nk' 0.6667 0.005 0.25
+    'dustData/grph1-dl.nk' 0.3333 0.005 0.25
+
+Without it, nothing is averaged and every entry keeps its own temperature -
+the pre-D-310 behaviour, correct for real mixtures. A bare integer still
+parses, so no existing species file changes meaning.
+
+This is how Cloudy states it too. `graphite.rfi` carries
+
+    2        # number of principal axes
+    1 2      # relative weights of axes
+
+declared, not deduced from the material constants that sit in the same file.
+
+### Declared is not the same as true
+
+A declaration can be wrong, so it is checked. If `axes` is declared and any
+entry differs from the first in density, work function, surface-atom mass,
+sublimation temperature or size range, the run stops:
+
+    ! makeDustXsec: component 1 declares `axes`, but entry 2 differs from
+    ! entry 1 in density, work function, surface-atom mass, sublimation
+    ! temperature or size range.
+    ! makeDustXsec: those are not axes of one material. Remove `axes` if they
+    ! are distinct species.
+
+The same test that was wrong as an inference is right as a validation: it
+cannot prove entries are axes, but it can refuse ones that certainly are not.
+
+### What declares it
+
+Only `benchmarks/pdr/pn150k` and the 150 kK model. `benchmarks/test_Problem`
+(astronomical silicate 0.98 plus PAH 0.02, over different size ranges) and
+every single-species fixture are untouched, and keep a temperature per
+species. That is not a concession - it is required. Silicate and graphite in
+the same nebula really do sit at different temperatures, and so do two
+different amorphous carbons.
+
+### The averaging itself is unchanged
+
+Still in `makeDustXsec` immediately after the species loop, where `Cabs` and
+`Csca` still hold Q because `pi a^2` is applied further down - so averaging
+them is averaging cross sections, which is what `grains_mie.cpp` does per
+axis. `gCos` is weighted by `Csca` per D-280. The average is written back into
+every entry rather than collapsing the arrays, so each entry solves the same
+temperature and the abundance-weighted mean MOCASSIN already takes becomes
+that single temperature, with no re-indexing of `nSpecies`, `dustComPoint`,
+`grainAbun`, `grainLabel`, `rho`, `TdustSublime`, `grainVn`, `MsurfAtom`,
+`grainYield` or `grainCarb`.
+
+### Two self-inflicted build breaks, recorded because both were avoidable
+
+Editing `ph_mod.f90` while a `make` was running clobbered that build - the
+compiler read a half-written file. And a Python-to-Fortran string replacement
+emitted `their own.""` for a closing quote, giving "Unterminated character
+constant beginning at (1)". Neither reached a run, because the four-flavour
+rule catches exactly this, but both cost a build cycle. Do not edit sources
+under a running build, and check generated Fortran string literals.
