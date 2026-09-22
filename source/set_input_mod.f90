@@ -25,6 +25,9 @@ module set_input_mod
         integer             :: iDumChemRates    ! D-196: ionChemRates as 0/1
         integer             :: maxLim = 1000    ! max limit for reading loop
 
+        integer             :: lineStat         ! D-307: MOCASSIN_LINES status
+        character(len=50)   :: lineEnv          ! D-307: MOCASSIN_LINES value
+
         character(len=50)   :: cValue           ! character value corresponding to keyword
         character(len=50)   :: in_file          ! input file
         character(len=50)   :: keyword          ! input parameter keyword
@@ -1112,6 +1115,24 @@ module set_input_mod
                 &therefore an user density file of the type x,y,z,den,abIndex must also &
                 &be specified."
            stop
+        end if
+
+        ! D-307: the optically thin diffuse lines are transported by default
+        ! - discarding them deletes energy rather than letting it escape, and
+        ! costs the PDR about 60% of its bolometric flux (D-306). The override
+        ! can only switch it OFF, and exists so the A/B stays runnable. Read
+        ! here because readInput always runs; makeDustXsec, where it used to
+        ! live, does not run for a dust-free model.
+        call get_environment_variable("MOCASSIN_LINES", lineEnv, status=lineStat)
+        if (lineStat == 0 .and. (trim(lineEnv) == "off" .or. &
+             & trim(lineEnv) == "discard")) then
+           lgLineTransfer = .false.
+           if (taskid == 0) print*, "! readInput: DISCARDING the optically thin &
+                &diffuse lines - this does not conserve energy (D-306)"
+        else
+           lgLineTransfer = .true.
+           if (taskid == 0) print*, "! readInput: transporting the optically thin &
+                &diffuse lines (D-292, default since D-307)"
         end if
 
         ! D-270: fatal only for dust models, so outside the chain - as a

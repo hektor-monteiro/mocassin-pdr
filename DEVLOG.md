@@ -306,6 +306,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-304 | **O-02's temperature half decomposed, and it is not what D-301 concluded: the cooling side is exonerated, the photoelectric EFFICIENCY is exonerated, and most of the remaining gap is the reference inflating itself with its own Lya artifact.** No new runs - `tools/d304_budget.py` reads MOCASSIN's `thermBudget.out`/`pdrCoolSp.out`/`pdrFUV.out` and Cloudy's `.heat`/`.cool`/`.gheat`/`.gpot`/`.ele_C` against each other in matched A_V bins. **Four things established, in order.** (1) **The comparison is sound:** MOCASSIN's balance is converged to (H-C)/H = 7e-4..7e-3 everywhere, the budget is recorded within 0.8% of the cell's kept T_e (median, p95 4.1%), and D-288's grain diagnostic reconstructs MOCASSIN's own PE heating as Nabs/H x <Y> x <E> to a factor **1.00**. (2) **Both codes run the SAME two-term thermostat in the deep PDR** - Cloudy at A_V 0.65 is 94% GrnP heating against 98% [C II] cooling; MOCASSIN is 84% PE heating, and its coolant split is 99% C+ - with x(C+) matching to **1.001-1.006** on identical C/H of 2.690e-4. So the cooling function is the same physics with the same carrier at the same abundance. (3) **The [C II] thermostat relation is VERIFIED inside MOCASSIN alone**, with no Cloudy in it: across the `MOCASSIN_LINES` on/off pair, exp(-91.2/T) tracks the heating ratio to **pred/meas = 0.986-1.014** at A_V 0.30-0.65. **T is set by heating, and the cooling side is not at fault** - which retires the "excess cooling" branch of D-301's open question outright. (4) **The photoelectric efficiency agrees:** PE per H per unit G0, MOCASSIN/Cloudy = **0.66-1.10** over A_V 0.20-0.65, no trend. This is exactly what D-287 was built to ask and could not answer while the fields disagreed by 2x. **O-02 is not a yield or charging defect.** **What was wrong in D-301:** it read "74% more field bought 7% more temperature" as evidence the temperature is not a field problem. The weak response is exactly what the thermostat predicts - exp(-91.2/T) is steep, and PE heating is SUBLINEAR in the field because a stronger field charges the grains more positively and cuts the yield. That exponent is now measured rather than assumed: **d ln(PE)/d ln(G0) = 0.42** from the on/off pair (G0 x1.68 gives heating x1.22-1.26), confirmed by the potentials - MOCASSIN's grains sit at 0.04-0.46 V against Cloudy's 0.37-1.58 V, less charged because its field is lower. **The consequence for the reference is the main result.** Cloudy's Lya artifact is 0.461 of its 6-13.6 eV field (D-298), and it inflates not only the field but the GrnP heating computed FROM that field, and therefore Cloudy's temperature. At the measured exponent the corrected heating is (1-0.461)^0.42 = 0.771 of Cloudy's, and the corrected T follows from the same verified thermostat: **T_m/T_c goes from 0.879/0.865/0.756/0.671/0.707 to 1.338/1.034/0.884/0.772/0.783 at A_V 0.20/0.30/0.40/0.50/0.65.** So the gap is 1.0-1.3x, not the ~1.8x D-301 quoted from a PDR-wide mean (a poor statistic - the two codes weight depths differently), and at A_V 0.20-0.30 MOCASSIN now sits AT or ABOVE the corrected reference. The residual is a mild depth trend, warm at the front and ~20% cool at A_V 0.5-0.65, tracking the residual field difference (G0 corrected 0.89-0.95 over the same span). **The one assumption left, and how to kill it:** the correction transfers MOCASSIN's charging exponent to Cloudy. A Cloudy run with its FUV field cut by the Lya fraction would measure Cloudy's own response and remove the transfer - cheap, single-threaded, and the obvious next step. **Also found, and documented rather than changed:** `thermBudget.out`'s `coll` and `PDR` cooling columns are raw-plus-net bookkeeping, not channels - `update_mod.f90` does `coolInt = coolInt - mocCool` without touching `coolColl`, so `coll` still carries the [C II]/[O I] it is about to hand over and `PDR` is the net of added-minus-removed. The total is right and nothing is double counted, but the columns cannot be read as physical channels, and the per-coolant table is what shows MOCASSIN cooling by [C II] | Open | 2026-09-22 |
 | D-305 | **Audit of the dust treatment. The optics are sound and better than expected - the Mie path reproduces Draine's own tables to 0.1-1%, and MOCASSIN and Cloudy agree on N_H/A_V to 0.4%, which retroactively validates every depth-matched comparison in this project. Four real gaps found, one of them with a measured disagreement already waiting for it.** Prompted by D-304 leaving O-02 as a residual FUV attenuation difference, i.e. a dust opacity question. Read `dust_mod.f90`, `ph_mod.f90`'s `makeDustXsec`/`getQs`/`BHmie`/`setGrainYield`, the `update_mod.f90` photoelectric and gas-grain terms, and `pdr_mod.f90`'s A_V integration; checked numerically against `dustData/Car_90.cat` (Draine's tabulated Q) with an independent BHmie. **VALIDATED, no action:** (1) the Mie-from-nk path reproduces Draine's Q to **0.1-1% at a = 0.05 and 0.25 um** across 0.09-100 um - the optical chain is correct; (2) the `.nk` tables cover **0.001-1000 um in full**, so `linearMap`'s end-clamping never bites (I first mis-read the range from a truncated shell listing and the numerical check corrected it); (3) `BHmie`'s fixed `d(3000)` is safe - max |m|x over the whole grid is **100.2**, so nmx ~ 115; (4) the size distribution is MRN to the digit (fitted exponent **-3.50**), 35 log bins, and the `da` end-bins are the symmetric midpoint convention, not the double-count they look like; (5) A_V is integrated from MOCASSIN's OWN V-band opacity including scattering, which satisfies the project rule and is not a geometric stand-in; (6) **N_H/A_V is 2.7515e21 in MOCASSIN against 2.7401e21 in Cloudy - 0.4%** - so "matched A_V" really is matched N_H and every depth-matched number this project has published rests on a common axis; (7) the dust mass per H matches Cloudy to **0.7%** (MdMg 2.4827e-3 against Cloudy's carbonaceous 10^-2.476), so that constant is calibrated, not arbitrary; (8) the WD01 (2001) photoelectric yield is the default and was used (D-289); (9) sublimation is enforced. **GAPS, in order of how much they are likely to matter here:** (a) **stochastic heating is off** (`lgQheat` false, no keyword in `input.in`) although the machinery exists - for 0.005 um grains in a PDR the equilibrium-temperature assumption is wrong, and **D-283's standing 7-25% dust-temperature excess over Cloudy is exactly where it would show**, so this is the one gap with a measured disagreement already waiting for it; (b) **no PAH component** though `PAHneu_30.cat` sits in `dustData/` - PAHs are the dominant photoelectric heating agent in real PDRs, though Cloudy's run has PAHs off too so it is common-mode; (c) **bulk-graphite optics are used for the 0.005 um bin**, where Draine's own table is PAH/band physics - measured deviation is 0.38-0.89x in the FUV and **10-32x in the far-IR**, but that bin carries only **3.2% of the FUV absorption** despite being 26% of the grains by number, so the FUV impact is small and the far-IR impact is not; (d) **the gas-grain collisional term omits H2** - it loops `elem = 1, nElements` x ionisation stage, so neutral H is in and H2, 94% of this gas, is not. Measured: MOCASSIN's gasDust term is **68x smaller than Cloudy's dust cooling** at A_V 0.65 (4.9e-5 of its budget against Cloudy's 1.3e-3). Negligible at n_H = 1e3, decisive at high density where gas-grain coupling sets T. **Also, shared with Cloudy and unphysical in both:** the gas phase is NOT depleted for what is locked in grains - MOCASSIN carries C/H = 2.690e-4 in the gas plus 2.92e-4 in graphite, and Cloudy reports the identical arrangement ("Depletion/Grains-1: -100.00%", grain C = 10^-3.5553), so the models hold **~2x solar carbon**. Common-mode, so no comparison is affected, but it is a "one reality per quantity" violation in both codes. **And the extinction curve is not a Milky Way curve:** graphite-only MRN gives R_V = **4.57** against 3.1 and A(1000A)/A_V = **3.32** against 2.6-2.8, with N_H/A_V 47% above the ISM's 1.87e21 - all deliberate, all shared with Cloudy, but worth stating plainly. **Code-level, low risk:** `dustDriver` allreduces into temporaries and copies back, 2 x 165 MB per rank that `MPI_IN_PLACE` removes (the D-296 fix again); `getQs` caps the size parameter at 100, which for a = 0.25 um bites above 5.8 Ryd against a nuMax of 30; `1.3333` stands in for 4/3 in the grain-mass denominator; `photFlux = photFLux` is a dead no-op in the photoelectric loop | Open | 2026-09-22 |
 | D-306 | **The stochastic-heating hypothesis of D-305 is REFUTED, cheaply and before the run finished - and the diagnostic that killed it found something bigger: the published dust comparison rests on the energy-LOSING configuration.** D-305 recommended turning on quantum heating to explain D-283's 7-25% dust-temperature excess over Cloudy. The run was launched (`runs/d305-qheat-on`, minaQHeat 0.01 um covering 7 of 35 bins and 86.8% of grains by number, minConvQHeat 0 so it engages from iteration 2) and **stopped after one iteration**, because a free diagnostic settled the question first. `tools/d305_tdust.py` parses `dustGrid.out` - which holds Tdust(species, size, cell) for all 68921 cells, 109 tokens each - and compares MOCASSIN's temperature SIZE BY SIZE against Cloudy's ten bins. **The excess is uniform across all 35 grain sizes: 1.22-1.33 from 0.005 um to 0.22 um, at every depth.** Quantum heating is gated on `grainRadius < minaQHeat` and cannot touch a 0.22 um grain, which shows the same excess as a 0.005 um one, so it cannot be the cause - and neither can the small-grain optics difference D-305 measured (0.38-0.89x in the FUV, 10-32x in the far-IR), which is equally confined to the small end. **Three hypotheses dead for the price of parsing a file already on disk.** Also checked and cleared: the temperature solve's normalisation, where `radField = Jste/Pi` in `update_mod.f90` combines with the `*hPlanck*4.` in `dust_mod.f90`'s `dustEmIntegral` to give exactly the right radiative-equilibrium condition, integral C_abs J dnu = integral C_abs B dnu - the 1/Pi and the 4-against-4Pi cancel, so there is no missing factor despite a uniform offset being exactly that signature. And the size-weighting, where D-305's suspicion was half right: `tools/d260_roellig.py` did assume Cloudy's grains span **0.010-0.300 um when they span 0.005-0.25**, which Cloudy's own output pins down without guessing (per-bin dust-to-gas mass ratios in geometric progression at 1.21604, and for MRN in log bins mass goes as a^0.5, so that ratio IS (amax/amin)^0.05 = 50.00). Fixed - but it moves the number-weighted mean by **0.1%**, because both weightings put most grains in the first bin and the small bins are nearly isothermal, so it explains nothing. **What the diagnostic found instead.** Comparing the lines-on and lines-off runs' bolometric flux against the undimmed stellar value: **1.215 with line transport on, 0.384 with it off, at A_V 0.30.** That factor 3.2 is not a field difference, it is energy that does not exist - the discarded line photons of D-292 were deleted outright, so the lines-OFF model loses ~60% of the bolometric flux in the PDR and is **not energy conserving**. D-303 rebuilt the artifact page on `runs/d302-trim-off`, so the published "MOCASSIN's dust is 7-25% warmer" is measured on that configuration. On the energy-conserving lines-on run the dust is **hotter and the disagreement is worse**: 46.67 K against Cloudy's 35.80 K at A_V 0.30, a ratio of **1.30** where the page reports 41.3/35.8 = 1.15. D-293's standing prediction - that adding field energy would worsen the dust-temperature disagreement - is confirmed in substance by a mechanism it did not name. **Where O-02's dust half now points:** a size-independent factor ~2.9 in absorbed energy (T ratio 1.28 with beta = 0.77 measured from Draine's Q between 10 and 100 um, so 4+beta = 4.77). MOCASSIN's bolometric field at A_V 0.30 is 1.215x the UNATTENUATED stellar flux, i.e. the diffuse field more than compensates the extinction, which is what a 3D Monte Carlo code that conserves energy and traps reprocessed infrared will do and what a 1D code with outward-only diffuse transport will not. That is the leading hypothesis and it is NOT yet measured - Cloudy's bolometric energy density at matched A_V has not been extracted, and until it is this is an inference from MOCASSIN's side alone | Open | 2026-09-22 |
+| D-307 | **`MOCASSIN_LINES` defaults to ON, and measuring Cloudy's bolometric field - the thing D-306 left inferred - turned up an internal inconsistency in MOCASSIN's dust temperature that no field difference can explain.** Two pieces. **(1) Line transport is now the default.** D-306 showed that discarding the thin lines deletes energy rather than letting it escape, costing the PDR ~60% of its bolometric flux, so "off" was never a defensible default. The switch was ALSO in the wrong place: `lgLineTransfer` was set inside `makeDustXsec`, which only runs for dust models, so a dust-free model would have silently kept the old default - the same class of defect as D-299. Moved: the default `.true.` now lives in `common_mod.f90` and the `MOCASSIN_LINES` override is read in `readInput`, which always runs, and can only switch it OFF (the A/B has to stay runnable). All four flavours build. **(2) Cloudy's bolometric field, measured.** `save ionizing continuum` is only restricted to the ionizing range by ITS OWN ARGUMENTS - the d290 input passed `0.44 0.0002`, a floor and an interaction cut, not a band limit. Re-run with `1e-5 0.0 every` it writes the whole mesh per zone (`runs/d306-cloudy-field`, 641 zones, 267 MB). Normalising each code by its own unattenuated L/(4 pi r^2) so no internal convention enters: **Cloudy sits at 0.946-0.973 of the undimmed stellar flux, MOCASSIN at 1.100-1.327, a ratio of 1.16-1.36.** Band shares show Cloudy with MORE of its energy in the FUV (0.255 against 0.113 at A_V 0.30) and MOCASSIN with more in 0.01-0.44 Ryd (0.519 against 0.362), with the far-IR comparable (0.369/0.383). **So D-306's "trapped reprocessed infrared" hypothesis is measured and it is real but SMALL - 1.3x, not the ~2.9x D-306 inferred.** **(3) And that opens a hole.** Computing the emitted power exactly, integral C_abs B_nu(T) dnu with the Mie cross sections D-305 validated against Draine to 0.1-1%, the temperatures MOCASSIN reports demand **4.2-4.6x more absorbed energy than Cloudy's**, against a measured field ratio of 1.2-1.3: **an unexplained factor 2.9-3.6**. A one-sided bound settles that this is MOCASSIN's problem and not a comparison artifact: putting ALL of MOCASSIN's own bolometric flux at the single frequency where C_abs peaks - the most favourable spectrum possible - a 0.05 um grain absorbs only **0.44-0.88** of what it must radiate at the temperature MOCASSIN reports for it. **Its dust is hotter than its own radiation field can make it.** Checked and excluded as causes: the balance formula (`radField = Jste/Pi` against `dustEmIntegral`'s `*hPlanck*4.` reduces correctly to integral C_abs J = integral C_abs B); `getFlux`'s blackbody constant (0.5250229 = 2 h fr1Ryd^3/c^2, verified); the ordering of the `symmetricXYZ` /8 scaling against `updateCell` (the scaling at iteration_mod.f90:959 precedes the update at 1261, so the solve and the output see the same array); resonance-line dust heating (`resLinesTransfer` defaults to 101, never fires, and MOCASSIN itself warns it makes dust temperatures UNDER-estimated, the wrong sign); and Jste's absolute scale, which D-303's agreement of MOCASSIN's G0 with Cloudy's to 0.91 independently validates. **What is NOT known: where the factor is.** The size- and depth-independence and the magnitude both point at `getDustT`'s energy balance or the `dustEmIntegral` table rather than at the field. Suggestively, a table too small by ~3.5 gives T too high by 3.5^(1/5.78) = 1.24, against the observed 1.22-1.30 - but no missing factor has been found, and the two numbers to check first are that ~3.5 and the octant 8. **Consequence if it holds: O-02's dust half is a MOCASSIN defect, not a physics difference, and D-283's dust comparison has been reading it since it was written** | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -23927,3 +23928,141 @@ was already on disk and answered it in minutes. **Resolve the discrepancy
 along the axis the mechanism acts on before running the experiment** - here,
 grain size; the mean had no information about it and the per-size profile had
 all of it.
+
+## D-307 - lines on by default, and a hole in the dust temperature (2026-09-22)
+
+Two things asked for: make line transport the default, and measure Cloudy's
+bolometric energy density at matched A_V - the quantity D-306 left inferred
+rather than measured. The first is done. The second was done and did not
+confirm D-306's hypothesis; it opened a larger question instead.
+
+### MOCASSIN_LINES defaults to on
+
+D-306 established that discarding the optically thin diffuse lines does not
+merely omit a field component - it *deletes energy*. The photons were dropped,
+not allowed to escape through a boundary, and the PDR loses about 60% of its
+bolometric flux as a result. "Off" was never a defensible default.
+
+The switch was also in the wrong place. `lgLineTransfer` was set inside
+`makeDustXsec`, which `ph_mod.f90` calls only `if (lgDust)`. Line transport is
+not a dust property, and a dust-free model would have kept the module default
+silently - the same shape as D-299, where `lgElementOn` was read before
+anything set it. So:
+
+  * `common_mod.f90` now declares `lgLineTransfer = .true.`, with the reason
+    on it, so the correct physics holds whether or not any dust routine runs;
+  * `set_input_mod.f90`'s `readInput`, which always runs, reads the
+    `MOCASSIN_LINES` override, and that override can now only switch it OFF;
+  * `ph_mod.f90` keeps a pointer comment where the block used to be.
+
+Both states announce themselves at startup, and the off path says what it is
+doing ("this does not conserve energy"). All four flavours build.
+
+The override survives because D-301, D-303 and D-306 all rest on being able to
+run the A/B, and it will be needed again to re-measure anything the flip
+changes. `MOCASSIN_LINES=on` still works - it simply is not in the off-list.
+
+### Cloudy's bolometric field, measured at last
+
+`save ionizing continuum` is not restricted to the ionizing range by anything
+except its own arguments. D-290's input passed `0.44 0.0002` - an energy floor
+and a minimum-interaction cut, both chosen - which is why the existing
+`.ioncont` spans only 0.44-6.18 Ryd and looked like a band limit. Re-run with
+`1e-5 0.0 every`, it writes the entire mesh per zone.
+
+`runs/d306-cloudy-field`: 641 zones, 2 iterations, 267 MB, 241 s.
+
+Each code's bolometric field over its OWN unattenuated stellar flux
+L/(4 pi r^2) at the same radius, which makes the comparison unit-free:
+
+    A_V    MOCASSIN   Cloudy   MOC/Cld | band shares (>1 / FUV / .01-.44 / <.01)
+                                       |    MOCASSIN          Cloudy
+    0.20     1.250     0.958     1.30  | .000 .127 .555 .317  .000 .284 .384 .332
+    0.30     1.215     0.951     1.28  | .000 .113 .519 .369  .000 .255 .362 .383
+    0.50     1.172     0.948     1.24  | .000 .089 .476 .436  .000 .203 .319 .478
+    0.65     1.100     0.946     1.16  | .000 .076 .463 .461  .000 .172 .292 .536
+
+Cloudy loses only ~5% of the bolometric flux across the whole model - the
+absorbed energy is re-emitted and still there. MOCASSIN *exceeds* the undimmed
+stellar flux, which an angle-integrated 4 pi J can do once a substantial
+isotropic diffuse component exists, and which a 1D outward-only diffuse
+treatment will not reproduce.
+
+**So D-306's hypothesis is confirmed in direction and refuted in magnitude.**
+MOCASSIN does hold more reprocessed energy at the same depth. It holds
+**1.16-1.36x** more, not the ~2.9x D-306 inferred from the temperature. And
+the band shares run the wrong way for closing the gap: Cloudy has more than
+twice MOCASSIN's share in the FUV, where C_abs is largest.
+
+### Which leaves a hole
+
+D-306 estimated the required energy ratio from a power law with beta measured
+between 10 and 100 um. Done exactly instead - integral C_abs B_nu(T) dnu with
+the Mie cross sections D-305 validated against Draine's tables to 0.1-1%,
+over the 35-bin distribution:
+
+    A_V   T_MOC  T_Cld  Tratio | required E ratio | measured field ratio | gap
+    0.20  53.92  41.82   1.289 |       4.18       |        1.30          | 3.22
+    0.30  46.67  35.80   1.304 |       4.63       |        1.28          | 3.62
+    0.50  36.99  29.07   1.272 |       4.17       |        1.24          | 3.36
+    0.65  31.28  25.61   1.221 |       3.30       |        1.16          | 2.85
+
+The effective exponent is 5.78, not the 4.77 D-306 assumed, which is why its
+2.9 was an underestimate.
+
+A one-sided bound settles whose problem this is, using only MOCASSIN's own
+numbers and no reference at all. Take a cell's entire bolometric flux and put
+**all** of it at the single frequency where C_abs peaks - the most favourable
+spectrum any code could have - and ask whether a 0.05 um grain can then
+radiate at the temperature MOCASSIN reports for it:
+
+    A_V    Fbol [erg/cm2/s]   absorbed_max    emitted(T)   max/emitted
+    0.20        1.047          1.344e-10      3.039e-10       0.44
+    0.30        0.483          6.199e-11      1.385e-10       0.45
+    0.50        0.175          2.248e-11      3.778e-11       0.60
+    0.65        0.103          1.324e-11      1.512e-11       0.88
+
+**Below one everywhere. MOCASSIN's dust is hotter than its own radiation field
+can make it**, and by more than the table shows, because a real spectrum puts
+most of its energy far from the C_abs peak.
+
+### What has been excluded
+
+  * **The balance formula.** `radField = Jste/Pi` in `update_mod.f90` against
+    `dustEmIntegral`'s closing `*hPlanck*4.` in `dust_mod.f90` reduces to
+    `integral C_abs J dnu = integral C_abs B dnu`. Correct, as D-306 found.
+  * **`getFlux`'s blackbody constant.** 0.5250229 is exactly
+    2 h fr1Ryd^3 / c^2, so `getFlux` returns B_nu/h and the closing `hPlanck`
+    restores it. Verified numerically.
+  * **The `symmetricXYZ` /8.** It is applied at `iteration_mod.f90:959`,
+    before `updateCell` at 1261, so the temperature solve and `pdrRad.out`
+    see the same scaled array. No mismatch between what is solved and what is
+    reported.
+  * **Resonance-line dust heating**, the one term `getDustT` adds that `Fbol`
+    does not contain. `resLinesTransfer` defaults to 101, the keyword is
+    absent, so `convPercent >= resLinesTransfer` never fires - and MOCASSIN
+    prints a warning that this makes dust temperatures *under*estimated,
+    which is the wrong sign.
+  * **Jste's absolute scale.** If it were low by a large factor the FUV field
+    would be too, and D-303 has MOCASSIN's G0 at 0.91 of Lya-corrected
+    Cloudy's. An independent code validates the normalisation.
+
+### What is not known
+
+Where the factor is. Both the size-independence (D-306) and the
+depth-independence point at `getDustT`'s energy balance or the
+`dustEmIntegral` table rather than at the field, but no missing factor has
+been found and none of the obvious candidates survives.
+
+One suggestive number, recorded as a lead and not as a finding: an emission
+table too small by ~3.5 gives a temperature too high by 3.5^(1/5.78) = 1.24,
+against the 1.22-1.30 observed. The two quantities worth checking first are
+that ~3.5 and the octant 8.
+
+### If it holds
+
+O-02's dust half stops being a physics difference between a 3D Monte Carlo
+code and a 1D one, and becomes a MOCASSIN defect - and D-283's dust
+comparison, and every dust temperature this project has published, has been
+reading it. That is worth saying plainly now rather than after it is found,
+because it changes what the outstanding dust disagreements mean.

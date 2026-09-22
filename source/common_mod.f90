@@ -147,7 +147,16 @@ module common_mod
     ! it is the probability that a diffuse packet is a line, and because every
     ! such packet was discarded before, a mis-normalisation against the
     ! continuum normHI/normHeI/normHeII could never show. Not yet measured.
-    logical :: lgLineTransfer = .false.
+    ! D-307: transport the optically thin diffuse lines. DEFAULT ON. With
+    ! them discarded the model does not conserve energy - the photons were
+    ! deleted, not escaped, and the PDR loses about 60% of its bolometric
+    ! flux (D-306 measured Fbol/Fbol_thin = 0.384 against 1.215 at A_V 0.30).
+    ! Set here rather than in makeDustXsec, which only runs for dust models:
+    ! line transport has nothing to do with dust, and a dust-free model would
+    ! otherwise silently keep the old default. Turned off only by
+    ! MOCASSIN_LINES=off, read in readInput, which exists so the A/B that
+    ! measured this stays runnable.
+    logical :: lgLineTransfer = .true.
 
     integer :: iOrigin, jOrigin, kOrigin       ! pointers to the origin of the axes
 

@@ -909,17 +909,10 @@ module xSec_mod
            if (taskid == 0) print*, "! makeDustXsec: grain charge balance in matched units (D-290)"
         end if
 
-        ! D-292: transport of the optically thin diffuse lines. Default off -
-        ! it destroys the PDR and the cause is not found - so this exists to
-        ! measure it, not to run with.
-        call get_environment_variable("MOCASSIN_LINES", yieldEnv, status=envStat)
-        if (envStat == 0 .and. (trim(yieldEnv) == "on" .or. &
-             & trim(yieldEnv) == "transport")) then
-           lgLineTransfer = .true.
-           if (taskid == 0) print*, "! makeDustXsec: transporting the optically thin diffuse lines (D-292)"
-        else
-           lgLineTransfer = .false.
-        end if
+        ! D-292/D-307: transport of the optically thin diffuse lines used to
+        ! be switched here. It is not a dust property and this routine only
+        ! runs for dust models, so the default now lives in common_mod and the
+        ! MOCASSIN_LINES override is read in readInput.
 
         MsurfAtom=0
         allocate(componentMinRadius(1:nDustComponents,1:nSpecies), stat = err)
