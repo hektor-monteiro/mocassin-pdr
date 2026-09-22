@@ -174,19 +174,20 @@ bar (O-25).
 
 ### Low, or housekeeping
 
-**L-14. The warm start is BROKEN** (D-316, upgraded from "not exercised").
-Running it for the first time found three defects. Two are fixed: it never
-called `setLineNuP`/`allocLineArrays`, so `linePDF` was unallocated - dormant
-until D-307 made line transport the default, then an immediate stop; and
-`resetGrid` was called twice, once through a scalar that aliased the array by
-sequence association, re-reading every checkpoint file. The third is open: a
-segfault in `updateCell` after the Monte Carlo transfer completes and the SED
-is written. `seedPDR`, which `mocassin.f90` calls and the warm driver does
-not, is *not* the fix and is now ruled out: its only work is a D-251
-validation that every network element has a MOCASSIN abundance, plus the
-seeding itself, which would overwrite `pdrAbun` and destroy the state a
-resume exists to restore. It allocates nothing, so the warm path is right to
-skip it and the missing piece is elsewhere.
+**L-14. The warm start runs, but warm-versus-cold equivalence is unverified**
+(D-317, was "broken", was "not exercised"). Five defects were found by running
+it once and all are fixed: `setLineNuP`/`allocLineArrays` never called;
+`resetGrid` called twice through a scalar aliasing the array; `readInput()`
+commented out, which left `lgPDR` at `.false.` so every PDR allocation was
+skipped while `#ifdef PDR` code still read the arrays; and the
+double-allocation clash that the commenting-out had been working around,
+across nine star arrays and six further module arrays, now guarded.
+
+It resumes correctly on the test fixture - A_V identical over the same 53
+cells, the same 50 PDR cells, the chemistry continuing rather than re-seeding,
+100% convergence and the energy budget closing. **What is not done** is the
+test that would license production use: resume-and-converge compared against
+running cold to convergence.
 
 **L-15.** `getQs` caps the Mie size parameter at 100, which for a 0.25 um
 grain bites above 5.8 Ryd against a `nuMax` of 30. Affects EUV/X-ray dust

@@ -316,6 +316,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-314 | **Regression check of this cycle's changes, and a first consolidated validation status with its limitations register: `doc/pdr-status.md`.** Heavy slab/ifront reruns deferred at the user's direction in favour of establishing what the PDR implementation is validated to do and where its bounds are. **The regression first.** The functional change surface is narrower than the diff suggests: `lgLineTransfer` now defaults ON (D-307), the `MOCASSIN_LINES` read moved to `readInput` and inverted, and the previously-unrunnable `Q` path was fixed (D-313); everything else is probes inert behind `MOCASSIN_DUSTPROBE`. So the decisive test is whether `MOCASSIN_LINES=off` on the new binary reproduces the pre-change binary. **Two methodological findings had to come first.** (1) **MOCASSIN is not bitwise reproducible** - two runs of one binary on one input differ - so the comparison must be read against the run-to-run scatter, which `tools/regress_cmp.py` measures by running the reference twice. (2) **A short fixture does not exercise the PDR at all**: at 2 iterations with `pdrStartIter 4` the chemistry never engages and A_V is identically zero, which would have made the whole check vacuous. **Result, on a 5^3 nk-path fixture at 6 iterations, new-vs-baseline against the same-binary floor:** T_gas 18.49% against a floor of **36.71%**, n_e 2.35% against 4.03%, T_dust 0.11% against 0.08%, J(FUV) 0.03% against 0.73%, J(0.01-0.44) 0.35% against 0.83%, J(<0.01 Ryd) 0.68% against 1.49%, totalLines 1.00% against 8.15%, and **A_V exactly 0.00% in both** - which proves the dust cross-section and opacity chain is byte-identical through D-307 and D-313. **Every quantity is inside the floor; the inertness test passes.** An 18.5% T_gas difference was flagged and then retired by the control: the same binary swings it 36.7%, so **this fixture has no sensitivity to gas temperature at all** - 125 cells, a bimodal ionized/neutral median - which is a real limitation of the harness and is recorded as such rather than papered over. **Two register items verified closed from the converged run:** O-11 ion balance failures are **0%** where D-267 recorded 16-18%, and O-17 convergence reaches **90.4%** against the 90% target. **`doc/pdr-status.md`** then consolidates: what is validated (conservation, the internal [C II] thermostat at 0.986-1.014, the grain diagnostic closing at 1.00, N_H/A_V against Cloudy at 0.4%, Mie against Draine at 0.1-1%, x(C+) at 1.001-1.006, PE efficiency at 0.66-1.10), eighteen known limitations L-1..L-18 graded by effect on a published number - led by **L-1**, that every result predating D-307 was computed on a model that deleted ~60% of the PDR's bolometric flux, and **L-2**, the dust-temperature averaging defect whose re-measurement is in flight - and, explicitly, **six things that have NOT been checked**, because absence of a reported problem is not evidence: the slabs, ifront, hiipdr, the warm start beyond compiling, the 1D PDR flavour beyond compiling, any model reaching A_V > 0.7, and Cloudy's own charging exponent | Open | 2026-09-22 |
 | D-315 | **L-2 closed by measurement: with the crystal axes pre-averaged, MOCASSIN's dust goes from 26-30% HOTTER than Cloudy's to 9-13% COOLER, and the residual is a spectral-shape difference, not a magnitude one.** `runs/d313-qavg`, 11 iterations, 89.58% converged, 2h00m, one species from `dustData/grph-avg.cat`. **Convergence tracks the pre-fix run almost exactly** - it3 0.175 against 0.175, it4 1.204 against 1.2, it9 **88.61 against 88.6**, it11 89.58 against 90.4 - which is the evidence that a change confined to the grain temperature left the ionization and thermal solve undisturbed. **Result, MOCASSIN/Cloudy at A_V 0.20/0.30/0.50/0.65: 1.289/1.304/1.272/1.256 becomes 0.906/0.902/0.873/0.869.** D-309 predicted 0.951/0.952/0.931/0.929 by recovering the absorbed energy from the old run's balance and re-solving for the averaged cross section; the measured values sit ~5% below that, which is the field responding rather than being held fixed - cooler grains re-emit less infrared, which lowers the diffuse field, which cools them a little further. **The residual now has the opposite sign to the defect, and an explanation.** Re-measuring the bolometric field on this run gives 1.35/1.30/1.28/1.23/1.16 of Cloudy's at A_V 0.15-0.65, **unchanged from the pre-fix run**, so MOCASSIN holds MORE total radiative energy at every depth and yet its grains are cooler. The band shares say why: at A_V 0.30 Cloudy carries **0.255 of its field in the FUV against MOCASSIN's 0.107**, while MOCASSIN carries more in 0.01-0.44 Ryd (0.504 against 0.362) and the far-IR shares are comparable. C_abs is orders of magnitude larger in the FUV than in the infrared, so Cloudy's field - smaller in total - is concentrated where grains actually absorb. **So O-02's dust half is closed as a defect and reopened, much smaller, as a question about where each code puts its reprocessed energy in frequency**, which is the same diffuse-transport difference D-307 measured from the other side. Tooling: `tools/d305_tdust.py` generalised to any species count, since it assumed the two-file graphite layout D-313 removed. `doc/pdr-status.md` L-2 updated from predicted to measured | Closed | 2026-09-22 |
 | D-316 | **Exercising the warm start for the first time (L-14) found it broken in three ways, two now fixed - and the first was caused by D-307. Plus: all nine PDR benchmark fixtures pointed at a directory that no longer exists, so none of them could run.** **The fixture path.** Every `benchmarks/pdr/*/input/input.in` carried `pdrDataDir "/home/hmonteiro/software/mocassin-pdr/dataPDR"`, a directory left behind by a rename. Nine fixtures - hiipdr and its five variants, both slabs, ifront - plus pn150k, all unable to start. Repointed. This is why O-09 and the slab checks have been so easy to defer: they could not have been run. **The warm start, defect by defect.** (1) **`linePDF` unallocated, and D-307 caused it.** `mocassinWarm` never called `setLineNuP`/`allocLineArrays`, which did not matter while line transport was off by default - `linePDF` was then needed only under `lgDebug`. Making transport the default turned a dormant omission into an immediate stop: "setDiffusePDF: linePDF unallocated with line transport on". Fixed by mirroring `mocassin.f90`'s order. **A regression the D-314 suite could not have caught**, because that suite exercises `mocassin`, not `mocassinWarm`. (2) **`resetGrid` was called twice.** The driver looped `call resetGrid(grid3D(iGrid))` and then called `call resetGrid(grid3D)`. `resetGrid`'s dummy is `grid(maxGrids)`, an array, so the loop form passed a scalar and by sequence association aliased the same storage - the grid was reset, and every checkpoint file re-read, twice. Reduced to the one call it always meant. (3) **Still broken: a segfault in `updateCell`**, after the Monte Carlo transfer completes cleanly and the SED is written, at the first cell following the D-116 recombination audit. **`seedPDR` is the tempting fix and is the wrong one** - `mocassin.f90` calls it and `mocassinWarm` does not, but it assigns `grid(iG)%pdrAbun(iCell,:) = seed`, overwriting the chemistry with initial values, which would destroy exactly the state a warm start exists to resume. So the missing piece is whatever allocation or linkage `seedPDR` performs incidentally, not the seeding itself, and that has not been separated. **Status of L-14 upgraded from "not exercised" to "broken, two of three defects fixed, third localised"** - which is worth more than the previous unknown even though the flavour still does not run. The build rule caught nothing here because all four flavours compile; only running it found any of this | Open | 2026-09-22 |
+| D-317 | **The warm start runs. Five defects, all found by running it once, and the root cause was a workaround: `readInput()` had been commented out to dodge a double-allocation, which silently disabled the entire PDR resume path.** Continuing D-316. **The chain, in the order it unravelled.** (1) `linePDF` unallocated - `mocassinWarm` never called `setLineNuP`/`allocLineArrays`; dormant while line transport was off, an immediate stop once D-307 made it the default. (2) `resetGrid` called twice, once through a scalar that aliased the array by sequence association. (3) Then a segfault in `updateCell`, which a `CO=bounds` build named exactly where the optimised backtrace gave bare addresses: **"Index '2' of dimension 1 of array 'grid%aveff' above upper bound of 0"** at `update_mod.f90:2888`, via `iterateMC:1260 -> updateCell:301 -> iterateT:889 -> ionBalance:2888`. **The cause: `lgPDR` was never set.** `readInput()` is commented out at `mocassinWarm.f90:48`, `lgPDR` defaults `.false.` in `common_mod.f90:772`, and nothing else assigns it - so `resetGrid`'s `if (lgPDR)` guard skipped **every** PDR allocation while `updateCell` still entered its PDR code through the compile-time `#ifdef PDR`. An unallocated allocatable presents a zeroed descriptor, hence "upper bound of 0". **That `resetGrid` itself assumes `readInput` has run is settled at `grid_mod.f90:3590`**, where it validates "this run has pdr enabled" (`lgPDR`, from the input) against `lgPDRrestart` (from the checkpoint): the checkpoint flag corroborates the input, it never supplies it. **Why it had been commented out** became clear on restoring it: `resetGrid` re-allocates module-level arrays `readInput` has already allocated, and it dies at `grid_mod.f90:3402`. So the two halves of the file disagree about the warm start's contract, and the workaround resolved that contradiction in the direction that ran - at the cost of the PDR resume. (4) and (5) The real clash, fixed properly: **nine star arrays** (`TStellar`, `LStar`, `nPhotons`, `starPosition`, `contShape`, `contShapeIn`, `spID`, `tStep`, `deltaE`) and **six further module arrays** (`abundanceFile`, `dustSpeciesFile`, `nSpeciesPart`, `viewPointPhi`, `viewPointTheta`, `lgDataAvailable`) now guarded with `.not. allocated(...)`; the values are still re-read from the checkpoint, so the resumed run uses the checkpoint's state. `ionDenUsed`, `dl` and `p` are genuinely local and left alone. **Verified:** exit 0, no runtime errors, iteration 5 reaching **100% converged**, energy closing at 3.784 of 3.828e36 erg/s; **A_V resumes exactly** (0.44643 median over the same 53 cells) and the same 50 PDR cells are found; the chemistry continues rather than re-seeding (f_mol 0.398 -> 0.148, CO 9.3e-6 -> 4.5e-6 as it iterates on to full convergence, which are intermediate values, not the network's initial seeds). **Not verified, and stated as such: warm-versus-cold equivalence.** Resuming and converging has not been compared against running cold to convergence, which is the test that would license using the warm start for production. **This is the third instance of one pattern** - a module flag consumed before anything sets it, silently taking its default. D-299 was `lgElementOn`, D-316/D-317 is `lgPDR`. Worth a systematic sweep rather than a fourth one-off | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24917,3 +24918,119 @@ bounded problem.
 
 All four flavours still compile, which is precisely the point - compiling was
 never evidence.
+
+## D-317 - the warm start runs (2026-09-22)
+
+D-316 left `mocassinWarm` with two defects fixed and a segfault in
+`updateCell`. This finishes it. Five defects in total, all found by running
+the flavour once, and the root cause turned out to be a workaround for
+another one.
+
+### Naming the segfault
+
+The optimised build gave bare addresses. A `CO=bounds` build - which the
+Makefile already provides, from D-124 - named it in one run:
+
+    At line 2888 of file source/update_mod.f90
+    Fortran runtime error: Index '2' of dimension 1 of array 'grid%aveff'
+    above upper bound of 0
+
+    #3 ionbalance      at update_mod.f90:2888
+    #4 iteratet        at update_mod.f90:889
+    #5 updatecell      at update_mod.f90:301
+    #6 iteratemc       at iteration_mod.f90:1260
+    #8 mocassinwarm    at mocassinWarm.f90:117
+
+`AVeff` with an upper bound of zero is the zeroed descriptor of an
+**unallocated** allocatable, not a mis-sized one.
+
+### Why it was unallocated
+
+`readInput()` is commented out at `mocassinWarm.f90:48`. `lgPDR` defaults
+`.false.` in `common_mod.f90:772`. Nothing else assigns it. So for the whole
+warm start `lgPDR` was false, `resetGrid`'s `if (lgPDR)` guard skipped **every**
+PDR allocation - `AVeff`, `pdrZone`, `chiFUV`, all of them - and `updateCell`
+still entered its PDR code, because that is gated by the *compile-time*
+`#ifdef PDR`, not the runtime flag.
+
+That `resetGrid` expects `readInput` to have run is not a guess. At
+`grid_mod.f90:3590`:
+
+    if (lgPDR) then
+       if (.not.lgPDRrestart) then
+          print*, "! resetGrid: this run has pdr enabled but output/grid3.out"
+          print*, "!   carries no PDR state - the checkpoint predates PDR support."
+
+`lgPDR` comes from the input and `lgPDRrestart` from the checkpoint; the
+second corroborates the first and was never meant to supply it.
+
+### Why it had been commented out
+
+Restoring `call readInput()` made that obvious: the run died at
+`grid_mod.f90:3402`, `allocate(TStellar(nStars))`, because `readInput` had
+already allocated it. `resetGrid` re-allocates module-level state that
+`readInput` owns.
+
+So the two halves of `grid_mod.f90` disagree about the warm start's contract -
+one assumes `readInput` ran, the other assumes it did not - and commenting out
+the call resolved the contradiction in the direction that ran, at the cost of
+silently disabling the PDR resume. **A workaround for an allocation clash
+disabled a whole subsystem, and nothing caught it because the flavour was
+never run.**
+
+### The real fix
+
+Guard the overlap rather than skip the input. Nine star arrays:
+
+    TStellar, LStar, nPhotons, starPosition, contShape,
+    contShapeIn, spID, tStep, deltaE
+
+and six further module arrays found by listing every non-`grid%` allocation in
+`resetGrid` and checking which `readInput` also allocates:
+
+    abundanceFile, dustSpeciesFile, nSpeciesPart,
+    viewPointPhi, viewPointTheta, lgDataAvailable
+
+all now `if (.not. allocated(...)) allocate(...)`. The values are still read
+from the checkpoint, so the resumed run uses the checkpoint's state; only the
+re-allocation is suppressed. `ionDenUsed`, `dl` and `p` are genuinely local to
+`resetGrid` and were left alone.
+
+### It works
+
+Exit 0, no runtime errors, iteration 5 at **100% converged**, energy closing
+at 3.784 of 3.828e36 erg/s. And it resumed rather than restarted:
+
+    quantity            checkpoint   after warm
+    median A_V            0.44643      0.44643     identical
+    cells with A_V > 0         53           53
+    PDR cells                  50           50
+    f_mol                  0.3975       0.1475
+    median n(CO)          9.34e-06     4.48e-06
+
+A_V identical to five figures over the same cells is the checkpoint's dust
+state restored exactly. The chemistry moves because the warm run iterates on
+to full convergence from a 6-iteration snapshot - and the values are
+intermediate, not the network's initial seeds, which is what re-seeding would
+have produced.
+
+### What is NOT verified
+
+**Warm against cold.** Resuming and converging has not been compared with
+running cold to convergence on the same model. That is the test that would
+license using the warm start for production, and it has not been done. L-14
+moves from "broken" to "runs; equivalence unverified", which is progress and
+not a clean bill.
+
+### The pattern, for the third time
+
+A module flag consumed before anything sets it, silently taking its default:
+
+  * D-299: `lgElementOn` read by `makeElements` before `setComposition` set
+    it, killing all CEL cooling.
+  * D-316/D-317: `lgPDR` read by `resetGrid` before anything set it,
+    skipping every PDR allocation.
+
+Both were found only because something downstream broke loudly. A systematic
+sweep of module logicals for read-before-set is worth more than a fourth
+one-off, and is now on the register.

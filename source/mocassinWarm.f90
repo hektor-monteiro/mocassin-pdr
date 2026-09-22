@@ -44,8 +44,15 @@ program MoCaSSiNwarm
 
     lgWarm = .true.
 
-!    ! read the input parameters of the simulation
-!    call readInput()
+    ! D-316: read the input parameters. This was commented out, which left
+    ! lgPDR at its module default of .false. for the whole warm start - so
+    ! resetGrid's `if (lgPDR)` guard skipped every PDR allocation, and then
+    ! the compile-time `#ifdef PDR` code in updateCell read the unallocated
+    ! AVeff. resetGrid itself assumes this has run: at grid_mod.f90:3590 it
+    ! validates "this run has pdr enabled" (lgPDR, from the input) against
+    ! lgPDRrestart (from the checkpoint), so the checkpoint flag only
+    ! corroborates the input, it does not supply it.
+    call readInput()
 
     if (taskid == 0) then
         print*, "MOCASSIN version ",VERSION

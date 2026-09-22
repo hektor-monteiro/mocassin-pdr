@@ -3399,15 +3399,21 @@ end function getVolume
        read(72, *) nStars
        print*, nStars, ' photon sources'
        print*, '(contShape, T_eff[K], L_* [E36 erg/s], nPackets, (x,y,z) position [cm])'
-       allocate(TStellar(nStars))
-       allocate(LStar(nStars))
-       allocate(nPhotons(nStars))
-       allocate(starPosition(nStars))
-       allocate(contShape(nStars))
-       allocate(contShapeIn(nStars))
-       allocate(spID(nStars))
-       allocate(tStep(nStars))
-       allocate(deltaE(0:nStars))
+       ! D-316: readInput has already allocated these for a warm start, and
+       ! re-allocating an allocated array is an error. This is why
+       ! `call readInput()` had been commented out of mocassinWarm - which in
+       ! turn left lgPDR at .false. and skipped every PDR allocation below.
+       ! Guard the overlap instead: the values are re-read from the checkpoint
+       ! either way, so the resumed run uses the checkpoint's sources.
+       if (.not. allocated(TStellar))     allocate(TStellar(nStars))
+       if (.not. allocated(LStar))        allocate(LStar(nStars))
+       if (.not. allocated(nPhotons))     allocate(nPhotons(nStars))
+       if (.not. allocated(starPosition)) allocate(starPosition(nStars))
+       if (.not. allocated(contShape))    allocate(contShape(nStars))
+       if (.not. allocated(contShapeIn))  allocate(contShapeIn(nStars))
+       if (.not. allocated(spID))         allocate(spID(nStars))
+       if (.not. allocated(tStep))        allocate(tStep(nStars))
+       if (.not. allocated(deltaE))       allocate(deltaE(0:nStars))
 
        do i = 1, nStars
           read(72, *) contShape(i), TStellar(i), LStar(i), nPhotons(i), starPosition(i)%x,starPosition(i)%y,&
@@ -3447,7 +3453,8 @@ end function getVolume
       read(77, *) lgDebug
       read(77, *) lgPlaneIonization
       read(77, *) nAbComponents
-      allocate(abundanceFile(nAbComponents))
+      if (.not. allocated(abundanceFile)) &
+           & allocate(abundanceFile(nAbComponents))
       if (nAbComponents>1) then
          lgMultiChemistry = .true.
       else
@@ -3460,7 +3467,8 @@ end function getVolume
       read(77, *) slitAxis, d1Slit, d2Slit
       read(77, *) lgDust, lgDustConstant
       read(77, *) lgMultiDustChemistry, nDustComponents
-      allocate(dustSpeciesFile(1:nDustComponents))
+      if (.not. allocated(dustSpeciesFile)) &
+           & allocate(dustSpeciesFile(1:nDustComponents))
       do i = 1, nDustComponents
          read(77, *) dustSpeciesFile(i)
       end do
@@ -3468,19 +3476,22 @@ end function getVolume
       read(77, *) lgGas
       read(77, *) lgRecombination
       read(77, *) nSpeciesMax,nSpecies, nSizes
-      allocate(nSpeciesPart(1:nDustComponents))
+      if (.not. allocated(nSpeciesPart)) &
+           & allocate(nSpeciesPart(1:nDustComponents))
       read(77, *) (nSpeciesPart(i), i = 1, nDustComponents)
       read(77, *) resLinesTransfer
       read(77, *) lgDustScattering
       read(77, *) nAngleBins
       if (nanglebins>0) then
-         allocate(viewPointTheta(0:nAngleBins), stat=err)
+         if (.not. allocated(viewPointTheta)) &
+              & allocate(viewPointTheta(0:nAngleBins), stat=err)
          if (err /= 0) then
             print*, '! readInput: allocation error for viewPoint pointer'
             stop
          end if
          viewPointTheta = 0.
-         allocate(viewPointPhi(0:nAngleBins), stat=err)
+         if (.not. allocated(viewPointPhi)) &
+              & allocate(viewPointPhi(0:nAngleBins), stat=err)
          if (err /= 0) then
             print*, '! readInput: allocation error for viewPoint pointer'
             stop
@@ -3574,7 +3585,8 @@ end function getVolume
 
       allocate(p(nstages))
       p=0.
-      allocate(lgDataAvailable(3:nElements, nstages))
+      if (.not. allocated(lgDataAvailable)) &
+           & allocate(lgDataAvailable(3:nElements, nstages))
 
       close(89)
       open(unit=89, file='output/grid0.out',  action="read",position='rewind',  &
