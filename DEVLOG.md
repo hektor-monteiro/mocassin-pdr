@@ -313,6 +313,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-311 | **D-310's detection test was unsound and is replaced: whether two entries are the principal axes of one material is now DECLARED in the data, never inferred. Prompted by the user's objection that distinct species must not share a temperature - which was right.** D-310 decided "these are axes of one material" by inferring it from matching density, work function, surface-atom mass, sublimation temperature and size range. `dustData/` shows that inference is unsafe: **`amC-zb1.nk`, `amC-zb2.nk` and `amC-zb3.nk` are three different Zubko amorphous carbons carrying byte-identical constants** (`2200. 1.85 0.323 12.004`), and `crSil.nk` and `astroSilD2003.nk` are two different silicates likewise (`1400. 3.6 0.588 20.077`). A component listing two of those would have had them silently merged onto one temperature - precisely the error the change was meant to prevent, and precisely the objection raised. **The replacement:** the species-count line of `dust_species.dat` may carry the word `axes` (`2 axes`), declaring that the entries below are principal axes of one anisotropic material rather than distinct species; without it nothing is averaged and every entry keeps its own temperature, which is the pre-D-310 behaviour and is correct for real mixtures. This mirrors Cloudy's own `.rfi` convention, which states the axis count and weights explicitly rather than inferring them. A bare integer still parses, so every existing species file is unaffected. **A declaration can also be wrong, so it is validated rather than trusted:** if `axes` is declared but any entry differs from the first in density, work function, surface-atom mass, sublimation temperature or size range, the run STOPS and says they are not axes of one material. Only `benchmarks/pdr/pn150k` and the 150 kK model declare it; `benchmarks/test_Problem` (astro-silicate 0.98 plus PAH 0.02, different size ranges) and every single-species fixture are untouched and keep separate temperatures per species, which is physically required - silicate and graphite in one nebula genuinely sit at different temperatures. **Mechanically the averaging is unchanged from D-310** and still sits in `makeDustXsec` after the species loop, where `Cabs`/`Csca` hold Q before `pi a^2` is applied, so averaging them is averaging cross sections exactly as `grains_mie.cpp` does; the average is written back into every entry so each solves the same temperature and the existing abundance-weighted mean becomes that one temperature, with no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables. **Two self-inflicted build breaks recorded because both are avoidable:** editing `ph_mod.f90` while a `make` was running clobbered that build, and a Python-to-Fortran string replacement emitted `their own.""` for the closing quote, giving "Unterminated character constant". Both caught by the four-flavour rule before anything ran | Open | 2026-09-22 |
 | D-312 | **D-310/D-311's implementation is replaced at the user's direction: the axis-set declaration moves from a keyword on the species COUNT line to a per-species `axes:<name>` tag, which is where it belongs. Plus `doc/dust.md`, the first usage manual in this project.** The objection was that the count-line keyword was confusing and that the files listed in `dust_species.dat` should be correct per species. Both fair. The proposal of a per-species flag grouping species to be averaged together is better than what it replaced: it reads on the line it governs, it supports several independent axis sets and untagged species coexisting in one component, and it needs no global state. Format: `<file> <abundance> [<amin> <amax>] [axes:<name>]`, backward compatible - every existing species file parses unchanged and gets the old per-species temperature. **A hard constraint had to be reported rather than implemented around.** The instruction was that the user should supply properly averaged n,k files and MOCASSIN should do nothing. That cannot be done correctly: the 1/3-2/3 rule averages CROSS SECTIONS, Mie is non-linear in (n,k), and no single (n,k) reproduces (2/3)Q(eps_perp)+(1/3)Q(eps_par) across size and wavelength. Measured on the project's own graphite, naive-averaged-n,k over correct: **0.96/1.21/2.14/0.09 at 0.1/0.55/10/100 um for a = 0.005 um**, and 1.02/1.01/1.44/0.12 at 0.25 um. Acceptable in the UV where the grain absorbs, **8-11x too LITTLE emissivity at 100 um where it radiates** - which would drive the dust far hotter than the 1.3x error the change exists to fix. Averaging the dielectric function instead is no better (0.07-1.77). So the average must happen after Mie, inside the code; what the data declares is only WHICH files are axes of one grain. **The `Q`-file route stays blocked** and is now documented as a trap: `setGrainYield` is called only from the `nk` branch, so a `Q` species silently gets zero photoelectric yield - fatal in a PDR model whose gas temperature is set by that term. **Verified both ways on the 5^3 fixture in seconds:** tagged, both members report **26.6857 K** against D-309's independent prediction of 26.76 K for that cell (0.3%); untagged, they report **44.44 K and 22.27 K** separately with no averaging message - the pre-existing behaviour intact, which is the regression that matters, since distinct species must keep distinct temperatures. Validation retained: a group needs >= 2 members and they must share density, work function, surface-atom mass and sublimation temperature, else the run stops. **`doc/dust.md`** documents the input files, the size distribution and MdMg conversion, the `axes:` tag with the numbers above, the `nk` and `Q` formats with the yield warning, what MOCASSIN computes, the diagnostics, and the known limitations (graphite-only R_V = 4.57, undepleted carbon, H2 missing from gas-grain coupling, the size-parameter cap) | Open | 2026-09-22 |
 | D-313 | **The orientation average moves OUT of MOCASSIN at the user's direction: `tools/mkqfile.py` pre-averages the principal axes into one Q file, and the species list is one correct file per species. Two latent bugs had to be fixed first - the `Q` path could never have run.** D-310/D-311/D-312's in-code averaging is reverted; the objection was that a keyword coupling species together is confusing and that each file listed should simply be correct on its own. **`tools/mkqfile.py`** runs Mie per axis, sums the CROSS SECTIONS with the axis weights, and writes a Draine-style Q table on the model's own radii; it refuses if the axes disagree on density, work function, surface-atom mass or sublimation temperature. `dust_species.dat` becomes `1` / `'dustData/grph-avg.cat' 1.0000 0.005 0.25`. **Two bugs in the `Q` branch, both fatal, both showing it had never been exercised:** (1) it allocated `CTsca`/`CTabs` a second time - they are already allocated before the component loop, and the `nk` branch has the identical two lines commented out - so `err /= 0` and the model stopped; (2) `setGrainYield` is called only from the `nk` branch, so a `Q` species got `grainYield = 0` and lost all photoelectric heating **silently**, which in a PDR model whose gas temperature is set by that term would have been fatal and invisible. Fixed with an optional sixth column carrying Im(m), which `mkqfile.py` writes; **absent it, MOCASSIN now stops rather than running with no yield**. Also made the Q header reader skip comment lines until NRAD parses instead of assuming exactly two - my own generated file had four and failed with "Bad integer for item 1 in list input" pointing at the data block, a poor first experience for exactly the users this route serves. **Verified three ways.** The generated file reproduces direct Mie of the mixture to a ratio of **1.000 at every energy from 0.001 to 25 Ryd**, for Q_abs and Q_sca, with a 150 kK blackbody-weighted absorbed energy ratio of **1.0000**. MOCASSIN's own arrays built from it match the two-file `nk` mixture at the same size and bin to **0.12%** at 0.44 Ryd and **exactly** at 2.0 Ryd (0.6667x7.86287e-11 + 0.3333x3.47691e-11 = 6.4012e-11 against 6.3933e-11). And the internal balance closes, `dustAbsIntegral` bracketing `emInt(iT)`. **Two generator pitfalls found by measurement and now documented:** the table must span the model grid - `nuMin = 1.001e-5 Ryd` is 9104 um, so a default `--lmax 1e3` clamps the far-IR tail where the grain radiates and cost 0.7 K - and the radii must be written with enough digits to match `grainRadius`, since MOCASSIN locates the model radius in the table and interpolates. **`doc/dust.md` rewritten** for this route, including the measurement showing why a pre-averaged n,k file cannot work (0.09-0.12 of the correct Q at 100 um) | Open | 2026-09-22 |
+| D-314 | **Regression check of this cycle's changes, and a first consolidated validation status with its limitations register: `doc/pdr-status.md`.** Heavy slab/ifront reruns deferred at the user's direction in favour of establishing what the PDR implementation is validated to do and where its bounds are. **The regression first.** The functional change surface is narrower than the diff suggests: `lgLineTransfer` now defaults ON (D-307), the `MOCASSIN_LINES` read moved to `readInput` and inverted, and the previously-unrunnable `Q` path was fixed (D-313); everything else is probes inert behind `MOCASSIN_DUSTPROBE`. So the decisive test is whether `MOCASSIN_LINES=off` on the new binary reproduces the pre-change binary. **Two methodological findings had to come first.** (1) **MOCASSIN is not bitwise reproducible** - two runs of one binary on one input differ - so the comparison must be read against the run-to-run scatter, which `tools/regress_cmp.py` measures by running the reference twice. (2) **A short fixture does not exercise the PDR at all**: at 2 iterations with `pdrStartIter 4` the chemistry never engages and A_V is identically zero, which would have made the whole check vacuous. **Result, on a 5^3 nk-path fixture at 6 iterations, new-vs-baseline against the same-binary floor:** T_gas 18.49% against a floor of **36.71%**, n_e 2.35% against 4.03%, T_dust 0.11% against 0.08%, J(FUV) 0.03% against 0.73%, J(0.01-0.44) 0.35% against 0.83%, J(<0.01 Ryd) 0.68% against 1.49%, totalLines 1.00% against 8.15%, and **A_V exactly 0.00% in both** - which proves the dust cross-section and opacity chain is byte-identical through D-307 and D-313. **Every quantity is inside the floor; the inertness test passes.** An 18.5% T_gas difference was flagged and then retired by the control: the same binary swings it 36.7%, so **this fixture has no sensitivity to gas temperature at all** - 125 cells, a bimodal ionized/neutral median - which is a real limitation of the harness and is recorded as such rather than papered over. **Two register items verified closed from the converged run:** O-11 ion balance failures are **0%** where D-267 recorded 16-18%, and O-17 convergence reaches **90.4%** against the 90% target. **`doc/pdr-status.md`** then consolidates: what is validated (conservation, the internal [C II] thermostat at 0.986-1.014, the grain diagnostic closing at 1.00, N_H/A_V against Cloudy at 0.4%, Mie against Draine at 0.1-1%, x(C+) at 1.001-1.006, PE efficiency at 0.66-1.10), eighteen known limitations L-1..L-18 graded by effect on a published number - led by **L-1**, that every result predating D-307 was computed on a model that deleted ~60% of the PDR's bolometric flux, and **L-2**, the dust-temperature averaging defect whose re-measurement is in flight - and, explicitly, **six things that have NOT been checked**, because absence of a reported problem is not evidence: the slabs, ifront, hiipdr, the warm start beyond compiling, the 1D PDR flavour beyond compiling, any model reaching A_V > 0.7, and Cloudy's own charging exponent | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24648,3 +24649,119 @@ format including the Im(m) column and the history of the two bugs, and the
 measurement showing why a pre-averaged *n,k* file cannot work at all - it
 gives 0.09 to 0.12 of the correct Q at 100 um, which would be a larger error
 than the one being fixed.
+
+## D-314 - regression, and what the implementation is validated to do (2026-09-22)
+
+Two things asked for: a regression check, since significant parts of the code
+changed; and then, in preference to re-running the heavy fixtures, a first
+validated version of the PDR implementation with its limitations known.
+
+### The change surface is narrow, which shapes the test
+
+The diff touches five source files, but functionally it is:
+
+  * `lgLineTransfer` defaults `.true.` instead of `.false.` (D-307);
+  * the `MOCASSIN_LINES` read moved from `makeDustXsec` to `readInput` and
+    inverted, so it can only switch transport *off*;
+  * the `Q` branch of `makeDustXsec` fixed - double allocation, missing
+    photoelectric yield, rigid header parse (D-313);
+  * probes in `dust_mod` and `update_mod`, inert unless
+    `MOCASSIN_DUSTPROBE=on`.
+
+So the decisive question is not "did many things change" but "with the default
+put back, is anything different?" If nothing is, every historical result stays
+valid for the lines-off configuration and only the new default needs
+re-measuring.
+
+### Two findings about the harness, before any result
+
+**MOCASSIN is not bitwise reproducible.** Two runs of the same binary, same
+input, same rank count give different output. So a regression cannot be read
+against zero; it has to be read against the run-to-run scatter, which means
+running the reference twice. `tools/regress_cmp.py` does that, and reports
+aggregate medians alongside per-cell statistics because the per-cell scatter
+is dominated by cells where the quantity is near zero.
+
+**A short fixture does not exercise the PDR.** The first attempt used 2
+iterations. With `pdrStartIter 4` the chemistry never engaged, A_V was
+identically zero, and the check would have validated nothing while appearing
+to pass. Raised to 6.
+
+### The result
+
+5^3 fixture, nk-path dust, 6 iterations, `-np 2`. Baseline is b83e0e0, the
+commit this cycle started from.
+
+    quantity     noise floor    new vs base    verdict
+    T_gas          36.71%         18.49%       within
+    n_e             4.03%          2.35%       within
+    T_dust          0.08%          0.11%       marginal
+    A_V             0.00%          0.00%       exact
+    J(FUV)          0.73%          0.03%       within
+    J(.01-.44)      0.83%          0.35%       within
+    J(<.01Ryd)      1.49%          0.68%       within
+    totalLines      8.15%          1.00%       within
+
+**The inertness test passes.** A_V matching to zero in both comparisons is the
+strongest single line: it comes straight from `absOpac + scaOpac`, so the dust
+cross-section and opacity chain is provably untouched by D-307 and D-313.
+
+T_dust at 0.11% against a 0.08% floor is nominally outside, but a floor from a
+single pair is not a bound, and 0.03 percentage points on a quantity every
+other measure agrees on is not a signal.
+
+### The 18% that was not a signal
+
+Median T_gas came out 18.5% higher on the new binary, which against the
+*2-iteration* floor of 0.03% looked alarming and was reported as a flag. The
+control retired it: the **same binary** run twice at 6 iterations swings
+median T_gas by **36.7%**.
+
+That is worth keeping as a limitation of the harness rather than a footnote.
+A 5^3 grid is 125 cells, the median runs over a bimodal ionized/neutral
+population, and once the PDR engages the statistic is hopeless. **This fixture
+cannot regress the gas temperature** - the very quantity the coupling exists
+to produce. Three fixes, in increasing cost: take the median over PDR cells
+only, raise the photon count, use the configured grids.
+
+### Two register items closed
+
+From the converged production run (`runs/d302-trim-on`):
+
+  * **O-11**, ion balance not reached in 16-18% of cells (D-267): now **0%**.
+  * **O-17**, convergence plateau below the 90% target: now **90.4%**.
+
+### doc/pdr-status.md
+
+The consolidation asked for. It states what is validated, with every number
+traceable to a DEVLOG entry: conservation and internal consistency (the
+thermal residual at 7e-4..7e-3, the grain diagnostic closing at 1.00, the
+emission table at 1.000, the radiative-equilibrium solve reproduced
+independently to 0.9988); agreement with Cloudy on quantities both codes own
+(N_H/A_V to 0.4%, dust mass per H to 0.7%, Mie against Draine to 0.1-1%,
+x(C+) to 1.001-1.006, photoelectric efficiency 0.66-1.10); and the [C II]
+thermostat verified inside MOCASSIN alone at 0.986-1.014.
+
+Then eighteen limitations, L-1..L-18, graded by their effect on a published
+number rather than by how untidy they are. The two that matter most:
+
+  * **L-1** - every result predating D-307 was computed on a model that
+    *deleted* about 60% of the PDR's bolometric flux, including the current
+    `150 kK PN Against Cloudy` artifact;
+  * **L-2** - the dust temperature was an arithmetic mean of two crystal
+    axes' temperatures rather than a temperature, worth 26-30% against
+    Cloudy, fixed in D-313 with the re-measurement in flight.
+
+And a section that exists because absence of a reported problem is not
+evidence: **what has not been checked** - the slabs, `ifront`, `hiipdr`, the
+warm start beyond compiling, the 1D PDR flavour beyond compiling, any model
+reaching A_V > 0.7, and Cloudy's own charging exponent, which D-304's
+correction currently borrows from MOCASSIN.
+
+### What this cycle does not yet support
+
+A claim that the implementation is validated *in general*. It is validated on
+one model, at one density, over A_V 0 to 0.68, against one code, with the
+run-to-run scatter now measured for the first time but no published comparison
+yet carrying an error bar. That is a defensible first version, and the
+limitations register is the honest part of it.
