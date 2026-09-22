@@ -82,10 +82,42 @@ IONS = [('e-', '#000000', (0.07, 0.35)), ('H+', '#CC3311', (0.16, 0.35)),
         ('O+', '#009988', 'R'), ('C+', '#0077BB', 'R'), ('Mg+', '#7A5195', 'R')]
 TEMP = [('Tgas', '#CC3311', (0.1, 0.13)), ('Tdust', '#0077BB', (0.1, 0.13))]
 # D-283: plot ranges and Cloudy's grain size law, overridable on the command
-# line (--xlim=lo,hi --rticks=a,b,.. --grains=amin,amax,slope); the defaults
-# are hiipdr's, so its figures are unchanged
-XLIM = (0.04, 3.2)
+# line (--xlim=lo,hi --rticks=a,b,.. --grains=amin,amax,slope).
+# D-319: the defaults USED to be hiipdr's two constants, (0.04, 3.2), and the
+# pn150k figures inherited them - drawing an axis to A_V 3 for a model that
+# ends at 0.67, so the model occupied the left two thirds of the panel and the
+# inside labels at A_V < 0.04 fell off the left edge entirely. The run knows
+# its own extent; a constant cannot track it. Both are now derived from the
+# data unless given, and the explicit options still override.
+XLIM = None
 RTICKS = None
+
+
+def auto_xlim(run, ref):
+    """The A_V range both curves actually occupy, padded by 5%. The reference
+    is allowed to start deeper inside than the model's first cell (Cloudy's
+    first zone is far thinner than a MOCASSIN cell), so the lower edge follows
+    the MODEL - otherwise one code's zoning sets the framing for both."""
+    lo = float(np.nanmin(run['AV'])) / 1.05
+    hi = max(float(np.nanmax(run['AV'])),
+             float(np.nanmax(ref['AV']))) * 1.05
+    return lo, hi
+
+
+# a ladder of round distances; the ticks are those that fall inside the
+# model's own radial extent, so the top axis is never extrapolated
+RLADDER = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+           1, 2, 3, 5, 10, 15, 20, 30, 50, 100]
+
+
+def auto_rticks(run):
+    r0, r1 = float(np.nanmin(run['r'])), float(np.nanmax(run['r']))
+    rt = [v for v in RLADDER if r0 <= v <= r1]
+    # a decade-and-a-bit span can leave only two or three rungs; fall back to
+    # the geometric middle rather than drawing a bare axis
+    if len(rt) < 3:
+        rt = list(np.geomspace(r0 * 1.02, r1 * 0.98, 5))
+    return rt
 # D-305: Cloudy's grain size range, which its own output pins down without
 # guessing. `save grain temperature` writes one column per bin, and the
 # "Average Grain Properties" block in the .out gives the dust-to-gas MASS
@@ -295,7 +327,7 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
     fig, ax = plt.subplots(figsize=(4.6, 4.4))
     # the ionized gas has 165 cells, the PDR 15039: coarser bins in front
     af = run['A_front']
-    x0, x1 = XLIM
+    x0, x1 = XLIM if XLIM is not None else auto_xlim(run, ref)
     edges = np.concatenate([np.geomspace(x0, af * 0.999, 9),
                             np.geomspace(af * 0.999, x1, 32)[1:]])
     inside, margin = [], []
@@ -349,12 +381,8 @@ def draw(run, ref, name, spec, ylab, ylim, outdir, model_label,
     top = ax.twiny()
     top.set_xscale('log')
     top.set_xlim(ax.get_xlim())
-    if RTICKS is None:
-        edges_r = np.arange(0.0, 19.8, 0.5)
-        rt = np.array([1, 2, 3, 5, 10, 15])
-    else:
-        edges_r = np.linspace(0.0, run['r'].max() * 1.001, 41)
-        rt = np.array(RTICKS)
+    edges_r = np.linspace(0.0, run['r'].max() * 1.001, 41)
+    rt = np.array(RTICKS if RTICKS is not None else auto_rticks(run))
     rc, avr = median_profile(run['r'], run['AV'], edges_r)
     ok = np.isfinite(avr)
     top.xaxis.set_major_locator(FixedLocator(np.interp(rt, rc[ok], avr[ok])))
@@ -405,9 +433,15 @@ def main():
     top = max(1e3, 10 ** np.ceil(np.log10(3 * nh)))
     tmax = 1.2 * np.nanmax(run['Tgas'])
     ttop = 3e4 if tmax <= 3e4 else 10 ** np.ceil(np.log10(tmax))
+    xr = XLIM if XLIM is not None else auto_xlim(run, ref)
+    rr = RTICKS if RTICKS is not None else auto_rticks(run)
     print(f"{len(run['AV'])} active cells, {int((run['zone'] == 1).sum())} "
           f"PDR; front at A_V = {run['A_front']:.4f}; reference A_V "
           f"{ref['AV'].min():.3g}-{ref['AV'].max():.3f}")
+    print(f"  A_V axis {xr[0]:.4g}-{xr[1]:.4g} "
+          f"({'given' if XLIM is not None else 'from the run'}); "
+          f"r ticks {[float(f'{v:g}') for v in rr]} pc "
+          f"({'given' if RTICKS is not None else 'from the run'})")
     draw(run, ref, 'chemistry', CHEM, r'$n(i)$ [cm$^{-3}$]', (1e-16, top),
          outdir, model_label, **kw)
     draw(run, ref, 'ions', IONS, r'$n(i)$ [cm$^{-3}$]', (1e-12, top),

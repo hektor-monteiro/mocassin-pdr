@@ -318,6 +318,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-316 | **Exercising the warm start for the first time (L-14) found it broken in three ways, two now fixed - and the first was caused by D-307. Plus: all nine PDR benchmark fixtures pointed at a directory that no longer exists, so none of them could run.** **The fixture path.** Every `benchmarks/pdr/*/input/input.in` carried `pdrDataDir "/home/hmonteiro/software/mocassin-pdr/dataPDR"`, a directory left behind by a rename. Nine fixtures - hiipdr and its five variants, both slabs, ifront - plus pn150k, all unable to start. Repointed. This is why O-09 and the slab checks have been so easy to defer: they could not have been run. **The warm start, defect by defect.** (1) **`linePDF` unallocated, and D-307 caused it.** `mocassinWarm` never called `setLineNuP`/`allocLineArrays`, which did not matter while line transport was off by default - `linePDF` was then needed only under `lgDebug`. Making transport the default turned a dormant omission into an immediate stop: "setDiffusePDF: linePDF unallocated with line transport on". Fixed by mirroring `mocassin.f90`'s order. **A regression the D-314 suite could not have caught**, because that suite exercises `mocassin`, not `mocassinWarm`. (2) **`resetGrid` was called twice.** The driver looped `call resetGrid(grid3D(iGrid))` and then called `call resetGrid(grid3D)`. `resetGrid`'s dummy is `grid(maxGrids)`, an array, so the loop form passed a scalar and by sequence association aliased the same storage - the grid was reset, and every checkpoint file re-read, twice. Reduced to the one call it always meant. (3) **Still broken: a segfault in `updateCell`**, after the Monte Carlo transfer completes cleanly and the SED is written, at the first cell following the D-116 recombination audit. **`seedPDR` is the tempting fix and is the wrong one** - `mocassin.f90` calls it and `mocassinWarm` does not, but it assigns `grid(iG)%pdrAbun(iCell,:) = seed`, overwriting the chemistry with initial values, which would destroy exactly the state a warm start exists to resume. So the missing piece is whatever allocation or linkage `seedPDR` performs incidentally, not the seeding itself, and that has not been separated. **Status of L-14 upgraded from "not exercised" to "broken, two of three defects fixed, third localised"** - which is worth more than the previous unknown even though the flavour still does not run. The build rule caught nothing here because all four flavours compile; only running it found any of this | Open | 2026-09-22 |
 | D-317 | **The warm start runs. Five defects, all found by running it once, and the root cause was a workaround: `readInput()` had been commented out to dodge a double-allocation, which silently disabled the entire PDR resume path.** Continuing D-316. **The chain, in the order it unravelled.** (1) `linePDF` unallocated - `mocassinWarm` never called `setLineNuP`/`allocLineArrays`; dormant while line transport was off, an immediate stop once D-307 made it the default. (2) `resetGrid` called twice, once through a scalar that aliased the array by sequence association. (3) Then a segfault in `updateCell`, which a `CO=bounds` build named exactly where the optimised backtrace gave bare addresses: **"Index '2' of dimension 1 of array 'grid%aveff' above upper bound of 0"** at `update_mod.f90:2888`, via `iterateMC:1260 -> updateCell:301 -> iterateT:889 -> ionBalance:2888`. **The cause: `lgPDR` was never set.** `readInput()` is commented out at `mocassinWarm.f90:48`, `lgPDR` defaults `.false.` in `common_mod.f90:772`, and nothing else assigns it - so `resetGrid`'s `if (lgPDR)` guard skipped **every** PDR allocation while `updateCell` still entered its PDR code through the compile-time `#ifdef PDR`. An unallocated allocatable presents a zeroed descriptor, hence "upper bound of 0". **That `resetGrid` itself assumes `readInput` has run is settled at `grid_mod.f90:3590`**, where it validates "this run has pdr enabled" (`lgPDR`, from the input) against `lgPDRrestart` (from the checkpoint): the checkpoint flag corroborates the input, it never supplies it. **Why it had been commented out** became clear on restoring it: `resetGrid` re-allocates module-level arrays `readInput` has already allocated, and it dies at `grid_mod.f90:3402`. So the two halves of the file disagree about the warm start's contract, and the workaround resolved that contradiction in the direction that ran - at the cost of the PDR resume. (4) and (5) The real clash, fixed properly: **nine star arrays** (`TStellar`, `LStar`, `nPhotons`, `starPosition`, `contShape`, `contShapeIn`, `spID`, `tStep`, `deltaE`) and **six further module arrays** (`abundanceFile`, `dustSpeciesFile`, `nSpeciesPart`, `viewPointPhi`, `viewPointTheta`, `lgDataAvailable`) now guarded with `.not. allocated(...)`; the values are still re-read from the checkpoint, so the resumed run uses the checkpoint's state. `ionDenUsed`, `dl` and `p` are genuinely local and left alone. **Verified:** exit 0, no runtime errors, iteration 5 reaching **100% converged**, energy closing at 3.784 of 3.828e36 erg/s; **A_V resumes exactly** (0.44643 median over the same 53 cells) and the same 50 PDR cells are found; the chemistry continues rather than re-seeding (f_mol 0.398 -> 0.148, CO 9.3e-6 -> 4.5e-6 as it iterates on to full convergence, which are intermediate values, not the network's initial seeds). **Not verified, and stated as such: warm-versus-cold equivalence.** Resuming and converging has not been compared against running cold to convergence, which is the test that would license using the warm start for production. **This is the third instance of one pattern** - a module flag consumed before anything sets it, silently taking its default. D-299 was `lgElementOn`, D-316/D-317 is `lgPDR`. Worth a systematic sweep rather than a fourth one-off | Open | 2026-09-22 |
 | D-318 | **The read-before-set sweep, prompted by D-317: the same defect is in `mocassinPlot` and `mocassinOutput`, where it fails SILENTLY rather than loudly.** D-317 fixed `lgPDR` being consumed before anything set it in `mocassinWarm`, and noted the pattern had now appeared twice (D-299's `lgElementOn` being the first). Grepping for the signature found two more instances immediately: both `mocassinPlot` and `mocassinOutput` carry the identical line `if (lgPDR) call initPDRnetwork()` and **neither calls `readInput`**, so `lgPDR` sits at its `.false.` default, the network is never initialised, and `resetGrid` skips every PDR allocation. **The failure mode is the dangerous one.** `mocassinWarm` crashed, which is how the defect was found at all; `resetGrid` skips its PDR block silently, so these two post-processing tools would emit output with the PDR state simply absent - no error, no warning, just missing physics in whatever they write. Fixed the same way, `call readInput()` before `initPDRnetwork`, which is only safe because D-317's `.not. allocated(...)` guards on `resetGrid`'s fifteen module-level allocations cover exactly this overlap. `mocassinFluorescence` is clean: it calls `setFluorescenceInput()`, which plays the same role. **Four occurrences of one pattern now** - `lgElementOn` in D-299, `lgPDR` in `mocassinWarm`, `mocassinPlot` and `mocassinOutput` - and in three of the four the symptom was silence. **Stated as a limitation, not a clean bill:** both tools are verified to COMPILE with the fix, not to run. Checking them properly needs a grid and a statement of what their output should contain, which is the same distinction L-14 was about, so it is recorded the same way. **What made the sweep cheap** is worth keeping: fixing the first instance produced a greppable signature, and the search then took one command. The pattern to look for is a module logical guarding initialisation in a driver that never runs the routine which sets it | Open | 2026-09-22 |
+| D-319 | **The published PN figures were drawn on hiipdr's axis: A_V out to 3.2 for a model that ends at 0.67, so a third of every panel was empty and the four inside labels below A_V 0.04 fell off the left edge. The axis is now derived from the run rather than carried as a constant.** The user reported it from the artifact. `tools/d260_roellig.py` carried `XLIM = (0.04, 3.2)` and `RTICKS = [1,2,3,5,10,15]` pc, hiipdr's numbers, kept as defaults at D-283 so hiipdr's figures would stay pixel-identical; pn150k inherited them silently because it was plotted without `--xlim`. The top radius axis was worse than empty: the model spans 0.015-0.61 pc, every default tick (1-15 pc) sits outside it, and `np.interp` clamps, so all six piled up at the right edge. Both now come from the data - `auto_xlim` takes the model's own A_V extent (lower edge from the model, not the reference, whose first zone is far thinner than a MOCASSIN cell) padded 5%, `auto_rticks` takes the round distances that fall inside the model's radial extent - and `--xlim`/`--rticks` still override. Checked on both fixtures: pn150k 0.0080-0.713 with ticks 0.02-0.5 pc; hiipdr 0.0493-3.149 against the old 0.04-3.2, and r ticks 2-15 pc against 1-15, dropping a 1 pc tick that was extrapolated below the model's 1.12 pc inner radius. The tool now prints the resolved axis and whether it was given or derived. '150 kK PN Against Cloudy' rebuilt (v9) from figures generated with no flags at all, so the page reproduces from the run; the cell census in its lede corrected from 464/34920 to the run's own 450/34934 | Done | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25035,3 +25036,113 @@ A module flag consumed before anything sets it, silently taking its default:
 Both were found only because something downstream broke loudly. A systematic
 sweep of module logicals for read-before-set is worth more than a fourth
 one-off, and is now on the register.
+
+## D-319 - the published PN figures were drawn on hiipdr's axis (2026-09-22)
+
+The user, looking at the artifact: *"the plots of the 150K PN artifact have Av
+axis going to 3 but the model ends before that around Av ~ 0.8 so fix the plot
+range"*.
+
+Correct, and the cause is a constant that could not track the model.
+
+### What was there
+
+`tools/d260_roellig.py` carried two module constants:
+
+    XLIM   = (0.04, 3.2)
+    RTICKS = None   ->  [1, 2, 3, 5, 10, 15] pc
+
+Both are hiipdr's. D-283 generalised the script for pn150k and added
+`--xlim`/`--rticks`, but deliberately left hiipdr's values as the defaults so
+that hiipdr's own figures would come out pixel-identical. pn150k was then
+plotted without either flag, and inherited them.
+
+The measured extents:
+
+                     model A_V        model r        Cloudy A_V
+    pn150k        0.0084 - 0.6706   0.015 - 0.61 pc   0.00015 - 0.679
+    hiipdr        0.0518 - 2.999    1.12  - 19.4 pc   0.00015 - 2.95
+
+So the pn150k panels ran to A_V 3.2 on a model that stops at 0.67. Roughly a
+third of the panel width was blank, and the curves were compressed into the
+left two thirds.
+
+### Two further consequences, neither visible as an error
+
+**The inside labels below A_V 0.04 were simply not drawn.** `draw()` places
+them at `xa * A_front / 0.4659`, scaling hiipdr's hand-picked positions by the
+front ratio. pn150k's front is at 0.1287, a factor 0.276, so `He^2+` (0.065 ->
+0.018), `e-` (0.07 -> 0.019), `He+` and `C^2+` (0.1 -> 0.028) all landed left
+of x0 = 0.04. Matplotlib clips them without complaint.
+
+**The top radius axis was worse than empty.** Every default tick (1 to 15 pc)
+lies outside pn150k's 0.015-0.61 pc span, and the placement is
+
+    top.xaxis.set_major_locator(FixedLocator(np.interp(rt, rc[ok], avr[ok])))
+
+`np.interp` clamps outside its range, so all six ticks resolved to the same
+A_V and piled up at the right-hand edge - an axis labelled 1, 2, 3, 5, 10, 15
+with every label on top of the last. The caption said *"the upper axis is
+MOCASSIN's radius"*, and it was not.
+
+### The fix
+
+By the project rule - no hardcoded value standing in for something the model
+already knows - the range is not a setting, it is a property of the run. Both
+are now derived when not given:
+
+    def auto_xlim(run, ref):
+        lo = float(np.nanmin(run['AV'])) / 1.05
+        hi = max(float(np.nanmax(run['AV'])),
+                 float(np.nanmax(ref['AV']))) * 1.05
+        return lo, hi
+
+The lower edge follows the **model**, not the reference. Cloudy's first zone
+is far thinner than a MOCASSIN cell - 0.00015 against 0.0084 here, a factor 57
+- and letting it set the lower edge would give two and a half decades of
+single-code curve before the comparison begins. The upper edge takes whichever
+code reaches deeper, so neither is truncated.
+
+`auto_rticks` picks the round distances from a fixed ladder that fall inside
+the model's own radial extent, so the top axis is never extrapolated. Fewer
+than three rungs falls back to five geometric points rather than drawing a
+bare axis.
+
+`--xlim` and `--rticks` still override, and the tool now prints what it
+resolved and whether it was given or derived:
+
+      A_V axis 0.007984-0.713 (from the run); r ticks [0.02, 0.05, 0.1, 0.2,
+      0.5] pc (from the run)
+
+### What it does to each fixture
+
+    fixture     A_V axis: was        now              r ticks: was       now
+    pn150k      0.04 - 3.2           0.0080 - 0.713   1-15 (all clamped) 0.02-0.5
+    hiipdr      0.04 - 3.2           0.0493 - 3.149   1, 2, 3, 5, 10, 15 2, 3, 5, 10, 15
+
+hiipdr moves by under 2% at either end - the hand-picked constants were good
+ones for the fixture they were picked on - but it now loses the 1 pc tick,
+which sat below the model's 1.12 pc inner radius and was therefore
+extrapolated. D-283's "pixel-identical" property is given up deliberately:
+it was protecting a number that should never have been a number.
+
+### The page
+
+'150 kK PN Against Cloudy' rebuilt (v9). The figures were generated with **no
+flags at all**, so the page now reproduces from the run:
+
+    tools/d260_roellig.py runs/d313-qavg runs/d302-cloudy-trim-rad/150k \
+        <outdir> --cloudy
+
+One number in the prose was also wrong: the lede said the medians were taken
+over "464 in the ionized gas, 34 920 in the PDR". The run's own zone column
+gives 450 and 34 934 - the same total, so the same run, but a stale split.
+Corrected.
+
+### What this was not
+
+Not a physics change. No run was repeated, no quantity recomputed; the curves
+are the same data on an axis that fits them. It is worth recording only
+because the defect was invisible from inside the code - the figures were
+produced without error, and the missing labels and collapsed radius axis would
+have been read as properties of the model rather than of the plot.
