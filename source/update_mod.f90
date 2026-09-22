@@ -4201,6 +4201,9 @@ end subroutine iterateT
             integer :: nS, i, ai ! counters
             integer :: iT        ! pointer to dust temp in dust temp array
             integer :: global_nS ! pointer index for dust component
+            integer :: probeStat            ! D-308 probe
+            character(len=32) :: probeEnv   ! D-308 probe
+            integer, save :: nProbe = 0     ! D-308 probe
             ! D-126: recomputation of the collisional term at the probe point
             real    :: kTchk, psichk, etachk, xichk, vmchk, collchk
 #ifdef PDR
@@ -4406,6 +4409,28 @@ end subroutine iterateT
                              & (dustAbsIntegral-dustEmIntegral(global_nS,ai,iT))*&
                              & (real(iT+1)-real(iT))/(dustEmIntegral(global_nS,ai,iT+1)-&
                              & dustEmIntegral(global_nS,ai,iT))
+                     end if
+
+                     ! D-308 probe: the absorption side of the same balance,
+                     ! with the field it was evaluated on, so the two halves
+                     ! can be checked against an independent integral. Opt-in,
+                     ! taskid 0, first few cells only.
+                     if (nProbe < 12 .and. taskid == 0) then
+                        call get_environment_variable("MOCASSIN_DUSTPROBE", &
+                             & probeEnv, status=probeStat)
+                        if (probeStat == 0 .and. trim(probeEnv) == "on" .and. &
+                             & ai == 1+nSizes/2) then
+                           nProbe = nProbe + 1
+                           print*, "! [D308] cell", cellP, " nS", global_nS, &
+                                & " ai", ai, " a[um]", grainRadius(ai)
+                           print*, "! [D308]   sum(Jste)", sum(grid%Jste(cellP,:)), &
+                                & " sum(radField)", sum(radField), &
+                                & " Ndust", grid%Ndust(cellP)
+                           print*, "! [D308]   dustAbsIntegral", dustAbsIntegral, &
+                                & " iT", iT, " emInt(iT)", &
+                                & dustEmIntegral(global_nS,ai,iT), &
+                                & " Tdust", grid%Tdust(nS,ai,cellP)
+                        end if
                      end if
 
                      if (lgTraceHeating.and.taskid==0) then

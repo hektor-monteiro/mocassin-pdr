@@ -149,6 +149,8 @@ module dust_mod
         real :: bb ! blackbody flux
 
         integer :: i, nT, nS, ai  ! counters
+        integer :: probeStat, nuP044, nuP200          ! D-308 probe
+        character(len=32) :: probeEnv                 ! D-308 probe
 
         character(len=50) :: cShapeLoc
 
@@ -161,6 +163,8 @@ module dust_mod
         dustEmIntegral = 0.
 
         cShapeLoc = 'blackbody'
+        call locate(nuArray, 0.44, nuP044)             ! D-308 probe
+        call locate(nuArray, 2.00, nuP200)             ! D-308 probe
 
         do nS = 1, nSpecies
            do ai = 1, nSizes
@@ -176,6 +180,28 @@ module dust_mod
 
         ! the hPlanck is re-introduced here (was excluded in the bb calcs)
         dustEmIntegral = dustEmIntegral*hPlanck*4.
+
+        ! D-308 probe: the emission side of the dust temperature balance, for
+        ! comparison against an independent integral C_abs B_nu(T) dnu. Opt-in
+        ! and taskid 0 only, so it is inert in a normal run.
+        call get_environment_variable("MOCASSIN_DUSTPROBE", probeEnv, status=probeStat)
+        if (probeStat == 0 .and. trim(probeEnv) == "on" .and. taskid == 0) then
+           print*, "! [D308] nSpecies=", nSpecies, " nSizes=", nSizes, &
+                & " nbins=", nbins, " nTemps=", nTemps
+           do nS = 1, min(nSpecies, 2)
+              do ai = 1, nSizes, max(1, nSizes/4)
+                 do nT = 20, 60, 20
+                    print*, "! [D308] emInt  nS", nS, " ai", ai, &
+                         & " a[um]", grainRadius(ai), " T", nT, &
+                         & " dustEmIntegral", dustEmIntegral(nS,ai,nT)
+                 end do
+                 print*, "! [D308] Cabs   nS", nS, " ai", ai, &
+                      & " a[um]", grainRadius(ai), &
+                      & " at 0.44Ryd", xSecArray(dustAbsXsecP(nS,ai)+nuP044-1), &
+                      & " at 2.0Ryd", xSecArray(dustAbsXsecP(nS,ai)+nuP200-1)
+              end do
+           end do
+        end if
 
       end subroutine dustEmissionInt
 
