@@ -239,9 +239,11 @@ Stated explicitly, because absence of a reported problem is not evidence.
     configured sizes, under this cycle's changes. Note that until D-316 they
     *could not have been run at all*: every PDR fixture's `pdrDataDir` pointed
     at a directory left behind by a rename.
-  - **`hiipdr`** (the Bisbas et al. 2015 §5.4 model) under this cycle's
-    changes. The `hiipdr Against Cloudy` artifact predates the line-transport
-    result entirely.
+  - ~~**`hiipdr`** under this cycle's changes~~ - **done** (D-320/D-321,
+    `runs/d316-hiipdr`, artifact v10). What is *not* done on this fixture is
+    the per-cell heating/cooling budget that D-304 read on the 150 kK model,
+    which is now the open question: the disagreement is a profile *shape*,
+    too much energy deposited inside A_V 1 and too little beyond 1.5.
   - **The warm start**, beyond compiling (L-14).
   - **The 1D PDR flavour** (`PDR=1` without `PDRGEOM=3D`), beyond compiling.
   - **Any model reaching A_V > 0.7**, so L-3 is untested in this cycle.
