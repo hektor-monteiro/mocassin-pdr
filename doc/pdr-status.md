@@ -182,8 +182,11 @@ until D-307 made line transport the default, then an immediate stop; and
 sequence association, re-reading every checkpoint file. The third is open: a
 segfault in `updateCell` after the Monte Carlo transfer completes and the SED
 is written. `seedPDR`, which `mocassin.f90` calls and the warm driver does
-not, is *not* the fix - it overwrites `pdrAbun` with initial values, which
-would destroy the state a resume exists to restore.
+not, is *not* the fix and is now ruled out: its only work is a D-251
+validation that every network element has a MOCASSIN abundance, plus the
+seeding itself, which would overwrite `pdrAbun` and destroy the state a
+resume exists to restore. It allocates nothing, so the warm path is right to
+skip it and the missing piece is elsewhere.
 
 **L-15.** `getQs` caps the Mie size parameter at 100, which for a 0.25 um
 grain bites above 5.8 Ryd against a `nuMax` of 30. Affects EUV/X-ray dust
