@@ -325,6 +325,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-323 | **The optics are NOT the cause of D-322: MOCASSIN's and Cloudy's grain cross sections across the Habing band agree in SHAPE to 2% and in albedo to 1%, so the photoelectric/energy divergence is transport, not extinction.** New `tools/d323_fuvshape.py` computes MOCASSIN's C_abs/C_sca per H from the run's own `dust_species.dat` + `dust_sizes.dat` with Mie (`d305_mie.py`) and reads Cloudy's compiled `.opc` `abs_cs`/`sct_cs` blocks, which are already per H per bin. Normalised at the band's red edge, C_abs/C_abs(0.44 Ryd) is 1.988/3.969/4.809/5.282/5.692/5.775 against Cloudy's 1.988/3.975/4.793/5.240/5.607/5.661 - ratios 1.000 to 1.020. d ln C_abs/d ln E = +1.852 vs +1.828; for C_ext, +0.730 vs +0.708. Albedo 0.808/0.674/0.476/0.419/0.407/0.400/0.392 against 0.810/0.676/0.478/0.421/0.410/0.404/0.397. **This is also the first independent check of MOCASSIN's Mie path against a second code's compiled silicate**, and it passes. **A near-miss worth recording:** the first run of this tool weighted the size distribution by n(a) rather than n(a) da, which on a logarithmic radius grid over-weights small grains by ~a and gave d ln C_ext/d ln E = 1.923 against 0.708 - a difference of 1.21, which over the band's factor 2.27 is 2.66, against the 2.71 D-322 measured. **It looked like a quantitative confirmation of the hypothesis it was built to test.** `ph_mod.f90` makeDustXsec normalises n(a) da/sum(n(a) da); reading that settled it. With the code's own weighting the difference is 0.022. So L-19's remaining candidate is 3D diffuse transport against 1D outward-only | Open | 2026-09-22 |
 | D-324 | **D-322's mechanism is corrected: the 2.7x is mostly an artefact of comparing a MOVING threshold against a fixed band, and grain charge - which D-322 excluded - is the dominant term.** `grnAbs` in update_mod.f90 integrates from `th = grainVn + grainPot`, so as grains discharge with depth MOCASSIN's integral widens; D-322 compared that against a fixed 0.44-1 Ryd energy integral and read the difference as spectral shape. Measured properly on Cloudy's per-zone spectrum (`save last ionizing continuum ... every`, 262 MB): Cloudy's N/G0 falls 4.93x with a FIXED 0.5883 Ryd threshold, **1.65x with its own moving threshold**, and 2.15x when driven with MOCASSIN's threshold history. Against MOCASSIN's 2.71x that leaves a threshold-matched spectral residual of **1.26x**, not 2.7x. Decomposing the efficiency swing instead: (PE/G0) RISES 2.75x with depth in Cloudy and FALLS to 0.66x in MOCASSIN, and since PE = Nabs x <Y> x <E>, the yield-and-energy factor rises ~4.54x in Cloudy against a measured 1.94x in MOCASSIN (<Y> 0.0405->0.0811, <E> 0.0712->0.0693). **That is grain charge**, and D-322's argument for excluding it was wrong: it compared the LEVEL of the potential (MOCASSIN's is lower, which would raise its yield) when what matters is the CHANGE in Coulomb suppression as the grain discharges - Cloudy starts more charged (2.711 V against 2.178) and therefore has more to recover. What survives D-322 unchanged: cooling exonerated by the thermostat test, heating is GrnP on both sides, PE_m/PE_c crosses 1 at A_V ~1.3 where T does, and the 72/28 efficiency/field split | Open | 2026-09-22 |
 | D-325 | **The user's hint paid off: 3D-PDR's charging parameter psi = G0 sqrt(T)/x(e) reframes the crossover, and MOCASSIN's hardcoded electron sticking S = 1 is the discrepancy. At MATCHED psi MOCASSIN's photoelectric efficiency is 2.09/1.73/1.36/1.04x Cloudy's - always ABOVE, never crossing - so there is no sign reversal in the photoelectric physics at all.** Both codes' PE/G0 is a PEAKED function of psi (MOCASSIN peaks near 2e5, Cloudy near 1e5); the temperature crossover is the two sliding down opposite sides of that peak, because MOCASSIN's psi falls **113x** across the PDR against Cloudy's **55x** - its G0 falls 89x against 50x and its T falls faster too, and both enter psi. **So the field is the driver after all, through psi, and D-322's '28% field / 72% efficiency' understates it by dividing G0 out linearly when G0 also sets psi.** The offset at matched psi has a named cause: `getGrainRecombination` hardcodes `S = 1.` for electron sticking (and again for ions), while Cloudy's grains.cpp uses STICK_ELEC = 0.5*(1-exp(-a/l_esc)) - and MOCASSIN adopted Weingartner & Draine's YIELD at D-289 while leaving Baldwin's sticking, so two halves of one prescription now come from different sources. Dividing psi by each code's own S collapses the efficiency ratio from 2.087/1.730/1.361/1.043 (spread 4.1) to **1.151/1.164/1.129/1.307** - flat to 15% where it drifted by a factor 2. New `tools/d325_psi.py`. 3D-PDR's own `STICKING=0.3` is freeze-out, a different process, and is NOT evidence about the charge balance - noted so it is not later miscited. Caveats: psi is a similarity variable and dividing by S is a scaling argument, not a derivation; the A_V 2.21 point (0.506 in every row) sits near MOCASSIN's Monte Carlo field floor | Open | 2026-09-22 |
+| D-326 | **Electron sticking set to Weingartner & Draine's value, with the prediction recorded before the run.** `getGrainRecombination` carried `S = 1.` from Baldwin et al. (1991) while D-289 had already taken WD01's YIELD into the same balance and into the heating - two halves of one prescription from different papers, in a place where they multiply. Now `S = 0.5*(1 - exp(-grainRadius(ai)/1.e-3))`, l_e = 10 A, which is what Cloudy's grains.cpp uses; the function gains `ai` to see the size, matching `getGrainEmission(Vg,isp,ai)`. Ion sticking stays 1.0, also Cloudy's. The exponential is 0.5 to four figures over 0.01-0.30 um and is written out anyway so a PAH-sized bin would get the right value rather than a silently wrong one. **Prediction, stated first:** halving the collection rate doubles the effective psi, and MOCASSIN's measured efficiency-vs-psi curve PEAKS near psi = 2e5, so the effect changes sign across the peak - behind the front the efficiency falls and the gas should cool from 72/62 K toward Cloudy's 48/49; deep it rises and the gas should warm from 19.3 K toward 24.1. The profile should ROTATE about A_V ~1.3, not shift, which a normalisation error could not produce. Falsified by the whole profile moving one way, or by the front, H/H2 crossing, deep carbon or dust temperature moving. `tools/d326_check.py` written before the run finished so the comparison is mechanical. All four flavours build; `runs/d326-stick` launched, input byte-identical to `runs/d316-hiipdr` | Open | 2026-09-22 |
+| D-327 | **The user asked whether D-286's Case A recombination cooling is still right when Lyman alpha is not transported. It is, and the reason is that the two 'Lyman' quantities are different photons - but the check turned up a real energy sink next door.** Case A vs B in the COOLING coefficient is Hummer (1994) beta_A = beta_B + beta_1, the electron KINETIC energy removed by recombinations to n=1, which emit the Lyman CONTINUUM (>=13.6 eV). MOCASSIN builds gammaHI from the H threshold up (D-227) and transports it, counting re-absorption as photoionization heating, so Case A is the consistent coefficient. Lyman alpha is 10.2 eV, a LINE, carrying excitation rather than kinetic energy; beta excludes it in both cases. **Verified rather than asserted:** (1) the coefficient really is the n=1 term, read in update_mod.f90; (2) `JPEots`, the on-the-spot line field, is allocated, zeroed and **never filled** - both uses are commented out - so there is no path where the continuum is both transported AND assumed re-absorbed locally, which is the double-count that would have made Case A wrong; (3) the H recombination LINE emissivities are Case B (`data/r1b0100.dat`), and that is NOT an inconsistency - Case B for the line spectrum is about Lyman-LINE optical depth, which is enormous either way, while Case A for the cooling is about whether n=1 recombinations count locally. Same word, different physics. **The sink found next door:** `resLinesTransfer` defaults to 101., a convergence percentage that can never be reached, so `setResLineEscapeProb` and `initResLinePackets` are BOTH gated off in every run in this project - collisionally excited Lyman alpha is removed from the gas as `coolColl` and deposited nowhere, the dust path being the thing that is switched off. Harmless in the PDR, where the H collisional term is gated to T > 5000 K and the gas is at 20-70 K. In the ionized gas it is a genuine sink, though MOCASSIN's own H collisional cooling there is under 3% of the total against Cloudy's ~10% - a factor 4 in a cooling channel that is NOT explained and is registered as such | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25853,3 +25855,92 @@ therefore come out smaller than the curve above suggests.
 Four flavours build. `runs/d326-stick` launching at 31^3, 22 iterations, the
 same fixture and settings as `runs/d316-hiipdr`, so the two are comparable
 run-to-run. Result in the next entry.
+
+## D-327 - is Case A still right without Lyman alpha transfer? (2026-09-22)
+
+The user, while the D-326 run was going: *"I was thinking about the Case A fix
+on the thermal balance that we made. If we are not doing the transfer of
+LyAlpha, is that still correct?"*
+
+**Yes - and the reason is that the two "Lyman" quantities are different
+photons.** But checking it properly turned up a real energy sink next door.
+
+### The two photons
+
+`update_mod.f90` takes Case A from Hummer (1994) as `beta_A = beta_B +
+beta_1`. `beta` is the **electron kinetic energy** carried off per
+recombination, and `beta_1` is the n=1 term. Recombination to n=1 emits a
+**Lyman continuum** photon, >= 13.6 eV.
+
+Lyman alpha is 10.2 eV, a **line**, produced by the radiative cascade after
+recombination to n >= 2 or by collisional excitation from the ground state. It
+carries excitation energy, not the recombining electron's kinetic energy, and
+`beta` excludes it in Case A and Case B alike.
+
+So the Case A choice is coupled to what the code does with the **continuum**,
+and MOCASSIN builds `gammaHI` from the H threshold up (D-227) and transports
+it, counting its re-absorption in the photoionization heating. The kinetic
+energy those recombinations remove therefore genuinely leaves the cell, and
+Case A is the consistent coefficient. Lyman alpha transfer does not enter.
+
+### Three things checked rather than asserted
+
+**1. The coefficient is the n=1 term.** Read in the source, not inferred from
+the name.
+
+**2. There is no double count.** The way Case A could be wrong is if the code
+*also* kept an on-the-spot treatment somewhere - transporting the continuum
+and assuming it re-absorbed locally would count the same energy twice.
+`grid%JPEots`, the on-the-spot line field, is allocated, zeroed, and **never
+filled**: both places that would read it are commented out. So there is no
+such path.
+
+**3. The line emissivities are Case B, and that is not a contradiction.**
+`data/r1b0100.dat` is Case B, so the hydrogen recombination line spectrum is
+computed Case B while the cooling is now Case A. Same word, different physics:
+Case B for the *line spectrum* is a statement about **Lyman-line** optical
+depth, which is enormous in any of these models whatever the continuum does;
+Case A for the *cooling* is a statement about whether **n=1 recombinations**
+count as a local energy loss, which depends on continuum transport. Both are
+right, and for different reasons.
+
+### The sink found next door
+
+`resLinesTransfer` defaults to **101.**, a convergence percentage that can
+never be reached, so both
+
+    if (lgDust .and. convPercent>=resLinesTransfer .and. ...) call setResLineEscapeProb(...)
+    if (lgDust .and. convPercent>=resLinesTransfer .and. ...) call initResLinePackets()
+
+are gated off in **every run in this project** - which is what the standing
+`readInput` warning is about ("the resonanceLinesTransfer keyword is absent.
+The dust temperatures may be underestimated!!!!").
+
+`initResLinePackets` is the path that takes the trapped fraction of H Lyman
+alpha and the heavy-element resonance lines and turns it into dust-emitted
+packets. With it off, collisionally excited Lyman alpha is removed from the
+gas as `coolColl` and **deposited nowhere**. This is the same family as L-1,
+for resonance lines instead of thin ones.
+
+Where it matters:
+
+  - **Not in the PDR.** The H collisional term is gated to `TeUsed > 5000.`
+    and the PDR runs at 20-70 K, so it is identically zero there. None of
+    D-320 to D-326 is affected.
+  - **In the ionized gas**, in principle. Measured on `runs/d316-hiipdr`,
+    MOCASSIN's H collisional cooling is under 3% of its total cooling at
+    A_V 0.05-0.40.
+
+### An unexplained factor of four, registered not chased
+
+Cloudy's matching agent (`ISrcolH H`) carries **9-11%** of its cooling at the
+same depths, against MOCASSIN's under 3%. That is a factor ~4 in a cooling
+channel, and it is **not explained here**. Candidates, none tested: the
+`T > 5000 K` gate, which is a hard cut where the real rate is smooth; the
+neutral fraction each code carries in ionized gas; or Cloudy's agent including
+more than the 1s-2p term. It is small in absolute terms, which is why it has
+not surfaced, and it is written down so that it is not rediscovered as new.
+
+### Conclusion
+
+D-286 stands. No change made.
