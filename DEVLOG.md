@@ -309,6 +309,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-307 | **`MOCASSIN_LINES` defaults to ON, and measuring Cloudy's bolometric field - the thing D-306 left inferred - turned up an internal inconsistency in MOCASSIN's dust temperature that no field difference can explain.** Two pieces. **(1) Line transport is now the default.** D-306 showed that discarding the thin lines deletes energy rather than letting it escape, costing the PDR ~60% of its bolometric flux, so "off" was never a defensible default. The switch was ALSO in the wrong place: `lgLineTransfer` was set inside `makeDustXsec`, which only runs for dust models, so a dust-free model would have silently kept the old default - the same class of defect as D-299. Moved: the default `.true.` now lives in `common_mod.f90` and the `MOCASSIN_LINES` override is read in `readInput`, which always runs, and can only switch it OFF (the A/B has to stay runnable). All four flavours build. **(2) Cloudy's bolometric field, measured.** `save ionizing continuum` is only restricted to the ionizing range by ITS OWN ARGUMENTS - the d290 input passed `0.44 0.0002`, a floor and an interaction cut, not a band limit. Re-run with `1e-5 0.0 every` it writes the whole mesh per zone (`runs/d306-cloudy-field`, 641 zones, 267 MB). Normalising each code by its own unattenuated L/(4 pi r^2) so no internal convention enters: **Cloudy sits at 0.946-0.973 of the undimmed stellar flux, MOCASSIN at 1.100-1.327, a ratio of 1.16-1.36.** Band shares show Cloudy with MORE of its energy in the FUV (0.255 against 0.113 at A_V 0.30) and MOCASSIN with more in 0.01-0.44 Ryd (0.519 against 0.362), with the far-IR comparable (0.369/0.383). **So D-306's "trapped reprocessed infrared" hypothesis is measured and it is real but SMALL - 1.3x, not the ~2.9x D-306 inferred.** **(3) And that opens a hole.** Computing the emitted power exactly, integral C_abs B_nu(T) dnu with the Mie cross sections D-305 validated against Draine to 0.1-1%, the temperatures MOCASSIN reports demand **4.2-4.6x more absorbed energy than Cloudy's**, against a measured field ratio of 1.2-1.3: **an unexplained factor 2.9-3.6**. A one-sided bound settles that this is MOCASSIN's problem and not a comparison artifact: putting ALL of MOCASSIN's own bolometric flux at the single frequency where C_abs peaks - the most favourable spectrum possible - a 0.05 um grain absorbs only **0.44-0.88** of what it must radiate at the temperature MOCASSIN reports for it. **Its dust is hotter than its own radiation field can make it.** Checked and excluded as causes: the balance formula (`radField = Jste/Pi` against `dustEmIntegral`'s `*hPlanck*4.` reduces correctly to integral C_abs J = integral C_abs B); `getFlux`'s blackbody constant (0.5250229 = 2 h fr1Ryd^3/c^2, verified); the ordering of the `symmetricXYZ` /8 scaling against `updateCell` (the scaling at iteration_mod.f90:959 precedes the update at 1261, so the solve and the output see the same array); resonance-line dust heating (`resLinesTransfer` defaults to 101, never fires, and MOCASSIN itself warns it makes dust temperatures UNDER-estimated, the wrong sign); and Jste's absolute scale, which D-303's agreement of MOCASSIN's G0 with Cloudy's to 0.91 independently validates. **What is NOT known: where the factor is.** The size- and depth-independence and the magnitude both point at `getDustT`'s energy balance or the `dustEmIntegral` table rather than at the field. Suggestively, a table too small by ~3.5 gives T too high by 3.5^(1/5.78) = 1.24, against the observed 1.22-1.30 - but no missing factor has been found, and the two numbers to check first are that ~3.5 and the octant 8. **Consequence if it holds: O-02's dust half is a MOCASSIN defect, not a physics difference, and D-283's dust comparison has been reading it since it was written** | Open | 2026-09-22 |
 | D-308 | **Plan for cornering D-307's dust-temperature factor, and the deduction that narrows it.** D-307 established that MOCASSIN's dust is hotter than its own radiation field can make it - even with ALL the bolometric flux placed at the C_abs peak, a 0.05 um grain absorbs 0.44-0.88 of what it must radiate at the reported temperature - and could not localise the factor. **The narrowing deduction: a constant multiplicative error in C_abs CANNOT be the cause.** The balance is `sum C_abs Jste/Pi = 4 integral C_abs B dnu`, and `getDustT` and `dustEmissionInt` read the same `xSecArray` entries, so a common scale factor appears on both sides and cancels exactly - the temperature would not move. The cause must therefore be either **one-sided** (the `*4`/`hPlanck`/`fr1Ryd`/`widFlx` chain on the emission side, or the `/Pi` and the Jste scaling on the absorption side) or a **frequency-SHAPE** error in C_abs. That removes a whole class of candidates without a single run. **The test, deliberately small:** a one-shot diagnostic printing `dustEmIntegral` for a few (size, temperature) pairs from `dustEmissionInt`, and `dustAbsIntegral` with its `radField` sum for one named cell from `getDustT`, run on a few-cell single-iteration fixture rather than the 41^3 production grid - the factor is size- and depth-independent (D-306), so it must appear identically in a tiny model, and nothing about a 2-hour run helps find it. Both integrals are then computed independently in Python from the validated D-305 Mie and the same size distribution and compared number to number, which splits the factor to one side of the balance in one short run; if it lands on the emission side the table is small enough to bisect term by term. The bound in D-307 used only MOCASSIN's own numbers, so it must reproduce inside the code - if it does not, the error is in the reading and the probe shows that too. **Sequencing decided: find it, fix it, re-measure the dust against Cloudy, and only THEN rebuild the artifacts.** The `150 kK PN Against Cloudy` page is currently built on `runs/d302-trim-off`, the energy-losing configuration (D-306), and `hiipdr Against Cloudy` predates the line-transport result entirely; rebuilding either before the dust temperatures are trusted would bake in numbers that may be ~25% wrong. **Explicitly NOT doing yet:** any production-size run | Open | 2026-09-22 |
 | D-309 | **D-307's "MOCASSIN's dust is hotter than its own field can make it" is WITHDRAWN - it was my analysis error - and the probe built to chase it found the real cause: MOCASSIN averages the two graphite orientations' TEMPERATURES where Draine averages their CROSS SECTIONS. Correcting it closes O-02's dust half outright, 1.26-1.30 of Cloudy becoming 0.93-0.95.** The D-308 probe (`MOCASSIN_DUSTPROBE=on`, opt-in and inert otherwise, run on a 5^3 single-iteration fixture in seconds as planned) shows MOCASSIN's internals are **exact**: `dustEmIntegral` matches an independent 4 integral C_abs B_nu(T) dnu to **1.000** at every (species, size, temperature) tested across 0.005-0.199 um and 20-60 K, `sum(radField)` is `sum(Jste)/Pi` to five figures, and re-solving the balance independently reproduces MOCASSIN's own per-species temperatures to **0.9998 and 0.9988**. Nothing is wrong with the solve. **My error in D-307:** I computed the emitted power of a MIXTURE grain at the MEAN reported temperature. There is no mixture grain. `dust_species.dat` carries grph2-dl (E perp c, 0.6667) and grph1-dl (E par c, 0.3333) as two SPECIES, MOCASSIN solves a separate equilibrium temperature for each, and `Tdust(0,0)` is their abundance-weighted **arithmetic mean of temperatures** - not the temperature of anything. The probe shows the two differ by a factor two in one cell at one size: **44.79 K and 22.45 K**, because the two orientations differ enormously in far-IR emissivity. Averaging temperatures is not the temperature of the average when T goes as absorbed^(1/5.8). **The real defect, and it is in the model setup rather than the code:** grph1 and grph2 are not two materials, they are two polarisation directions of ONE material, and the 1/3-2/3 weights are Draine's orientation average for a randomly-oriented grain - which applies to the CROSS SECTIONS of a single grain, then one temperature. Cloudy's graphite does exactly that. For the probe cell: mean-of-temperatures 37.35 K against temperature-of-averaged-grain **26.76 K, a ratio of 1.396**. **Quantified across the production model** by recovering each cell's absorbed energy from the species-1 balance it already satisfies and re-solving for the averaged cross section (`tools/d309_tavg.py`, no new run): reported/Cloudy 1.289/1.304/1.272/1.256 at A_V 0.20/0.30/0.50/0.65 becomes corrected/Cloudy **0.951/0.952/0.931/0.929**. **So the entire D-283 dust-temperature excess was this artifact**, the corrected dust runs 5-7% COOLER than Cloudy's, which is the level its slightly different field would predict, and O-02's dust half is closed. Note the **opacity is unaffected** - `dustAbsXsecP(0,1)` is the cross-section-weighted mixture, so extinction, A_V and the FUV field were always right; only the reported temperature, which is solved per species and averaged after, is affected. Also retired: D-306's "trapped infrared" lead and D-307's search for a missing factor of ~3.5 - there is no missing factor. **Fix not yet applied:** the clean route is one species carrying orientation-averaged optical properties, for which `dustData/Car_90.cat` (Draine's tabulated graphite Q, already in the repo and already supported by the 'Q' file path) is the obvious candidate - though D-305 measured that its small-a entries are PAH physics rather than bulk graphite, which would change the 0.005 um bin at the same time | Open | 2026-09-22 |
+| D-310 | **The fix for D-309: the principal axes of one material are averaged as CROSS SECTIONS and carry ONE temperature - verified against Cloudy's own implementation rather than argued from a paper.** Asked whether Cloudy's n,k file could simply be adopted. **Checked, and the answer settled the design question.** `cloudy-c25.00/data/graphite.rfi` carries **two axes with weights `1 2`** - the same E par c / E perp c pair MOCASSIN has - so there is no single orientation-averaged n,k to grab in either code, and a drop-in was never available. But `grains_mie.cpp:565` shows exactly what Cloudy does with them: `for(cAxis...) { mie_cs_size_distr(...); acs_abs += cs_abs*wt[cAxis]; acs_sct += cs_sct*wt[cAxis]; a1g += cs_sct*(1.-cosb)*wt[cAxis]; }` - **Mie run per axis and the CROSS SECTIONS summed with the axis weights, giving one opacity and therefore one temperature.** So the in-code average is not merely the defensible reading of Draine's 1/3-2/3 rule, it is what the reference computes. (Cloudy's `a1g` is also scattering-cross-section weighted, which is independently the D-280 fix MOCASSIN already made.) Worth recording that the two codes' graphite is **not the same data** - Cloudy's is Martin & Rouleau 1991 at rho 2.26 and T_sub 1750 K, MOCASSIN's is Draine & Lee at 2.2 and 2200 K - yet D-305 measured their opacities agreeing to 0.4% on N_H/A_V, so the sources differ and the answers do not. **Also established: the Q-file route is blocked.** `setGrainYield` is called only in the `'nk'` branch of `makeDustXsec` (ph_mod.f90:1253), so a 'Q' species gets `grainYield = 0` and loses its photoelectric heating outright - `Car_90.cat` could not have been used without first extending that branch, and the WD01 yield needs Im(m), which a Q file does not carry. **Implementation:** after the species loop in `makeDustXsec`, while `Cabs`/`Csca` still hold Q (pi a^2 is applied below, so averaging them IS averaging cross sections), the entries of a component are averaged with their listed weights and written back to every entry, so each sees identical optics and the arithmetic mean over species becomes the correct single temperature - no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables, which is why this shape was chosen over collapsing the arrays. `gCos` is weighted by `Csca` per D-280. **Whether the entries ARE axes of one material is asked of the data, not of a keyword** - identical density, work function, surface-atom mass, sublimation temperature and size range - so silicate plus graphite differ in all of them and correctly stay two species at two temperatures. **Verified on the D-308 fixture in seconds:** both entries now report **26.8480 K** where they previously gave 44.79 and 22.45, and D-309's independent prediction for the averaged-Q grain in that same cell was **26.76 K** - agreement to 0.3%. All four flavours build. Production run `runs/d310-orient` launched to re-measure the dust against Cloudy; D-309 predicts the reported/Cloudy ratio moving from 1.26-1.30 to about 0.93-0.95 | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24274,3 +24275,96 @@ hand to compare against a code, check what the code's reported number
 actually is.** `Tdust(0,0)` looked like a dust temperature. It is a mean of
 two, and everything I built on top of it in D-307 was wrong from the first
 line.
+
+## D-310 - one material, one temperature (2026-09-22)
+
+D-309 found the cause of D-283's dust-temperature excess: `dust_species.dat`
+lists the two principal axes of graphite as two species, MOCASSIN solves a
+temperature for each, and reports their arithmetic mean. This is the fix.
+
+### The question that decided the design
+
+Asked whether Cloudy's n,k file could simply be adopted instead. Checking it
+answered a question that mattered more than the one asked.
+
+`cloudy-c25.00/data/graphite.rfi`:
+
+    2        # number of principal axes (provide optical constants for each axis)
+    1 2      # relative weights of axes (use 1 if only one axis is provided)
+    # first part is parallel, second part is perpendicular
+
+So Cloudy carries **the same two axes at the same 1:2** and there is no single
+orientation-averaged n,k anywhere to grab - not in Cloudy, and not derivable,
+because averaging dielectric functions is not averaging cross sections and no
+single (n,k) reproduces the averaged Q at every size and wavelength.
+
+But `grains_mie.cpp:565` says precisely what Cloudy does with them:
+
+    for( gd.cAxis=0; gd.cAxis < gd.nAxes; gd.cAxis++ ) {
+        mie_cs_size_distr(wavlen,&sd,&gd,mie_cs,&cs_abs,&cs_sct,&cosb,&Error);
+        acs_abs[p][i] += cs_abs*gd.wt[gd.cAxis];
+        acs_sct[p][i] += cs_sct*gd.wt[gd.cAxis];
+        a1g[p][i]     += cs_sct*(1.-cosb)*gd.wt[gd.cAxis];
+    }
+
+Mie per axis, **cross sections** summed with the axis weights, one opacity per
+bin, one temperature. The in-code average is therefore not just the defensible
+reading of Draine's 1/3-2/3 rule - it is what the reference computes, which is
+a much stronger footing than a citation.
+
+Two things worth keeping from that check. Cloudy's `a1g` is weighted by
+`cs_sct`, which is independently the D-280 correction MOCASSIN already made to
+its own `<g>`. And the two codes' graphite is **not the same data**: Cloudy's
+is Martin & Rouleau (1991), rho = 2.26, work function 0.3235 Ryd, sublimation
+1750 K; MOCASSIN's is Draine & Lee, rho = 2.2, 0.323 Ryd, 2200 K. Different
+sources, and D-305 measured the resulting opacities agreeing to 0.4% on
+N_H/A_V, so this has never mattered - but it should be on the record rather
+than assumed away.
+
+### And the Q-file route is blocked
+
+D-309 floated `dustData/Car_90.cat`, Draine's tabulated graphite Q, as the
+obvious single-species candidate. It cannot be used as things stand:
+`setGrainYield` is called at `ph_mod.f90:1253`, **inside the `'nk'` branch
+only**. A `'Q'` species would get `grainYield = 0` and lose its photoelectric
+heating entirely - which, in a PDR model whose gas temperature is set by grain
+photoelectric heating, would have been a spectacular way to break everything
+quietly. The WD01 yield needs Im(m) and a Q file does not carry it, so the
+branch cannot simply be extended either.
+
+Recorded because the file is sitting there looking usable.
+
+### The implementation
+
+In `makeDustXsec`, immediately after the species loop closes. At that point
+`Cabs`/`Csca` still hold **Q** - `pi a^2` is applied further down - so
+averaging them is averaging the cross sections, exactly as Cloudy does.
+
+The average is written back into every entry of the component rather than
+collapsing the arrays to one. That is deliberate: `nSpecies`, `dustComPoint`,
+`grainAbun`, `grainLabel`, `rho`, `TdustSublime`, `grainVn`, `MsurfAtom`,
+`grainYield` and `grainCarb` are all sized and indexed on the original species
+count, and collapsing would mean re-indexing every one of them. With identical
+optics in each slot, each solves the same temperature and the abundance
+weighted mean over species becomes the correct single temperature, with no
+re-indexing at all. `gCos` is weighted by `Csca`, per D-280.
+
+**Whether the entries are axes of one material is asked of the data, not of a
+keyword** - identical density, work function, surface-atom mass, sublimation
+temperature and size range. This is a definition, not a gate: silicate plus
+graphite differ in all five and correctly remain two species at two
+temperatures, which is right, because they are genuinely two materials.
+
+### Verified
+
+On the D-308 fixture, seconds rather than hours:
+
+    before:  nS=1  44.79 K     nS=2  22.45 K     mean 37.35 K
+    after:   nS=1  26.8480 K   nS=2  26.8480 K
+
+and D-309's independent solve for a grain with the averaged cross section in
+that same cell predicted **26.76 K** - 0.3%.
+
+All four flavours build. `runs/d310-orient` is running the production model to
+re-measure against Cloudy. D-309 predicts reported/Cloudy moving from
+1.26-1.30 to about 0.93-0.95.

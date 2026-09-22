@@ -811,6 +811,10 @@ module xSec_mod
 
         integer :: envStat                 ! D-289
         character(len=32) :: yieldEnv      ! D-289
+        ! D-310: orientation averaging of a single material's principal axes
+        logical :: lgOrient
+        integer :: gRef, gThis
+        real    :: wSum, avA, avS, avG
         real :: normWeight ! normalization constant for grain size weighting
         real :: readReal     ! real number reader
         real :: value ! general value variable
@@ -1429,6 +1433,90 @@ module xSec_mod
 
            end do  ! species loop
            close(10)
+
+           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+           ! D-310: the principal axes of ONE material are not two species.
+           !
+           ! dust_species.dat lists grph2-dl (E perp c, 2/3) and grph1-dl
+           ! (E par c, 1/3) as separate entries, and MOCASSIN was solving a
+           ! separate equilibrium temperature for each and reporting their
+           ! arithmetic mean. The two orientations differ enormously in far-IR
+           ! emissivity - D-309 measured 44.79 K against 22.45 K in one cell at
+           ! one size - and T goes as the absorbed energy to the ~1/5.8, so a
+           ! mean of temperatures is not the temperature of the mean. It ran
+           ! 26-30% hot against Cloudy for that reason alone.
+           !
+           ! Draine's 1/3-2/3 rule is an ORIENTATION average for a randomly
+           ! oriented grain, so it belongs on the CROSS SECTIONS of one grain,
+           ! which then has one temperature. Cloudy does exactly this -
+           ! grains_mie.cpp runs Mie per axis and sums cs_abs/cs_sct with the
+           ! axis weights from graphite.rfi, which carries the same two axes at
+           ! the same 1:2 - so this is not merely defensible, it is what the
+           ! reference computes.
+           !
+           ! Cabs/Csca still hold Q here (pi a^2 is applied below), so averaging
+           ! them IS averaging the cross sections. gCos is weighted by Csca, for
+           ! the reason D-280 gives - the mean cosine of a mixture belongs to
+           ! the grains that actually scatter - which is also what Cloudy's
+           ! a1g does.
+           !
+           ! Whether the entries ARE axes of one material is asked of the data,
+           ! not of a keyword: identical density, work function, surface-atom
+           ! mass, sublimation temperature and size range. Silicate plus
+           ! graphite differ in all of them and stay separate species, which is
+           ! correct - they are genuinely two materials at two temperatures.
+           lgOrient = .false.
+           if (nSpeciesPart(icomp) > 1) then
+              lgOrient = .true.
+              gRef = dustComPoint(icomp)
+              do nSpec = 2, nSpeciesPart(icomp)
+                 gThis = dustComPoint(icomp)-1+nSpec
+                 if (rho(gThis)           /= rho(gRef)           .or. &
+                   & grainVn(gThis)       /= grainVn(gRef)       .or. &
+                   & MsurfAtom(gThis)     /= MsurfAtom(gRef)     .or. &
+                   & TdustSublime(gThis)  /= TdustSublime(gRef)  .or. &
+                   & componentMinRadius(icomp,nSpec) /= componentMinRadius(icomp,1) .or. &
+                   & componentMaxRadius(icomp,nSpec) /= componentMaxRadius(icomp,1)) &
+                   & lgOrient = .false.
+              end do
+           end if
+
+           if (lgOrient) then
+              if (taskid == 0) then
+                 print*, "! makeDustXsec: component", icomp, "has", &
+                      & nSpeciesPart(icomp), "entries with identical material &
+                      &constants and size range."
+                 print*, "! makeDustXsec: treating them as principal axes of ONE &
+                      &grain - averaging the cross"
+                 print*, "! makeDustXsec: sections with the listed weights, so &
+                      &the material has ONE temperature (D-310)."
+              end if
+              do ai = 1, nSizes
+                 do i = 1, nbins
+                    wSum = 0.; avA = 0.; avS = 0.; avG = 0.
+                    do nSpec = 1, nSpeciesPart(icomp)
+                       wSum = wSum + grainAbun(icomp, nSpec)
+                       avA  = avA  + grainAbun(icomp, nSpec)*Cabs(nSpec,ai,i)
+                       avS  = avS  + grainAbun(icomp, nSpec)*Csca(nSpec,ai,i)
+                       avG  = avG  + grainAbun(icomp, nSpec)*Csca(nSpec,ai,i)* &
+                            &                                gCos(nSpec,ai,i)
+                    end do
+                    if (wSum <= 0.) cycle
+                    avA = avA/wSum
+                    avS = avS/wSum
+                    if (avS > 0.) then
+                       avG = avG/(wSum*avS)
+                    else
+                       avG = 0.
+                    end if
+                    do nSpec = 1, nSpeciesPart(icomp)
+                       Cabs(nSpec,ai,i) = avA
+                       Csca(nSpec,ai,i) = avS
+                       gCos(nSpec,ai,i) = avG
+                    end do
+                 end do
+              end do
+           end if
 
            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
            ! Print the info about the grains to be used
