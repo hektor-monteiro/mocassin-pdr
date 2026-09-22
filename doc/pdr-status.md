@@ -120,6 +120,19 @@ defect is gone.
 **L-4. O-14: the 3D self-shielding tracer is not fit to be the only
 geometry.** Unchanged.
 
+**L-19 is now the leading open physics question, and it has two independent
+symptoms.** D-322 decomposed hiipdr's gas temperature and found the same
+quantity from the other side: MOCASSIN's count of absorbed photons above the
+photoelectric threshold falls **2.7x faster with depth than its own
+Habing-band field** (Nabs/H 242x against G0 89x over A_V 0.73-2.21), which
+makes the photoelectric conversion efficiency cross over and carries 72% of
+the gas-temperature crossover. The field itself is the smaller half (28%), and
+O-33's C I-edge attenuation excess does **not** carry over to the Habing band.
+So the dust running cool and the gas crossing over are one root - the spectral
+shape inside the FUV band - seen twice. Next measurement: the specific
+intensity per frequency bin at matched A_V in both codes, from runs already on
+disk.
+
 **L-19. The two codes put their reprocessed energy in different places in
 frequency.** MOCASSIN's bolometric field is 1.16-1.35x Cloudy's at every depth
 (D-307, unchanged by the L-2 fix), yet its grains are 9-13% cooler. The band
@@ -209,8 +222,11 @@ figures would stay pixel-identical) and pn150k's Cloudy grain size span; it
 drew the pn150k axis out to A_V 3.2 for a model ending at 0.67, clipped four
 curve labels off the left edge, and collapsed the radius axis onto one point.
 `tools/d305_tdust.py` could not read hiipdr's `dust_sizes.dat` at all, and its
-sample depths covered the first fifth of hiipdr's PDR. All four are now derived
-from the run or from Cloudy's own output (D-319, D-320), and the tools print
+sample depths covered the first fifth of hiipdr's PDR. A fifth turned up the
+moment the next tool was pointed at hiipdr: `tools/d304_budget.py` sampled
+pn150k's A_V 0.05-0.65, which on hiipdr would have **stopped short of the
+crossover the run was made to reach** (D-322). All five are now derived from
+the run or from Cloudy's own output (D-319, D-320, D-322), and the tools print
 what they resolved. **The general risk stands:** a tool run on only one fixture
 cannot tell a property of that model from a property of the physics, and
 neither can its author. Running each tool on a second fixture is the test;
