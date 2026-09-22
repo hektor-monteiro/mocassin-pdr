@@ -86,7 +86,17 @@ TEMP = [('Tgas', '#CC3311', (0.1, 0.13)), ('Tdust', '#0077BB', (0.1, 0.13))]
 # are hiipdr's, so its figures are unchanged
 XLIM = (0.04, 3.2)
 RTICKS = None
-GRAINS = (0.010, 0.300, -3.5)
+# D-305: Cloudy's grain size range, which its own output pins down without
+# guessing. `save grain temperature` writes one column per bin, and the
+# "Average Grain Properties" block in the .out gives the dust-to-gas MASS
+# fraction per bin. For MRN a^-3.5 in log bins that mass goes as a^0.5, so the
+# constant bin-to-bin ratio fixes amax/amin outright: the 150k model gives
+# 1.21604 per bin, i.e. (amax/amin)^0.05, i.e. amax/amin = 50.00 = 0.25/0.005.
+# This used to read (0.010, 0.300), a ratio of 30. It matters little for the
+# number-weighted mean temperature (0.1%, because both weightings put most of
+# the grains in the first bin and the small bins are nearly isothermal) but it
+# was wrong, and the range is measurable rather than assumed.
+GRAINS = (0.005, 0.25, -3.5)
 
 
 def style():
