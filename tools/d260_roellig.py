@@ -41,6 +41,7 @@ Needs numpy + matplotlib (the `astro` conda env):
         <run-dir> <cloudy-prefix> <out-dir> [model-label]
 """
 import os
+import re
 import sys
 
 import numpy as np
@@ -232,6 +233,38 @@ def read_ref(path, a_front):
     return d
 
 
+def cloudy_grain_ratio(prefix, slope=-3.5):
+    """D-319: amax/amin for Cloudy's grains, from Cloudy's own output.
+
+    D-306 established the method for the 150k model and then wrote the answer
+    down as a constant, GRAINS - which promptly went stale for hiipdr, whose
+    grains are 0.01-0.30 um against the 150k model's 0.005-0.25. The method
+    itself needs no constant. The "Average Grain Properties" block prints the
+    dust-to-gas MASS fraction per bin; for a power law a^slope in log bins the
+    mass per bin goes as a^(slope+4), so the (constant) bin-to-bin ratio R is
+    (amax/amin)^((slope+4)/nb) and the span follows.
+
+    Only the RATIO reaches the weights - they are normalised, and scaling both
+    edges by the same factor cancels - so the absolute sizes are not needed.
+    Returns None if the block is absent, leaving the caller on GRAINS.
+    """
+    try:
+        txt = open(f'{prefix}.out', errors='replace').read()
+    except OSError:
+        return None
+    m = re.findall(r'^ <D/G>:(.*)$', txt, re.M)
+    if not m:
+        return None
+    dg = np.array(m[0].split(), float)
+    if len(dg) < 2 or (dg <= 0).any():
+        return None
+    r = dg[1:] / dg[:-1]
+    # a real power law gives a constant ratio; anything else is not this law
+    if r.std() / r.mean() > 1e-3:
+        return None
+    return float(r.mean() ** (len(dg) / (slope + 4)))
+
+
 def read_cloudy(prefix, amin=None, amax=None, slope=None):
     """A Cloudy model saved with `save species densities`, `save overview` and
     `save grain temperature` (runs/d264-cloudy/hiipdr.in). Densities are
@@ -261,6 +294,9 @@ def read_cloudy(prefix, amin=None, amax=None, slope=None):
     d['O++'] = d.pop('O+2')
     if amin is None:
         amin, amax, slope = GRAINS
+        k = cloudy_grain_ratio(prefix, slope)
+        if k is not None:
+            amin, amax = 1.0, k
     nb = gt.shape[1] - 1
     edges = np.geomspace(amin, amax, nb + 1)
     w = edges[:-1] ** (slope + 1) - edges[1:] ** (slope + 1)

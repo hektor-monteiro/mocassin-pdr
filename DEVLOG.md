@@ -319,6 +319,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-317 | **The warm start runs. Five defects, all found by running it once, and the root cause was a workaround: `readInput()` had been commented out to dodge a double-allocation, which silently disabled the entire PDR resume path.** Continuing D-316. **The chain, in the order it unravelled.** (1) `linePDF` unallocated - `mocassinWarm` never called `setLineNuP`/`allocLineArrays`; dormant while line transport was off, an immediate stop once D-307 made it the default. (2) `resetGrid` called twice, once through a scalar that aliased the array by sequence association. (3) Then a segfault in `updateCell`, which a `CO=bounds` build named exactly where the optimised backtrace gave bare addresses: **"Index '2' of dimension 1 of array 'grid%aveff' above upper bound of 0"** at `update_mod.f90:2888`, via `iterateMC:1260 -> updateCell:301 -> iterateT:889 -> ionBalance:2888`. **The cause: `lgPDR` was never set.** `readInput()` is commented out at `mocassinWarm.f90:48`, `lgPDR` defaults `.false.` in `common_mod.f90:772`, and nothing else assigns it - so `resetGrid`'s `if (lgPDR)` guard skipped **every** PDR allocation while `updateCell` still entered its PDR code through the compile-time `#ifdef PDR`. An unallocated allocatable presents a zeroed descriptor, hence "upper bound of 0". **That `resetGrid` itself assumes `readInput` has run is settled at `grid_mod.f90:3590`**, where it validates "this run has pdr enabled" (`lgPDR`, from the input) against `lgPDRrestart` (from the checkpoint): the checkpoint flag corroborates the input, it never supplies it. **Why it had been commented out** became clear on restoring it: `resetGrid` re-allocates module-level arrays `readInput` has already allocated, and it dies at `grid_mod.f90:3402`. So the two halves of the file disagree about the warm start's contract, and the workaround resolved that contradiction in the direction that ran - at the cost of the PDR resume. (4) and (5) The real clash, fixed properly: **nine star arrays** (`TStellar`, `LStar`, `nPhotons`, `starPosition`, `contShape`, `contShapeIn`, `spID`, `tStep`, `deltaE`) and **six further module arrays** (`abundanceFile`, `dustSpeciesFile`, `nSpeciesPart`, `viewPointPhi`, `viewPointTheta`, `lgDataAvailable`) now guarded with `.not. allocated(...)`; the values are still re-read from the checkpoint, so the resumed run uses the checkpoint's state. `ionDenUsed`, `dl` and `p` are genuinely local and left alone. **Verified:** exit 0, no runtime errors, iteration 5 reaching **100% converged**, energy closing at 3.784 of 3.828e36 erg/s; **A_V resumes exactly** (0.44643 median over the same 53 cells) and the same 50 PDR cells are found; the chemistry continues rather than re-seeding (f_mol 0.398 -> 0.148, CO 9.3e-6 -> 4.5e-6 as it iterates on to full convergence, which are intermediate values, not the network's initial seeds). **Not verified, and stated as such: warm-versus-cold equivalence.** Resuming and converging has not been compared against running cold to convergence, which is the test that would license using the warm start for production. **This is the third instance of one pattern** - a module flag consumed before anything sets it, silently taking its default. D-299 was `lgElementOn`, D-316/D-317 is `lgPDR`. Worth a systematic sweep rather than a fourth one-off | Open | 2026-09-22 |
 | D-318 | **The read-before-set sweep, prompted by D-317: the same defect is in `mocassinPlot` and `mocassinOutput`, where it fails SILENTLY rather than loudly.** D-317 fixed `lgPDR` being consumed before anything set it in `mocassinWarm`, and noted the pattern had now appeared twice (D-299's `lgElementOn` being the first). Grepping for the signature found two more instances immediately: both `mocassinPlot` and `mocassinOutput` carry the identical line `if (lgPDR) call initPDRnetwork()` and **neither calls `readInput`**, so `lgPDR` sits at its `.false.` default, the network is never initialised, and `resetGrid` skips every PDR allocation. **The failure mode is the dangerous one.** `mocassinWarm` crashed, which is how the defect was found at all; `resetGrid` skips its PDR block silently, so these two post-processing tools would emit output with the PDR state simply absent - no error, no warning, just missing physics in whatever they write. Fixed the same way, `call readInput()` before `initPDRnetwork`, which is only safe because D-317's `.not. allocated(...)` guards on `resetGrid`'s fifteen module-level allocations cover exactly this overlap. `mocassinFluorescence` is clean: it calls `setFluorescenceInput()`, which plays the same role. **Four occurrences of one pattern now** - `lgElementOn` in D-299, `lgPDR` in `mocassinWarm`, `mocassinPlot` and `mocassinOutput` - and in three of the four the symptom was silence. **Stated as a limitation, not a clean bill:** both tools are verified to COMPILE with the fix, not to run. Checking them properly needs a grid and a statement of what their output should contain, which is the same distinction L-14 was about, so it is recorded the same way. **What made the sweep cheap** is worth keeping: fixing the first instance produced a greppable signature, and the search then took one command. The pattern to look for is a module logical guarding initialisation in a driver that never runs the routine which sets it | Open | 2026-09-22 |
 | D-319 | **The published PN figures were drawn on hiipdr's axis: A_V out to 3.2 for a model that ends at 0.67, so a third of every panel was empty and the four inside labels below A_V 0.04 fell off the left edge. The axis is now derived from the run rather than carried as a constant.** The user reported it from the artifact. `tools/d260_roellig.py` carried `XLIM = (0.04, 3.2)` and `RTICKS = [1,2,3,5,10,15]` pc, hiipdr's numbers, kept as defaults at D-283 so hiipdr's figures would stay pixel-identical; pn150k inherited them silently because it was plotted without `--xlim`. The top radius axis was worse than empty: the model spans 0.015-0.61 pc, every default tick (1-15 pc) sits outside it, and `np.interp` clamps, so all six piled up at the right edge. Both now come from the data - `auto_xlim` takes the model's own A_V extent (lower edge from the model, not the reference, whose first zone is far thinner than a MOCASSIN cell) padded 5%, `auto_rticks` takes the round distances that fall inside the model's radial extent - and `--xlim`/`--rticks` still override. Checked on both fixtures: pn150k 0.0080-0.713 with ticks 0.02-0.5 pc; hiipdr 0.0493-3.149 against the old 0.04-3.2, and r ticks 2-15 pc against 1-15, dropping a 1 pc tick that was extrapolated below the model's 1.12 pc inner radius. The tool now prints the resolved axis and whether it was given or derived. '150 kK PN Against Cloudy' rebuilt (v9) from figures generated with no flags at all, so the page reproduces from the run; the cell census in its lede corrected from 464/34920 to the run's own 450/34934 | Done | 2026-09-22 |
+| D-320 | **hiipdr re-run on the current code (line transport on, dust fixed, warm-start defects out) closes the rest of L-1 - and the result reverses the published sign: MOCASSIN's PDR gas is no longer 2x too COLD, it is 1.3-1.5x too WARM just behind the front and colder only past A_V 1.5.** `runs/d316-hiipdr`: 31^3, 22 iterations, 73.75% converged, 0% ion-balance and 0% Te-balance failures, 1h40m. Against `runs/d277-cloudy`: H+ front 3.795 vs 3.765 pc (was 3.82-3.85 vs 3.77), H/H2 A_V 1.168 vs 1.090, C+ = C 2.242 vs 2.950 (unchanged), H II gas 9027 vs 9274 K. T_gas at A_V 0.7/1.0/1.5/2.0/3.0 = 72/62/39/23/11 K against Cloudy's 48/49/44/29/13 - crossing over near A_V 1.4 - where D-282 published 22-26 vs 29-49 K throughout. The added energy is D-292's line transport, on by default since D-307. Dust, number-weighted on both sides, 0.906-0.957 of Cloudy through the PDR (was 6-12% cooler): same sign and the same L-19 explanation as pn150k's 0.869-0.906, and a smaller residual. Deep-carbon behaviour unchanged: past A_V 2.3 C+ 0.21-0.38x, n_e 0.28-0.45x, CO 50-100x high. **Three more fixture-specific constants found by running the tools on a second fixture**, all the same disease as D-319: `GRAINS = (0.005, 0.25, -3.5)` was pn150k's and was weighting hiipdr's Cloudy dust (whose grains are 0.01-0.30) with the wrong span - now derived from Cloudy's own `<D/G>` block, which recovers 29.987 for hiipdr and 50.002 for pn150k against the true 30 and 50; `d305_tdust.py` could not read hiipdr's `dust_sizes.dat` at all (a trailing ` slope (p): -3.5` line pn150k does not have); and its four sample depths were pn150k's 0.20-0.65, which on a model reaching A_V 3 sampled the first fifth of the PDR. All three fixed by deriving from the run. Regression: pn150k's dust ratios reproduce D-315 exactly (0.906/0.902/0.873/0.869) and its figures move by 1.2e-5 pt | Done | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25146,3 +25147,122 @@ are the same data on an axis that fits them. It is worth recording only
 because the defect was invisible from inside the code - the figures were
 produced without error, and the missing labels and collapsed radius axis would
 have been read as properties of the model rather than of the plot.
+
+## D-320 - hiipdr on the current code, and three more fixture constants (2026-09-22)
+
+L-1 recorded that any artifact built on a lines-off run rests on a model that
+does not conserve energy (D-306). The pn150k page was rebuilt at D-315; the
+hiipdr page predated the line-transport result entirely. `runs/d316-hiipdr`
+was launched to close the rest of it and finished at 16:33.
+
+### The run
+
+31^3, 22 iterations, 1 h 40 min, **73.75% converged**, 0% ion-balance
+failures, 0% Te-balance failures. The convergence plateaus early and stays
+there - 73.7, 74.3, 74.7, 73.8 over iterations 19-22 - so it is a plateau and
+not a trend that was cut short. It is well below pn150k's 89.6% on the same
+code, and the reason is the geometry: hiipdr is a 31^3 grid over 19 pc, and
+the H II region spans about five cells. That was already noted at D-264 and is
+not new.
+
+### The result reverses the published sign
+
+Against `runs/d277-cloudy`, the same reference the v7 page used:
+
+    quantity                     D-282 (published)    D-316 (now)
+    H+ front, x = 1/2            3.82-3.85 / 3.77     3.795 / 3.765 pc
+    H/H2, 2n(H2) = n(H)          A_V 1.20 / 1.09      1.168 / 1.090
+    C+ = C                       A_V 2.27 / 2.95      2.242 / 2.950
+    H II gas T                   -                    9027 / 9274 K
+
+and the PDR temperature, which is the headline:
+
+    A_V     MOCASSIN    Cloudy     was published as
+    0.70       72.4       48.0
+    1.00       61.9       49.3     "PDR T_gas 22-26 vs 29-49 K"
+    1.50       39.2       43.9
+    2.00       23.2       28.7
+    3.00       11.2       12.7
+
+**MOCASSIN is no longer 2x too cold.** It is 1.3-1.5x too warm from the front
+to A_V ~1.4, crosses over there, and is modestly cold below that. The added
+energy is D-292's line transport, on by default since D-307 - the same change
+that moved pn150k, and in the same direction.
+
+This is worth stating plainly: the published claim "the PDR is about twice too
+cold", which has been the standing description of this coupling since D-264,
+was measured on a configuration that deletes ~60% of the bolometric flux in
+the PDR. It was a real number about a model that was losing energy.
+
+### Dust
+
+Number-weighted over the size distribution on both sides, at five depths
+across hiipdr's own PDR:
+
+    A_V     MOCASSIN   Cloudy   ratio
+    0.73      31.54     33.70   0.936
+    1.03      25.80     27.49   0.939
+    1.45      19.89     21.97   0.906
+    2.05      15.50     16.96   0.914
+    2.91      12.96     13.54   0.957
+
+0.906-0.957, against pn150k's 0.869-0.906 (D-315). Same sign, same shape,
+smaller residual - consistent with L-19, where the remaining difference is
+*where in frequency* each code puts its reprocessed energy rather than how
+much of it there is.
+
+### Deep carbon: unchanged
+
+Past A_V 2.3, C+ 0.21-0.38 of Cloudy's, n_e 0.28-0.45x, CO 50-100x high. The
+same numbers D-282 reported. The line-transport energy did not touch it, which
+is what one would expect of a region whose carbon balance is set by the
+cosmic-ray rate and the chemistry rather than by the FUV field.
+
+### Three more fixture constants, found by running the tools twice
+
+D-319 fixed the plot range because it was hiipdr's constant applied to
+pn150k. Pointing the same tools at hiipdr found three more of exactly the same
+kind, in the opposite direction - pn150k's constants applied to hiipdr:
+
+**1. The Cloudy grain size span.** `GRAINS = (0.005, 0.25, -3.5)` is pn150k's
+law. hiipdr's Cloudy model uses 0.01-0.30. The constant sets the weights that
+turn Cloudy's ten per-bin temperatures into one number, so hiipdr's reference
+dust was being weighted over the wrong span. D-306 worked out how to measure
+this from Cloudy's own output and then wrote the answer down as a constant;
+the method needs no constant. `cloudy_grain_ratio` reads the `<D/G>` line from
+the "Average Grain Properties" block, checks the bin-to-bin ratio really is
+constant (it is, to 2e-4 relative), and inverts
+
+    R = (amax/amin)^((slope+4)/nb)
+
+It recovers **29.987** for hiipdr and **50.002** for pn150k, against the true
+30 and 50. Only the ratio reaches the weights - they are normalised - so no
+absolute size is needed. Effect on hiipdr's reference temperature: 0.11%. On
+pn150k's: none, which is the regression check.
+
+**2. `d305_tdust.py` could not read hiipdr at all.** `dust_sizes.dat` carries
+a trailing ` slope (p): -3.5` line in hiipdr's fixture and not in pn150k's,
+and the reader was `np.loadtxt(..., skiprows=2)`. It now reads the count the
+header declares. This is the D-313 NRAD defect again: a reader that assumes a
+file ends where this fixture's file happens to end.
+
+**3. Its sample depths were pn150k's.** `for av in (0.20, 0.30, 0.50, 0.65)` -
+sensible for a PDR ending at A_V 0.67, and on hiipdr it sampled the first
+fifth and stopped. Now five depths spread over the model's own PDR, with
+explicit depths still accepted on the command line.
+
+### Regression
+
+pn150k re-measured with all three changes in place gives 0.906 / 0.902 /
+0.873 / 0.869 at A_V 0.20 / 0.30 / 0.50 / 0.65 - D-315's published values to
+the last digit - and its figures move by at most 1.2e-5 points, which is
+several orders below a pixel. The pn150k page was not republished for it.
+
+### The pattern
+
+Four constants now, in two tools, all found the same way: run the tool on a
+second fixture. Each was correct for the fixture it was written on, and each
+became silently wrong on the other. None produced an error; two produced
+figures that looked entirely reasonable. The general form is that **a tool
+that has only ever been run on one model cannot distinguish a property of that
+model from a property of the physics**, and neither can its author.

@@ -18,6 +18,8 @@ import sys
 
 import numpy as np
 
+AVS = []
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import d260_roellig as R
 from d287_pe import rows
@@ -52,7 +54,16 @@ def read_dustgrid(run, nsizes=35, nspec=None):
 
 def main(run, prefix):
     d = R.read_run(run)
-    sz = np.loadtxt(os.path.join(run, 'input', 'dust_sizes.dat'), skiprows=2)
+    # D-319: the header declares the count, and some fixtures carry a trailing
+    # " slope (p): -3.5" line that hiipdr has and pn150k does not. Read the
+    # declared number of records rather than assuming the file ends with them.
+    sl = open(os.path.join(run, 'input', 'dust_sizes.dat')).read().splitlines()
+    nsz = int(sl[0].split()[0])
+    sz = np.array([l.split()[:3] for l in sl[1:]
+                   if len(l.split()) >= 3 and l.split()[0].isdigit()][:nsz],
+                  float)
+    if len(sz) != nsz:
+        raise SystemExit(f'dust_sizes.dat declares {nsz} sizes, found {len(sz)}')
     a_um, nofa = sz[:, 1], sz[:, 2]
     # dust_species.dat order and weights
     # abundances, one per species record, whatever the count
@@ -87,7 +98,10 @@ def main(run, prefix):
     print('Grain temperature size by size. MOCASSIN: 35 bins, median over '
           'cells in the\nA_V bin. Cloudy: 10 bins at their geometric centres, '
           'nearest zone.\n')
-    for av in (0.20, 0.30, 0.50, 0.65):
+    # D-319: these four depths were pn150k's, whose PDR ends at A_V 0.67;
+    # run on hiipdr, which reaches 3, they sampled only the first fifth of it.
+    # Sample the model's own PDR instead, or take depths on the command line.
+    for av in AVS if AVS else pdr_depths(d):
         s = np.abs(d['AV'] - av) <= max(0.02, 0.06 * av)
         if s.sum() < 3:
             continue
@@ -114,5 +128,14 @@ def main(run, prefix):
         print('  reported in pdrRad.out: %.2f K\n' % np.median(d['Tdust'][s]))
 
 
+def pdr_depths(d, n=5):
+    """n depths spread over the model's own PDR, from just behind the front to
+    the last bin that holds cells."""
+    av = d['AV'][d['AV'] >= d['A_front']]
+    return [float(v) for v in
+            np.geomspace(np.percentile(av, 2), np.percentile(av, 98), n)]
+
+
 if __name__ == '__main__':
+    AVS = [float(v) for v in sys.argv[3:]]
     main(sys.argv[1], sys.argv[2])
