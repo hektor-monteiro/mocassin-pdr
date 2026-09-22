@@ -93,6 +93,54 @@ Rules:
   - Several independent groups may coexist in one component, alongside
     untagged species.
 
+### Abundances and mass in an axis group
+
+The weights on an axis group's records do **double duty**: they are the
+orientation weights *and* the abundances. MOCASSIN does not normalise
+`grainAbun`, so they must sum to the abundance the whole grain should have.
+
+    'dustData/grph2-dl.nk' 0.6667 0.005 0.25 axes:graphite
+    'dustData/grph1-dl.nk' 0.3333 0.005 0.25 axes:graphite   -> one grain, abundance 1
+
+For a mixture, scale the group so it sums to that material's share:
+
+    'dustData/astroSilD2003.nk' 0.5000 0.005 0.25
+    'dustData/grph2-dl.nk'      0.3333 0.005 0.25 axes:graphite
+    'dustData/grph1-dl.nk'      0.1667 0.005 0.25 axes:graphite   -> half silicate, half graphite
+
+Because the tag only overwrites **cross sections** and leaves the weights,
+`rho` and `a^3` untouched, everything downstream that uses abundance is
+unaffected:
+
+  - **Mean grain mass and Ndust** — `sum (4/3) pi a^3 rho w(a) f(species)` runs
+    over both records, and since their weights sum to the grain's abundance the
+    mass is that of one grain. Verified: total dust mass is byte-identical with
+    and without the tag (7.32406080E-02 Msol on the test fixture).
+  - **Opacity** — `CTabs = sum f(species) C_abs w(a)` becomes
+    `(0.6667 + 0.3333) * C_avg = C_avg`. This was always correct, tag or not,
+    which is why A_V and the FUV field never carried the temperature bug.
+  - **Emission** — same structure, and with one temperature now the two
+    records contribute one Planck function at one T.
+  - **Reported mass per species** splits 2:1 across the two labels. Cosmetic:
+    the total is right, but the breakdown lists one material twice.
+
+The one place the double duty is a genuine approximation is the photoelectric
+yield. `setGrainYield` runs *before* the averaging, so `grainYield` stays
+per-axis while the cross section it multiplies has become the average. The
+code therefore forms `C_avg * sum w_i Y_i` where the strict orientation
+average is `sum w_i C_i Y_i`. Measured on the graphite axes, as-coded over
+correct:
+
+    a [um]    0.50 Ryd   0.75 Ryd   1.00 Ryd
+    0.005       1.36       1.006      0.990
+    0.0354      1.08       1.021      1.000
+    0.25        0.985      0.998      1.000
+
+At 0.75-1.0 Ryd, where the photoelectrons actually come from, it is within
+2%. The 1.36 sits at the bottom of the band where the yield is 0.004 and the
+contribution is some 300 times smaller. Worth knowing, not worth correcting
+before something depends on it.
+
 ### Why you cannot just supply one pre-averaged n,k file
 
 Because the average is over **cross sections**, and Mie is non-linear in
