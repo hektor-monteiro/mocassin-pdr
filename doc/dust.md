@@ -12,21 +12,21 @@ Three files, named from `input.in`:
 
 ### `dust_species.dat` — which materials
 
-    2
-    'dustData/grph2-dl.nk' 0.6667 0.005 0.25 axes:graphite
-    'dustData/grph1-dl.nk' 0.3333 0.005 0.25 axes:graphite
+    1
+    'dustData/grph-avg.cat' 1.0000 0.005 0.25
 
 Line 1 is the number of species. Each species record is
 
-    <optical-data file> <abundance> [<amin/um> <amax/um>] [axes:<name>]
+    <optical-data file> <abundance> [<amin/um> <amax/um>] 
 
   - **optical-data file**, relative to `PREFIX/share/mocassin/`. Either an
     `nk` file (wavelength, n, k — MOCASSIN runs Mie itself) or a `Q` file
-    (tabulated Qabs, Qsca, g). **See the warning on `Q` files below.**
+    (tabulated Qabs, Qsca, g, and Im(m) - see *Q format* below).
   - **abundance**, by number, relative to the other species of the component.
   - **amin, amax** in micron, optional; defaults to the full range of
     `dust_sizes.dat`. Sizes outside get zero cross-section for that species.
-  - **axes:\<name\>**, optional. See *Anisotropic materials*.
+There is no axis keyword. An anisotropic material is pre-averaged into a
+single file before MOCASSIN sees it - see *Anisotropic materials* below.
 
 Each species gets **its own equilibrium temperature**. That is correct and
 required: silicate and graphite in the same nebula genuinely sit at different
@@ -56,97 +56,59 @@ mean grain mass over the distribution:
 `MdMh` is the same thing per unit hydrogen mass instead. `Ndust` may be given
 directly, which is the only option for a gas-free model.
 
-## Anisotropic materials: the `axes:` tag
+## Anisotropic materials: pre-average them into one species
 
 **This is the part that is easy to get wrong, and the error is large.**
 
 Graphite is optically anisotropic: its dielectric function differs along the
-crystal c-axis and perpendicular to it. Its data therefore comes as **two
-files**, one per axis, with weights 1/3 (parallel) and 2/3 (perpendicular) —
+crystal c-axis and perpendicular to it. Its data therefore ships as **two
+files**, one per axis, with weights 1/3 (parallel) and 2/3 (perpendicular) -
 the geometric weights of a randomly oriented grain, *not* the abundances of
 two grain populations.
 
-Listed as two plain species, MOCASSIN would solve one temperature for a
-hypothetical pure-parallel grain and another for a pure-perpendicular grain —
-neither of which exists — and report their mean. Measured in one cell at one
-size: **44.79 K and 22.45 K, mean 37.35 K, where the real randomly-oriented
-grain sits at 26.85 K.** That is a 39% error in dust temperature, and it made
-the 150 kK model's dust run 26–30% hot against Cloudy (DEVLOG D-309).
+Listed as two species, MOCASSIN solves one temperature for a hypothetical
+pure-parallel grain and another for a pure-perpendicular grain - neither of
+which exists - and reports their mean. Measured in one cell at one size:
+**44.79 K and 22.45 K, mean 37.35 K, where the real randomly-oriented grain
+sits at 26.85 K.** That is a 39% error, and it made the 150 kK model's dust
+run 26-30% hot against Cloudy (DEVLOG D-309).
 
-Tag the members of an axis set with the same name:
+**Do the orientation average yourself, once, and give MOCASSIN one species.**
 
-    'dustData/grph2-dl.nk' 0.6667 0.005 0.25 axes:graphite
-    'dustData/grph1-dl.nk' 0.3333 0.005 0.25 axes:graphite
+    ~/miniforge3/envs/astro/bin/python tools/mkqfile.py \
+        --out dustData/grph-avg.cat --label grph-avg \
+        --sizes input/dust_sizes.dat \
+        dustData/grph2-dl.nk:0.6667 dustData/grph1-dl.nk:0.3333
 
-MOCASSIN then runs Mie per axis, **averages the cross sections** with the
-listed weights, and the result is one grain with one temperature. This is what
-Cloudy does (`grains_mie.cpp` sums `cs_abs`/`cs_sct` over axes with the weights
-from `graphite.rfi`, which carries the same two axes at the same 1:2).
+then
 
-Rules:
+    1
+    'dustData/grph-avg.cat' 1.0000 0.005 0.25
 
-  - Untagged species are independent and keep their own temperature. This is
-    the default and is right for genuine mixtures.
-  - A group needs at least two members.
-  - Members must share density, work function, surface-atom mass and
-    sublimation temperature; MOCASSIN stops if they do not.
-  - Several independent groups may coexist in one component, alongside
-    untagged species.
+`mkqfile.py` runs Mie per axis and sums the **cross sections** with the axis
+weights, which is what Draine's 1/3-2/3 rule means and what Cloudy does
+(`grains_mie.cpp` sums `cs_abs`/`cs_sct` over the axes in `graphite.rfi`). It
+refuses if the axes disagree on density, work function, surface-atom mass or
+sublimation temperature, since those would not be one material.
 
-### Abundances and mass in an axis group
+Verified: the generated file reproduces direct Mie of the mixture to a ratio
+of 1.000 from 0.001 to 25 Ryd, and MOCASSIN's own arrays built from it match
+the two-file mixture to 0.12% at 0.44 Ryd and exactly at 2.0 Ryd.
 
-The weights on an axis group's records do **double duty**: they are the
-orientation weights *and* the abundances. MOCASSIN does not normalise
-`grainAbun`, so they must sum to the abundance the whole grain should have.
+Two things to get right when generating:
 
-    'dustData/grph2-dl.nk' 0.6667 0.005 0.25 axes:graphite
-    'dustData/grph1-dl.nk' 0.3333 0.005 0.25 axes:graphite   -> one grain, abundance 1
+  - **Wavelength range must span the model grid.** `nuMin = 1.001e-5 Ryd` is
+    9104 um, so the default `--lmax 1e4` exists for a reason; values outside
+    the table are clamped, not extrapolated.
+  - **Radii should be the model's own.** Pass the same `dust_sizes.dat` the
+    model uses, so MOCASSIN interpolates at its own grid points.
 
-For a mixture, scale the group so it sums to that material's share:
-
-    'dustData/astroSilD2003.nk' 0.5000 0.005 0.25
-    'dustData/grph2-dl.nk'      0.3333 0.005 0.25 axes:graphite
-    'dustData/grph1-dl.nk'      0.1667 0.005 0.25 axes:graphite   -> half silicate, half graphite
-
-Because the tag only overwrites **cross sections** and leaves the weights,
-`rho` and `a^3` untouched, everything downstream that uses abundance is
-unaffected:
-
-  - **Mean grain mass and Ndust** — `sum (4/3) pi a^3 rho w(a) f(species)` runs
-    over both records, and since their weights sum to the grain's abundance the
-    mass is that of one grain. Verified: total dust mass is byte-identical with
-    and without the tag (7.32406080E-02 Msol on the test fixture).
-  - **Opacity** — `CTabs = sum f(species) C_abs w(a)` becomes
-    `(0.6667 + 0.3333) * C_avg = C_avg`. This was always correct, tag or not,
-    which is why A_V and the FUV field never carried the temperature bug.
-  - **Emission** — same structure, and with one temperature now the two
-    records contribute one Planck function at one T.
-  - **Reported mass per species** splits 2:1 across the two labels. Cosmetic:
-    the total is right, but the breakdown lists one material twice.
-
-The one place the double duty is a genuine approximation is the photoelectric
-yield. `setGrainYield` runs *before* the averaging, so `grainYield` stays
-per-axis while the cross section it multiplies has become the average. The
-code therefore forms `C_avg * sum w_i Y_i` where the strict orientation
-average is `sum w_i C_i Y_i`. Measured on the graphite axes, as-coded over
-correct:
-
-    a [um]    0.50 Ryd   0.75 Ryd   1.00 Ryd
-    0.005       1.36       1.006      0.990
-    0.0354      1.08       1.021      1.000
-    0.25        0.985      0.998      1.000
-
-At 0.75-1.0 Ryd, where the photoelectrons actually come from, it is within
-2%. The 1.36 sits at the bottom of the band where the yield is 0.004 and the
-contribution is some 300 times smaller. Worth knowing, not worth correcting
-before something depends on it.
-
-### Why you cannot just supply one pre-averaged n,k file
+### Why you cannot supply one pre-averaged n,k file instead
 
 Because the average is over **cross sections**, and Mie is non-linear in
-(n, k). No single (n, k) reproduces `(2/3)Q(eps_perp) + (1/3)Q(eps_par)` across
-size and wavelength. Measured on the graphite files in `dustData/`, the ratio
-of a naively averaged n,k to the correct answer:
+(n, k). No single (n, k) reproduces `(2/3)Q(eps_perp) + (1/3)Q(eps_par)`
+across size and wavelength. Measured on the graphite files in `dustData/`, the
+ratio of a naively averaged n,k to the correct answer:
 
     a [um]   0.1 um   0.55 um   10 um   100 um
     0.005     0.96     1.21     2.14     0.09
@@ -154,12 +116,22 @@ of a naively averaged n,k to the correct answer:
     0.25      1.02     1.01     1.44     0.12
 
 Acceptable in the ultraviolet, where the grain *absorbs*. Catastrophic at
-100 um, where it *radiates* — 8 to 11 times too little emissivity, which would
-drive the dust temperature far higher than the error the tag exists to fix.
-Averaging the dielectric function instead is no better (0.07–1.77).
+100 um, where it *radiates* - 8 to 11 times too little emissivity. Averaging
+the dielectric function instead is no better (0.07-1.77). So the average has
+to happen after Mie, which is what `mkqfile.py` does.
 
-So the averaging has to happen after Mie, inside MOCASSIN, which is what the
-tag asks for.
+### Abundances and mass
+
+Abundances are by number and are **not normalised** by MOCASSIN - they are
+used as given. With the axes pre-averaged into one species this is
+straightforward again: one file, one abundance.
+
+    'dustData/astroSilD2003.nk' 0.5000 0.005 0.25
+    'dustData/grph-avg.cat'     0.5000 0.005 0.25   -> half silicate, half graphite
+
+`Ndust` follows from `MdMg` and the mean grain mass
+`sum (4/3) pi a^3 rho w(a) f(species)`, so the abundances set both the mass
+split and the opacity mixture, as they always did.
 
 ## Optical data files
 
@@ -177,7 +149,7 @@ photoelectric yield fit. Then wavelength in micron, n, k, in any monotonic
 order. Values outside the table are **clamped**, not extrapolated, so the table
 must span `nuMin`–`nuMax` of the model.
 
-### `Q` format, and a warning
+### `Q` format
 
     Q
      label 2200. 2.2 0.323 12.004
@@ -187,19 +159,25 @@ must span `nuMin`–`nuMax` of the model.
        a(um)   lam(um)   Qabs   Qsca   g<cos>
      ...
 
-**`Q` species currently get zero photoelectric yield.** `setGrainYield` is
-called only from the `nk` branch of `makeDustXsec`, because the
-Weingartner & Draine (2001) yield needs Im(m), which a `Q` file does not
-carry. In a PDR model, where the gas temperature is set by grain photoelectric
-heating, this fails silently and completely. Do not use `Q` files for a PDR
-model until that is fixed.
+A sixth column, **Im(m)**, is a MOCASSIN extension. The
+Weingartner & Draine (2001) photoelectric yield needs it, and a standard
+Draine Q file does not carry it. Without the column MOCASSIN **stops** rather
+than running with no yield - in a PDR model the gas temperature is set by
+grain photoelectric heating, so a silently zero yield would be fatal and
+invisible. `tools/mkqfile.py` writes the column.
+
+Header comment lines are skipped until the NRAD line parses, so the count of
+comment lines is free.
+
+Historical note: before D-313 the `Q` path could not run at all. It allocated
+`CTsca`/`CTabs` a second time, which returns a non-zero status and stopped the
+model, and it never called `setGrainYield`. Both are fixed.
 
 ## What MOCASSIN computes
 
   - **Opacity** — `Ndust` times the abundance- and size-weighted mixture cross
-    section. Always the correct orientation average, independent of the `axes:`
-    tag, so extinction, A_V and the FUV field were never affected by the bug
-    above.
+    section, so extinction, A_V and the FUV field were never affected by the
+    temperature bug above - only the per-species temperature was.
   - **A_V** — integrated from MOCASSIN's own V-band opacity including
     scattering, `A_V = 1.0857 tau`. For the 150 kK model this gives
     N_H/A_V = 2.75e21, against Cloudy's 2.74e21 (0.4%).

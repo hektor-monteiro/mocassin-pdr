@@ -189,7 +189,7 @@ module dust_mod
            print*, "! [D308] nSpecies=", nSpecies, " nSizes=", nSizes, &
                 & " nbins=", nbins, " nTemps=", nTemps
            do nS = 1, min(nSpecies, 2)
-              do ai = 1, nSizes, max(1, nSizes/4)
+              do ai = 2, nSizes, max(1, nSizes/4)
                  do nT = 20, 60, 20
                     print*, "! [D308] emInt  nS", nS, " ai", ai, &
                          & " a[um]", grainRadius(ai), " T", nT, &

@@ -811,14 +811,13 @@ module xSec_mod
 
         integer :: envStat                 ! D-289
         character(len=32) :: yieldEnv      ! D-289
-        ! D-312: per-species axis-group tag. Species of a component carrying
-        ! the same `axes:<name>` tag are the principal axes of ONE grain, so
-        ! their cross sections are averaged and the grain has one temperature.
-        character(len=32), allocatable :: axisGroup(:)
-        character(len=32) :: thisGroup
-        integer :: gRef, gThis, nInGroup
-        real    :: wSum, avA, avS, avG
-        logical :: lgDone
+        ! D-313: optional 6th column of a Q file, Im(m) per wavelength, so a
+        ! pre-averaged single-species Q file can still drive the WD01
+        ! photoelectric yield. Without it setGrainYield never runs for a Q
+        ! species and the grain silently loses all its photoelectric heating.
+        logical :: lgHaveK
+        real, allocatable :: tmpkk(:), EimQ(:)
+        real :: rdum(6)
         real :: normWeight ! normalization constant for grain size weighting
         real :: readReal     ! real number reader
         real :: value ! general value variable
@@ -1103,13 +1102,6 @@ module xSec_mod
            ! Read how many species are used
            read (10, *) nSpeciesPart(icomp)
 
-           if (allocated(axisGroup)) deallocate(axisGroup)
-           allocate(axisGroup(1:max(nSpeciesPart(icomp),1)), stat=err)
-           if (err /= 0) then
-              print*, "! makeDustXsec: can't allocate axisGroup memory"; stop
-           end if
-           axisGroup = ''
-
            do nSpec = 1, nSpeciesPart(icomp)
               
               ! For each species read abundance and, optionally, the size
@@ -1121,48 +1113,19 @@ module xSec_mod
                  stop
               end if
 
-              ! D-312: an optional trailing `axes:<name>` tag. Species sharing
-              ! it are the principal axes of one anisotropic grain, not
-              ! distinct species - see the averaging block after this loop.
-              axisGroup(nSpec) = ''
               read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec), &
-                   & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec), &
-                   & axisGroup(nSpec)
+                   & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec)
 
               if (ios /= 0) then
-                 axisGroup(nSpec) = ''
-                 read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec), &
-                      & componentMinRadius(icomp, nSpec), componentMaxRadius(icomp, nSpec)
-              end if
-
-              if (ios /= 0) then
-                 axisGroup(nSpec) = ''
                  read(speciesLine, *, iostat=ios) extinctionFile, grainAbun(icomp, nSpec)
                  if (ios /= 0) then
                     print*, "! makeDustXsec: cannot parse grain-species record; expected"
-                    print*, "!   <optical-data file> <abundance> [<amin/um> <amax/um>] [axes:<name>]"
+                    print*, "!   <optical-data file> <abundance> [<amin/um> <amax/um>]"
                     print*, "! got: ", trim(speciesLine)
                     stop
                  end if
                  componentMinRadius(icomp, nSpec) = grainRadius(1)
                  componentMaxRadius(icomp, nSpec) = grainRadius(nSizes)
-              end if
-
-              if (len_trim(axisGroup(nSpec)) > 0) then
-                 if (axisGroup(nSpec)(1:5) /= 'axes:') then
-                    print*, "! makeDustXsec: unrecognised trailing field '", &
-                         & trim(axisGroup(nSpec)), "' on the species record."
-                    print*, "!   the only trailing field is an axis-group tag, &
-                         &written axes:<name>"
-                    print*, "! got: ", trim(speciesLine)
-                    stop
-                 end if
-                 if (len_trim(axisGroup(nSpec)) == 5) then
-                    print*, "! makeDustXsec: axes: tag needs a group name, e.g. &
-                         &axes:graphite"
-                    print*, "! got: ", trim(speciesLine)
-                    stop
-                 end if
               end if
               
               ! Read dust optical constant data from file
@@ -1313,10 +1276,29 @@ module xSec_mod
                       & grainVn(nSpec+dustComPoint(icomp)-1), &
                       & MsurfAtom(dustComPoint(icomp)-1+nSpec)
 
-                 do i = 1, 2
-                    read(20,*) textString
+                 ! D-313: skip comment lines until NRAD parses, rather than
+                 ! assuming exactly two of them. Q files are written by users
+                 ! (tools/mkqfile.py, or by hand), and a header with a
+                 ! different number of comment lines used to fail with
+                 ! "Bad integer for item 1 in list input" pointing at the data
+                 ! block rather than at the header.
+                 nRadii = 0
+                 do i = 1, 200
+                    read(20,'(A)',iostat=ios) speciesLine
+                    if (ios /= 0) then
+                       print*, "! makeDustXsec: ", trim(extinctionFile), &
+                            & " ended before the NRAD line."
+                       stop
+                    end if
+                    read(speciesLine,*,iostat=ios) nRadii
+                    if (ios == 0 .and. nRadii > 0) exit
+                    nRadii = 0
                  end do
-                 read(20,*) nRadii
+                 if (nRadii <= 0) then
+                    print*, "! makeDustXsec: no NRAD line found in ", &
+                         & trim(extinctionFile)
+                    stop
+                 end if
                  read(20,*) nwav
                  read(20,*) textString
 
@@ -1356,10 +1338,14 @@ module xSec_mod
                     allocate (gCos(1:nSpecies,0:nSizes,1:nbins), stat=err)
                     allocate (Csca(1:nSpecies,0:nSizes,1:nbins), stat=err)
                     allocate (Cabs(1:nSpecies,0:nSizes,1:nbins), stat=err)
-                    allocate (CTsca(1:nbins), stat=err)
-                    allocate (CTabs(1:nbins), stat=err)
+                    ! D-313: CTsca/CTabs are allocated once before the
+                    ! component loop (see above). The Q branch allocated them
+                    ! a second time, which returns a non-zero status and
+                    ! stopped the run - so the Q path could never have been
+                    ! used. The nk branch has the same two lines commented out.
                     if (err/=0) then
-                       print*, "! makeDustXsec (1230): error allocation memory for array"
+                       print*, "! makeDustXsec: error allocating the dust &
+                            &cross-section arrays"
                        stop
                     end if
                  end if
@@ -1372,9 +1358,25 @@ module xSec_mod
                     Csca = 0.
                  endif                
 
+                 ! D-313: does this file carry the optional Im(m) column?
+                 read(20,*,iostat=ios) rdum(1),rdum(2),rdum(3),rdum(4),rdum(5),rdum(6)
+                 lgHaveK = (ios == 0)
+                 backspace(20)
+                 if (allocated(tmpkk)) deallocate(tmpkk)
+                 allocate(tmpkk(1:nWav), stat=err)
+                 tmpkk = 0.
+
                  do i = 1, nRadii
                     do j = 1, nWav
-                       read(20,*) agrain(i), wav(j), tmp11(i,j), tmp22(i,j), tmp33(i,j)
+                       if (lgHaveK) then
+                          read(20,*) agrain(i), wav(j), tmp11(i,j), tmp22(i,j), &
+                               & tmp33(i,j), rdum(6)
+                          ! Im(m) is a material property, so it is the same for
+                          ! every radius; keep the first block's copy.
+                          if (i == 1) tmpkk(j) = rdum(6)
+                       else
+                          read(20,*) agrain(i), wav(j), tmp11(i,j), tmp22(i,j), tmp33(i,j)
+                       end if
                     end do
 
                     ! reverse order of wav, tmp11, tmp22 and tmp33 and map onto mocassin's grid
@@ -1395,6 +1397,36 @@ module xSec_mod
                  end do
                  close(20)
 
+                 ! D-313: the photoelectric yield for a Q species. Without an
+                 ! Im(m) column there is nothing to build it from, and a
+                 ! silently zero yield removes the term that sets the gas
+                 ! temperature in a PDR - so refuse rather than run.
+                 if (lgHaveK) then
+                    if (allocated(EimQ)) deallocate(EimQ)
+                    allocate(EimQ(1:nbins), stat=err)
+                    EimQ = 0.
+                    ! `wav` was converted to Ryd in place, NOT reordered, so
+                    ! tmpkk is already in the same order. Reversing it here
+                    ! paired each k with the wrong wavelength.
+                    do iwav = 1, nWav
+                       QaTemp(iwav) = tmpkk(iwav)
+                    end do
+                    call linearMap(QaTemp, wav, nwav, EimQ, nuArray, nbins)
+                    call setGrainYield(dustComPoint(icomp)-1+nSpec, EimQ)
+                 else if (lgPhotoelectric) then
+                    print*, "! makeDustXsec: ", trim(extinctionFile), " is a Q &
+                         &file with no Im(m) column, so no photoelectric yield &
+                         &can be built for it."
+                    print*, "!   In a PDR model the gas temperature is set by &
+                         &grain photoelectric heating, so this would fail"
+                    print*, "!   silently and completely. Add a 6th column with &
+                         &Im(m), or use `noPhotoelectric`."
+                    print*, "!   tools/mkqfile.py writes the column; see doc/dust.md."
+                    stop
+                 end if
+
+                 if (allocated(tmpkk)) deallocate(tmpkk)
+                 if (allocated(EimQ)) deallocate(EimQ)
                  if (allocated(QaTemp)) deallocate(QaTemp)
                  if (allocated(QsTemp)) deallocate(QsTemp)
                  if (allocated(gTemp)) deallocate(gTemp)
@@ -1473,124 +1505,6 @@ module xSec_mod
 
            end do  ! species loop
            close(10)
-
-           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-           ! D-312: principal axes of one grain, averaged as CROSS SECTIONS.
-           !
-           ! An anisotropic material such as graphite has different optical
-           ! constants along different crystal axes, and its data comes as one
-           ! file per axis with the geometric weights of a randomly oriented
-           ! grain - 1/3 parallel, 2/3 perpendicular. Those weights are NOT
-           ! abundances of two grain populations. Listing the files as separate
-           ! species made MOCASSIN solve a temperature for a pure-parallel and
-           ! a pure-perpendicular grain, neither of which exists, and report
-           ! the mean: D-309 measured 44.79 K and 22.45 K in one cell where the
-           ! real grain sits at 26.85 K, which is why the dust ran 26-30% hot
-           ! against Cloudy.
-           !
-           ! The average belongs on the cross sections of ONE grain, which then
-           ! has ONE temperature. Cloudy does exactly this - grains_mie.cpp
-           ! runs Mie per axis and sums cs_abs/cs_sct with the axis weights.
-           ! It cannot be done by pre-averaging n,k: Mie is non-linear, and a
-           ! single averaged n,k reproduces only 0.09-0.12 of the correct Q at
-           ! 100 um, where the grain radiates (D-312).
-           !
-           ! Which species are axes of one grain is DECLARED, per species, by
-           ! an `axes:<name>` tag on its record. Species sharing a tag are
-           ! averaged together; untagged species are independent and keep their
-           ! own temperature, which is the default and is right for real
-           ! mixtures - silicate and graphite in one nebula genuinely sit at
-           ! different temperatures. It is never inferred: dustData carries
-           ! three different Zubko amorphous carbons with byte-identical
-           ! material constants, so "same constants" does not mean "same
-           ! material" (D-311).
-           !
-           ! Cabs/Csca still hold Q here - pi a^2 is applied below - so
-           ! averaging them IS averaging cross sections. gCos is weighted by
-           ! Csca per D-280, as Cloudy's a1g is.
-           do nSpec = 1, nSpeciesPart(icomp)
-              if (len_trim(axisGroup(nSpec)) == 0) cycle
-              thisGroup = axisGroup(nSpec)
-
-              ! only process each group once, at its first member
-              lgDone = .false.
-              do j = 1, nSpec-1
-                 if (axisGroup(j) == thisGroup) lgDone = .true.
-              end do
-              if (lgDone) cycle
-
-              nInGroup = 0
-              do j = 1, nSpeciesPart(icomp)
-                 if (axisGroup(j) == thisGroup) nInGroup = nInGroup + 1
-              end do
-              if (nInGroup < 2) then
-                 print*, "! makeDustXsec: axis group ", trim(thisGroup), &
-                      & " in component", icomp, "has only one member - nothing &
-                      &to average, and a single axis is not an orientation &
-                      &average."
-                 stop
-              end if
-
-              ! A declaration can be wrong. Members must really be one material
-              ! over one size range, or refuse rather than average nonsense.
-              gRef = 0
-              do j = 1, nSpeciesPart(icomp)
-                 if (axisGroup(j) /= thisGroup) cycle
-                 gThis = dustComPoint(icomp)-1+j
-                 if (gRef == 0) then
-                    gRef = gThis
-                    cycle
-                 end if
-                 if (rho(gThis)          /= rho(gRef)          .or. &
-                   & grainVn(gThis)      /= grainVn(gRef)      .or. &
-                   & MsurfAtom(gThis)    /= MsurfAtom(gRef)    .or. &
-                   & TdustSublime(gThis) /= TdustSublime(gRef)) then
-                    print*, "! makeDustXsec: axis group ", trim(thisGroup), &
-                         & " mixes different materials - density, work &
-                         &function, surface-atom mass or sublimation &
-                         &temperature differ."
-                    print*, "!   axes of one grain must share all four. Drop &
-                         &the tag if these are distinct species."
-                    stop
-                 end if
-              end do
-
-              if (taskid == 0) then
-                 print*, "! makeDustXsec: component", icomp, "- axis group '", &
-                      & trim(thisGroup(6:)), "' has", nInGroup, "members."
-                 print*, "! makeDustXsec:   averaging their cross sections with &
-                      &the listed weights, so this"
-                 print*, "! makeDustXsec:   grain has ONE temperature (D-312). &
-                      &Untagged species keep their own."
-              end if
-
-              do ai = 1, nSizes
-                 do i = 1, nbins
-                    wSum = 0.; avA = 0.; avS = 0.; avG = 0.
-                    do j = 1, nSpeciesPart(icomp)
-                       if (axisGroup(j) /= thisGroup) cycle
-                       wSum = wSum + grainAbun(icomp, j)
-                       avA  = avA  + grainAbun(icomp, j)*Cabs(j,ai,i)
-                       avS  = avS  + grainAbun(icomp, j)*Csca(j,ai,i)
-                       avG  = avG  + grainAbun(icomp, j)*Csca(j,ai,i)*gCos(j,ai,i)
-                    end do
-                    if (wSum <= 0.) cycle
-                    avA = avA/wSum
-                    avS = avS/wSum
-                    if (avS > 0.) then
-                       avG = avG/(wSum*avS)
-                    else
-                       avG = 0.
-                    end if
-                    do j = 1, nSpeciesPart(icomp)
-                       if (axisGroup(j) /= thisGroup) cycle
-                       Cabs(j,ai,i) = avA
-                       Csca(j,ai,i) = avS
-                       gCos(j,ai,i) = avG
-                    end do
-                 end do
-              end do
-           end do
 
            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
            ! Print the info about the grains to be used

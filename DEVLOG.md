@@ -312,6 +312,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-310 | **The fix for D-309: the principal axes of one material are averaged as CROSS SECTIONS and carry ONE temperature - verified against Cloudy's own implementation rather than argued from a paper.** Asked whether Cloudy's n,k file could simply be adopted. **Checked, and the answer settled the design question.** `cloudy-c25.00/data/graphite.rfi` carries **two axes with weights `1 2`** - the same E par c / E perp c pair MOCASSIN has - so there is no single orientation-averaged n,k to grab in either code, and a drop-in was never available. But `grains_mie.cpp:565` shows exactly what Cloudy does with them: `for(cAxis...) { mie_cs_size_distr(...); acs_abs += cs_abs*wt[cAxis]; acs_sct += cs_sct*wt[cAxis]; a1g += cs_sct*(1.-cosb)*wt[cAxis]; }` - **Mie run per axis and the CROSS SECTIONS summed with the axis weights, giving one opacity and therefore one temperature.** So the in-code average is not merely the defensible reading of Draine's 1/3-2/3 rule, it is what the reference computes. (Cloudy's `a1g` is also scattering-cross-section weighted, which is independently the D-280 fix MOCASSIN already made.) Worth recording that the two codes' graphite is **not the same data** - Cloudy's is Martin & Rouleau 1991 at rho 2.26 and T_sub 1750 K, MOCASSIN's is Draine & Lee at 2.2 and 2200 K - yet D-305 measured their opacities agreeing to 0.4% on N_H/A_V, so the sources differ and the answers do not. **Also established: the Q-file route is blocked.** `setGrainYield` is called only in the `'nk'` branch of `makeDustXsec` (ph_mod.f90:1253), so a 'Q' species gets `grainYield = 0` and loses its photoelectric heating outright - `Car_90.cat` could not have been used without first extending that branch, and the WD01 yield needs Im(m), which a Q file does not carry. **Implementation:** after the species loop in `makeDustXsec`, while `Cabs`/`Csca` still hold Q (pi a^2 is applied below, so averaging them IS averaging cross sections), the entries of a component are averaged with their listed weights and written back to every entry, so each sees identical optics and the arithmetic mean over species becomes the correct single temperature - no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables, which is why this shape was chosen over collapsing the arrays. `gCos` is weighted by `Csca` per D-280. **Whether the entries ARE axes of one material is asked of the data, not of a keyword** - identical density, work function, surface-atom mass, sublimation temperature and size range - so silicate plus graphite differ in all of them and correctly stay two species at two temperatures. **Verified on the D-308 fixture in seconds:** both entries now report **26.8480 K** where they previously gave 44.79 and 22.45, and D-309's independent prediction for the averaged-Q grain in that same cell was **26.76 K** - agreement to 0.3%. All four flavours build. Production run `runs/d310-orient` launched to re-measure the dust against Cloudy; D-309 predicts the reported/Cloudy ratio moving from 1.26-1.30 to about 0.93-0.95 | Open | 2026-09-22 |
 | D-311 | **D-310's detection test was unsound and is replaced: whether two entries are the principal axes of one material is now DECLARED in the data, never inferred. Prompted by the user's objection that distinct species must not share a temperature - which was right.** D-310 decided "these are axes of one material" by inferring it from matching density, work function, surface-atom mass, sublimation temperature and size range. `dustData/` shows that inference is unsafe: **`amC-zb1.nk`, `amC-zb2.nk` and `amC-zb3.nk` are three different Zubko amorphous carbons carrying byte-identical constants** (`2200. 1.85 0.323 12.004`), and `crSil.nk` and `astroSilD2003.nk` are two different silicates likewise (`1400. 3.6 0.588 20.077`). A component listing two of those would have had them silently merged onto one temperature - precisely the error the change was meant to prevent, and precisely the objection raised. **The replacement:** the species-count line of `dust_species.dat` may carry the word `axes` (`2 axes`), declaring that the entries below are principal axes of one anisotropic material rather than distinct species; without it nothing is averaged and every entry keeps its own temperature, which is the pre-D-310 behaviour and is correct for real mixtures. This mirrors Cloudy's own `.rfi` convention, which states the axis count and weights explicitly rather than inferring them. A bare integer still parses, so every existing species file is unaffected. **A declaration can also be wrong, so it is validated rather than trusted:** if `axes` is declared but any entry differs from the first in density, work function, surface-atom mass, sublimation temperature or size range, the run STOPS and says they are not axes of one material. Only `benchmarks/pdr/pn150k` and the 150 kK model declare it; `benchmarks/test_Problem` (astro-silicate 0.98 plus PAH 0.02, different size ranges) and every single-species fixture are untouched and keep separate temperatures per species, which is physically required - silicate and graphite in one nebula genuinely sit at different temperatures. **Mechanically the averaging is unchanged from D-310** and still sits in `makeDustXsec` after the species loop, where `Cabs`/`Csca` hold Q before `pi a^2` is applied, so averaging them is averaging cross sections exactly as `grains_mie.cpp` does; the average is written back into every entry so each solves the same temperature and the existing abundance-weighted mean becomes that one temperature, with no re-indexing of `nSpecies`, `dustComPoint`, `grainAbun`, sublimation or the yield tables. **Two self-inflicted build breaks recorded because both are avoidable:** editing `ph_mod.f90` while a `make` was running clobbered that build, and a Python-to-Fortran string replacement emitted `their own.""` for the closing quote, giving "Unterminated character constant". Both caught by the four-flavour rule before anything ran | Open | 2026-09-22 |
 | D-312 | **D-310/D-311's implementation is replaced at the user's direction: the axis-set declaration moves from a keyword on the species COUNT line to a per-species `axes:<name>` tag, which is where it belongs. Plus `doc/dust.md`, the first usage manual in this project.** The objection was that the count-line keyword was confusing and that the files listed in `dust_species.dat` should be correct per species. Both fair. The proposal of a per-species flag grouping species to be averaged together is better than what it replaced: it reads on the line it governs, it supports several independent axis sets and untagged species coexisting in one component, and it needs no global state. Format: `<file> <abundance> [<amin> <amax>] [axes:<name>]`, backward compatible - every existing species file parses unchanged and gets the old per-species temperature. **A hard constraint had to be reported rather than implemented around.** The instruction was that the user should supply properly averaged n,k files and MOCASSIN should do nothing. That cannot be done correctly: the 1/3-2/3 rule averages CROSS SECTIONS, Mie is non-linear in (n,k), and no single (n,k) reproduces (2/3)Q(eps_perp)+(1/3)Q(eps_par) across size and wavelength. Measured on the project's own graphite, naive-averaged-n,k over correct: **0.96/1.21/2.14/0.09 at 0.1/0.55/10/100 um for a = 0.005 um**, and 1.02/1.01/1.44/0.12 at 0.25 um. Acceptable in the UV where the grain absorbs, **8-11x too LITTLE emissivity at 100 um where it radiates** - which would drive the dust far hotter than the 1.3x error the change exists to fix. Averaging the dielectric function instead is no better (0.07-1.77). So the average must happen after Mie, inside the code; what the data declares is only WHICH files are axes of one grain. **The `Q`-file route stays blocked** and is now documented as a trap: `setGrainYield` is called only from the `nk` branch, so a `Q` species silently gets zero photoelectric yield - fatal in a PDR model whose gas temperature is set by that term. **Verified both ways on the 5^3 fixture in seconds:** tagged, both members report **26.6857 K** against D-309's independent prediction of 26.76 K for that cell (0.3%); untagged, they report **44.44 K and 22.27 K** separately with no averaging message - the pre-existing behaviour intact, which is the regression that matters, since distinct species must keep distinct temperatures. Validation retained: a group needs >= 2 members and they must share density, work function, surface-atom mass and sublimation temperature, else the run stops. **`doc/dust.md`** documents the input files, the size distribution and MdMg conversion, the `axes:` tag with the numbers above, the `nk` and `Q` formats with the yield warning, what MOCASSIN computes, the diagnostics, and the known limitations (graphite-only R_V = 4.57, undepleted carbon, H2 missing from gas-grain coupling, the size-parameter cap) | Open | 2026-09-22 |
+| D-313 | **The orientation average moves OUT of MOCASSIN at the user's direction: `tools/mkqfile.py` pre-averages the principal axes into one Q file, and the species list is one correct file per species. Two latent bugs had to be fixed first - the `Q` path could never have run.** D-310/D-311/D-312's in-code averaging is reverted; the objection was that a keyword coupling species together is confusing and that each file listed should simply be correct on its own. **`tools/mkqfile.py`** runs Mie per axis, sums the CROSS SECTIONS with the axis weights, and writes a Draine-style Q table on the model's own radii; it refuses if the axes disagree on density, work function, surface-atom mass or sublimation temperature. `dust_species.dat` becomes `1` / `'dustData/grph-avg.cat' 1.0000 0.005 0.25`. **Two bugs in the `Q` branch, both fatal, both showing it had never been exercised:** (1) it allocated `CTsca`/`CTabs` a second time - they are already allocated before the component loop, and the `nk` branch has the identical two lines commented out - so `err /= 0` and the model stopped; (2) `setGrainYield` is called only from the `nk` branch, so a `Q` species got `grainYield = 0` and lost all photoelectric heating **silently**, which in a PDR model whose gas temperature is set by that term would have been fatal and invisible. Fixed with an optional sixth column carrying Im(m), which `mkqfile.py` writes; **absent it, MOCASSIN now stops rather than running with no yield**. Also made the Q header reader skip comment lines until NRAD parses instead of assuming exactly two - my own generated file had four and failed with "Bad integer for item 1 in list input" pointing at the data block, a poor first experience for exactly the users this route serves. **Verified three ways.** The generated file reproduces direct Mie of the mixture to a ratio of **1.000 at every energy from 0.001 to 25 Ryd**, for Q_abs and Q_sca, with a 150 kK blackbody-weighted absorbed energy ratio of **1.0000**. MOCASSIN's own arrays built from it match the two-file `nk` mixture at the same size and bin to **0.12%** at 0.44 Ryd and **exactly** at 2.0 Ryd (0.6667x7.86287e-11 + 0.3333x3.47691e-11 = 6.4012e-11 against 6.3933e-11). And the internal balance closes, `dustAbsIntegral` bracketing `emInt(iT)`. **Two generator pitfalls found by measurement and now documented:** the table must span the model grid - `nuMin = 1.001e-5 Ryd` is 9104 um, so a default `--lmax 1e3` clamps the far-IR tail where the grain radiates and cost 0.7 K - and the radii must be written with enough digits to match `grainRadius`, since MOCASSIN locates the model radius in the table and interpolates. **`doc/dust.md` rewritten** for this route, including the measurement showing why a pre-averaged n,k file cannot work (0.09-0.12 of the correct Q at 100 um) | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24556,3 +24557,94 @@ photoelectric heating and stochastic heating; the diagnostics
 (`MOCASSIN_DUSTPROBE`, `dustGrid.out`, the two audit tools); and the known
 limitations from D-305 - graphite-only R_V = 4.57, undepleted carbon counted
 twice, H2 absent from gas-grain coupling, and the size-parameter cap at 100.
+
+## D-313 - the average moves out of the code (2026-09-22)
+
+D-312's per-species `axes:` tag was rejected in turn: a keyword that couples
+species together is confusing, and the files listed in `dust_species.dat`
+should each simply be correct on their own. The in-code averaging is reverted.
+
+Instead the orientation average is done once, outside MOCASSIN, and the model
+is given one species.
+
+    ~/miniforge3/envs/astro/bin/python tools/mkqfile.py \
+        --out dustData/grph-avg.cat --label grph-avg \
+        --sizes input/dust_sizes.dat \
+        dustData/grph2-dl.nk:0.6667 dustData/grph1-dl.nk:0.3333
+
+    1
+    'dustData/grph-avg.cat' 1.0000 0.005 0.25
+
+`mkqfile.py` runs Mie per axis and sums the cross sections with the axis
+weights - Draine's rule, and what `grains_mie.cpp` does - then writes a
+Draine-style Q table on the model's own radii.
+
+### The Q path had never been run
+
+Two bugs, both fatal, found in the first minute of trying to use it.
+
+**Double allocation.** The `Q` branch allocates `CTsca` and `CTabs`, which are
+already allocated before the component loop. The second `allocate` returns a
+non-zero status, which the guard immediately below turns into a `stop`. The
+`nk` branch has the identical two lines commented out. Any Q-file model died
+at startup with "error allocation memory for array".
+
+**No photoelectric yield.** `setGrainYield` is called only from the `nk`
+branch (`ph_mod.f90:1253`), because the WD01 yield needs Im(m) and a standard
+Q file does not carry it. A `Q` species therefore ran with `grainYield = 0` -
+no photoelectric heating at all, silently. In a PDR model, whose gas
+temperature is set by that term, this would have been both fatal and
+invisible.
+
+Fixed by an optional sixth column carrying Im(m), which `mkqfile.py` writes.
+**If the column is absent and photoelectric heating is on, MOCASSIN now
+stops** and says so, rather than running without a yield.
+
+A third, smaller trap: the header reader assumed exactly two comment lines.
+My own generated file had four, and the failure surfaced as "Bad integer for
+item 1 in list input" pointing at the *data block*. It now skips lines until
+NRAD parses.
+
+### Verified three ways
+
+**The file against direct Mie.** Reading the generated table back and
+comparing to Mie of the 2/3-1/3 mixture at the same radius:
+
+    E [Ryd]    25    10     5    2.7   1.5   1.0   0.5   0.1  0.01  0.001
+    Qabs      1.000 1.000 1.000 1.000 1.000 1.000 1.001 1.000 1.000 1.000
+    Qsca      1.000 1.000 1.000 1.000 1.000 0.999 1.001 1.000 1.001 1.000
+
+and the 150 kK blackbody-weighted absorbed energy, `integral Q_abs B dnu`,
+ratio **1.0000**.
+
+**MOCASSIN's own arrays against the nk path**, same size, same frequency bin,
+which removes any question of where the probe samples:
+
+    ai = 18, 0.44 Ryd
+      nk path   0.6667 x 7.86287e-11 + 0.3333 x 3.47691e-11 = 6.4012e-11
+      Q path                                                   6.3933e-11   (0.12%)
+    ai = 18, 2.0 Ryd
+      nk path   0.6667 x 2.82018e-11 + 0.3333 x 3.53606e-11 = 3.0588e-11
+      Q path                                                   3.0588e-11   (exact)
+
+**The internal balance**, with `dustAbsIntegral` bracketing `emInt(iT)` as it
+must.
+
+### Two generator pitfalls, found by measurement
+
+Both are now defaults and both are documented, because both cost real time.
+
+  - **The table must span the model grid.** `nuMin = 1.001e-5 Ryd` is 9104 um.
+    A first version stopped at 1000 um, and everything longward was clamped -
+    exactly where a 26 K grain radiates. Worth 0.7 K on its own.
+  - **Radii need enough digits.** MOCASSIN locates the model radius in the
+    table and interpolates, so a 3-significant-figure radius puts every size
+    slightly off its own grid point. The generator now writes 8.
+
+### doc/dust.md
+
+Rewritten for this route: `mkqfile.py`, the two pitfalls above, the `Q`
+format including the Im(m) column and the history of the two bugs, and the
+measurement showing why a pre-averaged *n,k* file cannot work at all - it
+gives 0.09 to 0.12 of the correct Q at 100 um, which would be a larger error
+than the one being fixed.
