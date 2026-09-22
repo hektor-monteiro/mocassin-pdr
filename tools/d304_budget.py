@@ -136,6 +136,14 @@ def read_cloudy(prefix):
             'hag': hag[:m], 'cag': cag[:m]}
 
 
+def _isnum(a):
+    try:
+        float(a)
+        return True
+    except ValueError:
+        return False
+
+
 def cii_gated(c, j):
     """Is the [C II] thermostat the right relation in this zone?
 
@@ -150,11 +158,28 @@ def bins(av):
     return [(a, max(0.02, 0.08 * a)) for a in av]
 
 
-def main(run, prefix, avs=(0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.65),
-         off=None, ioncont=None):
+def pdr_depths(m, n=8):
+    """D-322: the depths this sampling used to carry - 0.05 to 0.65 - were the
+    150 kK model's, whose PDR ends at A_V 0.67. On hiipdr, which reaches 3,
+    they covered the first fifth and stopped, and stopped short of exactly the
+    depth where the two codes' temperatures cross. Same disease as L-21.
+    Sample the model's own range instead: two points in front of the
+    ionization front, the rest spread over the PDR."""
+    av = m['AV']
+    pdr = av[m['zone'] == 1]
+    front = np.geomspace(max(av.min(), 1e-3), m['A_front'] * 0.85, 3)[:2]
+    deep = np.geomspace(np.percentile(pdr, 2), np.percentile(pdr, 98), n - 2)
+    return [float(v) for v in np.concatenate([front, deep])]
+
+
+def main(run, prefix, avs=None, off=None, ioncont=None):
     m = read_moc(run)
     c = read_cloudy(prefix)
     pdr = m['zone'] == 1
+    if avs is None:
+        avs = pdr_depths(m)
+        print('sample depths from the run: '
+              + ', '.join('%.2f' % a for a in avs))
 
     print(f'MOCASSIN {run}\nCloudy   {prefix}')
     print('Rates per H nucleus [erg/s]. MOCASSIN: median over active cells in '
@@ -395,6 +420,10 @@ if __name__ == '__main__':
         print('  median over the deep PDR (A_V >= 0.3): %.3f' % np.median(p[1:]))
         moc_pair(sys.argv[1], sys.argv[2], avs)
     else:
-        main(sys.argv[1], sys.argv[2],
-             off=sys.argv[3] if len(sys.argv) > 3 else None,
-             ioncont=sys.argv[4] if len(sys.argv) > 4 else None)
+        # trailing numeric arguments override the sample depths
+        rest = sys.argv[3:]
+        avs = [float(a) for a in rest if _isnum(a)] or None
+        rest = [a for a in rest if not _isnum(a)]
+        main(sys.argv[1], sys.argv[2], avs=avs,
+             off=rest[0] if len(rest) > 0 else None,
+             ioncont=rest[1] if len(rest) > 1 else None)

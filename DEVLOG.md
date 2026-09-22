@@ -321,6 +321,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-319 | **The published PN figures were drawn on hiipdr's axis: A_V out to 3.2 for a model that ends at 0.67, so a third of every panel was empty and the four inside labels below A_V 0.04 fell off the left edge. The axis is now derived from the run rather than carried as a constant.** The user reported it from the artifact. `tools/d260_roellig.py` carried `XLIM = (0.04, 3.2)` and `RTICKS = [1,2,3,5,10,15]` pc, hiipdr's numbers, kept as defaults at D-283 so hiipdr's figures would stay pixel-identical; pn150k inherited them silently because it was plotted without `--xlim`. The top radius axis was worse than empty: the model spans 0.015-0.61 pc, every default tick (1-15 pc) sits outside it, and `np.interp` clamps, so all six piled up at the right edge. Both now come from the data - `auto_xlim` takes the model's own A_V extent (lower edge from the model, not the reference, whose first zone is far thinner than a MOCASSIN cell) padded 5%, `auto_rticks` takes the round distances that fall inside the model's radial extent - and `--xlim`/`--rticks` still override. Checked on both fixtures: pn150k 0.0080-0.713 with ticks 0.02-0.5 pc; hiipdr 0.0493-3.149 against the old 0.04-3.2, and r ticks 2-15 pc against 1-15, dropping a 1 pc tick that was extrapolated below the model's 1.12 pc inner radius. The tool now prints the resolved axis and whether it was given or derived. '150 kK PN Against Cloudy' rebuilt (v9) from figures generated with no flags at all, so the page reproduces from the run; the cell census in its lede corrected from 464/34920 to the run's own 450/34934 | Done | 2026-09-22 |
 | D-320 | **hiipdr re-run on the current code (line transport on, dust fixed, warm-start defects out) closes the rest of L-1 - and the result reverses the published sign: MOCASSIN's PDR gas is no longer 2x too COLD, it is 1.3-1.5x too WARM just behind the front and colder only past A_V 1.5.** `runs/d316-hiipdr`: 31^3, 22 iterations, 73.75% converged, 0% ion-balance and 0% Te-balance failures, 1h40m. Against `runs/d277-cloudy`: H+ front 3.795 vs 3.765 pc (was 3.82-3.85 vs 3.77), H/H2 A_V 1.168 vs 1.090, C+ = C 2.242 vs 2.950 (unchanged), H II gas 9027 vs 9274 K. T_gas at A_V 0.7/1.0/1.5/2.0/3.0 = 72/62/39/23/11 K against Cloudy's 48/49/44/29/13 - crossing over near A_V 1.4 - where D-282 published 22-26 vs 29-49 K throughout. The added energy is D-292's line transport, on by default since D-307. Dust, number-weighted on both sides, 0.906-0.957 of Cloudy through the PDR (was 6-12% cooler): same sign and the same L-19 explanation as pn150k's 0.869-0.906, and a smaller residual. Deep-carbon behaviour unchanged: past A_V 2.3 C+ 0.21-0.38x, n_e 0.28-0.45x, CO 50-100x high. **Three more fixture-specific constants found by running the tools on a second fixture**, all the same disease as D-319: `GRAINS = (0.005, 0.25, -3.5)` was pn150k's and was weighting hiipdr's Cloudy dust (whose grains are 0.01-0.30) with the wrong span - now derived from Cloudy's own `<D/G>` block, which recovers 29.987 for hiipdr and 50.002 for pn150k against the true 30 and 50; `d305_tdust.py` could not read hiipdr's `dust_sizes.dat` at all (a trailing ` slope (p): -3.5` line pn150k does not have); and its four sample depths were pn150k's 0.20-0.65, which on a model reaching A_V 3 sampled the first fifth of the PDR. All three fixed by deriving from the run. Regression: pn150k's dust ratios reproduce D-315 exactly (0.906/0.902/0.873/0.869) and its figures move by 1.2e-5 pt | Done | 2026-09-22 |
 | D-321 | **L-1 CLOSED: both published Cloudy comparisons now rest on energy-conserving runs. 'hiipdr Against Cloudy' rebuilt (v10) on `runs/d316-hiipdr`, and the rebuild retracts that page's headline claim.** The page had read '21-26 K against Cloudy's 29-50, about twice too cold' since D-264; it now reads 72/62/39/23/11 K at A_V 0.7/1.0/1.5/2.0/2.9 against 48/49/44/29/14 - warm behind the front, crossing near 1.4, cold beyond - and says so as a withdrawal rather than an update. Also rewritten from the new run: both comparison tables, the ionized gas (7-12% hotter than Cloudy where the previous version had it 4-8% cooler, the same added line energy), the dust bullet (4-9% cool, from 6-12%), front 3.80 vs 3.77 pc, H/H2 1.17 vs 1.09, C+ = C 2.24 vs 2.95. The ionization structure is the control: it did not move at all when the line energy was added, which is what one expects of a front set by the Lyman continuum and the geometry. The page's D-267 issue register is now explicitly labelled a 2026-09-14 snapshot, with O-02, O-08, O-23 and O-30 restated, and points at `doc/pdr-status.md` as the maintained one. Figures produced with no command-line options at all, so the page reproduces from the two run directories. `doc/pdr-status.md`: L-1 closed, **L-21 added** - the four fixture-specific constants of D-319/D-320, recorded with the general risk rather than only the four instances | Done | 2026-09-22 |
+| D-322 | **The hiipdr budget decomposes the new profile-shape disagreement, and it is NOT the field: 72% of the crossover is the photoelectric conversion efficiency at matched field, and the mechanism is that MOCASSIN's absorbed-photon count above threshold falls 2.7x faster with depth than its own Habing-band field.** Cloudy re-run with the five saves the budget needs (`runs/d322-cloudy-hb`, 700 zones, 3 iterations, 305 s; .ovr/.pdr/.dens/.gtemp byte-identical to `runs/d277-cloudy`, so the published reference is unchanged). **Cooling exonerated at every depth**: the [C II] thermostat predicts T_m from the heating ratio alone to 1.035/0.952/0.940/0.994/0.904 at A_V 0.73-2.21 - D-304 showed this on pn150k, which never reaches the crossover, and hiipdr does. **Heating is GrnP on both sides**, and PE_m/PE_c = 1.71/1.49/1.03/0.51/0.245 crosses 1 at A_V ~1.3, exactly where T_m/T_c crosses. Factoring it: field ratio 0.81->0.47, efficiency (PE/G0) ratio 2.17->0.52; in logs the efficiency carries 72% of the swing and the field 28%. The FUV attenuation slopes nearly agree over the warm half (-3.24 vs -3.13 e-folds/mag over A_V 0.7-1.7) and part only deep (-2.59 vs -2.02 over 1.2-2.9), so **O-33's C I-edge excess does not carry over to the Habing band**. The efficiency loss is not the grain charge (MOCASSIN's potential is BELOW Cloudy's at every depth, 0.80x falling to 0.14x, which would RAISE its yield) and not the yield (<Y> rises 0.041->0.081 with depth as the grain discharges): it is that Nabs/H falls 242x while G0 falls 89x over the same span. That is a spectral-shape difference inside the FUV band - **the same quantity as L-19**, where MOCASSIN carries 0.107 of its energy in the FUV against Cloudy's 0.255, measured there from the dust side. One root, two symptoms. At A_V 2.91 MOCASSIN's PE is exactly zero: the Monte Carlo field floor (O-01/O-34), so the deepest point is sampling, not physics. Also: `d304_budget.py`'s sample depths were pn150k's 0.05-0.65 - a fifth instance of L-21, and this one would have stopped short of the crossover the run was made for | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25332,3 +25333,132 @@ remains is the general one:
 Two of the four produced no error and no visibly wrong figure. The test that
 found all four was simply running each tool on a second fixture, and
 `tools/d196_axis.py` still hardcodes 31^3 and has not had it.
+
+## D-322 - the hiipdr budget: it is not the field (2026-09-22)
+
+D-321 left the successor to O-02 named but not measured: MOCASSIN deposits too
+much energy inside A_V 1 and too little beyond 1.5. This decomposes it.
+
+### The reference had to be re-run
+
+`runs/d277-cloudy` saved `.ovr`, `.pdr`, `.gtemp` and `.dens` and nothing else;
+the budget needs `.heat`, `.cool`, `.ele_C`, `.gheat` and `.gpot`.
+`runs/d322-cloudy-hb` is the same input with five `save` lines added - 700
+zones, 3 iterations, 305 s. **Check first:** `.ovr`, `.pdr`, `.dens` and
+`.gtemp` come back byte-identical to `runs/d277-cloudy`, so the reference
+behind the published figures is unchanged and the new files can be read
+against them.
+
+### Cooling is exonerated at every depth, including across the crossover
+
+The [C II] thermostat test predicts T_m from the heating ratio alone:
+
+    A_V     T_c    T_pred   T_m    T_m/T_pred
+    0.73   48.3     69.3   71.7      1.035
+    0.97   49.1     65.5   62.3      0.952
+    1.27   49.2     52.0   48.9      0.940
+    1.68   38.1     30.7   30.5      0.994
+    2.21   24.1     21.4   19.3      0.904
+
+Within 10% at every gated depth, on **both sides** of the crossover. D-304
+established this on pn150k, whose PDR ends at A_V 0.67 and which is therefore
+entirely on the warm side; hiipdr reaches 2.9 and crosses. The temperature
+disagreement is the heating disagreement, and nothing else.
+
+### And the heating is grain photoelectric, on both sides
+
+    A_V   PE_m       GrnP_c     m/c
+    0.73  9.11e-26   5.32e-26   1.71
+    0.97  6.79e-26   4.55e-26   1.49
+    1.27  3.04e-26   2.95e-26   1.03
+    1.68  6.99e-27   1.37e-26   0.51
+    2.21  7.11e-28   2.90e-27   0.245
+
+**The ratio crosses 1 at A_V ~ 1.3, which is where T_m/T_c crosses 1.** The
+whole of the profile-shape disagreement is in this one term.
+
+### Splitting it: the field is the smaller half
+
+    A_V   G0 m/c   (PE/G0) m/c   product
+    0.73   0.81       2.17        1.76
+    0.97   0.82       1.81        1.48
+    1.27   0.69       1.52        1.05
+    1.68   0.59       0.85        0.50
+    2.21   0.47       0.52        0.24
+
+Over A_V 0.73 to 2.21, in logs: field -0.54, efficiency -1.43. **The
+conversion efficiency carries 72% of the swing and the field 28%.**
+
+This retires the hypothesis D-321 left standing. The FUV attenuation slopes
+nearly agree over the warm half - `d ln G0/dA_V` = -3.24 against Cloudy's
+-3.13 over A_V 0.7-1.7 - and part only deep, -2.59 against -2.02 over 1.2-2.9.
+**O-33's C I-edge excess (-3.83 against -2.65) does not carry over to the
+Habing band.** Those are different bands and they behave differently; assuming
+otherwise would have been the error.
+
+### What the efficiency loss is not
+
+**Not the grain charge.** MOCASSIN's grain potential is *below* Cloudy's at
+every depth - 2.18 V against 2.71 at A_V 0.73, 0.56 against 1.34 at 1.27,
+0.017 against 0.122 at 2.21, a ratio falling 0.80 to 0.14. A lower potential
+is a lower barrier, which *raises* the yield. If charge were the driver the
+efficiency ratio would grow with depth. It falls.
+
+**Not the yield.** MOCASSIN's own `<Y>` rises 0.041 -> 0.081 with depth as the
+grain discharges, and saturates. The D-288 identity PE = Nabs x <Y> x <E>
+closes to 0.98-1.02 at every depth, so the diagnostic is reading the same term
+the solver used.
+
+### What it is
+
+    Nabs/H  falls  1.43e-12 -> 5.92e-15   = 242x     (A_V 0.73 -> 2.21)
+    G0      falls      52.5 -> 0.589      =  89x
+                                            ratio 2.71
+
+**MOCASSIN's count of absorbed photons above threshold falls 2.7 times faster
+with depth than its own Habing-band field.** The band integral and the
+photoelectric integral disagree about what is left deep in the cloud, which is
+a statement about the *shape* of the spectrum inside the FUV band, not its
+magnitude.
+
+That is the same quantity as **L-19**, measured there from the other side:
+at A_V 0.30 in the 150 kK model MOCASSIN carries 0.107 of its energy in the
+FUV against Cloudy's 0.255, while holding *more* total energy (D-315). One
+root, two symptoms - the dust runs cool because too little of the field is
+where C_abs is large, and the gas crosses over because too little of it is
+where the work function is.
+
+### The deepest point is not physics
+
+At A_V 2.91 MOCASSIN's PE is exactly `0.00e+00`: `<Y>` and `<E>` are both
+zero although `Nabs/H` is 1.6e-16. No packet above the work function reached
+those cells. That is the Monte Carlo floor of O-01/O-34, and the A_V 2.91 row
+should not be read as a physical result in either direction.
+
+### Tooling: a fifth instance of L-21
+
+`d304_budget.py` sampled `(0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.65)` -
+pn150k's depths again. On hiipdr that covers the first fifth of the PDR and,
+worse, **stops short of the crossover the run was made to reach**. Now derived
+from the model: two points ahead of the front, six across its own PDR.
+Explicit depths still override, and pn150k reproduces D-304's table on its
+original eight.
+
+Five constants, four tools. The pattern has not changed and neither has the
+test that finds it.
+
+### What this opens
+
+The question is now specific enough to attack: **why does MOCASSIN's FUV band
+soften with depth faster than Cloudy's?** Candidates, none measured:
+
+  - the dust albedo and asymmetry across the FUV band - a scattering-dominated
+    band attenuates differently from an absorbing one, and D-280 already found
+    `g` averaged over area rather than `C_sca` once;
+  - 3D diffuse transport against 1D outward-only, which is L-19's own
+    hypothesis and would put *more* soft light deep, not less;
+  - the frequency resolution of the band in `nbins=600` against Cloudy's
+    continuum mesh.
+
+The next measurement is the specific intensity per frequency bin at matched
+A_V, both codes, which is a file-reading exercise on runs already on disk.
