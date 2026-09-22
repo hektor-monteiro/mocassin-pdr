@@ -11,6 +11,7 @@ program MoCaSSiNwarm
     use common_mod
     use constants_mod
     use dust_mod
+    use emission_mod        ! D-316: setLineNuP, before the line arrays are sized
     use grid_mod
     use iteration_mod
     use output_mod
@@ -63,11 +64,13 @@ program MoCaSSiNwarm
     if (lgPDR) call initPDRcoolTab()          ! D-215
 #endif
 
-    ! reset the 3D cartesian grid
-     do iGrid = 1, nGrids
-       call resetGrid(grid3D(iGrid)) 
-    end do
-   call resetGrid(grid3D)
+    ! reset the 3D cartesian grid.
+    ! D-316: this used to loop `call resetGrid(grid3D(iGrid))` AND then call
+    ! `call resetGrid(grid3D)`. resetGrid's dummy is `grid(maxGrids)`, an
+    ! array, so the loop form passed a scalar and, by sequence association,
+    ! aliased the same storage - the grid was reset twice, reading every
+    ! checkpoint file twice. One call, on the array, is what it always meant.
+    call resetGrid(grid3D)
 
     call setStarPosition(grid3D(1)%xAxis,grid3D(1)%yAxis,grid3D(1)%zAxis,grid3D)
 
@@ -81,6 +84,16 @@ program MoCaSSiNwarm
     if (lgGas) then
       call makeElements()
       call readData()
+      ! D-316: the warm start needs the line arrays sized exactly as the cold
+      ! start does. It never called these, which did not show while line
+      ! transport was off by default - linePDF was then only needed under
+      ! lgDebug. D-307 made transport the default, and setDiffusePDF stopped
+      ! with "linePDF unallocated with line transport on". Same order as
+      ! mocassin.f90: setLineNuP settles nLinesPDF, then the arrays are sized.
+      call setLineNuP()
+      do iGrid = 1, nGrids
+         call allocLineArrays(grid3D(iGrid))
+      end do
     endif
 
     if (taskid == 0) then

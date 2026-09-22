@@ -315,6 +315,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-313 | **The orientation average moves OUT of MOCASSIN at the user's direction: `tools/mkqfile.py` pre-averages the principal axes into one Q file, and the species list is one correct file per species. Two latent bugs had to be fixed first - the `Q` path could never have run.** D-310/D-311/D-312's in-code averaging is reverted; the objection was that a keyword coupling species together is confusing and that each file listed should simply be correct on its own. **`tools/mkqfile.py`** runs Mie per axis, sums the CROSS SECTIONS with the axis weights, and writes a Draine-style Q table on the model's own radii; it refuses if the axes disagree on density, work function, surface-atom mass or sublimation temperature. `dust_species.dat` becomes `1` / `'dustData/grph-avg.cat' 1.0000 0.005 0.25`. **Two bugs in the `Q` branch, both fatal, both showing it had never been exercised:** (1) it allocated `CTsca`/`CTabs` a second time - they are already allocated before the component loop, and the `nk` branch has the identical two lines commented out - so `err /= 0` and the model stopped; (2) `setGrainYield` is called only from the `nk` branch, so a `Q` species got `grainYield = 0` and lost all photoelectric heating **silently**, which in a PDR model whose gas temperature is set by that term would have been fatal and invisible. Fixed with an optional sixth column carrying Im(m), which `mkqfile.py` writes; **absent it, MOCASSIN now stops rather than running with no yield**. Also made the Q header reader skip comment lines until NRAD parses instead of assuming exactly two - my own generated file had four and failed with "Bad integer for item 1 in list input" pointing at the data block, a poor first experience for exactly the users this route serves. **Verified three ways.** The generated file reproduces direct Mie of the mixture to a ratio of **1.000 at every energy from 0.001 to 25 Ryd**, for Q_abs and Q_sca, with a 150 kK blackbody-weighted absorbed energy ratio of **1.0000**. MOCASSIN's own arrays built from it match the two-file `nk` mixture at the same size and bin to **0.12%** at 0.44 Ryd and **exactly** at 2.0 Ryd (0.6667x7.86287e-11 + 0.3333x3.47691e-11 = 6.4012e-11 against 6.3933e-11). And the internal balance closes, `dustAbsIntegral` bracketing `emInt(iT)`. **Two generator pitfalls found by measurement and now documented:** the table must span the model grid - `nuMin = 1.001e-5 Ryd` is 9104 um, so a default `--lmax 1e3` clamps the far-IR tail where the grain radiates and cost 0.7 K - and the radii must be written with enough digits to match `grainRadius`, since MOCASSIN locates the model radius in the table and interpolates. **`doc/dust.md` rewritten** for this route, including the measurement showing why a pre-averaged n,k file cannot work (0.09-0.12 of the correct Q at 100 um) | Open | 2026-09-22 |
 | D-314 | **Regression check of this cycle's changes, and a first consolidated validation status with its limitations register: `doc/pdr-status.md`.** Heavy slab/ifront reruns deferred at the user's direction in favour of establishing what the PDR implementation is validated to do and where its bounds are. **The regression first.** The functional change surface is narrower than the diff suggests: `lgLineTransfer` now defaults ON (D-307), the `MOCASSIN_LINES` read moved to `readInput` and inverted, and the previously-unrunnable `Q` path was fixed (D-313); everything else is probes inert behind `MOCASSIN_DUSTPROBE`. So the decisive test is whether `MOCASSIN_LINES=off` on the new binary reproduces the pre-change binary. **Two methodological findings had to come first.** (1) **MOCASSIN is not bitwise reproducible** - two runs of one binary on one input differ - so the comparison must be read against the run-to-run scatter, which `tools/regress_cmp.py` measures by running the reference twice. (2) **A short fixture does not exercise the PDR at all**: at 2 iterations with `pdrStartIter 4` the chemistry never engages and A_V is identically zero, which would have made the whole check vacuous. **Result, on a 5^3 nk-path fixture at 6 iterations, new-vs-baseline against the same-binary floor:** T_gas 18.49% against a floor of **36.71%**, n_e 2.35% against 4.03%, T_dust 0.11% against 0.08%, J(FUV) 0.03% against 0.73%, J(0.01-0.44) 0.35% against 0.83%, J(<0.01 Ryd) 0.68% against 1.49%, totalLines 1.00% against 8.15%, and **A_V exactly 0.00% in both** - which proves the dust cross-section and opacity chain is byte-identical through D-307 and D-313. **Every quantity is inside the floor; the inertness test passes.** An 18.5% T_gas difference was flagged and then retired by the control: the same binary swings it 36.7%, so **this fixture has no sensitivity to gas temperature at all** - 125 cells, a bimodal ionized/neutral median - which is a real limitation of the harness and is recorded as such rather than papered over. **Two register items verified closed from the converged run:** O-11 ion balance failures are **0%** where D-267 recorded 16-18%, and O-17 convergence reaches **90.4%** against the 90% target. **`doc/pdr-status.md`** then consolidates: what is validated (conservation, the internal [C II] thermostat at 0.986-1.014, the grain diagnostic closing at 1.00, N_H/A_V against Cloudy at 0.4%, Mie against Draine at 0.1-1%, x(C+) at 1.001-1.006, PE efficiency at 0.66-1.10), eighteen known limitations L-1..L-18 graded by effect on a published number - led by **L-1**, that every result predating D-307 was computed on a model that deleted ~60% of the PDR's bolometric flux, and **L-2**, the dust-temperature averaging defect whose re-measurement is in flight - and, explicitly, **six things that have NOT been checked**, because absence of a reported problem is not evidence: the slabs, ifront, hiipdr, the warm start beyond compiling, the 1D PDR flavour beyond compiling, any model reaching A_V > 0.7, and Cloudy's own charging exponent | Open | 2026-09-22 |
 | D-315 | **L-2 closed by measurement: with the crystal axes pre-averaged, MOCASSIN's dust goes from 26-30% HOTTER than Cloudy's to 9-13% COOLER, and the residual is a spectral-shape difference, not a magnitude one.** `runs/d313-qavg`, 11 iterations, 89.58% converged, 2h00m, one species from `dustData/grph-avg.cat`. **Convergence tracks the pre-fix run almost exactly** - it3 0.175 against 0.175, it4 1.204 against 1.2, it9 **88.61 against 88.6**, it11 89.58 against 90.4 - which is the evidence that a change confined to the grain temperature left the ionization and thermal solve undisturbed. **Result, MOCASSIN/Cloudy at A_V 0.20/0.30/0.50/0.65: 1.289/1.304/1.272/1.256 becomes 0.906/0.902/0.873/0.869.** D-309 predicted 0.951/0.952/0.931/0.929 by recovering the absorbed energy from the old run's balance and re-solving for the averaged cross section; the measured values sit ~5% below that, which is the field responding rather than being held fixed - cooler grains re-emit less infrared, which lowers the diffuse field, which cools them a little further. **The residual now has the opposite sign to the defect, and an explanation.** Re-measuring the bolometric field on this run gives 1.35/1.30/1.28/1.23/1.16 of Cloudy's at A_V 0.15-0.65, **unchanged from the pre-fix run**, so MOCASSIN holds MORE total radiative energy at every depth and yet its grains are cooler. The band shares say why: at A_V 0.30 Cloudy carries **0.255 of its field in the FUV against MOCASSIN's 0.107**, while MOCASSIN carries more in 0.01-0.44 Ryd (0.504 against 0.362) and the far-IR shares are comparable. C_abs is orders of magnitude larger in the FUV than in the infrared, so Cloudy's field - smaller in total - is concentrated where grains actually absorb. **So O-02's dust half is closed as a defect and reopened, much smaller, as a question about where each code puts its reprocessed energy in frequency**, which is the same diffuse-transport difference D-307 measured from the other side. Tooling: `tools/d305_tdust.py` generalised to any species count, since it assumed the two-file graphite layout D-313 removed. `doc/pdr-status.md` L-2 updated from predicted to measured | Closed | 2026-09-22 |
+| D-316 | **Exercising the warm start for the first time (L-14) found it broken in three ways, two now fixed - and the first was caused by D-307. Plus: all nine PDR benchmark fixtures pointed at a directory that no longer exists, so none of them could run.** **The fixture path.** Every `benchmarks/pdr/*/input/input.in` carried `pdrDataDir "/home/hmonteiro/software/mocassin-pdr/dataPDR"`, a directory left behind by a rename. Nine fixtures - hiipdr and its five variants, both slabs, ifront - plus pn150k, all unable to start. Repointed. This is why O-09 and the slab checks have been so easy to defer: they could not have been run. **The warm start, defect by defect.** (1) **`linePDF` unallocated, and D-307 caused it.** `mocassinWarm` never called `setLineNuP`/`allocLineArrays`, which did not matter while line transport was off by default - `linePDF` was then needed only under `lgDebug`. Making transport the default turned a dormant omission into an immediate stop: "setDiffusePDF: linePDF unallocated with line transport on". Fixed by mirroring `mocassin.f90`'s order. **A regression the D-314 suite could not have caught**, because that suite exercises `mocassin`, not `mocassinWarm`. (2) **`resetGrid` was called twice.** The driver looped `call resetGrid(grid3D(iGrid))` and then called `call resetGrid(grid3D)`. `resetGrid`'s dummy is `grid(maxGrids)`, an array, so the loop form passed a scalar and by sequence association aliased the same storage - the grid was reset, and every checkpoint file re-read, twice. Reduced to the one call it always meant. (3) **Still broken: a segfault in `updateCell`**, after the Monte Carlo transfer completes cleanly and the SED is written, at the first cell following the D-116 recombination audit. **`seedPDR` is the tempting fix and is the wrong one** - `mocassin.f90` calls it and `mocassinWarm` does not, but it assigns `grid(iG)%pdrAbun(iCell,:) = seed`, overwriting the chemistry with initial values, which would destroy exactly the state a warm start exists to resume. So the missing piece is whatever allocation or linkage `seedPDR` performs incidentally, not the seeding itself, and that has not been separated. **Status of L-14 upgraded from "not exercised" to "broken, two of three defects fixed, third localised"** - which is worth more than the previous unknown even though the flavour still does not run. The build rule caught nothing here because all four flavours compile; only running it found any of this | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -24837,3 +24838,82 @@ which a 1D outward-only treatment will not reproduce. Registered as L-19.
 `tools/d305_tdust.py` assumed the two-file graphite layout and indexed
 `dust_species.dat` positionally; it now reads whatever species count the file
 declares. `doc/pdr-status.md` L-2 updated from predicted to measured.
+
+## D-316 - the warm start, exercised at last (2026-09-22)
+
+L-14 recorded that `mocassinWarm` had never been run - it compiled, and that
+was the whole of its coverage. Running it found it broken three ways, and one
+of the three was caused by D-307 in this same cycle.
+
+### First, the fixtures could not run at all
+
+Every PDR benchmark input carried
+
+    pdrDataDir "/home/hmonteiro/software/mocassin-pdr/dataPDR"
+
+a directory left behind by a rename. Nine fixtures - `hiipdr` and its five
+variants, `v1slab`, `v2slab`, `ifront` - plus `pn150k`, none of which could
+start. Repointed at the repository's own `dataPDR`.
+
+This is worth sitting with. The slab checks and O-09 have been deferred for
+several cycles as "expensive"; they were not expensive, they were impossible,
+and nothing surfaced that because nobody ran them.
+
+### The warm start, defect by defect
+
+**(1) `linePDF` unallocated - and D-307 caused it.** `mocassinWarm` never
+called `setLineNuP` or `allocLineArrays`. That was dormant for as long as line
+transport was off by default, because `linePDF` was then needed only under
+`lgDebug`. Making transport the default turned the omission into an immediate
+stop:
+
+    ! setDiffusePDF: linePDF unallocated with line transport on -
+    !   allocLineArrays did not run (D-294). nLines = 16892
+
+Fixed by mirroring `mocassin.f90`: `setLineNuP()` to settle `nLinesPDF`, then
+`allocLineArrays` per grid.
+
+**This is a regression D-314's suite could not have caught**, because that
+suite runs `mocassin`. A four-flavour *build* rule does not exercise a
+flavour, and this is the second time in two cycles that the difference has
+mattered.
+
+**(2) `resetGrid` was called twice.** The driver had
+
+    do iGrid = 1, nGrids
+       call resetGrid(grid3D(iGrid))
+    end do
+    call resetGrid(grid3D)
+
+`resetGrid`'s dummy is `grid(maxGrids)` - an array. The loop form passes a
+scalar, which by sequence association aliases the same storage, so the grid
+was reset and every checkpoint file re-read twice. Reduced to the single call
+on the array that it always meant.
+
+**(3) Still broken: a segfault in `updateCell`.** With both fixes in, the
+warm start now reads the checkpoint, rebuilds the cross sections, runs the
+Monte Carlo transfer to completion, writes the SED - "Total energy radiated
+out of the nebula 3.785 of 3.828" - and then dies at the first cell of
+`updateCell`, immediately after the D-116 recombination audit.
+
+The obvious candidate is `seedPDR`, which `mocassin.f90` calls after
+`fillGrid` and the warm driver does not call at all. **It is the wrong fix.**
+`seedPDR` assigns
+
+    grid(iG)%pdrAbun(iCell,:) = seed
+
+overwriting the chemistry with its initial values - which would destroy
+exactly the state a warm start exists to resume. So what the warm path is
+missing is whatever allocation or linkage `seedPDR` does *incidentally*, not
+the seeding, and separating the two has not been done.
+
+### Status
+
+L-14 moves from "not exercised" to "broken, two of three defects fixed, the
+third localised to `updateCell` with the obvious fix ruled out". The flavour
+still does not run. That is a worse-sounding status than before and a better
+one to have: the previous entry recorded an unknown, this one records a
+bounded problem.
+
+All four flavours still compile, which is precisely the point - compiling was
+never evidence.

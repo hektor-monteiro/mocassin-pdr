@@ -174,9 +174,16 @@ bar (O-25).
 
 ### Low, or housekeeping
 
-**L-14. O-23: the warm start has not been exercised** since these changes -
-`mocassinWarm` compiles and nothing more. It is the one flavour with no
-runtime coverage at all.
+**L-14. The warm start is BROKEN** (D-316, upgraded from "not exercised").
+Running it for the first time found three defects. Two are fixed: it never
+called `setLineNuP`/`allocLineArrays`, so `linePDF` was unallocated - dormant
+until D-307 made line transport the default, then an immediate stop; and
+`resetGrid` was called twice, once through a scalar that aliased the array by
+sequence association, re-reading every checkpoint file. The third is open: a
+segfault in `updateCell` after the Monte Carlo transfer completes and the SED
+is written. `seedPDR`, which `mocassin.f90` calls and the warm driver does
+not, is *not* the fix - it overwrites `pdrAbun` with initial values, which
+would destroy the state a resume exists to restore.
 
 **L-15.** `getQs` caps the Mie size parameter at 100, which for a 0.25 um
 grain bites above 5.8 Ryd against a `nuMax` of 30. Affects EUV/X-ray dust
@@ -198,7 +205,9 @@ and it has only the coverage D-313 gave it.
 Stated explicitly, because absence of a reported problem is not evidence.
 
   - **The 1D slab fixtures** (`v1slab`, `v2slab`) and `ifront`, at their
-    configured sizes, under this cycle's changes.
+    configured sizes, under this cycle's changes. Note that until D-316 they
+    *could not have been run at all*: every PDR fixture's `pdrDataDir` pointed
+    at a directory left behind by a rename.
   - **`hiipdr`** (the Bisbas et al. 2015 §5.4 model) under this cycle's
     changes. The `hiipdr Against Cloudy` artifact predates the line-transport
     result entirely.
