@@ -303,6 +303,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-301 | **The converged A/B: line transport is worth 1.74x in the field and CLOSES most of O-02's field half - 0.51 -> 0.90 of corrected Cloudy - but does NOT close the temperature half, which is the real finding.** Two 11-iteration runs of one binary, `MOCASSIN_LINES` the only difference, both clean exits at matched convergence (runs/d298-conv-on 89.40%, 2:57:39; runs/d298-conv-off 89.27%, 2:53:21), tracking D-290's production trajectory (it8 67.3/58.8 against 59.2, it11 89.4/89.3 against 89.6). This supersedes D-297, whose 4-iteration probes were 1.0-1.2% converged. **Convergence mattered a great deal:** the on/off field ratio is **1.738** (flat 1.68-1.76 over r = 0.126-0.581 pc), against 1.410 unconverged, and the converged PDR is a different object - T_mean 92.4 K, f_mol 0.9405, against the probe's 540.7 K and 0.409. **Against Cloudy with its artifact Lya removed** (0.4609, derived in D-298), stable for A_V >= 0.175: transport OFF 0.49-0.52, transport ON **0.85-0.92**. So the discarded thin lines were most of O-02's field half, and D-297's withdrawn prediction of 0.55 -> ~0.95 was right in substance and wrong only in having been tested three iterations before the structure locks in. **The PDR is untouched:** 87.9 -> 92.4 K (+5.1%), f_mol 0.9394 -> 0.9405, which retires D-292's claim for good. **But the temperature gap barely moves.** T_gas against Cloudy goes from 0.50-0.54 (off) to 0.53-0.59 (on) at A_V > 0.5: a 74% increase in the field bought ~7% in temperature. That is the expected weak scaling - in the photoelectric-heated regime T goes roughly as G_0^0.25, giving 1.74^0.25 = 1.15 - and it redirects O-02: **with the field at 0.90 of Cloudy's the gas is still ~1.8x colder, so the temperature deficit is not primarily a field problem.** Photoelectric heating per H is 0.26-0.47 (off) and 0.34-0.59 (on) of Cloudy's, but that reference is itself inflated because Cloudy's heating is computed from its full field including the Lya artifact, so those are a lower bound and a like-for-like heating comparison is not available from a switch. What remains for O-02 is the heating-to-temperature conversion - efficiency or excess cooling - not the field. Figure rebuilt on the converged pair at runs/d298-conv-on/figs/lines.{svg,png,pdf} | Open | 2026-09-21 |
 | D-302 | **Two defects in the Cloudy reference setup, found while building the trimmed comparison. Both real, one of them present in every Cloudy comparison this project has published - though it changes no conclusion.** (1) **`save PDR` is written WITHOUT `last`** where every other save in the model input has it, so `150k.pdr` holds all iterations concatenated - 1348 rows against the `.ovr`'s 671 - and `read_cloudy` took the whole file. So the Cloudy G0 behind D-287, D-291, D-297, D-300 and D-301 mixed the unconverged first pass into the reference. Split by the depth column resetting: iteration 1 runs 677 rows to A_V 0.792, iteration 2 671 rows to A_V 0.683. **Measured impact: G0 mixed/iteration-2 is 0.955-1.014 across the PDR and D-301's on/corrected-Cloudy ratios move from 0.856-0.914 to 0.856-0.920, i.e. by <=0.02** - so nothing published changes in substance, because the two iterations nearly coincide at a given A_V. Fixed with `last_iteration()`, which keeps the final block; the reader now returns 671 rows reaching A_V 0.6830, matching the `.ovr` exactly. (2) **The reference's `stop temperature linear 40K` was doing double duty**, both ending the model and - by coincidence - placing its outer edge at MOCASSIN's R_out of 1.8718e18 cm. That coupling breaks the moment anything changes the temperature: trimmed Cloudy is colder, hits 40 K at A_V 0.645 and stops short of the model's 0.683. Replaced with an explicit `stop radius 1.8718e18 linear`, which pins the two codes to the same volume whatever the temperature does. **A trap on the way:** removing the temperature stop entirely hands control to Cloudy's DEFAULT lowest temperature of 4000 K, and the run then stops at **A_V 0.160**, at the ionization front, with no PDR at all - caught only by checking the depth reached. Cloudy stops on whichever criterion fires first, so the low temperature stop must stay alongside the radius pin; the reference now carries `stop temperature linear 3K` and the radius | Closed | 2026-09-21 |
 | D-303 | **The element set is cut from 28 to 11 and the model does not notice: 1.62x faster, every comparison unchanged within Monte Carlo scatter. Artifact page rebuilt.** Li Be B F Na Al P K Sc Ti V Cr Mn Co Ni Cu Zn dropped from `abunGASS_pn150k_trim.in` (Ca and Fe were already out on the 17-level limit), and the same `element ... off` set applied to Cloudy so the codes stay equivalent. Justified in D-300 and verified here by re-running the whole converged A/B. **Convergence tracks the full composition iteration for iteration** - it3 0.175 against 0.172%, it7 **1.243 against 1.243**, it8 68.7 against 67.3 - which is the strongest evidence available that the dropped species were never doing anything: they are absent from the reduced 33-species network, so the PDR cannot see them. Results, converged, transport on: field ratio on/off 1.683 against 1.738; PDR T_mean 94.1 against 92.4 K; f_mol 0.9389 against 0.9405; field against Lya-corrected Cloudy 0.911 against 0.898 with lines on and 0.540 against 0.514 with them off. Every difference is at or below two-run MC scatter. **Cost: 1:49:29 against 2:57:39 for 11 iterations, and 90.4% converged against 89.4%.** The speedup splits as D-299 predicted - MC-only iterations run 2.2-2.5x faster, and once the PDR chemistry engages at `pdrStartIter` the gain settles to ~1.5x, because the reduced network is untouched by the element list. The artifact page (150 kK PN Against Cloudy, version 5) is rebuilt on `runs/d302-trim-off` against `runs/d302-cloudy-trim-rad`: the three Roellig figures regenerated, the Ca/Fe section replaced by the element-trim measurement, a new section added for the thin-line channel with D-301's figure, and two superseded claims corrected in place - that the field is "untouched at 3.0-3.5x low" and that transporting the lines "destroyed the PDR outright". **One number could not be reproduced and was recomputed:** the page quoted Cloudy's intrinsic Hbeta as 2.78e34, which appears in no block of the `.lines` file nor in the `.out`; computed consistently as 4 pi R_in^2 times the intrinsic intensity it is 2.482e34 trimmed and 2.487e34 full, against MOCASSIN's 2.653e34, so the headline reads 2.65 against 2.48 and 7% rather than 4% apart | Closed | 2026-09-21 |
+| D-304 | **O-02's temperature half decomposed, and it is not what D-301 concluded: the cooling side is exonerated, the photoelectric EFFICIENCY is exonerated, and most of the remaining gap is the reference inflating itself with its own Lya artifact.** No new runs - `tools/d304_budget.py` reads MOCASSIN's `thermBudget.out`/`pdrCoolSp.out`/`pdrFUV.out` and Cloudy's `.heat`/`.cool`/`.gheat`/`.gpot`/`.ele_C` against each other in matched A_V bins. **Four things established, in order.** (1) **The comparison is sound:** MOCASSIN's balance is converged to (H-C)/H = 7e-4..7e-3 everywhere, the budget is recorded within 0.8% of the cell's kept T_e (median, p95 4.1%), and D-288's grain diagnostic reconstructs MOCASSIN's own PE heating as Nabs/H x <Y> x <E> to a factor **1.00**. (2) **Both codes run the SAME two-term thermostat in the deep PDR** - Cloudy at A_V 0.65 is 94% GrnP heating against 98% [C II] cooling; MOCASSIN is 84% PE heating, and its coolant split is 99% C+ - with x(C+) matching to **1.001-1.006** on identical C/H of 2.690e-4. So the cooling function is the same physics with the same carrier at the same abundance. (3) **The [C II] thermostat relation is VERIFIED inside MOCASSIN alone**, with no Cloudy in it: across the `MOCASSIN_LINES` on/off pair, exp(-91.2/T) tracks the heating ratio to **pred/meas = 0.986-1.014** at A_V 0.30-0.65. **T is set by heating, and the cooling side is not at fault** - which retires the "excess cooling" branch of D-301's open question outright. (4) **The photoelectric efficiency agrees:** PE per H per unit G0, MOCASSIN/Cloudy = **0.66-1.10** over A_V 0.20-0.65, no trend. This is exactly what D-287 was built to ask and could not answer while the fields disagreed by 2x. **O-02 is not a yield or charging defect.** **What was wrong in D-301:** it read "74% more field bought 7% more temperature" as evidence the temperature is not a field problem. The weak response is exactly what the thermostat predicts - exp(-91.2/T) is steep, and PE heating is SUBLINEAR in the field because a stronger field charges the grains more positively and cuts the yield. That exponent is now measured rather than assumed: **d ln(PE)/d ln(G0) = 0.42** from the on/off pair (G0 x1.68 gives heating x1.22-1.26), confirmed by the potentials - MOCASSIN's grains sit at 0.04-0.46 V against Cloudy's 0.37-1.58 V, less charged because its field is lower. **The consequence for the reference is the main result.** Cloudy's Lya artifact is 0.461 of its 6-13.6 eV field (D-298), and it inflates not only the field but the GrnP heating computed FROM that field, and therefore Cloudy's temperature. At the measured exponent the corrected heating is (1-0.461)^0.42 = 0.771 of Cloudy's, and the corrected T follows from the same verified thermostat: **T_m/T_c goes from 0.879/0.865/0.756/0.671/0.707 to 1.338/1.034/0.884/0.772/0.783 at A_V 0.20/0.30/0.40/0.50/0.65.** So the gap is 1.0-1.3x, not the ~1.8x D-301 quoted from a PDR-wide mean (a poor statistic - the two codes weight depths differently), and at A_V 0.20-0.30 MOCASSIN now sits AT or ABOVE the corrected reference. The residual is a mild depth trend, warm at the front and ~20% cool at A_V 0.5-0.65, tracking the residual field difference (G0 corrected 0.89-0.95 over the same span). **The one assumption left, and how to kill it:** the correction transfers MOCASSIN's charging exponent to Cloudy. A Cloudy run with its FUV field cut by the Lya fraction would measure Cloudy's own response and remove the transfer - cheap, single-threaded, and the obvious next step. **Also found, and documented rather than changed:** `thermBudget.out`'s `coll` and `PDR` cooling columns are raw-plus-net bookkeeping, not channels - `update_mod.f90` does `coolInt = coolInt - mocCool` without touching `coolColl`, so `coll` still carries the [C II]/[O I] it is about to hand over and `PDR` is the net of added-minus-removed. The total is right and nothing is double counted, but the columns cannot be read as physical channels, and the per-coolant table is what shows MOCASSIN cooling by [C II] | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -23364,3 +23365,222 @@ not announce itself in any figure - the curves look entirely reasonable. The
 only defence is checking what a reference actually spans before comparing
 against it, which is now done in `read_cloudy` for the iterations and by the
 explicit radius for the extent.
+
+## D-303 - eleven elements, and the model does not notice (2026-09-21)
+
+Body owed from the entry made the same day; the index row carries the full
+measurement and is not repeated here. The substance: the seventeen trace
+elements were removed from `input/abunGASS_pn150k_trim.in` and the identical
+`element ... off` set applied to the Cloudy reference, the whole converged A/B
+was re-run on the reduced list, and every comparison landed within two-run
+Monte Carlo scatter at 1.62x the speed. Convergence tracked the full
+composition iteration for iteration, including an exact tie at iteration 7
+(1.243% against 1.243%), which is the strongest available evidence that the
+dropped species were never doing anything: they are absent from the REDUCED
+33-species network, so the PDR could not see them, and in the ionized gas
+their cooling was measured at a median 0.000%.
+
+Artifacts: `runs/d302-trim-on`, `runs/d302-trim-off`,
+`runs/d302-cloudy-trim-rad`, and the rebuilt page at version 5.
+
+## D-304 - O-02's temperature half, term by term (2026-09-22)
+
+D-301 left O-02 split in two. The field half closed - with the thin lines
+transported the FUV field reaches 0.91 of Lya-corrected Cloudy - and the
+temperature half did not, with the deep PDR still reading far colder than the
+reference. D-301's own reading of that was:
+
+> a 74% increase in the field bought ~7% in temperature ... with the field at
+> 0.90 of Cloudy's the gas is still ~1.8x colder, so the temperature deficit is
+> not primarily a field problem. What remains for O-02 is the heating-to-
+> temperature conversion - efficiency or excess cooling - not the field.
+
+This entry decomposes that conversion and finds both named suspects innocent,
+and the inference itself wrong. No new model was run: `tools/d304_budget.py`
+reads what is already on disk on both sides - MOCASSIN's `thermBudget.out`
+(D-217's ten budget slots and D-288's six grain slots), `pdrCoolSp.out`,
+`pdrFUV.out` and `pdrGrid.out`, against Cloudy's `.heat`, `.cool`, `.gheat`,
+`.gpot`, `.ovr`, `.pdr` and `.ele_C` - in matched A_V bins, on the converged
+trimmed pair `runs/d302-trim-on` / `runs/d302-trim-off` against
+`runs/d302-cloudy-trim-rad`.
+
+### First, that the comparison is worth making
+
+Three checks before any number is read out of it.
+
+MOCASSIN's balance is converged where it is being compared: (H-C)/H_m runs
+7e-4 to 7e-3 across every bin. The residual is not hiding anything.
+
+The budget is recorded at the temperature the cell keeps. D-217 warned that
+slot 2 is overwritten at the solver's last TRIAL temperature, which need not
+be the `TeUsed` finally written. Measured over the 34926 PDR cells:
+|T_bud - T_gas|/T_gas has median 8.0e-3 and p95 4.1e-2. Close enough that the
+budget and the temperature describe the same state.
+
+D-288's grain diagnostic closes on itself. Its own identity is
+PE = (Nabs/H) x <Y> x <E>, and reconstructing MOCASSIN's photoelectric heating
+that way against the heating the budget recorded gives **1.00** at every bin
+(0.97 at one). Whatever else is true, the diagnostic can be believed.
+
+### Second, that both codes are running the same thermostat
+
+At A_V 0.65 Cloudy is 94% GrnP heating against 98% [C II] 158 um cooling - a
+two-term balance and nothing else. MOCASSIN is 84% PE heating
+(4.93e-26 of 5.90e-26 erg/s/H), and its per-coolant table is 99% C+
+(6.35e-26 of 6.39e-26). Same two terms.
+
+And the carrier is the same object on both sides: x(C+) matches to
+**1.001-1.006** through A_V 0.20-0.65, on a C/H that is 2.690e-4 in both codes
+(MOCASSIN from `abunGASS_pn150k_trim.in`, Cloudy from GASS - checked, not
+assumed). Carbon is fully C+ throughout the PDR in both. So the cooling
+function is the same physics, with the same carrier, at the same abundance.
+
+That makes the deep PDR a one-line thermostat, and while the line is
+subthermal its cooling per H goes as x(C+) exp(-91.2/T).
+
+### Third: the thermostat relation, verified inside MOCASSIN alone
+
+The relation can be tested with no Cloudy in it at all. The
+`MOCASSIN_LINES` on/off pair is one binary with one switch: the field changes
+and every other piece of physics is held fixed. If T is really set by heating
+against subthermal [C II], then
+
+    exp(-91.2/T_on) / exp(-91.2/T_off) = H_on / H_off
+
+    A_V    T_on    T_off  | H_on/H_off  G0 ratio | T_on predicted  measured
+    0.20   161.3   151.6  |    1.111      1.677  |    183.7         161.3
+    0.30    59.3    51.9  |    1.223      1.683  |     58.7          59.3
+    0.40    45.0    40.9  |    1.256      1.684  |     45.6          45.0
+    0.50    35.5    32.2  |    1.256      1.688  |     35.0          35.5
+    0.65    26.7    25.5  |    1.237      1.692  |     27.1          26.7
+
+**pred/meas = 0.986-1.014 at A_V 0.30-0.65.** The temperature is set by the
+heating, to better than 2%, with no free parameter. **The cooling side of
+D-301's question is closed: there is no excess cooling.**
+
+### Fourth: the efficiency agrees, so it is not the yield or the charging
+
+D-287 posed exactly this test and could not run it, because the fields
+disagreed by a factor two and an efficiency compared at different fields is
+not a comparison. With the thin lines transported the fields are close enough
+to ask:
+
+    A_V    G0_m     G0_c   m/c  |  PE_m/G0   PE_c/G0    m/c
+    0.20   83.6      168   0.50  | 1.045e-26 1.305e-26   0.80
+    0.30   34.1     68.3   0.50  | 1.016e-26 9.257e-27   1.10
+    0.40   17.2     34.9   0.49  | 1.046e-26 1.064e-26   0.98
+    0.50   9.73     20.3   0.48  | 1.029e-26 1.292e-26   0.80
+    0.65   5.09     9.97   0.51  | 9.682e-27 1.474e-26   0.66
+
+**0.66-1.10, scattered, no trend.** (G0_m/G0_c is 0.50 here because this is
+Cloudy's RAW field; corrected for the Lya artifact it is the 0.91 of D-303.)
+
+**O-02 is not a yield or charging defect.** Both branches D-301 named -
+efficiency and excess cooling - are now excluded.
+
+### What D-301 got wrong
+
+It read "74% more field bought 7% more temperature" as evidence that the field
+is not what sets the temperature. It is not evidence of that. A weak
+temperature response to a large field change is exactly what this thermostat
+gives, for two compounding reasons:
+
+  * exp(-91.2/T) is steep, so a large change in heating is a small change in
+    T. At 27 K a factor 1.24 in heating is a factor 1.05 in T.
+  * photoelectric heating is **sublinear in the field**, because a stronger
+    field charges the grains more positively and cuts the yield. The on/off
+    pair measures this directly - G0 rose 1.68x and the heating only
+    1.22-1.26x, so **d ln(PE) / d ln(G0) = 0.42**.
+
+The grain potentials confirm the mechanism rather than merely being consistent
+with it: MOCASSIN's grains sit at 0.04-0.46 V through A_V 0.20-0.65 against
+Cloudy's 0.37-1.58 V, less charged precisely because MOCASSIN's field is lower.
+
+So the temperature IS a field problem, read through a steep exponential and a
+sublinear rate. D-301's arithmetic was right and its conclusion was backwards.
+
+### And so the reference has to be corrected too
+
+This is the part that matters. D-291 and D-298 established that Cloudy's
+deep-PDR Lya is an artifact of attenuating outward line flux by continuum
+opacity alone, measured at a flat **0.461** of its 6-13.6 eV field. Every
+comparison so far has removed it from Cloudy's FIELD. But Cloudy's GrnP
+heating is computed FROM that field, and its temperature from that heating.
+The artifact inflates all three.
+
+The correction is no longer a guess, because the exponent is measured: the
+corrected heating is (1-0.461)^0.42 = **0.771** of Cloudy's, and the corrected
+temperature follows from the same thermostat that was just verified.
+
+    A_V    T_c    T_c corrected   T_m  | T_m/T_c   T_m/T_c corrected
+    0.20  183.4       120.5      161.3 |  0.879         1.338
+    0.30   68.6        57.4       59.3 |  0.865         1.034
+    0.40   59.5        50.9       45.0 |  0.756         0.884
+    0.50   52.8        45.9       35.5 |  0.671         0.772
+    0.65   37.7        34.1       26.7 |  0.707         0.783
+
+**The deep PDR is 1.0-1.3x colder than the corrected reference, not the ~1.8x
+D-301 quoted.** That 1.8x was a PDR-wide mean, which is a poor statistic here:
+the two codes do not weight depths the same way, and a mean over a region
+spanning 161 K to 27 K is dominated by wherever the cells happen to pile up.
+At matched A_V, and against a reference corrected for its own artifact,
+MOCASSIN sits at or above Cloudy at A_V 0.20-0.30 and ~20% below it at
+0.50-0.65.
+
+The residual has a shape: warm relative to the reference at the front, cool
+relative to it deep. The corrected field ratio does the same thing (0.92, 0.93,
+0.92, 0.89, 0.95 over the same bins), so what is left of the temperature
+divergence tracks what is left of the field divergence, which is the
+attenuation.
+
+### What is NOT yet known
+
+The correction transfers **MOCASSIN's** measured charging exponent to Cloudy.
+Cloudy's own d ln(GrnP)/d ln(G0) could differ; it cannot be read off the depth
+axis of the existing run because n_e and the abundances vary with depth at the
+same time. The clean way to kill the assumption is a Cloudy run with the FUV
+field reduced by the Lya fraction, which measures Cloudy's own response and
+removes the transfer entirely. Single-threaded and cheap. Until that is done,
+the corrected column above is a first-order result with a measured exponent,
+not a second reference.
+
+Nothing here has been tuned. No coefficient was fitted, the Lya fraction is
+still the 0.4614 derived from the raw `.ioncont`, and the charging exponent is
+measured from a pair of runs rather than chosen.
+
+### A bookkeeping trap in thermBudget.out, documented not changed
+
+The cooling columns `coll` and `PDR` cannot be read as physical channels.
+`update_mod.f90` implements D-133's replace-don't-exclude rule as
+
+    coolInt = coolInt - mocCool
+
+without touching `coolColl`. So slot 4 (`coll`) still carries the [C II] and
+[O I] that MOCASSIN is about to hand over to 3D-PDR, and slot 8 (`PDR`) is the
+NET of (3D-PDR's coolants added) minus (MOCASSIN's own taken back out) - which
+is why it goes negative in the ionized gas and why `used/sum` against the raw
+`pdrCoolSp` runs 0.25-0.76 rather than near 1.
+
+The two slots sum to the correct total and **nothing is double counted** - the
+subtraction is real and deliberate. But reading `coll` as "MOCASSIN's atomic
+cooling that happened" is wrong, and would have suggested the deep PDR cools
+64% by CELs at 27 K, which it does not. The physical split is the per-coolant
+table, which is 99% C+. Left as it is, since the budget is correct and the
+alternative is changing what slot 4 means; `d304_budget.py` prints the warning
+alongside the table and this entry is the record.
+
+`grid%pdrCoolSub` and `grid%pdrTfacUsed` already hold the two halves in
+memory (D-210) but are written to no output file, so the exact split cannot be
+recovered from a finished run. Worth adding if the question returns.
+
+### Where this leaves O-02
+
+  * cooling function - **excluded**, thermostat verified to 1.4% internally
+  * photoelectric efficiency / yield / charging - **excluded**, 0.66-1.10
+  * the field - **the whole of it**, and 0.89-0.95 of corrected Cloudy
+  * the reference - **inflated by its own artifact**, by a factor now measured
+
+O-02 is no longer "a photoelectric heating deficit". It is the residual FUV
+attenuation difference, worth 5-11% in the field, read through a steep
+thermostat - plus a reference that has been flattering itself by ~23% in
+heating wherever its Lya artifact was left in.
