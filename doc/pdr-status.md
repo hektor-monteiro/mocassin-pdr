@@ -136,8 +136,23 @@ being compared against a fixed band. Threshold-matched against Cloudy's own
 per-zone spectrum, the spectral residual is 1.26x, not 2.7x, and cannot carry
 an efficiency swing of 4.2. The optics are also eliminated - the two codes'
 grain cross sections agree in shape to 2% and in albedo to 1% across the band
-(D-323). **Next: read the grain charge balance term by term**, where D-290
-already found and fixed a 4 pi^2 units defect.
+(D-323).
+
+**D-325 named it.** `update_mod.f90`'s `getGrainRecombination` hardcodes
+`S = 1.` for electron sticking; Cloudy uses 0.5 (WD01). D-289 adopted WD01's
+*yield* into both the charge balance and the heating but left Baldwin (1991)'s
+sticking, so two halves of one prescription come from different papers in a
+place where they multiply. At matched `psi = G0 sqrt(T)/x(e)` MOCASSIN's
+efficiency is 2.09/1.73/1.36/1.04x Cloudy's - always above, never crossing -
+and dividing psi by each code's own S flattens that to 1.15/1.16/1.13/1.31.
+The crossover itself is the two codes on opposite sides of the peak of
+efficiency-vs-psi, MOCASSIN's psi falling 113x across the PDR against Cloudy's
+55x. **So the field drives it through psi**, and D-322's "28% field" reading
+was causally wrong even though the arithmetic was right.
+
+**Next: set electron sticking to WD01's value and re-run hiipdr.** Prediction,
+stated before the run: the PDR behind the front cools toward Cloudy and the
+crossover moves deeper or disappears. `tools/d325_psi.py` holds the test.
 
 This is *not* the same quantity as L-19 below. D-322 claimed it was; D-324
 withdrew that. The dust result stands on its own measurement.
