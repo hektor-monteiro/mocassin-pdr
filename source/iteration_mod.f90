@@ -1267,6 +1267,14 @@ module iteration_mod
 
               do iCouple = 1, max(pdrCoupleIter, 1)
 #ifdef PDR
+              ! D-334: take the snapshot the damping at the foot of this loop
+              ! has always assumed it had. ionDenPrev must hold ionDen as it
+              ! stood BEFORE this pass, so it is taken here, at the top, and
+              ! not at the point of use. Guarded on allocated() because the
+              ! allocation itself sits further down this same loop body and so
+              ! has not happened on the very first pass.
+              if (lgPDR .and. allocated(ionDenPrev)) ionDenPrev = grid(iG)%ionDen
+
               ! ---------------------------------------------------- D-204
               ! Te at this point has been solved by updateCell against the
               ! abundances the iteration STARTED with: pdrStep has not run yet
@@ -1956,6 +1964,12 @@ module iteration_mod
                     if (err /= 0) then
                        print*, "! iterateMC: can't allocate ionDenPrev"; stop
                     end if
+                    ! D-334: and INITIALISE it. Before this line ionDenPrev was
+                    ! allocated and never assigned anywhere in the tree, so the
+                    ! damping at the foot of the coupling loop was mixing
+                    ! pdrCoupleDamp (0.25) of uninitialised memory into
+                    ! grid%ionDen on every pass after the first.
+                    ionDenPrev = grid(iG)%ionDen
                  end if
                  allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
                  allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)

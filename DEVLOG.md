@@ -333,6 +333,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-331 | **Design discussion: what it would take to produce molecular line observables. The emissivities are already computed every cell every iteration and thrown away.** `escape_probability.F90:194` forms `line(i,j) = A_ij h nu_ij n_i beta_ij (S_ij-BB_ij)/S_ij`, the per-transition emissivity in erg/cm3/s, for **63 radiative transitions** (CO 40, C+ 9, C 7, O 7); `pdr_mod.f90` takes it as the LOCAL `lline(1:nlev,1:nlev)`, keeps only the summed `coolK` and drops the array. Because `beta_ij` is already in it, `line` is what ESCAPES, so per-cell emissivities are a persistent array plus a writer (~33 MB at 41^3) and integrated line luminosities are a volume sum that can go straight into lineFlux.out. No new physics, data or solver; `pdrMaxLev` is already dynamic. Available immediately: the CO ladder to J=40-39, [C II] 158, [C I] 370/609, [O I] 63/145 um. **`dataPDR/` already vendors 15 LAMDA files** and three more are usable against the REDUCED network today - OH, HCO+, CH+ - while HCN/CN/HNC/N2H+/SiO/C2H have no carrier in the 33 species. **3D-PDR over Cloudy, decisively:** the machinery is in-tree, LAMDA is the community format, and the escape probability is HEALPix-averaged under RAYTHEIA, which a 1D code cannot do; Cloudy's role is validation via `save lines emissivity` on the matched models. **Caveats for any published line:** deep CO is 50-100x Cloudy's so the ladder inherits that; `pdrNbadPop` must be reported because the level solve can go singular; and H2 has no LAMDA file, so 1-0 S(1) 2.12 um and the 0-0 S(n) ladder are absent and are NOT just another coolant (FUV pumping, not collisions) | Open | 2026-09-23 |
 | D-332 | **pn150k re-run with the sticking fix (`runs/d330-pn150k`): converges FASTER and better - 9 iterations to 90.15% in 1h18m against d313-qavg's 11 to 89.58% in 2h00m, 0% ion and 0% Te balance failures - but the temperature effect is far smaller than on hiipdr, 1-9% against 28%.** PE falls to 0.832/0.854/0.903/0.947/0.958 of the old run across A_V 0.21-0.65, against hiipdr's 0.608-0.930. D-328 anticipated this: different grain material, graphite here against silicate there, so a different amount of Coulomb suppression to add. Unmoved as required: dust 0.996-0.999 (size-weighted ratios against Cloudy 0.905/0.899/0.872/0.869 reproduce D-315's 0.906/0.902/0.873/0.869), H+ front 0.129 pc, H/H2 A_V 0.248. **pn150k remains one-sidedly COLD** - 0.62-0.76 of Cloudy through the PDR, with PE only 0.26-0.42 of Cloudy's - and the sticking fix makes it marginally colder, which is the honest cost of a correct coefficient. **The [S III] change cannot be isolated by this run**: d313-qavg was 2026-09-22 and so already carried the new data. Bounded instead by a direct 5-level solve at the run's own H II conditions (11907 K, n_e 1065): Hudson/Mendoza cooling ratio **0.823**, i.e. -17.7%, and 0.78-0.85 over 6000-15000 K. Artifact rebuilt (v10), with the data-sync stated on the page including that its effect is unmeasured. Also: `tools/d326_check.py` had hiipdr's depths hardcoded - L-21 in a tool written the day before - now derived from the run | Done | 2026-09-23 |
 | D-333 | **What stands between this code and science production, ranked - and three new measurements taken to rank it.** The user asked for the blocking list. Four findings are new here rather than quoted from the register. **(1) There is no reproducibility at all:** `photon_mod.f90:96-100` seeds the RNG as `seed = seed + msec + taskid` from `date_and_time`, with no input keyword to override it, so no published figure can be regenerated and, with D-314's measured 37% T_gas swing on a 5^3 fixture, no disagreement with any reference carries a significance. **(2) L-3 is live, visible and mis-stated in the register:** `doc/pdr-status.md` says the reference model reaches only A_V 0.68 so L-3 is not exercised - but `runs/d326-stick` reaches A_V 3.0 and the vendored 3D-PDR reference `sec54.pdr.fin` reaches 2.45, so the overlap exists. Measured against it, MOCASSIN's x(C+) is right to **1-3% from A_V 0.6 to 2.1** and then collapses to **0.38** by 2.33, where the reference still holds 82% of carbon as C+; neutral C runs **0.16-0.23** through the shallow PDR and **3.76** at 2.33; CO runs **0.00/0.05/0.39** at A_V 0.6/0.9/1.25 and **3.2-3.4** beyond 2.1. Carbon conserves to the total at every depth, so this is a transition placed too shallow and too sharp, not a lost-mass bug. **(3) That ranks the molecular observables the user asked for in D-331 by readiness, on evidence rather than on expectation:** [C II] 158 um rests on a carrier good to 1-3%, [C I] 609/370 on one 5x low, CO on one wrong by 2 orders of magnitude and changing sign with depth. **(4) A hypothesis linking L-3 to hiipdr's deep cold,** recorded before testing: [C I] 609 um has E/k = 23.6 K against [C II]'s 91.2 K, so converting C+ to C at 20-25 K swaps a nearly-frozen coolant for a fully active one, and premature conversion would cool the deep gas rather than warm it. Falsifiable in `pdrCoolSp.out` past A_V 2 - all four coolants (`12co`, `12c+`, `12c`, `16o`) are active, so the split is already recorded. **Also noted:** against the vendored 3D-PDR reference at matched n_H = 100, MOCASSIN's PDR runs **0.46-0.65x** in T_gas at matched A_V while carrying **6-10x** the FUV field, and at matched *field* (G0 ~ 1.3-1.4) it is 24.4 K against 85.1 K. The A_V zero points differ - the reference is a bare slab, hiipdr has an H II region in front - and the G0 unit convention has not been checked across the two, so this is a flagged question, not a defect. **The ranking: reproducibility and scatter first** (one keyword, then repeats - the cheapest item and it gates the meaning of every other number), **then a third and fourth fixture** (L-11: the two in hand disagree with each other, hiipdr crossing over and moving 28% under the sticking fix against pn150k's uniform 30% cold and 5%), **then L-3**, which gates the observables. Nothing here changes code. | Recorded | 2026-09-23 |
+| D-334 | **Tier 1 item 1: the Monte Carlo is now reproducible - and the test that proved it found an uninitialised array corrupting every PDR result in the project.** A `randomSeed` keyword was added (`common_mod.f90`, `set_input_mod.f90`, `photon_mod.f90`); omitted or negative it keeps the historical clock seeding exactly, so nothing changes for a run that does not ask. Both controls pass on the 5^3 fixture: same seed reproduces, different seed changes the answer, and the run log now records which. **But two runs at the same seed still diverged** - identical through iterations 1, 2 and 3 and differing from iteration 4, which is this fixture's `pdrStartIter`. That localised it to the PDR coupling, and from there to `iteration_mod.f90`: **`ionDenPrev` is declared, allocated and read, and assigned nowhere in the tree** (confirmed case-insensitively across `source/`). It is read twice - in the D-119 residual, and in `grid(iG)%ionDen = (1-pdrCoupleDamp)*ionDen + pdrCoupleDamp*ionDenPrev`, which with the default `pdrCoupleDamp = 0.25` and `pdrCoupleIter = 5` **mixed a quarter of uninitialised memory into the ionization fractions on four of every five coupling passes, every MC iteration from `pdrStartIter` on, in every PDR run this project has ever done.** The D-216 comment sitting directly above it asserted the block was inert and "measures zero"; the residual printed beside it read 1.95e30 in one run and 2.26e6 in the other, and nobody read it. **Fixed** by taking the snapshot the damping always assumed it had: `ionDenPrev = grid(iG)%ionDen` at the top of each pass, plus initialisation at the allocation site. The residual now reads **exactly 0.00000000** on every pass, which confirms D-216's claim for the first time rather than asserting it, and makes the damping provably an identity. **Effect, measured at fixed seed so there is no Monte Carlo noise in the comparison at all:** on the 5^3 fixture the PDR-zone median T_gas goes from **4050 K to 44 K**, x(H2) from 0.020 to 0.199, x(H+) from 4.26e-4 to 2.42e-5; the H II zone moves 1%, dust 2.8%, x(C+) 0.3%. The unfixed 4050 K PDR was never physical. After the fix, two same-seed runs are **byte-identical across all 8 output files**. **Consequence: every published PDR number in this project was computed with this defect, and the two artifacts must be rebuilt on re-runs.** What is NOT yet known is the size of the effect on the production fixtures - the 5^3 model runs only 6 iterations with 3 PDR iterations, so its sensitivity may not be theirs. | Accepted | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26537,3 +26538,157 @@ Making that comparison properly is an outstanding item in its own right.
 No code changed. The register in `doc/pdr-status.md` is updated for the L-3
 mis-statement; the rest of the ranking lives here rather than being duplicated
 into it.
+
+---
+
+## D-334 - Seed control, and the defect the seed test found (2026-09-23)
+
+Tier 1 item 1 of D-333: make a run repeatable, so that a disagreement with a
+reference can be told from Monte Carlo noise. The keyword took an afternoon.
+Verifying it took the rest, and the verification is what mattered.
+
+### The keyword
+
+`randomSeed`, read in `set_input_mod.f90`, held in `common_mod.f90`, used in
+`photon_mod.f90`'s `energyPacketDriver`. Omitted or negative it keeps the
+historical path **exactly**: perturb the running generator state with the
+millisecond field of `date_and_time` plus the rank. A run that does not ask for
+a seed behaves as every run before this entry did.
+
+Given a seed, the state is *replaced* rather than perturbed, so it cannot
+depend on anything the run did earlier:
+
+    smix = ieor(int(randomSeed,8), ishft(int(taskid,8), 20))
+    smix = ieor(smix, ishft(int(nSeedCalls,8), 40))
+    smix = ieor(smix, 88172645463325252_8)
+    do i = 1, seedSize
+       smix = ieor(smix, ishft(smix,  13))
+       smix = ieor(smix, ishft(smix,  -7))
+       smix = ieor(smix, ishft(smix,  17))
+       seed(i) = int(ishft(smix, -33), kind=4)
+    end do
+
+Three details that are not decoration. **`nSeedCalls`** exists because
+`energyPacketDriver` is called once per star per iteration *and*, when
+`Ldiffuse > 0`, once per emitting cell - without it every call would replay the
+same photons. The **xorshift mixer** is there because consecutive integers make
+poor seeds for the generator behind `random_number`; adjacent calls would start
+in neighbouring parts of the state space. It is written with `IEOR`/`ISHFT`
+rather than a multiplicative LCG so that **nothing relies on signed integer
+overflow**, which is undefined behaviour and which `-O2` is entitled to exploit.
+
+The contract is: **repeatable at fixed input and fixed rank count.** Both
+drivers now print which regime the run is in, so a log says whether the run it
+describes can be reproduced.
+
+### The test, and what it refused to do
+
+Four runs of the 5^3 fixture, `runs/d334-seed`: A and B at seed 12345, C at
+seed 999, D with no keyword at all. Two questions, and they are not the same
+one - if only the first is asked, a seed that is silently ignored passes it for
+free, which is the D-176..D-181 failure mode of a test that cannot move.
+
+  - same seed, must be identical
+  - different seed, must differ
+
+C and D both differ from A in iteration 1, so the seed is genuinely used. But
+**A and B were not identical.** Iterations 1, 2 and 3 were byte-identical and
+iteration 4 was not - and iteration 4 is this fixture's `pdrStartIter`.
+
+So the Monte Carlo was already reproducible, and something in the PDR coupling
+was not.
+
+### `ionDenPrev` is read and never written
+
+`grep -rin iondenprev source/` returns, in full: the declaration
+(`iteration_mod.f90:33`), the allocation (:1955), the `.not.allocated` guard
+(:1954), a comment, and **two reads** (:2220, :2229). There is no assignment
+anywhere in the tree.
+
+The second read is not a diagnostic:
+
+    grid(iG)%ionDen = real((1.d0-pdrCoupleDamp)*dble(grid(iG)%ionDen) &
+         &          + pdrCoupleDamp*dble(ionDenPrev))
+
+With the defaults `pdrCoupleDamp = 0.25` and `pdrCoupleIter = 5`, that mixes
+**a quarter of uninitialised memory into the ionization fractions on four of
+every five coupling passes, on every MC iteration from `pdrStartIter` onward,
+in every PDR run this project has ever done.** Whether the allocation lands on
+fresh zero-filled pages or on recycled heap is what makes two identical runs
+diverge - and it is why the divergence appears exactly when the PDR turns on.
+
+The comment directly above it, from D-216, reads: *"ionDen is written by
+updateCell, which now runs once per MC iteration ... so ionDen does not change
+across chemistry passes and this measures zero."* The reasoning about `ionDen`
+was right. It simply did not occur to its author - or to me, reading it - that
+the *other* operand had never been written. The line it defends printed
+**1.95e30** in run A and **2.26e6** in run B, for a quantity bounded by 1, and
+had been printing values like that for as long as the diagnostic has existed.
+
+A number was on the screen, in every log, wrong by thirty orders of magnitude,
+under a comment explaining why it should read zero. It was read past.
+
+### The fix
+
+Take the snapshot the damping always assumed it had - at the **top** of each
+pass, since `ionDenPrev` must hold `ionDen` as it stood before that pass:
+
+    do iCouple = 1, max(pdrCoupleIter, 1)
+    #ifdef PDR
+          if (lgPDR .and. allocated(ionDenPrev)) ionDenPrev = grid(iG)%ionDen
+
+plus `ionDenPrev = grid(iG)%ionDen` at the allocation site, because the
+allocation sits further down the same loop body and so has not happened on the
+first pass.
+
+The D-119 residual now reads **exactly 0.00000000** on every pass. That is
+worth more than a silenced warning: it *confirms* D-216's claim - that `ionDen`
+does not change across chemistry passes - which until now was an assertion in a
+comment. The damping is provably an identity, and if that ever stops being true
+the line will say so.
+
+### What it was worth
+
+Measured at fixed seed, so there is **no Monte Carlo noise in the comparison at
+all** - the first change in this project measurable without a scatter estimate,
+which is precisely what the keyword was for:
+
+    5^3 fixture, seed 12345, A (unfixed) against E (fixed)
+
+    PDR-zone median T_gas     4050 K   ->    44 K     (x 0.011)
+    x(H2)                     0.0205   ->  0.1985     (x 9.7)
+    x(H+)                   4.26e-4    -> 2.42e-5     (x 0.057)
+    H II zone median T_gas   10533 K   -> 10431 K     (x 0.990)
+    T_dust                   39.41 K   -> 38.29 K     (x 0.972)
+    x(C+)                   2.688e-4   -> 2.678e-4    (x 0.997)
+
+The ionized gas and the dust barely move. The PDR moves by a factor of 92, and
+in the direction that makes it a PDR: the unfixed run held the molecular zone
+at 4050 K with the hydrogen 18x too ionized and the H2 suppressed tenfold. A
+4050 K PDR was never physical, and it sat in this fixture unremarked.
+
+After the fix, A/B-style repeats are **byte-identical across all eight output
+files** (`tools/d334_seedcheck.py`).
+
+### What this costs, and what is not yet known
+
+**Every published PDR number in this project was computed with this defect.**
+Both artifacts - `150 kK PN Against Cloudy` (v10) and `hiipdr Against Cloudy`
+(v11) - rest on runs that carried it, as does every conclusion from D-304
+through D-333 that depends on a PDR temperature or abundance.
+
+What is **not** known is how large the effect is on the production fixtures.
+The 5^3 model runs 6 MC iterations of which only 3 are PDR iterations, and
+D-314 measured it as the noisiest fixture in the project; hiipdr and pn150k run
+9-11 iterations and reported PDR temperatures of 11-72 K, which are not the
+4050 K seen here. It is entirely possible the effect is far smaller there, and
+entirely possible it is not. **It gets re-run rather than argued about**, at
+fixed seed, which now means the answer will be exact.
+
+### Tools
+
+`tools/d334_seedcheck.py` - the two-sided seed test, byte identity first.
+`tools/d334_scatter.sh` - build an ensemble differing only in the seed.
+`tools/d334_spread.py` - the error bar: mean, sd and full range over an
+ensemble, on the quantities the artifacts quote, at depths derived from the run
+rather than hardcoded (L-21).

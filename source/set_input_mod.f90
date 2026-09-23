@@ -393,6 +393,16 @@ module set_input_mod
                 read(unit=10, fmt=*, iostat=ios) keyword, (densityLaw(j),j=1,3)
                 lgDlaw = .true.
                 !print*, keyword, densityLaw
+            case ("randomSeed")
+                ! D-334: make the Monte Carlo repeatable. Omitted or negative
+                ! keeps the clock-seeded behaviour every run before this one
+                ! used, so nothing changes unless the seed is asked for.
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword, randomSeed
+                if (ios /= 0) then
+                   print*, "! readInput: error reading randomSeed"
+                   stop
+                end if
             case ("maxIterateMC")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, maxIterateMC, minConvergence

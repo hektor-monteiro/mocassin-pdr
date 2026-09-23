@@ -70,6 +70,17 @@ program MoCaSSiN
     ! read the input parameters of the simulation
     call readInput()
 
+    ! D-334: record the Monte Carlo seed in the run log. A run that prints
+    ! "clock-seeded" cannot be reproduced; one that prints a seed can, at the
+    ! same rank count.
+    if (taskid == 0) then
+       if (randomSeed < 0) then
+          print*, "! mocassin: random seed = clock-seeded (this run is NOT reproducible)"
+       else
+          print*, "! mocassin: random seed =", randomSeed, " (reproducible at np =", numtasks, ")"
+       end if
+    end if
+
 #ifdef PDR
     ! The network must be read before any grid allocation: grid_mod sizes
     ! pdrAbun(:, 1:pdrNspec) and needs pdrNspec (DEVLOG D-022).

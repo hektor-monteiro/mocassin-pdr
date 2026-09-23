@@ -54,6 +54,17 @@ program MoCaSSiNwarm
     ! corroborates the input, it does not supply it.
     call readInput()
 
+    ! D-334: record the Monte Carlo seed in the run log. A run that prints
+    ! "clock-seeded" cannot be reproduced; one that prints a seed can, at the
+    ! same rank count.
+    if (taskid == 0) then
+       if (randomSeed < 0) then
+          print*, "! mocassin: random seed = clock-seeded (this run is NOT reproducible)"
+       else
+          print*, "! mocassin: random seed =", randomSeed, " (reproducible at np =", numtasks, ")"
+       end if
+    end if
+
     if (taskid == 0) then
         print*, "MOCASSIN version ",VERSION
         print*, "Data directories: ",PREFIX,"/share/mocassin/data,"

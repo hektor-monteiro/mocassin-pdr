@@ -63,6 +63,7 @@ module photon_mod
         integer, allocatable               :: seed(:)     ! seed array
         integer                        :: msec        ! millisecs of the sec
         integer                        :: dt(8)       ! date and time values
+        integer(kind=8)                :: smix        ! D-334: seed mixer state
         integer                        :: trapped
         integer                        :: reRun
 
@@ -80,8 +81,11 @@ module photon_mod
         ! ---------------------------------------------------
 
 
-        call date_and_time(values=dt)
-        msec=dt(8)
+        ! D-334: seed the generator. This routine is called once per star per
+        ! MC iteration and, when Ldiffuse>0, once per emitting cell, so the
+        ! seed has to differ between calls or every call would replay the same
+        ! photons. nSeedCalls counts the calls this rank has made.
+        nSeedCalls = nSeedCalls + 1
 
         call random_seed(seedSize)
 
@@ -93,9 +97,38 @@ module photon_mod
 
         seed = 0
 
-        call random_seed(get = seed)
+        if (randomSeed < 0) then
 
-        seed = seed + msec + taskid
+           ! Historical path, bit for bit as it was before D-334: perturb the
+           ! running generator state with the millisecond field of the wall
+           ! clock. Not repeatable, by construction - this is the default so
+           ! that adding the keyword changes nothing for a run that omits it.
+           call date_and_time(values=dt)
+           msec=dt(8)
+           call random_seed(get = seed)
+           seed = seed + msec + taskid
+
+        else
+
+           ! Repeatable path. The state is REPLACED rather than perturbed, so
+           ! the stream cannot depend on anything the run did before this call:
+           ! it is a pure function of (randomSeed, taskid, nSeedCalls). The
+           ! xorshift64 mixer is there because consecutive integers make poor
+           ! seeds for the generator behind random_number - adjacent calls
+           ! would otherwise start in neighbouring parts of the state space.
+           ! Written with IEOR/ISHFT rather than a multiplicative LCG so that
+           ! nothing here relies on signed integer overflow.
+           smix = ieor(int(randomSeed,8), ishft(int(taskid,8), 20))
+           smix = ieor(smix, ishft(int(nSeedCalls,8), 40))
+           smix = ieor(smix, 88172645463325252_8)          ! never start at 0
+           do i = 1, seedSize
+              smix = ieor(smix, ishft(smix,  13))
+              smix = ieor(smix, ishft(smix,  -7))
+              smix = ieor(smix, ishft(smix,  17))
+              seed(i) = int(ishft(smix, -33), kind=4)      ! top 31 bits, >= 0
+           end do
+
+        end if
 
         call random_seed(put = seed)
 

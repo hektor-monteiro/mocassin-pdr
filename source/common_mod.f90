@@ -692,6 +692,14 @@ module common_mod
     integer            :: TotAngleBinsPhi=40 ! total # of phi angle bins for SED
     integer            :: nGrids           ! total number of grids to be used in the simulation
     integer            :: maxIterateMC     ! limit on number of MC iterations
+    ! D-334: Monte Carlo seed control. Negative (the default) keeps the
+    ! historical behaviour - energyPacketDriver perturbs the running generator
+    ! state with the millisecond field of the wall clock, so no run can be
+    ! repeated. Any value >= 0 replaces that with a deterministic stream built
+    ! from the seed, the rank and the call number, which makes a run repeatable
+    ! at fixed input AND fixed rank count. Set with the 'randomSeed' keyword.
+    integer            :: randomSeed = -1  ! <0 = clock-seeded, >=0 = repeatable
+    integer            :: nSeedCalls = 0   ! energyPacketDriver calls this rank has made
     integer(kind=int64):: maxPhotons       ! limit to packets to be use
     integer            :: nAbComponents=1  ! number of abundance components
     integer            :: nDustComponents=1 ! number of dust components
