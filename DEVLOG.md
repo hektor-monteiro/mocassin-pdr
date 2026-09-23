@@ -330,6 +330,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-328 | **The sticking fix works, and half the prediction was wrong. T_m/T_c at A_V 0.73 and 0.97 goes from 1.488 and 1.267 to 1.069 and 1.014 - the warm half of the crossover is closed to 7% and 1.4% - and all four 'must not move' quantities held. But the profile did NOT rotate: it moved one way, which is the falsification criterion D-326 recorded.** `runs/d326-stick`: 22 iterations, **76.11%** converged (d316: 73.75%), 0% ion and 0% Te balance failures, 1h22m. PE new/old = 0.608/0.657/0.754/0.930/0.907 across A_V 0.73-2.21 - down everywhere, monotonically approaching 1 with depth, never rising. Against Cloudy PE is now 1.043/0.983 at 0.73/0.97, essentially exact. Unmoved, as required: dust T within 0.2%, front 3.848 -> 3.840 pc, H/H2 A_V 1.168 -> 1.173, C+ = C 2.242 -> 2.239. **Why the prediction failed:** it assumed halving S would double the effective psi and slide each depth along the measured efficiency-vs-psi curve, which peaks near 2e5, so deep points would move back toward the peak and warm. Measured, psi went 0.88/0.93/0.96/0.99/1.01 of its old value - it barely moved, and slightly DOWN, from the temperature feedback alone. Sticking does not move the code along the psi axis; **it changes the mapping from psi to efficiency.** The efficiency curve shifted down in place. The error was treating a locus traced by DEPTH as a response function, and psi_eff = psi/S - which is a valid way to COMPARE two codes - as a prediction of how one code answers a change in its own S. The correct picture is simpler: less sticking means more charge means more Coulomb suppression everywhere, largest where the grain was already most charged, hence 0.61 -> 0.93 with no crossing. **Net: the crossover is gone and is replaced by a one-sided cold bias beyond A_V ~1.3** (0.776/0.789 of Cloudy at 1.68/2.21, essentially unchanged), which is a cleaner problem than the one it replaced | Open | 2026-09-22 |
 | D-329 | **'hiipdr Against Cloudy' rebuilt (v11) on `runs/d326-stick`.** Figures, both comparison tables, the headline section and the O-02 register row recomputed from the corrected run. The page now carries the whole arc rather than only its end: 21-26 K against 29-50 with the diffuse lines discarded, a crossover once they were transported, and 51.6/49.8 K against 48.3/49.1 once the sticking coefficient was fixed - with both earlier readings stated as withdrawn rather than quietly replaced. The half-wrong prediction of D-326 is on the page too, including why psi did not move. Ionized gas updated: 9260/9220 K at 1 pc, from 10010/9220. What is left is stated as one-sided and bounded - 0.78x Cloudy beyond A_V 1.5, where the Monte Carlo field floor lives and where the deep field has never been compared per frequency bin | Done | 2026-09-23 |
 | D-330 | **Audit of the sibling repo's [S III] commit, asked for by the user. The port is exact and the data is better - but the real finding is that it has been in effect here since 2026-09-18 without being declared, because the whole CHIANTI 10.1 + Stout dataset was installed into the directory the runs read while this repository kept the old one.** `4894d6d` replaces Mendoza (1983) collision strengths and Mendoza & Zeippen (1982) A-values with Hudson et al. (2012) via Cloudy Stout: upsilons 0.70-0.95x, A-values 0.86-0.99x, energies within 0.5%, and the temperature grid 5000-20000 K -> 1000 K-1e10 K. Verified **byte-exact** against `cloudy-c25.00/data/stout/s/s_3/` - all 10 collision strengths across all 17 temperatures and all 9 A-values. Our reader needs no change: it reads NCOMS then NLEVS/NTEMPS and allocates, and `linear_interpolation` CLAMPS outside the table rather than extrapolating, so the old 5000 K floor was safe. **But `data/` in this repo was not what the runs read.** MOCASSIN compiles with `PREFIX=$(HOME)/.local` and reads `~/.local/share/mocassin/data`, whose 172 files are byte-identical to the sibling repo's `data/` and are all dated 2026-09-18 14:24 - 113 of our 143 differ from them (98 CHIANTI 10 -> 10.1, 14 Stout ports including s_3). Every run from `d290-pn150k-grainq` (Sep 19) onward used the new data; only `d283-pn150k` (Sep 14) predates it. **Consequences:** D-315 (d302-trim-on vs d313-qavg) and D-328 (d316 vs d326) compare runs on the SAME data and stand; anything comparing D-283's line fluxes with later numbers is confounded. Repo `data/` synced to what the runs actually read, so the repository describes its own results again | Done | 2026-09-23 |
+| D-331 | **Design discussion: what it would take to produce molecular line observables. The emissivities are already computed every cell every iteration and thrown away.** `escape_probability.F90:194` forms `line(i,j) = A_ij h nu_ij n_i beta_ij (S_ij-BB_ij)/S_ij`, the per-transition emissivity in erg/cm3/s, for **63 radiative transitions** (CO 40, C+ 9, C 7, O 7); `pdr_mod.f90` takes it as the LOCAL `lline(1:nlev,1:nlev)`, keeps only the summed `coolK` and drops the array. Because `beta_ij` is already in it, `line` is what ESCAPES, so per-cell emissivities are a persistent array plus a writer (~33 MB at 41^3) and integrated line luminosities are a volume sum that can go straight into lineFlux.out. No new physics, data or solver; `pdrMaxLev` is already dynamic. Available immediately: the CO ladder to J=40-39, [C II] 158, [C I] 370/609, [O I] 63/145 um. **`dataPDR/` already vendors 15 LAMDA files** and three more are usable against the REDUCED network today - OH, HCO+, CH+ - while HCN/CN/HNC/N2H+/SiO/C2H have no carrier in the 33 species. **3D-PDR over Cloudy, decisively:** the machinery is in-tree, LAMDA is the community format, and the escape probability is HEALPix-averaged under RAYTHEIA, which a 1D code cannot do; Cloudy's role is validation via `save lines emissivity` on the matched models. **Caveats for any published line:** deep CO is 50-100x Cloudy's so the ladder inherits that; `pdrNbadPop` must be reported because the level solve can go singular; and H2 has no LAMDA file, so 1-0 S(1) 2.12 um and the 0-0 S(n) ladder are absent and are NOT just another coolant (FUV pumping, not collisions) | Open | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26188,3 +26189,113 @@ That is not a reason to reject it. Cloudy is a reference, not a benchmark, and
 we were running hot **while carrying more [S III] cooling than Cloudy did** -
 the old data was partly masking whatever really causes the excess. Both codes
 now use Hudson (2012), so the remaining difference is attributable elsewhere.
+
+## D-331 - molecular line observables: what exists, what is missing (2026-09-23)
+
+The user, while `d330-pn150k` was running: the code looks production-level on
+hiipdr, and the next step for doing science is observables - integrated line
+intensities and emissivities of selected molecular lines. How hard, does
+3D-PDR already have the machinery, does Cloudy, which is better?
+
+### The emissivities already exist
+
+`source/pdr/escape_probability.F90`, line 194:
+
+    line(ilevel,jlevel) = A_COEFFS(ilevel,jlevel)*HP*frequencies(ilevel,jlevel) * &
+                        & s_pop(ilevel)*beta_ij*(S_ij-BB_ij)/S_ij
+
+That is the per-transition emissivity in erg cm^-3 s^-1. It is formed for
+every radiative transition of every coolant in every cell on every iteration.
+`pdr_mod.f90` passes `lline(1:nlev,1:nlev)`, uses the summed `coolK` for the
+thermal balance, and **discards the array** - `lline` is a local.
+
+Counting what is already being computed and thrown away:
+
+    CO    40 radiative transitions   (J = 1-0 up to ~40-39)
+    C+     9                         (includes [C II] 158 um)
+    C      7                         (includes [C I] 370, 609 um)
+    O      7                         (includes [O I] 63, 145 um)
+    ---
+          63 transitions per cell
+
+`beta_ij` is already inside `line`, so this is the emission that **escapes**
+the cell, not what is locally emitted.
+
+### So the two asked-for observables are different sizes of job
+
+**Per-cell emissivities:** allocate a persistent array, fill it where `lline`
+is already filled, write it. No new physics, no new data, no new solver.
+`pdrMaxLev` is already `max` over the coolants, so there is no cap to raise.
+Storage at 41^3 is ~69k cells x 63 x 8 B = **33 MB**, comparable to
+`pdrGrid.out`.
+
+**Integrated line luminosities:** once the above exists, a volume sum
+`sum_cells line(i,j) * V_cell`, which can go straight into `lineFlux.out`
+beside the CELs. Essentially free.
+
+**What is NOT in scope:** position-velocity cubes or line profiles. There is
+no velocity field in the model. Maps at a viewing angle are a smaller step -
+`viewPointTheta/Phi` and `nAngleBins` already exist for SEDs.
+
+### The species that are already available
+
+`dataPDR/` vendors **15 LAMDA files**, not the 4 in use. Matching them against
+the REDUCED network's 33 species:
+
+    usable today   C+, C, CO, O (active), and OH, HCO+, CH+ (inactive)
+    no carrier     C2H, CN, CN-hfs, HCN, HNC, N2H+, SiO
+
+So three more species could be switched on without touching the chemistry -
+though each adds levels to the solve, so cost and convergence would need
+watching. The rest need a larger network, which is a chemistry decision, not
+an observables one.
+
+### 3D-PDR or Cloudy
+
+**3D-PDR, and it is not close.**
+
+  - The machinery is in-tree, running, and already trusted enough to drive the
+    thermal balance this project has spent 300 entries validating.
+  - LAMDA is the community-standard format. Adding a species is dropping in a
+    file, which is exactly why 15 of them are already sitting there.
+  - The escape probability already carries the optical depth, and under
+    `RAYTHEIA` it is averaged over HEALPix rays - which is the one thing a 1D
+    code structurally cannot do, and the reason this coupling exists at all.
+  - Cloudy's equivalent would mean porting a foreign level solver **and** its
+    chemistry, to duplicate what is already here.
+
+Cloudy's right role is **validation**, not implementation: it has
+`save lines emissivity`, the matched models already exist
+(`runs/d322-cloudy-hb`, `runs/d302-cloudy-trim-rad`), so every new line can be
+checked against it the day it appears. That is the same division of labour
+that has worked for the temperature and the dust.
+
+### Three caveats that belong on any published line
+
+**CO lines would be wrong today.** Deep CO is 50-100x Cloudy's - a standing
+disagreement since D-264 and unmoved by everything in this cycle. The whole
+ladder inherits it. [C II] and [O I] are on much firmer ground: they are the
+thermostat, and D-322's [C II] test predicts the temperature from the heating
+ratio alone to within 10% at every depth.
+
+**`pdrNbadPop` must be reported.** The level solve can return a singular
+matrix as NaN rather than failing, which is why that counter exists. A line
+intensity computed from populations that silently fell back to the previous
+iterate is not a measurement.
+
+**H2 is the real gap.** There is no `h2.dat`, so 1-0 S(1) at 2.12 um and the
+0-0 S(n) ladder are unavailable - among the most-observed PDR diagnostics.
+And it is not another file drop: H2 level populations are FUV-pumped, not
+collisionally set, so it needs excitation physics the coolant path does not
+have.
+
+### On "production level"
+
+Agreed for the ionized gas and for the [C II]/[O I] thermostat. Not yet for
+the deep molecular region, which is where CO lines would come from: CO
+50-100x, C+ 0.21-0.38x past A_V 2.3, and the Monte Carlo field floor where the
+photoelectric heating reaches exactly zero by A_V 2.9. Those bound what
+molecular observables would currently mean, and they should be quoted
+alongside the first ones produced.
+
+No code written. This entry is the design record.
