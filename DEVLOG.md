@@ -332,6 +332,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-330 | **Audit of the sibling repo's [S III] commit, asked for by the user. The port is exact and the data is better - but the real finding is that it has been in effect here since 2026-09-18 without being declared, because the whole CHIANTI 10.1 + Stout dataset was installed into the directory the runs read while this repository kept the old one.** `4894d6d` replaces Mendoza (1983) collision strengths and Mendoza & Zeippen (1982) A-values with Hudson et al. (2012) via Cloudy Stout: upsilons 0.70-0.95x, A-values 0.86-0.99x, energies within 0.5%, and the temperature grid 5000-20000 K -> 1000 K-1e10 K. Verified **byte-exact** against `cloudy-c25.00/data/stout/s/s_3/` - all 10 collision strengths across all 17 temperatures and all 9 A-values. Our reader needs no change: it reads NCOMS then NLEVS/NTEMPS and allocates, and `linear_interpolation` CLAMPS outside the table rather than extrapolating, so the old 5000 K floor was safe. **But `data/` in this repo was not what the runs read.** MOCASSIN compiles with `PREFIX=$(HOME)/.local` and reads `~/.local/share/mocassin/data`, whose 172 files are byte-identical to the sibling repo's `data/` and are all dated 2026-09-18 14:24 - 113 of our 143 differ from them (98 CHIANTI 10 -> 10.1, 14 Stout ports including s_3). Every run from `d290-pn150k-grainq` (Sep 19) onward used the new data; only `d283-pn150k` (Sep 14) predates it. **Consequences:** D-315 (d302-trim-on vs d313-qavg) and D-328 (d316 vs d326) compare runs on the SAME data and stand; anything comparing D-283's line fluxes with later numbers is confounded. Repo `data/` synced to what the runs actually read, so the repository describes its own results again | Done | 2026-09-23 |
 | D-331 | **Design discussion: what it would take to produce molecular line observables. The emissivities are already computed every cell every iteration and thrown away.** `escape_probability.F90:194` forms `line(i,j) = A_ij h nu_ij n_i beta_ij (S_ij-BB_ij)/S_ij`, the per-transition emissivity in erg/cm3/s, for **63 radiative transitions** (CO 40, C+ 9, C 7, O 7); `pdr_mod.f90` takes it as the LOCAL `lline(1:nlev,1:nlev)`, keeps only the summed `coolK` and drops the array. Because `beta_ij` is already in it, `line` is what ESCAPES, so per-cell emissivities are a persistent array plus a writer (~33 MB at 41^3) and integrated line luminosities are a volume sum that can go straight into lineFlux.out. No new physics, data or solver; `pdrMaxLev` is already dynamic. Available immediately: the CO ladder to J=40-39, [C II] 158, [C I] 370/609, [O I] 63/145 um. **`dataPDR/` already vendors 15 LAMDA files** and three more are usable against the REDUCED network today - OH, HCO+, CH+ - while HCN/CN/HNC/N2H+/SiO/C2H have no carrier in the 33 species. **3D-PDR over Cloudy, decisively:** the machinery is in-tree, LAMDA is the community format, and the escape probability is HEALPix-averaged under RAYTHEIA, which a 1D code cannot do; Cloudy's role is validation via `save lines emissivity` on the matched models. **Caveats for any published line:** deep CO is 50-100x Cloudy's so the ladder inherits that; `pdrNbadPop` must be reported because the level solve can go singular; and H2 has no LAMDA file, so 1-0 S(1) 2.12 um and the 0-0 S(n) ladder are absent and are NOT just another coolant (FUV pumping, not collisions) | Open | 2026-09-23 |
 | D-332 | **pn150k re-run with the sticking fix (`runs/d330-pn150k`): converges FASTER and better - 9 iterations to 90.15% in 1h18m against d313-qavg's 11 to 89.58% in 2h00m, 0% ion and 0% Te balance failures - but the temperature effect is far smaller than on hiipdr, 1-9% against 28%.** PE falls to 0.832/0.854/0.903/0.947/0.958 of the old run across A_V 0.21-0.65, against hiipdr's 0.608-0.930. D-328 anticipated this: different grain material, graphite here against silicate there, so a different amount of Coulomb suppression to add. Unmoved as required: dust 0.996-0.999 (size-weighted ratios against Cloudy 0.905/0.899/0.872/0.869 reproduce D-315's 0.906/0.902/0.873/0.869), H+ front 0.129 pc, H/H2 A_V 0.248. **pn150k remains one-sidedly COLD** - 0.62-0.76 of Cloudy through the PDR, with PE only 0.26-0.42 of Cloudy's - and the sticking fix makes it marginally colder, which is the honest cost of a correct coefficient. **The [S III] change cannot be isolated by this run**: d313-qavg was 2026-09-22 and so already carried the new data. Bounded instead by a direct 5-level solve at the run's own H II conditions (11907 K, n_e 1065): Hudson/Mendoza cooling ratio **0.823**, i.e. -17.7%, and 0.78-0.85 over 6000-15000 K. Artifact rebuilt (v10), with the data-sync stated on the page including that its effect is unmeasured. Also: `tools/d326_check.py` had hiipdr's depths hardcoded - L-21 in a tool written the day before - now derived from the run | Done | 2026-09-23 |
+| D-333 | **What stands between this code and science production, ranked - and three new measurements taken to rank it.** The user asked for the blocking list. Four findings are new here rather than quoted from the register. **(1) There is no reproducibility at all:** `photon_mod.f90:96-100` seeds the RNG as `seed = seed + msec + taskid` from `date_and_time`, with no input keyword to override it, so no published figure can be regenerated and, with D-314's measured 37% T_gas swing on a 5^3 fixture, no disagreement with any reference carries a significance. **(2) L-3 is live, visible and mis-stated in the register:** `doc/pdr-status.md` says the reference model reaches only A_V 0.68 so L-3 is not exercised - but `runs/d326-stick` reaches A_V 3.0 and the vendored 3D-PDR reference `sec54.pdr.fin` reaches 2.45, so the overlap exists. Measured against it, MOCASSIN's x(C+) is right to **1-3% from A_V 0.6 to 2.1** and then collapses to **0.38** by 2.33, where the reference still holds 82% of carbon as C+; neutral C runs **0.16-0.23** through the shallow PDR and **3.76** at 2.33; CO runs **0.00/0.05/0.39** at A_V 0.6/0.9/1.25 and **3.2-3.4** beyond 2.1. Carbon conserves to the total at every depth, so this is a transition placed too shallow and too sharp, not a lost-mass bug. **(3) That ranks the molecular observables the user asked for in D-331 by readiness, on evidence rather than on expectation:** [C II] 158 um rests on a carrier good to 1-3%, [C I] 609/370 on one 5x low, CO on one wrong by 2 orders of magnitude and changing sign with depth. **(4) A hypothesis linking L-3 to hiipdr's deep cold,** recorded before testing: [C I] 609 um has E/k = 23.6 K against [C II]'s 91.2 K, so converting C+ to C at 20-25 K swaps a nearly-frozen coolant for a fully active one, and premature conversion would cool the deep gas rather than warm it. Falsifiable in `pdrCoolSp.out` past A_V 2 - all four coolants (`12co`, `12c+`, `12c`, `16o`) are active, so the split is already recorded. **Also noted:** against the vendored 3D-PDR reference at matched n_H = 100, MOCASSIN's PDR runs **0.46-0.65x** in T_gas at matched A_V while carrying **6-10x** the FUV field, and at matched *field* (G0 ~ 1.3-1.4) it is 24.4 K against 85.1 K. The A_V zero points differ - the reference is a bare slab, hiipdr has an H II region in front - and the G0 unit convention has not been checked across the two, so this is a flagged question, not a defect. **The ranking: reproducibility and scatter first** (one keyword, then repeats - the cheapest item and it gates the meaning of every other number), **then a third and fourth fixture** (L-11: the two in hand disagree with each other, hiipdr crossing over and moving 28% under the sticking fix against pn150k's uniform 30% cold and 5%), **then L-3**, which gates the observables. Nothing here changes code. | Recorded | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26382,3 +26383,157 @@ now derived from the model's own PDR, explicit depths still accepted. The
 shape of the change rather than a pass/fail against one fixture's expectation.
 
 Five tools, six constants. The register entry stands and so does its lesson.
+
+---
+
+## D-333 - What stands between this code and science production (2026-09-23)
+
+The user's question: with the code at what looks like production level, what
+are the major outstanding issues? The register in `doc/pdr-status.md` holds 22
+limitations; this entry ranks them against one criterion - *does it stop us
+publishing a number* - and records the three measurements taken to do the
+ranking, two of which found something the register did not have.
+
+### The ranking
+
+**Tier 1 - blocks any published number, regardless of physics.**
+
+*1. There is no reproducibility, and no error bar on anything.*
+`source/photon_mod.f90:83-100` seeds the generator from the wall clock:
+
+    call date_and_time(values=dt)
+    msec = dt(8)
+    call random_seed(get = seed)
+    seed = seed + msec + taskid
+    call random_seed(put = seed)
+
+There is no input keyword to override it - the only `seed` keywords in
+`set_input_mod.f90` are `pdrTseed`, the deterministic start for the thermal
+march (D-051), and the chemistry seeding of D-208. So a run cannot be
+regenerated, and D-314 measured what that costs: **37% swing in median T_gas
+on a 5^3 fixture, same binary, same input.** Aggregate KPIs on the production
+grid are much tighter, but no published comparison in this project carries an
+error bar (L-13/O-25). Every "agrees to 5%" and every "9-13% cool" in the
+artifacts is a single draw against a single draw.
+
+This is the cheapest item in the whole list - one keyword read into a module
+variable, defaulting to the present clock behaviour so nothing changes unless
+asked - and it gates the *meaning* of every other number, including all of
+D-322 through D-332.
+
+*2. Two fixtures, and they disagree with each other.* hiipdr crosses Cloudy at
+A_V ~1.3 and moved 28% under the sticking fix; pn150k never crosses, sits
+uniformly at 0.62-0.76 of Cloudy, and moved 5% (D-328, D-332). The same change,
+the same code, opposite readings. The slabs and `ifront` have not been run this
+cycle and could not have been before D-316 (L-11). L-21 is the same disease in
+the tooling: six fixture-specific constants across five tools, every one found
+only by pointing a tool at a second model.
+
+**Tier 2 - blocks the science the code is being taken to production *for*.**
+
+*3. The carbon chemistry is ready for exactly one of the three molecular
+observables.* New measurement, `runs/d326-stick` against the vendored 3D-PDR
+reference `benchmarks/pdr/baseline3dpdr/sec54.pdr.fin` (Bisbas et al. 2015
+§5.4), both at n_H = 100, columns mapped through `v1.species` (C+ 11, C 25,
+CO 28, over 8 leading columns):
+
+    A_V  | x(C+) moc/ref | x(C) moc/ref | x(CO) moc/ref
+    0.60 |     1.00      |    0.16      |    0.00
+    0.90 |     1.00      |    0.20      |    0.05
+    1.25 |     1.00      |    0.20      |    0.39
+    1.60 |     1.01      |    0.23      |    0.62
+    1.90 |     1.03      |    0.36      |    2.27
+    2.10 |     1.01      |    0.93      |    3.38
+    2.33 |     0.38      |    3.76      |    3.24
+
+C+ is right to 1-3% over a factor 400 in field, which is a real result and the
+first time this fixture's chemistry has been checked against the code it came
+from rather than against Cloudy. Neutral C is 5x low through the shallow PDR.
+CO is two orders low at A_V 0.6, crosses unity near 1.7 and ends 3x high.
+Carbon conserves to the total at every depth (C+ + C + CO = 2.20e-4 within a
+per cent), so this is a transition **placed too shallow and too sharp**, not a
+mass-loss bug.
+
+That ranks D-331's implementation order on evidence rather than on expectation:
+**[C II] 158 um** rests on a carrier good to 1-3% and can be built now;
+**[C I] 609/370 um** rests on one 5x low; **CO** rests on one wrong by two
+orders of magnitude and changing sign with depth.
+
+*4. L-3 is live, and the register mis-states it.* `doc/pdr-status.md` says of
+L-3 (O-01, the deep C+ drop past A_V ~2.1) that "the reference model reaches
+only A_V 0.68, so it does not exercise the affected region". That was true of
+pn150k and is not true now: `runs/d326-stick` spans A_V 0.466-2.999 and the
+3D-PDR reference reaches 2.453, so there is half an A_V of overlap on the far
+side of the transition. In it, MOCASSIN's C+/C ratio is 0.45 at A_V 2.33 where
+the reference's is 4.45 - a factor **9.9** - and MOCASSIN's C+ keeps falling,
+to 4.1e-5 by A_V 2.6. The defect is measurable today on a run already on disk.
+
+*5. No observables pipeline exists, and the output path is unverified.* D-331
+is a design record with no code. The emissivities are computed in every cell
+already (`source/pdr/escape_probability.F90:194`) and written to no file.
+Separately, L-20: `mocassinPlot` and `mocassinOutput` carry the D-317 fix but
+have never been run against a grid, so the post-processing that would turn a
+converged grid into a spectrum is verified only to the extent D-317's fix was
+before it was exercised - which is to say, not at all.
+
+**Tier 3 - open physics that will show up in results.**
+
+*6. The photoelectric deficit on pn150k is not closed.* PE/Cloudy 0.26-0.42,
+T/Cloudy 0.62-0.76, uniformly, with the sticking fix making it marginally
+colder (D-332). D-322 through D-328 explained hiipdr's *crossover*; they did
+not explain pn150k's *uniform* deficit, and a factor 2.5-4 in the dominant PDR
+heating term on the reference model is a first-order open problem.
+
+*7. L-19*, the frequency placement of reprocessed energy: field 1.16-1.35x high
+while grains run 9-13% cool. *8. L-4/O-14*, the 3D self-shielding tracer - the
+one limitation that bites specifically on the reason to use MOCASSIN at all.
+*9. L-9*, gas-grain coupling skipping H2: negligible at n_H = 1e3, decisive at
+high density, so dense knots are out of scope until it is fixed.
+
+**Tier 4 - absolute realism.** L-5 (carbon counted twice, gas not depleted for
+what is in grains), L-6 (R_V 4.57, not a Milky Way curve), L-7 (no PAHs - and
+PAHs dominate photoelectric heating in real PDRs, which is the very term
+running low), L-8 (stochastic heating off), L-10 (bulk graphite optics on the
+smallest bin, 10-32x off in the far-IR, which is where a dust SED would be
+compared). Every one is common-mode with the Cloudy reference, so no
+code-to-code comparison is affected - and every one is wrong in absolute terms,
+which is what science on a real object needs.
+
+**Tier 5 - provenance.** D-330's lesson is recorded but not closed: runs read
+`~/.local/share/mocassin/data` while the repo holds `data/`, nothing pins or
+checksums the installed copy, 112 of the 143 synced files were never audited,
+and a silent undeclared change has already happened once. The asymmetry is the
+tell - `pdrDataDir` in every fixture points *into* the repo, so the PDR coolant
+data is versioned with the code and the ionized-gas data is not.
+
+### A hypothesis, recorded before it is tested
+
+L-3 and hiipdr's deep cold may be one defect. [C I] 609 um has E/k = 23.6 K
+against [C II] 158 um's 91.2 K. At the 15-25 K MOCASSIN reaches beyond A_V 2,
+[C II] is nearly frozen out and [C I] is not, so **converting C+ to C too early
+switches on a coolant the gas can actually drive** - which cools the deep gas
+rather than warming it, the direction observed. All four coolants are active in
+this fixture (`pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"`), so
+`pdrCoolSp.out` already holds the split and the test costs no run.
+
+Falsified if the [C I] share past A_V 2 is small, or if forcing the reference's
+C+/C ratio at those depths leaves the temperature where it is.
+
+### One flagged question, not a finding
+
+Against the same 3D-PDR reference at matched density, MOCASSIN's PDR runs
+**0.46-0.65x** in T_gas at matched A_V while carrying **6-10x** the FUV field;
+matched on *field* instead (G0 ~ 1.3-1.4) it is 24.4 K against the reference's
+85.1 K. Two reasons this is not yet a defect claim: the A_V zero points differ
+(the reference is a bare slab, hiipdr has an H II region in front of its PDR,
+whose own A_V starts at 0.466), and the G0 unit convention - Habing against
+Draine, a factor 1.71 - has not been checked across the two codes. What it does
+establish is that **the vendored reference has never been used as a temperature
+reference for this fixture**; every published comparison is against Cloudy.
+Making that comparison properly is an outstanding item in its own right.
+
+### What this entry does not do
+
+No code changed. The register in `doc/pdr-status.md` is updated for the L-3
+mis-statement; the rest of the ranking lives here rather than being duplicated
+into it.

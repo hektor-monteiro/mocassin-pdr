@@ -50,3 +50,4 @@ pdrSmokeTest
 # Run directories: symlinked fixtures and multi-MB logs. The [D196] blocks
 # extracted from them are in the DEVLOG; the raw logs are not worth versioning.
 runs/
+tools/__pycache__/

@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-314, 2026-09-22. Reference model throughout: the 150 kK PN,
+Status as of D-333, 2026-09-23. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -112,10 +112,25 @@ reported/Cloudy moves from 1.289/1.304/1.272/1.256 to
 the *opposite* sign, 9-13% cool, and is a spectral-shape difference rather
 than a magnitude one - see L-19.
 
-**L-3. O-01: deep C+ drop past A_V ~2.1.** Not revisited in this cycle. The
-reference model reaches only A_V 0.68, so it does not exercise the affected
-region - which is itself a limitation of the validation, not evidence the
-defect is gone.
+**L-3. O-01: deep C+ drop past A_V ~2.1 - now MEASURED, and it is real**
+(D-333). The claim that stood here until 2026-09-23 - that the reference model
+reaches only A_V 0.68 so the region is not exercised - was stale: it described
+pn150k, while `runs/d326-stick` spans A_V 0.466-2.999 and the vendored 3D-PDR
+reference `sec54.pdr.fin` reaches 2.453, both at n_H = 100. Against it,
+x(C+) moc/ref runs **1.00/1.00/1.00/1.01/1.03/1.01** at A_V 0.6-2.1 and then
+collapses to **0.38** at 2.33, where the reference still holds 82% of carbon as
+C+; x(C) runs **0.16-0.23** shallow and **3.76** at 2.33; x(CO) **0.00/0.05/
+0.39** at 0.6/0.9/1.25 rising to **3.2-3.4** beyond 2.1. Carbon conserves to
+the total at every depth, so the transition is **placed too shallow and too
+sharp** rather than losing mass. Consequence for the observables of D-331:
+[C II] 158 um rests on a carrier good to 1-3%, [C I] on one 5x low, CO on one
+wrong by two orders and changing sign with depth.
+
+**Open hypothesis** (D-333, recorded before testing): this may also be the
+cause of hiipdr's deep cold. [C I] 609 um has E/k = 23.6 K against [C II]'s
+91.2 K, so at the 15-25 K reached beyond A_V 2 a premature C+ -> C conversion
+switches on a coolant the gas can actually drive. `pdrCoolSp.out` holds the
+split already; the test costs no run.
 
 **L-4. O-14: the 3D self-shielding tracer is not fit to be the only
 geometry.** Unchanged.
@@ -211,11 +226,21 @@ is double counted, but the columns cannot be read as physical channels
 (D-304). `pdrCoolSub`/`pdrTfacUsed` hold the two halves in memory but are
 written to no file.
 
-**L-13. The reference comparison rests on one run of each code.** D-314
-measured MOCASSIN's run-to-run scatter for the first time: on a 5^3 fixture
-the same binary swings median T_gas by **37%**. Aggregate KPIs on the
-production grid are far tighter, but no published comparison carries an error
-bar (O-25).
+**L-13. The reference comparison rests on one run of each code, and a run
+cannot be repeated even in principle.** D-314 measured MOCASSIN's run-to-run
+scatter for the first time: on a 5^3 fixture the same binary swings median
+T_gas by **37%**. Aggregate KPIs on the production grid are far tighter, but no
+published comparison carries an error bar (O-25).
+
+**There is also no seed control** (D-333). `source/photon_mod.f90:83-100` seeds
+the generator as `seed = seed + msec + taskid` from `date_and_time`, and no
+input keyword overrides it - the `seed` keywords in `set_input_mod.f90` are
+`pdrTseed` (D-051's thermal march) and D-208's chemistry seeding, neither of
+which touches the Monte Carlo. So no published figure can be regenerated, and
+no disagreement with any reference carries a significance. **Severity is high,
+not medium**: it is upstream of the meaning of every number in this document.
+Cost to fix: one keyword read into a module variable, defaulting to the present
+clock behaviour.
 
 ### Low, or housekeeping
 
@@ -288,7 +313,17 @@ Stated explicitly, because absence of a reported problem is not evidence.
     too much energy deposited inside A_V 1 and too little beyond 1.5.
   - **The warm start**, beyond compiling (L-14).
   - **The 1D PDR flavour** (`PDR=1` without `PDRGEOM=3D`), beyond compiling.
-  - **Any model reaching A_V > 0.7**, so L-3 is untested in this cycle.
+  - ~~**Any model reaching A_V > 0.7**, so L-3 is untested~~ - **superseded**
+    (D-333): `runs/d326-stick` reaches A_V 2.999 and L-3 is measured there.
+    What is *not* checked is anything past A_V 2.45, where the vendored 3D-PDR
+    reference stops and MOCASSIN's C+ is still falling.
+  - **MOCASSIN against the vendored 3D-PDR reference on TEMPERATURE.** Every
+    published comparison in this project is against Cloudy. At matched A_V and
+    n_H = 100 the PDR runs 0.46-0.65x the reference in T_gas while carrying
+    6-10x its FUV field; matched on field instead, 24.4 K against 85.1 K. Not
+    a defect claim - the A_V zero points differ and the G0 unit convention has
+    not been checked across the two codes - but the check has never been made
+    (D-333).
   - **Cloudy's own charging exponent.** D-304's Lya correction transfers
     MOCASSIN's measured `d ln(PE)/d ln(G0) = 0.42` to Cloudy. A Cloudy run
     with its FUV field cut by the Lya fraction would measure Cloudy's own
