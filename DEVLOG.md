@@ -329,6 +329,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-327 | **The user asked whether D-286's Case A recombination cooling is still right when Lyman alpha is not transported. It is, and the reason is that the two 'Lyman' quantities are different photons - but the check turned up a real energy sink next door.** Case A vs B in the COOLING coefficient is Hummer (1994) beta_A = beta_B + beta_1, the electron KINETIC energy removed by recombinations to n=1, which emit the Lyman CONTINUUM (>=13.6 eV). MOCASSIN builds gammaHI from the H threshold up (D-227) and transports it, counting re-absorption as photoionization heating, so Case A is the consistent coefficient. Lyman alpha is 10.2 eV, a LINE, carrying excitation rather than kinetic energy; beta excludes it in both cases. **Verified rather than asserted:** (1) the coefficient really is the n=1 term, read in update_mod.f90; (2) `JPEots`, the on-the-spot line field, is allocated, zeroed and **never filled** - both uses are commented out - so there is no path where the continuum is both transported AND assumed re-absorbed locally, which is the double-count that would have made Case A wrong; (3) the H recombination LINE emissivities are Case B (`data/r1b0100.dat`), and that is NOT an inconsistency - Case B for the line spectrum is about Lyman-LINE optical depth, which is enormous either way, while Case A for the cooling is about whether n=1 recombinations count locally. Same word, different physics. **The sink found next door:** `resLinesTransfer` defaults to 101., a convergence percentage that can never be reached, so `setResLineEscapeProb` and `initResLinePackets` are BOTH gated off in every run in this project - collisionally excited Lyman alpha is removed from the gas as `coolColl` and deposited nowhere, the dust path being the thing that is switched off. Harmless in the PDR, where the H collisional term is gated to T > 5000 K and the gas is at 20-70 K. In the ionized gas it is a genuine sink, though MOCASSIN's own H collisional cooling there is under 3% of the total against Cloudy's ~10% - a factor 4 in a cooling channel that is NOT explained and is registered as such | Open | 2026-09-22 |
 | D-328 | **The sticking fix works, and half the prediction was wrong. T_m/T_c at A_V 0.73 and 0.97 goes from 1.488 and 1.267 to 1.069 and 1.014 - the warm half of the crossover is closed to 7% and 1.4% - and all four 'must not move' quantities held. But the profile did NOT rotate: it moved one way, which is the falsification criterion D-326 recorded.** `runs/d326-stick`: 22 iterations, **76.11%** converged (d316: 73.75%), 0% ion and 0% Te balance failures, 1h22m. PE new/old = 0.608/0.657/0.754/0.930/0.907 across A_V 0.73-2.21 - down everywhere, monotonically approaching 1 with depth, never rising. Against Cloudy PE is now 1.043/0.983 at 0.73/0.97, essentially exact. Unmoved, as required: dust T within 0.2%, front 3.848 -> 3.840 pc, H/H2 A_V 1.168 -> 1.173, C+ = C 2.242 -> 2.239. **Why the prediction failed:** it assumed halving S would double the effective psi and slide each depth along the measured efficiency-vs-psi curve, which peaks near 2e5, so deep points would move back toward the peak and warm. Measured, psi went 0.88/0.93/0.96/0.99/1.01 of its old value - it barely moved, and slightly DOWN, from the temperature feedback alone. Sticking does not move the code along the psi axis; **it changes the mapping from psi to efficiency.** The efficiency curve shifted down in place. The error was treating a locus traced by DEPTH as a response function, and psi_eff = psi/S - which is a valid way to COMPARE two codes - as a prediction of how one code answers a change in its own S. The correct picture is simpler: less sticking means more charge means more Coulomb suppression everywhere, largest where the grain was already most charged, hence 0.61 -> 0.93 with no crossing. **Net: the crossover is gone and is replaced by a one-sided cold bias beyond A_V ~1.3** (0.776/0.789 of Cloudy at 1.68/2.21, essentially unchanged), which is a cleaner problem than the one it replaced | Open | 2026-09-22 |
 | D-329 | **'hiipdr Against Cloudy' rebuilt (v11) on `runs/d326-stick`.** Figures, both comparison tables, the headline section and the O-02 register row recomputed from the corrected run. The page now carries the whole arc rather than only its end: 21-26 K against 29-50 with the diffuse lines discarded, a crossover once they were transported, and 51.6/49.8 K against 48.3/49.1 once the sticking coefficient was fixed - with both earlier readings stated as withdrawn rather than quietly replaced. The half-wrong prediction of D-326 is on the page too, including why psi did not move. Ionized gas updated: 9260/9220 K at 1 pc, from 10010/9220. What is left is stated as one-sided and bounded - 0.78x Cloudy beyond A_V 1.5, where the Monte Carlo field floor lives and where the deep field has never been compared per frequency bin | Done | 2026-09-23 |
+| D-330 | **Audit of the sibling repo's [S III] commit, asked for by the user. The port is exact and the data is better - but the real finding is that it has been in effect here since 2026-09-18 without being declared, because the whole CHIANTI 10.1 + Stout dataset was installed into the directory the runs read while this repository kept the old one.** `4894d6d` replaces Mendoza (1983) collision strengths and Mendoza & Zeippen (1982) A-values with Hudson et al. (2012) via Cloudy Stout: upsilons 0.70-0.95x, A-values 0.86-0.99x, energies within 0.5%, and the temperature grid 5000-20000 K -> 1000 K-1e10 K. Verified **byte-exact** against `cloudy-c25.00/data/stout/s/s_3/` - all 10 collision strengths across all 17 temperatures and all 9 A-values. Our reader needs no change: it reads NCOMS then NLEVS/NTEMPS and allocates, and `linear_interpolation` CLAMPS outside the table rather than extrapolating, so the old 5000 K floor was safe. **But `data/` in this repo was not what the runs read.** MOCASSIN compiles with `PREFIX=$(HOME)/.local` and reads `~/.local/share/mocassin/data`, whose 172 files are byte-identical to the sibling repo's `data/` and are all dated 2026-09-18 14:24 - 113 of our 143 differ from them (98 CHIANTI 10 -> 10.1, 14 Stout ports including s_3). Every run from `d290-pn150k-grainq` (Sep 19) onward used the new data; only `d283-pn150k` (Sep 14) predates it. **Consequences:** D-315 (d302-trim-on vs d313-qavg) and D-328 (d316 vs d326) compare runs on the SAME data and stand; anything comparing D-283's line fluxes with later numbers is confounded. Repo `data/` synced to what the runs actually read, so the repository describes its own results again | Done | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26080,3 +26081,110 @@ The ionized gas, which moved twice and is now closest it has been: 9260 K
 against Cloudy's 9220 at 1 pc, from 10010 in v10 and 7620 before the line
 transport. The dust section is unchanged - the sticking correction moved it by
 0.2%, which is what a change confined to the grain charge balance should do.
+
+## D-330 - the [S III] audit, and a dataset that was already in use (2026-09-23)
+
+The user asked whether `mocassin_HM_2026`'s [S III] atomic data commit is
+worth implementing here. Auditing it found something larger.
+
+### The commit itself
+
+`4894d6d` replaces, in `data/siii.dat`:
+
+    upsilons   Mendoza (1983)              -> Hudson et al. (2012, ApJ 750, 65)
+    A values   Mendoza & Zeippen (1982)    -> Podobedova (2009) / Froese Fischer (2006)
+    energies   -                           -> NIST ASD
+    T grid     5000-20000 K, 4 points      -> 1000 K - 1e10 K, 17 points
+
+routed through Cloudy c25.00's Stout database. The numbers:
+
+    transition   upsilon(10^4 K)  new/old      A       new/old
+      1-2          2.59 -> 2.26     0.87
+      1-4          0.93 -> 0.73     0.78    5.82e-6 -> 5.64e-6   0.97
+      2-4          2.80 -> 2.17     0.78    2.21e-2 -> 1.95e-2   0.88
+      2-5          0.40 -> 0.33     0.83    7.96e-1 -> 6.88e-1   0.86
+      4-5          1.88 -> 1.40     0.74    2.22    -> 2.19      0.99
+
+Energies move by under 0.5% - NIST refinements, not a change.
+
+**The port is exact.** Checked directly against
+`cloudy-c25.00/data/stout/s/s_3/s_3.coll` and `.tp`: all ten collision
+strengths at all seventeen temperatures and all nine A values agree to machine
+precision. The temperature grid is Stout's own.
+
+**No code change is needed.** `hydro_mod.f90` reads `NCOMS`, skips that many
+comment lines, then reads `NLEVS, NTEMPS` and allocates everything
+dynamically, so 4 comment lines and 17 temperatures parse. And
+`linear_interpolation` **clamps** at the table edges rather than
+extrapolating, so the old 4-point table was not producing nonsense below
+5000 K - it was returning the 5000 K value. The wider grid is an improvement,
+not a bug fix.
+
+### The larger finding
+
+`data/siii.dat` in this repository is **not the file the runs read.**
+
+The Makefile sets `PREFIX = $(HOME)/.local`, and every run log in this project
+says so:
+
+    Data directories: /home/hmonteiro/.local/share/mocassin/data
+
+That directory holds 172 files, all dated **2026-09-18 14:24**, and every one
+of them is **byte-identical to the sibling repository's `data/`**. Someone ran
+`make install` from `mocassin_HM_2026` on the 18th. Against it, **113 of this
+repo's 143 `.dat` files differ**: 98 are CHIANTI 10 -> 10.1, 14 are Stout
+ports (including `s_3`), one has no provenance line.
+
+So the answer to "is it worth implementing here" is that **it has been in
+effect here for five days**, along with a hundred other files, and the
+repository has been describing a dataset its own results were not computed
+with.
+
+### Which results this touches
+
+    d283-pn150k          2026-09-14    OLD data
+    d290-pn150k-grainq   2026-09-19    new
+    d292-pn150k-lines    2026-09-19    new
+    d302-trim-on/off     2026-09-21    new
+    d313-qavg            2026-09-22    new
+    d316-hiipdr          2026-09-22    new
+    d326-stick           2026-09-22    new
+
+Only `d283-pn150k` predates the change.
+
+**Not confounded.** D-315's dust result compares `d302-trim-on` with
+`d313-qavg`, and D-328's sticking result compares `d316-hiipdr` with
+`d326-stick`. Both pairs sit on the same side of the 18th, so both stand.
+
+**Confounded.** Anything that sets D-283's numbers against a later run. That
+includes D-283's own line-flux table - [Ne III] +35-48%, [O II] 3726 +28%,
+[O I] 6300 +40% and the rest - which was measured on CHIANTI 10 with Mendoza
+[S III] and has never been re-measured. Those figures are not on the current
+artifact, which was rebuilt on `d313-qavg`, but they are in the DEVLOG and
+should not be quoted against present-day runs.
+
+### What was done
+
+`data/` synced to what the runs read, so the repository describes its own
+results again. This is the project rule about one reality per quantity, in the
+place where it is easiest to violate silently: a data directory that is
+installed rather than read in place.
+
+**What was not done:** the other 112 files were not individually audited. The
+`s_3` port was verified against Cloudy because it is what the user asked
+about; the CHIANTI 10 -> 10.1 bump and the thirteen other Stout ports are
+taken on the provenance headers they carry. That is a weaker standard than
+this project usually applies, and it is recorded as such.
+
+### Expected direction, before the run
+
+Lower [S III] upsilons mean **less** cooling and a **hotter** ionized gas -
+[S III] carries 9-13% of Cloudy's ionized-gas cooling in these models, so a
+~20% cut removes ~2% of the total. The awkward part is that our ionized gas is
+already 6-8% hotter than Cloudy beyond 1 pc, so this makes the comparison look
+worse, not better.
+
+That is not a reason to reject it. Cloudy is a reference, not a benchmark, and
+we were running hot **while carrying more [S III] cooling than Cloudy did** -
+the old data was partly masking whatever really causes the excess. Both codes
+now use Hudson (2012), so the remaining difference is attributable elsewhere.
