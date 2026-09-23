@@ -328,6 +328,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-326 | **Electron sticking set to Weingartner & Draine's value, with the prediction recorded before the run.** `getGrainRecombination` carried `S = 1.` from Baldwin et al. (1991) while D-289 had already taken WD01's YIELD into the same balance and into the heating - two halves of one prescription from different papers, in a place where they multiply. Now `S = 0.5*(1 - exp(-grainRadius(ai)/1.e-3))`, l_e = 10 A, which is what Cloudy's grains.cpp uses; the function gains `ai` to see the size, matching `getGrainEmission(Vg,isp,ai)`. Ion sticking stays 1.0, also Cloudy's. The exponential is 0.5 to four figures over 0.01-0.30 um and is written out anyway so a PAH-sized bin would get the right value rather than a silently wrong one. **Prediction, stated first:** halving the collection rate doubles the effective psi, and MOCASSIN's measured efficiency-vs-psi curve PEAKS near psi = 2e5, so the effect changes sign across the peak - behind the front the efficiency falls and the gas should cool from 72/62 K toward Cloudy's 48/49; deep it rises and the gas should warm from 19.3 K toward 24.1. The profile should ROTATE about A_V ~1.3, not shift, which a normalisation error could not produce. Falsified by the whole profile moving one way, or by the front, H/H2 crossing, deep carbon or dust temperature moving. `tools/d326_check.py` written before the run finished so the comparison is mechanical. All four flavours build; `runs/d326-stick` launched, input byte-identical to `runs/d316-hiipdr` | Open | 2026-09-22 |
 | D-327 | **The user asked whether D-286's Case A recombination cooling is still right when Lyman alpha is not transported. It is, and the reason is that the two 'Lyman' quantities are different photons - but the check turned up a real energy sink next door.** Case A vs B in the COOLING coefficient is Hummer (1994) beta_A = beta_B + beta_1, the electron KINETIC energy removed by recombinations to n=1, which emit the Lyman CONTINUUM (>=13.6 eV). MOCASSIN builds gammaHI from the H threshold up (D-227) and transports it, counting re-absorption as photoionization heating, so Case A is the consistent coefficient. Lyman alpha is 10.2 eV, a LINE, carrying excitation rather than kinetic energy; beta excludes it in both cases. **Verified rather than asserted:** (1) the coefficient really is the n=1 term, read in update_mod.f90; (2) `JPEots`, the on-the-spot line field, is allocated, zeroed and **never filled** - both uses are commented out - so there is no path where the continuum is both transported AND assumed re-absorbed locally, which is the double-count that would have made Case A wrong; (3) the H recombination LINE emissivities are Case B (`data/r1b0100.dat`), and that is NOT an inconsistency - Case B for the line spectrum is about Lyman-LINE optical depth, which is enormous either way, while Case A for the cooling is about whether n=1 recombinations count locally. Same word, different physics. **The sink found next door:** `resLinesTransfer` defaults to 101., a convergence percentage that can never be reached, so `setResLineEscapeProb` and `initResLinePackets` are BOTH gated off in every run in this project - collisionally excited Lyman alpha is removed from the gas as `coolColl` and deposited nowhere, the dust path being the thing that is switched off. Harmless in the PDR, where the H collisional term is gated to T > 5000 K and the gas is at 20-70 K. In the ionized gas it is a genuine sink, though MOCASSIN's own H collisional cooling there is under 3% of the total against Cloudy's ~10% - a factor 4 in a cooling channel that is NOT explained and is registered as such | Open | 2026-09-22 |
 | D-328 | **The sticking fix works, and half the prediction was wrong. T_m/T_c at A_V 0.73 and 0.97 goes from 1.488 and 1.267 to 1.069 and 1.014 - the warm half of the crossover is closed to 7% and 1.4% - and all four 'must not move' quantities held. But the profile did NOT rotate: it moved one way, which is the falsification criterion D-326 recorded.** `runs/d326-stick`: 22 iterations, **76.11%** converged (d316: 73.75%), 0% ion and 0% Te balance failures, 1h22m. PE new/old = 0.608/0.657/0.754/0.930/0.907 across A_V 0.73-2.21 - down everywhere, monotonically approaching 1 with depth, never rising. Against Cloudy PE is now 1.043/0.983 at 0.73/0.97, essentially exact. Unmoved, as required: dust T within 0.2%, front 3.848 -> 3.840 pc, H/H2 A_V 1.168 -> 1.173, C+ = C 2.242 -> 2.239. **Why the prediction failed:** it assumed halving S would double the effective psi and slide each depth along the measured efficiency-vs-psi curve, which peaks near 2e5, so deep points would move back toward the peak and warm. Measured, psi went 0.88/0.93/0.96/0.99/1.01 of its old value - it barely moved, and slightly DOWN, from the temperature feedback alone. Sticking does not move the code along the psi axis; **it changes the mapping from psi to efficiency.** The efficiency curve shifted down in place. The error was treating a locus traced by DEPTH as a response function, and psi_eff = psi/S - which is a valid way to COMPARE two codes - as a prediction of how one code answers a change in its own S. The correct picture is simpler: less sticking means more charge means more Coulomb suppression everywhere, largest where the grain was already most charged, hence 0.61 -> 0.93 with no crossing. **Net: the crossover is gone and is replaced by a one-sided cold bias beyond A_V ~1.3** (0.776/0.789 of Cloudy at 1.68/2.21, essentially unchanged), which is a cleaner problem than the one it replaced | Open | 2026-09-22 |
+| D-329 | **'hiipdr Against Cloudy' rebuilt (v11) on `runs/d326-stick`.** Figures, both comparison tables, the headline section and the O-02 register row recomputed from the corrected run. The page now carries the whole arc rather than only its end: 21-26 K against 29-50 with the diffuse lines discarded, a crossover once they were transported, and 51.6/49.8 K against 48.3/49.1 once the sticking coefficient was fixed - with both earlier readings stated as withdrawn rather than quietly replaced. The half-wrong prediction of D-326 is on the page too, including why psi did not move. Ionized gas updated: 9260/9220 K at 1 pc, from 10010/9220. What is left is stated as one-sided and bounded - 0.78x Cloudy beyond A_V 1.5, where the Monte Carlo field floor lives and where the deep field has never been compared per frequency bin | Done | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26042,3 +26043,40 @@ chain that has never been measured against Cloudy per frequency bin, because
 The change is correct and stays in, but the fixture is one model. `pn150k`
 has not been re-run on it, and its dust is graphite where this is silicate -
 different work function, so a different amount of suppression to add.
+
+## D-329 - the hiipdr page rebuilt on the corrected run (2026-09-23)
+
+'hiipdr Against Cloudy' v11, from `runs/d326-stick`.
+
+Recomputed from the run: the three Röllig figures, the A_V table, the
+ionized-gas table, the four headline tiles, and the O-02 row of the issue
+register. Nothing on the page is now carried over from `d316-hiipdr`.
+
+### What the page says that it did not before
+
+**The arc, not just its end.** This fixture's PDR temperature has now been
+published three ways, and the page states all three rather than replacing the
+number and moving on:
+
+    21-26 K vs Cloudy 29-50   diffuse line photons discarded (through D-320)
+    72, 62 K vs 48, 49        transport on: a crossover (v10)
+    51.6, 49.8 vs 48.3, 49.1  sticking corrected (v11)
+
+Both earlier readings are marked withdrawn, with the reason each was wrong.
+
+**The prediction that was half wrong** is on the page, including why psi did
+not move. A reader who only sees the final number learns less than one who
+sees that the mechanism was argued, tested and partly refuted.
+
+**What is left is stated as bounded**, not as a general disagreement: a
+one-sided cold bias beyond A_V 1.5, 0.78x Cloudy, with the photoelectric
+heating at 0.47 and 0.22 of Cloudy's there - sitting where the Monte Carlo
+field floor is, and where the deep field has never been compared per frequency
+bin because MOCASSIN writes four band sums per cell and nothing finer.
+
+### Also updated
+
+The ionized gas, which moved twice and is now closest it has been: 9260 K
+against Cloudy's 9220 at 1 pc, from 10010 in v10 and 7620 before the line
+transport. The dust section is unchanged - the sticking correction moved it by
+0.2%, which is what a change confined to the grain charge balance should do.
