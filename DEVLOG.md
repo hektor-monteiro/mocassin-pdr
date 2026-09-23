@@ -331,6 +331,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-329 | **'hiipdr Against Cloudy' rebuilt (v11) on `runs/d326-stick`.** Figures, both comparison tables, the headline section and the O-02 register row recomputed from the corrected run. The page now carries the whole arc rather than only its end: 21-26 K against 29-50 with the diffuse lines discarded, a crossover once they were transported, and 51.6/49.8 K against 48.3/49.1 once the sticking coefficient was fixed - with both earlier readings stated as withdrawn rather than quietly replaced. The half-wrong prediction of D-326 is on the page too, including why psi did not move. Ionized gas updated: 9260/9220 K at 1 pc, from 10010/9220. What is left is stated as one-sided and bounded - 0.78x Cloudy beyond A_V 1.5, where the Monte Carlo field floor lives and where the deep field has never been compared per frequency bin | Done | 2026-09-23 |
 | D-330 | **Audit of the sibling repo's [S III] commit, asked for by the user. The port is exact and the data is better - but the real finding is that it has been in effect here since 2026-09-18 without being declared, because the whole CHIANTI 10.1 + Stout dataset was installed into the directory the runs read while this repository kept the old one.** `4894d6d` replaces Mendoza (1983) collision strengths and Mendoza & Zeippen (1982) A-values with Hudson et al. (2012) via Cloudy Stout: upsilons 0.70-0.95x, A-values 0.86-0.99x, energies within 0.5%, and the temperature grid 5000-20000 K -> 1000 K-1e10 K. Verified **byte-exact** against `cloudy-c25.00/data/stout/s/s_3/` - all 10 collision strengths across all 17 temperatures and all 9 A-values. Our reader needs no change: it reads NCOMS then NLEVS/NTEMPS and allocates, and `linear_interpolation` CLAMPS outside the table rather than extrapolating, so the old 5000 K floor was safe. **But `data/` in this repo was not what the runs read.** MOCASSIN compiles with `PREFIX=$(HOME)/.local` and reads `~/.local/share/mocassin/data`, whose 172 files are byte-identical to the sibling repo's `data/` and are all dated 2026-09-18 14:24 - 113 of our 143 differ from them (98 CHIANTI 10 -> 10.1, 14 Stout ports including s_3). Every run from `d290-pn150k-grainq` (Sep 19) onward used the new data; only `d283-pn150k` (Sep 14) predates it. **Consequences:** D-315 (d302-trim-on vs d313-qavg) and D-328 (d316 vs d326) compare runs on the SAME data and stand; anything comparing D-283's line fluxes with later numbers is confounded. Repo `data/` synced to what the runs actually read, so the repository describes its own results again | Done | 2026-09-23 |
 | D-331 | **Design discussion: what it would take to produce molecular line observables. The emissivities are already computed every cell every iteration and thrown away.** `escape_probability.F90:194` forms `line(i,j) = A_ij h nu_ij n_i beta_ij (S_ij-BB_ij)/S_ij`, the per-transition emissivity in erg/cm3/s, for **63 radiative transitions** (CO 40, C+ 9, C 7, O 7); `pdr_mod.f90` takes it as the LOCAL `lline(1:nlev,1:nlev)`, keeps only the summed `coolK` and drops the array. Because `beta_ij` is already in it, `line` is what ESCAPES, so per-cell emissivities are a persistent array plus a writer (~33 MB at 41^3) and integrated line luminosities are a volume sum that can go straight into lineFlux.out. No new physics, data or solver; `pdrMaxLev` is already dynamic. Available immediately: the CO ladder to J=40-39, [C II] 158, [C I] 370/609, [O I] 63/145 um. **`dataPDR/` already vendors 15 LAMDA files** and three more are usable against the REDUCED network today - OH, HCO+, CH+ - while HCN/CN/HNC/N2H+/SiO/C2H have no carrier in the 33 species. **3D-PDR over Cloudy, decisively:** the machinery is in-tree, LAMDA is the community format, and the escape probability is HEALPix-averaged under RAYTHEIA, which a 1D code cannot do; Cloudy's role is validation via `save lines emissivity` on the matched models. **Caveats for any published line:** deep CO is 50-100x Cloudy's so the ladder inherits that; `pdrNbadPop` must be reported because the level solve can go singular; and H2 has no LAMDA file, so 1-0 S(1) 2.12 um and the 0-0 S(n) ladder are absent and are NOT just another coolant (FUV pumping, not collisions) | Open | 2026-09-23 |
+| D-332 | **pn150k re-run with the sticking fix (`runs/d330-pn150k`): converges FASTER and better - 9 iterations to 90.15% in 1h18m against d313-qavg's 11 to 89.58% in 2h00m, 0% ion and 0% Te balance failures - but the temperature effect is far smaller than on hiipdr, 1-9% against 28%.** PE falls to 0.832/0.854/0.903/0.947/0.958 of the old run across A_V 0.21-0.65, against hiipdr's 0.608-0.930. D-328 anticipated this: different grain material, graphite here against silicate there, so a different amount of Coulomb suppression to add. Unmoved as required: dust 0.996-0.999 (size-weighted ratios against Cloudy 0.905/0.899/0.872/0.869 reproduce D-315's 0.906/0.902/0.873/0.869), H+ front 0.129 pc, H/H2 A_V 0.248. **pn150k remains one-sidedly COLD** - 0.62-0.76 of Cloudy through the PDR, with PE only 0.26-0.42 of Cloudy's - and the sticking fix makes it marginally colder, which is the honest cost of a correct coefficient. **The [S III] change cannot be isolated by this run**: d313-qavg was 2026-09-22 and so already carried the new data. Bounded instead by a direct 5-level solve at the run's own H II conditions (11907 K, n_e 1065): Hudson/Mendoza cooling ratio **0.823**, i.e. -17.7%, and 0.78-0.85 over 6000-15000 K. Artifact rebuilt (v10), with the data-sync stated on the page including that its effect is unmeasured. Also: `tools/d326_check.py` had hiipdr's depths hardcoded - L-21 in a tool written the day before - now derived from the run | Done | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26299,3 +26300,85 @@ molecular observables would currently mean, and they should be quoted
 alongside the first ones produced.
 
 No code written. This entry is the design record.
+
+## D-332 - pn150k with the sticking fix, and what the data sync did not tell us (2026-09-23)
+
+`runs/d330-pn150k`, input byte-identical to `runs/d313-qavg`.
+
+### Convergence improved
+
+    d313-qavg    11 iterations   89.58%   2 h 00 min
+    d330-pn150k   9 iterations   90.15%   1 h 18 min
+
+It stopped at iteration 9 by reaching the 90% target rather than exhausting
+the iteration limit - the first time this fixture has done so. 0% ion-balance
+and 0% Te-balance failures.
+
+### The sticking fix is much weaker here than on hiipdr
+
+    A_V         0.21   0.28   0.37   0.49   0.65
+    T new/old  0.952  0.911  0.963  0.981  0.999
+    PE new/old 0.832  0.854  0.903  0.947  0.958
+
+against hiipdr's PE 0.608 / 0.657 / 0.754 / 0.930 / 0.907. D-328 flagged this
+in advance: *"pn150k has not been re-run on this; its graphite has a different
+work function and so a different amount of suppression to add."* It does, and
+the difference is a factor of two in the size of the effect.
+
+Unmoved, as a change confined to the grain charge balance must be: dust
+temperature 0.996-0.999 of the old run, and the size-weighted ratios against
+Cloudy come back 0.905 / 0.899 / 0.872 / 0.869 against D-315's published
+0.906 / 0.902 / 0.873 / 0.869. H+ front 0.129 pc and H/H2 crossing A_V 0.248,
+both unchanged.
+
+### pn150k is a different regime from hiipdr, and stays cold
+
+    A_V         0.21   0.28   0.37   0.49   0.65
+    T / Cloudy 0.726  0.757  0.736  0.623  0.669
+    PE/ Cloudy 0.308  0.404  0.419  0.313  0.260
+
+No crossover here, and never was one: this PDR is **uniformly cold**, at
+0.62-0.76 of Cloudy, with the photoelectric heating at a quarter to two fifths
+of Cloudy's. The sticking correction makes it marginally colder. That is the
+honest cost of using the right coefficient, and it is the same situation as
+the [S III] data below - the model was closer to the reference for a reason
+that was not physics.
+
+So hiipdr and pn150k disagree with Cloudy in different ways, and the L-22
+picture built on hiipdr alone does not transfer. Worth stating plainly: one
+fixture is not a validation.
+
+### What this run does NOT measure
+
+The user asked for this re-run partly to see what the [S III] atomic data
+does. **It cannot say.** `d313-qavg` ran on 2026-09-22, four days after the
+installed data directory was replaced (D-330), so both sides of this
+comparison already carry Hudson et al. (2012). No run in this project differs
+from another only by that file.
+
+What can be done without a run is a direct 5-level solve at the model's own
+conditions. At pn150k's ionized gas (T = 11907 K, n_e = 1065 cm^-3), cooling
+per S(2+) ion:
+
+    Mendoza 1983   6.647e-17 erg/s
+    Hudson 2012    5.467e-17
+    ratio          0.823        ->  [S III] cooling -17.7%
+
+and 0.78 to 0.85 across 6000-15000 K. That is a bound on the channel, not a
+measurement of the model: what it does to the temperature depends on [S III]'s
+share of the total cooling and on the thermostat's response, neither of which
+this calculation contains.
+
+**Isolating it would cost one run** - swap `data/siii.dat` back to Mendoza,
+change nothing else, 1 h 18 min. Not done, and recorded as not done.
+
+### Tooling
+
+`tools/d326_check.py`, written *yesterday*, had hiipdr's five sample depths
+hardcoded. Pointed at pn150k it sampled A_V 0.73-2.21 on a PDR that ends at
+0.67. That is L-21 again, in a tool written after L-21 was registered. Depths
+now derived from the model's own PDR, explicit depths still accepted. The
+"ROTATION" verdict, which was hiipdr's prediction, is now reported as the
+shape of the change rather than a pass/fail against one fixture's expectation.
+
+Five tools, six constants. The register entry stands and so does its lesson.

@@ -24,8 +24,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import d304_budget as B
 import d260_roellig as R
 
-AVS = (0.73, 0.97, 1.27, 1.68, 2.21)
+# D-332: these were hiipdr's depths, hardcoded - the L-21 disease in a tool
+# written one day earlier. Derived from the model's own PDR unless given on
+# the command line.
+AVS = None
 PC = 3.0857e18
+
+
+def pdr_depths(m, n=5):
+    av = m['AV'][m['zone'] == 1]
+    return tuple(float(v) for v in
+                 np.geomspace(np.percentile(av, 3), np.percentile(av, 97), n))
 
 
 def prof(m, key, avs):
@@ -59,9 +68,12 @@ def cross(x, y, t):
     return np.nan
 
 
-def main(new, old, prefix):
+def main(new, old, prefix, avs=None):
     a, b = B.read_moc(new), B.read_moc(old)
     c = B.read_cloudy(prefix)
+    global AVS
+    AVS = avs or pdr_depths(a)
+    print('sample depths: ' + ', '.join('%.2f' % v for v in AVS))
     Ta, Tb = prof(a, 'Tgas', AVS), prof(b, 'Tgas', AVS)
     Da, Db = prof(a, 'Tdust', AVS), prof(b, 'Tdust', AVS)
     Pa, Pb = pe(a, AVS), pe(b, AVS)
@@ -69,23 +81,26 @@ def main(new, old, prefix):
     Pc = np.array([c['gheat'][np.argmin(abs(c['AV'] - v))].sum() for v in AVS])
 
     print(f'new {new}\nold {old}\nref {prefix}\n')
-    print('=== THE PREDICTION: T should ROTATE about A_V ~1.3 ===')
+    print('=== gas temperature, new against old and against the reference ===')
     print('  A_V |   T_old  T_new  Cloudy |  new/old |  old/Cl  new/Cl')
     print('  ' + '-' * 62)
     for i, av in enumerate(AVS):
         print('  %4.2f | %7.1f %6.1f %7.1f | %8.3f | %7.3f %7.3f'
               % (av, Tb[i], Ta[i], Tc[i], Ta[i] / Tb[i],
                  Tb[i] / Tc[i], Ta[i] / Tc[i]))
-    warm = Ta[:3] / Tb[:3]
-    deep = Ta[3:] / Tb[3:]
-    print('\n  behind the front (A_V 0.73-1.27)  new/old = %s' %
-          ' '.join('%.3f' % v for v in warm))
-    print('  deep            (A_V 1.68-2.21)  new/old = %s' %
-          ' '.join('%.3f' % v for v in deep))
-    ok = np.nanmean(warm) < 1.0 < np.nanmean(deep)
-    print('  ROTATION: %s' % ('YES - cooler in front, warmer deep, as predicted'
-                              if ok else
-                              'NO - see whether it shifted one way instead'))
+    n1 = max(1, len(AVS) // 2)
+    warm, deep = Ta[:n1] / Tb[:n1], Ta[n1:] / Tb[n1:]
+    print('\n  shallower half (A_V %.2f-%.2f)  new/old = %s'
+          % (AVS[0], AVS[n1 - 1], ' '.join('%.3f' % v for v in warm)))
+    print('  deeper half    (A_V %.2f-%.2f)  new/old = %s'
+          % (AVS[n1], AVS[-1], ' '.join('%.3f' % v for v in deep)))
+    # D-326 predicted a ROTATION for hiipdr. Report the shape, not a verdict
+    # tied to one fixture's prediction.
+    print('  shape: %s' % ('rotates - cooler shallow, warmer deep'
+                           if np.nanmean(warm) < 1.0 < np.nanmean(deep) else
+                           'shifts one way (%s)' %
+                           ('cooler' if np.nanmean(np.concatenate([warm, deep]))
+                            < 1 else 'warmer')))
 
     print('\n=== the term it acts on ===')
     print('  A_V |  PE_old    PE_new   new/old |  PE_new/PE_Cloudy')
@@ -116,4 +131,5 @@ def main(new, old, prefix):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2], sys.argv[3],
+         tuple(float(v) for v in sys.argv[4:]) or None)
