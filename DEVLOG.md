@@ -327,6 +327,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-325 | **The user's hint paid off: 3D-PDR's charging parameter psi = G0 sqrt(T)/x(e) reframes the crossover, and MOCASSIN's hardcoded electron sticking S = 1 is the discrepancy. At MATCHED psi MOCASSIN's photoelectric efficiency is 2.09/1.73/1.36/1.04x Cloudy's - always ABOVE, never crossing - so there is no sign reversal in the photoelectric physics at all.** Both codes' PE/G0 is a PEAKED function of psi (MOCASSIN peaks near 2e5, Cloudy near 1e5); the temperature crossover is the two sliding down opposite sides of that peak, because MOCASSIN's psi falls **113x** across the PDR against Cloudy's **55x** - its G0 falls 89x against 50x and its T falls faster too, and both enter psi. **So the field is the driver after all, through psi, and D-322's '28% field / 72% efficiency' understates it by dividing G0 out linearly when G0 also sets psi.** The offset at matched psi has a named cause: `getGrainRecombination` hardcodes `S = 1.` for electron sticking (and again for ions), while Cloudy's grains.cpp uses STICK_ELEC = 0.5*(1-exp(-a/l_esc)) - and MOCASSIN adopted Weingartner & Draine's YIELD at D-289 while leaving Baldwin's sticking, so two halves of one prescription now come from different sources. Dividing psi by each code's own S collapses the efficiency ratio from 2.087/1.730/1.361/1.043 (spread 4.1) to **1.151/1.164/1.129/1.307** - flat to 15% where it drifted by a factor 2. New `tools/d325_psi.py`. 3D-PDR's own `STICKING=0.3` is freeze-out, a different process, and is NOT evidence about the charge balance - noted so it is not later miscited. Caveats: psi is a similarity variable and dividing by S is a scaling argument, not a derivation; the A_V 2.21 point (0.506 in every row) sits near MOCASSIN's Monte Carlo field floor | Open | 2026-09-22 |
 | D-326 | **Electron sticking set to Weingartner & Draine's value, with the prediction recorded before the run.** `getGrainRecombination` carried `S = 1.` from Baldwin et al. (1991) while D-289 had already taken WD01's YIELD into the same balance and into the heating - two halves of one prescription from different papers, in a place where they multiply. Now `S = 0.5*(1 - exp(-grainRadius(ai)/1.e-3))`, l_e = 10 A, which is what Cloudy's grains.cpp uses; the function gains `ai` to see the size, matching `getGrainEmission(Vg,isp,ai)`. Ion sticking stays 1.0, also Cloudy's. The exponential is 0.5 to four figures over 0.01-0.30 um and is written out anyway so a PAH-sized bin would get the right value rather than a silently wrong one. **Prediction, stated first:** halving the collection rate doubles the effective psi, and MOCASSIN's measured efficiency-vs-psi curve PEAKS near psi = 2e5, so the effect changes sign across the peak - behind the front the efficiency falls and the gas should cool from 72/62 K toward Cloudy's 48/49; deep it rises and the gas should warm from 19.3 K toward 24.1. The profile should ROTATE about A_V ~1.3, not shift, which a normalisation error could not produce. Falsified by the whole profile moving one way, or by the front, H/H2 crossing, deep carbon or dust temperature moving. `tools/d326_check.py` written before the run finished so the comparison is mechanical. All four flavours build; `runs/d326-stick` launched, input byte-identical to `runs/d316-hiipdr` | Open | 2026-09-22 |
 | D-327 | **The user asked whether D-286's Case A recombination cooling is still right when Lyman alpha is not transported. It is, and the reason is that the two 'Lyman' quantities are different photons - but the check turned up a real energy sink next door.** Case A vs B in the COOLING coefficient is Hummer (1994) beta_A = beta_B + beta_1, the electron KINETIC energy removed by recombinations to n=1, which emit the Lyman CONTINUUM (>=13.6 eV). MOCASSIN builds gammaHI from the H threshold up (D-227) and transports it, counting re-absorption as photoionization heating, so Case A is the consistent coefficient. Lyman alpha is 10.2 eV, a LINE, carrying excitation rather than kinetic energy; beta excludes it in both cases. **Verified rather than asserted:** (1) the coefficient really is the n=1 term, read in update_mod.f90; (2) `JPEots`, the on-the-spot line field, is allocated, zeroed and **never filled** - both uses are commented out - so there is no path where the continuum is both transported AND assumed re-absorbed locally, which is the double-count that would have made Case A wrong; (3) the H recombination LINE emissivities are Case B (`data/r1b0100.dat`), and that is NOT an inconsistency - Case B for the line spectrum is about Lyman-LINE optical depth, which is enormous either way, while Case A for the cooling is about whether n=1 recombinations count locally. Same word, different physics. **The sink found next door:** `resLinesTransfer` defaults to 101., a convergence percentage that can never be reached, so `setResLineEscapeProb` and `initResLinePackets` are BOTH gated off in every run in this project - collisionally excited Lyman alpha is removed from the gas as `coolColl` and deposited nowhere, the dust path being the thing that is switched off. Harmless in the PDR, where the H collisional term is gated to T > 5000 K and the gas is at 20-70 K. In the ionized gas it is a genuine sink, though MOCASSIN's own H collisional cooling there is under 3% of the total against Cloudy's ~10% - a factor 4 in a cooling channel that is NOT explained and is registered as such | Open | 2026-09-22 |
+| D-328 | **The sticking fix works, and half the prediction was wrong. T_m/T_c at A_V 0.73 and 0.97 goes from 1.488 and 1.267 to 1.069 and 1.014 - the warm half of the crossover is closed to 7% and 1.4% - and all four 'must not move' quantities held. But the profile did NOT rotate: it moved one way, which is the falsification criterion D-326 recorded.** `runs/d326-stick`: 22 iterations, **76.11%** converged (d316: 73.75%), 0% ion and 0% Te balance failures, 1h22m. PE new/old = 0.608/0.657/0.754/0.930/0.907 across A_V 0.73-2.21 - down everywhere, monotonically approaching 1 with depth, never rising. Against Cloudy PE is now 1.043/0.983 at 0.73/0.97, essentially exact. Unmoved, as required: dust T within 0.2%, front 3.848 -> 3.840 pc, H/H2 A_V 1.168 -> 1.173, C+ = C 2.242 -> 2.239. **Why the prediction failed:** it assumed halving S would double the effective psi and slide each depth along the measured efficiency-vs-psi curve, which peaks near 2e5, so deep points would move back toward the peak and warm. Measured, psi went 0.88/0.93/0.96/0.99/1.01 of its old value - it barely moved, and slightly DOWN, from the temperature feedback alone. Sticking does not move the code along the psi axis; **it changes the mapping from psi to efficiency.** The efficiency curve shifted down in place. The error was treating a locus traced by DEPTH as a response function, and psi_eff = psi/S - which is a valid way to COMPARE two codes - as a prediction of how one code answers a change in its own S. The correct picture is simpler: less sticking means more charge means more Coulomb suppression everywhere, largest where the grain was already most charged, hence 0.61 -> 0.93 with no crossing. **Net: the crossover is gone and is replaced by a one-sided cold bias beyond A_V ~1.3** (0.776/0.789 of Cloudy at 1.68/2.21, essentially unchanged), which is a cleaner problem than the one it replaced | Open | 2026-09-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -25944,3 +25945,100 @@ not surfaced, and it is written down so that it is not rediscovered as new.
 ### Conclusion
 
 D-286 stands. No change made.
+
+## D-328 - the sticking fix measured, against the prediction (2026-09-22)
+
+`runs/d326-stick`: 22 iterations, **76.11% converged** against `d316-hiipdr`'s
+73.75%, 0% ion-balance and 0% Te-balance failures, 1 h 22 min. Checked with
+`tools/d326_check.py`, written before the run finished.
+
+### The temperature
+
+    A_V     T_old   T_new  Cloudy | old/Cl  new/Cl
+    0.73     71.8    51.6    48.3 |  1.488   1.069
+    0.97     62.2    49.8    49.1 |  1.267   1.014
+    1.27     49.0    44.3    49.2 |  0.997   0.901
+    1.68     30.5    29.5    38.1 |  0.801   0.776
+    2.21     19.1    19.1    24.1 |  0.791   0.789
+
+**The warm half of the crossover is closed**: 49% and 27% too warm becomes 7%
+and 1.4%. The photoelectric term it acts on now matches Cloudy to 4% and 2%
+at those depths (PE_new/PE_Cloudy = 1.043, 0.983).
+
+### The four quantities that had to stay put, did
+
+    dust T    new/old  0.998  0.999  0.999  1.000  0.999
+    front     3.848 -> 3.840 pc
+    H/H2      A_V 1.168 -> 1.173
+    C+ = C    A_V 2.242 -> 2.239
+
+All inside run-to-run scatter (D-314). The change touched the grain charge
+balance and nothing else, which is what it was supposed to do.
+
+### And the prediction was half wrong
+
+D-326 predicted the profile would **rotate** about A_V ~ 1.3 - cooler in
+front, **warmer deep** - and recorded the falsification: *"the whole profile
+moving one way, which would mean the sticking is acting as a normalisation and
+the psi picture is wrong."*
+
+    PE new/old   0.608  0.657  0.754  0.930  0.907
+
+Down everywhere. Monotonically approaching 1 with depth, never rising. **No
+rotation. By the criterion written before the run, the psi picture is
+falsified.**
+
+### Why, and it is worth spelling out
+
+The reasoning was: halving S doubles the effective charging parameter, so each
+depth slides right along the measured efficiency-vs-psi curve; that curve
+peaks near psi = 2e5, so deep points - sitting below the peak - would move
+back toward it and warm.
+
+Measured psi, new over old:
+
+    A_V        0.73   0.97   1.27   1.68   2.21
+    psi ratio  0.877  0.927  0.958  0.986  1.007
+
+**psi barely moved, and slightly down.** Of course it did: psi = G0 sqrt(T) /
+x(e) is built from physical quantities, and the sticking coefficient is not
+one of them. The only thing that moved psi at all is the temperature feedback
+that D-326 flagged as second order - cooler gas, lower sqrt(T), lower psi.
+
+Sticking does not move the code **along** the psi axis. It changes the
+**mapping** from psi to efficiency: at essentially the same psi, PE/G0 at
+A_V 0.73 went 1.741e-27 -> 1.062e-27. The curve shifted down in place.
+
+Two things were conflated:
+
+  - The efficiency-vs-psi curve of D-325 is a **locus traced by depth**. Its
+    points differ in spectrum, grain charge distribution and dust temperature
+    as well as in psi. It is not a response function.
+  - `psi_eff = psi / S` is a fair way to **compare two codes** that differ in
+    S - which is what D-325 used it for, and that result stands. It is not a
+    prediction of how one code answers a change in its own S.
+
+The correct picture is simpler than the one predicted. Less sticking means
+more charge means more Coulomb suppression, **everywhere**, by an amount set
+by how much suppression there was to add - largest where the grain was already
+most charged, which is shallow, and smallest deep where the grain is nearly
+neutral. That gives 0.61 rising to 0.93 with no crossing, which is what the
+run shows.
+
+### Where this leaves the model
+
+The crossover is gone. What replaces it is a **one-sided cold bias beyond
+A_V ~ 1.3** - 0.78 and 0.79 of Cloudy at A_V 1.68 and 2.21, essentially
+unchanged by this fix, with PE at 0.47 and 0.22 of Cloudy's there.
+
+That is a cleaner problem than a sign reversal, and it is now the whole of
+L-22. It is also where MOCASSIN's Monte Carlo field floor lives (O-01, O-34):
+PE is exactly zero by A_V 2.91, and the deep field is the one thing in this
+chain that has never been measured against Cloudy per frequency bin, because
+`pdrRad.out` carries four band sums and nothing finer.
+
+### Not done
+
+The change is correct and stays in, but the fixture is one model. `pn150k`
+has not been re-run on it, and its dust is graphite where this is silicate -
+different work function, so a different amount of suppression to add.
