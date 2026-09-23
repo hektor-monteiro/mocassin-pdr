@@ -334,6 +334,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-332 | **pn150k re-run with the sticking fix (`runs/d330-pn150k`): converges FASTER and better - 9 iterations to 90.15% in 1h18m against d313-qavg's 11 to 89.58% in 2h00m, 0% ion and 0% Te balance failures - but the temperature effect is far smaller than on hiipdr, 1-9% against 28%.** PE falls to 0.832/0.854/0.903/0.947/0.958 of the old run across A_V 0.21-0.65, against hiipdr's 0.608-0.930. D-328 anticipated this: different grain material, graphite here against silicate there, so a different amount of Coulomb suppression to add. Unmoved as required: dust 0.996-0.999 (size-weighted ratios against Cloudy 0.905/0.899/0.872/0.869 reproduce D-315's 0.906/0.902/0.873/0.869), H+ front 0.129 pc, H/H2 A_V 0.248. **pn150k remains one-sidedly COLD** - 0.62-0.76 of Cloudy through the PDR, with PE only 0.26-0.42 of Cloudy's - and the sticking fix makes it marginally colder, which is the honest cost of a correct coefficient. **The [S III] change cannot be isolated by this run**: d313-qavg was 2026-09-22 and so already carried the new data. Bounded instead by a direct 5-level solve at the run's own H II conditions (11907 K, n_e 1065): Hudson/Mendoza cooling ratio **0.823**, i.e. -17.7%, and 0.78-0.85 over 6000-15000 K. Artifact rebuilt (v10), with the data-sync stated on the page including that its effect is unmeasured. Also: `tools/d326_check.py` had hiipdr's depths hardcoded - L-21 in a tool written the day before - now derived from the run | Done | 2026-09-23 |
 | D-333 | **What stands between this code and science production, ranked - and three new measurements taken to rank it.** The user asked for the blocking list. Four findings are new here rather than quoted from the register. **(1) There is no reproducibility at all:** `photon_mod.f90:96-100` seeds the RNG as `seed = seed + msec + taskid` from `date_and_time`, with no input keyword to override it, so no published figure can be regenerated and, with D-314's measured 37% T_gas swing on a 5^3 fixture, no disagreement with any reference carries a significance. **(2) L-3 is live, visible and mis-stated in the register:** `doc/pdr-status.md` says the reference model reaches only A_V 0.68 so L-3 is not exercised - but `runs/d326-stick` reaches A_V 3.0 and the vendored 3D-PDR reference `sec54.pdr.fin` reaches 2.45, so the overlap exists. Measured against it, MOCASSIN's x(C+) is right to **1-3% from A_V 0.6 to 2.1** and then collapses to **0.38** by 2.33, where the reference still holds 82% of carbon as C+; neutral C runs **0.16-0.23** through the shallow PDR and **3.76** at 2.33; CO runs **0.00/0.05/0.39** at A_V 0.6/0.9/1.25 and **3.2-3.4** beyond 2.1. Carbon conserves to the total at every depth, so this is a transition placed too shallow and too sharp, not a lost-mass bug. **(3) That ranks the molecular observables the user asked for in D-331 by readiness, on evidence rather than on expectation:** [C II] 158 um rests on a carrier good to 1-3%, [C I] 609/370 on one 5x low, CO on one wrong by 2 orders of magnitude and changing sign with depth. **(4) A hypothesis linking L-3 to hiipdr's deep cold,** recorded before testing: [C I] 609 um has E/k = 23.6 K against [C II]'s 91.2 K, so converting C+ to C at 20-25 K swaps a nearly-frozen coolant for a fully active one, and premature conversion would cool the deep gas rather than warm it. Falsifiable in `pdrCoolSp.out` past A_V 2 - all four coolants (`12co`, `12c+`, `12c`, `16o`) are active, so the split is already recorded. **Also noted:** against the vendored 3D-PDR reference at matched n_H = 100, MOCASSIN's PDR runs **0.46-0.65x** in T_gas at matched A_V while carrying **6-10x** the FUV field, and at matched *field* (G0 ~ 1.3-1.4) it is 24.4 K against 85.1 K. The A_V zero points differ - the reference is a bare slab, hiipdr has an H II region in front - and the G0 unit convention has not been checked across the two, so this is a flagged question, not a defect. **The ranking: reproducibility and scatter first** (one keyword, then repeats - the cheapest item and it gates the meaning of every other number), **then a third and fourth fixture** (L-11: the two in hand disagree with each other, hiipdr crossing over and moving 28% under the sticking fix against pn150k's uniform 30% cold and 5%), **then L-3**, which gates the observables. Nothing here changes code. | Recorded | 2026-09-23 |
 | D-334 | **Tier 1 item 1: the Monte Carlo is now reproducible - and the test that proved it found an uninitialised array corrupting every PDR result in the project.** A `randomSeed` keyword was added (`common_mod.f90`, `set_input_mod.f90`, `photon_mod.f90`); omitted or negative it keeps the historical clock seeding exactly, so nothing changes for a run that does not ask. Both controls pass on the 5^3 fixture: same seed reproduces, different seed changes the answer, and the run log now records which. **But two runs at the same seed still diverged** - identical through iterations 1, 2 and 3 and differing from iteration 4, which is this fixture's `pdrStartIter`. That localised it to the PDR coupling, and from there to `iteration_mod.f90`: **`ionDenPrev` is declared, allocated and read, and assigned nowhere in the tree** (confirmed case-insensitively across `source/`). It is read twice - in the D-119 residual, and in `grid(iG)%ionDen = (1-pdrCoupleDamp)*ionDen + pdrCoupleDamp*ionDenPrev`, which with the default `pdrCoupleDamp = 0.25` and `pdrCoupleIter = 5` **mixed a quarter of uninitialised memory into the ionization fractions on four of every five coupling passes, every MC iteration from `pdrStartIter` on, in every PDR run this project has ever done.** The D-216 comment sitting directly above it asserted the block was inert and "measures zero"; the residual printed beside it read 1.95e30 in one run and 2.26e6 in the other, and nobody read it. **Fixed** by taking the snapshot the damping always assumed it had: `ionDenPrev = grid(iG)%ionDen` at the top of each pass, plus initialisation at the allocation site. The residual now reads **exactly 0.00000000** on every pass, which confirms D-216's claim for the first time rather than asserting it, and makes the damping provably an identity. **Effect, measured at fixed seed so there is no Monte Carlo noise in the comparison at all:** on the 5^3 fixture the PDR-zone median T_gas goes from **4050 K to 44 K**, x(H2) from 0.020 to 0.199, x(H+) from 4.26e-4 to 2.42e-5; the H II zone moves 1%, dust 2.8%, x(C+) 0.3%. The unfixed 4050 K PDR was never physical. After the fix, two same-seed runs are **byte-identical across all 8 output files**. **Consequence: every published PDR number in this project was computed with this defect, and the two artifacts must be rebuilt on re-runs.** What is NOT yet known is the size of the effect on the production fixtures - the 5^3 model runs only 6 iterations with 3 PDR iterations, so its sensitivity may not be theirs. | Accepted | 2026-09-23 |
+| D-335 | **The first error bar in this project, and it retires D-314's noise floor - plus my own D-334 overstatement, withdrawn.** Four repeats of hiipdr on the fixed code differing only in `randomSeed` (`runs/d334-hiipdr/s1001-s1004`, 1h22-1h48 each). **Run-to-run scatter on the production grid: T_gas 0.06-0.39%, T_dust 0.04-0.09%, PE heating 0.45-1.81%, ionization front 0.08%, H/H2 A_V 0.20%.** D-314's 37% swing in median T_gas, which has stood as this project's noise floor since and is quoted in L-13 and on both artifact pages, was measured on the 5^3 fixture - a 6-iteration, 75%-converged toy that we now also know carried the D-334 defect. **It is not the production-grid noise and never was.** The consequence is large and in the project's favour: every disagreement with Cloudy that has been published here is 15-300 sigma, so the comparisons are measurements, not draws. hiipdr's T/Cloudy of 1.058/0.949/0.838/0.815/0.788 at A_V 0.81-2.89 carries sigma of 0.2-0.4%. **Second, and correcting D-334:** I wrote there that "every published PDR number in this project was computed with this defect" and that both artifacts "must be rebuilt". The first half is true; **the second is wrong for hiipdr.** Ensemble against the published v11 run gives T new/old = **1.0005/1.0006/1.0008/1.0008/0.9994**, every point within 0.3 sigma, and PE within 1.2 sigma. The factor-92 seen on the 5^3 fixture did not transfer, for a reason visible in the code: `updateCell` recomputes `ionDen` from scratch at the top of every MC iteration, so the corruption is overwritten each time and only perturbs the chemistry *within* an iteration - which a model given 22 iterations converges out of, and one given 6 (of which 3 are PDR) does not. **The defect was real, the fix is right, and its effect on converged production models is null.** I generalised from one fixture within hours of writing D-333's Tier 1 item 2, which says that is exactly what not to do. **Side observation, not chased:** PE heating at A_V 2.89 is *exactly* 0.000e+00 in all five hiipdr runs while total heating is 8.4e-28, having fallen 1.11e-27 -> 1.01e-28 -> 0 over A_V 2.10-2.89. An exact zero looks like a threshold rather than a decline and is worth a look. pn150k's ensemble is still running. | Accepted | 2026-09-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26692,3 +26693,96 @@ fixed seed, which now means the answer will be exact.
 `tools/d334_spread.py` - the error bar: mean, sd and full range over an
 ensemble, on the quantities the artifacts quote, at depths derived from the run
 rather than hardcoded (L-21).
+
+---
+
+## D-335 - The first error bar, and a correction to D-334 (2026-09-23)
+
+Four repeats of hiipdr on the D-334 code, differing only in `randomSeed`:
+`runs/d334-hiipdr/s1001` .. `s1004`, seeds 1001-1004, 1h22-1h48 each, from
+`runs/d326-stick/input` verbatim. Convergence 74.86 / 76.26 / 75.58 / 75.94%
+against the published run's 76.11% - inside the spread, so the fix does not
+change how the model converges either.
+
+### The error bar
+
+Sample depths derived from the run (L-21): A_V 0.81, 1.11, 1.53, 2.10, 2.89.
+
+    quantity                mean        sd        rel      range
+    T_gas   A_V 0.81       51.52   +- 0.082     0.16%    51.43 - 51.63
+    T_gas   A_V 1.11       47.31   +- 0.096     0.20%    47.19 - 47.41
+    T_gas   A_V 1.53       35.59   +- 0.137     0.39%    35.46 - 35.71
+    T_gas   A_V 2.10       21.33   +- 0.074     0.35%    21.24 - 21.40
+    T_gas   A_V 2.89       11.30   +- 0.007     0.06%    11.29 - 11.31
+    T_dust  A_V 0.81       30.02   +- 0.027     0.09%    30.00 - 30.06
+    T_dust  A_V 2.89       13.08   +- 0.006     0.04%    13.07 - 13.09
+    PE      A_V 0.81    5.327e-26  +- 2.4e-28   0.45%
+    PE      A_V 2.10    1.138e-27  +- 2.1e-29   1.81%
+    front (pc)             3.837   +- 0.003     0.08%    3.835 - 3.842
+    H/H2 A_V               1.170   +- 0.002     0.20%    1.168 - 1.173
+
+**D-314's 37% is retired.** That number - median T_gas swing between two runs
+of the same binary - has been this project's noise floor since it was measured,
+is quoted in L-13, and sits on both artifact pages as the reason no comparison
+carries an error bar. It was measured on the 5^3 fixture: six MC iterations, of
+which three are PDR iterations, 75% converged, and - as D-334 established
+afterwards - carrying a quarter of uninitialised memory in `ionDen`. It is a
+property of that fixture, not of the Monte Carlo on a production grid.
+
+The consequence is large, and for once in this project's favour. hiipdr's
+temperature ratios against Cloudy are 1.058 / 0.949 / 0.838 / 0.815 / 0.788
+with sigma of 0.2-0.4%, so the departures from unity are **15 to 300 sigma**.
+Every disagreement published here - the dust running 9-13% cool, the
+temperature crossover, pn150k's uniform 30% deficit - is a measurement and not
+a draw. That could not be said before today.
+
+The honest caveat on the error bar itself: four draws, so the sd carries about
+40% relative uncertainty of its own. The full range is printed beside it for
+that reason. It is enough to separate 0.3% from 37%; it is not enough to quote
+three significant figures.
+
+### The correction
+
+D-334 said, of the uninitialised `ionDenPrev`: *"every published PDR number in
+this project was computed with this defect"* and *"both artifacts must be
+rebuilt on re-runs"*. The first is true. **The second is wrong for hiipdr.**
+
+    A_V   | published (v11)  ensemble mean     new/old   sigmas
+    0.81  |     51.49          51.52 +- 0.082  1.0005      0.3
+    1.11  |     47.28          47.31 +- 0.096  1.0006      0.3
+    1.53  |     35.56          35.59 +- 0.137  1.0008      0.2
+    2.10  |     21.31          21.33 +- 0.074  1.0008      0.2
+    2.89  |     11.31          11.30 +- 0.007  0.9994      1.0
+
+PE heating likewise, within 1.2 sigma at every depth. **The fix changes nothing
+measurable on this model**, and the artifact does not need rebuilding on its
+account.
+
+The factor of 92 seen on the 5^3 fixture did not transfer, and the reason is
+visible in the code rather than a matter of luck: `updateCell` recomputes
+`ionDen` from scratch at the top of every MC iteration, so the garbage injected
+by the damping is overwritten each iteration and can only perturb the chemistry
+*within* one. A model given 22 iterations converges out of that perturbation.
+A model given 6, of which 3 are PDR iterations, does not.
+
+The defect was real - it was undefined behaviour, it made the code
+irreproducible, and it is what the seed test was for. The fix is right and
+stays. But **its effect on converged production models is null**, and D-334
+claimed otherwise from a single fixture within hours of D-333's Tier 1 item 2,
+which says in as many words that a conclusion from one fixture is a property of
+that model rather than of the code. Written down, then done anyway.
+
+pn150k's ensemble is still running and will say whether the same holds there.
+It has 9-10 iterations against hiipdr's 22, so it sits between the two cases
+and the answer is not obvious.
+
+### One observation, not chased
+
+PE heating at A_V 2.89 is **exactly** 0.000e+00 in all four ensemble runs and
+in the published one, while total heating there is 8.4e-28 carried by the other
+two channels. Across the last three sample depths it runs 1.113e-27 ->
+1.010e-28 -> 0. A steep decline is expected as the band burns out against a
+rising grain potential; an *exact* zero looks like a threshold being crossed
+rather than a quantity going small. Recorded here so it is not lost - it may be
+`grnAbs` correctly finding no photons above a threshold that has moved past the
+band, in which case it is physics, or it may be a cutoff. Not yet looked at.
