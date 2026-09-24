@@ -1472,6 +1472,7 @@ module pdr_mod
         double precision :: vx(0:11), vy(0:11), vz(0:11)
         double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
         double precision :: cH2, cC, cCO, cAV, nd, kap
+        double precision :: xlo, xhi, ylo, yhi, zlo, zhi   ! D-339
 
         do kray = 0, 11
            if (kray < 4) then
@@ -1497,7 +1498,14 @@ module pdr_mod
            dmax = sqrt( dble(grid(iG)%xAxis(grid(iG)%nx))**2 &
                 &     + dble(grid(iG)%yAxis(grid(iG)%ny))**2 &
                 &     + dble(grid(iG)%zAxis(grid(iG)%nz))**2 )
-           nstep = max(4, min(2000, int(dmax/ds) + 1))
+           xlo = dble(grid(iG)%xAxis(1)); xhi = dble(grid(iG)%xAxis(grid(iG)%nx))
+           ylo = dble(grid(iG)%yAxis(1)); yhi = dble(grid(iG)%yAxis(grid(iG)%ny))
+           zlo = dble(grid(iG)%zAxis(1)); zhi = dble(grid(iG)%zAxis(grid(iG)%nz))
+           ! D-339: a reflected ray runs through the mirrored octants as well,
+           ! so in the unfolded picture it can reach the far face of a box
+           ! twice this one's size. The walk has to be long enough to let it.
+           if (lgSymmetricXYZ) dmax = 2.d0*dmax
+           nstep = max(4, min(4000, int(dmax/ds) + 1))
 
            do i = 1, grid(iG)%nx
             do j = 1, grid(iG)%ny
@@ -1512,12 +1520,33 @@ module pdr_mod
                     px = dble(grid(iG)%xAxis(i)) + vx(kray)*rr
                     py = dble(grid(iG)%yAxis(j)) + vy(kray)*rr
                     pz = dble(grid(iG)%zAxis(k)) + vz(kray)*rr
-                    if (px < dble(grid(iG)%xAxis(1)) .or. &
-                      & px > dble(grid(iG)%xAxis(grid(iG)%nx)) .or. &
-                      & py < dble(grid(iG)%yAxis(1)) .or. &
-                      & py > dble(grid(iG)%yAxis(grid(iG)%ny)) .or. &
-                      & pz < dble(grid(iG)%zAxis(1)) .or. &
-                      & pz > dble(grid(iG)%zAxis(grid(iG)%nz))) exit
+                    ! D-339 (O-14, first of its four defects): reflect at
+                    ! the mirror walls instead of stopping there. With
+                    ! symmetricXYZ the grid is an octant whose LOWER faces are
+                    ! planes of symmetry, so a ray crossing one continues into
+                    ! gas identical to the gas it just left, and folding the
+                    ! sample point about the plane samples exactly that. Each
+                    ! coordinate is monotonic along a straight ray, so it
+                    ! crosses each plane at most once and one fold per axis is
+                    ! exact for every later step.
+                    !
+                    ! Without this, four of the twelve RING directions ended at
+                    ! the z=0 wall and two more at x=0 and y=0 - about half the
+                    ! rays on every run this project has published. A truncated
+                    ! column UNDER-shields, so the photodissociation rate came
+                    ! out too high and H2 and CO too low. D-259 measured the
+                    ! truncation at 59% of depth.
+                    !
+                    ! The UPPER faces are the edge of the model, not mirrors:
+                    ! a ray reaching one has left the cloud and still stops.
+                    if (lgSymmetricXYZ) then
+                       if (px < xlo) px = 2.d0*xlo - px
+                       if (py < ylo) py = 2.d0*ylo - py
+                       if (pz < zlo) pz = 2.d0*zlo - pz
+                    end if
+                    if (px < xlo .or. px > xhi .or. &
+                      & py < ylo .or. py > yhi .or. &
+                      & pz < zlo .or. pz > zhi) exit
                     ix = nearestAxG(grid(iG)%xAxis, grid(iG)%nx, real(px))
                     iy = nearestAxG(grid(iG)%yAxis, grid(iG)%ny, real(py))
                     iz = nearestAxG(grid(iG)%zAxis, grid(iG)%nz, real(pz))
