@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-333, 2026-09-23. Reference model throughout: the 150 kK PN,
+Status as of D-336, 2026-09-23. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -226,23 +226,65 @@ is double counted, but the columns cannot be read as physical channels
 (D-304). `pdrCoolSub`/`pdrTfacUsed` hold the two halves in memory but are
 written to no file.
 
-**L-13. The reference comparison rests on one run of each code, and a run
-cannot be repeated even in principle.** D-314 measured MOCASSIN's run-to-run
-scatter for the first time: on a 5^3 fixture the same binary swings median
-T_gas by **37%**. Aggregate KPIs on the production grid are far tighter, but no
-published comparison carries an error bar (O-25).
+**L-13. CLOSED 2026-09-23 (D-334, D-335, D-336). Both published fixtures now
+carry an error bar, and D-314's 37% was never the noise floor.**
 
-**There is also no seed control** (D-333). `source/photon_mod.f90:83-100` seeds
-the generator as `seed = seed + msec + taskid` from `date_and_time`, and no
-input keyword overrides it - the `seed` keywords in `set_input_mod.f90` are
-`pdrTseed` (D-051's thermal march) and D-208's chemistry seeding, neither of
-which touches the Monte Carlo. So no published figure can be regenerated, and
-no disagreement with any reference carries a significance. **Severity is high,
-not medium**: it is upstream of the meaning of every number in this document.
-Cost to fix: one keyword read into a module variable, defaulting to the present
-clock behaviour.
+A `randomSeed` keyword makes a run repeatable at fixed input and fixed rank
+count (D-334); omitted or negative it keeps the historical clock seeding, so
+nothing changed for runs that do not ask. Verified in both directions - same
+seed byte-identical across all eight output files, different seed different -
+because a silently ignored seed passes the first test for free.
 
-### Low, or housekeeping
+Four-run ensembles on each published fixture, differing only in the seed:
+
+    quantity            hiipdr            pn150k
+    T_gas            0.06 - 0.39%      0.07 - 0.21%, 2.17% at the outer edge
+    T_dust           0.04 - 0.09%      0.01 - 0.05%
+    PE heating       0.45 - 1.81%      0.19 - 0.32%
+    ionization front      0.08%             0.03%
+    H/H2 A_V              0.20%             0.07%
+
+**D-314's 37% swing in median T_gas is retired.** It was measured on the 5^3
+fixture - six MC iterations, three of them PDR iterations, 75% converged, and
+carrying the L-23 defect - and it is a property of that fixture, not of the
+Monte Carlo on a production grid. It should not be quoted again.
+
+Consequence: hiipdr's T/Cloudy of 1.058/0.949/0.838/0.815/0.788 carries sigma
+of 0.2-0.4%, and pn150k's 0.698/0.750/0.737/0.625/0.668 carries 0.000-0.015.
+**Every disagreement published by this project is 15-300 sigma** - the
+comparisons are measurements, not draws.
+
+Two caveats kept deliberately. Four draws means the sd itself carries about 40%
+relative uncertainty, so the full range is reported beside it and three
+significant figures are not claimed. And several small shifts are formally
+2-4 sigma while being three parts in a thousand: an error bar makes small real
+effects visible, it does not make them important.
+
+**L-23. CLOSED 2026-09-23 (D-334). `ionDenPrev` was read and never written.**
+Found by the seed test, not by inspection: two runs at the same seed were
+byte-identical through iterations 1-3 and diverged at iteration 4, the
+fixture's `pdrStartIter`. `iteration_mod.f90` declared, allocated and read
+`ionDenPrev` with no assignment anywhere in the tree, and one of its two reads
+was `grid%ionDen = (1-pdrCoupleDamp)*ionDen + pdrCoupleDamp*ionDenPrev` - so
+with the defaults (0.25, five passes) a quarter of uninitialised memory went
+into the ionization fractions on four of every five coupling passes, on every
+MC iteration from `pdrStartIter`, in every PDR run this project has done.
+
+The D-216 comment above it asserted the block was inert and "measures zero";
+the residual printed beside it read 1.95e30 in one run and 2.26e6 in the other,
+for a quantity bounded by 1, and had done so for as long as the diagnostic
+existed. Fixed by taking the snapshot the damping always assumed it had. The
+residual now reads exactly 0.00000000, which *confirms* D-216's claim rather
+than asserting it.
+
+**Effect on published results: none.** On the 5^3 fixture it was worth a factor
+92 in PDR temperature, and D-334 wrongly generalised from that. On both
+production fixtures T new/old is 0.974-1.001, every point inside the ensemble
+spread (D-335, D-336): `updateCell` recomputes `ionDen` at the top of every MC
+iteration, so the corruption only perturbs the chemistry within one iteration,
+which 22 iterations converge out of and 6 do not. Neither artifact needed
+rebuilding. The one residue is PE heating +0.6 to +1.0%, the same sign at every
+depth - real and negligible.
 
 **L-14. The warm start runs, but warm-versus-cold equivalence is unverified**
 (D-317, was "broken", was "not exercised"). Five defects were found by running
