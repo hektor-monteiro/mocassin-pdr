@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-338, 2026-09-24. Reference model throughout: the 150 kK PN,
+Status as of D-339, 2026-09-24. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -132,20 +132,34 @@ cause of hiipdr's deep cold. [C I] 609 um has E/k = 23.6 K against [C II]'s
 switches on a coolant the gas can actually drive. `pdrCoolSp.out` holds the
 split already; the test costs no run.
 
-**L-4. O-14: the 3D self-shielding tracer is not fit to be the only
-geometry - and nothing in the validation set exercises it** (D-338).
-`hiipdr` and `pn150k` are both `symmetricXYZ` with a uniform `Hdensity`, so
-**every PDR result this project has published comes from a spherically
-symmetric, uniform-density model run in a 3D Monte Carlo code.** The only
-fixtures carrying a `densityFile` are `v1slab`, `v2slab` and `ifront` - the
-three demoted under L-11 - and those are 1D.
+**L-4. O-14: the 3D self-shielding tracer has four named defects, two of them
+active on both production fixtures** (D-259, re-read in D-339).
 
-So the gap is not that the tracer has been tested and found wanting; it is that
-**no fixture can test it.** Closing it needs a structured 3D model that does not
-exist yet: asymmetric or clumpy, where the column to the star differs by
-direction and the ray average has something to average. Until then, the one
-capability that distinguishes MOCASSIN from a 1D code is unvalidated in the
-coupled model.
+O-14 verbatim: *"No reflection at mirror walls, slab rays truncated at 59% of
+depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z."*
+
+What MOCASSIN runs is `computeRayColumns` (`pdr_mod.f90:1467`, D-190) - twelve
+HEALPix nside=1 directions per cell per MC iteration, walked through the real
+grid. The vendored 3D-PDR tracer (`calc_columndens`/`raytheia`) is **dead in
+this build**: its only caller is 3D-PDR's own `chemicaliterations.F90`.
+
+Of the three per-ray arrays reaching `CALCULATE_REACTION_RATES`, **only the
+shielding columns are directional**. `radSurf = chi/12` and `AVray = av` are
+uniform by design (D-001/D-026), so 3D-PDR's ray sum collapses to MOCASSIN's
+own `chi*exp(-gamma*A_V,eff)`. A per-ray A_V is computed (`colRayAV`, :1537)
+and never used.
+
+**Live defect.** The ray walk `exit`s at the grid boundary with no mirror
+reflection (:1515-1521), and both production fixtures are `symmetricXYZ`
+octants. Four of the twelve rays exit through the z=0 mirror and two more
+through the x=0 and y=0 mirrors, so **roughly half the rays carry truncated
+columns on every published run**. A truncated column under-shields, raising the
+photodissociation rate and suppressing H2 and CO. Size unmeasured.
+
+**Next** (O-14's own order): add mirror reflection and re-run one fixture at a
+fixed seed - exact after D-334 - then decide the angular model, then make
+`PDRGEOM=3D` the single flavour. A structured 3D fixture is wanted for the
+angular half, but second.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly

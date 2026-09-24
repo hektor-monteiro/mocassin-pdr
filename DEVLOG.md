@@ -338,6 +338,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-336 | **pn150k's ensemble closes Tier 1 item 1: both published fixtures now carry an error bar, both published comparisons survive it, and D-334's alarm is fully withdrawn.** Four repeats of pn150k differing only in `randomSeed` (`runs/d334-pn150k/s1001-s1004`, 1h28-1h43 each, 10 iterations to 90.13-90.81% against the published run's 9 to 90.15%). **Scatter: T_gas 0.07-0.21% at A_V 0.28-0.65 but 2.17% at A_V 0.21, T_dust 0.01-0.05%, PE heating 0.19-0.32%, ionization front 0.03%, H/H2 A_V 0.07%.** The one depth with a visible bar is the PDR's outer edge nearest the front, where the sample has fewest cells - on hiipdr the equivalent edge behaves the same way. Everywhere else the production-grid Monte Carlo noise is a few parts in a thousand, which together with D-335 retires D-314's 37% on both fixtures rather than one. **The published comparisons are confirmed and now carry bars:** T/Cloudy **0.698+-0.015 / 0.750+-0.002 / 0.737 / 0.625 / 0.668** against D-332's published 0.726/0.757/0.736/0.623/0.669, and PE/Cloudy **0.310/0.403/0.422/0.317/0.263 +- 0.001** against 0.308/0.404/0.419/0.313/0.260. pn150k's uniform cold and its factor 2.5-4 photoelectric deficit are **20-250 sigma**: not draws. **D-334's claim that the artifacts must be rebuilt is now withdrawn for both fixtures**, not just hiipdr - T new/old = 0.974/0.995/1.001/1.001/0.997, the largest departure sitting at the noisiest depth and within 1.2 sigma of it. The one systematic the fix does leave is PE heating **+0.6 to +1.0% at every depth**, consistent in sign across all five, which is real and negligible - the distinction worth keeping, because several of these shifts are formally 2-4 sigma while being three parts in a thousand. **An error bar makes small real effects visible; it does not make them matter.** Tier 1 item 1 is done: seed control implemented (D-334), verified both ways, the defect it found fixed, and the noise floor measured on both published models. Tier 1 item 2 - a third and fourth fixture - is not started. | Accepted | 2026-09-23 |
 | D-337 | **Both Cloudy artifacts rebuilt on the ensembles - 'hiipdr Against Cloudy' v12, '150 kK PN Against Cloudy' v11 - and a claim I made about them was wrong.** Before editing I said both pages "state that no comparison carries an error bar, citing the 37%". **Neither page cites D-314 or the 37% at all** - that text was in `doc/pdr-status.md`'s L-13, already corrected in the D-336 commit. What the pages actually carried was weaker and more specific: hiipdr's caveat rail read "One MOCASSIN run and one Cloudy run", its register held O-25 ("Cloudy comparison is one run of each code. Next: Repeat MOCASSIN once to bound the scatter") and O-18 ("Deep CO/OH differ up to 25x between identical runs"), and the PN page said nothing about scatter anywhere. Checking before editing is what turned a vague edit into four precise ones. **Each page gains a section** giving the four-run ensemble table, the published ratios restated with bars, the retirement of D-314's 37% with the reason, and the D-334 defect with its measured null effect on that fixture. **O-18 is REFUTED rather than closed** (D-335 data, read for this entry): across four seeds hiipdr's deep CO differs by 0.2-0.7% and OH by 0.16-1.1% at A_V 1.5-2.9, against the recorded 25x; the only species with real scatter is neutral C at A_V 2.10 at 7.1%, which is the steep part of the C+ -> C transition where a wide bin samples a large gradient - and which is where L-3 lives. The 25x belonged to an older code state, before line transport and the dust fix and with path biasing on. **O-25 is half closed, deliberately:** MOCASSIN now has four runs, Cloudy still has one, so every bar published is MOCASSIN's alone and both pages say so. Both pages also carry the caution that with bars this tight a shift of three parts in a thousand reads as several sigma, and that significance is not size. | Accepted | 2026-09-24 |
 | D-338 | **The 1D slabs are demoted at the user's direction - and checking what that leaves turned up a sharper gap than the one it closed.** The user's call: `v1slab`, `v2slab` and `ifront` are 1D slab fixtures and sit outside the 3D scope this version of MOCASSIN is being taken to production for, so L-11 drops to low priority and they stay as regression fixtures rather than validation targets. Agreed, and recorded. **But it does not dispose of D-333's Tier 1 item 2**, which asked for a third and fourth fixture because the two in hand disagree about what the code does - hiipdr crossing Cloudy and moving 28% under the sticking fix, pn150k uniformly cold and moving 5%. That need stands; what changes is that the answer must be a *3D* fixture. **Checking which ones qualify found that none do, in a way worth stating plainly:** `hiipdr` and `pn150k` are both `symmetricXYZ` with a uniform `Hdensity`, and the only fixtures in the tree carrying a `densityFile` are exactly the three just demoted. So **every PDR result this project has published comes from a spherically symmetric, uniform-density model run in a 3D Monte Carlo code**, and L-4/O-14 - the 3D self-shielding tracer - is untested not because a test failed but because **no fixture can test it**: with one column per direction and every direction identical, the HEALPix ray average has nothing to average. The one capability that distinguishes MOCASSIN from a 1D code is the one the validation set cannot reach. Closing it needs a structured 3D model that does not exist yet - asymmetric or clumpy, where the column to the star depends on direction. That is now the shape of Tier 1 item 2, and it is a fixture to be *built* rather than a run to be launched. L-4 and L-11 in `doc/pdr-status.md` updated accordingly. | Accepted | 2026-09-24 |
+| D-339 | **D-338's account of L-4/O-14 is WITHDRAWN. The 3D self-shielding tracer is not untested - it is diagnosed, with four named defects, two of which are active on both production fixtures right now.** The user asked me to explain the claim; reading the code and O-14's own row instead of arguing from geometry showed the claim was wrong three ways. **(1) O-14 is a diagnosis, not a gap.** Its text: "No reflection at mirror walls, slab rays truncated at 59% of depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z (D-259). Next: Fix the tracer, decide the angular model, then make PDRGEOM=3D the single flavour." Four measured defects, not an absence of evidence. **(2) "The ray average has nothing to average" was wrong.** `computeRayColumns` (`pdr_mod.f90:1467`, D-190) walks twelve real HEALPix directions per cell per MC iteration through the actual grid, and the twelve columns differ even in a symmetric model. D-190 shows it mattered: before it, all twelve rays carried the source-ward column, which over-shielded the lit face and pinned x(H2) at 0.04 against 3D-PDR's 1.6e-6. **(3) The vendored 3D-PDR tracer is a red herring** - `calc_columndens`/`raytheia` under `RAYTHEIA_MO` is called only from 3D-PDR's own `chemicaliterations.F90`, never from `pdr_mod.f90`, so it is dead in this build. **What is actually true, read off the code:** of the three per-ray arrays handed to `CALCULATE_REACTION_RATES`, only the shielding columns are directional - `radSurf = chi/12` is isotropic and `AVray = av` is the same scalar on all twelve (`pdr_mod.f90:2545-2546`), deliberately, so 3D-PDR's ray sum collapses to MOCASSIN's own `chi*exp(-gamma*A_V,eff)` (D-001/D-026). `colRayAV` is computed at :1537 and never reaches the rate routine. **The live defect worth acting on:** the ray walk terminates at the grid boundary (`exit` at :1515-1521) with no mirror reflection, and both production fixtures are `symmetricXYZ` octants. Of the twelve HEALPix RING directions, the four at mu = -2/3 all exit through the z=0 mirror, and rays 6 and 7 exit through the x=0 and y=0 mirrors - so **roughly half the rays have truncated columns on every published run**, which under-shields, raises the photodissociation rate and suppresses H2 and CO. D-259 measured the truncation at 59% of depth. **This is not a future concern and not a fixture problem; it is a defect in current results, and building an asymmetric fixture would not touch it.** O-14's own ordering - fix the tracer, then decide the angular model - was right and D-338's "build a structured 3D fixture first" was not. | Accepted | 2026-09-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27028,3 +27029,102 @@ to run in the ~1.5 h that makes a four-seed ensemble affordable, which D-334
 now makes the natural unit of evidence.
 
 Not started. Recorded as the next thing, with its shape settled.
+
+---
+
+## D-339 - What the 3D self-shielding tracer actually does (2026-09-24)
+
+The user asked me to explain D-338's claim that L-4/O-14 is untested because no
+fixture can test it. Reading the code and O-14's own register row, instead of
+reasoning from the geometry, showed the claim was wrong in three ways. D-338's
+account is withdrawn.
+
+### O-14 is a diagnosis, not a gap
+
+Its row, verbatim:
+
+> **3D self-shielding tracer not fit to be the only geometry.** No reflection
+> at mirror walls, slab rays truncated at 59% of depth, isotropic chi/12
+> weighting of a one-sided field, HEALPix rings about z (D-259).
+> **Next:** Fix the tracer, decide the angular model, then make PDRGEOM=3D the
+> single flavour.
+
+Four named, measured defects. "Untested" was the opposite of the truth, and
+D-338's proposed next step - build a structured 3D fixture - contradicts
+O-14's own ordering, which puts fixing the tracer first. A defect already
+measured does not need a new fixture to reveal it.
+
+### What is on the path, and what is not
+
+`calc_columndens` / `raytheia` (`source/pdr/columndensity.F90`, under
+`RAYTHEIA_MO`) is the vendored 3D-PDR tracer, and it is **dead in this build**:
+its only caller is 3D-PDR's own `chemicaliterations.F90`. MOCASSIN drives
+`pdrStep` per cell and never enters it. I found that file first and wrote
+D-338 partly from it.
+
+What MOCASSIN actually runs is its own tracer, `computeRayColumns`
+(`pdr_mod.f90:1467`, D-190): twelve HEALPix nside=1 directions per cell, walked
+outward through the real grid once per MC iteration, accumulating N(H2), N(C),
+N(CO) and A_V along each.
+
+So D-338's "the ray average has nothing to average" was wrong. The twelve
+columns differ from one another even in a spherically symmetric model, because
+the distance to the boundary depends on direction - and D-190 shows that
+mattered a great deal. Before it, all twelve rays were given the single
+source-ward column, which over-shielded the illuminated face and pinned x(H2)
+near 0.04 where 3D-PDR gives 1.6e-6.
+
+### Which of the three per-ray arrays is actually directional
+
+`CALCULATE_REACTION_RATES` takes three arrays of length 12:
+
+    radSurf(0:11) = chi/12            ! pdr_mod.f90:2545  - ISOTROPIC
+    AVray(0:11)   = av                ! pdr_mod.f90:2546  - one scalar, x12
+    colH2/colCO/colC(0:11)            ! pdr_mod.f90:2694  - RAY-TRACED
+
+Only the shielding columns carry direction. The first two are uniform by
+design (D-001/D-026): giving every ray chi/12 and the same effective A_V makes
+3D-PDR's internal `sum_k alpha*rad_surface(k)*exp(-gamma*AV(k))` collapse
+exactly to `alpha*chi*exp(-gamma*A_V,eff)`, so MOCASSIN's Monte Carlo field and
+its own grain extinction own the attenuation rather than 3D-PDR re-deriving it.
+A per-ray A_V *is* computed - `colRayAV` at :1537 - and never reaches the rate
+routine.
+
+That is the "isotropic chi/12 weighting of a one-sided field" in O-14. In a
+centrally-illuminated nebula the FUV arrives from one direction; the model
+gives a twelfth of it to each of twelve directions and then shields each with
+its own column. Defensible as an effective treatment in a symmetric model, and
+without justification in an asymmetric one.
+
+### The defect that is live right now
+
+The ray walk terminates at the grid boundary:
+
+    if (px < xAxis(1) .or. px > xAxis(nx) .or. ...) exit    ! :1515-1521
+
+with no reflection. Both production fixtures are `symmetricXYZ` - octants with
+mirror walls at x=0, y=0, z=0. Of the twelve HEALPix RING directions, the four
+at mu = -2/3 all point downward through the z=0 mirror, and rays 6 and 7 point
+through the x=0 and y=0 mirrors. **Roughly half the rays terminate early on
+every run this project has published.**
+
+A truncated column *under*-shields. That raises the photodissociation rate on
+those rays, which suppresses H2 and CO. D-259 measured the truncation at 59%
+of depth.
+
+So this is not a future concern and not a fixture problem. It is a defect in
+current results, on the two models both artifacts are drawn from, and an
+asymmetric fixture would not touch it. Whether it is worth much is unmeasured:
+the H/H2 crossing agrees with Cloudy to 7% on hiipdr and is 32% off on pn150k,
+and nobody has asked how much of that is this.
+
+### What replaces D-338's next step
+
+O-14's ordering stands: fix the tracer, decide the angular model, then make
+`PDRGEOM=3D` the single flavour. The cheapest first measurement is to add
+mirror reflection to `computeRayColumns` and re-run one fixture at a fixed
+seed, which after D-334 is an exact comparison - no Monte Carlo noise in the
+difference at all.
+
+The structured-3D fixture of D-338 is still wanted eventually, for L-4's other
+half - the angular model - but it is second, not first.
