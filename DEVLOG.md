@@ -337,6 +337,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-335 | **The first error bar in this project, and it retires D-314's noise floor - plus my own D-334 overstatement, withdrawn.** Four repeats of hiipdr on the fixed code differing only in `randomSeed` (`runs/d334-hiipdr/s1001-s1004`, 1h22-1h48 each). **Run-to-run scatter on the production grid: T_gas 0.06-0.39%, T_dust 0.04-0.09%, PE heating 0.45-1.81%, ionization front 0.08%, H/H2 A_V 0.20%.** D-314's 37% swing in median T_gas, which has stood as this project's noise floor since and is quoted in L-13 and on both artifact pages, was measured on the 5^3 fixture - a 6-iteration, 75%-converged toy that we now also know carried the D-334 defect. **It is not the production-grid noise and never was.** The consequence is large and in the project's favour: every disagreement with Cloudy that has been published here is 15-300 sigma, so the comparisons are measurements, not draws. hiipdr's T/Cloudy of 1.058/0.949/0.838/0.815/0.788 at A_V 0.81-2.89 carries sigma of 0.2-0.4%. **Second, and correcting D-334:** I wrote there that "every published PDR number in this project was computed with this defect" and that both artifacts "must be rebuilt". The first half is true; **the second is wrong for hiipdr.** Ensemble against the published v11 run gives T new/old = **1.0005/1.0006/1.0008/1.0008/0.9994**, every point within 0.3 sigma, and PE within 1.2 sigma. The factor-92 seen on the 5^3 fixture did not transfer, for a reason visible in the code: `updateCell` recomputes `ionDen` from scratch at the top of every MC iteration, so the corruption is overwritten each time and only perturbs the chemistry *within* an iteration - which a model given 22 iterations converges out of, and one given 6 (of which 3 are PDR) does not. **The defect was real, the fix is right, and its effect on converged production models is null.** I generalised from one fixture within hours of writing D-333's Tier 1 item 2, which says that is exactly what not to do. **Side observation, not chased:** PE heating at A_V 2.89 is *exactly* 0.000e+00 in all five hiipdr runs while total heating is 8.4e-28, having fallen 1.11e-27 -> 1.01e-28 -> 0 over A_V 2.10-2.89. An exact zero looks like a threshold rather than a decline and is worth a look. pn150k's ensemble is still running. | Accepted | 2026-09-23 |
 | D-336 | **pn150k's ensemble closes Tier 1 item 1: both published fixtures now carry an error bar, both published comparisons survive it, and D-334's alarm is fully withdrawn.** Four repeats of pn150k differing only in `randomSeed` (`runs/d334-pn150k/s1001-s1004`, 1h28-1h43 each, 10 iterations to 90.13-90.81% against the published run's 9 to 90.15%). **Scatter: T_gas 0.07-0.21% at A_V 0.28-0.65 but 2.17% at A_V 0.21, T_dust 0.01-0.05%, PE heating 0.19-0.32%, ionization front 0.03%, H/H2 A_V 0.07%.** The one depth with a visible bar is the PDR's outer edge nearest the front, where the sample has fewest cells - on hiipdr the equivalent edge behaves the same way. Everywhere else the production-grid Monte Carlo noise is a few parts in a thousand, which together with D-335 retires D-314's 37% on both fixtures rather than one. **The published comparisons are confirmed and now carry bars:** T/Cloudy **0.698+-0.015 / 0.750+-0.002 / 0.737 / 0.625 / 0.668** against D-332's published 0.726/0.757/0.736/0.623/0.669, and PE/Cloudy **0.310/0.403/0.422/0.317/0.263 +- 0.001** against 0.308/0.404/0.419/0.313/0.260. pn150k's uniform cold and its factor 2.5-4 photoelectric deficit are **20-250 sigma**: not draws. **D-334's claim that the artifacts must be rebuilt is now withdrawn for both fixtures**, not just hiipdr - T new/old = 0.974/0.995/1.001/1.001/0.997, the largest departure sitting at the noisiest depth and within 1.2 sigma of it. The one systematic the fix does leave is PE heating **+0.6 to +1.0% at every depth**, consistent in sign across all five, which is real and negligible - the distinction worth keeping, because several of these shifts are formally 2-4 sigma while being three parts in a thousand. **An error bar makes small real effects visible; it does not make them matter.** Tier 1 item 1 is done: seed control implemented (D-334), verified both ways, the defect it found fixed, and the noise floor measured on both published models. Tier 1 item 2 - a third and fourth fixture - is not started. | Accepted | 2026-09-23 |
 | D-337 | **Both Cloudy artifacts rebuilt on the ensembles - 'hiipdr Against Cloudy' v12, '150 kK PN Against Cloudy' v11 - and a claim I made about them was wrong.** Before editing I said both pages "state that no comparison carries an error bar, citing the 37%". **Neither page cites D-314 or the 37% at all** - that text was in `doc/pdr-status.md`'s L-13, already corrected in the D-336 commit. What the pages actually carried was weaker and more specific: hiipdr's caveat rail read "One MOCASSIN run and one Cloudy run", its register held O-25 ("Cloudy comparison is one run of each code. Next: Repeat MOCASSIN once to bound the scatter") and O-18 ("Deep CO/OH differ up to 25x between identical runs"), and the PN page said nothing about scatter anywhere. Checking before editing is what turned a vague edit into four precise ones. **Each page gains a section** giving the four-run ensemble table, the published ratios restated with bars, the retirement of D-314's 37% with the reason, and the D-334 defect with its measured null effect on that fixture. **O-18 is REFUTED rather than closed** (D-335 data, read for this entry): across four seeds hiipdr's deep CO differs by 0.2-0.7% and OH by 0.16-1.1% at A_V 1.5-2.9, against the recorded 25x; the only species with real scatter is neutral C at A_V 2.10 at 7.1%, which is the steep part of the C+ -> C transition where a wide bin samples a large gradient - and which is where L-3 lives. The 25x belonged to an older code state, before line transport and the dust fix and with path biasing on. **O-25 is half closed, deliberately:** MOCASSIN now has four runs, Cloudy still has one, so every bar published is MOCASSIN's alone and both pages say so. Both pages also carry the caution that with bars this tight a shift of three parts in a thousand reads as several sigma, and that significance is not size. | Accepted | 2026-09-24 |
+| D-338 | **The 1D slabs are demoted at the user's direction - and checking what that leaves turned up a sharper gap than the one it closed.** The user's call: `v1slab`, `v2slab` and `ifront` are 1D slab fixtures and sit outside the 3D scope this version of MOCASSIN is being taken to production for, so L-11 drops to low priority and they stay as regression fixtures rather than validation targets. Agreed, and recorded. **But it does not dispose of D-333's Tier 1 item 2**, which asked for a third and fourth fixture because the two in hand disagree about what the code does - hiipdr crossing Cloudy and moving 28% under the sticking fix, pn150k uniformly cold and moving 5%. That need stands; what changes is that the answer must be a *3D* fixture. **Checking which ones qualify found that none do, in a way worth stating plainly:** `hiipdr` and `pn150k` are both `symmetricXYZ` with a uniform `Hdensity`, and the only fixtures in the tree carrying a `densityFile` are exactly the three just demoted. So **every PDR result this project has published comes from a spherically symmetric, uniform-density model run in a 3D Monte Carlo code**, and L-4/O-14 - the 3D self-shielding tracer - is untested not because a test failed but because **no fixture can test it**: with one column per direction and every direction identical, the HEALPix ray average has nothing to average. The one capability that distinguishes MOCASSIN from a 1D code is the one the validation set cannot reach. Closing it needs a structured 3D model that does not exist yet - asymmetric or clumpy, where the column to the star depends on direction. That is now the shape of Tier 1 item 2, and it is a fixture to be *built* rather than a run to be launched. L-4 and L-11 in `doc/pdr-status.md` updated accordingly. | Accepted | 2026-09-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -26959,3 +26960,71 @@ rather than quietly dropped.
 
 Both pages also carry the caution from D-336: with bars this tight, three parts
 in a thousand reads as several sigma, and significance is not size.
+
+---
+
+## D-338 - The slabs demoted, and what that leaves (2026-09-24)
+
+The user's call, after D-337: `v1slab`, `v2slab` and `ifront` are 1D slab
+fixtures and sit outside the 3D scope this version of MOCASSIN is being taken
+to production for, so they drop to low priority. L-11 is updated; they stay in
+the tree as regression fixtures rather than as validation targets.
+
+Agreed. They were carried in the register as an outstanding validation item
+largely because they had been outstanding for a long time, which is not the
+same as their being on the path.
+
+### What it does not dispose of
+
+D-333's Tier 1 item 2 asked for a third and fourth fixture for a specific
+reason: the two in hand disagree about what the code does. hiipdr crosses
+Cloudy near A_V 1.3 and moved 28% under the sticking fix; pn150k never crosses,
+sits uniformly at 0.63-0.75 of Cloudy, and moved 5%. Two fixtures that
+contradict each other cannot say which behaviour is the code's and which is the
+model's. That need stands. What the user's call changes is that the answer has
+to be a **3D** fixture.
+
+### Which existing fixtures qualify: none, and the reason matters
+
+    fixture    geometry       density
+    hiipdr     symmetricXYZ   Hdensity 100   (uniform)
+    pn150k     symmetricXYZ   Hdensity 1000  (uniform)
+    ifront     -              densityFile 'input/front.den'
+    v1slab     -              densityFile 'input/v1.den'
+    v2slab     -              densityFile 'input/v1.den'
+
+The only fixtures in the tree with a structured density are exactly the three
+just demoted, and those are 1D. So:
+
+**Every PDR result this project has published comes from a spherically
+symmetric, uniform-density model run in a 3D Monte Carlo code.**
+
+That reframes L-4/O-14. The 3D self-shielding tracer is not untested because a
+test was run and came out badly; it is untested because **no fixture in the set
+can test it.** With one column per direction and every direction identical, the
+HEALPix ray average has nothing to average - it returns the 1D answer by
+construction, and would do so even if the tracer were wrong. A passing result
+on either production fixture carries no information about it.
+
+The consequence is worth stating in one sentence: **the one capability that
+distinguishes MOCASSIN from a 1D photoionization code is the one the validation
+set cannot reach.**
+
+### What Tier 1 item 2 becomes
+
+A fixture to be *built*, not a run to be launched. It needs structure that
+makes direction matter - an asymmetric shell, a clump, a density gradient
+across the grid - so that the column to the star genuinely differs by ray. The
+two existing 3D fixtures already span a useful range in the other parameters
+(40 kK against 150 kK, n_H 100 against 1000, silicate against graphite, A_V 3
+against 0.68), so the third should vary geometry rather than adding another
+point in that space.
+
+Two things to decide when it is built, recorded now so they are decided rather
+than defaulted: what the reference is (Cloudy is 1D and cannot supply one for
+an asymmetric model, so the comparison would have to be internal - for instance
+the same mass in a smooth shell against a clumped one), and whether it is sized
+to run in the ~1.5 h that makes a four-seed ensemble affordable, which D-334
+now makes the natural unit of evidence.
+
+Not started. Recorded as the next thing, with its shape settled.

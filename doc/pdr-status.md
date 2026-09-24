@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-336, 2026-09-23. Reference model throughout: the 150 kK PN,
+Status as of D-338, 2026-09-24. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -133,7 +133,19 @@ switches on a coolant the gas can actually drive. `pdrCoolSp.out` holds the
 split already; the test costs no run.
 
 **L-4. O-14: the 3D self-shielding tracer is not fit to be the only
-geometry.** Unchanged.
+geometry - and nothing in the validation set exercises it** (D-338).
+`hiipdr` and `pn150k` are both `symmetricXYZ` with a uniform `Hdensity`, so
+**every PDR result this project has published comes from a spherically
+symmetric, uniform-density model run in a 3D Monte Carlo code.** The only
+fixtures carrying a `densityFile` are `v1slab`, `v2slab` and `ifront` - the
+three demoted under L-11 - and those are 1D.
+
+So the gap is not that the tracer has been tested and found wanting; it is that
+**no fixture can test it.** Closing it needs a structured 3D model that does not
+exist yet: asymmetric or clumpy, where the column to the star differs by
+direction and the ray average has something to average. Until then, the one
+capability that distinguishes MOCASSIN from a 1D code is unvalidated in the
+coupled model.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly
@@ -216,8 +228,12 @@ table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
 That bin is 26% of grains by number but only 3.2% of the FUV absorption, so
 the FUV impact is small and the far-IR impact is not (D-305).
 
-**L-11. O-09: the V1/V2 slabs have not been re-run** since D-260/D-263/D-266,
-and not at all since this cycle's changes. Deferred deliberately.
+**L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
+D-260/D-263/D-266, and not at all since this cycle's changes.
+**Demoted to low priority 2026-09-24 at the user's direction** (D-338): they
+are 1D slab fixtures and sit outside the 3D scope this version of MOCASSIN is
+being taken to production for. They stay in the tree as regression fixtures
+rather than as validation targets.
 
 **L-12. `thermBudget.out`'s cooling columns are bookkeeping, not channels.**
 `coll` still carries the [C II]/[O I] it is about to hand to the chemistry,
