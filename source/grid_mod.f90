@@ -1703,18 +1703,14 @@ module grid_mod
              stop
           end if
           grid%pdrSeeded = 0
-#ifdef RAYTHEIA
-          allocate(grid%colRayH2(0:grid%nCells,0:11), stat = err)  ! D-190
-          if (err == 0) allocate(grid%colRayC (0:grid%nCells,0:11), stat = err)
-          if (err == 0) allocate(grid%colRayCO(0:grid%nCells,0:11), stat = err)
-          if (err == 0) allocate(grid%colRayAV(0:grid%nCells,0:11), stat = err)
-          if (err /= 0) then
-             print*, "Can't allocate memory to per-ray column arrays"
-             stop
-          end if
-          grid%colRayH2 = 0.; grid%colRayC = 0.
-          grid%colRayCO = 0.; grid%colRayAV = 0.
-#endif
+          ! D-341: the per-ray column arrays (colRayH2/C/CO/AV) used to be
+          ! allocated here under #ifdef RAYTHEIA. grid_mod.f90 is built by the
+          ! Makefile's generic %.o rule, which carries $(FFLAGS) but not
+          ! $(PDRFLAGS), and RAYTHEIA is only defined in PDRFLAGS - so the
+          ! block was preprocessed away in every build ever made and the arrays
+          ! were never allocated. They are now allocated in pdr_mod's
+          ! computeRayColumns, which is compiled WITH the flag that guards the
+          ! feature. Do not add a RAYTHEIA-guarded block to this file.
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then
@@ -3765,17 +3761,10 @@ end function getVolume
                   print*, "! resetGrid: can't allocate pdrSeeded memory"; stop
                end if
                grid(iG)%pdrSeeded = 0
-#ifdef RAYTHEIA
-               allocate(grid(iG)%colRayH2(0:grid(iG)%nCells,0:11), stat = err)  ! D-190
-               if (err == 0) allocate(grid(iG)%colRayC (0:grid(iG)%nCells,0:11), stat = err)
-               if (err == 0) allocate(grid(iG)%colRayCO(0:grid(iG)%nCells,0:11), stat = err)
-               if (err == 0) allocate(grid(iG)%colRayAV(0:grid(iG)%nCells,0:11), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate per-ray column arrays"; stop
-               end if
-               grid(iG)%colRayH2 = 0.; grid(iG)%colRayC = 0.
-               grid(iG)%colRayCO = 0.; grid(iG)%colRayAV = 0.
-#endif
+               ! D-341: see the note at the other allocation site - these
+               ! arrays are allocated in pdr_mod's computeRayColumns, because
+               ! grid_mod is not compiled with $(PDRFLAGS) and so never saw
+               ! RAYTHEIA. The block that stood here was dead in every build.
                allocate(grid(iG)%pdrCoolSlope(0:grid(iG)%nCells), stat = err)  ! D-166
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSlope memory"; stop

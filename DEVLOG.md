@@ -339,6 +339,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-337 | **Both Cloudy artifacts rebuilt on the ensembles - 'hiipdr Against Cloudy' v12, '150 kK PN Against Cloudy' v11 - and a claim I made about them was wrong.** Before editing I said both pages "state that no comparison carries an error bar, citing the 37%". **Neither page cites D-314 or the 37% at all** - that text was in `doc/pdr-status.md`'s L-13, already corrected in the D-336 commit. What the pages actually carried was weaker and more specific: hiipdr's caveat rail read "One MOCASSIN run and one Cloudy run", its register held O-25 ("Cloudy comparison is one run of each code. Next: Repeat MOCASSIN once to bound the scatter") and O-18 ("Deep CO/OH differ up to 25x between identical runs"), and the PN page said nothing about scatter anywhere. Checking before editing is what turned a vague edit into four precise ones. **Each page gains a section** giving the four-run ensemble table, the published ratios restated with bars, the retirement of D-314's 37% with the reason, and the D-334 defect with its measured null effect on that fixture. **O-18 is REFUTED rather than closed** (D-335 data, read for this entry): across four seeds hiipdr's deep CO differs by 0.2-0.7% and OH by 0.16-1.1% at A_V 1.5-2.9, against the recorded 25x; the only species with real scatter is neutral C at A_V 2.10 at 7.1%, which is the steep part of the C+ -> C transition where a wide bin samples a large gradient - and which is where L-3 lives. The 25x belonged to an older code state, before line transport and the dust fix and with path biasing on. **O-25 is half closed, deliberately:** MOCASSIN now has four runs, Cloudy still has one, so every bar published is MOCASSIN's alone and both pages say so. Both pages also carry the caution that with bars this tight a shift of three parts in a thousand reads as several sigma, and that significance is not size. | Accepted | 2026-09-24 |
 | D-338 | **The 1D slabs are demoted at the user's direction - and checking what that leaves turned up a sharper gap than the one it closed.** The user's call: `v1slab`, `v2slab` and `ifront` are 1D slab fixtures and sit outside the 3D scope this version of MOCASSIN is being taken to production for, so L-11 drops to low priority and they stay as regression fixtures rather than validation targets. Agreed, and recorded. **But it does not dispose of D-333's Tier 1 item 2**, which asked for a third and fourth fixture because the two in hand disagree about what the code does - hiipdr crossing Cloudy and moving 28% under the sticking fix, pn150k uniformly cold and moving 5%. That need stands; what changes is that the answer must be a *3D* fixture. **Checking which ones qualify found that none do, in a way worth stating plainly:** `hiipdr` and `pn150k` are both `symmetricXYZ` with a uniform `Hdensity`, and the only fixtures in the tree carrying a `densityFile` are exactly the three just demoted. So **every PDR result this project has published comes from a spherically symmetric, uniform-density model run in a 3D Monte Carlo code**, and L-4/O-14 - the 3D self-shielding tracer - is untested not because a test failed but because **no fixture can test it**: with one column per direction and every direction identical, the HEALPix ray average has nothing to average. The one capability that distinguishes MOCASSIN from a 1D code is the one the validation set cannot reach. Closing it needs a structured 3D model that does not exist yet - asymmetric or clumpy, where the column to the star depends on direction. That is now the shape of Tier 1 item 2, and it is a fixture to be *built* rather than a run to be launched. L-4 and L-11 in `doc/pdr-status.md` updated accordingly. | Accepted | 2026-09-24 |
 | D-339 | **D-338's account of L-4/O-14 is WITHDRAWN. The 3D self-shielding tracer is not untested - it is diagnosed, with four named defects, two of which are active on both production fixtures right now.** The user asked me to explain the claim; reading the code and O-14's own row instead of arguing from geometry showed the claim was wrong three ways. **(1) O-14 is a diagnosis, not a gap.** Its text: "No reflection at mirror walls, slab rays truncated at 59% of depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z (D-259). Next: Fix the tracer, decide the angular model, then make PDRGEOM=3D the single flavour." Four measured defects, not an absence of evidence. **(2) "The ray average has nothing to average" was wrong.** `computeRayColumns` (`pdr_mod.f90:1467`, D-190) walks twelve real HEALPix directions per cell per MC iteration through the actual grid, and the twelve columns differ even in a symmetric model. D-190 shows it mattered: before it, all twelve rays carried the source-ward column, which over-shielded the lit face and pinned x(H2) at 0.04 against 3D-PDR's 1.6e-6. **(3) The vendored 3D-PDR tracer is a red herring** - `calc_columndens`/`raytheia` under `RAYTHEIA_MO` is called only from 3D-PDR's own `chemicaliterations.F90`, never from `pdr_mod.f90`, so it is dead in this build. **What is actually true, read off the code:** of the three per-ray arrays handed to `CALCULATE_REACTION_RATES`, only the shielding columns are directional - `radSurf = chi/12` is isotropic and `AVray = av` is the same scalar on all twelve (`pdr_mod.f90:2545-2546`), deliberately, so 3D-PDR's ray sum collapses to MOCASSIN's own `chi*exp(-gamma*A_V,eff)` (D-001/D-026). `colRayAV` is computed at :1537 and never reaches the rate routine. **The live defect worth acting on:** the ray walk terminates at the grid boundary (`exit` at :1515-1521) with no mirror reflection, and both production fixtures are `symmetricXYZ` octants. Of the twelve HEALPix RING directions, the four at mu = -2/3 all exit through the z=0 mirror, and rays 6 and 7 exit through the x=0 and y=0 mirrors - so **roughly half the rays have truncated columns on every published run**, which under-shields, raises the photodissociation rate and suppresses H2 and CO. D-259 measured the truncation at 59% of depth. **This is not a future concern and not a fixture problem; it is a defect in current results, and building an asymmetric fixture would not touch it.** O-14's own ordering - fix the tracer, then decide the angular model - was right and D-338's "build a structured 3D fixture first" was not. | Accepted | 2026-09-24 |
+| D-340 | **Mirror reflection added to `computeRayColumns`, with the prediction recorded before the run - and the DEVLOG entry omitted, which is its own defect.** O-14's first named defect: the ray walk `exit`ed at the grid boundary with no reflection, and both production fixtures are `symmetricXYZ` octants whose LOWER faces are planes of symmetry. Of the twelve HEALPix RING directions the four at mu = -2/3 exit through the z=0 mirror and rays 6 and 7 through x=0 and y=0, so about half the rays carried truncated columns; D-259 measured the truncation at 59% of depth, and a truncated column **under**-shields. A ray crossing a plane of symmetry continues into gas identical to the gas it just left, so folding the sample point about the plane (`px = 2*xlo - px`) samples exactly that; each coordinate is monotonic along a straight ray, so it crosses each plane at most once and one fold per axis is exact for every later step. The upper faces stay terminal - they are the edge of the model. The walk was lengthened to `2*dmax` because a reflected ray runs through the mirrored octants too. `tools/d340_mirror.py` holds the prediction, committed before the run: columns can only grow, so H2 and CO form shallower and the H/H2 crossing moves to **smaller** A_V; falsified by the crossing moving deeper, H2 or CO falling, or the ionization front or dust temperature moving. Size deliberately not predicted. **The code change is correct and turned out to be entirely inert - see D-341** - so this prediction is untested, not confirmed. **Process note:** this entry was written only after D-341, because the commit shipped the code and the prediction tool and no DEVLOG entry at all. The rule is that every decision gets an entry when it lands; skipping it meant the prediction existed only in a docstring, and for one commit the history did not say what had been changed or why. | Superseded in effect by D-341 | 2026-09-24 |
+| D-341 | **D-340's mirror fix was correct and completely inert, because `grid_mod.f90` is not compiled with `$(PDRFLAGS)` - so D-190's per-ray shielding columns have never been live in any run this project has made.** `runs/d340-mirror` came back **byte-identical to `runs/d334-hiipdr/s1001` in all seven output files**. That is impossible for a real change and, at the same seed, a decisive null: the code I edited never ran. Cause, proved by preprocessing rather than inferred: the Makefile compiles `source/grid_mod.f90` with the generic `%.o` rule, which carries `$(FFLAGS)` but **not** `$(PDRFLAGS)`, and `RAYTHEIA` is defined only in `PDRFLAGS`. `gfortran -E` on grid_mod.f90 yields **0** occurrences of `colRayH2` with the build's real flags and **4** with `-DRAYTHEIA` added. Both of grid_mod's allocation blocks (`:1706` in the grid build, `:3768` in `resetGrid`) were preprocessed away in every build ever made, so `colRayH2/C/CO/AV` were never allocated; `computeRayColumns` ran and hit `if (.not.allocated(...)) cycle` for every grid; and `pdrStep`'s `if (allocated(grid%colRayH2))` override never fired, leaving `colH2 = sH2` - the single source-ward slab scalar - on all twelve rays. **Nothing failed loudly: an unallocated allocatable just reports `.false.`** **This makes the shielding wholly slab-equivalent and corrects D-339,** which said "only the shielding columns are directional": in fact all three per-ray arrays handed to `CALCULATE_REACTION_RATES` are twelve copies of one number, and there is no directional shielding anywhere in this build. **It also puts a caveat on D-190,** whose index row claims mean Te **-23%**, per-iteration change 26.8% -> 6.9% and the front oscillation gone. That change bundled three things - un-blanking 11 of 12 rays, dividing the escape probability, and the per-ray columns - and the first two live in `pdr_mod`/`source/pdr/`, which do get the flag. The measured -23% is real but **cannot be attributed to the per-ray columns**, which never ran. **Fixed** by allocating the arrays in `computeRayColumns` itself - the file where the guarding flag actually arrives - and replacing grid_mod's two dead blocks with signposts saying why a RAYTHEIA-guarded block cannot work there. A sweep of every file built by the generic rule for `PDRFLAGS`-only macros returns exactly two: `common_mod.f90`, which hit this trap and worked around it at the declaration with a comment, and `grid_mod.f90`, where nobody noticed. Two runs at seed 1001 are attributing the per-ray columns and the mirror fold separately rather than confounding them; D-340's prediction is **untested**, not confirmed or refuted. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27128,3 +27130,174 @@ difference at all.
 
 The structured-3D fixture of D-338 is still wanted eventually, for L-4's other
 half - the angular model - but it is second, not first.
+
+---
+
+## D-340 - Mirror reflection in computeRayColumns (2026-09-24)
+
+O-14's first named defect, taken in O-14's own order. Written up after D-341,
+because the commit that landed the code carried no DEVLOG entry - see the
+process note at the end.
+
+### The defect
+
+`computeRayColumns` walked each of twelve HEALPix rays outward and stopped at
+the grid boundary:
+
+    if (px < xAxis(1) .or. px > xAxis(nx) .or. ...) exit
+
+`symmetricXYZ` builds axes as `xAxis(i) = (i-1)/(nx-1)*Rnx`, so the grid is an
+octant with x = y = z = 0 as **planes of symmetry**, not edges. Of the twelve
+RING directions, the four at mu = -2/3 point down through the z = 0 plane and
+rays 6 and 7 through x = 0 and y = 0. About half the rays were being cut off at
+a wall that is not a wall. D-259 measured the truncation at 59% of depth.
+
+A truncated column **under**-shields, so the photodissociation rate comes out
+too high and H2 and CO too low.
+
+### The change
+
+A ray crossing a plane of symmetry continues into gas identical to the gas it
+just left, so folding the sample point about the plane samples exactly that:
+
+    if (lgSymmetricXYZ) then
+       if (px < xlo) px = 2.d0*xlo - px
+       if (py < ylo) py = 2.d0*ylo - py
+       if (pz < zlo) pz = 2.d0*zlo - pz
+    end if
+
+One fold per axis is exact rather than approximate: each coordinate is
+monotonic along a straight ray, so it crosses each plane at most once and the
+fold holds for every later step. The **upper** faces stay terminal - they are
+the edge of the model. The walk was lengthened to `2*dmax`, because in the
+unfolded picture a reflected ray runs through the mirrored octants as well and
+would otherwise run out of steps before leaving.
+
+### The prediction, committed before the run
+
+`tools/d340_mirror.py`: columns can only grow, so the gas is better shielded,
+H2 and CO form **shallower**, and the H/H2 crossing moves to **smaller** A_V.
+Falsified by the crossing moving deeper, by H2 or CO falling, or by the
+ionization front or the dust temperature moving. Size deliberately not
+predicted - D-259's 59% truncation converts into abundance through a steeply
+non-linear self-shielding curve.
+
+The comparison run used `randomSeed 1001` to match `runs/d334-hiipdr/s1001`, so
+the difference would carry no Monte Carlo noise at all.
+
+### Outcome
+
+The change is correct and was **entirely inert**: D-341 found that the arrays it
+writes are never allocated, so this prediction is **untested** - neither
+confirmed nor refuted.
+
+### Process note
+
+This entry exists only because D-341 needed to reference it. The commit that
+landed the fix (`53d9400`) contained the code and the prediction tool and no
+DEVLOG entry. The standing rule is that every decision gets an entry as it
+lands; skipping it left the prediction living in a docstring, and for one commit
+the history did not record what had changed or why. Recorded rather than
+quietly backfilled.
+
+---
+
+## D-341 - The mirror fix was inert, and why (2026-09-25)
+
+`runs/d340-mirror` finished and came back **byte-identical to
+`runs/d334-hiipdr/s1001` in all seven output files** - `grid1`, `grid2`,
+`grid3`, `temperature`, `thermBudget`, `pdrGrid`, `lineFlux`.
+
+At a fixed seed that is not a small effect, it is a decisive null: the code I
+had edited never ran. (Runtime differed - 1 h 22 against 1 h 48 - which is
+machine load, not physics. The first s1001 run was the opening run of an
+eight-run batch.)
+
+### The cause, proved rather than inferred
+
+The Makefile compiles `source/grid_mod.f90` with the generic rule:
+
+    %.o: %.f90 .pdrflag Makefile
+        $(FC) $(FFLAGS) $< -c -o $@
+
+`$(PDRFLAGS)` - which is where `RAYTHEIA` is defined - is attached to exactly
+three targets: `source/pdr_mod.o`, `source/pdrSmokeTest.o` and
+`source/pdr/%.o`. `grid_mod.f90` is not one of them.
+
+Preprocessing settles it:
+
+    occurrences of colRayH2 in the preprocessed grid_mod.f90
+      with the flags the build actually uses   0
+      with -DRAYTHEIA added                    4
+
+So both of grid_mod's allocation blocks - one in the grid build, one in
+`resetGrid` for the warm start - were compiled away in **every build this
+project has ever made**. Therefore:
+
+  - `colRayH2/C/CO/AV` were never allocated;
+  - `computeRayColumns` ran every iteration and hit
+    `if (.not.allocated(grid(iG)%colRayH2)) cycle` for every grid, doing
+    nothing;
+  - `pdrStep`'s `if (allocated(grid%colRayH2))` override never fired, so
+    `colH2 = sH2` stood - the single source-ward slab scalar, copied to all
+    twelve rays.
+
+**Nothing failed loudly.** An unallocated allocatable reports `.false.`; there
+is no error, no warning, no crash. The feature reported itself absent and the
+absence looked like a correct guard.
+
+### What it corrects
+
+**D-339 is corrected.** It said "only the shielding columns are directional".
+They are not. All three per-ray arrays reaching `CALCULATE_REACTION_RATES` -
+`radSurf = chi/12`, `AVray = av`, and the columns - are twelve copies of one
+number. **There is no directional shielding anywhere in this build.** The
+slab-equivalent treatment described in `pdrStep`'s D-001/D-026 comment is the
+whole of it, and the comment at the column assignment describing what "the
+traced values give each ray" is describing something that has never happened.
+
+**D-190 gets a caveat, not a retraction.** Its index row claims mean Te -23%,
+per-iteration change 26.8% -> 6.9%, and the two-cell front oscillation gone.
+That change bundled three things: un-blanking 11 of 12 rays, dividing the
+escape probability, and the per-ray columns. The first two live in `pdr_mod`
+and `source/pdr/`, which do receive the flag, so they were live. The measured
+-23% is real; it simply **cannot be attributed to the per-ray columns**, which
+never ran. D-190's headline named them first.
+
+### The fix
+
+The arrays are now allocated in `computeRayColumns` itself - the file where the
+flag that guards the feature actually arrives - and grid_mod's two dead blocks
+are replaced by signposts saying why a `RAYTHEIA`-guarded block cannot work
+there. Allocation and use now sit in one file under one flag, which is the only
+arrangement the Makefile's scoping cannot silently break.
+
+### How widespread is the trap
+
+A sweep of every file built by the generic rule for macros defined only in
+`PDRFLAGS` (`RAYTHEIA`, `RAYTHEIA_MO`, `THERMALBALANCE`, `REDUCED`,
+`H2FORM_CT02`, `CHEMSTEADY`, `CHEMRETRY`, `FORCECONVERGENCE`, `NGACCEL`,
+`NGCYCLE`, `NGRELAX`, `ILLINOIS`, `REBRACKET`, `SOBOLEV`, `ONEDIMENSIONAL`,
+`GRAINRECOMB`, `BALG`) returns exactly two files:
+
+  - `common_mod.f90` - which hit this trap and worked around it, declaring the
+    fields unconditionally with a note at the declaration saying that
+    PDRGEOMFLAG does not reach its compilation;
+  - `grid_mod.f90` - where nobody noticed.
+
+So the trap was known, documented in one file, and live in the one next to it.
+
+### Attribution, deliberately split
+
+Turning the arrays on and adding mirror reflection in one step would confound
+two changes that have never been measured. Two runs at `randomSeed 1001`:
+
+  - `runs/d341-percol` - per-ray columns live, fold disabled. Tests D-190's
+    never-tested third component.
+  - `runs/d341-mirror` - per-ray columns live plus the fold. Isolates O-14's
+    first defect against the former.
+
+The fold was disabled for the first by a throwaway experiment binary built from
+a temporarily edited source, not by a keyword: the shipped source carries no
+switch, and the binary rebuilt from the restored source is byte-identical to the
+one used for the second run. Both runs are in flight.

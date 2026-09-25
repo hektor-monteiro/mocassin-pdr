@@ -1469,6 +1469,7 @@ module pdr_mod
         type(grid_type), intent(inout) :: grid(*)
 
         integer :: iG, i, j, k, kray, istep, nstep, ix, iy, iz, cP, cellP
+        integer :: errAlloc                                ! D-341
         double precision :: vx(0:11), vy(0:11), vz(0:11)
         double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
         double precision :: cH2, cC, cCO, cAV, nd, kap
@@ -1487,7 +1488,38 @@ module pdr_mod
         end do
 
         do iG = 1, nGrids
-           if (.not.allocated(grid(iG)%colRayH2)) cycle
+           ! D-341: these arrays are allocated HERE, and nowhere else.
+           !
+           ! grid_mod had two allocation blocks for them, both guarded by
+           ! #ifdef RAYTHEIA - and grid_mod.f90 is built by the Makefile's
+           ! generic %.o rule, which carries $(FFLAGS) but NOT $(PDRFLAGS).
+           ! RAYTHEIA is only ever defined in PDRFLAGS, so both blocks were
+           ! preprocessed away in every build that has ever been made, the
+           ! arrays were never allocated, the `.not.allocated -> cycle` that
+           ! used to stand here fired for every grid, and D-190's per-ray
+           ! shielding columns have never once been live. Nothing failed
+           ! loudly: an unallocated allocatable simply reports .false.
+           !
+           ! The allocation belongs in this file because this file is where
+           ! the flag that guards the feature actually arrives. common_mod hit
+           ! the same trap and worked around it by declaring the fields
+           ! unconditionally (see its note at the declaration); grid_mod has
+           ! the same trap and nobody noticed.
+           if (.not.allocated(grid(iG)%colRayH2)) then
+              allocate(grid(iG)%colRayH2(0:grid(iG)%nCells,0:11), stat=errAlloc)
+              if (errAlloc == 0) &
+                 & allocate(grid(iG)%colRayC (0:grid(iG)%nCells,0:11), stat=errAlloc)
+              if (errAlloc == 0) &
+                 & allocate(grid(iG)%colRayCO(0:grid(iG)%nCells,0:11), stat=errAlloc)
+              if (errAlloc == 0) &
+                 & allocate(grid(iG)%colRayAV(0:grid(iG)%nCells,0:11), stat=errAlloc)
+              if (errAlloc /= 0) then
+                 print*, "! computeRayColumns: can't allocate per-ray column arrays"
+                 stop
+              end if
+              grid(iG)%colRayH2 = 0.; grid(iG)%colRayC  = 0.
+              grid(iG)%colRayCO = 0.; grid(iG)%colRayAV = 0.
+           end if
            ds = abs(dble(grid(iG)%xAxis(min(2,grid(iG)%nx))) &
                 & - dble(grid(iG)%xAxis(1)))
            if (grid(iG)%ny > 1) ds = min(ds, abs(dble(grid(iG)%yAxis(2)) &
