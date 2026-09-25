@@ -1901,11 +1901,11 @@ module pdr_mod
         end do
 
 
-#ifdef RAYTHEIA
-        ! D-190: with the grid's abundances current, retrace the per-ray
-        ! shielding columns before the chemistry consumes them.
-        call computeRayColumns(grid)
-#endif
+! D-342: computeRayColumns is no longer called. Nothing consumes its output
+        ! now (see pdrStep), and the trace costs twelve ray walks per cell per
+        ! iteration - about 25% of runtime where it was measured. The routine is
+        ! kept, with its mirror reflection (D-340), for the angular-model work
+        ! that has to come first.
 
       end subroutine mocassinToPDR
 
@@ -2751,15 +2751,35 @@ module pdr_mod
         colCO = sCO
         colC  = sC
         colHD = 0.d0
-#ifdef RAYTHEIA
-        if (allocated(grid%colRayH2)) then
-           do iRay = 0, nraysLoc-1
-              colH2(iRay) = dble(grid%colRayH2(cellP,iRay))
-              colCO(iRay) = dble(grid%colRayCO(cellP,iRay))
-              colC (iRay) = dble(grid%colRayC (cellP,iRay))
-           end do
-        end if
-#endif
+! D-342: the per-ray override that stood here is REMOVED, measured rather
+        ! than argued. It is incoherent with the isotropic field beside it, and
+        ! the two can only be fixed together.
+        !
+        ! radSurf(k) = chi/12 on every ray. With the slab-equivalent column on
+        ! every ray too, the rate sums to chi*exp(-gamma*A_V)*shield(N_source) -
+        ! exactly the right 1D answer: twelve identical rays each carrying a
+        ! twelfth of the field ARE the one physical ray. The pairing is
+        ! self-consistent.
+        !
+        ! Give each ray its own traced column while the field stays isotropic,
+        ! and the six or seven rays pointing OUT of the cloud carry a tiny
+        ! column, so shield ~ 1 and each delivers its full chi/12 unattenuated
+        ! at every depth. That invents FUV arriving from outside the nebula,
+        ! where there is no source. Deep in the cloud shield(N) ~ 1e-5, so the
+        ! dissociation rate rises by ~1e4 and H2 cannot form.
+        !
+        ! Measured on hiipdr at randomSeed 1001 (runs/d341-percol against
+        ! runs/d334-hiipdr/s1001, an exact comparison): x(H2) fell by factors of
+        ! 500 to 1000 across the PDR, CO by 1.5 to 30, the H/H2 crossing
+        ! DISAPPEARED - the gas never turns molecular - and the ionization front
+        ! moved 1%. Convergence "improved" from 74.9% to 92.1% and the run got
+        ! six times faster, because a PDR with no molecules has no stiff
+        ! chemistry left to solve (the D-176..D-181 lesson again).
+        !
+        ! So the per-ray columns wait on the angular model, not the other way
+        ! round: rad_surface has to know which direction the star is in before a
+        ! per-ray column means anything. computeRayColumns is left in place,
+        ! correct and uncalled, for that work.
         colS  = 0.d0
 
         abun0 = abun

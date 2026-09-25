@@ -341,6 +341,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-339 | **D-338's account of L-4/O-14 is WITHDRAWN. The 3D self-shielding tracer is not untested - it is diagnosed, with four named defects, two of which are active on both production fixtures right now.** The user asked me to explain the claim; reading the code and O-14's own row instead of arguing from geometry showed the claim was wrong three ways. **(1) O-14 is a diagnosis, not a gap.** Its text: "No reflection at mirror walls, slab rays truncated at 59% of depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z (D-259). Next: Fix the tracer, decide the angular model, then make PDRGEOM=3D the single flavour." Four measured defects, not an absence of evidence. **(2) "The ray average has nothing to average" was wrong.** `computeRayColumns` (`pdr_mod.f90:1467`, D-190) walks twelve real HEALPix directions per cell per MC iteration through the actual grid, and the twelve columns differ even in a symmetric model. D-190 shows it mattered: before it, all twelve rays carried the source-ward column, which over-shielded the lit face and pinned x(H2) at 0.04 against 3D-PDR's 1.6e-6. **(3) The vendored 3D-PDR tracer is a red herring** - `calc_columndens`/`raytheia` under `RAYTHEIA_MO` is called only from 3D-PDR's own `chemicaliterations.F90`, never from `pdr_mod.f90`, so it is dead in this build. **What is actually true, read off the code:** of the three per-ray arrays handed to `CALCULATE_REACTION_RATES`, only the shielding columns are directional - `radSurf = chi/12` is isotropic and `AVray = av` is the same scalar on all twelve (`pdr_mod.f90:2545-2546`), deliberately, so 3D-PDR's ray sum collapses to MOCASSIN's own `chi*exp(-gamma*A_V,eff)` (D-001/D-026). `colRayAV` is computed at :1537 and never reaches the rate routine. **The live defect worth acting on:** the ray walk terminates at the grid boundary (`exit` at :1515-1521) with no mirror reflection, and both production fixtures are `symmetricXYZ` octants. Of the twelve HEALPix RING directions, the four at mu = -2/3 all exit through the z=0 mirror, and rays 6 and 7 exit through the x=0 and y=0 mirrors - so **roughly half the rays have truncated columns on every published run**, which under-shields, raises the photodissociation rate and suppresses H2 and CO. D-259 measured the truncation at 59% of depth. **This is not a future concern and not a fixture problem; it is a defect in current results, and building an asymmetric fixture would not touch it.** O-14's own ordering - fix the tracer, then decide the angular model - was right and D-338's "build a structured 3D fixture first" was not. | Accepted | 2026-09-24 |
 | D-340 | **Mirror reflection added to `computeRayColumns`, with the prediction recorded before the run - and the DEVLOG entry omitted, which is its own defect.** O-14's first named defect: the ray walk `exit`ed at the grid boundary with no reflection, and both production fixtures are `symmetricXYZ` octants whose LOWER faces are planes of symmetry. Of the twelve HEALPix RING directions the four at mu = -2/3 exit through the z=0 mirror and rays 6 and 7 through x=0 and y=0, so about half the rays carried truncated columns; D-259 measured the truncation at 59% of depth, and a truncated column **under**-shields. A ray crossing a plane of symmetry continues into gas identical to the gas it just left, so folding the sample point about the plane (`px = 2*xlo - px`) samples exactly that; each coordinate is monotonic along a straight ray, so it crosses each plane at most once and one fold per axis is exact for every later step. The upper faces stay terminal - they are the edge of the model. The walk was lengthened to `2*dmax` because a reflected ray runs through the mirrored octants too. `tools/d340_mirror.py` holds the prediction, committed before the run: columns can only grow, so H2 and CO form shallower and the H/H2 crossing moves to **smaller** A_V; falsified by the crossing moving deeper, H2 or CO falling, or the ionization front or dust temperature moving. Size deliberately not predicted. **The code change is correct and turned out to be entirely inert - see D-341** - so this prediction is untested, not confirmed. **Process note:** this entry was written only after D-341, because the commit shipped the code and the prediction tool and no DEVLOG entry at all. The rule is that every decision gets an entry when it lands; skipping it meant the prediction existed only in a docstring, and for one commit the history did not say what had been changed or why. | Superseded in effect by D-341 | 2026-09-24 |
 | D-341 | **D-340's mirror fix was correct and completely inert, because `grid_mod.f90` is not compiled with `$(PDRFLAGS)` - so D-190's per-ray shielding columns have never been live in any run this project has made.** `runs/d340-mirror` came back **byte-identical to `runs/d334-hiipdr/s1001` in all seven output files**. That is impossible for a real change and, at the same seed, a decisive null: the code I edited never ran. Cause, proved by preprocessing rather than inferred: the Makefile compiles `source/grid_mod.f90` with the generic `%.o` rule, which carries `$(FFLAGS)` but **not** `$(PDRFLAGS)`, and `RAYTHEIA` is defined only in `PDRFLAGS`. `gfortran -E` on grid_mod.f90 yields **0** occurrences of `colRayH2` with the build's real flags and **4** with `-DRAYTHEIA` added. Both of grid_mod's allocation blocks (`:1706` in the grid build, `:3768` in `resetGrid`) were preprocessed away in every build ever made, so `colRayH2/C/CO/AV` were never allocated; `computeRayColumns` ran and hit `if (.not.allocated(...)) cycle` for every grid; and `pdrStep`'s `if (allocated(grid%colRayH2))` override never fired, leaving `colH2 = sH2` - the single source-ward slab scalar - on all twelve rays. **Nothing failed loudly: an unallocated allocatable just reports `.false.`** **This makes the shielding wholly slab-equivalent and corrects D-339,** which said "only the shielding columns are directional": in fact all three per-ray arrays handed to `CALCULATE_REACTION_RATES` are twelve copies of one number, and there is no directional shielding anywhere in this build. **It also puts a caveat on D-190,** whose index row claims mean Te **-23%**, per-iteration change 26.8% -> 6.9% and the front oscillation gone. That change bundled three things - un-blanking 11 of 12 rays, dividing the escape probability, and the per-ray columns - and the first two live in `pdr_mod`/`source/pdr/`, which do get the flag. The measured -23% is real but **cannot be attributed to the per-ray columns**, which never ran. **Fixed** by allocating the arrays in `computeRayColumns` itself - the file where the guarding flag actually arrives - and replacing grid_mod's two dead blocks with signposts saying why a RAYTHEIA-guarded block cannot work there. A sweep of every file built by the generic rule for `PDRFLAGS`-only macros returns exactly two: `common_mod.f90`, which hit this trap and worked around it at the declaration with a comment, and `grid_mod.f90`, where nobody noticed. Two runs at seed 1001 are attributing the per-ray columns and the mirror fold separately rather than confounding them; D-340's prediction is **untested**, not confirmed or refuted. | Accepted | 2026-09-25 |
+| D-342 | **The two halves of O-14 are a matched pair, and fixing one alone destroys the molecular zone - so D-341's activation is REVERTED and it was fortunate D-190 never ran.** Two runs at `randomSeed 1001`, each an exact comparison. **Turning D-190's per-ray columns on (`runs/d341-percol` vs `runs/d334-hiipdr/s1001`) is catastrophic:** x(H2) falls by **500-1000x** at A_V 0.83-1.55 (new/old 0.002 / 0.000 / 0.001 / 0.012 / 0.208), CO by 1.5-30x, the **H/H2 crossing disappears entirely** - the gas never turns molecular - deep T_gas rises 11.3 -> 18.9 K, and the ionization front moves 1.05% (3.8416 -> 3.8820 pc) when it should not move at all. **Convergence "improved" from 74.9% to 92.1% and the run got six times faster** (1h48 -> 0h18), which is the D-176..D-181 lesson wearing a new hat: a PDR with no molecules has no stiff chemistry left to solve, so the convergence number went up because the physics went away. **The mechanism, and it is arithmetic not opinion:** `radSurf(k) = chi/12` on every ray, so with the slab-equivalent column on every ray the rate sums to `chi*exp(-gamma*A_V)*shield(N_source)` - exactly the right 1D answer, because twelve identical rays each carrying a twelfth of the field ARE the one physical ray. Give each ray its own traced column while the field stays isotropic and the six or seven rays pointing OUT of the cloud carry almost no column, so `shield ~ 1` and each delivers its full chi/12 unattenuated at every depth - inventing FUV arriving from outside the nebula, where there is no source. Deep in the cloud `shield(N) ~ 1e-5`, so the dissociation rate rises ~1e4 and H2 cannot form. **Consequence for O-14's ordering, which D-339 got wrong in the other direction:** the angular model comes FIRST, or simultaneously - `rad_surface` must know which direction the star is in before a per-ray column means anything. **The mirror fold, finally live, is worth ~0-1%** (`runs/d341-mirror` vs `runs/d341-percol`: every abundance 0.986-1.010, dust 1.0000-1.0004, front identical to four digits), so **D-340's prediction is neither confirmed nor refuted - it is untestable in a model with no molecular zone**, and O-14's first defect is far smaller than its third. **Reverted:** `pdrStep`'s per-ray override removed and `computeRayColumns` no longer called (it cost ~25% of runtime for output nothing consumed); the routine is kept, correct and with its mirror reflection, for the angular-model work. The lazy allocation of D-341 stays - the landmine in `grid_mod` is still disarmed. **Not separately excluded:** a scale error in the tracer would look similar, and comparing `colRayAV` against the cell's own A_V would settle it; the incoherence alone accounts for the size, so that check is listed rather than done. Verification run in flight: with the revert, seed 1001 must reproduce the baseline byte-identically. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27301,3 +27302,123 @@ The fold was disabled for the first by a throwaway experiment binary built from
 a temporarily edited source, not by a keyword: the shipped source carries no
 switch, and the binary rebuilt from the restored source is byte-identical to the
 one used for the second run. Both runs are in flight.
+
+---
+
+## D-342 - The two halves of O-14 are a matched pair (2026-09-25)
+
+With D-341's allocation in place, the per-ray columns ran for the first time.
+Two runs at `randomSeed 1001`, each an exact comparison with no Monte Carlo
+noise in the difference:
+
+  - `runs/d341-percol` - per-ray columns live, mirror fold off
+  - `runs/d341-mirror` - per-ray columns live, mirror fold on
+
+### Turning the per-ray columns on destroys the PDR
+
+`runs/d341-percol` against `runs/d334-hiipdr/s1001`:
+
+    A_V    x(H2) new/old   x(CO) new/old   x(C) new/old   T_gas new/old
+    0.83       0.002           0.077          1.051           0.919
+    1.13       0.000           0.035          1.142           0.875
+    1.55       0.001           0.078          1.255           0.861
+    2.11       0.012           0.230          1.347           1.146
+    2.89       0.208           0.661          1.057           1.674
+
+    H/H2 crossing   A_V 1.168  ->  never
+    ionization front  3.8416   ->  3.8820 pc   (+1.05%, should not move)
+    dust temperature  0.996 - 1.000            (correctly unmoved)
+
+The molecular zone is gone. Hydrogen never reaches 2n(H2) = n(H) anywhere, so
+there is no H/H2 transition to speak of, and the deep gas runs 18.9 K where it
+ran 11.3 K because the coolants that set that temperature are no longer there.
+
+**And the run looked better while being worse.** Convergence went from 74.86% to
+92.07% and the wall time from 1 h 48 to 18 minutes. That is the D-176..D-181
+lesson in new clothes: a PDR with no molecules has no stiff chemistry left to
+solve, so both the convergence fraction and the speed improved *because the
+physics had gone away*. If this had been judged on the KPIs it would have
+looked like the best run of the cycle.
+
+### Why - arithmetic, not opinion
+
+`radSurf(k) = chi/12` on all twelve rays. With the slab-equivalent column on
+all twelve as well, the rate sums to
+
+    sum_k (chi/12) * exp(-gamma*A_V) * shield(N_source)
+      = chi * exp(-gamma*A_V) * shield(N_source)
+
+which is exactly the right one-dimensional answer. Twelve identical rays each
+carrying a twelfth of the field **are** the one physical ray. The pairing that
+looked like a lazy approximation is in fact self-consistent.
+
+Now give each ray its own traced column and leave the field isotropic. The six
+or seven rays pointing *out* of the cloud have almost no column in front of
+them, so `shield ~ 1`, and each delivers its full `chi/12` unattenuated at every
+depth. That invents FUV arriving from outside the nebula, where there is no
+source. Deep in the cloud `shield(N) ~ 1e-5`, so the dissociation rate rises by
+roughly four orders of magnitude and H2 cannot form. The measured collapse of
+500-1000x is the size this predicts.
+
+So the "slab-equivalent columns" and the "isotropic chi/12 field" are not two
+independent defects in O-14's list. **They are a matched pair, and either one
+alone is worse than both together.**
+
+It is therefore fortunate that D-190's columns were dead. Had grid_mod's
+allocation compiled, hiipdr would have had no molecular zone since 2026-09-08
+and every PDR comparison published since would have been drawn on a model with
+no H2.
+
+### O-14's ordering, corrected again
+
+D-339 said the tracer should be fixed before the angular model, following
+O-14's own "Next". That is now measured to be backwards: **`rad_surface` has to
+know which direction the star is in before a per-ray column means anything.**
+The angular model comes first, or the two change together.
+
+For a central point source the physical decomposition is not difficult to
+state: the direct stellar field arrives along one direction, `-r_hat`, with the
+source-ward column in front of it, and the diffuse field is the part that is
+genuinely closer to isotropic. MOCASSIN holds those two separately already.
+Writing that down is the next design question, and it is a design question, not
+a patch.
+
+### The mirror fold, finally live, is worth almost nothing
+
+`runs/d341-mirror` against `runs/d341-percol`: every abundance 0.986 - 1.010,
+dust temperature 1.0000 - 1.0004, ionization front identical to four digits,
+temperatures within 0.25%. Runtime 18 -> 23 minutes, the cost of walking the
+reflected rays.
+
+So O-14's first named defect is far smaller than its third, and **D-340's
+prediction is neither confirmed nor refuted: it is untestable in a model with
+no molecular zone.** There is no H/H2 crossing left for it to move. It stays
+open, to be read once the angular model makes a molecular zone exist again.
+
+### What was reverted, and what was kept
+
+Reverted: `pdrStep`'s per-ray override, and the call to `computeRayColumns` -
+which was costing twelve ray walks per cell per iteration, about a quarter of
+runtime, for output nothing consumed. Both replaced by comments carrying the
+measurement above, so the next reader finds the result rather than the
+temptation.
+
+Kept: D-341's lazy allocation, so grid_mod's landmine stays disarmed; and
+`computeRayColumns` itself, correct and with its mirror reflection, for the
+angular-model work.
+
+### Not separately excluded
+
+A scale error inside the tracer - wrong `ds` units, a missing conversion -
+would look much like this, and has not been ruled out independently.
+Comparing `colRayAV` against the cell's own A_V would settle it in one run,
+since the two are computed from the same path with the same step. The
+incoherence above accounts for the observed size on its own, so this is listed
+as the check to run before the angular-model work, not as a competing
+explanation.
+
+### Verification
+
+With the revert, hiipdr at seed 1001 must reproduce `runs/d334-hiipdr/s1001`
+**byte-identically** - the revert restores the exact validated state or it does
+not. `runs/d342-revert` is in flight.
