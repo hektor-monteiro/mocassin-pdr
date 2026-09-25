@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-339, 2026-09-24. Reference model throughout: the 150 kK PN,
+Status as of D-345, 2026-09-25. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -156,10 +156,28 @@ through the x=0 and y=0 mirrors, so **roughly half the rays carry truncated
 columns on every published run**. A truncated column under-shields, raising the
 photodissociation rate and suppressing H2 and CO. Size unmeasured.
 
-**Next** (O-14's own order): add mirror reflection and re-run one fixture at a
-fixed seed - exact after D-334 - then decide the angular model, then make
-`PDRGEOM=3D` the single flavour. A structured 3D fixture is wanted for the
-angular half, but second.
+**Progress 2026-09-25.** Mirror reflection added (D-340) and measured at 0-1%
+once it could run at all (D-341/D-342) - so O-14's first defect is real and
+small. The per-ray columns O-14's list implies were **never live** (D-341:
+grid_mod is not compiled with `$(PDRFLAGS)`), and turning them on alone
+destroys the molecular zone (D-342), because the isotropic `chi/12` field and
+the slab-equivalent column are a **matched pair**. The spectral branch is
+closed as measured-and-small: the diffuse field is dust-scattered continuum,
+flat across the band, and the band integral overstates the Lyman-Werner-relevant
+part by only 2-9% through the PDR (D-345).
+
+**So the angular model is what remains, and it is first-order.** 75-100% of the
+PDR field is diffuse (D-344), and the two measurable extremes of its line
+shielding bracket the answer between an H/H2 crossing at A_V 1.17 and **no
+molecular zone at all** (D-342). CO and H2 observables sit downstream of that
+bracket; [C II] does not.
+
+**Next:** H2/CO line opacity accumulated along each packet's path during
+transport - a design task in the transport, not a patch in the handoff. Two
+cheaper narrowing steps first: check `colRayAV` against the cell's own A_V for a
+scale error in `computeRayColumns` (listed in D-342, not done), and a
+single-scattering estimate using the column from the star to the scattering
+point plus the column from there to the cell.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly
