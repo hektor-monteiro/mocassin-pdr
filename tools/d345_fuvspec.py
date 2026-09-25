@@ -11,7 +11,34 @@ number to every photoreaction, but H2 and CO dissociate and C ionizes only in
 the Lyman-Werner window, 0.8210-0.9992 Ryd. Lyman alpha sits at 0.7496 Ryd:
 inside the band the code integrates, below the window the molecules care about.
 
-THE PREDICTION, stated before the numbers:
+CORRECTED 2026-09-25, BEFORE ANY RESULT EXISTED. The user asked whether this
+had been investigated before. It had, and the original prediction below was
+already refuted when it was written:
+
+  D-287, D-291 and D-293 established that MOCASSIN has NO Lyman alpha in its
+  diffuse field, and not by accident. linePDF and totalLines are built from
+  ilow >= 2 for H and He II (emission_mod.f90:560/575, hydro_mod.f90:693/711,
+  and the note at common_mod.f90:142), so the Lyman series is excluded by
+  construction. D-291 measured the 46% Lya share in CLOUDY's PDR field and
+  diagnosed it as an artifact of Cloudy's continuum-only line attenuation;
+  D-293 sized MOCASSIN's own Lya deposition and found it lands within A_V 0.020
+  of the front, about 1.17 cells on this grid, and cannot reach the deep PDR
+  either way. So "is MOCASSIN's diffuse FUV Lya-dominated" was answered NO
+  three weeks before this file was written, and I failed to check.
+
+  What survives is the same signature with a different carrier. The optically
+  thin diffuse lines MOCASSIN DOES transport all sit RED of the window:
+  C III] 1909 at 0.477 Ryd, He II 1640 at 0.556, C IV 1549 at 0.588,
+  C II 1335 at 0.683 - against a Lyman-Werner window of 0.821-0.999 Ryd. So a
+  line-dominated diffuse field still gives f_LW << f_band, while a
+  dust-scattered continuum would be spread across the band and may even be
+  BLUER than the stellar spectrum, since the scattering cross section rises
+  toward short wavelengths.
+
+  The test below is unchanged and still decides D-344's design question. Only
+  the carrier named in the conclusion changes.
+
+THE ORIGINAL PREDICTION, kept because it was wrong and the reason is the point:
 
   If the diffuse excess is Lyman-alpha, then f_LW << f_band - the diffuse
   fraction inside the Lyman-Werner window is much smaller than the diffuse
@@ -95,6 +122,9 @@ def main(run):
         print('  f_LW = %.4f is well below f_band = %.4f' % (fl, fb))
         print('  -> the diffuse excess is RED of the window. The band integral')
         print('     overstates what drives the molecules; the fix is spectral.')
+        print('     Carrier is NOT Lya (excluded by construction, D-291) - the')
+        print('     candidates are the thin diffuse lines, all red of the window:')
+        print('     C III] 0.477, He II 0.556, C IV 0.588, C II 0.683 Ryd.')
     elif fl > 1.4 * fb:
         print('  f_LW = %.4f exceeds f_band = %.4f' % (fl, fb))
         print('  -> the diffuse excess is INSIDE the window. The molecular rates')
