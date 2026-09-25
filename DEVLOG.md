@@ -343,6 +343,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-341 | **D-340's mirror fix was correct and completely inert, because `grid_mod.f90` is not compiled with `$(PDRFLAGS)` - so D-190's per-ray shielding columns have never been live in any run this project has made.** `runs/d340-mirror` came back **byte-identical to `runs/d334-hiipdr/s1001` in all seven output files**. That is impossible for a real change and, at the same seed, a decisive null: the code I edited never ran. Cause, proved by preprocessing rather than inferred: the Makefile compiles `source/grid_mod.f90` with the generic `%.o` rule, which carries `$(FFLAGS)` but **not** `$(PDRFLAGS)`, and `RAYTHEIA` is defined only in `PDRFLAGS`. `gfortran -E` on grid_mod.f90 yields **0** occurrences of `colRayH2` with the build's real flags and **4** with `-DRAYTHEIA` added. Both of grid_mod's allocation blocks (`:1706` in the grid build, `:3768` in `resetGrid`) were preprocessed away in every build ever made, so `colRayH2/C/CO/AV` were never allocated; `computeRayColumns` ran and hit `if (.not.allocated(...)) cycle` for every grid; and `pdrStep`'s `if (allocated(grid%colRayH2))` override never fired, leaving `colH2 = sH2` - the single source-ward slab scalar - on all twelve rays. **Nothing failed loudly: an unallocated allocatable just reports `.false.`** **This makes the shielding wholly slab-equivalent and corrects D-339,** which said "only the shielding columns are directional": in fact all three per-ray arrays handed to `CALCULATE_REACTION_RATES` are twelve copies of one number, and there is no directional shielding anywhere in this build. **It also puts a caveat on D-190,** whose index row claims mean Te **-23%**, per-iteration change 26.8% -> 6.9% and the front oscillation gone. That change bundled three things - un-blanking 11 of 12 rays, dividing the escape probability, and the per-ray columns - and the first two live in `pdr_mod`/`source/pdr/`, which do get the flag. The measured -23% is real but **cannot be attributed to the per-ray columns**, which never ran. **Fixed** by allocating the arrays in `computeRayColumns` itself - the file where the guarding flag actually arrives - and replacing grid_mod's two dead blocks with signposts saying why a RAYTHEIA-guarded block cannot work there. A sweep of every file built by the generic rule for `PDRFLAGS`-only macros returns exactly two: `common_mod.f90`, which hit this trap and worked around it at the declaration with a comment, and `grid_mod.f90`, where nobody noticed. Two runs at seed 1001 are attributing the per-ray columns and the mirror fold separately rather than confounding them; D-340's prediction is **untested**, not confirmed or refuted. | Accepted | 2026-09-25 |
 | D-342 | **The two halves of O-14 are a matched pair, and fixing one alone destroys the molecular zone - so D-341's activation is REVERTED and it was fortunate D-190 never ran.** Two runs at `randomSeed 1001`, each an exact comparison. **Turning D-190's per-ray columns on (`runs/d341-percol` vs `runs/d334-hiipdr/s1001`) is catastrophic:** x(H2) falls by **500-1000x** at A_V 0.83-1.55 (new/old 0.002 / 0.000 / 0.001 / 0.012 / 0.208), CO by 1.5-30x, the **H/H2 crossing disappears entirely** - the gas never turns molecular - deep T_gas rises 11.3 -> 18.9 K, and the ionization front moves 1.05% (3.8416 -> 3.8820 pc) when it should not move at all. **Convergence "improved" from 74.9% to 92.1% and the run got six times faster** (1h48 -> 0h18), which is the D-176..D-181 lesson wearing a new hat: a PDR with no molecules has no stiff chemistry left to solve, so the convergence number went up because the physics went away. **The mechanism, and it is arithmetic not opinion:** `radSurf(k) = chi/12` on every ray, so with the slab-equivalent column on every ray the rate sums to `chi*exp(-gamma*A_V)*shield(N_source)` - exactly the right 1D answer, because twelve identical rays each carrying a twelfth of the field ARE the one physical ray. Give each ray its own traced column while the field stays isotropic and the six or seven rays pointing OUT of the cloud carry almost no column, so `shield ~ 1` and each delivers its full chi/12 unattenuated at every depth - inventing FUV arriving from outside the nebula, where there is no source. Deep in the cloud `shield(N) ~ 1e-5`, so the dissociation rate rises ~1e4 and H2 cannot form. **Consequence for O-14's ordering, which D-339 got wrong in the other direction:** the angular model comes FIRST, or simultaneously - `rad_surface` must know which direction the star is in before a per-ray column means anything. **The mirror fold, finally live, is worth ~0-1%** (`runs/d341-mirror` vs `runs/d341-percol`: every abundance 0.986-1.010, dust 1.0000-1.0004, front identical to four digits), so **D-340's prediction is neither confirmed nor refuted - it is untestable in a model with no molecular zone**, and O-14's first defect is far smaller than its third. **Reverted:** `pdrStep`'s per-ray override removed and `computeRayColumns` no longer called (it cost ~25% of runtime for output nothing consumed); the routine is kept, correct and with its mirror reflection, for the angular-model work. The lazy allocation of D-341 stays - the landmine in `grid_mod` is still disarmed. **Not separately excluded:** a scale error in the tracer would look similar, and comparing `colRayAV` against the cell's own A_V would settle it; the incoherence alone accounts for the size, so that check is listed rather than done. Verification run in flight: with the revert, seed 1001 must reproduce the baseline byte-identically. | Accepted | 2026-09-25 |
 | D-343 | **The revert verifies (15 of 17 files byte-identical, the other two explained and one of them a third uninitialised read), and the user corrects the premise of the direct/diffuse design before it was built.** `runs/d342-revert` against `runs/d334-hiipdr/s1001` at seed 1001: **15 of 17 output files byte-identical**, confirming the D-342 revert restored the exact validated state rather than something close. Of the two that differ, `summary.out` is wall-clock timestamps, and `SED.out` has **all 2400 spectral entries identical** with only its final line changed - `Final SEDratio: 1.12e-44` against `-2.51e+36`, for a quantity that is a ratio of two luminosities. Cause: `SEDratio` is assigned inside `do imu = 1, nAngleBins` and printed after it, so with no viewpoints configured (`nAngleBins = 0`, what every PDR fixture uses) the loop never ran and the print read an uninitialised local. **Harmless** - the loop that would have divided the SED by it never ran either - but it is the **third uninitialised read this session** after `ionDenPrev` (D-334) and it made the byte-identity test permanently dirty, which is the test the seed keyword exists to enable. Initialised to 1. **On the design: the user's correction lands before any code.** I had read `chiFUV` as the direct field only, because `mocassinToPDR` sums `Jste` and adds `Jdif` just `if (lgDebug)`. The user pointed out that **`Jste` already carries the diffuse packets summed in** - `Jdif` is a mirrored subset kept as a diagnostic (D-158), not an additional term. So the diffuse component is **not missing from the magnitude**: `chiFUV` is the total local field, and the D-026 inversion folds scattering into `A_V,eff`. What is actually wrong is only its **direction** - the diffuse part is being given the source-ward molecular column for line shielding when it arrives from many directions. That makes the split much safer than D-342's failure suggests: there, 100% of the field was spread isotropically over rays with no column, which is why H2 died; here only the genuinely diffuse **fraction** would be, so the effect is bounded by that fraction. **Design, recorded before implementation:** 13 rays - index 12 the direct ray carrying `chiFUV0` with the source-ward `A_V` and source-ward columns (exactly today's calculation, so it reduces to the validated answer as the diffuse fraction goes to zero), indices 0-11 the diffuse rays carrying `chi_dif/12` with **`A_V = 0`** (the MC has already attenuated it - attenuating again would double-count dust) and their own traced columns. Energy is conserved by construction if the direct ray's effective `A_V` is inverted against `Jste - Jdif` rather than `Jste`. **Blocking unknown, so measure first:** `Jdif` is only reset and MPI-reduced when `pdrSplitField /= 0` or debug is on, so by default it is stale and carries ~1/numtasks of the field - D-225 already found that, reading a "diffuse fraction" of ~0.07 whatever the truth. A `chi_dif` column is added to `pdrFUV.out` (diagnostic, documented as meaningless without the switch) and `runs/d343-diffuse` runs hiipdr at seed 1001 with `pdrSplitField 1`. It answers two things at once: the diffuse fraction against depth, which sizes the whole design, and - by byte-comparing the physics outputs against s1001 - whether `pdrSplitField` is genuinely physics-neutral. **No field-splitting code written yet, deliberately.** | Accepted | 2026-09-25 |
+| D-344 | **The diffuse fraction is measured, it dominates the PDR (75-100%), and it kills the 13-ray design I proposed one entry ago rather than justifying it.** `runs/d343-diffuse` (hiipdr, seed 1001, `pdrSplitField 1`): **`pdrSplitField` is verified physics-neutral** - all 22 iterations match `runs/d334-hiipdr/s1001` to nine digits and 14 of 17 output files are byte-identical, the three exceptions being `summary.out` (timestamps), `pdrFUV.out` (the new `chi_dif` column) and `SED.out` (only the `SEDratio` line D-343 fixed). The code asserted this switch was diagnostic-only and nobody had checked; it is. **The measurement:** diffuse fraction `chi_dif/chi_MC` against depth = **0.346 / 0.572 / 0.747 / 0.866 / 0.929 / 0.966 / 0.991 / 1.000** at A_V 0-0.2 / 0.2-0.47 / 0.47-0.8 / 0.8-1.2 / 1.2-1.6 / 1.6-2.1 / 2.1-2.6 / 2.6-3.05, monotonic, on 15204 cells. Physically as expected: the direct beam is extinguished exponentially while the scattered field is replenished from all sides, so **deep PDR gas sees essentially no direct starlight at all.** So this is not a few-per-cent effect to be closed as negligible - the angular question is real and large. **But D-343's design is wrong, and this measurement is what shows it.** It would give each diffuse ray the column traced **outward** from the cell to the boundary. That measures only the *last leg* of a scattered photon's path. A photon scattered near the outer edge and travelling inward passed through the inward column from the star *before* it scattered, and that H2 is not in the outward trace. Using the outward column therefore under-counts the H2 the photon actually crossed - which is precisely the error D-342 measured, where H2 fell by 500-1000x and the molecular zone vanished. **The slab-equivalent treatment is a better approximation than it looks**, because the dominant H2 column along almost any FUV photon's path is the inward leg it shares with the direct beam. Proper treatment needs the absorption history accumulated along each packet's path - a Monte Carlo problem MOCASSIN is equipped for, not a twelve-ray post-hoc geometry. **And a sharper question displaces the angular one entirely.** The band is 0.4537-0.9997 Ryd (2010-912 A). H2 and CO dissociation and C ionization all live in the Lyman-Werner range **0.821-0.999 Ryd** (1110-912 A). **Lyman alpha sits at 0.7496 Ryd - inside the band, below the dissociating range.** If the diffuse FUV is Lya-dominated, as an H II region makes likely and as D-303/D-304's existing Lya correction against Cloudy already hints, then the single band-integrated chi handed to every photoreaction is **inflated for the reactions that matter** while contributing nothing to them, and the model over-dissociates H2. Consistent with hiipdr's H/H2 crossing sitting at A_V 1.17 against Cloudy's 1.09 - MOCASSIN's H2 forms slightly too deep. **Falsifiable and cheap:** dump `Jdif` per frequency bin across 384-420 for a few cells and see whether the diffuse excess is concentrated at the Lya bin or spread across the band. That measurement decides whether the angular model matters for molecules at all, and it comes before any of it. No field-splitting code written. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27530,3 +27531,96 @@ claims ("Diagnostic only: nothing reads Jdif for physics unless lgDebug") and
 which has never been checked.
 
 No field-splitting code written yet, deliberately.
+
+---
+
+## D-344 - The diffuse fraction, and what it does to the design (2026-09-25)
+
+`runs/d343-diffuse`: hiipdr, seed 1001, `pdrSplitField 1`, 22 iterations,
+74.8553009%, 1 h 22 min.
+
+### pdrSplitField is physics-neutral, now checked
+
+All 22 iterations match `runs/d334-hiipdr/s1001` to nine digits, and 14 of 17
+output files are byte-identical. The three that differ: `summary.out`
+(timestamps), `pdrFUV.out` (the `chi_dif` column added for this), and `SED.out`
+in the single `SEDratio` line D-343 initialised. The switch resets and
+MPI-reduces `Jdif` on every iteration while the chemistry is live and moves
+nothing. The code asserted this ("Diagnostic only: nothing reads Jdif for
+physics") and nobody had tested it.
+
+### The measurement
+
+Diffuse fraction of the FUV field, `chi_dif/chi_MC`, over 15204 cells:
+
+    A_V range     cells    chi_MC      chi_dif     diffuse fraction
+    0.00 - 0.20      43   9.614e+02   3.030e+02        0.346
+    0.20 - 0.47     104   2.396e+02   1.371e+02        0.572
+    0.47 - 0.80     440   4.622e+01   3.365e+01        0.747
+    0.80 - 1.20     938   1.003e+01   8.600e+00        0.866
+    1.20 - 1.60    1514   2.899e+00   2.689e+00        0.929
+    1.60 - 2.10    3129   8.440e-01   8.125e-01        0.966
+    2.10 - 2.60    4851   2.440e-01   2.404e-01        0.991
+    2.60 - 3.05    4185   9.151e-02   9.061e-02        1.000
+
+Monotonic, and physically what it should be: the direct beam is extinguished
+exponentially while the scattered field is replenished from every side, so
+**deep PDR gas sees essentially no direct starlight.** In the PDR proper
+(A_V > 0.47) the field is 75% to 100% diffuse.
+
+So the angular question is not a few-per-cent effect to be closed as
+negligible. It is most of the field.
+
+### And the measurement kills D-343's design
+
+D-343 specified the diffuse rays as carrying `chi_dif/12` with the column
+traced **outward** from the cell to the grid boundary. That column measures only
+the *last leg* of a scattered photon's path.
+
+A photon scattered near the outer edge and travelling inward crossed the inward
+column from the star **before** it scattered, and none of that H2 appears in the
+outward trace. Using the outward column therefore under-counts the H2 the
+photon actually passed through - which is exactly the error D-342 measured, with
+H2 falling 500-1000x and the molecular zone disappearing.
+
+Turning the diffuse fraction from 100% (D-342, all rays) to 75-100% (this
+design) does not rescue it. The mistake is in the column, not the weighting.
+
+The corollary is worth stating plainly: **the slab-equivalent treatment is a
+better approximation than it looks.** The dominant H2 column along almost any
+FUV photon's path is the inward leg from the star, which is the leg the
+slab-equivalent column measures and shares with the direct beam. Proper
+treatment needs the line-absorption history accumulated along each packet's
+path - a Monte Carlo problem MOCASSIN is actually equipped for, since it
+transports the packets - not a twelve-ray post-hoc geometry.
+
+### A sharper question displaces it
+
+The band in use is bins 384-420, 0.4537 - 0.9997 Ryd, i.e. 2010 - 912 A. But
+the reactions that matter live in a narrower window:
+
+    H2 Lyman-Werner        1110 - 912 A     0.821 - 0.999 Ryd
+    CO dissociation        1076 - 912 A     0.847 - 0.999 Ryd
+    C I ionization         1101 A           0.828 Ryd
+    ------------------------------------------------------------
+    Lyman alpha            1216 A           0.7496 Ryd   <- inside the band,
+                                                            BELOW the window
+
+If the diffuse FUV is Lyman-alpha dominated - which an H II region makes likely,
+and which D-303/D-304's existing Lya correction against Cloudy already hints at
+- then the single band-integrated `chi` handed to every photoreaction is
+**inflated for precisely the reactions it is used for**, by a component that
+cannot drive them. The model would over-dissociate H2.
+
+That is consistent with something already on the hiipdr page: the H/H2 crossing
+sits at A_V 1.17 against Cloudy's 1.09, so MOCASSIN's H2 forms slightly too
+deep - the direction too much dissociation would give.
+
+**Falsifiable, and cheap.** Dump `Jdif` per frequency bin across 384-420 for a
+handful of cells and see whether the diffuse excess is concentrated in the Lya
+bin or spread across the band. If it is Lya, the fix is spectral - use the
+Lyman-Werner sub-band for the molecular rates - and the angular model is a
+second-order concern behind it. If it is spread, the angular model stands as
+the next item and needs the path-history approach above, not twelve rays.
+
+That measurement comes first. No field-splitting code written.
