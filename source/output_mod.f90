@@ -47,6 +47,7 @@ module output_mod
         ! and silently yields Inf, then chiThin = 0. MOCASSIN's grid arrays are
         ! default real, so every bridge computation must promote (DEVLOG D-018).
         double precision :: chi, chiThin, rr, LfuvTot, uFUV, Fbol, FbolThin, LbolTot
+        double precision :: uFUVdif, chiDif                     ! D-343
 
         if (taskid /= 0) return
 
@@ -93,7 +94,13 @@ module output_mod
              & " = [", nuArray(FUVlowP), ",", nuArray(FUVhighP), "] Ryd"
         write(96,*) "# L_FUV [erg/s] = ", LfuvTot
         write(96,*) "# L_bol [erg/s] = ", LbolTot
-        write(96,*) "# iG ix iy iz  x y z [cm]  r [cm]  Hden  chi_MC  chi_thin  ratio  Fbol_MC  Fbol_thin  ratio_bol  V[cm3]"
+        write(96,*) "# iG ix iy iz  x y z [cm]  r [cm]  Hden  chi_MC  chi_thin  ratio  Fbol_MC  Fbol_thin  ratio_bol  V[cm3]  chi_dif"
+        write(96,*) "# chi_dif (D-343): the DIFFUSE part of chi_MC, from Jdif. Jste"
+        write(96,*) "#   already carries the diffuse packets, so chi_dif is a SUBSET"
+        write(96,*) "#   of chi_MC, not an addition to it. Jdif is only reset and"
+        write(96,*) "#   MPI-reduced when pdrSplitField /= 0 or debug is on, so this"
+        write(96,*) "#   column is meaningless (stale, and ~1/numtasks) without one"
+        write(96,*) "#   of those set. It reads 0 when neither is."
 
         do iG = 1, nGrids
            if (iG>1 .or. (.not.lg2D)) then
@@ -113,6 +120,17 @@ module output_mod
                        if (lgDebug) uFUV = uFUV + dble(grid(iG)%Jdif(cellP,ifreq))
                     end do
                     chi = uFUV / (dble(c) * dble(uDraine))
+
+                    ! D-343: the diffuse subset of the same band, for sizing the
+                    ! direct/diffuse split before any of it is wired into the
+                    ! chemistry. Diagnostic only - nothing reads this.
+                    uFUVdif = 0.d0
+                    if (allocated(grid(iG)%Jdif)) then
+                       do ifreq = FUVlowP, FUVhighP
+                          uFUVdif = uFUVdif + dble(grid(iG)%Jdif(cellP,ifreq))
+                       end do
+                    end if
+                    chiDif = uFUVdif / (dble(c) * dble(uDraine))
 
                     ! Bolometric control: the same estimator summed over every
                     ! bin. Compared against L_bol/(4 pi r^2) this separates an
@@ -138,12 +156,12 @@ module output_mod
                        FbolThin = 0.d0
                     end if
 
-                    write(96,'(4(1x,i5),3(1x,es13.6),1x,es13.6,8(1x,es13.6))') &
+                    write(96,'(4(1x,i5),3(1x,es13.6),1x,es13.6,9(1x,es13.6))') &
                          & iG, i, j, k, grid(iG)%xAxis(i), grid(iG)%yAxis(j), &
                          & grid(iG)%zAxis(k), rr, grid(iG)%Hden(cellP), chi, chiThin, &
                          & merge(chi/chiThin, 0.d0, chiThin > 0.d0), Fbol, FbolThin, &
                          & merge(Fbol/FbolThin, 0.d0, FbolThin > 0.d0), &
-                         & dble(getVolume(grid(iG),i,j,k))*1.d45
+                         & dble(getVolume(grid(iG),i,j,k))*1.d45, chiDif
                  end do
               end do
            end do
@@ -3103,6 +3121,18 @@ endif
         sSED(freq,0) = 1.e23*sSED(freq,0)/(3.2898e15*widflx(freq))
   
         ! --- Convert Angle-Dependent SEDs (imu > 0) to Standard Units ---
+        ! D-343: SEDratio is assigned INSIDE this loop and printed after it, so
+        ! with no viewpoints configured (nAngleBins = 0, the default and what
+        ! every PDR fixture uses) the loop never ran and the print read an
+        ! uninitialised local. It reported 1.12e-44 in one run and -2.51e+36 in
+        ! another of the same model at the same seed - a quantity that is a
+        ! ratio of two luminosities. Harmless, because the loop that would have
+        ! divided the SED by it never ran either and the spectral columns are
+        ! unaffected; found because it was the only numeric difference left in a
+        ! byte-for-byte verification, and a diagnostic that varies between
+        ! identical runs makes that test permanently dirty. Same defect class as
+        ! D-334's ionDenPrev, without the consequences.
+        SEDratio = 1.
         do imu = 1, nAngleBins
             ! find theta1 and theta2
             theta1 = int(viewPointTheta(imu)/dTheta)*dTheta

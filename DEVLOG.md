@@ -342,6 +342,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-340 | **Mirror reflection added to `computeRayColumns`, with the prediction recorded before the run - and the DEVLOG entry omitted, which is its own defect.** O-14's first named defect: the ray walk `exit`ed at the grid boundary with no reflection, and both production fixtures are `symmetricXYZ` octants whose LOWER faces are planes of symmetry. Of the twelve HEALPix RING directions the four at mu = -2/3 exit through the z=0 mirror and rays 6 and 7 through x=0 and y=0, so about half the rays carried truncated columns; D-259 measured the truncation at 59% of depth, and a truncated column **under**-shields. A ray crossing a plane of symmetry continues into gas identical to the gas it just left, so folding the sample point about the plane (`px = 2*xlo - px`) samples exactly that; each coordinate is monotonic along a straight ray, so it crosses each plane at most once and one fold per axis is exact for every later step. The upper faces stay terminal - they are the edge of the model. The walk was lengthened to `2*dmax` because a reflected ray runs through the mirrored octants too. `tools/d340_mirror.py` holds the prediction, committed before the run: columns can only grow, so H2 and CO form shallower and the H/H2 crossing moves to **smaller** A_V; falsified by the crossing moving deeper, H2 or CO falling, or the ionization front or dust temperature moving. Size deliberately not predicted. **The code change is correct and turned out to be entirely inert - see D-341** - so this prediction is untested, not confirmed. **Process note:** this entry was written only after D-341, because the commit shipped the code and the prediction tool and no DEVLOG entry at all. The rule is that every decision gets an entry when it lands; skipping it meant the prediction existed only in a docstring, and for one commit the history did not say what had been changed or why. | Superseded in effect by D-341 | 2026-09-24 |
 | D-341 | **D-340's mirror fix was correct and completely inert, because `grid_mod.f90` is not compiled with `$(PDRFLAGS)` - so D-190's per-ray shielding columns have never been live in any run this project has made.** `runs/d340-mirror` came back **byte-identical to `runs/d334-hiipdr/s1001` in all seven output files**. That is impossible for a real change and, at the same seed, a decisive null: the code I edited never ran. Cause, proved by preprocessing rather than inferred: the Makefile compiles `source/grid_mod.f90` with the generic `%.o` rule, which carries `$(FFLAGS)` but **not** `$(PDRFLAGS)`, and `RAYTHEIA` is defined only in `PDRFLAGS`. `gfortran -E` on grid_mod.f90 yields **0** occurrences of `colRayH2` with the build's real flags and **4** with `-DRAYTHEIA` added. Both of grid_mod's allocation blocks (`:1706` in the grid build, `:3768` in `resetGrid`) were preprocessed away in every build ever made, so `colRayH2/C/CO/AV` were never allocated; `computeRayColumns` ran and hit `if (.not.allocated(...)) cycle` for every grid; and `pdrStep`'s `if (allocated(grid%colRayH2))` override never fired, leaving `colH2 = sH2` - the single source-ward slab scalar - on all twelve rays. **Nothing failed loudly: an unallocated allocatable just reports `.false.`** **This makes the shielding wholly slab-equivalent and corrects D-339,** which said "only the shielding columns are directional": in fact all three per-ray arrays handed to `CALCULATE_REACTION_RATES` are twelve copies of one number, and there is no directional shielding anywhere in this build. **It also puts a caveat on D-190,** whose index row claims mean Te **-23%**, per-iteration change 26.8% -> 6.9% and the front oscillation gone. That change bundled three things - un-blanking 11 of 12 rays, dividing the escape probability, and the per-ray columns - and the first two live in `pdr_mod`/`source/pdr/`, which do get the flag. The measured -23% is real but **cannot be attributed to the per-ray columns**, which never ran. **Fixed** by allocating the arrays in `computeRayColumns` itself - the file where the guarding flag actually arrives - and replacing grid_mod's two dead blocks with signposts saying why a RAYTHEIA-guarded block cannot work there. A sweep of every file built by the generic rule for `PDRFLAGS`-only macros returns exactly two: `common_mod.f90`, which hit this trap and worked around it at the declaration with a comment, and `grid_mod.f90`, where nobody noticed. Two runs at seed 1001 are attributing the per-ray columns and the mirror fold separately rather than confounding them; D-340's prediction is **untested**, not confirmed or refuted. | Accepted | 2026-09-25 |
 | D-342 | **The two halves of O-14 are a matched pair, and fixing one alone destroys the molecular zone - so D-341's activation is REVERTED and it was fortunate D-190 never ran.** Two runs at `randomSeed 1001`, each an exact comparison. **Turning D-190's per-ray columns on (`runs/d341-percol` vs `runs/d334-hiipdr/s1001`) is catastrophic:** x(H2) falls by **500-1000x** at A_V 0.83-1.55 (new/old 0.002 / 0.000 / 0.001 / 0.012 / 0.208), CO by 1.5-30x, the **H/H2 crossing disappears entirely** - the gas never turns molecular - deep T_gas rises 11.3 -> 18.9 K, and the ionization front moves 1.05% (3.8416 -> 3.8820 pc) when it should not move at all. **Convergence "improved" from 74.9% to 92.1% and the run got six times faster** (1h48 -> 0h18), which is the D-176..D-181 lesson wearing a new hat: a PDR with no molecules has no stiff chemistry left to solve, so the convergence number went up because the physics went away. **The mechanism, and it is arithmetic not opinion:** `radSurf(k) = chi/12` on every ray, so with the slab-equivalent column on every ray the rate sums to `chi*exp(-gamma*A_V)*shield(N_source)` - exactly the right 1D answer, because twelve identical rays each carrying a twelfth of the field ARE the one physical ray. Give each ray its own traced column while the field stays isotropic and the six or seven rays pointing OUT of the cloud carry almost no column, so `shield ~ 1` and each delivers its full chi/12 unattenuated at every depth - inventing FUV arriving from outside the nebula, where there is no source. Deep in the cloud `shield(N) ~ 1e-5`, so the dissociation rate rises ~1e4 and H2 cannot form. **Consequence for O-14's ordering, which D-339 got wrong in the other direction:** the angular model comes FIRST, or simultaneously - `rad_surface` must know which direction the star is in before a per-ray column means anything. **The mirror fold, finally live, is worth ~0-1%** (`runs/d341-mirror` vs `runs/d341-percol`: every abundance 0.986-1.010, dust 1.0000-1.0004, front identical to four digits), so **D-340's prediction is neither confirmed nor refuted - it is untestable in a model with no molecular zone**, and O-14's first defect is far smaller than its third. **Reverted:** `pdrStep`'s per-ray override removed and `computeRayColumns` no longer called (it cost ~25% of runtime for output nothing consumed); the routine is kept, correct and with its mirror reflection, for the angular-model work. The lazy allocation of D-341 stays - the landmine in `grid_mod` is still disarmed. **Not separately excluded:** a scale error in the tracer would look similar, and comparing `colRayAV` against the cell's own A_V would settle it; the incoherence alone accounts for the size, so that check is listed rather than done. Verification run in flight: with the revert, seed 1001 must reproduce the baseline byte-identically. | Accepted | 2026-09-25 |
+| D-343 | **The revert verifies (15 of 17 files byte-identical, the other two explained and one of them a third uninitialised read), and the user corrects the premise of the direct/diffuse design before it was built.** `runs/d342-revert` against `runs/d334-hiipdr/s1001` at seed 1001: **15 of 17 output files byte-identical**, confirming the D-342 revert restored the exact validated state rather than something close. Of the two that differ, `summary.out` is wall-clock timestamps, and `SED.out` has **all 2400 spectral entries identical** with only its final line changed - `Final SEDratio: 1.12e-44` against `-2.51e+36`, for a quantity that is a ratio of two luminosities. Cause: `SEDratio` is assigned inside `do imu = 1, nAngleBins` and printed after it, so with no viewpoints configured (`nAngleBins = 0`, what every PDR fixture uses) the loop never ran and the print read an uninitialised local. **Harmless** - the loop that would have divided the SED by it never ran either - but it is the **third uninitialised read this session** after `ionDenPrev` (D-334) and it made the byte-identity test permanently dirty, which is the test the seed keyword exists to enable. Initialised to 1. **On the design: the user's correction lands before any code.** I had read `chiFUV` as the direct field only, because `mocassinToPDR` sums `Jste` and adds `Jdif` just `if (lgDebug)`. The user pointed out that **`Jste` already carries the diffuse packets summed in** - `Jdif` is a mirrored subset kept as a diagnostic (D-158), not an additional term. So the diffuse component is **not missing from the magnitude**: `chiFUV` is the total local field, and the D-026 inversion folds scattering into `A_V,eff`. What is actually wrong is only its **direction** - the diffuse part is being given the source-ward molecular column for line shielding when it arrives from many directions. That makes the split much safer than D-342's failure suggests: there, 100% of the field was spread isotropically over rays with no column, which is why H2 died; here only the genuinely diffuse **fraction** would be, so the effect is bounded by that fraction. **Design, recorded before implementation:** 13 rays - index 12 the direct ray carrying `chiFUV0` with the source-ward `A_V` and source-ward columns (exactly today's calculation, so it reduces to the validated answer as the diffuse fraction goes to zero), indices 0-11 the diffuse rays carrying `chi_dif/12` with **`A_V = 0`** (the MC has already attenuated it - attenuating again would double-count dust) and their own traced columns. Energy is conserved by construction if the direct ray's effective `A_V` is inverted against `Jste - Jdif` rather than `Jste`. **Blocking unknown, so measure first:** `Jdif` is only reset and MPI-reduced when `pdrSplitField /= 0` or debug is on, so by default it is stale and carries ~1/numtasks of the field - D-225 already found that, reading a "diffuse fraction" of ~0.07 whatever the truth. A `chi_dif` column is added to `pdrFUV.out` (diagnostic, documented as meaningless without the switch) and `runs/d343-diffuse` runs hiipdr at seed 1001 with `pdrSplitField 1`. It answers two things at once: the diffuse fraction against depth, which sizes the whole design, and - by byte-comparing the physics outputs against s1001 - whether `pdrSplitField` is genuinely physics-neutral. **No field-splitting code written yet, deliberately.** | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27422,3 +27423,110 @@ explanation.
 With the revert, hiipdr at seed 1001 must reproduce `runs/d334-hiipdr/s1001`
 **byte-identically** - the revert restores the exact validated state or it does
 not. `runs/d342-revert` is in flight.
+
+---
+
+## D-343 - The revert verifies, and the design premise is corrected (2026-09-25)
+
+### The revert verifies
+
+`runs/d342-revert` against `runs/d334-hiipdr/s1001`, same seed, same input:
+**15 of 17 output files byte-identical**, and the per-iteration convergence
+trace matches on all 22 iterations to nine digits. The D-342 revert restored the
+exact validated state, not merely something close to it. Before the seed keyword
+existed three days ago this question could only have been answered "within the
+scatter", and the scatter figure available was 37% and wrong.
+
+Two files differ. `summary.out` is wall-clock timestamps. `SED.out` has **all
+2400 spectral entries identical** and one changed line:
+
+    Final SEDratio:    1.12103877E-44     (d342-revert)
+    Final SEDratio:   -2.51470980E+36     (s1001)
+
+for a quantity defined as a ratio of two luminosities. `SEDratio` is assigned
+inside `do imu = 1, nAngleBins` and printed after the loop. Every PDR fixture
+configures no viewpoints, so `nAngleBins = 0`, the loop body never ran, and the
+print read an uninitialised local.
+
+It is harmless: the same loop that assigns it is the loop that would divide the
+SED by it, so the spectral columns never touched it. But it is the **third
+uninitialised read found this session** - after `ionDenPrev` (D-334) and the
+dead allocation blocks of D-341 - and it made the byte-identity test
+permanently dirty, which is the one test the seed keyword exists to enable.
+Initialised to 1 with the measurement recorded at the site.
+
+### The design premise was wrong, and the user caught it first
+
+I had read `chiFUV` as the direct stellar field alone, because
+`mocassinToPDR` builds it as
+
+    uFUV = sum over FUV bins of Jste(cell,ifreq)
+    if (lgDebug) uFUV = uFUV + Jdif(cell,ifreq)
+
+and `lgDebug` is off. The user pointed out that **`Jste` already carries the
+diffuse packets summed into it**; `Jdif` is a *mirrored subset* kept as a
+diagnostic (D-158), not a separate term waiting to be added.
+
+That changes what the work is. The diffuse component is **not missing from the
+magnitude**: `chiFUV` is the total local field, and the D-026 inversion folds
+scattering into `A_V,eff` - an effective extinction smaller than the true dust
+column precisely because scattered light arrives. What is wrong is only its
+**direction**: the diffuse part is given the source-ward molecular column for
+its line shielding, when physically it arrives from many directions with
+different H2 in front of each.
+
+This also makes the split far safer than D-342's failure implies. There, **all**
+of the field was spread isotropically over twelve rays, six of which had no
+column, so half the field arrived unshielded at every depth and H2 died. Here
+only the genuinely diffuse **fraction** is treated that way, so the size of any
+such effect is bounded by that fraction rather than being the whole field.
+
+### The design, recorded before implementation
+
+Thirteen rays rather than twelve:
+
+    ray 12   direct   radSurf = chiFUV0            (analytic unattenuated stellar)
+                      AVray   = A_V,eff            (source-ward)
+                      cols    = sH2/sCO/sC         (source-ward)
+
+    rays 0-11 diffuse radSurf = chi_dif/12
+                      AVray   = 0                  (the MC already attenuated it;
+                                                    attenuating again double-counts dust)
+                      cols    = colRay{H2,CO,C}(k) (traced per direction)
+
+Two properties this has to keep. It must **reduce to today's calculation** as
+the diffuse fraction goes to zero - it does, because ray 12 *is* today's
+calculation. And it must **conserve the measured field**: that requires the
+direct ray's effective `A_V` to be inverted against `Jste - Jdif` rather than
+against `Jste`, or the total will be counted as more than the Monte Carlo
+measured.
+
+`A_V = 0` on the diffuse rays is the part most likely to be questioned later, so
+the reason is recorded here: 3D-PDR's `rad_surface(k)` is a *boundary* value and
+`AV(k)` transports it inward, whereas MOCASSIN hands over a *local* intensity
+that has already been through the full dust transfer. The line shielding still
+has to be applied, because MOCASSIN's dust RT knows nothing about H2 lines -
+hence columns but no extinction.
+
+### The blocking unknown, and why nothing is implemented yet
+
+`Jdif` is reset and MPI-reduced **only** when `pdrSplitField /= 0` or debug is
+on, both off by default. Left alone it is stale across iterations and carries
+roughly one rank's share - D-225 already hit this, reporting a "diffuse
+fraction" of ~0.07 whatever the truth was.
+
+So the size of the entire effect is currently unknown, and building the
+machinery before measuring it would repeat D-342's mistake in a new place. Two
+cheap steps instead:
+
+  - a `chi_dif` column added to `pdrFUV.out`, documented in the file's own
+    header as meaningless unless one of those switches is set;
+  - `runs/d343-diffuse`: hiipdr at seed 1001 with `pdrSplitField 1`.
+
+That one run answers two questions. It gives the diffuse fraction against depth,
+which sizes the design. And byte-comparing its physics outputs against s1001
+tests whether `pdrSplitField` is genuinely physics-neutral, which the code
+claims ("Diagnostic only: nothing reads Jdif for physics unless lgDebug") and
+which has never been checked.
+
+No field-splitting code written yet, deliberately.
