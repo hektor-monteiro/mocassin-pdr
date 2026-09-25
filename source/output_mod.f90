@@ -48,6 +48,12 @@ module output_mod
         ! default real, so every bridge computation must promote (DEVLOG D-018).
         double precision :: chi, chiThin, rr, LfuvTot, uFUV, Fbol, FbolThin, LbolTot
         double precision :: uFUVdif, chiDif                     ! D-343
+        ! D-345: shell-averaged FUV spectrum, to test whether the diffuse
+        ! component measured in D-344 is Lyman-alpha or spread across the band.
+        integer, parameter :: nShellD = 8
+        double precision :: shJste(nShellD, 0:nbins+1), shJdif(nShellD, 0:nbins+1)
+        double precision :: shCnt(nShellD), rMinD, rMaxD, lamD
+        integer          :: iSh, iShell
 
         if (taskid /= 0) return
 
@@ -101,6 +107,32 @@ module output_mod
         write(96,*) "#   MPI-reduced when pdrSplitField /= 0 or debug is on, so this"
         write(96,*) "#   column is meaningless (stale, and ~1/numtasks) without one"
         write(96,*) "#   of those set. It reads 0 when neither is."
+
+        ! D-345: shell bounds from the model's own active extent
+        shJste = 0.d0; shJdif = 0.d0; shCnt = 0.d0
+        rMinD = huge(1.d0); rMaxD = 0.d0
+        do iG = 1, nGrids
+           if (iG>1 .or. (.not.lg2D)) then
+              yTop = grid(iG)%ny
+           else
+              yTop = 1
+           end if
+           do i = 1, grid(iG)%nx
+              do j = 1, yTop
+                 do k = 1, grid(iG)%nz
+                    if (grid(iG)%active(i,j,k) <= 0) cycle
+                    dx = grid(iG)%xAxis(i) - starPosition(1)%x
+                    dy = grid(iG)%yAxis(j) - starPosition(1)%y
+                    dz = grid(iG)%zAxis(k) - starPosition(1)%z
+                    rr = sqrt(dble(dx)*dble(dx)+dble(dy)*dble(dy)+dble(dz)*dble(dz))
+                    if (rr > 0.d0) then
+                       rMinD = min(rMinD, rr); rMaxD = max(rMaxD, rr)
+                    end if
+                 end do
+              end do
+           end do
+        end do
+        if (rMinD >= rMaxD) rMinD = rMaxD*0.5d0
 
         do iG = 1, nGrids
            if (iG>1 .or. (.not.lg2D)) then
@@ -156,6 +188,23 @@ module output_mod
                        FbolThin = 0.d0
                     end if
 
+                    ! D-345: accumulate the per-bin spectrum in log-spaced
+                    ! radial shells. Shell means rather than single cells,
+                    ! because one cell's Jdif in one bin is Monte Carlo noise.
+                    if (rr > 0.d0 .and. rMaxD > rMinD) then
+                       iShell = 1 + int(dble(nShellD) * log(rr/rMinD) / &
+                            &                           log(rMaxD/rMinD))
+                       iShell = max(1, min(nShellD, iShell))
+                       shCnt(iShell) = shCnt(iShell) + 1.d0
+                       do ifreq = FUVlowP, FUVhighP
+                          shJste(iShell,ifreq) = shJste(iShell,ifreq) &
+                               & + dble(grid(iG)%Jste(cellP,ifreq))
+                          if (allocated(grid(iG)%Jdif)) &
+                               & shJdif(iShell,ifreq) = shJdif(iShell,ifreq) &
+                               & + dble(grid(iG)%Jdif(cellP,ifreq))
+                       end do
+                    end if
+
                     write(96,'(4(1x,i5),3(1x,es13.6),1x,es13.6,9(1x,es13.6))') &
                          & iG, i, j, k, grid(iG)%xAxis(i), grid(iG)%yAxis(j), &
                          & grid(iG)%zAxis(k), rr, grid(iG)%Hden(cellP), chi, chiThin, &
@@ -169,6 +218,38 @@ module output_mod
 
         close(96)
         print*, "! writeFUVField: wrote output/pdrFUV.out"
+
+        ! D-345: the band-resolved diffuse question. D-344 measured the diffuse
+        ! FRACTION of the band (0.35 at the front rising to 1.00 at the far
+        ! edge) but not its COLOUR, and colour is what decides whether it
+        ! matters: H2 and CO dissociate and C ionizes only in 0.821-0.999 Ryd
+        ! (1110-912 A), while Lyman alpha sits at 0.7496 Ryd - inside the band
+        ! the code integrates, below the window the molecules care about. If the
+        ! diffuse excess is Lya, the single band-integrated chi is inflated for
+        ! exactly the reactions it drives by a component that cannot drive them.
+        open(unit=96, file="output/pdrFUVspec.out", action="write", &
+             & position="rewind", status="unknown", iostat=ios)
+        if (ios /= 0) then
+           print*, "! writeFUVField: can't open output/pdrFUVspec.out for writing"
+           stop
+        end if
+        write(96,*) "# Shell-averaged FUV spectrum (DEVLOG D-345)"
+        write(96,*) "# Jdif is meaningless unless pdrSplitField /= 0 or debug is on."
+        write(96,*) "# Lyman-Werner window 0.8210-0.9992 Ryd; Lyman alpha 0.7496 Ryd"
+        write(96,*) "# shells are log-spaced in radius over the active extent:"
+        write(96,*) "#   r_min [cm] = ", rMinD, "  r_max [cm] = ", rMaxD
+        write(96,*) "# shell  cells  bin  nu[Ryd]  lambda[A]  Jste_mean  Jdif_mean"
+        do iSh = 1, nShellD
+           if (shCnt(iSh) <= 0.d0) cycle
+           do ifreq = FUVlowP, FUVhighP
+              lamD = 911.7535d0 / max(dble(nuArray(ifreq)), 1.d-30)
+              write(96,'(1x,i4,1x,f10.0,1x,i6,2(1x,es13.6),2(1x,es14.7))') &
+                   & iSh, shCnt(iSh), ifreq, dble(nuArray(ifreq)), lamD, &
+                   & shJste(iSh,ifreq)/shCnt(iSh), shJdif(iSh,ifreq)/shCnt(iSh)
+           end do
+        end do
+        close(96)
+        print*, "! writeFUVField: wrote output/pdrFUVspec.out"
 
       end subroutine writeFUVField
 #endif
