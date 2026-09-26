@@ -139,6 +139,23 @@ module pdr_mod
     ! relative move. Reduced and printed by reportPassChange.
     double precision :: passCnt(2,3) = 0.d0, passMax(2) = 0.d0
 
+    ! D-358: where MOCASSIN's own rates for the linked neutrals H, He, C, O,
+    ! Mg enter the network. iCr358: the first-order slot X + CRP (or CRPHOT)
+    ! -> X+ + e-, which takes MOCASSIN's photoionization rate on top of the
+    ! cosmic rays; iPh358: the network's own X + PHOTON -> X+ + e-, which it
+    ! replaces; iRec358: X+ + e- -> X + PHOTON (all temperature ranges), whose
+    ! first entry takes MOCASSIN's recombination coefficient. iH2cr358 is
+    ! H2 + CRP -> H2+ + e-, which takes MOCASSIN's H2 photoionization rate.
+    ! Found by structure at initPDRnetwork, as D-163 finds the linked channels.
+    integer :: iCr358(5) = 0, iPh358(5) = 0, iRec358(5,4) = 0, nRec358(5) = 0
+    integer :: iH2cr358 = 0
+    character(len=2), parameter :: lnk358(5) = (/ 'H ', 'He', 'C ', 'O ', 'Mg' /)
+    ! D-358: the solver's X+/X against MOCASSIN's, per iteration, for H and O:
+    ! cells compared, off by more than 2x, largest |log10| of the ratio;
+    ! and cells whose MOCASSIN rates were not yet set
+    double precision :: ion358(2,3) = 0.d0
+    integer          :: nUnset358 = 0
+
     contains
 
       !-----------------------------------------------------------------
@@ -461,7 +478,7 @@ module pdr_mod
         ! stages are always duplicates and are always suppressed.
         if (taskid == 0) &
              & print*, "! initPDR: linked ionization/recombination channels KEPT &
-             &inside the solve (D-260); MOCASSIN re-imposes afterwards:"
+             &inside the solve (D-260), at MOCASSIN's rates (D-358); MOCASSIN re-imposes afterwards:"
         if (.true.) then
            do iR = 1, pdrNreacMod
               lgDupPhot = .false.; lgDupRec = .false.
@@ -520,6 +537,66 @@ module pdr_mod
                  ! with recombination so C+/Mg+ keep both directions.
               end if
            end do
+        end if
+
+        ! D-358: the slots MOCASSIN's own ionization and recombination rates
+        ! go into (see the module declarations). A linked element with no
+        ! first-order ionization slot cannot be given MOCASSIN's rate, and the
+        ! solve would ionize it on the network's terms alone: that is refused.
+        do iLnk = 1, 5
+           sNeut = lnk358(iLnk)
+           sIon  = trim(lnk358(iLnk))//'+'
+           do iR = 1, pdrNreacMod
+              if (.not.(any(adjustl(pdrProduct(iR,:)) == sIon) .and. &
+                   & any(adjustl(pdrProduct(iR,:)) == 'e-'))) then
+                 ! X+ + e- -> X + PHOTON, radiative only (no grain marker)
+                 if (any(adjustl(pdrReactant(iR,:)) == sIon) .and. &
+                      & any(adjustl(pdrReactant(iR,:)) == 'e-') .and. &
+                      & any(adjustl(pdrProduct(iR,:)) == sNeut) .and. &
+                      & any(adjustl(pdrProduct(iR,:)) == 'PHOTON') .and. &
+                      & .not. any(adjustl(pdrReactant(iR,:)) == '#')) then
+                    if (nRec358(iLnk) < 4) then
+                       nRec358(iLnk) = nRec358(iLnk) + 1
+                       iRec358(iLnk, nRec358(iLnk)) = iR
+                    end if
+                 end if
+                 cycle
+              end if
+              if (.not. any(adjustl(pdrReactant(iR,:)) == sNeut)) cycle
+              if (any(adjustl(pdrReactant(iR,:)) == 'CRP')) then
+                 iCr358(iLnk) = iR
+              else if (any(adjustl(pdrReactant(iR,:)) == 'CRPHOT') .and. &
+                   & iCr358(iLnk) == 0) then
+                 iCr358(iLnk) = -iR           ! CRPHOT only if no CRP slot
+              else if (any(adjustl(pdrReactant(iR,:)) == 'PHOTON')) then
+                 iPh358(iLnk) = iR
+              end if
+           end do
+           iCr358(iLnk) = abs(iCr358(iLnk))
+           if (iCr358(iLnk) == 0) then
+              do iR = 1, pdrNspecMod
+                 if (trim(adjustl(pdrSpecies(iR))) == trim(sNeut)) then
+                    print*, "! initPDRnetwork: no first-order ionization slot for ", &
+                         & trim(sNeut), " - MOCASSIN's rate cannot reach the solve (D-358)"
+                    stop
+                 end if
+              end do
+           end if
+        end do
+        do iR = 1, pdrNreacMod
+           if (any(adjustl(pdrReactant(iR,:)) == 'H2') .and. &
+                & any(adjustl(pdrReactant(iR,:)) == 'CRP') .and. &
+                & any(adjustl(pdrProduct(iR,:)) == 'H2+') .and. &
+                & any(adjustl(pdrProduct(iR,:)) == 'e-')) iH2cr358 = iR
+        end do
+        if (taskid == 0) then
+           print*, "! initPDR: MOCASSIN's ionization and recombination rates enter the solve (D-358):"
+           do iLnk = 1, 5
+              print '(a,a2,a,i4,a,i4,a,4i4)', " !   ", lnk358(iLnk), &
+                   & "  ionization slot", iCr358(iLnk), "  own photoionization zeroed", &
+                   & iPh358(iLnk), "  recombination", iRec358(iLnk,1:4)
+           end do
+           print '(a,i4)', " !   H2 -> H2+ slot", iH2cr358
         end if
 
         ! Identify the exothermic chemical-heating reactions in this network.
@@ -3033,6 +3110,32 @@ module pdr_mod
              & pdrNspecMod, NRGR, NR2, NR3, NR4, NR5, NR6, &
              & abun(pdrNelect)*nH, nH, pdrZetaMod)
 
+        ! D-358: the solve ionizes and recombines the linked atoms at
+        ! MOCASSIN's own rates for this cell, not the network's. Until now it
+        ! had recombination but no photoionization for H, He and O, so inside
+        ! an H II region it integrated to NEUTRAL gas (D-356: x(H) = 1,
+        ! x(H+) = 1e-3, x_e = 1e-3 of MOCASSIN's), formed the molecules there,
+        ! and MOCASSIN re-imposed only the atoms afterwards - two x(H+) in one
+        ! cell. The re-imposition below stays; it should now change little.
+        if (allocated(grid%pdrPhotRate)) then
+           if (grid%pdrPhotRate(cellP,1) < 0.) then
+              nUnset358 = nUnset358 + 1
+           else
+              do iqP = 1, 5
+                 if (iCr358(iqP) <= 0) cycle
+                 pdrRate(iCr358(iqP)) = pdrRate(iCr358(iqP)) &
+                      & + dble(max(grid%pdrPhotRate(cellP,iqP), 0.))
+                 if (iPh358(iqP) > 0) pdrRate(iPh358(iqP)) = 0.d0
+                 if (nRec358(iqP) > 0) then
+                    pdrRate(iRec358(iqP,1:nRec358(iqP))) = 0.d0
+                    pdrRate(iRec358(iqP,1)) = dble(max(grid%pdrAlphaRec(cellP,iqP), 0.))
+                 end if
+              end do
+              if (iH2cr358 > 0) pdrRate(iH2cr358) = pdrRate(iH2cr358) &
+                   & + dble(max(grid%pdrPhotRate(cellP,6), 0.))
+           end if
+        end if
+
         call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
              & pdrNspecMod, pdrNreacMod)
         abunPre = abun   ! D-258c: the chemistry's own state, before D-162/D-231 re-impose
@@ -3186,6 +3289,33 @@ module pdr_mod
            if (dqP > 1.d-2) passCnt(iqP,3) = passCnt(iqP,3) + 1.d0
            passMax(iqP) = max(passMax(iqP), dqP)
         end do
+
+        ! D-358: how far the solver's own X+/X ends from MOCASSIN's, H and O
+        if (pdrNHsp > 0 .and. NPROTON > 0 .and. NO > 0 .and. NOx > 0) then
+           do iqP = 1, 2
+              if (iqP == 1) then
+                 dqP = dble(grid%ionDen(cellP,elementXref(1),1))
+                 if (dqP > 0.d0 .and. abunPre(pdrNHsp) > 0.d0 .and. abunPre(NPROTON) > 0.d0) then
+                    dqP = log10((abunPre(NPROTON)/abunPre(pdrNHsp)) &
+                         & / (dble(grid%ionDen(cellP,elementXref(1),2))/dqP))
+                 else
+                    cycle
+                 end if
+              else
+                 dqP = dble(grid%ionDen(cellP,elementXref(8),1))
+                 if (dqP > 0.d0 .and. abunPre(NO) > 0.d0 .and. abunPre(NOx) > 0.d0) then
+                    dqP = log10((abunPre(NOx)/abunPre(NO)) &
+                         & / (mocIonizedFrac(grid, cellP, 8)/dqP))
+                 else
+                    cycle
+                 end if
+              end if
+              if (dqP /= dqP) cycle
+              ion358(iqP,1) = ion358(iqP,1) + 1.d0
+              if (abs(dqP) > log10(2.d0)) ion358(iqP,2) = ion358(iqP,2) + 1.d0
+              ion358(iqP,3) = max(ion358(iqP,3), abs(dqP))
+           end do
+        end if
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
 
@@ -3690,6 +3820,23 @@ module pdr_mod
         end if
         passCnt = 0.d0
         passMax = 0.d0
+
+        ! D-358: the solver's ionization against MOCASSIN's
+        call mpi_allreduce(ion358(:,1:2), cnt(:,1:2), 4, mpi_double_precision, &
+             & mpi_sum, mpi_comm_world, ierr)
+        call mpi_allreduce(ion358(:,3), mx, 2, mpi_double_precision, &
+             & mpi_max, mpi_comm_world, ierr)
+        call mpi_allreduce(nUnset358, iq, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+        if (taskid == 0) then
+           print '(a,i3,2(a,a2,a,i7,a,f8.3,a,f7.2),a,i6)', " ! [D358] iteration", iterMC, &
+                & "  solver X+/X vs MOCASSIN:  ", 'H ', " cells", nint(cnt(1,1)), &
+                & "  off >2x", 100.d0*cnt(1,2)/max(cnt(1,1),1.d0), "%  max dex", mx(1), &
+                & "   ", 'O ', " cells", nint(cnt(2,1)), &
+                & "  off >2x", 100.d0*cnt(2,2)/max(cnt(2,1),1.d0), "%  max dex", mx(2), &
+                & "   rates unset in", iq
+        end if
+        ion358 = 0.d0
+        nUnset358 = 0
       end subroutine reportPassChange
 
       !-----------------------------------------------------------------

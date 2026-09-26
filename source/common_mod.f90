@@ -433,6 +433,15 @@ module common_mod
         ! them into its matrix. Indexed (cell, 1:2*pdrNlink) as
         ! form(1..n) then loss(1..n), one entry per linked (element, stage).
         real, allocatable         :: pdrIonRate(:,:)
+        ! D-358: MOCASSIN's own rates for the linked neutrals, stored by
+        ! ionBalance so the chemistry solve runs on them - the same rates in
+        ! both solvers. Columns 1-5 are H, He, C, O, Mg: photoionization (and,
+        ! for H, collisional ionization) [s^-1] and total recombination of
+        ! the singly charged ion [cm^3 s^-1]. pdrPhotRate column 6 is
+        ! H2 -> H2+ from the MC field and MOCASSIN's H2 cross section
+        ! (yanH2xSec). -1 = not yet computed.
+        real, allocatable         :: pdrPhotRate(:,:)
+        real, allocatable         :: pdrAlphaRec(:,:)
         ! D-166. pdrCoolSp is a NUMBER, evaluated once per coupling pass. In
         ! iterateT it does not move when TeUsed moves - and in neutral gas it is
         ! the only coolant that matters, because every term MOCASSIN computes

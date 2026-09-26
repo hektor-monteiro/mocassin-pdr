@@ -11,6 +11,7 @@ module update_mod
     use grid_mod
     use interpolation_mod
     use xSec_mod
+    use ionization_mod, only : yanH2xSec    ! D-358
 
     contains
 
@@ -2535,6 +2536,8 @@ end subroutine iterateT
             real                   :: deltaNe       ! D-279: (NeOut - NeIn)/NeIn
             logical                :: lgNeSum       ! D-279: NeUsed is the ion sum
             integer                :: iCr280        ! D-280: cosmic-ray table entry
+            integer                :: iSl358, j358  ! D-358: linked slot, bin
+            double precision       :: gH2358        ! D-358: H2 photoionization rate
             real                   :: omega280      ! D-280: cell Lyman-Werner albedo
 
             double precision, dimension(nELements) :: &
@@ -2731,6 +2734,49 @@ end subroutine iterateT
                     ionDn(elem,ion) = dble(NeUsed)*dble(alphaTot(elem,ion)) &
                          & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
                          & * dble(grid%ionDen(cellP,elementXref(1),1))
+#ifdef PDR
+                    ! D-358: the rates the chemistry solve runs on for a linked
+                    ! neutral - its photoionization from this cell's field (and,
+                    ! for H, collisional ionization) and the total recombination
+                    ! of its ion. Charge exchange and cosmic rays are left out:
+                    ! the network carries both itself. Stored at every call, so
+                    ! the last one - at the temperature iterateT settles on -
+                    ! is what the solve reads.
+                    if (ion == 1 .and. allocated(grid%pdrPhotRate)) then
+                       select case (elem)
+                       case (1);  iSl358 = 1
+                       case (2);  iSl358 = 2
+                       case (6);  iSl358 = 3
+                       case (8);  iSl358 = 4
+                       case (12); iSl358 = 5
+                       case default; iSl358 = 0
+                       end select
+                       if (iSl358 > 0) then
+                          if (lgDebug) then
+                             grid%pdrPhotRate(cellP, iSl358) = nPhotoSte(elem,1) &
+                                  & + nPhotoDif(elem,1) + collIon
+                          else
+                             grid%pdrPhotRate(cellP, iSl358) = nPhotoSte(elem,1) + collIon
+                          end if
+                          grid%pdrAlphaRec(cellP, iSl358) = alphaTot(elem,1)
+                       end if
+                       ! H2 -> H2+ on the same field, with the cross section
+                       ! MOCASSIN's own opacity uses (addOpacity, D-107)
+                       if (elem == 1) then
+                          gH2358 = 0.d0
+                          do j358 = 1, nbins
+                             if (nuArray(j358) < 1.1345) cycle
+                             if (grid%Jste(cellP,j358) > 0.) gH2358 = gH2358 + &
+                                  & dble(grid%Jste(cellP,j358))*dble(yanH2xSec(nuArray(j358))) &
+                                  & /(dble(hcRyd)*dble(nuArray(j358)))
+                             if (lgDebug .and. grid%Jdif(cellP,j358) > 0.) gH2358 = gH2358 + &
+                                  & dble(grid%Jdif(cellP,j358))*dble(yanH2xSec(nuArray(j358))) &
+                                  & /(dble(hcRyd)*dble(nuArray(j358)))
+                          end do
+                          grid%pdrPhotRate(cellP, 6) = real(gH2358)
+                       end if
+                    end if
+#endif
 
                     ! A negative rate coefficient is meaningless. The real
                     ! source of them is the dielectronic fit going negative in

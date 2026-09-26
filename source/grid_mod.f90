@@ -1407,6 +1407,11 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrIonRate memory"; stop
                 end if
+                allocate(grid%pdrPhotRate(0:grid%nCells, 1:6), &
+                     & grid%pdrAlphaRec(0:grid%nCells, 1:5), stat = err)   ! D-358
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrPhotRate memory"; stop
+                end if
                 allocate(grid%H2den(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate H2den memory"; stop
@@ -1526,6 +1531,8 @@ module grid_mod
                 grid%H2den = 0.
                 grid%pdrCoolSp = 0.
                 grid%pdrIonRate = 0.
+                grid%pdrPhotRate = -1.
+                grid%pdrAlphaRec = -1.
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
                 grid%pdrHeatXtra = 0.
@@ -3756,6 +3763,11 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrIonRate memory"; stop
                end if
+               allocate(grid(iG)%pdrPhotRate(0:grid(iG)%nCells, 1:6), &
+                    & grid(iG)%pdrAlphaRec(0:grid(iG)%nCells, 1:5), stat = err)   ! D-358
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrPhotRate memory"; stop
+               end if
                allocate(grid(iG)%H2den(0:grid(iG)%nCells), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate H2den memory"; stop
@@ -3878,6 +3890,8 @@ end function getVolume
                grid(iG)%H2den = 0.
                grid(iG)%pdrCoolSp = 0.
                grid(iG)%pdrIonRate = 0.
+               grid(iG)%pdrPhotRate = -1.
+               grid(iG)%pdrAlphaRec = -1.
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
                grid(iG)%pdrLevPop = 0.d0
