@@ -349,17 +349,16 @@ module common_mod
         ! cell is seeded from MOCASSIN's ionization state rather than from the
         ! network file's defaults.
         integer, allocatable :: pdrSeeded(:)
-        ! D-190: per-ray shielding columns and extinction, ray-traced through
-        ! the grid rather than taken from the plane-parallel closed form.
-        !   (cell, ray): H2, C and CO columns [cm^-2] and A_V [mag] outward
-        !   along each HEALPix ray to the grid boundary.
+        ! D-348: what the diffuse-site walk reads per cell, snapshot once per
+        ! MC iteration beside the source-ward columns (pdr_mod,
+        ! snapDiffuseSources): (cell,1:3) shielding n(H2), n(C), n(CO), (cell,4)
+        ! FUV extinction, (cell,5) FUV scattering emissivity. Replaces D-190's
+        ! colRayH2/C/CO/AV, which the removed computeRayColumns filled.
         ! Declared unconditionally, NOT under #ifdef RAYTHEIA: PDRGEOMFLAG is
         ! not applied to common_mod's compilation, so a RAYTHEIA-guarded field
-        ! here is invisible to the rest of the build. That is the eighth time a
-        ! flag-scoped declaration has broken this build. Allocated only in the
-        ! 3D flavour; 192 bytes per cell if it ever were allocated in 1D.
-        real, allocatable    :: colRayH2(:,:), colRayC(:,:)
-        real, allocatable    :: colRayCO(:,:), colRayAV(:,:)
+        ! here is invisible to the rest of the build (D-341). Allocated only
+        ! in the 3D flavour, in pdr_mod, where the flag arrives.
+        double precision, allocatable :: difSrc(:,:)
         integer, allocatable :: lgBlack(:)              ! is this to remain a black cell?
 
         integer, allocatable :: active(:,:,:)           ! point to active cell in 1d array;
@@ -994,6 +993,12 @@ module common_mod
     ! flavours - the sixth time in this project that a PDR-scoped declaration
     ! has broken the plain build (D-096, D-109, D-119, D-138, D-143).
     integer             :: pdrSplitField = 0
+    ! D-348: Jdif is physics now, not only a diagnostic - the 3D build's
+    ! diffuse FUV rays take their magnitude from it (pdr_mod, pdrStep) - so it
+    ! is mirrored, reset and reduced in every PDR run as well as under
+    ! pdrSplitField. Derived once in readInput; not an input. Declared here,
+    ! outside #ifdef PDR, for the reason given above.
+    logical             :: lgJdifLive = .false.
     integer             :: nXProbe = 0     ! D-159: surviving-packet probe
     ! D-224: transport consistency trace, summed over ranks after the transfer.
     ! 1 steps, 2 starting outside the cell they are charged to, 3 longer than

@@ -347,6 +347,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-345 | **The diffuse FUV is dust-scattered continuum, flat across the band - so the spectral branch is closed as measured-and-small, and the angular model is what is left. The pre-registered prediction is refuted.** `runs/d345-fuvspec` (hiipdr, seed 1001, `pdrSplitField 1`, 22 iterations, 74.8553009%, tracking `s1001` to nine digits at every iteration, so the dump is physics-neutral). `Jdif/Jste` per bin, shell-averaged: in the outermost shell it runs **0.99, 0.98, 0.97, 0.95, 0.93, 0.94, 0.96, 0.91, 0.97, 0.93, 0.93** from 0.454 to 0.999 Ryd - **flat, with only a mild blue-ward decline.** Diffuse fraction of the whole band against diffuse fraction inside the Lyman-Werner window: **f_LW/f_band = 0.83 / 0.86 / 0.86 / 0.89 / 0.91 / 0.93 / 0.94 / 0.98** over eight log-radial shells, and the Lya bin carries **0.2-1.8%** of the diffuse total. **So there is no spectral inflation to fix.** The band integral overstates the LW-relevant diffuse content by 17% in the innermost shell (13 cells, noisy) and by **2-9% through the PDR proper** - real, measured, and far too small to explain anything. D-291's conclusion is confirmed from MOCASSIN's own side for the first time rather than from code inspection: no Lya, because `ilow >= 2` excludes the Lyman series by construction, and what is there is scattered continuum. `f_band` itself reproduces D-344 on a different binning (0.17 -> 0.98 over radial shells against 0.35 -> 1.00 over A_V), which is a useful cross-check on both. **What remains is the angular treatment, and the bracket on it is alarming rather than reassuring.** Both extremes are now measured on the same fixture at the same seed: give every ray the source-ward column (today) and the H/H2 crossing sits at A_V 1.17 against Cloudy's 1.09; give every ray its own outward-traced column (D-342) and **there is no molecular zone at all**. The truth is somewhere in that interval, which spans "a normal PDR" to "no molecules". Since 75-100% of the PDR field is diffuse (D-344), the line shielding of the scattered component is a **first-order** control on molecular content, not a refinement - and the sign of the correction is not predictable from anything measured, because a scattered photon's path is longer than the radial one but runs partly through less molecular gas. **Consequence for D-331/D-333:** the molecular observables the code is being taken to production for - CO and H2 line intensities - sit downstream of a quantity currently bracketed between "normal" and "zero". That ordering was not visible before this measurement. Proper treatment needs H2 line opacity accumulated along each packet's path during transport, which MOCASSIN is equipped to do and a twelve-ray post-hoc geometry is not (D-344). Not started. | Accepted | 2026-09-25 |
 | D-346 | **D-345's "next step" is corrected: H2 opacity IS implemented, and D-100 already ruled out the route I proposed - for three structural reasons, one of which no amount of path accumulation fixes.** The user pointed out that H2 opacity exists. It does: `yanH2xSec` (Yan, Sadeghpour & Dalgarno) is in the Monte Carlo opacity via `addOpacity` (`ionization_mod.f90:385-470`). But it is the **photoionization continuum above 15.43 eV**, and its own comment says it is "explicitly ZERO below the 15.4 eV threshold" because H2 absorption in 13.6-15.4 eV is line opacity in the higher electronic bands, not a continuum - Cloudy the same (D-139, which added a 13.6-15.4 eV continuum and then reverted it). The **Lyman-Werner window is 0.821-0.999 Ryd = 11.2-13.6 eV**, entirely below 15.43 eV, so the implemented cross section returns exactly zero across the whole band that dissociates H2. D-100 chose it *for that reason*: "its decisive property is where it sits ... it cannot double-count against anything 3D-PDR is already doing", the live hazard being D-050's double-attenuation, not accuracy. **And D-100 already answered the question D-345 re-opened.** Asked whether 3D-PDR's self-shielding could be reused as a MOCASSIN opacity, it said no, structurally: (1) `H2SHIELD1` is a function of the **column**, and the MC accumulates `tau = sum kappa ds` with no memory of what a packet already traversed - a shielding factor is that integral, already taken; (2) it is **not an exponential**, so no kappa reproduces it - the implied sigma runs 3.22e-15 at N(H2)=1e14 down to 6.90e-21 at 1e20, a factor **4.7e5**, because absorption sits in ~30 discrete bands whose cores black out early and then the damping wings do the work; (3) **no frequency resolution** - 17 bins across 912-1108 A at ~3564 km/s each against a thermal H2 line width of ~0.9 km/s at 100 K. **What that does to D-345's proposal.** I wrote "H2/CO line opacity accumulated along each packet's path during transport". As an *opacity per frequency bin* that is refuted by all three points. What is not refuted, and is what I should have written, is a **per-packet accumulated-column estimator**: each packet carries the H2 column it has traversed and contributes `weight x shield(N_traversed)` to a separate dissociation-rate estimator, applying the existing band-integrated shielding function **per packet** rather than to a mean column. That supplies exactly the memory D-100 identified as missing (1), needs no exponential (2), and needs no line resolution (3), because the band-integrated factor is what is being weighted. It is a new per-packet state variable and a new estimator array - a real change to the transport, not a patch, and correspondingly not cheap. **Nothing in D-345's measurements changes**; only its stated next step, and the register entry that repeated it. **Process:** this is the third time in this session that prior work has corrected a conclusion I reached from the code in front of me - D-338/D-339 on O-14's contents, D-344/D-345 on Lya, and now this. The log holds 345 entries and searching it costs one grep. Doing that first is now the rule, not the remedy. | Accepted | 2026-09-25 |
 | D-347 | **The angular model, specified at the user's direction: one direct ray plus twelve HEALPix rays, with the diffuse column redefined as (star -> scatterer) + (scatterer -> cell). D-346's "change the transport" conclusion is WITHDRAWN - this is one subroutine, using arrays that already exist.** The user asked why 1 + 12 rays through the existing 3D-PDR-style tracer cannot simply be done, and called out the circularity in my answers. The objection I had been raising was never about the rays; it was about the **column**. `computeRayColumns` traces **cell -> outer boundary**, which answers "how much is radiation arriving from OUTSIDE attenuated on its way in" - exactly right for 3D-PDR, whose FUV is an external boundary condition with `rad_surface(k)` as surface brightness streaming inward. Our geometry is the reverse: the star is inside and the diffuse field is made by scattering within the cloud, so a cell->boundary column on 11 of 12 rays asserts illumination from outside a nebula that has no outside source. That is the whole of D-342's H2 x 0.002. **The correct column is a two-leg path.** A photon scattered at P and arriving at cell C traversed `N_eff = N(star->P) + N(P->C)`, and both legs are already in hand: `N(star->P)` is stored per cell as `grid%pdrColH2/C/CO` (D-078), so it is a lookup at whichever cell the ray step is in; `N(P->C)` is what the loop already accumulates; and the weight is `scaOpac(cP)` times the local field, `scaOpac` already being read in that same loop for `cAV`. So per ray one accumulates `sum_i w_i * shield(pdrColH2(cP_i) + cH2_i)`, evaluating the non-linear shielding factor **per scattering site** rather than on a mean column. **Design:** ray 12 direct, weight `1 - f_dif`, source-ward column - i.e. today's calculation; rays 0-11 diffuse, weight `f_dif/12`, the two-leg effective column. `f_dif` is not a free parameter: D-344/D-345 measured it at 0.35 at the front rising to 1.00 at the far edge. **None of D-100's three objections applies** - no per-bin kappa is defined, the band-integrated `shield()` is applied per site, and no line resolution is needed. **Withdrawn:** D-346 said this required a new per-packet state variable carried through `pathSegment` and a new estimator array. It does not; that was me re-deriving from `ionization_mod` instead of reading what `computeRayColumns` already held. The per-packet route remains a valid but more expensive alternative, not the necessary one. **Test already built:** same fixture, seed 1001, exact comparison against both measured extremes - source-ward-everything (H/H2 at A_V 1.17) and outward-everything (no molecular zone). Not implemented yet. | Accepted | 2026-09-25 |
+| D-348 | **The angular model is implemented - and D-342's collapse was mostly a rank-ownership defect, not the outward columns.** `computeRayColumns` kept cells by `mod(cellP-(taskid+1),numtasks)` (active index) while `pdrStep` runs by `mod(iCell-(taskid+1),numtasks)` with iCell counting INACTIVE cells too, and nothing reduced the arrays: on hiipdr only **1011 of 15204** cells (6.6%) had their columns computed on the rank that read them; **93% read zeros on all twelve rays** - no shielding and optically thin line escape. So D-342's x(H2) x 0.002 measured mostly that; its arithmetic stands, its measurement (and its 0-1% for the mirror fold) is withdrawn, and the far end of D-345's bracket was never measured. **Implemented (D-347, one departure):** `computeRayColumns`/`colRay*` removed; `snapDiffuseSources` (in computeAVdust, same abundances as the source-ward columns) and `traceDiffuseSites` (per cell, on the consuming rank) walk twelve HEALPix directions; every step is a scattering site with the isotropic formal-solution weight from MOCASSIN's own grains and field and a two-leg column pdrColX(P) + N(P->C); each site is its own chemistry ray (`chi_dif*w/sum w`, A_V = 0), so H2SHIELD1/COSHIELD/C I are evaluated per site. Slots 0-11 are today's direct ray byte for byte. `Jdif` is live in every PDR run (`lgJdifLive`, derived, not a keyword). Departure: the MC's chi_dif is distributed by formal-solution weight, not `f_dif/12` per direction - the smoke test measures the brightest direction at 1.9-3.1x the mean; `R_difIso` reports the literal split. **Smoke test** (600k photons): tracer scale check passes (walked N(H2) and A_V vs computeAVradial 0.2-2%); direct + diffuse = chi_MC to +0..+8% in the H2 band, so SCATTER's own slab scattering double-counts at most 8%; at fixed abundances the H2 rate rises **x3.4 / x8.6 / x19 / x60 / x170** from A_V 1 to 2.8, almost all from the diffuse MAGNITUDE the reaction rates never saw (D-053) - the two-leg column takes back only 5-32%. Formal solution recovers 53-130% of chi_dif, falling with depth, unexplained. **Prediction** (tools/d348_angular.py): H/H2 crossing deeper, into A_V 1.8-2.6, molecular zone survives. Found, not fixed: the chemistry-pass column rescale compounds (`col0*(a1/a0)*(a2/a0)`). `runs/d348-angular` in flight. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27907,3 +27908,205 @@ Specified, not implemented. The test is already built: same fixture,
 `randomSeed 1001`, exact comparison with no Monte Carlo noise, against both
 measured extremes - source-ward-everything giving an H/H2 crossing at A_V 1.17,
 and outward-everything giving no molecular zone at all.
+
+---
+
+## D-348 - The angular model, implemented; and D-342's collapse was mostly a rank-ownership defect (2026-09-25)
+
+D-347 specified the angular model. This entry implements it, and records a
+defect found while reading the code it replaces, which changes what D-342
+measured.
+
+### D-342's measurement ran on the wrong rank for 93% of the cells
+
+`computeRayColumns` distributed its work by
+
+    if (mod(cellP-(taskid+1), numtasks) /= 0) cycle        ! cellP = active index
+
+while `iterateMC` distributes `pdrStep` by
+
+    iCell = iCell+1                                        ! every (i,j,k), ACTIVE OR NOT
+    if (mod(iCell-(taskid+1),numtasks)==0) call pdrStep(grid(iG),i,j,k)
+
+and nothing reduced `colRayH2/C/CO/AV` between the two. Wherever inactive cells
+exist, the two indices differ and a cell's columns were computed on one rank
+and read on another, where the array still held the zeros it was allocated
+with. hiipdr has `Rin` and a spherical `Rout` inside a cubic box, so 14587 of
+29791 cells are inactive. Counted from `runs/d334-hiipdr/s1001/output/grid0.out`:
+
+    active cells                                      15204
+    columns computed on the rank that read them        1011   (6.6%)
+    read as zero on all twelve rays                   14193   (93.4%)
+
+So in `runs/d341-percol` and `runs/d341-mirror`, 93% of the cells had **no
+self-shielding at all** on any ray, and **optically thin line escape** on every
+ray (`colRayAV = 0` gives `plen = 0` in the D-190 escape branch). D-342's
+x(H2) x 0.002 and vanished molecular zone measured mostly that.
+
+What this does and does not change:
+
+  - **D-342's arithmetic stands.** Twelve `chi/12` rays each on its own
+    cell->boundary column deliver the outward rays' share unshielded; that is
+    a property of the formula, not of the run.
+  - **D-342's measurement is withdrawn as a measurement of it.** The
+    "outward-everything" extreme of D-345's bracket, and the second test
+    target D-347 named, were never measured. The bracket's far end is unknown,
+    not "no molecular zone".
+  - **D-342's "the mirror fold is worth 0-1%" is withdrawn** for the same
+    reason: 93% of the cells had zero columns with or without the fold.
+    D-340's prediction stays untested.
+  - D-342 listed "a scale error inside the tracer" as not excluded. It was not
+    a scale error, but it was a tracer defect of exactly the kind that would
+    look like the physics. The scale check itself is done below, on the new
+    tracer.
+
+The class is the D-341 class: nothing failed loudly. An array that is zero
+where it should be a column is indistinguishable from a cell with nothing in
+front of it.
+
+### What was implemented
+
+`computeRayColumns` and `nearestAxG` are removed, and with them the
+`colRayH2/C/CO/AV` fields and the D-190 escape-probability branch that read
+`colRayAV` when allocated (it was allocated only in the two D-341 runs, so every
+other run has always taken the closed form that remains; no behaviour change).
+In their place, in `pdr_mod.f90` under `RAYTHEIA`:
+
+  - **`snapDiffuseSources`**, called at the top of `computeAVdust`, records per
+    cell what the walk reads - shielding n(H2), n(C), n(CO) (zero outside the
+    PDR zone, the D-088 rule), the FUV extinction `R_FUV*kappa_V` (D-109), and
+    the FUV scattering emissivity `sum_nu kSca*J`. It is taken from the same
+    abundances and zone flags the source-ward columns are integrated from, so
+    the two legs agree. Reading the live `pdrAbun` instead would mix this
+    coupling pass's values (cells this rank has solved) with the last pass's,
+    and the answer would depend on the rank count and sweep order.
+  - **`traceDiffuseSites`**, called per cell from `pdrStep` on the rank that
+    consumes it - no ownership to get wrong, no per-(cell,ray) storage. Twelve
+    HEALPix directions, the D-340 mirror fold, a bisection axis lookup. Every
+    step is a scattering site with weight
+    `w = S exp(-tau(C->P)) (1 - exp(-dtau))`, `S = emissivity/extinction` -
+    the formal solution for isotropic scattering, from MOCASSIN's own grains
+    and field - and two-leg columns `pdrColX(P) + N(P->C)`, the second leg
+    excluding the target cell as the first does (D-088).
+  - **`pdrStep`**: the chemistry now gets `12 + nSite` rays. Slots 0-11 are
+    today's direct ray exactly (`chi0/12`, source-ward A_V and columns), kept
+    as twelve twelfths so that with no diffuse field every rate sum is the old
+    sum plus exact zeros. Each site is a ray of its own carrying
+    `chi_dif * w_i / sum(w)`, `A_V = 0`, and its two-leg columns, so the vendored
+    `H2SHIELD1`, `COSHIELD` and C I band are each evaluated per site on the
+    site's own columns - never on a mean column (D-100). `chi_dif` is the MC's
+    diffuse FUV in the cell, from `Jdif`.
+  - **`Jdif` is live in every PDR run** (`lgJdifLive`, derived in `readInput`,
+    not a keyword): mirrored in `photon_mod` and now also `fluorescence_mod`,
+    reset, reduced and scaled in `iterateMC`. D-344 measured the mirroring
+    physics-neutral by itself. Every physics read of `Jdif` elsewhere is
+    behind `lgDebug`, checked site by site.
+  - A cell with diffuse field but no scattering site on any direction (no
+    dust) carries `chi_dif` on the source-ward column and is counted (`fb`).
+    It has not occurred.
+  - `[D348]` diagnostics per A_V bin, printed once per MC iteration after the
+    last coupling pass.
+
+The 1D flavour (`ONEDIMENSIONAL`) is unchanged: no diffuse rays, byte-for-byte
+today's chemistry. All four flavours compile.
+
+### One departure from D-347, deliberately
+
+D-347 wrote `f_dif/12` per direction. That assumes the diffuse field isotropic,
+which is the half of O-14's matched pair D-342 identified as the defect, and
+the walk already computes each direction's formal-solution intensity. So the
+MC sets the magnitude (`chi_dif`) and the walk distributes it over directions
+and sites by weight. The smoke test measures the diffuse field as markedly
+anisotropic - the brightest of the twelve directions carries **1.9-3.1x** the
+mean - so the choice matters. The `R_difIso` column reports what the literal
+`f_dif/12` split would give on the same sites, so the departure is measured,
+not asserted; reverting it is one line.
+
+### The smoke test (5 iterations, 600k photons, seed 1001)
+
+`[D348]` at iteration 4, the first PDR iteration, abundances as seeded:
+
+    A_V bin     chi_MC   chi_dif  chi_pred   dir_MC  dir_ext  dir_3DPDR    R_dir  R_difSrc R_dif2leg  Nwalk/N AVwalk/AV aniso sites
+    0.00-0.20  1.22E+03 3.09E+02 4.01E+02 9.11E+02 8.63E+02 9.09E+02  9.11E+02 3.09E+02 3.09E+02  0.0000  0.7229  1.88  352
+    0.20-0.47  2.56E+02 1.39E+02 1.22E+02 1.17E+02 1.12E+02 1.33E+02  1.33E+02 1.40E+02 1.38E+02  0.0000  1.0010  2.80  351
+    0.47-0.80  5.35E+01 3.84E+01 2.94E+01 1.51E+01 1.45E+01 1.92E+01  1.65E+01 3.13E+01 2.73E+01  0.4730  1.0061  3.09  346
+    0.80-1.20  1.14E+01 9.73E+00 6.55E+00 1.65E+00 1.43E+00 2.14E+00  9.08E-02 3.27E-01 2.22E-01  1.0028  1.0079  2.91  336
+    1.20-1.60  3.14E+00 2.90E+00 1.82E+00 2.38E-01 1.79E-01 2.96E-01  4.40E-04 4.03E-03 3.35E-03  1.0200  1.0020  2.67  321
+    1.60-2.10  9.11E-01 8.77E-01 5.15E-01 3.40E-02 1.98E-02 3.57E-02  1.39E-05 3.05E-04 2.52E-04  0.9876  1.0041  2.36  296
+    2.10-2.60  2.64E-01 2.59E-01 1.45E-01 5.02E-03 1.79E-03 3.51E-03  2.88E-07 1.95E-05 1.71E-05  0.9814  1.0018  2.15  255
+    2.60-3.05  9.29E-02 9.20E-02 4.84E-02 9.54E-04 2.39E-04 5.01E-04  1.87E-08 3.40E-06 3.22E-06  1.0020  1.0005  2.46  202
+
+(`chi_*` in Draine units; `dir_MC = chi_MC - chi_dif`; `dir_ext` is `chi0` on
+MOCASSIN's own extinction over the source-ward A_V; `dir_3DPDR` is what the
+direct ray hands H2, `chi0*SCATTER(A_V, 1000 A)`; `R_*` are H2
+photodissociation rates per unit alpha from the vendored `H2PDRATE`: direct,
+diffuse on the source-ward column, diffuse on the two-leg columns.) No
+fallback cells, no unset first legs, clean exit, 20 min.
+
+What it says:
+
+  1. **The tracer's scale is right.** Walked from the cell to the star with
+     the new stepping, N(H2) and A_V agree with `computeAVradial`'s
+     independent star-to-cell trace to **0.2-2%** wherever the column spans
+     more than a few cells (the shallow bins differ by step placement over a
+     column of one or two cells). This is D-342's listed check, done.
+  2. **The chemistry now sees the MC's field.** Direct prescription plus
+     `chi_dif` against `chi_MC`, in the H2 band: **+0% / +6% / +8% / +4% /
+     +2% / ~0 / ~0 / ~0** by bin. So the concern that 3D-PDR's `SCATTER`
+     (which carries its own FRR80 slab scattering) double-counts scattered
+     light is bounded at **8%**. Before this, the heating took `chi_MC` and
+     the reaction rates a field ~100x smaller at depth: two realities of one
+     field.
+  3. **The effect is the magnitude, not the angle.** At fixed abundances the
+     H2 rate rises **x3.4** (A_V 0.8-1.2), **x8.6** (1.2-1.6), **x19**
+     (1.6-2.1), **x60** (2.1-2.6), **x170** (2.6-3.05). The two-leg columns
+     take back only **5-32%** of the diffuse part against the source-ward
+     column (`R_dif2leg/R_difSrc` 0.68-0.95). D-344's corollary - "the
+     slab-equivalent treatment is a better approximation than it looks" -
+     holds for the column. What was missing was the field.
+  4. **The formal solution recovers 53-130% of the MC's diffuse field**
+     (`chi_pred/chi_dif` 1.30 at the front falling to 0.53 at A_V ~2.8). Right
+     order everywhere, so no scale error; but it falls short deep, and that is
+     **not explained**. Candidates, none tested: gas FUV emission the walk
+     does not model (H two-photon continuum from the H II region falls partly
+     in 6-10.2 eV); the isotropic phase function against the grains' g = 0.35;
+     twelve directions as quadrature for an intensity that peaks star-ward.
+     It does not enter the physics - the MC sets the magnitude - only the
+     relative weights.
+  5. **`dir_MC` exceeds `dir_ext` increasingly with depth** (1.04 at the
+     front, ~4 at A_V 2.8). There `dir_MC` is the difference of two estimators
+     1% apart at 600k photons, so this is read again at full statistics before
+     anything is concluded.
+
+### The prediction, committed before `runs/d348-angular` finishes
+
+In `tools/d348_angular.py`, against `runs/d334-hiipdr/s1001` at the same seed:
+
+  1. the H/H2 crossing moves **deeper** than A_V 1.168, into **1.8-2.6**;
+  2. a molecular zone still exists (2 x(H2) > x(H) somewhere);
+  3. x(H2) and x(CO) fall at every sampled PDR depth; the C+ = C crossing
+     moves deeper;
+  4. the ionization front moves < 2%, T_dust < 1%;
+  5. the hydrogen budget holds to the baseline's 1.7e-4.
+
+T_gas not predicted either way. Falsified by: the crossing moving shallower or
+by less than 0.05; x(H2) rising at any sampled depth; no molecular zone; the
+front or dust moving more than stated; the budget breaking.
+
+### Found, not fixed
+
+  - **The column rescale between chemistry passes compounds.** `abun0 = abun`
+    is set once before `do it = 1, pdrChemIter`, and each pass ends
+    `colH2 = colH2*abun(NH2)/abun0(NH2)` - so pass 3 runs on
+    `col0*(a1/a0)*(a2/a0)`, not `col0*a2/a0`. Pre-existing, applies to the
+    direct and diffuse rays alike, and left alone so this comparison measures
+    one change. Its size is unmeasured.
+  - The line-escape column along 3D rays (what D-190 meant `colRayAV` for) is
+    a separate question from the FUV angular model and is not addressed.
+
+### Not yet known
+
+The full-statistics result; whether `chi_pred/chi_dif` falling to 0.53 is gas
+emission, phase function or quadrature; whether `dir_MC/dir_ext` rising to ~4
+is noise; the cost at full statistics (sites per cell 200-350, against 12 rays
+before).

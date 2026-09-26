@@ -1708,9 +1708,9 @@ module grid_mod
           ! Makefile's generic %.o rule, which carries $(FFLAGS) but not
           ! $(PDRFLAGS), and RAYTHEIA is only defined in PDRFLAGS - so the
           ! block was preprocessed away in every build ever made and the arrays
-          ! were never allocated. They are now allocated in pdr_mod's
-          ! computeRayColumns, which is compiled WITH the flag that guards the
-          ! feature. Do not add a RAYTHEIA-guarded block to this file.
+          ! were never allocated. D-348 replaced them with difSrc, allocated in
+          ! pdr_mod's snapDiffuseSources, which is compiled WITH the flag that
+          ! guards the feature. Do not add a RAYTHEIA-guarded block to this file.
 
           allocate(grid%lgBlack(0:grid%nCells), stat = err)
           if (err /= 0) then
@@ -3761,8 +3761,9 @@ end function getVolume
                   print*, "! resetGrid: can't allocate pdrSeeded memory"; stop
                end if
                grid(iG)%pdrSeeded = 0
-               ! D-341: see the note at the other allocation site - these
-               ! arrays are allocated in pdr_mod's computeRayColumns, because
+               ! D-341: see the note at the other allocation site - the 3D
+               ! flavour's per-cell arrays (D-348: difSrc) are allocated in
+               ! pdr_mod, because
                ! grid_mod is not compiled with $(PDRFLAGS) and so never saw
                ! RAYTHEIA. The block that stood here was dead in every build.
                allocate(grid(iG)%pdrCoolSlope(0:grid(iG)%nCells), stat = err)  ! D-166

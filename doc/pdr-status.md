@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-347, 2026-09-25. Reference model throughout: the 150 kK PN,
+Status as of D-348, 2026-09-25. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -138,9 +138,9 @@ active on both production fixtures** (D-259, re-read in D-339).
 O-14 verbatim: *"No reflection at mirror walls, slab rays truncated at 59% of
 depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z."*
 
-What MOCASSIN runs is `computeRayColumns` (`pdr_mod.f90:1467`, D-190) - twelve
-HEALPix nside=1 directions per cell per MC iteration, walked through the real
-grid. The vendored 3D-PDR tracer (`calc_columndens`/`raytheia`) is **dead in
+What MOCASSIN ran was `computeRayColumns` (D-190; removed in D-348 - the
+paragraphs down to "Progress" describe it as it was) - twelve HEALPix nside=1
+directions per cell per MC iteration, walked through the real grid. The vendored 3D-PDR tracer (`calc_columndens`/`raytheia`) is **dead in
 this build**: its only caller is 3D-PDR's own `chemicaliterations.F90`.
 
 Of the three per-ray arrays reaching `CALCULATE_REACTION_RATES`, **only the
@@ -156,53 +156,44 @@ through the x=0 and y=0 mirrors, so **roughly half the rays carry truncated
 columns on every published run**. A truncated column under-shields, raising the
 photodissociation rate and suppressing H2 and CO. Size unmeasured.
 
-**Progress 2026-09-25.** Mirror reflection added (D-340) and measured at 0-1%
-once it could run at all (D-341/D-342) - so O-14's first defect is real and
-small. The per-ray columns O-14's list implies were **never live** (D-341:
-grid_mod is not compiled with `$(PDRFLAGS)`), and turning them on alone
-destroys the molecular zone (D-342), because the isotropic `chi/12` field and
-the slab-equivalent column are a **matched pair**. The spectral branch is
-closed as measured-and-small: the diffuse field is dust-scattered continuum,
-flat across the band, and the band integral overstates the Lyman-Werner-relevant
-part by only 2-9% through the PDR (D-345).
+**Progress 2026-09-25.** Mirror reflection added (D-340). The per-ray columns
+O-14's list implies were **never live** (D-341: grid_mod is not compiled with
+`$(PDRFLAGS)`), and when D-341 made them live they ran on the **wrong rank for
+93% of the cells** (D-348: `computeRayColumns` distributed by active index,
+`pdrStep` by an index that counts inactive cells, and nothing reduced the
+arrays), which then read zero columns on every ray. So D-342's collapse
+(x(H2) x 0.002, no molecular zone) and its 0-1% for the mirror fold were
+measured mostly on a defect. D-342's arithmetic - isotropic `chi/12` with
+per-ray cell->boundary columns invents FUV from outside the nebula - stands.
+The spectral branch is closed as measured-and-small (D-345).
 
-**So the angular model is what remains, and it is first-order.** 75-100% of the
-PDR field is diffuse (D-344), and the two measurable extremes of its line
-shielding bracket the answer between an H/H2 crossing at A_V 1.17 and **no
-molecular zone at all** (D-342). CO and H2 observables sit downstream of that
-bracket; [C II] does not.
+**Implemented (D-348, specified in D-347).** `computeRayColumns` is removed.
+Per cell, on the rank that consumes it, `traceDiffuseSites` walks twelve HEALPix
+directions; every step is a scattering site weighted by the isotropic
+formal-solution `S exp(-tau)(1 - exp(-dtau))` from MOCASSIN's own grains and
+field, with a two-leg column `N(star->P) + N(P->C)`. Each site is its own ray to
+the chemistry, carrying `chi_dif * w/sum(w)` at `A_V = 0`, so the vendored
+shielding functions are evaluated per site. Slots 0-11 remain today's direct
+ray byte for byte. `Jdif` is live in every PDR run. One departure from D-347:
+the diffuse magnitude is distributed by formal-solution weight rather than
+`f_dif/12` per direction, because the smoke test measures the field markedly
+anisotropic (brightest direction 1.9-3.1x the mean).
 
-**Next** (specified in D-347, at the user's direction). What is already there:
-`yanH2xSec` puts the H2 **photoionization continuum** into the Monte Carlo
-opacity, but it is zero below 15.43 eV by design, so it contributes nothing
-across the Lyman-Werner window (0.821-0.999 Ryd) that dissociates H2. D-100 chose
-it precisely because it cannot double-count against 3D-PDR's own self-shielding.
+**What the smoke test measured** (600k photons, first PDR iteration): the
+tracer's scale agrees with `computeAVradial` to 0.2-2%; the chemistry's direct
+plus diffuse field matches `chi_MC` to +0..+8% in the H2 band, where before the
+reaction rates saw ~100x less than the heating at depth; and at fixed
+abundances the H2 photodissociation rate rises x3.4 at A_V ~1 to x170 at
+A_V ~2.8 - **almost all of it the diffuse field's magnitude** (D-053's "the
+diffuse field is currently bypassed"), the two-leg columns taking back only
+5-32%. Predicted: the H/H2 crossing moves deeper, into A_V 1.8-2.6, with the
+molecular zone surviving. `runs/d348-angular` (seed 1001) is the test.
 
-**One direct ray plus twelve HEALPix rays, with the diffuse column redefined.**
-The tracer is not the problem; `computeRayColumns` traces cell -> outer boundary,
-which answers "how is radiation from OUTSIDE attenuated on its way in" - right
-for 3D-PDR's externally lit cloud, wrong here, where the star is inside and the
-diffuse field is made by scattering within. That mismatch is the whole of
-D-342's collapse, not an argument against 1 + 12 rays.
-
-The correct column is two-leg: `N_eff = N(star->P) + N(P->C)` for a photon
-scattered at P. Both legs already exist - `N(star->P)` is stored per cell as
-`grid%pdrColH2/C/CO` (D-078), `N(P->C)` is what the ray loop already accumulates,
-and the weight uses `scaOpac(cP)`, already read in that loop. Per ray,
-`sum_i w_i * shield(pdrColH2(cP_i) + cH2_i)`, evaluating the non-linear factor
-per scattering site. None of D-100's three objections applies: no per-bin kappa,
-`shield()` used as itself, band-integrated so no line resolution needed.
-
-    ray 12    direct    weight 1 - f_dif    source-ward column (today's)
-    rays 0-11 diffuse   weight f_dif / 12   two-leg N_eff
-
-`f_dif` is measured, not free: 0.35 at the front to 1.00 at the far edge
-(D-344/D-345). D-346's claim that this needs a new per-packet state variable in
-the transport is **withdrawn** - it is one subroutine plus the handoff.
-
-Two cheaper narrowing steps first: check `colRayAV` against the cell's own A_V
-for a scale error in `computeRayColumns` (listed in D-342, not done), and a
-single-scattering estimate as a sanity bound on the above.
+**Open under L-4.** The formal solution recovers only 53-130% of the MC's
+`chi_dif`, falling with depth, unexplained (gas two-photon emission, phase
+function, and twelve-direction quadrature are the candidates). The column
+rescale between chemistry passes compounds (`col0*(a1/a0)*(a2/a0)`), found and
+not yet fixed. The 1D flavour keeps the direct-only chemistry.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly

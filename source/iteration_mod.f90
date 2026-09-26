@@ -611,7 +611,7 @@ module iteration_mod
               ! diffuse packets into it without this let it accumulate across
               ! every iteration - it read 8.8e7 against Jste's 0.038. Reset it
               ! whenever it is being written.
-              if (lgDebug .or. pdrSplitField /= 0) &
+              if (lgDebug .or. lgJdifLive) &
                    & grid(iG)%Jdif(0:grid(iG)%nCells, 1:nbins) = 0.
               if (lgDebug) then
                  grid(iG)%linePackets(0:grid(iG)%nCells, 1:nLines) = 0.
@@ -758,7 +758,7 @@ module iteration_mod
               end if
               JSteTemp           = 0.
 
-              if (lgDebug .or. pdrSplitField /= 0) then   ! D-158
+              if (lgDebug .or. lgJdifLive) then   ! D-158
                  allocate(JDifTemp(0:grid(iG)%nCells, nbins), stat = err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate array memory: JdifTemp "
@@ -824,7 +824,7 @@ module iteration_mod
 
               size =  (grid(iG)%nCells+1)*nbins
 
-              if (lgDebug .or. pdrSplitField /= 0) then   ! D-158
+              if (lgDebug .or. lgJdifLive) then   ! D-158
                  call mpi_allreduce(grid(iG)%JDif, JDifTemp, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
               end if
@@ -888,9 +888,9 @@ module iteration_mod
                              ! so every rank kept its own packets' deposits and
                              ! the census read ~1/14 of the diffuse field. That
                              ! made D-223's "diffuse fraction" ~0.07 whatever the
-                             ! truth. Diagnostic only: nothing reads Jdif for
-                             ! physics unless lgDebug (D-218).
-                             if (lgDebug .or. pdrSplitField /= 0) then
+                             ! truth. D-348: pdrStep's diffuse FUV rays now read
+                             ! Jdif as physics, so this copy is what they see.
+                             if (lgDebug .or. lgJdifLive) then
                                 grid(iG)%JDif(grid(iG)%active(i,j,k),freq) = &
                                      & JDifTemp(grid(iG)%active(i,j,k),freq)
                              end if
@@ -925,6 +925,7 @@ module iteration_mod
                  if ( allocated(linePacketsTemp) )    deallocate(linePacketsTemp)
               end if
               ! D-245: JDifTemp is allocated under (lgDebug .or. pdrSplitField /= 0)
+              ! (lgJdifLive since D-348)
               ! at line ~760 but was freed here only under lgDebug, so with
               ! pdrSplitField set and lgDebug off it was never freed. iterateMC is
               ! RECURSIVE - it advances nIterateMC and calls itself rather than
@@ -945,7 +946,7 @@ module iteration_mod
                  ! D-158: Jdif needs the same unit conversion and octant
                  ! division as Jste, or the diagnostic compares a scaled array
                  ! against an unscaled one - a factor ~1e10.
-                 if (lgDebug .or. pdrSplitField /= 0) &
+                 if (lgDebug .or. lgJdifLive) &
                       & grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:) * 1.e-9
                  do ifreq = 1, nbins
                     totalEscaped = totalEscaped+&
@@ -959,7 +960,7 @@ module iteration_mod
                     grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:)/8.
                     grid(iG)%escapedPackets(i,:,:) = grid(iG)%escapedPackets(i,:,:)/8.
                     totalEscaped = nint(real(totalEscaped)/8.)
-                    if (lgDebug .or. pdrSplitField /= 0) &
+                    if (lgDebug .or. lgJdifLive) &
                          & grid(iG)%Jdif(i,:) = grid(iG)%Jdif(i,:)/8.
                  end if
 
@@ -2007,6 +2008,7 @@ module iteration_mod
                  pdrThTmp = 0.; pdrThSum = 0.
                  pdrNstuck   = 0
                  pdrNbadPop  = 0
+                 call resetDiffuseDiag()                    ! D-348
 
                  iCell = 0
                  do i = 1, grid(iG)%nx
@@ -2154,6 +2156,10 @@ module iteration_mod
 
                  call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                       & mpi_sum, mpi_comm_world, ierr)
+                 ! D-348: iCouple is the same on every rank, so every rank
+                 ! enters the reduction inside or none does
+                 if (iCouple == max(pdrCoupleIter, 1)) &
+                      & call reportDiffuseDiag(nIterateMC)
                  if (taskid==0) then
                     print*, '! iterateMC: pdrStep out', iG
                     if (pdrNbadPop > 0) print*, &

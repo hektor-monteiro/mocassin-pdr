@@ -103,10 +103,10 @@ module output_mod
         write(96,*) "# iG ix iy iz  x y z [cm]  r [cm]  Hden  chi_MC  chi_thin  ratio  Fbol_MC  Fbol_thin  ratio_bol  V[cm3]  chi_dif"
         write(96,*) "# chi_dif (D-343): the DIFFUSE part of chi_MC, from Jdif. Jste"
         write(96,*) "#   already carries the diffuse packets, so chi_dif is a SUBSET"
-        write(96,*) "#   of chi_MC, not an addition to it. Jdif is only reset and"
-        write(96,*) "#   MPI-reduced when pdrSplitField /= 0 or debug is on, so this"
-        write(96,*) "#   column is meaningless (stale, and ~1/numtasks) without one"
-        write(96,*) "#   of those set. It reads 0 when neither is."
+        write(96,*) "#   of chi_MC, not an addition to it. Jdif is reset and"
+        write(96,*) "#   MPI-reduced in every PDR run (D-348: the 3D build's diffuse"
+        write(96,*) "#   FUV rays read it) and whenever pdrSplitField /= 0 or debug"
+        write(96,*) "#   is on; outside those it reads 0."
 
         ! D-345: shell bounds from the model's own active extent
         shJste = 0.d0; shJdif = 0.d0; shCnt = 0.d0
@@ -234,7 +234,7 @@ module output_mod
            stop
         end if
         write(96,*) "# Shell-averaged FUV spectrum (DEVLOG D-345)"
-        write(96,*) "# Jdif is meaningless unless pdrSplitField /= 0 or debug is on."
+        write(96,*) "# Jdif is live in every PDR run (D-348), and under pdrSplitField or debug."
         write(96,*) "# Lyman-Werner window 0.8210-0.9992 Ryd; Lyman alpha 0.7496 Ryd"
         write(96,*) "# shells are log-spaced in radius over the active extent:"
         write(96,*) "#   r_min [cm] = ", rMinD, "  r_max [cm] = ", rMaxD

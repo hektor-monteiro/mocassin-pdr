@@ -881,6 +881,15 @@ module set_input_mod
 
         close(10)
 
+        ! D-348: Jdif is an input to the 3D build's chemistry, so every PDR run
+        ! accumulates it; pdrSplitField keeps it live for its own diagnostics.
+        ! Derived, not read: there is no keyword that can turn the consumer's
+        ! input off.
+        lgJdifLive = (pdrSplitField /= 0)
+#ifdef PDR
+        if (lgPDR) lgJdifLive = .true.
+#endif
+
         ! Non-fatal advisory. This deliberately sits OUTSIDE the validation chain
         ! below. It used to be an `else if` branch inside it, and because it does
         ! not stop, and the default nuMin (1.001e-5) satisfies it, the chain

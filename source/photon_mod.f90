@@ -1959,10 +1959,11 @@ module photon_mod
                       ! MOCASSIN's debug mode, the only other way to split them,
                       ! segfaults on an array sized before nLines is known.
                       ! Jdif is allocated unconditionally and simply unused
-                      ! here, so mirror the diffuse part into it as a pure
-                      ! diagnostic. Nothing reads Jdif unless lgDebug, so this
-                      ! changes no result.
-                      if (pdrSplitField /= 0) &
+                      ! here, so mirror the diffuse part into it. D-344 checked
+                      ! the mirror changes no result by itself; since D-348 the
+                      ! 3D build's diffuse FUV rays read it, so it is live in
+                      ! every PDR run (lgJdifLive), not only under pdrSplitField.
+                      if (lgJdifLive) &
                            & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                            & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dlLoc*deltaE(iStar) *(enPacket%weight) / dV
                    end if
@@ -2289,7 +2290,7 @@ module photon_mod
                       grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                            & grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaE(iStar) *(enPacket%weight) / dV
                       ! D-158: same split on the cell-crossing branch.
-                      if (pdrSplitField /= 0) &
+                      if (lgJdifLive) &
                            & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                            & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaE(iStar) *(enPacket%weight) / dV
                    end if

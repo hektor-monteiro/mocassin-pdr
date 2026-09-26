@@ -102,18 +102,36 @@ module pdr_mod
     ! built first; without it the term reads unset state (DEVLOG D-029).
     use chemical_heating_module, only : init_chemical_heating
 
+    ! D-348: the vendored band-integrated shielding, evaluated for the
+    ! diagnostics exactly as CALCULATE_REACTION_RATES evaluates it per ray
+    use functions_module, only : pdrH2PDRATE => H2PDRATE, pdrSCATTER => SCATTER
+
     implicit none
 
     private
     public :: initPDRnetwork, seedPDR, seedMolecules, calibratePDRdust, dustPerCell, computeAVdust, &
              & initPDRcoolTab, rescaleIonToAvail, &
             & mocassinToPDR, pdrStep, pdrToMocassin
+    public :: resetDiffuseDiag, reportDiffuseDiag        ! D-348
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
     ! component, split by material. Fixed by the size distribution and the
     ! species mix, so measured once; the per-H area is Ndust/Hden times this.
     double precision, allocatable :: sigSilGrain(:), sigGraGrain(:)
     logical                       :: lgH2areaDone = .false.
+
+    ! D-348: the scattering sites of the cell pdrStep is solving, filled by
+    ! traceDiffuseSites - weight, and (H2, C, CO) two-leg columns [cm^-2]
+    double precision, allocatable :: siteW(:), siteN(:,:)
+    integer, allocatable          :: siteK(:)          ! the direction it lies on
+
+    ! D-348: per-A_V-bin sums over the cells this rank solved in the current
+    ! coupling pass, reduced and printed by reportDiffuseDiag. The bins are
+    ! D-344's, so the diffuse fractions read straight against its table.
+    integer, parameter :: nDifBin = 9, nDifCol = 18
+    double precision, parameter :: difBinEdge(0:nDifBin) = &
+         & (/ 0.d0, 0.2d0, 0.47d0, 0.8d0, 1.2d0, 1.6d0, 2.1d0, 2.6d0, 3.05d0, 1.d30 /)
+    double precision :: difDiag(nDifCol, nDifBin) = 0.d0
 
     contains
 
@@ -1447,174 +1465,311 @@ module pdr_mod
 
 #ifdef RAYTHEIA
       !-----------------------------------------------------------------
-      ! D-190: per-ray shielding columns, ray-traced through the grid.
+      ! D-348 (specified in D-347): the diffuse FUV field as scattering sites
+      ! along twelve HEALPix directions, each site carrying the two-leg column
+      ! its photons actually crossed.
       !
-      ! The 3D build gives every HEALPix ray a real path length, but every
-      ! ray's COLUMN still came from the plane-parallel closed form, and all
-      ! twelve shielding columns were filled with the single source-ward scalar
-      ! computeAVradial had traced. That is a slab answer inside a 3D model,
-      ! and the shielding column is what sets the molecular content.
+      ! What this replaces. computeRayColumns (D-190) traced each ray from the
+      ! cell to the outer boundary and stored the column per (cell, ray). That
+      ! column answers "how is radiation arriving from OUTSIDE attenuated on
+      ! its way in" - right for 3D-PDR, whose FUV is a boundary condition, and
+      ! wrong here, where the star is inside and the diffuse field is made by
+      ! scattering within the cloud. It also ran on the wrong rank: it kept the
+      ! cells with mod(cellP-(taskid+1),numtasks) == 0, where pdrStep owns
+      ! mod(iCell-(taskid+1),numtasks) == 0 with iCell counting INACTIVE cells
+      ! too, and its output was never reduced. On hiipdr only 1011 of 15204
+      ! active cells (6.6%) had their columns computed on the rank that read
+      ! them; the rest read the zero-initialised arrays (D-348).
       !
-      ! Here each ray is walked outward from the cell centre to the grid
-      ! boundary through the actual grid. Twelve traces per cell, once per MC
-      ! iteration - the work computeAVradial already does, times twelve.
+      ! What it does instead. A photon scattered at P and arriving at the cell
+      ! C has crossed
+      !
+      !     N_eff = N(star -> P) + N(P -> C)
+      !
+      ! The first leg is pdrColH2/C/CO(P) (D-078/D-088), already stored per
+      ! cell; the second is accumulated along the walk. The walk is done HERE,
+      ! per cell, on the rank that consumes it, so there is no ownership to get
+      ! wrong and no per-(cell,ray) storage.
+      !
+      ! Each step of the walk is one scattering site. Its weight is the formal
+      ! solution of the transfer equation for isotropic scattering,
+      !
+      !     w = S(P) exp(-tau(C->P)) (1 - exp(-dtau)),  S = sum_nu kSca*J / kExt
+      !
+      ! built from MOCASSIN's own scattering opacity, FUV extinction and field.
+      ! The sites are handed to the chemistry as rays of their own (pdrStep),
+      ! so the vendored shielding functions - H2SHIELD1, COSHIELD, the C I
+      ! band - are each evaluated per site on the site's own columns: the
+      ! non-linear factor is never applied to a mean column (D-100's point).
+      !
+      ! Everything the walk reads is the snapshot snapDiffuseSources takes in
+      ! computeAVdust, i.e. the same abundances pdrColH2 was integrated from.
+      ! The live pdrAbun would mix this coupling pass's values (cells this rank
+      ! has already solved) with the last pass's (every other cell), and the
+      ! answer would depend on the rank count and the order of the sweep.
       !
       ! Directions are the twelve HEALPix nside=1 pixel centres in RING order,
-      ! constructed directly: the vendored pix2vec_nest is never called and its
-      ! pix2x/pix2y tables are never initialised. RING keeps the convention the
-      ! rest of pdr_mod assumes - rays 0-3 at mu = +2/3, 4-7 at 0, 8-11 at -2/3.
+      ! constructed directly (the vendored pix2vec_nest is never initialised):
+      ! rays 0-3 at mu = +2/3, 4-7 at 0, 8-11 at -2/3.
       !-----------------------------------------------------------------
-      subroutine computeRayColumns(grid)
+
+      !-----------------------------------------------------------------
+      ! D-348: what traceDiffuseSites reads, per cell, taken once per MC
+      ! iteration beside the source-ward columns:
+      !   difSrc(:,1:3)  n(H2), n(C), n(CO) [cm^-3] that SHIELD - zero outside
+      !                  the PDR zone, the rule computeAVradial applies (D-088)
+      !   difSrc(:,4)    FUV extinction coefficient [1/cm], R_FUV*kappa_V from
+      !                  this cell's own grains (D-109)
+      !   difSrc(:,5)    FUV scattering emissivity sum_nu kSca(nu)*J(nu)
+      !                  [Jste units / cm], the MC's full local field
+      ! Allocated here, not in grid_mod, for the reason D-341 gives: this is
+      ! the file the RAYTHEIA flag actually reaches.
+      !-----------------------------------------------------------------
+      subroutine snapDiffuseSources(grid)
         implicit none
-        type(grid_type), intent(inout) :: grid(*)
+        type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer :: iG, i, j, k, kray, istep, nstep, ix, iy, iz, cP, cellP
-        integer :: errAlloc                                ! D-341
-        double precision :: vx(0:11), vy(0:11), vz(0:11)
-        double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
-        double precision :: cH2, cC, cCO, cAV, nd, kap
-        double precision :: xlo, xhi, ylo, yhi, zlo, zhi   ! D-339
-
-        do kray = 0, 11
-           if (kray < 4) then
-              zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
-           else if (kray < 8) then
-              zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
-           else
-              zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
-           end if
-           sr = sqrt(max(1.d0 - zz*zz, 0.d0))
-           vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
-        end do
+        integer          :: iG, cP, ifreq, errAlloc
+        double precision :: nd, kV, rfuvL, emis, jnu
 
         do iG = 1, nGrids
-           ! D-341: these arrays are allocated HERE, and nowhere else.
-           !
-           ! grid_mod had two allocation blocks for them, both guarded by
-           ! #ifdef RAYTHEIA - and grid_mod.f90 is built by the Makefile's
-           ! generic %.o rule, which carries $(FFLAGS) but NOT $(PDRFLAGS).
-           ! RAYTHEIA is only ever defined in PDRFLAGS, so both blocks were
-           ! preprocessed away in every build that has ever been made, the
-           ! arrays were never allocated, the `.not.allocated -> cycle` that
-           ! used to stand here fired for every grid, and D-190's per-ray
-           ! shielding columns have never once been live. Nothing failed
-           ! loudly: an unallocated allocatable simply reports .false.
-           !
-           ! The allocation belongs in this file because this file is where
-           ! the flag that guards the feature actually arrives. common_mod hit
-           ! the same trap and worked around it by declaring the fields
-           ! unconditionally (see its note at the declaration); grid_mod has
-           ! the same trap and nobody noticed.
-           if (.not.allocated(grid(iG)%colRayH2)) then
-              allocate(grid(iG)%colRayH2(0:grid(iG)%nCells,0:11), stat=errAlloc)
-              if (errAlloc == 0) &
-                 & allocate(grid(iG)%colRayC (0:grid(iG)%nCells,0:11), stat=errAlloc)
-              if (errAlloc == 0) &
-                 & allocate(grid(iG)%colRayCO(0:grid(iG)%nCells,0:11), stat=errAlloc)
-              if (errAlloc == 0) &
-                 & allocate(grid(iG)%colRayAV(0:grid(iG)%nCells,0:11), stat=errAlloc)
+           if (.not.allocated(grid(iG)%difSrc)) then
+              allocate(grid(iG)%difSrc(0:grid(iG)%nCells, 1:5), stat=errAlloc)
               if (errAlloc /= 0) then
-                 print*, "! computeRayColumns: can't allocate per-ray column arrays"
+                 print*, "! snapDiffuseSources: can't allocate difSrc"
                  stop
               end if
-              grid(iG)%colRayH2 = 0.; grid(iG)%colRayC  = 0.
-              grid(iG)%colRayCO = 0.; grid(iG)%colRayAV = 0.
            end if
-           ds = abs(dble(grid(iG)%xAxis(min(2,grid(iG)%nx))) &
-                & - dble(grid(iG)%xAxis(1)))
-           if (grid(iG)%ny > 1) ds = min(ds, abs(dble(grid(iG)%yAxis(2)) &
-                & - dble(grid(iG)%yAxis(1))))
-           if (grid(iG)%nz > 1) ds = min(ds, abs(dble(grid(iG)%zAxis(2)) &
-                & - dble(grid(iG)%zAxis(1))))
-           if (ds <= 0.d0) cycle
-           dmax = sqrt( dble(grid(iG)%xAxis(grid(iG)%nx))**2 &
-                &     + dble(grid(iG)%yAxis(grid(iG)%ny))**2 &
-                &     + dble(grid(iG)%zAxis(grid(iG)%nz))**2 )
-           xlo = dble(grid(iG)%xAxis(1)); xhi = dble(grid(iG)%xAxis(grid(iG)%nx))
-           ylo = dble(grid(iG)%yAxis(1)); yhi = dble(grid(iG)%yAxis(grid(iG)%ny))
-           zlo = dble(grid(iG)%zAxis(1)); zhi = dble(grid(iG)%zAxis(grid(iG)%nz))
-           ! D-339: a reflected ray runs through the mirrored octants as well,
-           ! so in the unfolded picture it can reach the far face of a box
-           ! twice this one's size. The walk has to be long enough to let it.
-           if (lgSymmetricXYZ) dmax = 2.d0*dmax
-           nstep = max(4, min(4000, int(dmax/ds) + 1))
-
-           do i = 1, grid(iG)%nx
-            do j = 1, grid(iG)%ny
-             do k = 1, grid(iG)%nz
-              cellP = grid(iG)%active(i,j,k)
-              if (cellP <= 0) cycle
-              if (mod(cellP-(taskid+1), numtasks) /= 0) cycle
-              do kray = 0, 11
-                 cH2 = 0.d0; cC = 0.d0; cCO = 0.d0; cAV = 0.d0
-                 do istep = 1, nstep
-                    rr = (dble(istep)-0.5d0)*ds
-                    px = dble(grid(iG)%xAxis(i)) + vx(kray)*rr
-                    py = dble(grid(iG)%yAxis(j)) + vy(kray)*rr
-                    pz = dble(grid(iG)%zAxis(k)) + vz(kray)*rr
-                    ! D-339 (O-14, first of its four defects): reflect at
-                    ! the mirror walls instead of stopping there. With
-                    ! symmetricXYZ the grid is an octant whose LOWER faces are
-                    ! planes of symmetry, so a ray crossing one continues into
-                    ! gas identical to the gas it just left, and folding the
-                    ! sample point about the plane samples exactly that. Each
-                    ! coordinate is monotonic along a straight ray, so it
-                    ! crosses each plane at most once and one fold per axis is
-                    ! exact for every later step.
-                    !
-                    ! Without this, four of the twelve RING directions ended at
-                    ! the z=0 wall and two more at x=0 and y=0 - about half the
-                    ! rays on every run this project has published. A truncated
-                    ! column UNDER-shields, so the photodissociation rate came
-                    ! out too high and H2 and CO too low. D-259 measured the
-                    ! truncation at 59% of depth.
-                    !
-                    ! The UPPER faces are the edge of the model, not mirrors:
-                    ! a ray reaching one has left the cloud and still stops.
-                    if (lgSymmetricXYZ) then
-                       if (px < xlo) px = 2.d0*xlo - px
-                       if (py < ylo) py = 2.d0*ylo - py
-                       if (pz < zlo) pz = 2.d0*zlo - pz
-                    end if
-                    if (px < xlo .or. px > xhi .or. &
-                      & py < ylo .or. py > yhi .or. &
-                      & pz < zlo .or. pz > zhi) exit
-                    ix = nearestAxG(grid(iG)%xAxis, grid(iG)%nx, real(px))
-                    iy = nearestAxG(grid(iG)%yAxis, grid(iG)%ny, real(py))
-                    iz = nearestAxG(grid(iG)%zAxis, grid(iG)%nz, real(pz))
-                    cP = grid(iG)%active(ix,iy,iz)
-                    if (cP <= 0) cycle
-                    nd  = dble(grid(iG)%Hden(cP))
-                    cH2 = cH2 + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxH2))*ds
-                    cC  = cC  + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxC ))*ds
-                    cCO = cCO + nd*dble(grid(iG)%pdrAbun(cP,pdrIdxCO))*ds
-                    kap = dble(grid(iG)%absOpac(cP,VbandP)) &
-                        & + dble(grid(iG)%scaOpac(cP,VbandP))
-                    cAV = cAV + kap*ds
-                 end do
-                 grid(iG)%colRayH2(cellP,kray) = real(cH2)
-                 grid(iG)%colRayC (cellP,kray) = real(cC)
-                 grid(iG)%colRayCO(cellP,kray) = real(cCO)
-                 grid(iG)%colRayAV(cellP,kray) = real(1.0857d0*cAV)
+           grid(iG)%difSrc = 0.d0
+           do cP = 1, grid(iG)%nCells
+              if (grid(iG)%Hden(cP) <= 0.) cycle
+              if (grid(iG)%pdrZone(cP) == 1) then
+                 nd = dble(grid(iG)%Hden(cP))
+                 grid(iG)%difSrc(cP,1) = nd*dble(grid(iG)%pdrAbun(cP,NH2))
+                 grid(iG)%difSrc(cP,2) = nd*dble(grid(iG)%pdrAbun(cP,NC ))
+                 grid(iG)%difSrc(cP,3) = nd*dble(grid(iG)%pdrAbun(cP,NCO))
+              end if
+              kV = dble(grid(iG)%absOpac(cP,VbandP)) &
+                 & + dble(grid(iG)%scaOpac(cP,VbandP))
+              rfuvL = dble(grid(iG)%dustRfuv(cP))
+              if (rfuvL <= 0.d0) rfuvL = dble(pdrRfuv)
+              grid(iG)%difSrc(cP,4) = rfuvL*kV
+              emis = 0.d0
+              do ifreq = FUVlowP, FUVhighP
+                 jnu = dble(grid(iG)%Jste(cP,ifreq))
+                 ! under lgDebug the diffuse packets are in Jdif ALONE
+                 if (lgDebug) jnu = jnu + dble(grid(iG)%Jdif(cP,ifreq))
+                 emis = emis + dble(grid(iG)%scaOpac(cP,ifreq))*jnu
               end do
-             end do
-            end do
+              grid(iG)%difSrc(cP,5) = emis
            end do
         end do
 
-      end subroutine computeRayColumns
+      end subroutine snapDiffuseSources
 
-      integer function nearestAxG(ax, n, v)
+
+      !-----------------------------------------------------------------
+      ! D-348: walk the twelve directions from cell (xP,yP,zP) and return the
+      ! scattering sites in siteW (weight) and siteN (H2, C, CO two-leg
+      ! columns), 1..nSite. Also returns, for the diagnostics:
+      !   wTot     sum of all weights; wTot/12 is the formal solution's J_dif
+      !   aniso    brightest direction over the mean, sum_k basis
+      !   colWalk  N(H2) walked from the cell to the star with this routine's
+      !   avWalk   own stepping, and the A_V along the same path - the scale
+      !            check D-342 listed (against pdrColH2 and AVeff, which
+      !            computeAVradial built independently). -1 unless nStars == 1.
+      !   nUnset   sites whose first leg was never computed (pdrColH2 < 0)
+      !-----------------------------------------------------------------
+      subroutine traceDiffuseSites(grid, xP, yP, zP, cellP, nSite, wTot, &
+           & aniso, colWalk, avWalk, nUnset)
         implicit none
-        real, intent(in) :: ax(*)
-        integer, intent(in) :: n
-        real, intent(in) :: v
-        integer :: m
-        nearestAxG = 1
-        do m = 1, n
-           if (abs(ax(m)-v) < abs(ax(nearestAxG)-v)) nearestAxG = m
+        type(grid_type), intent(in) :: grid
+        integer, intent(in)           :: xP, yP, zP, cellP
+        integer, intent(out)          :: nSite, nUnset
+        double precision, intent(out) :: wTot, aniso, colWalk, avWalk
+
+        integer          :: kray, istep, nstep, ix, iy, iz, cP, m, nw, need
+        double precision, save :: vx(0:11), vy(0:11), vz(0:11)
+        logical, save    :: lgDirs = .false.
+        double precision :: zz, ph, sr, ds, dsw, rr, px, py, pz, dmax, seg
+        double precision :: x0, y0, z0, xlo, xhi, ylo, yhi, zlo, zhi
+        double precision :: tau, dtau, kext, emis, esc, w, tauV, cH2w
+        double precision :: cN(3), dN(3), col1(3), wRay(0:11)
+
+        if (.not.lgDirs) then
+           do kray = 0, 11
+              if (kray < 4) then
+                 zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
+              else if (kray < 8) then
+                 zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
+              else
+                 zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+              end if
+              sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
+           end do
+           lgDirs = .true.
+        end if
+
+        nSite = 0; nUnset = 0
+        wTot = 0.d0; aniso = 0.d0; colWalk = -1.d0; avWalk = -1.d0
+        wRay = 0.d0
+
+        ! the finest axis spacing, so no cell is stepped over
+        ds = huge(1.d0)
+        do m = 2, grid%nx
+           if (grid%xAxis(m) > grid%xAxis(m-1)) &
+                & ds = min(ds, dble(grid%xAxis(m)) - dble(grid%xAxis(m-1)))
         end do
-      end function nearestAxG
+        do m = 2, grid%ny
+           if (grid%yAxis(m) > grid%yAxis(m-1)) &
+                & ds = min(ds, dble(grid%yAxis(m)) - dble(grid%yAxis(m-1)))
+        end do
+        do m = 2, grid%nz
+           if (grid%zAxis(m) > grid%zAxis(m-1)) &
+                & ds = min(ds, dble(grid%zAxis(m)) - dble(grid%zAxis(m-1)))
+        end do
+        if (ds >= huge(1.d0)) return
+
+        xlo = dble(grid%xAxis(1)); xhi = dble(grid%xAxis(grid%nx))
+        ylo = dble(grid%yAxis(1)); yhi = dble(grid%yAxis(grid%ny))
+        zlo = dble(grid%zAxis(1)); zhi = dble(grid%zAxis(grid%nz))
+        dmax = sqrt((xhi-xlo)**2 + (yhi-ylo)**2 + (zhi-zlo)**2)
+        ! D-339: a reflected ray runs on through the mirrored octants, so in
+        ! the unfolded picture it can cross a box twice this one's size
+        if (lgSymmetricXYZ) dmax = 2.d0*dmax
+        nstep = max(4, min(4000, int(dmax/ds) + 1))
+
+        need = 12*nstep
+        if (allocated(siteW)) then
+           if (size(siteW) < need) deallocate(siteW, siteN, siteK)
+        end if
+        if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need), siteK(need))
+
+        x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
+
+        do kray = 0, 11
+           tau = 0.d0
+           cN  = 0.d0
+           do istep = 1, nstep
+              rr = (dble(istep)-0.5d0)*ds
+              px = x0 + vx(kray)*rr
+              py = y0 + vy(kray)*rr
+              pz = z0 + vz(kray)*rr
+              ! D-340: the lower faces of a symmetricXYZ octant are planes of
+              ! symmetry, not edges - fold the sample point back into the
+              ! octant. Each coordinate is monotonic along a straight ray, so
+              ! one fold per axis is exact. The upper faces are the edge of the
+              ! model, and a ray reaching one has left the cloud.
+              if (lgSymmetricXYZ) then
+                 if (px < xlo) px = 2.d0*xlo - px
+                 if (py < ylo) py = 2.d0*ylo - py
+                 if (pz < zlo) pz = 2.d0*zlo - pz
+              end if
+              if (px < xlo .or. px > xhi .or. &
+                & py < ylo .or. py > yhi .or. &
+                & pz < zlo .or. pz > zhi) exit
+              ix = nearestAxB(grid%xAxis, grid%nx, px)
+              iy = nearestAxB(grid%yAxis, grid%ny, py)
+              iz = nearestAxB(grid%zAxis, grid%nz, pz)
+              cP = grid%active(ix,iy,iz)
+              if (cP <= 0) cycle
+
+              kext = grid%difSrc(cP,4)
+              dtau = kext*ds
+              ! only cells IN FRONT of this one shield it (D-088): the target
+              ! cell's own column is kept out of the second leg exactly as
+              ! computeAVradial keeps it out of the first
+              dN = 0.d0
+              if (cP /= cellP) dN = grid%difSrc(cP,1:3)*ds
+
+              emis = grid%difSrc(cP,5)
+              if (emis > 0.d0 .and. kext > 0.d0) then
+                 ! emission from within the step, escaping through the rest
+                 ! of it: (1 - e^-dtau)/kext, which is ds for a thin step
+                 if (dtau > 1.d-4) then
+                    esc = (1.d0 - exp(-dtau))/kext
+                 else
+                    esc = ds*(1.d0 - 0.5d0*dtau)
+                 end if
+                 w = emis*esc*exp(-tau)
+                 if (w > 0.d0) then
+                    col1(1) = dble(grid%pdrColH2(cP))
+                    col1(2) = dble(grid%pdrColC (cP))
+                    col1(3) = dble(grid%pdrColCO(cP))
+                    if (any(col1 < 0.d0)) nUnset = nUnset + 1
+                    nSite = nSite + 1
+                    siteW(nSite)   = w
+                    ! the site sits mid-step: half its own cell is between it
+                    ! and the cell (when that cell shields at all)
+                    siteN(:,nSite) = max(col1, 0.d0) + cN + 0.5d0*dN
+                    siteK(nSite)   = kray
+                    wRay(kray)     = wRay(kray) + w
+                 end if
+              end if
+              tau = tau + dtau
+              cN  = cN  + dN
+           end do
+        end do
+
+        wTot = sum(wRay)
+        if (wTot > 0.d0) aniso = maxval(wRay)/(wTot/12.d0)
+
+        ! The scale check: the same stepping and the same snapshot, walked from
+        ! this cell to the star, against the columns computeAVradial traced
+        ! from the star to the cell with its own step. Agreement to within a
+        ! cell's worth says the site columns carry no unit or step error.
+        if (nStars == 1) then
+           px = dble(starPosition(1)%x) - x0
+           py = dble(starPosition(1)%y) - y0
+           pz = dble(starPosition(1)%z) - z0
+           seg = sqrt(px*px + py*py + pz*pz)
+           if (seg > 0.d0) then
+              nw  = max(1, int(seg/ds))
+              dsw = seg/dble(nw)
+              tauV = 0.d0; cH2w = 0.d0
+              do istep = 1, nw
+                 rr = (dble(istep)-0.5d0)*dsw
+                 ix = nearestAxB(grid%xAxis, grid%nx, x0 + px*rr/seg)
+                 iy = nearestAxB(grid%yAxis, grid%ny, y0 + py*rr/seg)
+                 iz = nearestAxB(grid%zAxis, grid%nz, z0 + pz*rr/seg)
+                 cP = grid%active(ix,iy,iz)
+                 if (cP <= 0) cycle
+                 tauV = tauV + (dble(grid%absOpac(cP,VbandP)) &
+                      &       + dble(grid%scaOpac(cP,VbandP)))*dsw
+                 if (cP /= cellP) cH2w = cH2w + grid%difSrc(cP,1)*dsw
+              end do
+              colWalk = cH2w
+              avWalk  = dble(magPerTau)*tauV
+           end if
+        end if
+
+      end subroutine traceDiffuseSites
+
+
+      ! nearest axis index by bisection. computeRayColumns used a linear scan,
+      ! O(n) per step, which at 58^3 and ~2000 steps per cell is not free.
+      integer function nearestAxB(ax, n, v)
+        implicit none
+        real, intent(in)             :: ax(:)
+        integer, intent(in)          :: n
+        double precision, intent(in) :: v
+        integer :: lo, hi, mid
+        lo = 1; hi = n
+        do while (hi - lo > 1)
+           mid = (lo + hi)/2
+           if (v >= dble(ax(mid))) then
+              lo = mid
+           else
+              hi = mid
+           end if
+        end do
+        if (abs(v-dble(ax(hi))) < abs(v-dble(ax(lo)))) then
+           nearestAxB = hi
+        else
+           nearestAxB = lo
+        end if
+      end function nearestAxB
 #endif
 
 
@@ -1627,6 +1782,13 @@ module pdr_mod
         double precision :: tau, dy, kap, cH2, cC, cCO
         integer          :: iS, istep, nstep, ix, iy, iz
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS, fSum, fTot
+
+#ifdef RAYTHEIA
+        ! D-348: the diffuse-site walk reads this snapshot, taken from the
+        ! same abundances and zone flags the source-ward columns below are
+        ! integrated from, so the two legs of every two-leg column agree.
+        call snapDiffuseSources(grid)
+#endif
 
         if (.not.lgPlaneIonization) then
            call computeAVradial(grid)
@@ -1901,11 +2063,9 @@ module pdr_mod
         end do
 
 
-! D-342: computeRayColumns is no longer called. Nothing consumes its output
-        ! now (see pdrStep), and the trace costs twelve ray walks per cell per
-        ! iteration - about 25% of runtime where it was measured. The routine is
-        ! kept, with its mirror reflection (D-340), for the angular-model work
-        ! that has to come first.
+        ! D-342 removed the computeRayColumns call that stood here; D-348
+        ! removed the routine. Its successor, traceDiffuseSites, is called
+        ! per cell from pdrStep, on the rank that consumes it.
 
       end subroutine mocassinToPDR
 
@@ -2380,10 +2540,18 @@ module pdr_mod
 
         integer, parameter :: nraysLoc = 12          ! HEALPix level 0
         integer, parameter :: npart = 1
-        double precision   :: radSurf(0:nraysLoc-1), AVray(0:nraysLoc-1)
-        double precision   :: colH2(0:nraysLoc-1), colHD(0:nraysLoc-1)
-        double precision   :: colCO(0:nraysLoc-1), colC(0:nraysLoc-1)
-        double precision   :: colS(0:nraysLoc-1)
+        ! D-348: the chemistry's rays are the twelve direct twelfths plus one
+        ! per diffuse scattering site, so the count is only known per cell.
+        ! nraysLoc stays 12 for the escape probabilities, which are unchanged.
+        integer            :: nChem
+        double precision, allocatable :: radSurf(:), AVray(:)
+        double precision, allocatable :: colH2(:), colHD(:)
+        double precision, allocatable :: colCO(:), colC(:)
+        double precision, allocatable :: colS(:)
+        integer            :: nSite, iSite, nUnsetL, iBinD, ifreqD, iDifFb   ! D-348
+        double precision   :: chiDif, wTotD, anisoD, colWalkD, avWalkD      ! D-348
+        double precision   :: rDirD, rDifSrcD, rDif2D, rDifIsoD             ! D-348
+        double precision   :: wRayD(0:11)                                   ! D-348
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm, ilev
@@ -2603,8 +2771,77 @@ module pdr_mod
         ! keep the chemistry inside the temperature range it was fitted over
         Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
 
-        radSurf = chi/dble(nraysLoc)
-        AVray   = av
+        ! ---------------------------------------------------------- D-348
+        ! THE ANGULAR MODEL (specified in D-347): the direct stellar field on
+        ! its own, plus the diffuse field as scattering sites along twelve
+        ! HEALPix directions, each site shielded by the column its photons
+        ! actually crossed.
+        !
+        ! Direct. Slots 0-11 carry chi0/12 at the source-ward A_V and column -
+        ! today's calculation, byte for byte: the twelve identical twelfths
+        ! are the one physical direct ray (D-342), and keeping them as twelve
+        ! means that with no diffuse field every rate sum is the same sum as
+        ! before plus exact zeros.
+        !
+        ! Diffuse. chi_dif is the MC's own diffuse FUV in this cell - Jdif,
+        ! scattered and re-emitted packets, a subset of the chiFUV the heating
+        ! already takes (D-158/D-343) - and until now the reaction rates saw
+        ! none of it (D-053: "the diffuse field is currently bypassed"). It is
+        ! spread over the sites in proportion to each site's formal-solution
+        ! weight, so the MC sets the magnitude and the walk sets only how that
+        ! magnitude is distributed over directions and columns. D-347 wrote
+        ! f_dif/12 per direction; weighting by the formal solution instead
+        ! is the same sites and the same total, without assuming the diffuse
+        ! field isotropic - which is the half of O-14's matched pair D-342
+        ! identified as the defect.
+        !
+        ! A_V = 0 on the sites (D-343): MOCASSIN's transfer has already put
+        ! the dust attenuation into chi_dif, and applying 3D-PDR's
+        ! exp(-gamma*A_V) again would count the dust twice. The LINE shielding
+        ! still has to be applied, because MOCASSIN's dust transfer knows
+        ! nothing of H2, CO or C I lines - hence columns but no extinction.
+        nSite  = 0
+        iDifFb = 0
+        chiDif = 0.d0
+        wTotD  = 0.d0
+#ifdef RAYTHEIA
+        if (.not.allocated(grid%difSrc)) then
+           ! computeAVdust takes the snapshot before any pdrStep can run; an
+           ! absent one is a sequencing bug, and D-341 is what a silently
+           ! absent array costs
+           print*, "! pdrStep: difSrc not allocated - snapDiffuseSources has not run"
+           stop
+        end if
+        call traceDiffuseSites(grid, xP, yP, zP, cellP, nSite, wTotD, &
+             & anisoD, colWalkD, avWalkD, nUnsetL)
+        do ifreqD = FUVlowP, FUVhighP
+           chiDif = chiDif + dble(grid%Jdif(cellP,ifreqD))
+        end do
+        chiDif = chiDif/(dble(c)*dble(uDraine))
+        ! A diffuse field with no scattering site to place it on (no dust on
+        ! any of the twelve directions) cannot be a scattered field; carry it
+        ! on the source-ward column (D-344's slab-equivalent) so none of the
+        ! measured field is dropped, and count the cell so it is seen.
+        if (chiDif > 0.d0 .and. wTotD <= 0.d0) then
+           nSite  = 0
+           iDifFb = 1
+        end if
+#endif
+        nChem = nraysLoc + nSite + iDifFb
+        allocate(radSurf(0:nChem-1), AVray(0:nChem-1), colH2(0:nChem-1), &
+             & colHD(0:nChem-1), colCO(0:nChem-1), colC(0:nChem-1), &
+             & colS(0:nChem-1))
+
+        radSurf(0:nraysLoc-1) = chi/dble(nraysLoc)
+        AVray(0:nraysLoc-1)   = av
+        do iSite = 1, nSite
+           radSurf(nraysLoc+iSite-1) = chiDif*siteW(iSite)/wTotD
+           AVray(nraysLoc+iSite-1)   = 0.d0
+        end do
+        if (iDifFb == 1) then
+           radSurf(nChem-1) = chiDif
+           AVray(nChem-1)   = 0.d0
+        end if
 
         ! slab-equivalent shielding columns (see header)
         NHcol = av/AVfacL
@@ -2738,49 +2975,92 @@ module pdr_mod
         sH2 = max(sH2, 0.d0)
         sCO = max(sCO, 0.d0)
         sC  = max(sC , 0.d0)
-        ! D-190: per-ray traced columns where they exist, the single
-        ! source-ward scalar otherwise.
-        !
-        ! sH2/sCO/sC come from computeAVradial, which traces ONE direction -
-        ! source to cell - and is the right shielding column for the stellar
-        ! FUV. Assigning it to all twelve rays says every direction is as
-        ! shielded as the line back to the star, which in a 3D model it is not:
-        ! a ray pointing out of the cloud sees almost no column at all. The
-        ! traced values give each ray its own.
+        ! The direct ray's column: sH2/sCO/sC, traced by computeAVradial from
+        ! the source to the cell - the right shielding column for the stellar
+        ! beam, and the only direction the direct field arrives from.
         colH2 = sH2
         colCO = sCO
         colC  = sC
         colHD = 0.d0
-! D-342: the per-ray override that stood here is REMOVED, measured rather
-        ! than argued. It is incoherent with the isotropic field beside it, and
-        ! the two can only be fixed together.
-        !
-        ! radSurf(k) = chi/12 on every ray. With the slab-equivalent column on
-        ! every ray too, the rate sums to chi*exp(-gamma*A_V)*shield(N_source) -
-        ! exactly the right 1D answer: twelve identical rays each carrying a
-        ! twelfth of the field ARE the one physical ray. The pairing is
-        ! self-consistent.
-        !
-        ! Give each ray its own traced column while the field stays isotropic,
-        ! and the six or seven rays pointing OUT of the cloud carry a tiny
-        ! column, so shield ~ 1 and each delivers its full chi/12 unattenuated
-        ! at every depth. That invents FUV arriving from outside the nebula,
-        ! where there is no source. Deep in the cloud shield(N) ~ 1e-5, so the
-        ! dissociation rate rises by ~1e4 and H2 cannot form.
-        !
-        ! Measured on hiipdr at randomSeed 1001 (runs/d341-percol against
-        ! runs/d334-hiipdr/s1001, an exact comparison): x(H2) fell by factors of
-        ! 500 to 1000 across the PDR, CO by 1.5 to 30, the H/H2 crossing
-        ! DISAPPEARED - the gas never turns molecular - and the ionization front
-        ! moved 1%. Convergence "improved" from 74.9% to 92.1% and the run got
-        ! six times faster, because a PDR with no molecules has no stiff
-        ! chemistry left to solve (the D-176..D-181 lesson again).
-        !
-        ! So the per-ray columns wait on the angular model, not the other way
-        ! round: rad_surface has to know which direction the star is in before a
-        ! per-ray column means anything. computeRayColumns is left in place,
-        ! correct and uncalled, for that work.
+        ! D-348: each diffuse site on its own two-leg column,
+        ! N(star -> site) + N(site -> cell). The fallback slot, if any, keeps
+        ! the source-ward column assigned just above.
+        do iSite = 1, nSite
+           colH2(nraysLoc+iSite-1) = siteN(1,iSite)
+           colC (nraysLoc+iSite-1) = siteN(2,iSite)
+           colCO(nraysLoc+iSite-1) = siteN(3,iSite)
+        end do
+        ! D-342 removed the per-ray override that stood here: it gave each of
+        ! twelve chi/12 rays its own cell -> boundary column, and the rays
+        ! pointing OUT of the cloud then delivered their share unshielded,
+        ! inventing FUV from outside a nebula with no outside source. The
+        ! arithmetic of that argument stands. Its measurement (runs/d341-percol:
+        ! x(H2) x 0.002, no molecular zone) does NOT: D-348 found the columns
+        ! were computed on the wrong rank for 93% of the cells, which read
+        ! zeros on all twelve rays - no shielding at all - so the run measured
+        ! mostly that, not the outward columns.
         colS  = 0.d0
+
+#ifdef RAYTHEIA
+        ! D-348 diagnostics, per A_V bin: what the MC measured, what the walk
+        ! predicts, and what the angular model does to the H2 rate. The three
+        ! H2 rates are per unit alpha, from the same vendored H2PDRATE the
+        ! chemistry calls: the direct ray, the diffuse field as if it had
+        ! arrived on the source-ward column (the slab-equivalent), and the
+        ! diffuse field on its sites' two-leg columns (what is now used).
+        iBinD = nDifBin
+        do ik = 1, nDifBin
+           if (av < difBinEdge(ik)) then
+              iBinD = ik
+              exit
+           end if
+        end do
+        rDirD    = pdrH2PDRATE(1.d0, chi, av, sH2)
+        rDifSrcD = pdrH2PDRATE(1.d0, chiDif, 0.d0, sH2)
+        rDif2D   = 0.d0
+        do iSite = 1, nSite
+           rDif2D = rDif2D + pdrH2PDRATE(1.d0, radSurf(nraysLoc+iSite-1), &
+                & 0.d0, siteN(1,iSite))
+        end do
+        if (iDifFb == 1) rDif2D = rDifSrcD
+        ! ...and what D-347's literal f_dif/12 per direction would give on the
+        ! same sites: each direction carries chi_dif/12 whatever its brightness
+        wRayD = 0.d0
+        do iSite = 1, nSite
+           wRayD(siteK(iSite)) = wRayD(siteK(iSite)) + siteW(iSite)
+        end do
+        rDifIsoD = 0.d0
+        do iSite = 1, nSite
+           rDifIsoD = rDifIsoD + pdrH2PDRATE(1.d0, &
+                & chiDif/12.d0*siteW(iSite)/wRayD(siteK(iSite)), 0.d0, siteN(1,iSite))
+        end do
+        if (iDifFb == 1) rDifIsoD = rDifSrcD
+        difDiag( 1,iBinD) = difDiag( 1,iBinD) + 1.d0
+        difDiag( 2,iBinD) = difDiag( 2,iBinD) + dble(grid%chiFUV(cellP))
+        difDiag( 3,iBinD) = difDiag( 3,iBinD) + chiDif
+        difDiag( 4,iBinD) = difDiag( 4,iBinD) + wTotD/12.d0/(dble(c)*dble(uDraine))
+        ! the direct beam MOCASSIN's own extinction gives on the source-ward
+        ! A_V, against the MC's direct part chi_MC - chi_dif (D-347's
+        ! conservation property)...
+        difDiag( 5,iBinD) = difDiag( 5,iBinD) + chi*exp(-RfuvL*av/dble(magPerTau))
+        ! ...and the field the direct ray actually hands H2: 3D-PDR's SCATTER
+        ! at 1000 A, which carries its own slab scattering (FRR80)
+        difDiag( 6,iBinD) = difDiag( 6,iBinD) + chi*pdrSCATTER(av, 1000.d0)
+        difDiag( 7,iBinD) = difDiag( 7,iBinD) + rDirD
+        difDiag( 8,iBinD) = difDiag( 8,iBinD) + rDifSrcD
+        difDiag( 9,iBinD) = difDiag( 9,iBinD) + rDif2D
+        if (colWalkD >= 0.d0) then
+           difDiag(10,iBinD) = difDiag(10,iBinD) + colWalkD
+           difDiag(11,iBinD) = difDiag(11,iBinD) + sH2
+           difDiag(12,iBinD) = difDiag(12,iBinD) + avWalkD
+           difDiag(13,iBinD) = difDiag(13,iBinD) + av
+        end if
+        difDiag(14,iBinD) = difDiag(14,iBinD) + anisoD
+        difDiag(15,iBinD) = difDiag(15,iBinD) + dble(nSite)
+        difDiag(16,iBinD) = difDiag(16,iBinD) + dble(iDifFb)
+        difDiag(17,iBinD) = difDiag(17,iBinD) + dble(nUnsetL)
+        difDiag(18,iBinD) = difDiag(18,iBinD) + rDifIsoD
+#endif
 
         abun0 = abun
 
@@ -2788,7 +3068,7 @@ module pdr_mod
         abunPre = abun                                 ! D-258c
         pdrOmega = dble(grainAlbedoLW(grid, cellP))    ! D-280
         do it = 1, pdrChemIter
-           call CALCULATE_REACTION_RATES(Tg, Td, nraysLoc, radSurf, AVray, &
+           call CALCULATE_REACTION_RATES(Tg, Td, nChem, radSurf, AVray, &
                 & colH2, colHD, colCO, colC, colS, &
                 & pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
                 & pdrGamma, pdrRate, pdrRtmin, pdrRtmax, pdrDuplicate, &
@@ -3207,33 +3487,27 @@ module pdr_mod
               ! per-ray columns ray-traced through the grid, as 3D-PDR does in
               ! columndensity.F90. Until that exists, a 3D run using this is
               ! approximating every ray's column by the plane-parallel result.
-              ! D-190: the ray-traced A_V, not the slab closed form. Every ray
-              ! now carries the extinction actually accumulated along it through
-              ! the grid; the old version assigned A_V/|mu| or A_Vback/mu from a
-              ! plane-parallel argument, which is a slab answer inside a 3D
-              ! model. Falls back to the closed form only if the trace has not
-              ! run yet (first iteration, before mocassinToPDR).
+              ! D-190 read a ray-traced A_V here from computeRayColumns' colRayAV
+              ! when it was allocated. It was allocated only in the D-341 runs
+              ! (and there on the wrong rank for 93% of cells, D-348); D-348
+              ! removed the routine, so the closed form below is what every
+              ! other run has always used. The line-escape column along a 3D
+              ! ray is a separate question from the FUV angular model and is
+              ! not addressed by D-348.
               do kray = 0, nraysLoc-1
-                 if (allocated(grid%colRayAV)) then
-                    colA = dble(grid%colRayAV(cellP,kray))
+                 if (kray < 4) then
+                    mu =  2.d0/3.d0
+                 else if (kray < 8) then
+                    mu =  0.d0
                  else
-                    colA = -1.d0
+                    mu = -2.d0/3.d0
                  end if
-                 if (colA < 0.d0) then
-                    if (kray < 4) then
-                       mu =  2.d0/3.d0
-                    else if (kray < 8) then
-                       mu =  0.d0
-                    else
-                       mu = -2.d0/3.d0
-                    end if
-                    if (mu > 1.d-6) then
-                       colA = avBack/mu
-                    else if (mu < -1.d-6) then
-                       colA = av/abs(mu)
-                    else
-                       colA = 1.d30
-                    end if
+                 if (mu > 1.d-6) then
+                    colA = avBack/mu
+                 else if (mu < -1.d-6) then
+                    colA = av/abs(mu)
+                 else
+                    colA = 1.d30
                  end if
                  jjr(kray)    = 1
                  plen(kray,0) = 0.d0
@@ -3472,6 +3746,52 @@ module pdr_mod
         end if
 
       end subroutine pdrStep
+
+
+      !-----------------------------------------------------------------
+      ! D-348: the diffuse-ray diagnostics. reset before each coupling pass's
+      ! pdrStep sweep, report after the last one; every rank calls both, so
+      ! the reduction is a matched collective. The 1D flavour has no diffuse
+      ! rays and does nothing.
+      !-----------------------------------------------------------------
+      subroutine resetDiffuseDiag()
+        implicit none
+        difDiag = 0.d0
+      end subroutine resetDiffuseDiag
+
+      subroutine reportDiffuseDiag(iterMC)
+        implicit none
+        include 'mpif.h'
+        integer, intent(in) :: iterMC
+#ifdef RAYTHEIA
+        double precision :: tot(nDifCol, nDifBin), n, dirMC
+        integer          :: ib, ierr
+
+        call mpi_allreduce(difDiag, tot, nDifCol*nDifBin, &
+             & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+        if (taskid == 0) then
+           print '(a,i4,a)', " ! [D348] diffuse rays, iteration", iterMC, &
+                & ", last coupling pass - means per cell, ratios of sums"
+           print '(a)', " ! [D348]  A_V bin     cells   chi_MC   chi_dif  chi_pred" // &
+                & "   dir_MC  dir_ext  dir_3DPDR    R_dir   R_difSrc  R_dif2leg  R_difIso" // &
+                & "  Nwalk/N  AVwalk/AV  aniso  sites  fb  unset"
+           do ib = 1, nDifBin
+              n = tot(1,ib)
+              if (n <= 0.d0) cycle
+              dirMC = (tot(2,ib) - tot(3,ib))/n
+              print '(a,f5.2,a,f5.2,i8,6es9.2,4es10.2,2f9.4,f7.2,f7.0,2i5)', &
+                   & " ! [D348] ", difBinEdge(ib-1), "-", min(difBinEdge(ib), 99.d0), &
+                   & nint(n), tot(2,ib)/n, tot(3,ib)/n, tot(4,ib)/n, dirMC, &
+                   & tot(5,ib)/n, tot(6,ib)/n, tot(7,ib)/n, tot(8,ib)/n, tot(9,ib)/n, &
+                   & tot(18,ib)/n, &
+                   & tot(10,ib)/max(tot(11,ib), 1.d-99), &
+                   & tot(12,ib)/max(tot(13,ib), 1.d-99), &
+                   & tot(14,ib)/n, tot(15,ib)/n, nint(tot(16,ib)), nint(tot(17,ib))
+           end do
+        end if
+#endif
+        difDiag = 0.d0
+      end subroutine reportDiffuseDiag
 
 
       !-----------------------------------------------------------------

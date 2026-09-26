@@ -782,6 +782,10 @@ module fluorescence_mod
                       else
                          grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                               & grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dlLoc*deltaEUsed / dV
+                         ! D-348: mirrored as photon_mod mirrors it (D-158)
+                         if (lgJdifLive) &
+                              & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
+                              & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dlLoc*deltaEUsed / dV
                       end if
                    end if
 
@@ -924,6 +928,10 @@ module fluorescence_mod
                       else
                          grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
                               & grid(gP)%Jste(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaEUsed / dV
+                         ! D-348: mirrored as photon_mod mirrors it (D-158)
+                         if (lgJdifLive) &
+                              & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) = &
+                              & grid(gP)%Jdif(grid(gP)%active(xP,yP,zP),enPacket%nuP) + dS*deltaEUsed / dV
                       end if
                    end if
 
