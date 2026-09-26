@@ -351,6 +351,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-349 | **The spectral branch reopened: the chemistry is handed the wrong band - and that is why the previous results tracked Cloudy.** H2/CO dissociation and C I ionization see only 11.2-13.6 eV, but every chi handed over is the 6-13.6 eV integral, assumed Draine-shaped (window share 0.1516, from the same Draine 1978 formula that gives uDraine). The MC's window share falls **0.299 -> 0.152 -> 0.094 -> 0.041 -> 0.008** from A_V 0.07 to 2.5 - dust extinction rising to 912 A and C I continuum above 11.26 eV - so the band integral understates window-driven rates 20-40% at the front and overstates them **1.7x / 3.9x / 20x** at A_V 1.1 / 1.7 / 2.5. **D-345 is corrected**: its f_LW/f_band compared diffuse fractions, which cannot see hardening that direct and diffuse share. **Why the baseline tracked Cloudy** (the user's question): MOCASSIN's window field over the old prescription's H2 field is **flat at 2.0-2.8 at every depth** while the band ratio grows 1.3 -> 39 - the missing diffuse field is 6-11 eV light that dissociates nothing, the prescription happens to track the window's decline, the constant factor is the 40 kK star's window share (x1.97 over Draine, so the baseline ran window-driven rates ~2x low from the first cell), and fronts move logarithmically; Cloudy's big non-stellar field is lines outside the window (D-291). Corrected: the baseline's shallow C+ = C is MOCASSIN's (D-162), not the chemistry's field. D-348's band-integrated sites therefore overshoot (x3-x170 where the window supports x2.0-2.8). **Proposed, not implemented:** window-driven reactions take the window field on every ray (direct: source share/0.1516; sites: Jdif share/0.1516) via a per-ray hook in calc_reac_rates, and the sites drop the C I continuum term the MC already transports; expected ~x2.5 on those rates. Also the direct-beam excess is spectral hardening (per-bin extinction matches the MC to 0-12%, band-mean off 8x). **Decided:** hiipdr runs 11 iterations, at the user's direction (plateau by 9). | Accepted | 2026-09-25 |
 | D-350 | **The photorates on MOCASSIN's own field, after an audit against CLAUDE.md.** The user asked whether I had read the project rules; the D-348/D-349 work broke six. Fixed at once: the four-flavour build claimed in fe4816c was unverified after the last edit (rebuilt: all four compile), and computeRayColumns was deleted untagged (now `d348-raycolumns-removed` at c7a7075). The top rule: D-348 kept the direct ray on 3D-PDR's diffuse-ISM prescription (Savage-Mathis, FRR80 albedo 0.3/g 0.8, gamma, Draine shape) where MOCASSIN owns that field, D-349's x1.97 fix patched the prescription instead of replacing it, and D-347's 'direct weight 1 - f_dif' was departed from silently. The zone test was copied into snapDiffuseSources though its D-088 premise died at D-198/D-208. Not changed: difSrc as a lagged copy and the 1D flavour's two fields; the D-348 page omitted the 3D-PDR reference. **Decided (the user):** every photorate on MOCASSIN's local field - direct (Jste - Jdif) on the source-ward column, diffuse (Jdif) on the D-348 sites' two-leg columns, A_V = 0 on all rays; H2/HD/CO/C I take each part's window field via a vendored per-ray hook `ray_lw_factor` (upstream default when unallocated), the Draine share computed on MOCASSIN's bins; the C I continuum term dropped (the MC carries it); the zone test removed from computeAVradial and the snapshot, its contribution measured in-run. 1D unchanged. **Prediction first:** crossing into A_V 1.25-1.45, H2/CO fall, C+ = C within 0.05, front and dust < 1%, budget < 3e-4, zone removal small, direct window/prescription 1.9-2.6 in the first bin, baseline = s1001 for 11 iterations. Runs d350-window and d350-base11 (c7a7075), 11 iterations, seed 1001. **Result:** crossing **1.184 -> 1.364** (inside the range; D-348's was 1.635), C+ = C +0.001, front and dust unmoved, budget 2.7e-4, baseline identical to s1001 for all 11 iterations. Two predictions failed and are understood: deep CO rises 31% at A_V 2.9 because the window field there falls below the prescription (C I continuum and dust empty MOCASSIN's window at 1000 A); and the zone-removal fraction exceeds 1% in 1.6% of cells, all at the front where the whole H2 column is ~1e12 cm^-2 (max added 2.7e12, far below self-shielding) - negligible. **D-349's 'flat 2.0-2.8' is corrected**: per-cell A_V bins give window/prescription 2.5 / 3.1 / 3.6 / 4.1 / 4.6 / 3.7 / 0.8 from the front to the edge - the shell means were set by each shell's shallow edge. Against Cloudy: crossing 1.36 vs 1.09, mid-PDR CO 0.3-3.8x (was 0.3-13.7x), deep CO still 83-100x. | Accepted | 2026-09-26 |
 | D-351 | **A full audit of the code, and the blockers to science production re-ranked against `51289e5`. Three measurements from runs already on disk, none of them in any earlier entry. (1) Within an MC iteration the five chemistry passes run on frozen inputs, yet mean f_mol alternates with period 2 and a growing swing (d350-window 0.8462/0.8546/0.8435/0.8596; s1001 0.003-0.004). The only pass-to-pass channel found is pdrStep rescaling the shielding columns, which exclude the target cell, by the target cell's own abundance ratio, compounding (pdr_mod.f90:3236). (2) x(HI)+2x(H2)+x(HII)=1 holds by construction after rescaleIonToAvail, so D-350's budget prediction was a free pass. The pre-rescale [D220] figure is 0.020 (29% of cells >1%) against the baseline's 0.007 (9%), and |dx(H0)|/x p90 is 0.34 against 0.09: D-350 moves the molecular state three times more per iteration, hidden by 76.1% against 75.0% converged. (3) The cause: every photorate now reads the MC field, whose per-cell seed scatter is 7/14/22% at A_V 1.6-2.1/2.1-2.6/2.6-3.05, so the deep chemistry is noise-limited per cell. Also newly registered: the 3D line escape caps beta at 2/3 (4 of 12 rays at infinite column), and lineFlux.out reports electron-only PDR lines while 3D-PDR's populations cool the gas. No live zone gate remains on the default path. Ranked in five tiers; 102 commits exist only on this machine.** | Accepted | 2026-09-26 |
+| D-352 | **pdrZone removed, and every switch that selected physics at run time. The zone flag (x(H+) < 0.3) decided nothing on the default path any more: 44 references, the live ones being three off-by-default switches and the analysis tools. Removed, together with the vestigial PDR temperature (pdrTgas, a lagged second copy of Te), eleven keywords that selected alternative physics or stood in for the model (pdrFUVmode, pdrDustModel, pdrOwnDust, pdrDustFeedback, pdrPEfromPDR, pdrUseNePDR, pdrCoolZoneGate, pdrFcritConv, pdrZoneLimit, pdrMetallicity, pdrGrainRadius - now refused), eleven inert ones (retired with a message), and the four MOCASSIN_* environment variables with their legacy branches. pdrGrid.out is v2, with a header so old readers fail loudly. Tag d352-zone-and-switches. Found on the way: the DEFAULT pdrDustFeedback = 1 fed 3D-PDR's PAH photoelectric term into MOCASSIN's grain balance while the gas took MOCASSIN's own - the grains lost 5-150x more PE energy than the gas received at A_V > 0.5. Stage 1 (physics-neutral) predicted byte-identical at seed 1001; stage 2 (MOCASSIN's own grain terms) predicted T_dust +0.1-1.5% at depth.** | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -28788,3 +28789,178 @@ transfer. Item 18 needs the user's word before anything is pushed.
 
 No code changed in this entry. `doc/pdr-status.md` gains L-25..L-29 and its
 stale lines are corrected.
+
+---
+
+## D-352 - pdrZone removed, and every switch that selected physics at run time (2026-09-26)
+
+The user, after D-351: the old `pdrZone` threshold (x(H+) < 0.3) and the input
+keywords and environment variables that still select alternative physics are
+major issues against the project's first rule. Investigate them and fix them.
+Mid-investigation: *"perhaps it is a good idea to remove pdrZone completely."*
+Done, together with everything the investigation found in the same class.
+
+### What was found
+
+**pdrZone** (D-007's latch, `x(H+) < pdrZoneLim = 0.3`, set in
+`mocassinToPDR`, reduced by MPI, checkpointed) had 44 references in 7 files.
+Traced one by one, none of them decided physics on the default path any more:
+
+    lgChemOnly (pdrStep)          decided only whether pdrTgas was written
+    T seed (mocassinToPDR)        seeded pdrTgas, which pdrStep overwrote with Te
+    update_mod:642                inside if (.false.) since D-193
+    pdrPEfromPDR / pdrUseNePDR    zone-gated, both default 0
+    pdrCoolZoneGate               the zone gate on coolant substitution, default 0
+    ~20 probe conditions          prints only, and D-350's zone-removal diagnostic
+    d260_roellig.py (tool)        chose the neutral H/C/O source and set the A_V
+                                  zero point of the 3D-PDR reference by it
+
+So `pdrZone` was an ownership rule that had gone dormant: three
+alternative-physics switches were one keyword away from reviving it, and the
+analysis tools still took it as model data.
+
+**pdrTgas/pdrTlow/pdrThigh** are the PDR's own temperature and bracket. pdrStep
+still computed a one-pass bisection (`do itherm = 1, 1`) and overwrote it with
+Te. The result was stored, reduced, checkpointed, and written twice per cell
+to `pdrGrid.out` in the temperature slot: a second, lagged copy of Te. That
+is one reality held twice.
+
+**Input keywords.** Of the PDR keywords, these selected alternative physics or
+stood in for a model quantity:
+
+    pdrFUVmode       1 = heat the gas with 3D-PDR's prescription (default 0)
+    pdrDustModel     0/1/2 = MOCASSIN / max(MOCASSIN, HTT91) / HTT91 T_dust (0)
+    pdrOwnDust       0 = Savage & Mathis curve in SCATTER (default 1)
+    pdrDustFeedback  1 = 3D-PDR's PE and gas-grain terms drive the GRAIN
+                     balance (default 1 - see below)
+    pdrPEfromPDR     1 = 3D-PDR's PAH PE heats the gas in the zone (0)
+    pdrUseNePDR      1 = ionBalance uses the chemistry's Ne in the zone (0)
+    pdrCoolZoneGate  1 = coolant substitution only in the zone (0)
+    pdrFcritConv     1 = PDR heat/cool imbalance clears lgConverged (0)
+    pdrZoneLimit     the threshold itself
+    pdrMetallicity   multiplied H2 formation (h2_form.F90:119) ON TOP of
+                     MOCASSIN's measured grain area, and AV_fac (pdrStep)
+    pdrGrainRadius   3D-PDR's fixed 0.1 um grain for its gas-grain term
+
+Eleven more were inert and settled earlier: pdrTseed, pdrThermIter,
+pdrCoolTdep, pdrCoolTfac, pdrFcrit, pdrCoupleDamp (an identity since D-216),
+pdrHealpix (pdrStep hardcodes level 0), pdrAVfac (always overwritten by the
+measured value), pdrUVfac (read only under GRAINRECOMB, not built), and the
+D-193/D-198/D-208 retirements already printing "retired". No production
+fixture sets any of them. The core-MOCASSIN solver keywords this project
+added (`teSolver`, `ionMatrix`, `teFloor`, `cvUseH2`, `iterDamp`,
+`pathStretch`) choose numerics, not physics, and are left alone. `teFloor`
+(10 K) is a clamp, but it holds no cell in `runs/d350-window`, where the
+coldest is 10.9 K.
+
+**Environment variables.** `MOCASSIN_LINES` (discard the thin diffuse lines),
+`MOCASSIN_RECCOOL` (Case B recombination cooling), `MOCASSIN_YIELD` (Baldwin
+yield) and `MOCASSIN_GRAINQ` (the 4 pi^2 grain-charge units). Each switched
+physics with no trace in the input file, and only a log line said which mode a
+run had used. `MOCASSIN_DUSTPROBE` only prints, and stays.
+
+**The default that was itself wrong: `pdrDustFeedback = 1`.** In every dusty
+cell of every PDR run, the grain energy balance (`getDustT`) replaced MOCASSIN's
+per-grain photoelectric loss and gas-grain exchange (`photoelHeat_d`,
+`gasDustColl_d`) with 3D-PDR's `heat(2)` and `heat(11)`, spread over the grains
+by area. `heat(2)` is a PAH formula times metallicity, on a PAH population this
+dust does not carry. `heat(11)` uses a fixed `NGRAIN = 2e-12 n Z` of 0.1 um
+grains. Meanwhile the gas is heated by MOCASSIN's own `photoelHeat_g` (D-131
+excludes `heat(2)` from the gas side). So **the energy leaving the grains as
+photoelectrons is not the energy the gas receives**, which is one quantity
+with two realities. Measured on `runs/d350-window`, per H:
+
+    A_V bin     PE the grains lose   PE the gas gets   ratio
+                (3D-PDR heat(2))     (MOCASSIN)
+    0.00-0.20      5.86e-23             7.61e-23          0.77
+    0.20-0.47      1.67e-23             1.65e-23          1.02
+    0.47-0.80      1.02e-24             2.17e-25          4.7
+    0.80-1.20      2.54e-25             3.97e-26          6.4
+    1.20-1.60      1.38e-25             1.67e-26          8.3
+    1.60-2.10      6.17e-26             3.70e-27         16.7
+    2.10-2.60      2.09e-26             4.42e-28         47
+    2.60-3.05      8.38e-27             5.51e-29        152
+
+### What was done
+
+Tag `d352-zone-and-switches` marks the last commit that carries all of it.
+Building it reproduces any legacy mode.
+
+**Stage 1 - physics-neutral on the default path.**
+  - `pdrZone` is gone: the array, its allocation, MPI reduction and checkpoint
+    field, the latch and the T seed in `mocassinToPDR`, `lgChemOnly`, and every
+    probe condition. Probes that sampled "PDR-zone cells" now sample all gas
+    cells (they keep their A_V conditions).
+  - `pdrTgas/pdrTlow/pdrThigh`, the vestigial bracket in pdrStep, the
+    redundant first `CALC_HEATING` (the one kept is evaluated at Te, as the
+    old second one was), and iterateT's dead PDR short circuit are gone.
+  - `NePDR` (read only under `pdrUseNePDR`), the D-119 pass-to-pass ionDen
+    damping (`ionDenPrev`, an identity) and the `pdrFcritConv` probe
+    (`cvPdrCleared`) are gone.
+  - Every keyword above is retired through one handler
+    (`set_input_mod: retiredKeyword`). The inert ones print why and run on.
+    The eleven that selected physics or stood in for the model **stop the
+    run**, because running on with the adopted physics would silently not do
+    what the input asked.
+  - The vendored metallicity is pinned at 1 and the grain radius at
+    upstream's 0.1 um, with a comment on what each still reaches. AV_fac is
+    reset per cell from the measured dust, as before; UV_fac is set from the
+    measured R_FUV. The Savage & Mathis replacement is unconditional.
+  - The four environment variables are gone with their legacy branches (Case
+    B, the Baldwin yield and its Y0/Y1 constants, the 4 pi^2 units, the
+    line-discard path). readInput stops if any is set.
+  - `pdrGrid.out` is **v2**: a `# pdrGrid v2` header line, then chiFUV, AVeff,
+    pdrCool, pdrHeat and pdrHeatPE per grid point, followed by the
+    abundances. A reader built for the 45-token v1 layout fails on the header
+    instead of silently misreading. resetGrid refuses v1 checkpoints.
+    `tools/d260_roellig.py` reads both layouts (`read_pdrgrid`), and so does
+    `d304_budget.py`. The tools now take neutral H, C and O from MOCASSIN in
+    every cell. On `d350-window` the chemistry's values agree to a median
+    of 1e-7, 1.2% in the worst cell, so the old zone switch of source
+    changed nothing. They also derive their "zone" label (for `A_front` and
+    cell selection) from MOCASSIN's x(H+) < 0.3, as an analysis convention.
+    It differs from the stored flag in 1 cell of 15,204 and gives the same
+    `A_front` (0.465900719).
+
+All four flavours compile.
+
+**Stage 2 - the grain energy balance on MOCASSIN's own terms.** getDustT's
+D-093 branch is removed. PDR runs now take `gasDustColl_d - photoelHeat_d`
+exactly as a plain run does, which are the per-grain counterparts of the gas
+terms the thermal balance uses. `pdrHeatGG` is dropped, since nothing reads it
+now. `pdrHeatPE` remains in `pdrGrid.out` as 3D-PDR's reference value only.
+The cap `nDustCapped` goes with the branch. The gas-grain term MOCASSIN uses
+still omits H2 (L-9); that is negligible at these densities and is not
+changed here.
+
+### Predictions, recorded before the runs
+
+Stage 1, `runs/d352-s1` (seed 1001, 14 ranks, 11 iterations) against
+`runs/d350-window` (the same physics, built before this change):
+
+  1. `grid0-3.out`, `dustGrid.out`, `thermBudget.out`, `pdrCoolSp.out`,
+     `pdrRad.out`, `pdrFUV.out`, `pdrFUVspec.out`, `tauNu.out`, `lineFlux.out`,
+     `SED.out`, `temperature.out` and `ionratio.out` are **byte-identical**.
+     `pdrGrid.out` is identical in every retained column.
+  2. The run log differs only in the removed diagnostics and the relabelled
+     census, and every `[D205]` per-pass line is identical.
+
+Any difference is a defect in the removal, not physics.
+
+Stage 2, `runs/d352-s2` against `runs/d352-s1`, same seed. Note that the pair
+decorrelates from the first iteration at which T_dust differs (pdrStartIter =
+4), because the dust emission changes which frequencies the re-emitted packets
+draw. So beyond the dust temperature itself, this is a comparison at the
+Monte Carlo noise floor, which since D-350 is several per cent per cell at
+depth (D-351, L-26):
+
+  3. T_dust rises, because grains stop losing an energy the gas never
+     received. By less than 0.2% at A_V < 0.8, and by 0.1-1.5% at A_V > 1.6.
+     *Estimate:* heat(2) is 1-6% of the absorbed FUV at depth, and T_dust
+     goes as E^(1/6).
+  4. The ionization front moves less than 0.1%, and the H/H2 crossing and
+     C+ = C less than 0.03 in A_V.
+  5. T_gas and the bin-mean x(H2) and x(CO) move within twice the per-bin
+     scatter between the two runs' last iterations. No systematic shift is
+     predicted: Cazaux & Tielens' formation efficiency is near unity and flat
+     in T_dust well below 100 K, and gas-grain coupling is negligible here.

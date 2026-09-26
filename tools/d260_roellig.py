@@ -167,6 +167,28 @@ def read_composition(run):
     return elem, {LABELS[i]: v for i, v in enumerate(vals) if v > 0}
 
 
+def read_pdrgrid(out, n):
+    """pdrGrid.out in either layout, one record per grid point (i,j,k order).
+
+    v2 (D-352): a '# pdrGrid v2' first line, then chiFUV AVeff pdrCool pdrHeat
+    pdrHeatPE and the abundances. v1 (before D-352): no header, and a zone flag
+    plus the vestigial pdrTgas/pdrTlow/pdrThigh (twice) ahead of the same
+    fields - 12 of them. The zone flag is returned for v1 only, for checks;
+    the analysis does not use it (read_run)."""
+    txt = open(os.path.join(out, 'pdrGrid.out')).read()
+    ns = len(SPEC)
+    if txt.startswith('# pdrGrid v2'):
+        k = 5
+        a = np.array(txt.split('\n', 1)[1].split(), float)[:n * (k + ns)]
+        a = a.reshape(n, k + ns)
+        return dict(chi=a[:, 0], AV=a[:, 1], cool=a[:, 2], heat=a[:, 3],
+                    heatPE=a[:, 4], ab=a[:, k:], zone=None)
+    k = 12
+    a = np.array(txt.split(), float)[:n * (k + ns)].reshape(n, k + ns)
+    return dict(chi=a[:, 1], AV=a[:, 2], cool=a[:, 3], heat=a[:, 4],
+                heatPE=a[:, 5], ab=a[:, k:], zone=a[:, 0].astype(int))
+
+
 def read_run(run):
     ELEM, ABUND = read_composition(run)
     if os.path.exists(os.path.join(run, 'INCOMPLETE')):
@@ -183,8 +205,7 @@ def read_run(run):
     X, Y, Z = np.meshgrid(xa, ya, za, indexing='ij')     # i/j/k record order
     r = np.sqrt(X ** 2 + Y ** 2 + Z ** 2).ravel() / PC
     g1 = np.loadtxt(os.path.join(out, 'grid1.out'))
-    p = np.array(open(os.path.join(out, 'pdrGrid.out')).read().split(),
-                 float)[:n * 45].reshape(n, 45)
+    pg = read_pdrgrid(out, n)
     pr = np.loadtxt(os.path.join(out, 'pdrRad.out'), skiprows=1)
     g2 = [ln.split() for ln in open(os.path.join(out, 'grid2.out'))]
     ne = len(g2) // n
@@ -193,9 +214,8 @@ def read_run(run):
                          f'{len(ELEM)} - update ELEM')
 
     idx = np.where(act)[0]
-    zone = p[idx, 0].astype(int)
     nh = g1[idx, 2]
-    ab = p[idx, 12:45]
+    ab = pg['ab'][idx]
 
     def ion(el, stage):
         li = ELEM.index(el)
@@ -203,16 +223,27 @@ def read_run(run):
                          if len(g2[c * ne + li]) > stage else 0.0
                          for c in idx]) * ABUND[el]
 
-    d = {'AV': pr[idx, 0], 'r': r[idx], 'zone': zone,
+    d = {'AV': pr[idx, 0], 'r': r[idx],
          'Tgas': g1[idx, 0], 'Tdust': pr[idx, 6],
          'e-': g1[idx, 1]}
     for key, el, st in [('H+', 'H', 1), ('He+', 'He', 1), ('He++', 'He', 2),
                         ('C+', 'C', 1), ('C++', 'C', 2), ('O+', 'O', 1),
                         ('O++', 'O', 2), ('Mg+', 'Mg', 1)]:
         d[key] = ion(el, st) * nh
-    pdr = zone == 1
+    # D-352: atoms and ions are MOCASSIN's in every cell - it owns the
+    # ionization, and the chemistry's H, C, O are imposed from it (D-162),
+    # agreeing to a median 1e-7 (1.2% worst cell, runs/d350-window). This
+    # used to switch source on the model's zone flag.
     for key, el in [('H', 'H'), ('C', 'C'), ('O', 'O')]:
-        d[key] = np.where(pdr, ab[:, SPEC.index(key)], ion(el, 0)) * nh
+        d[key] = ion(el, 0) * nh
+    # 'zone' is now an ANALYSIS label, not a model quantity: MOCASSIN's own
+    # x(H+) below 0.3, the definition the removed flag latched on
+    # (pdrZoneLim). It places the 3D-PDR reference's A_V zero point
+    # (A_front) and selects cells in the budget tools; on d350-window it
+    # differs from the stored flag in 1 cell of 15204 and gives the same
+    # A_front.
+    d['zone'] = (ion('H', 1) < 0.3).astype(int)
+    pdr = d['zone'] == 1
     # The chemistry is solved in every active cell, ionized gas included
     # (lgChemOnly cells), so the molecules are its answer everywhere. An
     # earlier version zeroed them outside the PDR zone, which drew a gate the

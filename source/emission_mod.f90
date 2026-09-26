@@ -846,12 +846,13 @@ module emission_mod
         ! fix - alpha2tS grows as Te falls, so at 14 K it would become ~2334
         ! against 43.5 clamped, a 54x INCREASE in the injection. And gating on
         ! a Te threshold would be exactly the artificial gate the project bans.
-        ! pdrZone and AVeff live inside common_mod's #ifdef PDR block, so this
-        ! probe cannot compile in the plain flavour without the same guard.
+        ! AVeff lives inside common_mod's #ifdef PDR block, so this probe
+        ! cannot compile in the plain flavour without the same guard. (It
+        ! sampled PDR-zone cells until D-352 removed the zone flag.)
 #ifdef PDR
         if (teProbe /= 0 .and. nIterateMC >= 12 .and. HlevNuP(1) > 0) then
-           if (allocated(grids(iG)%pdrZone) .and. allocated(grids(iG)%AVeff)) then
-              if (grids(iG)%pdrZone(cellPUsed) == 1) then
+           if (allocated(grids(iG)%AVeff)) then
+              if (grids(iG)%Hden(cellPUsed) > 0.) then
                  iB243 = int(grids(iG)%AVeff(cellPUsed)/0.5)
                  if (iB243 >= 0 .and. iB243 <= 15) then
                     if (.not.lgAVsamp243(iB243)) then
@@ -972,93 +973,92 @@ module emission_mod
         ! D-292: linePDF is what a transported line packet draws its frequency
         ! from, so it is now built whenever the lines are transported, not only
         ! under lgDebug. It is allocated unconditionally (nLines > 0).
-        if (lgDebug .or. lgLineTransfer) then
-           ! D-294: allocLineArrays sizes this after makeElements; if it is
-           ! still unallocated something has run out of order, and writing to
-           ! it would corrupt memory silently.
-           if (.not. allocated(grids(iG)%linePDF)) then
-              print*, "! setDiffusePDF: linePDF unallocated with line transport on -"
-              print*, "!   allocLineArrays did not run (D-294). nLines =", nLines
-              stop
-           end if
-           call setLineNuP()
-           ! D-296: one running sum over the lines that are actually stored.
-           ! A line that is not stored contributes nothing, so the PDF ends at
-           ! the transportable fraction and the remainder up to 1 is the
-           ! probability of drawing a line with no frequency bin - dropped,
-           ! exactly as before.
-           lineAcc = 0.
-           i = 1
-           do iup = 3, 15
-              do ilow = 2, min(8, iup-1)
-                 if (lineTrSlot(i) > 0) then
-                    lineAcc = lineAcc + real(HIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
-                    if (lineAcc > 1.) lineAcc = 1.
-                    grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
-                 end if
-                 i = i+1
-              end do
-           end do
-
-           do j = 1, 34
+        ! D-292/D-352: linePDF is built in every run - the thin diffuse lines
+        ! are always transported.
+        ! D-294: allocLineArrays sizes this after makeElements; if it is
+        ! still unallocated something has run out of order, and writing to
+        ! it would corrupt memory silently.
+        if (.not. allocated(grids(iG)%linePDF)) then
+           print*, "! setDiffusePDF: linePDF unallocated with line transport on -"
+           print*, "!   allocLineArrays did not run (D-294). nLines =", nLines
+           stop
+        end if
+        call setLineNuP()
+        ! D-296: one running sum over the lines that are actually stored.
+        ! A line that is not stored contributes nothing, so the PDF ends at
+        ! the transportable fraction and the remainder up to 1 is the
+        ! probability of drawing a line with no frequency bin - dropped,
+        ! exactly as before.
+        lineAcc = 0.
+        i = 1
+        do iup = 3, 15
+           do ilow = 2, min(8, iup-1)
               if (lineTrSlot(i) > 0) then
-                 lineAcc = lineAcc + real(HeIRecLines(j) / grids(iG)%totalLines(cellPUsed))
+                 lineAcc = lineAcc + real(HIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
                  if (lineAcc > 1.) lineAcc = 1.
                  grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
               end if
               i = i+1
            end do
+        end do
 
-           do iup = 3, 30
-              do ilow = 2, min(16, iup -1)
-                 if (lineTrSlot(i) > 0) then
-                    lineAcc = lineAcc + real(HeIIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
-                    if (lineAcc > 1.) lineAcc = 1.
-                    grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+        do j = 1, 34
+           if (lineTrSlot(i) > 0) then
+              lineAcc = lineAcc + real(HeIRecLines(j) / grids(iG)%totalLines(cellPUsed))
+              if (lineAcc > 1.) lineAcc = 1.
+              grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+           end if
+           i = i+1
+        end do
+
+        do iup = 3, 30
+           do ilow = 2, min(16, iup -1)
+              if (lineTrSlot(i) > 0) then
+                 lineAcc = lineAcc + real(HeIIRecLines(iup, ilow) / grids(iG)%totalLines(cellPUsed))
+                 if (lineAcc > 1.) lineAcc = 1.
+                 grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+              end if
+              i = i+1
+           end do
+        end do
+
+        do elem = 3, nElements
+           do ion = 1, min(elem+1, nstages)
+              if (.not.lgElementOn(elem)) exit
+              if (lgDataAvailable(elem, ion)) then
+                 if (elem == 26 .and. ion == 2) then
+                    do iup = 1, nForLevelsLarge
+                       do ilow = 1, nForLevelsLarge
+                          if (lineTrSlot(i) > 0) then
+                             lineAcc = lineAcc + real(forbiddenLinesLarge(iup, ilow)&
+                                  & / grids(iG)%totalLines(cellPUsed))
+                             if (lineAcc > 1.) lineAcc = 1.
+                             grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+                          end if
+                          i = i+1
+                       end do
+                    end do
+                 else
+                    do iup = 1, nForLevels
+                       do ilow = 1, nForLevels
+                          if (lineTrSlot(i) > 0) then
+                             lineAcc = lineAcc + real(forbiddenLines(elem, ion, iup, ilow)&
+                                  & / grids(iG)%totalLines(cellPUsed))
+                             if (lineAcc > 1.) lineAcc = 1.
+                             grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
+                          end if
+                          i = i+1
+                       end do
+                    end do
                  end if
-                 i = i+1
-              end do
+               end if
            end do
+        end do
+        ! The PDF's shortfall below 1 is the mass of the lines with no
+        ! frequency bin, which are dropped (D-296).
 
-           do elem = 3, nElements
-              do ion = 1, min(elem+1, nstages)
-                 if (.not.lgElementOn(elem)) exit
-                 if (lgDataAvailable(elem, ion)) then
-                    if (elem == 26 .and. ion == 2) then
-                       do iup = 1, nForLevelsLarge
-                          do ilow = 1, nForLevelsLarge
-                             if (lineTrSlot(i) > 0) then
-                                lineAcc = lineAcc + real(forbiddenLinesLarge(iup, ilow)&
-                                     & / grids(iG)%totalLines(cellPUsed))
-                                if (lineAcc > 1.) lineAcc = 1.
-                                grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
-                             end if
-                             i = i+1
-                          end do
-                       end do
-                    else
-                       do iup = 1, nForLevels
-                          do ilow = 1, nForLevels
-                             if (lineTrSlot(i) > 0) then
-                                lineAcc = lineAcc + real(forbiddenLines(elem, ion, iup, ilow)&
-                                     & / grids(iG)%totalLines(cellPUsed))
-                                if (lineAcc > 1.) lineAcc = 1.
-                                grids(iG)%linePDF(cellPUsed, lineTrSlot(i)) = lineAcc
-                             end if
-                             i = i+1
-                          end do
-                       end do
-                    end if
-                  end if
-              end do
-           end do
-           ! With transport off every line is stored and the PDF must close at
-           ! 1, as it always did. With it on the shortfall is the dropped mass.
-           if (.not. lgLineTransfer) grids(iG)%linePDF(cellPUsed, nLinesPDF) = 1.
-
-           HbetaProb = real(HIRecLines(4,2) / (grids(iG)%totalLines(cellPUsed)&
-                &+normalize))
-        end if
+        HbetaProb = real(HIRecLines(4,2) / (grids(iG)%totalLines(cellPUsed)&
+             &+normalize))
 
         normalize = normalize + grids(iG)%totalLines(cellPUsed)
         grids(iG)%totalLines(cellPUsed) = grids(iG)%totalLines(cellPUsed) / normalize
@@ -1635,14 +1635,9 @@ module emission_mod
          print*, "! setLineNuP: of those, ", j, " sit at or above 1 Ryd"
       end if
 
-      ! D-296. The compact linePDF index. With transport on only the lines
-      ! that reach a frequency bin are stored; with it off the map is the
-      ! identity and linePDF keeps its old full extent and meaning.
-      if (lgLineTransfer) then
-         nLinesPDF = count(lineNuP > 0)
-      else
-         nLinesPDF = nLines
-      end if
+      ! D-296. The compact linePDF index: only the lines that reach a
+      ! frequency bin are stored.
+      nLinesPDF = count(lineNuP > 0)
       if (nLinesPDF < 1) nLinesPDF = 1
 
       allocate(lineTrSlot(1:nLines), stat=err)
@@ -1658,7 +1653,7 @@ module emission_mod
 
       j = 0
       do i = 1, nLines
-         if (lgLineTransfer .and. lineNuP(i) <= 0) cycle
+         if (lineNuP(i) <= 0) cycle
          j = j + 1
          if (j > nLinesPDF) exit
          lineTrSlot(i) = j

@@ -30,10 +30,8 @@ module iteration_mod
         ! D-119: the coupling loop wraps updateCell, which compiles in EVERY
         ! flavour, so these cannot sit behind #ifdef PDR. Third time this trap
         ! has been sprung in this file - see D-096 and D-109.
-        real, allocatable :: ionDenPrev(:,:,:)
         integer           :: iCouple, iDum, jDum, kDum
         integer           :: nCv1                      ! D-175
-        double precision  :: wNew, fWt
 
        ! To perform message spliting in mpi
        integer :: chunk_start, chunk_end, chunk_size, chunk, nCells
@@ -58,17 +56,13 @@ module iteration_mod
            real, allocatable :: pdrHeatTmp(:), pdrHeatSum(:)
            real, allocatable :: pdrCoolTmp(:), pdrCoolSum(:)
            double precision, allocatable :: pdrLevTmp(:,:), pdrLevSum(:,:)
-           real, allocatable :: pdrTgTmp(:), pdrTgSum(:), pdrTlTmp(:), pdrTlSum(:)
-           real, allocatable :: pdrThTmp(:), pdrThSum(:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
            real, allocatable :: pdrHeatGGTmp(:), pdrHeatGGSum(:)      ! D-096
            real, allocatable :: pdrCoolSlTmp(:), pdrCoolSlSum(:)      ! D-166
            real, allocatable :: pdrCoolTrTmp(:), pdrCoolTrSum(:)      ! D-166
-           real, allocatable :: NePDRTmp(:), NePDRSum(:)              ! D-105
            real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
            real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
            real, allocatable :: pdrIonRateTmp(:,:), pdrIonRateSum(:,:) ! D-118
-           integer, allocatable :: pdrZoneSum(:)
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
            ! D-200: iteration-start snapshots for the damping below. Local
@@ -159,7 +153,6 @@ module iteration_mod
            integer(kind=8)        :: cvS(4), cvHS(12), cvXS(9), cvAS(7)  ! D-170
            integer(kind=8)        :: cvS2(4)                             ! D-172
            integer(kind=8)        :: cvS3(4)                             ! D-173
-           integer(kind=8)        :: cvS4                                ! D-176
            real(kind=8)           :: wDum                                ! D-178
            integer(kind=8)        :: cvS5(4)                             ! D-179, (4) D-229
            integer(kind=8)        :: cvTS(12), cvTAS(7), cvS6(3)         ! D-248
@@ -209,7 +202,7 @@ module iteration_mod
                  ! allreduce populates EVERY cell on every rank, so leaving the
                  ! PDF standing would have the next iteration sum 14 stale copies
                  ! of each cell - the D-225 defect, in this array.
-                 if ((lgDebug .or. lgLineTransfer) .and. allocated(grid(iG)%linePDF)) &
+                 if (allocated(grid(iG)%linePDF)) &
                       & grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF) = 0.
                  grid(iG)%totalLines(0:grid(iG)%nCells) = 0.
 
@@ -506,7 +499,7 @@ module iteration_mod
                       & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%pdfSrc, &
                       & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
-                 if ((lgDebug .or. lgLineTransfer) .and. allocated(grid(iG)%linePDF)) then
+                 if (allocated(grid(iG)%linePDF)) then
                     size =  (grid(iG)%nCells+1)*nLinesPDF
 
                     call mpi_allreduce(MPI_IN_PLACE, grid(iG)%linePDF, size,&
@@ -863,8 +856,7 @@ module iteration_mod
                             & (100.d0*trc224(10+kBd)/max(trc224(10), 1.d0), kBd = 1, 6), &
                             & "   previous step not in its cell (%)", 100.d0*trc224(17)/max(trc224(10), 1.d0), &
                             & "   this step not in its cell (%)", 100.d0*trc224(18)/max(trc224(10), 1.d0), &
-                            & "   point outside cell (%)", 100.d0*trc224(19)/max(trc224(10), 1.d0), &
-                            & "   previous cell PDR zone (%)", 100.d0*trc224(20)/max(trc224(10), 1.d0)
+                            & "   point outside cell (%)", 100.d0*trc224(19)/max(trc224(10), 1.d0)
                     end if
                  end if
               end if
@@ -1231,8 +1223,8 @@ module iteration_mod
               ! updateCell calls iterateT, a full bracketed temperature search
               ! - so the loop was re-solving the thermal equilibrium once per
               ! pass at frozen radiation field, with nothing damping Te across
-              ! passes (iterDamp acts across MC iterations, pdrCoupleDamp acts
-              ! on ionDen). D-213/D-214 measured the consequence: each pass
+              ! passes (iterDamp acts across MC iterations; the pass-to-pass
+              ! pdrCoupleDamp acted on ionDen). D-213/D-214 measured the consequence: each pass
               ! re-anchored pdrCoolTref, flattened the measured slope, removed
               ! part of the extrapolation holding the cell cold and let the
               ! temperature step up - 530 -> 4129 -> 8054 -> 8245 -> 8283 K
@@ -1268,13 +1260,6 @@ module iteration_mod
 
               do iCouple = 1, max(pdrCoupleIter, 1)
 #ifdef PDR
-              ! D-334: take the snapshot the damping at the foot of this loop
-              ! has always assumed it had. ionDenPrev must hold ionDen as it
-              ! stood BEFORE this pass, so it is taken here, at the top, and
-              ! not at the point of use. Guarded on allocated() because the
-              ! allocation itself sits further down this same loop body and so
-              ! has not happened on the very first pass.
-              if (lgPDR .and. allocated(ionDenPrev)) ionDenPrev = grid(iG)%ionDen
 
               ! ---------------------------------------------------- D-204
               ! Te at this point has been solved by updateCell against the
@@ -1318,8 +1303,6 @@ module iteration_mod
                           if (mod(iCell-(taskid+1),numtasks) /= 0) cycle
                           if (grid(iG)%active(i,j,k) <= 0) cycle
                           iDum = grid(iG)%active(i,j,k)
-                          if (.not. allocated(grid(iG)%pdrZone)) cycle
-                          if (grid(iG)%pdrZone(iDum) /= 1) cycle
                           if (grid(iG)%Hden(iDum) <= 0.) cycle
                           nUpd1 = nUpd1 + 1
                           teUpd1Sum = teUpd1Sum + dble(grid(iG)%Te(iDum))
@@ -1553,10 +1536,6 @@ module iteration_mod
                                    end if
                                    budSum6(iBudG,iHD) = budSum6(iBudG,iHD) + 1.d0
                                    budSum6(iBudG,6) = budSum6(iBudG,6) + log10(max(tMinD, 1.d-10))
-                                   if (allocated(grid(iG)%pdrZone)) then
-                                      if (grid(iG)%pdrZone(nbMinD) == 1) &
-                                           & budSum6(iBudG,7) = budSum6(iBudG,7) + 1.d0
-                                   end if
                                    budSum6(iBudG,8) = budSum6(iBudG,8) + dble(grid(iG)%TeIterStart(nbMinD))
                                    if (allocated(grid(iG)%xHIiterStart)) budSum6(iBudG,9) = &
                                         & budSum6(iBudG,9) + dble(grid(iG)%xHIiterStart(nbMinD))
@@ -1846,10 +1825,9 @@ module iteration_mod
                                   & " eV  <0.1 / 0.1-1 / 1-10 / 10-100 / >=100 (%)", &
                                   & (100.d0*budSum6(iBudG,kBd)/max(budSum6(iBudG,15), 1.d0), kBd = 1, 5), &
                                   & "   <log10>", budSum6(iBudG,6)/max(budSum6(iBudG,15), 1.d0)
-                             print '(a,f7.2,a,f8.1,a,es10.3,a,f7.2,a,f7.2,a)', &
-                                  & " ! [D224]   that neighbour: PDR zone", &
-                                  & 100.d0*budSum6(iBudG,7)/max(budSum6(iBudG,15), 1.d0), &
-                                  & "%   Te_start", budSum6(iBudG,8)/max(budSum6(iBudG,15), 1.d0), &
+                             print '(a,f8.1,a,es10.3,a,f7.2,a,f7.2,a)', &
+                                  & " ! [D224]   that neighbour: Te_start", &
+                                  & budSum6(iBudG,8)/max(budSum6(iBudG,15), 1.d0), &
                                   & "   x(H0)_start", budSum6(iBudG,9)/max(budSum6(iBudG,15), 1.d0), &
                                   & "   upstream", 100.d0*budSum6(iBudG,10)/max(budSum6(iBudG,15), 1.d0), &
                                   & "%   any upstream neighbour tau/cell<1 in", &
@@ -1954,34 +1932,16 @@ module iteration_mod
                  allocate(pdrCoolSlSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolTrTmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolTrSum(0:grid(iG)%nCells), stat=err)
-                 allocate(NePDRTmp(0:grid(iG)%nCells), stat=err)
-                 allocate(NePDRSum(0:grid(iG)%nCells), stat=err)
                  allocate(H2denTmp(0:grid(iG)%nCells), stat=err)
                  allocate(H2denSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
                  allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
-                 if (pdrCoupleIter > 1 .and. .not.allocated(ionDenPrev)) then
-                    allocate(ionDenPrev(0:grid(iG)%nCells, 1:nElementsUsed, 1:nstages), stat=err)
-                    if (err /= 0) then
-                       print*, "! iterateMC: can't allocate ionDenPrev"; stop
-                    end if
-                    ! D-334: and INITIALISE it. Before this line ionDenPrev was
-                    ! allocated and never assigned anywhere in the tree, so the
-                    ! damping at the foot of the coupling loop was mixing
-                    ! pdrCoupleDamp (0.25) of uninitialised memory into
-                    ! grid%ionDen on every pass after the first.
-                    ionDenPrev = grid(iG)%ionDen
-                 end if
                  allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
                  allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
-                 allocate(pdrZoneSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
                  allocate(pdrLevSum(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
-                 allocate(pdrTgTmp(0:grid(iG)%nCells), pdrTgSum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrTlTmp(0:grid(iG)%nCells), pdrTlSum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrThTmp(0:grid(iG)%nCells), pdrThSum(0:grid(iG)%nCells), stat=err)
                  if (err /= 0) then
                     print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
                  end if
@@ -1993,19 +1953,14 @@ module iteration_mod
                  pdrHeatGGTmp = 0.
                  pdrCoolSlTmp = 0.
                  pdrCoolTrTmp = 0.
-                 NePDRTmp = 0.
                  H2denTmp = 0.
                  pdrCoolSpTmp = 0.
                  pdrIonRateTmp = 0.; pdrIonRateSum = 0.
                  pdrHeatPESum = 0.
-                 pdrZoneSum   = 0
                  pdrCoolTmp   = 0.
                  pdrCoolSum   = 0.
                  pdrLevTmp    = 0.d0
                  pdrLevSum    = 0.d0
-                 pdrTgTmp = 0.; pdrTgSum = 0.
-                 pdrTlTmp = 0.; pdrTlSum = 0.
-                 pdrThTmp = 0.; pdrThSum = 0.
                  pdrNstuck   = 0
                  pdrNbadPop  = 0
                  call resetDiffuseDiag()                    ! D-348
@@ -2032,8 +1987,6 @@ module iteration_mod
                                      & grid(iG)%pdrCoolSlope(grid(iG)%active(i,j,k))
                                 pdrCoolTrTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%pdrCoolTref(grid(iG)%active(i,j,k))
-                                NePDRTmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%NePDR(grid(iG)%active(i,j,k))
                                 H2denTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%H2den(grid(iG)%active(i,j,k))
                                 pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
@@ -2042,9 +1995,6 @@ module iteration_mod
                                      & grid(iG)%pdrIonRate(grid(iG)%active(i,j,k),:)
                                 pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
                                      & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
-                                pdrTgTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrTgas(grid(iG)%active(i,j,k))
-                                pdrTlTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrTlow(grid(iG)%active(i,j,k))
-                                pdrThTmp(grid(iG)%active(i,j,k))  = grid(iG)%pdrThigh(grid(iG)%active(i,j,k))
                              end if
                           end if
                        end do
@@ -2076,9 +2026,6 @@ module iteration_mod
                  call mpi_allreduce(pdrHeatGGTmp, pdrHeatGGSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrHeatGG(1:grid(iG)%nCells) = pdrHeatGGSum(1:grid(iG)%nCells)
-                 call mpi_allreduce(NePDRTmp, NePDRSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%NePDR(1:grid(iG)%nCells) = NePDRSum(1:grid(iG)%nCells)
                  call mpi_allreduce(H2denTmp, H2denSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%H2den(1:grid(iG)%nCells) = H2denSum(1:grid(iG)%nCells)
@@ -2090,29 +2037,13 @@ module iteration_mod
                  call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrIonRate(1:grid(iG)%nCells,:) = pdrIonRateSum(1:grid(iG)%nCells,:)
-                 size = grid(iG)%nCells+1
                  size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
                  call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
                       & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrLevPop(1:grid(iG)%nCells,:) = pdrLevSum(1:grid(iG)%nCells,:)
-                 size = grid(iG)%nCells+1
-                 call mpi_allreduce(pdrTgTmp, pdrTgSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(pdrTlTmp, pdrTlSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(pdrThTmp, pdrThSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrTgas(1:grid(iG)%nCells)  = pdrTgSum(1:grid(iG)%nCells)
-                 grid(iG)%pdrTlow(1:grid(iG)%nCells)  = pdrTlSum(1:grid(iG)%nCells)
-                 grid(iG)%pdrThigh(1:grid(iG)%nCells) = pdrThSum(1:grid(iG)%nCells)
                  grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
                  grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
 
-                 ! pdrZone is identical on every rank except where pdrStep
-                 ! raised it to 2 for a stalled cell, so MAX propagates that.
-                 call mpi_allreduce(grid(iG)%pdrZone, pdrZoneSum, size, &
-                      & mpi_integer, mpi_max, mpi_comm_world, ierr)
-                 grid(iG)%pdrZone = pdrZoneSum
                  ! cell 0 is the inactive dump cell: several (i,j,k) map to it,
                  ! so it is deliberately left out of the exchange
                  grid(iG)%pdrAbun(1:grid(iG)%nCells,:) = &
@@ -2124,12 +2055,10 @@ module iteration_mod
                  deallocate(pdrHeatSum)
                  deallocate(pdrHeatPETmp)
                  deallocate(pdrHeatPESum)
-                 deallocate(pdrZoneSum)
                  deallocate(pdrCoolTmp)
                  deallocate(pdrCoolSum)
                  deallocate(pdrLevTmp)
                  deallocate(pdrLevSum)
-                 deallocate(pdrTgTmp, pdrTgSum, pdrTlTmp, pdrTlSum, pdrThTmp, pdrThSum)
                  deallocate(pdrCoolSlTmp, pdrCoolSlSum, pdrCoolTrTmp, pdrCoolTrSum)  ! D-166
                  ! ------------------------------------------------------ D-253
                  ! These ten are allocated in the same guarded block at
@@ -2144,12 +2073,8 @@ module iteration_mod
                  ! pdrIonRate{Tmp,Sum} at 1.16 MB each; measured drift was
                  ! ~4.5 MB/rank/iteration, so this is most of it. Last use of
                  ! all ten is :2060-2076, so freeing here is safe.
-                 !
-                 ! ionDenPrev is deliberately NOT freed: it is guarded by
-                 ! .not.allocated at :1954 and persists across coupling passes
-                 ! by design.
+
                  deallocate(pdrHeatGGTmp, pdrHeatGGSum)
-                 deallocate(NePDRTmp, NePDRSum)
                  deallocate(H2denTmp, H2denSum)
                  deallocate(pdrCoolSpTmp, pdrCoolSpSum)
                  deallocate(pdrIonRateTmp, pdrIonRateSum)
@@ -2201,56 +2126,10 @@ module iteration_mod
 #endif
 
 #ifdef PDR
-              ! D-216: inert under the restructure and kept only so the
-              ! residual is still reported. ionDen is written by updateCell,
-              ! which now runs once per MC iteration, and pdrToMocassin writes
-              ! elemAvail and nothing else (D-193) - so ionDen does not change
-              ! across chemistry passes and this measures zero. It is left in
-              ! place rather than deleted because the [D119] line is how the
-              ! ionization/chemistry handshake was watched, and a line that
-              ! reads zero for a stated reason is better than a line that
-              ! disappears.
-              if (lgPDR .and. nIterateMC >= pdrStartIter .and. iCouple > 1 &
-                  & .and. allocated(ionDenPrev)) then
-                 ! Cloudy damps by averaging old and new rather than taking the
-                 ! new value outright; two solvers passing rates can otherwise
-                 ! chase each other instead of settling.
-                 ! D-119: measure the change ABUNDANCE-WEIGHTED.
-                 !
-                 ! The first version of this was a bare relative difference
-                 ! over every stage above 1e-10, and it reported changes of
-                 ! 1e5 - not a diverging loop, but a stage sitting on the guard
-                 ! where a negligible absolute change is an enormous relative
-                 ! one. That is the third time in this work a comparison built
-                 ! that way has measured its own floor rather than the physics
-                 ! (see the chain-vs-matrix diff and the MC "noise floor").
-                 !
-                 ! The general form of the mistake: a relative-difference
-                 ! metric with a bare floor guard measures the floor. Weight by
-                 ! how much of the element the stage actually holds, so a
-                 ! stage carrying 1e-12 of it cannot dominate the answer.
-                 pdrCoupleResid = 0.d0
-                 fWt = 0.d0
-                 do iDum = 1, grid(iG)%nCells
-                    do jDum = 1, nElementsUsed
-                       do kDum = 1, nstages
-                          wNew = dble(grid(iG)%ionDen(iDum,jDum,kDum))
-                          if (wNew <= 0.d0) cycle
-                          pdrCoupleResid = pdrCoupleResid + wNew * &
-                             & abs(wNew - dble(ionDenPrev(iDum,jDum,kDum)))
-                          fWt = fWt + wNew
-                       end do
-                    end do
-                 end do
-                 if (fWt > 0.d0) pdrCoupleResid = pdrCoupleResid/fWt
-                 ! D-174: pdrCoupleDamp is now the weight on the PREVIOUS
-                 ! pass, matching iterDamp. The arithmetic is flipped with it.
-                 grid(iG)%ionDen = real((1.d0-pdrCoupleDamp)*dble(grid(iG)%ionDen) &
-                      &          + pdrCoupleDamp*dble(ionDenPrev))
-                 if (taskid == 0) print*, "! [D119] coupling pass", iCouple, &
-                      & " abundance-weighted mean ion-fraction change:", &
-                      & real(pdrCoupleResid)
-              end if
+              ! D-352: D-119's damping of ionDen between chemistry passes is
+              ! gone. Since D-216 updateCell runs once per MC iteration, so
+              ! ionDen does not change across the passes; the [D119] residual
+              ! read exactly zero and the damping was an identity.
 #endif
               end do
 
@@ -2682,7 +2561,7 @@ module iteration_mod
 #ifdef PDR
            if (lgPDR .and. taskid == 0 .and. nIterateMC >= pdrStartIter) then
               do iG = 1, nGrids
-                 if (.not.allocated(grid(iG)%pdrZone)) cycle
+                 if (.not.allocated(grid(iG)%pdrAbun)) cycle
                  allocate(cvBud(grid(iG)%nCells), cvXH0(grid(iG)%nCells), &
                       &   cvDlt(grid(iG)%nCells), cvRat(grid(iG)%nCells), &
                       &   cvMol(grid(iG)%nCells), cvDMl(grid(iG)%nCells), &
@@ -2696,7 +2575,6 @@ module iteration_mod
                  molHist = 0; nMv10 = 0; nMv50 = 0; nWarm = 0; nHotBr = 0
                  molSum = 0.d0; teStSum = 0.d0; molStSum = 0.d0; nStHot = 0
                  do iDum = 1, grid(iG)%nCells
-                    if (grid(iG)%pdrZone(iDum) /= 1) cycle
                     if (grid(iG)%Hden(iDum) <= 0.) cycle
                     nBud = nBud + 1
                     cvXH0(nBud) = dble(grid(iG)%ionDen(iDum,elementXref(1),1))
@@ -2799,7 +2677,7 @@ module iteration_mod
                     dMed = cvDlt((nBud+1)/2)
                     bMin = cvBud(1); bMax = cvBud(nBud)
                     print*, "! [D196] can the convergence test move? grid", iG
-                    print '(a,i8,a,i8,a,f6.2,a)', "! [D196]   PDR-zone cells", &
+                    print '(a,i8,a,i8,a,f6.2,a)', "! [D196]   gas cells", &
                          & nBud, ",  x(H0) > 0.99 in", nPin, "  (", &
                          & 100.d0*dble(nPin)/dble(nBud), " %)"
                     print '(a,3(es11.4,a))', "! [D196]   x(H0)      min ", &
@@ -3055,7 +2933,6 @@ module iteration_mod
               call mpi_reduce(cvStayCold, cvS3(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvHot2Cold, cvS3(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvCold2Hot, cvS3(4), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-              call mpi_reduce(cvPdrCleared, cvS4, 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvFailH0,   cvS5(1), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvFailH2,   cvS5(2), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
               call mpi_reduce(cvFailBoth, cvS5(3), 1, MPI_INTEGER8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
@@ -3143,14 +3020,6 @@ module iteration_mod
                        end if
                        print*, "! CVPROBE   NOT CONVERGED: ", trim(chNotConv)
                     end if
-                    ! D-176: the OTHER test. pdrStep clears lgConverged after
-                    ! updateCell has set it, so this is what actually decides
-                    ! the headline number whenever it is large.
-                    if (cvS4 > 0) then
-                       print*, "! CVPROBE   PDR heat/cool test cleared", cvS4, &
-                            & " cells that had passed the x(H0) test", &
-                            & " (pdrFcritConv", pdrFcritConv, ")"
-                    end if
                  end if
               end if
               teN = 0; teNconv = 0; teNstall = 0; teNloclamp = 0
@@ -3160,7 +3029,6 @@ module iteration_mod
               cvHist = 0; cvFailByX = 0; cvFailByAV = 0
               cvNear = 0; cvFar = 0; cvUnstable = 0; cvDeriv = 0
               cvStayHot = 0; cvStayCold = 0; cvHot2Cold = 0; cvCold2Hot = 0
-              cvPdrCleared = 0
               cvFailH0 = 0; cvFailH2 = 0; cvFailBoth = 0; cvFailTe = 0   ! D-229
               cvTeHist = 0; cvFailTeByAV = 0                             ! D-248
               cvTeNear = 0; cvTeFloorPass = 0; cvTeFloorN = 0            ! D-248
@@ -3290,11 +3158,7 @@ module iteration_mod
 #ifdef PDR
                  ! NOT re-running mocassinToPDR here. It already ran this
                  ! iteration, before the cell loops, on the same radiation
-                 ! field - nothing has changed since. Running it again would
-                 ! recompute pdrZone AFTER the last pdrStep, so any cell that
-                 ! had just crossed the x(H+) threshold would be written to the
-                 ! checkpoint labelled "PDR zone" while still holding its seed
-                 ! abundances, indistinguishable from a converged result.
+                 ! field - nothing has changed since.
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR
@@ -3315,11 +3179,7 @@ module iteration_mod
 #ifdef PDR
                  ! NOT re-running mocassinToPDR here. It already ran this
                  ! iteration, before the cell loops, on the same radiation
-                 ! field - nothing has changed since. Running it again would
-                 ! recompute pdrZone AFTER the last pdrStep, so any cell that
-                 ! had just crossed the x(H+) threshold would be written to the
-                 ! checkpoint labelled "PDR zone" while still holding its seed
-                 ! abundances, indistinguishable from a converged result.
+                 ! field - nothing has changed since.
 #endif
                  call writeGrid(grid(1:nGrids))
 #ifdef PDR

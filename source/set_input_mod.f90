@@ -22,11 +22,10 @@ module set_input_mod
         integer             :: iPdrC            ! coolant-list counter (i is the outer loop index)
 #endif
         integer             :: ios              ! I/O error status
-        integer             :: iDumChemRates    ! D-196: ionChemRates as 0/1
         integer             :: maxLim = 1000    ! max limit for reading loop
 
-        integer             :: lineStat         ! D-307: MOCASSIN_LINES status
-        character(len=50)   :: lineEnv          ! D-307: MOCASSIN_LINES value
+        integer             :: lineStat         ! D-352: retired environment variables
+        character(len=50)   :: lineEnv
 
         character(len=50)   :: cValue           ! character value corresponding to keyword
         character(len=50)   :: in_file          ! input file
@@ -634,105 +633,22 @@ module set_input_mod
             case ("pdrZeta")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrZeta
-            case ("pdrHealpix")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrHealpix
             case ("pdrChemIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrChemIter
             case ("pdrStartIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrStartIter
-            case ("pdrFUVmode")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrFUVmode
-            ! D-193: RETIRED. Who owns the ionization and the temperature is
-            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
-            ! returns the molecular content and the heating/cooling that
-            ! follows from it. Still parsed so existing input files run, but
-            ! the value is ignored and the run says so.
-            case ("pdrAtomicH")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrAtomicH
-                if (taskid == 0) print*, "! setInput: pdrAtomicH is retired &
-                     &(D-193) and has no effect - MOCASSIN owns the ionization &
-                     &and the temperature unconditionally"
-                pdrAtomicH = 1
-            case ("pdrDustFeedback")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrDustFeedback
-            case ("pdrUseNePDR")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrUseNePDR
-            case ("pdrOwnDust")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnDust
-            ! D-193: RETIRED. Who owns the ionization and the temperature is
-            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
-            ! returns the molecular content and the heating/cooling that
-            ! follows from it. Still parsed so existing input files run, but
-            ! the value is ignored and the run says so.
-            case ("pdrOwnIon")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrOwnIon
-                if (taskid == 0) print*, "! setInput: pdrOwnIon is retired &
-                     &(D-193) and has no effect - MOCASSIN owns the ionization &
-                     &and the temperature unconditionally"
-                pdrOwnIon = 1
-
             case ("pdrDiagCool")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagCool
 
-            case ("pdrTseed")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrTseed
-                if (ios /= 0) then
-                   print*, "! readInput: error reading pdrTseed"
-                   stop
-                end if
-
-             case ("pdrThermIter")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrThermIter
-            case ("pdrFcrit")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrFcrit
-            case ("pdrDustModel")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrDustModel
-            case ("pdrSyncAbun")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrSyncAbun
-                if (taskid == 0) print*, "! setInput: pdrSyncAbun is retired &
-                     &(D-208) - the PDR seed is built from MOCASSIN's elemAbun &
-                     &and ionDen, so there is no network seed to rescale; the &
-                     &keyword is ignored"
             case ("pdrCoupleIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrCoupleIter
-            case ("pdrCoupleDamp")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoupleDamp
             case ("ionMatrix")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, lgIonMatrix
-            ! D-196 added this as the lever that let D-191's open question be
-            ! asked from an input file: does elemAvail stand down where the
-            ! chemistry supplied per-stage rates? It was measured (it did, and
-            ! that is what froze x(H0) and made the convergence number free),
-            ! and D-198 restores D-193, under which elemAvail always carries
-            ! the locking and the rates are not injected at all. There is
-            ! nothing left for this to select, so it retires with the other
-            ! four ownership keywords rather than staying as a way to ask for
-            ! the defect back.
-            case ("ionChemRates")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, iDumChemRates
-                if (taskid == 0) print*, "! setInput: ionChemRates is retired &
-                     &(D-196, D-198) - elemAvail always carries the molecular &
-                     &locking; the keyword is ignored"
-                lgIonChemRates = .true.
             case ("pdrDiagRates")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagRates
@@ -742,18 +658,6 @@ module set_input_mod
             case ("pdrEndTime")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrEndTime
-            case ("pdrAVfac")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrAVfac
-            case ("pdrUVfac")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrUVfac
-            case ("pdrGrainRadius")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrGrainRad
-            case ("pdrMetallicity")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrMetal
             case ("pdrVturb")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrVturb
@@ -769,30 +673,12 @@ module set_input_mod
             case ("pdrSplitField")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrSplitField
-            ! D-193: RETIRED. Who owns the ionization and the temperature is
-            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
-            ! returns the molecular content and the heating/cooling that
-            ! follows from it. Still parsed so existing input files run, but
-            ! the value is ignored and the run says so.
-            case ("pdrIonFromMocassin")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrIonFromMocassin
-                if (taskid == 0) print*, "! setInput: pdrIonFromMocassin is retired &
-                     &(D-193) and has no effect - MOCASSIN owns the ionization &
-                     &and the temperature unconditionally"
-                pdrIonFromMocassin = 1
             case ("teSolver")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teSolver
             case ("teFloor")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, teFloor
-            case ("pdrFcritConv")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrFcritConv
-            case ("pdrCoolZoneGate")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolZoneGate
             case ("cvUseH2")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, cvUseH2
@@ -829,44 +715,32 @@ module set_input_mod
             case ("pdrTrackCell")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrTrackCell
-            case ("pdrAllCells")
+            ! D-352: RETIRED keywords, in two kinds. Neither is read into a
+            ! variable - the model has nothing for them to set.
+            !
+            ! No effect: switches whose choice was settled earlier, or values
+            ! the model now measures for itself. Still parsed, so old input
+            ! files run, and each says why it is ignored.
+            case ("pdrAtomicH", "pdrOwnIon", "pdrIonFromMocassin", &
+                 & "pdrTeFromMocassin", "pdrAllCells", "pdrCoolFeedback", &
+                 & "pdrSyncAbun", "ionChemRates", "pdrTseed", "pdrThermIter", &
+                 & "pdrCoolTdep", "pdrCoolTfac", "pdrFcrit", "pdrCoupleDamp", &
+                 & "pdrHealpix", "pdrAVfac", "pdrUVfac")
                 backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrAllCells
-                if (taskid == 0) print*, "! setInput: pdrAllCells is retired &
-                     &(D-198) - the chemistry runs in every cell; the zone gate &
-                     &was leaving seed abundances in the H II region"
-                pdrAllCells = 1
-            case ("pdrPEfromPDR")
+                read(unit=10, fmt=*, iostat=ios) keyword
+                call retiredKeyword(keyword, .false.)
+            ! Refused: switches that selected alternative physics or an
+            ! ownership rule (pdrZone), and constants that stood in for what
+            ! MOCASSIN knows (metallicity, grain radius). Running on with the
+            ! adopted physics would silently not do what the input asks, so
+            ! the run stops. Tag d352-zone-and-switches builds the old modes.
+            case ("pdrZoneLimit", "pdrFUVmode", "pdrDustModel", "pdrOwnDust", &
+                 & "pdrDustFeedback", "pdrPEfromPDR", "pdrUseNePDR", &
+                 & "pdrCoolZoneGate", "pdrFcritConv", "pdrMetallicity", &
+                 & "pdrGrainRadius")
                 backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrPEfromPDR
-            ! D-193: RETIRED. Who owns the ionization and the temperature is
-            ! no longer an input. MOCASSIN owns both, in every cell; 3D-PDR
-            ! returns the molecular content and the heating/cooling that
-            ! follows from it. Still parsed so existing input files run, but
-            ! the value is ignored and the run says so.
-            case ("pdrTeFromMocassin")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrTeFromMocassin
-                if (taskid == 0) print*, "! setInput: pdrTeFromMocassin is retired &
-                     &(D-193) and has no effect - MOCASSIN owns the ionization &
-                     &and the temperature unconditionally"
-                pdrTeFromMocassin = 1
-            case ("pdrCoolTdep")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolTdep
-            case ("pdrCoolTfac")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolTfac
-            case ("pdrCoolFeedback")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoolFeedback
-                if (taskid == 0) print*, "! setInput: pdrCoolFeedback is retired &
-                     &(D-198) - MOCASSIN owns the thermal equilibrium and always &
-                     &receives the PDR's heating and cooling"
-                pdrCoolFeedback = 1
-            case ("pdrZoneLimit")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrZoneLim, pdrBlendLo
+                read(unit=10, fmt=*, iostat=ios) keyword
+                call retiredKeyword(keyword, .true.)
             case ("pdrCoolants")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrNcool
@@ -1136,23 +1010,33 @@ module set_input_mod
            stop
         end if
 
-        ! D-307: the optically thin diffuse lines are transported by default
-        ! - discarding them deletes energy rather than letting it escape, and
-        ! costs the PDR about 60% of its bolometric flux (D-306). The override
-        ! can only switch it OFF, and exists so the A/B stays runnable. Read
-        ! here because readInput always runs; makeDustXsec, where it used to
-        ! live, does not run for a dust-free model.
-        call get_environment_variable("MOCASSIN_LINES", lineEnv, status=lineStat)
-        if (lineStat == 0 .and. (trim(lineEnv) == "off" .or. &
-             & trim(lineEnv) == "discard")) then
-           lgLineTransfer = .false.
-           if (taskid == 0) print*, "! readInput: DISCARDING the optically thin &
-                &diffuse lines - this does not conserve energy (D-306)"
-        else
-           lgLineTransfer = .true.
-           if (taskid == 0) print*, "! readInput: transporting the optically thin &
-                &diffuse lines (D-292, default since D-307)"
-        end if
+        ! D-352: four environment variables used to select legacy physics -
+        ! MOCASSIN_LINES (discard the thin diffuse lines, D-306/D-307),
+        ! MOCASSIN_RECCOOL (Case B recombination cooling, D-286), MOCASSIN_YIELD
+        ! (Baldwin et al. 1991 yield, D-289) and MOCASSIN_GRAINQ (the 4 pi^2
+        ! grain-charge units, D-290). They changed the physics while leaving no
+        ! trace in the input file. The adopted forms are now the only ones, and
+        ! a run in an environment that still sets one stops rather than
+        ! silently ignoring what it was asked for. Checked here because every
+        ! executable in the build calls readInput (D-317, D-318).
+        do i = 1, 4
+           select case (i)
+           case (1); cValue = "MOCASSIN_LINES"
+           case (2); cValue = "MOCASSIN_RECCOOL"
+           case (3); cValue = "MOCASSIN_YIELD"
+           case (4); cValue = "MOCASSIN_GRAINQ"
+           end select
+           call get_environment_variable(trim(cValue), lineEnv, status=lineStat)
+           if (lineStat == 0 .and. len_trim(lineEnv) > 0) then
+              if (taskid == 0) then
+                 print*, "! readInput: ", trim(cValue), " = ", trim(lineEnv), &
+                      & " is set, and it is retired (D-352)"
+                 print*, "!   the physics it selected between is no longer an option;"
+                 print*, "!   unset it. Tag d352-zone-and-switches builds the old modes."
+              end if
+              stop
+           end if
+        end do
 
         ! D-270: fatal only for dust models, so outside the chain - as a
         ! branch it matched every dust model and skipped the grid, TStellar,
@@ -1208,6 +1092,76 @@ module set_input_mod
         TStellar(0) = Tdiffuse
 
         contains
+
+          ! D-352: one place that says why a retired keyword is ignored or
+          ! refused, so the reason is printed with the keyword it belongs to.
+          subroutine retiredKeyword(kw, lgFatal)
+            character(len=*), intent(in) :: kw
+            logical, intent(in)          :: lgFatal
+            character(len=200)           :: why
+
+            select case (trim(kw))
+            case ("pdrAtomicH", "pdrOwnIon", "pdrIonFromMocassin", "pdrTeFromMocassin")
+               why = "D-193: MOCASSIN owns the ionization and the temperature in every cell"
+            case ("pdrAllCells")
+               why = "D-198: the chemistry runs in every cell"
+            case ("pdrCoolFeedback")
+               why = "D-198: MOCASSIN's thermal balance always takes the PDR's heating and cooling"
+            case ("pdrSyncAbun")
+               why = "D-208: the chemistry is seeded from MOCASSIN's own abundances"
+            case ("ionChemRates")
+               why = "D-196/D-198: elemAvail always carries the molecular locking"
+            case ("pdrTseed", "pdrThermIter")
+               why = "D-193: the PDR does not solve for a temperature of its own"
+            case ("pdrCoolTdep", "pdrCoolTfac")
+               why = "D-215: the PDR cooling is tabulated in T, not extrapolated"
+            case ("pdrFcrit")
+               why = "D-352: the PDR's own heat and cool, taken at MOCASSIN's T, are not a test"
+            case ("pdrCoupleDamp")
+               why = "D-352: ionDen is fixed across chemistry passes (D-216); the damping was an identity"
+            case ("pdrHealpix")
+               why = "D-352: pdrStep's rays are HEALPix level 0 by construction"
+            case ("pdrAVfac")
+               why = "D-352: A_V per N_H is measured from this model's grains (D-055, D-109)"
+            case ("pdrUVfac")
+               why = "D-352: no FUV attenuation exponent is used - the photorates take the MC field"
+            case ("pdrZoneLimit")
+               why = "D-352: there is no PDR zone; no threshold decides which code owns a cell"
+            case ("pdrFUVmode")
+               why = "D-352: the gas is heated by the transported MC field; the prescription mode is gone"
+            case ("pdrDustModel")
+               why = "D-352: the chemistry's T_dust is MOCASSIN's radiative-equilibrium value; HTT91 is gone"
+            case ("pdrOwnDust")
+               why = "D-352: the shielding extinction curve is always this model's own grains (D-108)"
+            case ("pdrDustFeedback")
+               why = "D-352: the grain energy balance is not an input choice"
+            case ("pdrPEfromPDR")
+               why = "D-352: photoelectric heating is MOCASSIN's, from its own grains (D-134)"
+            case ("pdrUseNePDR")
+               why = "D-352: there is one electron density and MOCASSIN computes it (D-212)"
+            case ("pdrCoolZoneGate")
+               why = "D-352: the coolant substitution has no zone gate (D-182)"
+            case ("pdrFcritConv")
+               why = "D-352: convergence is MOCASSIN's test; the PDR imbalance probe is gone"
+            case ("pdrMetallicity")
+               why = "D-352: metallicity is MOCASSIN's abundances and dust; the chemistry reads the measured grain area"
+            case ("pdrGrainRadius")
+               why = "D-352: grain sizes are MOCASSIN's size distribution"
+            case default
+               why = "D-352"
+            end select
+
+            if (lgFatal) then
+               if (taskid == 0) then
+                  print*, "! setInput: ", trim(kw), " is retired and REFUSED - ", trim(why)
+                  print*, "!   remove it from the input; tag d352-zone-and-switches builds the old mode"
+               end if
+               stop
+            else
+               if (taskid == 0) print*, "! setInput: ", trim(kw), &
+                    & " is retired and has no effect - ", trim(why)
+            end if
+          end subroutine retiredKeyword
 
           subroutine readGridList(filename)
             implicit none

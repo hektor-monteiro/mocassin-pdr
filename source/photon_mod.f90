@@ -1005,22 +1005,14 @@ module photon_mod
                    ! thin lines (linePDF starts at ilow = 2, so the Lyman series
                    ! and with it Lya is excluded), so they stream like continuum
                    ! and tracing them at their own frequency is the whole fix.
-                   if (lgDebug .or. lgLineTransfer) then
-                      ! D-296: getLineP draws from the compact PDF and returns
-                      ! 0 when the draw lands on the mass held by lines with no
-                      ! frequency bin, which are dropped as they always were.
-                      call getLineP( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), lineP )
+                   ! D-296: getLineP draws from the compact PDF and returns
+                   ! 0 when the draw lands on the mass held by lines with no
+                   ! frequency bin, which are dropped as they always were.
+                   call getLineP( grid(gP)%linePDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),:), lineP )
 
-                      nuP = 0
-                      if (lineP >= 1 .and. allocated(lineTrNuP)) then
-                         if (lineP <= nLinesPDF) nuP = lineTrNuP(lineP)
-                      end if
-
-                   else
-
-                      nuP = 0
-                      lineP = 0
-
+                   nuP = 0
+                   if (lineP >= 1 .and. allocated(lineTrNuP)) then
+                      if (lineP <= nLinesPDF) nuP = lineTrNuP(lineP)
                    end if
 
                    ! initialize the new photon packet
@@ -1352,7 +1344,7 @@ module photon_mod
           real                            :: prevKW224 ! tau per cell of the cell last crossed; < 0 none
           integer                         :: k224
           logical                         :: lgTrc224, lgOut224, lgOver224, lgB2224
-          logical                         :: prevBad224, prevPdr224, lgPt224
+          logical                         :: prevBad224, lgPt224
           logical                         :: lgB2all225 ! D-225: in the band, any packet type
           real                            :: probDust233, denAbs233   ! D-233
           logical                         :: lgReturn
@@ -1440,7 +1432,7 @@ module photon_mod
           ! initialize optical depth
           absTau = 0.
           ! D-224: a new path has crossed no cell yet
-          lgTrc224 = .false.; prevKW224 = -1.; prevBad224 = .false.; prevPdr224 = .false.
+          lgTrc224 = .false.; prevKW224 = -1.; prevBad224 = .false.
 
           ! calculate the optical depth to the next cell wall
           tauCell = R_out*grid(gP)%opacity(grid(gP)%active(xP,yP,zP), enPacket%nuP)
@@ -1917,7 +1909,6 @@ module photon_mod
                               & r224(k224) > hi224(k224) + tol224) lgPt224 = .true.
                       end do
                       if (lgPt224) trc224(19) = trc224(19) + 1.d0
-                      if (prevPdr224) trc224(20) = trc224(20) + 1.d0
                    end if
                    if (allocated(grid(gP)%trcJ)) then
                       grid(gP)%trcJ(grid(gP)%active(xP,yP,zP),5) = &
@@ -2225,7 +2216,7 @@ module photon_mod
                       ! initialize optical depth
                       absTau = 0.
                       ! D-224: the scattered path starts afresh in this cell
-                      prevKW224 = -1.; prevBad224 = .false.; prevPdr224 = .false.
+                      prevKW224 = -1.; prevBad224 = .false.
 
 !                      ! get a random number
 !                      call random_number(random)
@@ -2336,13 +2327,6 @@ module photon_mod
                 if (lgTrc224) then
                    prevKW224  = kW224
                    prevBad224 = lgOut224 .or. lgOver224
-                   prevPdr224 = .false.
-#ifdef PDR
-                   ! pdrZone exists only in the PDR build
-                   if (grid(gP)%active(xP,yP,zP) > 0 .and. allocated(grid(gP)%pdrZone)) then
-                      if (grid(gP)%pdrZone(grid(gP)%active(xP,yP,zP)) == 1) prevPdr224 = .true.
-                   end if
-#endif
                 end if
 
                 ! update packet's position

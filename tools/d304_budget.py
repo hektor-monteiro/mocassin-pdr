@@ -74,9 +74,8 @@ def read_moc(run):
 
     # The chemistry's C+ per H nucleus (pdrGrid.out abundances are already
     # relative to H nuclei), not the ionized-gas solver's C+.
-    p = np.array(open(os.path.join(out, 'pdrGrid.out')).read().split(),
-                 float)[:n * 45].reshape(n, 45)
-    d['C+pdr'] = p[idx, 12:45][:, R.SPEC.index('C+')]
+    ab = R.read_pdrgrid(out, n)['ab']            # either layout (D-352)
+    d['C+pdr'] = ab[idx][:, R.SPEC.index('C+')]
     elem, abun = R.read_composition(run)
     d['C/H'] = abun['C']
     return d

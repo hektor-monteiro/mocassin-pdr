@@ -809,8 +809,6 @@ module xSec_mod
       ! makes dust xsections [cm^2] ( pi a^2 Q )
       subroutine makeDustXsec()
 
-        integer :: envStat                 ! D-289
-        character(len=32) :: yieldEnv      ! D-289
         ! D-313: optional 6th column of a Q file, Im(m) per wavelength, so a
         ! pre-averaged single-species Q file can still drive the WD01
         ! photoelectric yield. Without it setGrainYield never runs for a Q
@@ -887,39 +885,10 @@ module xSec_mod
         grainVn=0.
         allocate(MsurfAtom(1:nSpecies), stat = err)
 
-        ! D-289. The photoelectric yield: Weingartner & Draine (2001) by
-        ! default, Baldwin et al. (1991) - what MOCASSIN used through D-288 -
-        ! under MOCASSIN_YIELD=baldwin, the same spelling as MOCASSIN_RECCOOL
-        ! (D-286). Read here rather than in readData because the yield table is
-        ! built below, and mocassin.f90 calls initXSecArray BEFORE readData -
-        ! while mocassinWarm does not call readInput at all. Where it is used
-        ! is the one place every executable passes through.
-        call get_environment_variable("MOCASSIN_YIELD", yieldEnv, status=envStat)
-        if (envStat == 0 .and. (trim(yieldEnv) == "baldwin" .or. &
-             & trim(yieldEnv) == "legacy" .or. trim(yieldEnv) == "Baldwin")) then
-           lgWD01Yield = .false.
-           if (taskid == 0) print*, "! makeDustXsec: legacy Baldwin et al. (1991) photoelectric yield"
-        else
-           lgWD01Yield = .true.
-           if (taskid == 0) print*, "! makeDustXsec: Weingartner & Draine (2001) photoelectric yield"
-        end if
-
-        ! D-290: the grain charge balance's units, read in the same place and
-        ! with the same spelling as the yield above.
-        call get_environment_variable("MOCASSIN_GRAINQ", yieldEnv, status=envStat)
-        if (envStat == 0 .and. (trim(yieldEnv) == "legacy" .or. &
-             & trim(yieldEnv) == "4pi")) then
-           lgGrainQ4pi = .true.
-           if (taskid == 0) print*, "! makeDustXsec: legacy grain charge balance (photoemission x 4 pi^2)"
-        else
-           lgGrainQ4pi = .false.
-           if (taskid == 0) print*, "! makeDustXsec: grain charge balance in matched units (D-290)"
-        end if
-
-        ! D-292/D-307: transport of the optically thin diffuse lines used to
-        ! be switched here. It is not a dust property and this routine only
-        ! runs for dust models, so the default now lives in common_mod and the
-        ! MOCASSIN_LINES override is read in readInput.
+        ! D-289/D-290/D-352: the photoelectric yield is Weingartner & Draine
+        ! (2001) and the grain charge balance is in matched units. The
+        ! MOCASSIN_YIELD / MOCASSIN_GRAINQ switches back to Baldwin et al. (1991)
+        ! and the 4 pi^2 units are retired (readInput refuses them if set).
 
         MsurfAtom=0
         allocate(componentMinRadius(1:nDustComponents,1:nSpecies), stat = err)
@@ -1693,12 +1662,6 @@ module xSec_mod
               theta = nuArray(i) - grainVn(iSp)
               if (theta <= 0.) then
                  grainYield(iSp, ai, i) = 0.
-                 cycle
-              end if
-
-              if (.not. lgWD01Yield) then
-                 grainYield(iSp, ai, i) = &
-                      & min(Y0*(1.-grainVn(iSp)/nuArray(i)), Y1)
                  cycle
               end if
 

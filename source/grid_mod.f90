@@ -1345,10 +1345,6 @@ module grid_mod
              ! so both the fresh path and resetGrid get it; pdr_mod only reads
              ! the network and seeds the abundances (DEVLOG D-006).
              if (lgPDR) then
-                allocate(grid%pdrZone(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate pdrZone memory"; stop
-                end if
                 allocate(grid%chiFUV(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate chiFUV memory"; stop
@@ -1414,10 +1410,6 @@ module grid_mod
                 allocate(grid%H2den(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate H2den memory"; stop
-                end if
-                allocate(grid%NePDR(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate NePDR memory"; stop
                 end if
                 allocate(grid%elemAvail(0:grid%nCells, 1:nElements), stat = err)
                 if (err /= 0) then
@@ -1513,25 +1505,12 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLevPop memory"; stop
                 end if
-                allocate(grid%pdrTgas(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate pdrTgas memory"; stop
-                end if
-                allocate(grid%pdrTlow(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate pdrTlow memory"; stop
-                end if
-                allocate(grid%pdrThigh(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate pdrThigh memory"; stop
-                end if
                 allocate(grid%pdrAbun(0:grid%nCells,1:pdrNspec), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrAbun memory - ", &
                         & (grid%nCells+1)*pdrNspec*8/1048576, " MB requested"
                    stop
                 end if
-                grid%pdrZone = 0
                 grid%chiFUV  = 0.
                 grid%chiFUV0 = 0.
                 grid%AVback  = 0.
@@ -1548,7 +1527,6 @@ module grid_mod
                 grid%dustSigGra = -1.
                 grid%pdrCool = 0.
                 grid%elemAvail = 1.
-                grid%NePDR = 0.
                 grid%H2den = 0.
                 grid%pdrCoolSp = 0.
                 grid%pdrIonRate = 0.
@@ -1557,9 +1535,6 @@ module grid_mod
                 grid%pdrHeatXtra = 0.
                 grid%pdrHeatGG = 0.
                 grid%pdrLevPop = 0.d0
-                grid%pdrTgas  = 0.
-                grid%pdrTlow  = 0.
-                grid%pdrThigh = 0.
                 grid%pdrAbun = 0.d0
              end if
 #endif
@@ -2951,6 +2926,12 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  print*, "! writeGrid: can't open file for writing - output/pdrGrid.out"
                  stop
               end if
+              ! D-352: a version line, so a reader built for the old 45-token
+              ! layout (zone flag + 11 fields + abundances) fails loudly on it
+              ! instead of silently misaligning the columns.
+              write(51, '(a,i4,a)') "# pdrGrid v2 (D-352): per grid point (i,j,k order), one line of &
+                   &chiFUV AVeff pdrCool pdrHeat pdrHeatPE, then one line of", pdrNspec, &
+                   & " abundances per H"
               close(52)
               open(unit=52, file="output/pdrCoolSp.out", action="write",position="rewind",status="unknown", iostat = ios)
               if (ios /= 0 ) then
@@ -3038,13 +3019,12 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                     ! Written from inside this same loop so the record order
                     ! matches resetGrid's read order exactly (DEVLOG D-006).
                     if (lgPDR) then
-                       write(51, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
+                       ! D-352: format v2 - the zone flag and the PDR's own
+                       ! temperature bracket (pdrTgas/pdrTlow/pdrThigh, each
+                       ! written twice) are gone; see the header line.
+                       write(51, *) grid(iG)%chiFUV(cellP), &
                             & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
-                            & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP), &
-                          & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
-                          & grid(iG)%pdrThigh(cellP), &
-                            & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
-                            & grid(iG)%pdrThigh(cellP)
+                            & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
                        write(51, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                        ! D-096: per-coolant cooling, same record order, so a
                        ! coolant-by-coolant comparison against 3D-PDR's
@@ -3329,15 +3309,10 @@ end function getVolume
          grid%linePackets = 0.
       end if
 
-      ! D-296: and linePDF only when something will read it. With transport
-      ! OFF the compact map is the identity, so nLinesPDF is the full 26718
-      ! and this is 3.8 GB a rank for an array no one touches - which is how
-      ! the transport-OFF control OOM-killed at 58.2 GB. Every read is behind
-      ! `lgDebug .or. lgLineTransfer` (setDiffusePDF's fill, photon_mod's
-      ! draw, iteration_mod's zeroing and reduction), so allocate on exactly
-      ! that condition. Pre-D-295 the array was allocated under lgDebug alone
-      ! and this cost was never paid.
-      if ((lgDebug .or. lgLineTransfer) .and. .not. allocated(grid%linePDF)) then
+      ! D-296/D-352: linePDF holds only the lines that reach a frequency bin
+      ! (the compact map), and the thin diffuse lines are always transported,
+      ! so it is always read and always allocated.
+      if (.not. allocated(grid%linePDF)) then
          allocate(grid%linePDF(0:grid%nCells, 1:nLinesPDF), stat = err)
          if (err /= 0) then
             print*, "! allocLineArrays: can't allocate linePDF memory"; stop
@@ -3362,6 +3337,7 @@ end function getVolume
       integer                        :: pdrNspecRead  ! species count in the checkpoint
       logical                        :: lgPDRrestart  ! checkpoint carries PDR state?
       character(len=20)              :: pdrNetRead    ! network name in the checkpoint
+      character(len=200)             :: pdrHdr        ! D-352: pdrGrid.out format line
       integer                        :: iLnkR, jLnkR  ! D-189
       double precision               :: availR        ! D-189
 #endif
@@ -3618,6 +3594,15 @@ end function getVolume
             print*, "! resetGrid: error opening file output/pdrGrid.out"
             stop
          end if
+         ! D-352: only the v2 layout is read - a checkpoint written before
+         ! the zone flag was removed carries 12 fields per cell, not 5.
+         read(91, '(a)', iostat = err) pdrHdr
+         if (err /= 0 .or. index(pdrHdr, '# pdrGrid v2') /= 1) then
+            print*, "! resetGrid: output/pdrGrid.out is not in the v2 layout (D-352)."
+            print*, "!   It predates the removal of pdrZone; resume it with a binary"
+            print*, "!   built from tag d352-zone-and-switches."
+            stop
+         end if
       end if
 #endif
       if (lgGas) then
@@ -3702,10 +3687,6 @@ end function getVolume
 #ifdef PDR
             ! PDR per-cell state, allocated with the other grid arrays (D-006).
             if (lgPDR) then
-               allocate(grid(iG)%pdrZone(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate pdrZone memory"; stop
-               end if
                allocate(grid(iG)%chiFUV(0:grid(iG)%nCells), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate chiFUV memory"; stop
@@ -3784,10 +3765,6 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate H2den memory"; stop
                end if
-               allocate(grid(iG)%NePDR(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate NePDR memory"; stop
-               end if
                allocate(grid(iG)%elemAvail(0:grid(iG)%nCells, 1:nElements), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate elemAvail memory"; stop
@@ -3811,18 +3788,6 @@ end function getVolume
                allocate(grid(iG)%pdrLevPop(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrLevPop memory"; stop
-               end if
-               allocate(grid(iG)%pdrTgas(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate pdrTgas memory"; stop
-               end if
-               allocate(grid(iG)%pdrTlow(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate pdrTlow memory"; stop
-               end if
-               allocate(grid(iG)%pdrThigh(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate pdrThigh memory"; stop
                end if
                allocate(grid(iG)%pdrAbun(0:grid(iG)%nCells,1:pdrNspec), stat = err)
                if (err /= 0) then
@@ -3910,7 +3875,6 @@ end function getVolume
                   print*, "! resetGrid: can't allocate trcJ memory"; stop
                end if
                grid(iG)%trcJ = 0.
-               grid(iG)%pdrZone = 0
                grid(iG)%chiFUV  = 0.
                grid(iG)%chiFUV0 = 0.
                grid(iG)%AVback  = 0.
@@ -3920,7 +3884,6 @@ end function getVolume
                grid(iG)%dustRfuv  = 0.
                grid(iG)%pdrCool = 0.
                grid(iG)%elemAvail = 1.
-               grid(iG)%NePDR = 0.
                grid(iG)%H2den = 0.
                grid(iG)%pdrCoolSp = 0.
                grid(iG)%pdrIonRate = 0.
@@ -3928,9 +3891,6 @@ end function getVolume
                grid(iG)%pdrHeatPE = 0.
                grid(iG)%pdrHeatGG = 0.
                grid(iG)%pdrLevPop = 0.d0
-               grid(iG)%pdrTgas  = 0.
-               grid(iG)%pdrTlow  = 0.
-               grid(iG)%pdrThigh = 0.
                grid(iG)%pdrAbun = 0.d0
             end if
 #endif
@@ -4014,9 +3974,8 @@ end function getVolume
 
             ! allocate pointers depending on nLines
 
-            ! D-296: same guards as allocLineArrays. These are 3.8 GB a rank
-            ! each at the full nLines, and nothing reads either outside
-            ! lgDebug (linePackets) or lgDebug/lgLineTransfer (linePDF).
+            ! D-296: same guards as allocLineArrays - linePackets only under
+            ! lgDebug; linePDF always (D-352).
             if (nLines > 0 .and. lgDebug) then
 
                allocate(grid(iG)%linePackets(0:grid(iG)%nCells, 1:nLines), stat = err)
@@ -4027,7 +3986,7 @@ end function getVolume
                grid(iG)%linePackets = 0.
             end if
 
-            if (nLines > 0 .and. (lgDebug .or. lgLineTransfer)) then
+            if (nLines > 0) then
                allocate(grid(iG)%linePDF(0:grid(iG)%nCells, 1:nLinesPDF), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate grid(iG)%linePDF memory"
@@ -4159,11 +4118,9 @@ end function getVolume
 
 #ifdef PDR
                   if (lgPDR) then
-                     read(91, *) grid(iG)%pdrZone(cellP), grid(iG)%chiFUV(cellP), &
+                     read(91, *) grid(iG)%chiFUV(cellP), &
                           & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
-                          & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP), &
-                          & grid(iG)%pdrTgas(cellP), grid(iG)%pdrTlow(cellP), &
-                          & grid(iG)%pdrThigh(cellP)
+                          & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                      ! D-188: a restored cell has already been seeded and has
                      ! real chemistry in it. Without this the first-visit seed

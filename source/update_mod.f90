@@ -559,7 +559,6 @@ subroutine iterateT()
 
     logical :: lgGCBConv            ! Grain charge balance converged?
     logical :: lgIBConv             ! Ionization balance converged?
-    logical :: lgPDRcell
     logical :: lgTConverged         ! Thermal balance converged?
     logical :: lgTOk                ! D-165: this step passes every test
 
@@ -604,56 +603,11 @@ subroutine iterateT()
     teTrail   = 0.
     resTrail  = 0.
 
-    ! D-072: cells the PDR owns keep the PDR's temperature. MOCASSIN's
-    ! thermal balance is built for photoionised gas: its [CII] and [OI]
-    ! cooling is driven by ELECTRON collisions, and in a PDR x(e-) ~ 1e-4, so
-    ! those lines contribute almost nothing and the solve runs away - measured
-    ! at 2691 K in a cell where 3D-PDR gives ~150 K. In neutral gas those same
-    ! lines are excited by H, H2 and He, which is what 3D-PDR uses, and it also
-    ! applies an escape probability where MOCASSIN treats them optically thin.
-    !
-    ! So the PDR owns the thermal balance in its own cells. The loop still runs
-    ! ONE full pass - calcalpha, ionBalance, the grain terms and thermBalance -
-    ! at the PDR temperature, so every derived quantity the Monte Carlo needs is
-    ! populated consistently; only the temperature update is skipped.
-    lgPDRcell = .false.
-#ifdef PDR
-    ! D-165. THE SWITCH NEVER REACHED HERE. pdrTeFromMocassin was written to
-    ! stop the PDR handing its temperature back (pdr_mod, handBackPDR) and to
-    ! make the chemistry evaluate at MOCASSIN's Te - but this short circuit, the
-    ! one that decides whether MOCASSIN solves for a temperature at all, was
-    ! never taught about it. So with the switch on, a PDR cell still ran ONE
-    ! pass at the temperature it already had and exited flagged converged. The
-    ! temperature in PDR cells was not a solution to anything; it was the last
-    ! value MOCASSIN's H II-region balance produced before pdrZone flipped to 1,
-    ! carried forward untouched thereafter.
-    !
-    ! That is the whole of D-160's "no stable fixed point": nothing was solving
-    ! for the fixed point. It also explains why the answer depended on the
-    ! initial condition (median Te 379 K from an ionized start, 1246 K from a
-    ! neutral one) - a frozen relic of the trajectory is exactly what depends on
-    ! where the trajectory began. Every measurement in the "MOCASSIN owns T"
-    ! column - 0.079%, 0.099%, 0.217% converged - was made with this defect.
-    ! D-193: never. MOCASSIN solves the thermal equilibrium in every cell,
-    ! so no cell is pinned to a temperature the PDR computed - the PDR does
-    ! not compute one. What it supplies is the molecular heating and cooling
-    ! that thermBalance solves WITH.
-    if (.false.) then
-       if (grid%pdrZone(cellP) == 1 .and. grid%pdrTgas(cellP) > 0.) then
-          lgPDRcell = .true.
-          ! D-081: use grid%Te, NOT grid%pdrTgas. pdrToMocassin has already
-          ! written the D-007 BLENDED temperature into grid%Te,
-          !   Te = w*pdrTgas + (1-w)*Te
-          ! with w ramping from 1 at x(H+) = pdrBlendLo to 0 at pdrZoneLim.
-          ! Pinning to the raw pdrTgas discards that ramp and applies the pure
-          ! PDR temperature right up to the zone edge, so the blend band -
-          ! which exists precisely to avoid a discontinuity at the ionization
-          ! front - was bypassed. Invisible in every model run before this one,
-          ! because none had a single cell inside the band.
-          TeUsed    = grid%Te(cellP)
-       end if
-    end if
-#endif
+    ! D-072 let the PDR own the temperature of "its" cells (pdrZone == 1) and
+    ! skipped the update there; D-165 found that short circuit was what froze
+    ! them, D-193 made it dead code, and D-352 removed it with the zone flag.
+    ! MOCASSIN solves the thermal equilibrium in every cell; the PDR supplies
+    ! the molecular heating and cooling it solves WITH.
 
     !================================================================!
     ! MAIN ITERATION LOOP
@@ -751,13 +705,6 @@ subroutine iterateT()
             if (lgTalk) print*, "! iterateT: [talk] Convergence achieved after ", &
                 & nIterateT, " steps. (cell, T)", xP, yP, zP, TeUsed
             exit ! Exit the loop, we found the temperature
-        end if
-
-        ! D-072: the PDR owns this cell's temperature - one pass, no update.
-        if (lgPDRcell) then
-            lgTConverged = .true.
-            nUsed = nIterateT
-            exit
         end if
 
 
@@ -1335,14 +1282,8 @@ end subroutine iterateT
              ! the balance converged where the true photoemission was ~39x
              ! below the true collection - measured flat at 35-39 over a
              ! factor 7 in field strength in D-290.
-             if (lgGrainQ4pi) then
-                photFlux = photFlux*fourPi
-                Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/ &
-                     & (1.e-8*grainRadius(ai)**2)
-             else
-                Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/ &
-                     & (Pi*1.e-8*grainRadius(ai)**2)
-             end if
+             Qa = XSecArray(dustAbsXsecP(global_isp,ai)+ifreq-1)/ &
+                  & (Pi*1.e-8*grainRadius(ai)**2)
 
              getGrainEmission = getGrainEmission+Yhat*photFlux*Qa
 
@@ -1810,19 +1751,12 @@ end subroutine iterateT
             ! re-absorption in the photoionization heating, so the kinetic
             ! energy those recombinations remove must be counted too: the
             ! consistent coefficient is Case A, not Case B.
-            if (lgCaseARecCool) then
-               ! Case A: beta_A = beta_B + beta_1, fits to Hummer,
-               ! MNRAS 268(1994) 109, Table 1, least squares to m=4
-               betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
-                    & + 3.27948717E-12*log10Te*log10Te &
-                    & - 7.94872006E-13*log10Te*log10Te*log10Te &
-                    & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
-            else
-               ! legacy Case B, same table and fit order
-               betaRec = 9.4255985E-11 -4.04794384E-12*log10Te &
-                    & -1.0055237E-11*log10Te*log10Te +  1.99266862E-12*log10Te*log10Te*log10Te&
-                    & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
-            end if
+            ! Case A: beta_A = beta_B + beta_1, fits to Hummer,
+            ! MNRAS 268(1994) 109, Table 1, least squares to m=4
+            betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
+                 & + 3.27948717E-12*log10Te*log10Te &
+                 & - 7.94872006E-13*log10Te*log10Te*log10Te &
+                 & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
 
             coolRec = Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed)
 
@@ -1861,17 +1795,10 @@ end subroutine iterateT
             ! cooling of gas due to recombination of He++
             ! fits to Hummer, MNRAS 268(1994) 109, Table 1.  least square fitting to m=4
             ! and scaled to Z=2: beta(Te,Z) = Z*beta(Te/Z^2,1)   [D-286]
-            if (lgCaseARecCool) then
-               betaRec = 2.*(1.25738653E-10 - 2.88316073E-11*log10TeScaled &
-                    & + 3.27948717E-12*log10TeScaled*log10TeScaled &
-                    & - 7.94872006E-13*log10TeScaled*log10TeScaled*log10TeScaled &
-                    & + 7.99438786E-14*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
-            else
-               betaRec = 2.*(9.4255985E-11 -4.04794384E-12*log10TeScaled &
-                    & -1.0055237E-11*log10TeScaled*log10TeScaled  &
-                    & +1.99266862E-12*log10TeScaled*log10TeScaled*log10TeScaled&
-                    & -1.06681387E-13*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
-            end if
+            betaRec = 2.*(1.25738653E-10 - 2.88316073E-11*log10TeScaled &
+                 & + 3.27948717E-12*log10TeScaled*log10TeScaled &
+                 & - 7.94872006E-13*log10TeScaled*log10TeScaled*log10TeScaled &
+                 & + 7.99438786E-14*log10TeScaled*log10TeScaled*log10TeScaled*log10TeScaled)
 
             coolRec = coolRec + Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed/4.)
 
@@ -1896,35 +1823,26 @@ end subroutine iterateT
 
 
             ! cooling of gas due to recombination of He+   [D-286]
-            if (lgCaseARecCool) then
-               ! Case A (beta_A = beta_B + beta_1) from Hummer & Storey,
-               ! MNRAS 297(1998) 1073, Table 6, which is tabulated to
-               ! log10Te = 4.4; above that the hydrogenic Case A fit of
-               ! Hummer (1994) is used.
-               !
-               ! NOTE (D-286): the two branches do not meet - at log10Te 4.4
-               ! the He-specific fit is 1.244x the hydrogenic one, so this is
-               ! a 24% step in a term the temperature solver brackets. Ported
-               ! as-is to keep this repository identical to mocassin_HM_2026
-               ! dd3006c; the step is measured in the DEVLOG entry.
-               if (log10Te <= 4.4) then
-                  betaRec = 1.22981534E-10 - 2.49951255E-11*log10Te &
-                       & + 1.80059252E-12*log10Te*log10Te &
-                       & - 7.31249870E-13*log10Te*log10Te*log10Te &
-                       & + 1.20240231E-13*log10Te*log10Te*log10Te*log10Te
-               else
-                  betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
-                       & + 3.27948717E-12*log10Te*log10Te &
-                       & - 7.94872006E-13*log10Te*log10Te*log10Te &
-                       & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
-               end if
+            ! Case A (beta_A = beta_B + beta_1) from Hummer & Storey,
+            ! MNRAS 297(1998) 1073, Table 6, which is tabulated to
+            ! log10Te = 4.4; above that the hydrogenic Case A fit of
+            ! Hummer (1994) is used.
+            !
+            ! NOTE (D-286): the two branches do not meet - at log10Te 4.4
+            ! the He-specific fit is 1.244x the hydrogenic one, so this is
+            ! a 24% step in a term the temperature solver brackets. Ported
+            ! as-is to keep this repository identical to mocassin_HM_2026
+            ! dd3006c; the step is measured in the DEVLOG entry.
+            if (log10Te <= 4.4) then
+               betaRec = 1.22981534E-10 - 2.49951255E-11*log10Te &
+                    & + 1.80059252E-12*log10Te*log10Te &
+                    & - 7.31249870E-13*log10Te*log10Te*log10Te &
+                    & + 1.20240231E-13*log10Te*log10Te*log10Te*log10Te
             else
-               ! legacy Case B
-               ! fits to Hummer and Storey, MNRAS 297(1998) 1073, Table 6. least square fitting to m=4
-               betaRec =    9.4255985E-11 -4.04794384E-12*log10Te &
-                    & -1.0055237E-11*log10Te*log10Te  &
-                    & +1.99266862E-12*log10Te*log10Te*log10Te &
-                    & -1.06681387E-13*log10Te*log10Te*log10Te*log10Te
+               betaRec = 1.25738653E-10 - 2.88316073E-11*log10Te &
+                    & + 3.27948717E-12*log10Te*log10Te &
+                    & - 7.94872006E-13*log10Te*log10Te*log10Te &
+                    & + 7.99438786E-14*log10Te*log10Te*log10Te*log10Te
             end if
 
             coolRec = coolRec + Np*NeUsed*betaRec*kBoltzmann*TeUsed/sqrt(TeUsed)
@@ -2157,7 +2075,7 @@ end subroutine iterateT
                     ! hypotheses about this balance had been wrong from
                     ! inference; name the contributor before adding opacity.
                     if (nIonProbe < 20000 .and. heatIonSte > 0. .and. elem == 1 .and. &
-                         & grid%pdrZone(cellP) == 1 .and. grid%AVeff(cellP) > 1.0 &
+                         & grid%AVeff(cellP) > 1.0 &
                          & .and. nIterateMC >= 6 .and. taskid == 0) then
                        nIonProbe = nIonProbe + 1
                        ! D-158: Jdif now carries the diffuse part alone while
@@ -2261,9 +2179,7 @@ end subroutine iterateT
                      if (pdrCoolIsMol(iCool)) then
                         ! MOCASSIN has no line data for this carrier at all.
                         pdrCoolMol = pdrCoolMol + pdrCoolAt(grid,cellP,iCool,TeUsed)
-                     else if (pdrCoolElem(iCool) > 0 .and. &
-                          &   (pdrCoolZoneGate == 0 .or. &
-                          &    grid%pdrZone(cellP) == 1)) then
+                     else if (pdrCoolElem(iCool) > 0) then
                         ! D-133: an ATOMIC coolant inside the PDR. MOCASSIN has
                         ! these lines but excites them with electrons alone,
                         ! while 3D-PDR carries H, H+, He and H2 as well - and in
@@ -2325,7 +2241,7 @@ end subroutine iterateT
                   ! photon, and three hypotheses have been built on inference
                   ! from them. Print the whole budget, both sides, at the
                   ! temperature the model actually converges to.
-                  if (nBalProbe < 4 .and. grid%pdrZone(cellP) == 1 .and. &
+                  if (nBalProbe < 4 .and. &
                        & grid%AVeff(cellP) > 1.0 .and. nIterateMC >= 6) then
                      nBalProbe = nBalProbe + 1
                      print*, "! [D135] cell", cellP, " Te =", TeUsed, &
@@ -2399,7 +2315,7 @@ end subroutine iterateT
                   if (teProbe /= 0 .and. TeUsed >= 29999. .and. nHotProbe < 8 &
                        & .and. taskid == 0 .and. grid%pdrCoolTref(cellP) > 0.) then
                      nHotProbe = nHotProbe + 1
-                     print*, "! [D168] cell", cellP, " zone", grid%pdrZone(cellP), &
+                     print*, "! [D168] cell", cellP, &
                           & " nH", grid%Hden(cellP), " AV", grid%AVeff(cellP)
                      print*, "! [D168]   x(H+)", grid%ionDen(cellP,elementXref(1),2), &
                           & " Ne", NeUsed, " Tref", grid%pdrCoolTref(cellP), &
@@ -2460,14 +2376,10 @@ end subroutine iterateT
                   ! computes for itself.
                   heatInt = heatInt + grid%pdrHeatXtra(cellP)/&
                        & grid%Hden(cellP)
-                  ! D-134: optionally let the PDR own the photoelectric term
-                  ! too, inside the PDR. Take MOCASSIN's out and put 3D-PDR's
-                  ! in - the same replace-don't-exclude rule as the atomic
-                  ! coolants, applied to the one term that dominates the budget.
-                  if (pdrPEfromPDR /= 0 .and. grid%pdrZone(cellP) == 1) then
-                     heatInt = heatInt - photoelHeat_g &
-                          & + grid%pdrHeatPE(cellP)/grid%Hden(cellP)
-                  end if
+                  ! D-134/D-352: the photoelectric heating is MOCASSIN's own,
+                  ! from its grains and grain charge. The pdrPEfromPDR switch
+                  ! that swapped in 3D-PDR's PAH formula inside the zone - a
+                  ! PAH population the dust inventory does not carry - is gone.
                end if
             end if
             ! D-207: what the block above actually did to the budget, per H.
@@ -2911,7 +2823,6 @@ end subroutine iterateT
                     ! scheme returned two depth points because of it.
                     if (teProbe /= 0 .and. nProbe234 < 400 &
                          & .and. nIterateMC >= 12 .and. ion <= 2 &
-                         & .and. grid%pdrZone(cellP) == 1 &
                          & .and. (.not.lgAVsamp234(iB234) .or. cellSamp234 == cellP)) then
                        if (cellSamp234 /= cellP) then
                           cellSamp234 = cellP
@@ -3232,7 +3143,7 @@ end subroutine iterateT
                   ! different cells, which is how the "59 keV per event" came
                   ! about. Everything here must come from one cell, one call.
                   if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
-                       & nRateProbe < 6 .and. grid%pdrZone(cellP) == 1 .and. &
+                       & nRateProbe < 6 .and. &
                        & TeUsed >= 29999.) then
                      nRateProbe = nRateProbe + 1
                      print*, "! [D169] cell", cellP, " AV", grid%AVeff(cellP), &
@@ -3428,7 +3339,7 @@ end subroutine iterateT
                    ! singular system leaves the previous answer in place and
                    ! looks exactly like a converged one.
                    if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
-                        & nSolProbe < 12 .and. grid%pdrZone(cellP) == 1 .and. &
+                        & nSolProbe < 12 .and. &
                         & TeUsed >= 29999.) then
                       nSolProbe = nSolProbe + 1
                       print*, "! [D169b] cell", cellP, " ion", ion, &
@@ -3477,30 +3388,12 @@ end subroutine iterateT
 
             NeUsed = NeUsed * grid%Hden(cellP)
 
-#ifdef PDR
-            ! D-105: in a PDR cell the electron density is the chemistry's, not a
-            ! sum over the ion stages MOCASSIN happens to track. Once carbon is
-            ! honestly locked in CO that sum collapses, and with no cosmic-ray
-            ! ionization to hold a floor nothing stops it reaching zero - at which
-            ! point X(i+1)/X(i) = Gamma/(Ne alpha) diverges and an infinitesimal
-            ! photoionization rate ionizes the cell. Measured: x(H+) = 8e-3 where
-            ! the chemistry gives 6e-7, in gas with no ionizing radiation at all,
-            ! and MOCASSIN then emitted a recombination continuum for it (D-104).
-            ! Tried and rejected: substituting it makes the runaway WORSE, because
-            ! the chemistry's Ne is SMALLER than MOCASSIN's ion sum (cosmic-ray
-            ! maintained, x_e ~ 1e-8) - Gamma/(Ne alpha) then diverges harder and
-            ! max x(H+) went 1.3e-2 -> 0.906. Off by default; the array and its
-            ! exchange are kept because the diagnosis needed them.
+            ! D-105 tried the chemistry's electron density here, inside the PDR
+            ! zone, and it made the runaway it was meant to cure worse (x(H+)
+            ! 1.3e-2 -> 0.906). D-352 removed the pdrUseNePDR switch and the
+            ! zone with it: there is one electron density, MOCASSIN's, and the
+            ! chemistry is handed it (D-212).
             lgNeSum = .true.
-            if (lgPDR .and. pdrUseNePDR /= 0) then
-               if (grid%pdrZone(cellP) == 1 .and. grid%NePDR(cellP) > 0.) then
-                  NeUsed  = grid%NePDR(cellP)
-                  lgNeSum = .false.
-               end if
-            end if
-#else
-            lgNeSum = .true.
-#endif
 
             if (NeUsed==0. .and.lgTalk) print*, '! ionBalance [warning]: cell ', xP,yP,zP, &
                  &'; NeUsed = ',  NeUsed
@@ -4258,12 +4151,11 @@ end subroutine iterateT
             xsecTot   = 0.
             if (lgPDR) then
                ! D-182: no zone gate here either. The PDR's grain-surface
-               ! rates are computed in every cell under pdrAllCells; outside
-               ! the molecular gas they are negligible on their own and need no
-               ! threshold to switch them off. Gating introduced a step at
-               ! pdrZoneLim for no physical gain.
-               if (pdrDustFeedback /= 0 .and. grid%Ndust(cellP) > 0. &
-                    & .and. (pdrCoolZoneGate == 0 .or. grid%pdrZone(cellP) == 1)) then
+               ! rates are computed in every cell (D-198); outside the
+               ! molecular gas they are negligible on their own and need no
+               ! threshold to switch them off. D-352 removed the pdrDustFeedback
+               ! and pdrCoolZoneGate switches that could still select one.
+               if (grid%Ndust(cellP) > 0.) then
                   do nS2 = 1, nSpeciesPart(nspU)
                      if (grainAbun(nspU, nS2) <= 1.e-20) cycle
                      do ai2 = 1, nSizes
@@ -4384,8 +4276,7 @@ end subroutine iterateT
 #ifdef PDR
                         print*, "! [D120]   pdrHeatPE =", grid%pdrHeatPE(cellP), &
                              & "  pdrHeatGG =", grid%pdrHeatGG(cellP)
-                        print*, "! [D120]   pdrZone =", grid%pdrZone(cellP), &
-                             & "  Tgas =", grid%pdrTgas(cellP), "  Ne =", NeUsed
+                        print*, "! [D120]   Ne =", NeUsed
 #endif
                      end if
 
@@ -4524,8 +4415,7 @@ end subroutine iterateT
                                 & maxval(gasDustColl_d), "  min =", minval(gasDustColl_d)
                         end if
 #ifdef PDR
-                        if (lgPDR) print*, "! [D122]   pdrZone =", &
-                             & grid%pdrZone(cellP), "  pdrHeatPE =", &
+                        if (lgPDR) print*, "! [D122]   pdrHeatPE =", &
                              & grid%pdrHeatPE(cellP), "  pdrHeatGG =", &
                              & grid%pdrHeatGG(cellP), "  xsecTot =", xsecTot
 #endif

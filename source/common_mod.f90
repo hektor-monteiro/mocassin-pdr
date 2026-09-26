@@ -35,24 +35,12 @@ module common_mod
     logical         :: lgQheat = .false.        ! temperature spiking on?
     logical         :: lgWritePss=.false.       ! write Pss for qHeat file?
     logical         :: lgTraceHeating = .false. ! trace thermal balance?
-    ! D-286. Recombination cooling in thermBalance: Case A (default, and the
-    ! consistent choice while the ground-state recombination continuum is
-    ! transported and its re-absorption heats) or the legacy Case B, selected
-    ! with MOCASSIN_RECCOOL=legacy. Ported from mocassin_HM_2026 dd3006c.
-    logical         :: lgCaseARecCool = .true.
-    ! D-289. The photoelectric yield: Weingartner & Draine (2001) by default,
-    ! Baldwin et al. (1991) - what MOCASSIN used through D-288 - under
-    ! MOCASSIN_YIELD=baldwin. D-288 measured Baldwin's to be 100-400x too high
-    ! near threshold, which holds this model's grains at 2-4.8 V against
-    ! Cloudy's 0.35-1.4 and suppresses the heating through the Coulomb barrier.
-    logical         :: lgWD01Yield = .true.
-    ! D-290. The grain charge balance's units. getGrainEmission carried a
-    ! spurious 4 pi (Jste is already the angle-integrated flux) and used
-    ! pi Q_abs where the balance against getGrainRecombination's n<v>eta needs
-    ! Q_abs - together 4 pi^2 = 39.478 too much photoemission, which held the
-    ! grains far too positive. Default false = fixed; MOCASSIN_GRAINQ=legacy
-    ! restores it, so every result recorded before D-290 stays reproducible.
-    logical         :: lgGrainQ4pi = .false.
+    ! D-352: Case A recombination cooling (D-286), the Weingartner & Draine
+    ! (2001) photoelectric yield (D-289), the matched-unit grain charge balance
+    ! (D-290) and transport of the thin diffuse lines (D-307) are the physics,
+    ! not options. The MOCASSIN_RECCOOL / _YIELD / _GRAINQ / _LINES switches
+    ! that selected the legacy forms are gone; tag d352-zone-and-switches
+    ! builds them.
     logical         :: lgGrainSpiking = .true.  ! temperature spiking for small grains
     logical         :: lgEcho = .false.         ! light time travel included?
     logical         :: lgforceTDust = .false.   !
@@ -147,16 +135,6 @@ module common_mod
     ! it is the probability that a diffuse packet is a line, and because every
     ! such packet was discarded before, a mis-normalisation against the
     ! continuum normHI/normHeI/normHeII could never show. Not yet measured.
-    ! D-307: transport the optically thin diffuse lines. DEFAULT ON. With
-    ! them discarded the model does not conserve energy - the photons were
-    ! deleted, not escaped, and the PDR loses about 60% of its bolometric
-    ! flux (D-306 measured Fbol/Fbol_thin = 0.384 against 1.215 at A_V 0.30).
-    ! Set here rather than in makeDustXsec, which only runs for dust models:
-    ! line transport has nothing to do with dust, and a dust-free model would
-    ! otherwise silently keep the old default. Turned off only by
-    ! MOCASSIN_LINES=off, read in readInput, which exists so the A/B that
-    ! measured this stays runnable.
-    logical :: lgLineTransfer = .true.
 
     integer :: iOrigin, jOrigin, kOrigin       ! pointers to the origin of the axes
 
@@ -430,7 +408,6 @@ module common_mod
         ! --- photodissociation-region state (DEVLOG D-006, D-018) -------------
         ! pdrAbun is double precision deliberately: PDR abundances run below
         ! 1e-38 and would underflow MOCASSIN's default 4-byte real.
-        integer, allocatable      :: pdrZone(:)      ! 1 where PDR chemistry runs
         real, allocatable         :: chiFUV(:)       ! FUV field [Draine units]
         real, allocatable         :: chiFUV0(:)      ! UNATTENUATED FUV field [Draine units]
         real, allocatable         :: AVback(:)       ! A_V from this cell to the far boundary (D-061)
@@ -446,11 +423,6 @@ module common_mod
         real, allocatable         :: H2den(:)        ! n(H2) from the CHEMISTRY [cm^-3] (D-107),
                                                      ! for the H2 photoionization continuum above
                                                      ! 15.43 eV in addOpacity.
-        real, allocatable         :: NePDR(:)        ! electron density from the CHEMISTRY [cm^-3]
-                                                     ! (D-105). MOCASSIN's own sum over ion stages
-                                                     ! collapses once carbon is locked in CO, and
-                                                     ! it has no cosmic-ray ionization to hold a
-                                                     ! floor, so Gamma/(Ne alpha) diverges.
         real, allocatable         :: elemAvail(:,:)  ! (cell, element): the fraction of that
                                                      ! element NOT locked in molecules, and so
                                                      ! available to the atomic ion stages (D-102).
@@ -487,8 +459,8 @@ module common_mod
         ! D-207. What the PDR block ACTUALLY changed in the thermal balance,
         ! per H nucleus: heatInt and coolInt after it, minus before it. The
         ! arrays above are 3D-PDR's own totals, and most of what they hold
-        ! never reaches MOCASSIN's balance - pdrHeatPE only enters when
-        ! pdrPEfromPDR is set, which it is not by default, and pdrHeat is the
+        ! never reaches MOCASSIN's balance - pdrHeatPE only as the grain
+        ! photoelectric loss in the dust balance (D-093), and pdrHeat is the
         ! PDR total of which MOCASSIN computes three terms itself. Reporting
         ! those as "the heating" overstated it by an order of magnitude
         ! (D-207). These two are the substitution's net effect and nothing
@@ -581,11 +553,6 @@ module common_mod
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
         double precision, allocatable :: pdrLevPop(:,:)
-        ! Thermal balance state, carried across MC iterations (DEVLOG D-031).
-        ! One bracketing step per iteration; the outer loop converges it.
-        real, allocatable         :: pdrTgas(:)      ! PDR gas temperature [K]
-        real, allocatable         :: pdrTlow(:)      ! bracket, heating > cooling
-        real, allocatable         :: pdrThigh(:)     ! bracket, cooling > heating
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type
@@ -781,114 +748,29 @@ module common_mod
     character(len=200)  :: pdrDataDir = ''         ! '' -> PREFIX/share/mocassin/dataPDR
     integer             :: pdrNspec   = 0          ! species in the network
     integer             :: pdrNreac   = 0          ! reactions in the network
-    integer             :: pdrHealpix = 0          ! HEALPix level of refinement
     integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
-    integer             :: pdrThermIter=12         ! thermal-balance steps per MC iteration (D-031, D-051)
-    real                :: pdrTseed=300.           ! deterministic seed for the thermal march (D-051)
     integer             :: pdrStartIter=1          ! let MOCASSIN converge this many MC iterations first (D-062)
     integer             :: pdrLevIter=25           ! D-060: fixed-T level-population passes
     real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
-    real                :: pdrFcrit   = 0.005       ! |heat-cool|/mean tolerated (3D-PDR params.dat, D-074)
-    integer             :: pdrAtomicH = 1            ! D-107: hand back the true atomic H
-                                                     ! fraction. Default 1 as of D-107: the H2
-                                                     ! photoionization continuum removes the reason
-                                                     ! this was held off (D-099/D-103/D-104).
-    integer             :: pdrDustFeedback = 1       ! D-093: 1 = PDR rates drive the dust balance
-    integer             :: pdrOwnDust  = 1           ! D-108: 1 = the H2/CO photorate shielding
-                                                     ! uses THIS model's grains rather than the
-                                                     ! Savage & Mathis 1979 table shipped with 3D-PDR
-    integer             :: pdrUseNePDR = 0           ! D-105: 1 = ionBalance uses the chemistry's Ne
-    integer             :: pdrOwnIon   = 1           ! D-106: ionBalance leaves the chemistry's
-                                                     ! own elements alone in PDR cells. Default 1 as
-                                                     ! of D-107, for the same reason as pdrAtomicH.
-                                                     ! elements alone in PDR cells
     integer             :: nDustCapped = 0           ! D-093: grain-budget caps hit this iteration
-    integer             :: pdrDustModel = 0          ! 0 = MOCASSIN only, 1 = max(MOCASSIN,HTT91), 2 = HTT91 only
-                                                     ! D-094: default was 1 while Tdust(0,0) was
-                                                     ! misread as ~1 K (D-092). With the readout
-                                                     ! sound, max() only imposes HTT91's artificial
-                                                     ! 10 K floor on a colder transported value.
-    integer             :: pdrFUVmode = 0            ! 0 = transported MC field heats the gas,
-                                                     ! 1 = 3D-PDR's prescribed chi0*exp(-UVfac*A_V) (D-089 diagnostic)
-    integer             :: pdrSyncAbun = 1           ! rescale network elemental abundances to MOCASSIN's (D-039)
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
     real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]
-    real                :: pdrAVfac   = 6.289e-22  ! N_H -> A_V conversion
-    real                :: pdrUVfac   = 3.02       ! FUV dust attenuation exponent
-    real                :: pdrGrainRad= 1.0e-5     ! grain radius [cm]
-    real                :: pdrMetal   = 1.0        ! metallicity
+    ! D-352: A_V per N_H, MEASURED from this model's grains by calibratePDRdust
+    ! (D-055/D-109) - not an input. It is the fallback for a cell with no dust.
+    real                :: pdrAVfac   = 0.
     real                :: pdrVturb   = 1.0        ! turbulent velocity [km/s]
     real                :: pdrTmin    = 1.0        ! floor gas temperature [K]
     real                :: pdrTmax    = 2.0e4      ! ceiling gas temperature [K]
     integer             :: pdrDiagRates = 0      ! print the D-113 exported form/loss
     real                :: pdrDiagAV  = 1.0        ! A_V at which to print them
-    real                :: pdrZoneLim = 0.3        ! x(H+) below which PDR chemistry runs (TORUS-3DPDR, D-055)
-    ! D-131: the two switches that remove the PDR barrier.
-    !
-    ! pdrAllCells - run the chemistry in EVERY cell instead of only where
-    ! x(H+) < pdrZoneLim. Outside the traditional zone the network is solved at
-    ! MOCASSIN's own electron temperature with the thermal bisection skipped,
-    ! so H2 and CO are computed from the local field, density and temperature
-    ! everywhere and fall to zero in ionized gas because the chemistry says so,
-    ! not because the solver was never called there.
-    !
-    ! pdrCoolFeedback - add 3D-PDR's molecular line cooling to MOCASSIN's own
-    ! thermal balance. MOCASSIN has no CO, C, C+ or O fine-structure coolant,
-    ! which is the reason the PDR's temperature had to be handed back rather
-    ! than MOCASSIN solving for it. With the coolant supplied, MOCASSIN's
-    ! balance can own the temperature in molecular gas too.
-    integer             :: pdrAllCells = 0
     integer             :: pdrTrackCell = 0   ! D-150: follow this cell across iterations
     integer             :: nTrackHit = 0      ! D-152: cap on failing-cell reports
-    ! D-153. The self-consistent division of labour: MOCASSIN owns the
-    ! ionization state and hands it TO the chemistry; the chemistry returns the
-    ! molecular fractions MOCASSIN cannot compute. Nothing is blended, and there
-    ! is no zone gate deciding whose answer to take.
-    !
-    ! The deadlock this removes (D-152): in cells at the ionization front the
-    ! chemistry said x(H) = 0.999 while MOCASSIN's ionBalance said x(H+) = 0.97,
-    ! and handBackPDR keys its blend weight on MOCASSIN's x(H+) - which was
-    ! above pdrZoneLim, so the handback hit `cycle` and the chemistry's answer
-    ! was never applied. Neither side moved and x(H0) never settled.
-    integer             :: pdrIonFromMocassin = 0
-    integer             :: pdrCoolFeedback = 0
-    ! D-166: evaluate the PDR coolants at a second temperature each coupling
-    ! pass and hand thermBalance the local power law, so the balance has a
-    ! thermostat. Cloudy re-evaluates the whole cooling function at every trial
-    ! temperature inside its solver (CoolHeatError -> ConvEdenIoniz); two points
-    ! and a power law is the affordable version of the same thing.
-    ! D-132: one thermal balance, and it is MOCASSIN's. The PDR stops solving
-    ! for temperature entirely - it evaluates the chemistry, the level
-    ! populations and its heating/cooling AT MOCASSIN's electron temperature and
-    ! reports them back, and handBackPDR no longer overwrites Te. Requires
-    ! pdrCoolFeedback, since without the molecular coolant and the six heating
-    ! terms MOCASSIN has no way to reach a PDR temperature at all.
-    integer             :: pdrTeFromMocassin = 0
-    ! D-134/D-136: who owns the photoelectric heating inside the PDR. MOCASSIN
-    ! computes it from its own grain population and grain charge (Baldwin et al.
-    ! 1991); 3D-PDR uses a PAH formula. They differ by ~6x, and photoelectric
-    ! heating is ~96% of the PDR's heating budget, so the choice sets the
-    ! temperature outright.
-    !
-    ! THE ANSWER IS MOCASSIN'S, AND THIS STAYS OFF. The project's rule is that
-    ! MOCASSIN owns the dust and everything that follows from it: its value is
-    ! computed from the grains actually in the model, while 3D-PDR's assumes a
-    ! PAH population this dust inventory does not contain. Wanting PAH physics
-    ! means adding PAH particles to the dust composition, not importing a
-    ! formula the grains cannot support.
-    !
-    ! Turning this on does not make the model more correct - it makes it agree
-    ! with 3D-PDR. Since 3D-PDR is a reference and not a benchmark to
-    ! reproduce, that is a diagnostic, not a goal. Kept solely to quantify the
-    ! difference against the reference.
-    integer             :: pdrPEfromPDR = 0
     integer             :: nBalProbe = 0   ! D-135 one-shot balance probe
     integer             :: nIonProbe = 0   ! D-138 per-ion heating probe
     integer             :: nOpacProbe = 0  ! D-143 opacity-vs-bin probe
     integer             :: iOpP           ! D-143 loop counter
-    real                :: pdrBlendLo = 0.01       ! blend band lower edge in x(H+) (D-007)
     integer             :: pdrNcool   = 0          ! number of coolants
     ! D-131: which coolants MOCASSIN does NOT already compute for itself.
     ! thermBalance sums forbidden lines over every heavy element and ion for
@@ -921,14 +803,6 @@ module common_mod
     ! recursion. It exists so the chemistry can inject per-ion-stage source and
     ! sink terms (D-111), which a product of ratios cannot represent.
     logical             :: lgIonMatrix = .true.  ! matrix ionBalance
-    ! D-118 fed the chemistry's per-stage rates into the ion matrix, replacing
-    ! elemAvail's scalar "this fraction is locked up" with "it is being locked
-    ! up this fast and released that fast". D-193 removed the injection and
-    ! D-198 restored that: elemAvail is the conservation constraint on the SUM
-    ! of the stages and has nothing to stand down in favour of. The flag is
-    ! kept only so the retired `ionChemRates` keyword has something to report
-    ! against; nothing reads it. Its removal is a tidy-up, not a decision.
-    logical             :: lgIonChemRates = .true.
     ! D-119: how many times to close the ionization <-> chemistry loop inside a
     ! single MC iteration. 1 reproduces the sequential behaviour exactly.
     ! Cloudy's equivalent lives in conv_base and needs damping plus oscillation
@@ -943,14 +817,6 @@ module common_mod
     ! straddled the reference. 5 is converged at ~2.5-3x the cost of 1; 3 is
     ! within 2.2% of converged at ~40% of that cost.
     integer             :: pdrCoupleIter = 5
-    ! D-174: CONVENTION UNIFIED. This was the weight on the NEW value (0.5 =
-    ! half and half); it is now the weight on the PREVIOUS value, matching
-    ! iterDamp, so both read as "how much of the old answer is retained".
-    ! 0.5 is identical under either reading, which is why the change is safe -
-    ! it was the default and no fixture overrode it. Any other value now means
-    ! the complement of what it used to.
-    real(kind=8)        :: pdrCoupleDamp = 0.25  ! fraction of the PREVIOUS pass retained
-    real(kind=8)        :: pdrCoupleResid = 0.
     ! The linked (element, stage) pairs: which MOCASSIN ion each network species
     ! is. Set in initPDRnetwork once the species indices are known.
     integer, parameter  :: pdrNlink = 10
@@ -1050,8 +916,6 @@ module common_mod
     ! setHardBands, so the heating loop, addOpacity and the census agree.
     integer             :: bandP(6)    = 0
     integer             :: bandRepP(5) = 0
-    integer             :: pdrCoolTdep = 1
-    real                :: pdrCoolTfac = 1.6   ! second evaluation at this x T
     integer             :: pdrNslopeChk = 0    ! D-166: cap on power-law checks
     integer(kind=8)     :: nCoolNull = 0       ! D-167: replacement with nothing to replace
     integer             :: nHotProbe = 0       ! D-168: budget at the 30000 K rail
@@ -1132,44 +996,17 @@ module common_mod
     integer(kind=8)     :: cvHot2Cold = 0, cvCold2Hot = 0
     integer(kind=8)     :: cvStayHot = 0, cvStayCold = 0
     real                :: cvTsplit = 1000.   ! hot/cold boundary [K]
-    ! D-174. Damping ACROSS MC iterations. pdrCoupleDamp already applies
-    ! Cloudy's 50% averaging across the inner coupling passes
-    ! (iteration_mod:1243) - but never across the interval the convergence test
-    ! actually measures (D-155), which is the MC iteration. D-173 measured
+    ! D-174. Damping ACROSS MC iterations - the interval the convergence test
+    ! actually measures (D-155). (The pass-to-pass pdrCoupleDamp it was paired
+    ! with was an identity after D-216 and went at D-352.) D-173 measured
     ! 44-76% of cells crossing the 1000 K branch boundary EVERY iteration, in
     ! both directions at once: a limit cycle, not divergence. Damping a flip is
     ! the only thing in the code that can break one.
     !
     ! CONVENTION: the weight on the PREVIOUS iteration's value.
     !   Te = (1 - iterDamp)*Te_new + iterDamp*Te_previous
-    ! so 0.25 mixes in a quarter of the old value - lighter than
-    ! pdrCoupleDamp's half-and-half. 0 disables.
+    ! so 0.25 mixes in a quarter of the old value. 0 disables.
     real                :: iterDamp = 0.25
-    ! D-176. The reported convergence is the AND of TWO tests, and only one
-    ! of them was instrumented. iterateT sets lgConverged from the x(H0)
-    ! change; pdrStep then CLEARS it (D-032, pdr_mod:2232) for any cell whose
-    ! PDR heat/cool balance is off by more than pdrFcrit - and pdrStep runs
-    ! after updateCell in every coupling pass, so it has the last word.
-    !
-    ! D-032 was written when the PDR solved its own thermal balance, so
-    ! heat(12) == coolTot was what it had converged to. Under pdrTeFromMocassin
-    ! the temperature comes from MOCASSIN's balance, which carries MOCASSIN's
-    ! photoelectric heating, its gas-grain term and its atomic coolants - so
-    ! 3D-PDR's own heating and cooling have no reason to match at it. The test
-    ! is asking whether a balance nothing is solving happens to hold, at 0.5%.
-    !
-    ! pdrFcritConv 1 keeps the test (the behaviour every number so far was
-    ! measured with), 0 skips it where MOCASSIN owns the balance.
-    !
-    ! D-228: default 0. Under the contract (D-193, D-198) MOCASSIN owns the
-    ! thermal equilibrium in every cell, so there is no configuration in which
-    ! 3D-PDR's own heat and cool are required to balance, and D-181's
-    ! converging run already set 0. With the default at 1 and no fixture
-    ! setting it, D-227's settled model - median f_mol flat to 6e-4 - still
-    ! reported 0.007% converged. Kept as a switch only so the old test can be
-    ! re-run as a probe.
-    integer             :: pdrFcritConv = 0
-    integer(kind=8)     :: cvPdrCleared = 0
     ! D-178. Cloudy decides ITERATION-level convergence on several
     ! independent, model-integrated quantities - the outward Hbeta fraction,
     ! the Lya/Halpha optical depths, and MOLECULAR COLUMN DENSITIES - each
@@ -1197,19 +1034,6 @@ module common_mod
     !            carries no molecules worth converging and the H2 test is not
     !            applied - Cloudy's colden[i]/colden[HTOT] > 1e-5 in spirit.
     !            Without it a cell going 1e-30 -> 1e-28 is a 100x "change".
-    ! D-182. No zone gate on the coolant substitution. 3D-PDR's coolants are
-    ! solved with electrons AND H, H+, He, H2 as colliders; MOCASSIN's
-    ! forbiddenLines carry electrons alone. The PDR value is therefore strictly
-    ! the more complete physics in EVERY cell - in ionized gas it reduces to the
-    ! electron-dominated case by itself, because FIND_CCOEFF is handed the same
-    ! n(e) MOCASSIN would use. Gating it on pdrZone == 1 bought nothing and
-    ! introduced a discontinuity at pdrZoneLim, which is the same anti-pattern
-    ! as the D-152 blend gate and the D-169 pdrOwnIon gate: a threshold on a
-    ! quantity the model computes, deciding whose answer to believe.
-    !   pdrCoolZoneGate 0 = substitute wherever the chemistry supplied a
-    !                       coolant (default; no gate)
-    !                   1 = the old pdrZone == 1 restriction, for comparison
-    integer             :: pdrCoolZoneGate = 0
     integer             :: cvUseH2   = 1
     real                :: cvH2floor = 1.e-5
     integer(kind=8)     :: cvFailH0 = 0, cvFailH2 = 0, cvFailBoth = 0

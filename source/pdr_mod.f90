@@ -65,7 +65,6 @@ module pdr_mod
                               & pdrTmaxMod   => Tmax,       &
                               & pdrLevel     => level,      &
                               & pdrChemPath  => chemPath,  &
-                              & pdrTdustMod  => dust_temperature, &
                               & pdrCoolant2  => coolant
 
     ! Species indices come from global_module. NH2/NC/NCO do not collide with
@@ -233,23 +232,33 @@ module pdr_mod
 
 
         ! ---- parameters readparams would have supplied (D-022) ----------
-        pdrMetalMod   = dble(pdrMetal)
-        pdrGrainRadM  = dble(pdrGrainRad)
+        ! D-352: metallicity and grain radius are not inputs. The model's
+        ! metallicity is its abundances and dust, and the chemistry reads the
+        ! grain area MOCASSIN measures (D-195), so the vendored metallicity is
+        ! pinned at 1 - it multiplies that measured area in h2_form and must
+        ! not scale it a second time. The vendored grain radius reaches only
+        ! the freeze-out branches (absent from this network) and 3D-PDR's own
+        ! gas-grain term (heat(11)); it keeps upstream's 0.1 um.
+        pdrMetalMod   = 1.0d0
+        pdrGrainRadM  = 1.0d-5
         ! D-280: upstream's fixed grain albedo. It enters every CRPHOT rate
         ! (calc_reac_rates.F90, gamma/(1-omega)) - D-247 was wrong to call it
         ! dead. pdrStep overwrites it with each cell's own Lyman-Werner albedo
         ! before the rates are evaluated; this value survives only in the smoke
         ! test, which has no grid.
         pdrOmega      = 0.42d0
-        pdrAVfacMod   = dble(pdrAVfac)*dble(pdrMetal)
-        pdrUVfacMod   = dble(pdrUVfac)
+        ! D-352: AV_fac is reset per cell in pdrStep from THIS cell's grains
+        ! (D-109); UV_fac is read only under GRAINRECOMB, which is not built.
+        ! Both are set from the measured dust in calibratePDRdust.
+        pdrAVfacMod   = 0.0d0
+        pdrUVfacMod   = 0.0d0
         pdrZetaMod    = dble(pdrZeta)/1.3d-17       ! stored normalised, as upstream
         pdrRedshift   = 0.0d0
         pdrTcmb       = 2.725d0*(1.0d0+pdrRedshift)
         pdrVturbMod   = dble(pdrVturb)*1.0d5        ! km/s -> cm/s
         pdrTminMod    = max(dble(pdrTmin), pdrTcmb)
         pdrTmaxMod    = dble(pdrTmax)
-        pdrLevel      = pdrHealpix
+        pdrLevel      = 0                           ! HEALPix level 0: pdrStep's 12 rays
         pdrStartTime  = 0.0d0
         pdrEndTimeMod = dble(pdrEndTime)
         pdrRelTol     = 1.0d-8
@@ -557,8 +566,6 @@ module pdr_mod
            ! documentation of what was NOT used.
            print*, "!   MOCASSIN's values are used; the network column is what &
                 &was not used (D-208)"
-           if (pdrSyncAbun == 0) print*, "!   pdrSyncAbun is retired (D-208) &
-                &and ignored - the seed is always MOCASSIN's"
         end if
 
         ! ------------------------------------------------------------- D-251
@@ -1173,6 +1180,7 @@ module pdr_mod
         end if
 
         pdrRfuv = real(kFUV/kV)
+        pdrUVfacMod = dble(pdrRfuv)/dble(magPerTau)     ! D-352: this model's own
         if (taskid == 0) print*, "! [D073] kFUV/kV = R_FUV =", pdrRfuv, &
              & "  kV =", real(kV), "  kFUV =", real(kFUV)
 
@@ -1190,28 +1198,28 @@ module pdr_mod
         ! same arrays kV and kFUV come from - redirects every caller (H2, CO,
         ! C I, S I) onto the model's own extinction with no change to the
         ! vendored routines. START is reset so the spline is rebuilt from it.
-        if (pdrOwnDust /= 0) then
-           nOwn = 0
-           do iL = 1, N_GRID
-              ! L_GRID is in Angstrom; nuArray in Ryd, lambda = 911.76/nu
-              nuL = 911.76d0/L_GRID(iL)
-              if (nuL < dble(nuArray(1)) .or. nuL > dble(nuArray(nbins))) cycle
-              ifreq = 1
-              do i = 2, nbins
-                 if (abs(dble(nuArray(i))-nuL) < abs(dble(nuArray(ifreq))-nuL)) ifreq = i
-              end do
-              kLam = dble(grid(1)%absOpac(iCell,ifreq)) + dble(grid(1)%scaOpac(iCell,ifreq))
-              if (kLam <= 0.d0) cycle
-              X_GRID(iL) = kLam/kV
-              nOwn = nOwn + 1
+        ! D-352: unconditional - the pdrOwnDust switch back to the Savage &
+        ! Mathis table is gone.
+        nOwn = 0
+        do iL = 1, N_GRID
+           ! L_GRID is in Angstrom; nuArray in Ryd, lambda = 911.76/nu
+           nuL = 911.76d0/L_GRID(iL)
+           if (nuL < dble(nuArray(1)) .or. nuL > dble(nuArray(nbins))) cycle
+           ifreq = 1
+           do i = 2, nbins
+              if (abs(dble(nuArray(i))-nuL) < abs(dble(nuArray(ifreq))-nuL)) ifreq = i
            end do
-           start = .true.
-           if (taskid == 0) then
-              print*, "! [D108] H2/CO shielding now uses this model's dust:", &
-                   & nOwn, " of", N_GRID, " extinction points replaced"
-              print*, "! [D108]   tau(1000A)/tau(V): Savage & Mathis 4.65, this model", &
-                   & real(X_GRID(3))
-           end if
+           kLam = dble(grid(1)%absOpac(iCell,ifreq)) + dble(grid(1)%scaOpac(iCell,ifreq))
+           if (kLam <= 0.d0) cycle
+           X_GRID(iL) = kLam/kV
+           nOwn = nOwn + 1
+        end do
+        start = .true.
+        if (taskid == 0) then
+           print*, "! [D108] H2/CO shielding now uses this model's dust:", &
+                & nOwn, " of", N_GRID, " extinction points replaced"
+           print*, "! [D108]   tau(1000A)/tau(V): Savage & Mathis 4.65, this model", &
+                & real(X_GRID(3))
         end if
         if (taskid == 0) print*, "! [D077] FUV band bins:", FUVhighP-FUVlowP+1, &
              & " of", nbins, " (FUVlowP,FUVhighP =", FUVlowP, FUVhighP, &
@@ -1221,13 +1229,6 @@ module pdr_mod
            print*, "! calibratePDRdust: measured from this model's grains -"
            print*, "!   tau_FUV/tau_V      = ", pdrRfuv, " over ", nUsed, " FUV bins"
            print*, "!   implied UV_fac     = ", pdrRfuv/magPerTau
-           print*, "!   3D-PDR default     = ", pdrUVfac
-           if (abs(pdrRfuv/magPerTau - pdrUVfac) > 0.25*pdrUVfac) then
-              print*, "! calibratePDRdust: [warning] this model's dust differs from the"
-              print*, "!   canonical value by more than 25%. A_V is derived from the"
-              print*, "!   measured ratio, so the chemistry stays self-consistent, but"
-              print*, "!   the network's gamma values assume a standard extinction curve."
-           end if
         end if
 
         ! D-195: report the H2 formation area against what upstream assumes, at
@@ -1298,12 +1299,9 @@ module pdr_mod
         double precision :: fSum, fTot, kap, rr, avS
         double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, span, nd
         double precision :: RfuvL                          ! D-109
-        double precision :: cH2non, wH2non, fracNon, fracMax   ! D-350
-        integer          :: nNon1, nNon10, nTgt                ! D-350
 
         if (pdrRfuv <= 0.) return
 
-        nNon1 = 0; nNon10 = 0; nTgt = 0; fracMax = 0.d0
         do iG = 1, nGrids
            do i = 1, grid(iG)%nx
               do j = 1, grid(iG)%ny
@@ -1324,7 +1322,6 @@ module pdr_mod
                     wC   = 0.d0
                     wCO  = 0.d0
                     wB   = 0.d0
-                    wH2non = 0.d0
                     do iS = 1, nStars
                        sx = dble(starPosition(iS)%x)
                        sy = dble(starPosition(iS)%y)
@@ -1345,7 +1342,6 @@ module pdr_mod
                        cH2S = 0.d0
                        cCS  = 0.d0
                        cCOS = 0.d0
-                       cH2non = 0.d0
                        do istep = 1, nstep
                           rr = (dble(istep)-0.5d0)*ds
                           ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
@@ -1370,16 +1366,11 @@ module pdr_mod
                           ! PDR cell on.
                           ! D-088 let only PDR-zone cells shield, because
                           ! outside the zone pdrAbun still held seedPDR's
-                          ! x(H2) = 0.3 - the chemistry never ran there - and
-                          ! integrating that across the H II region put ~1e21
-                          ! cm^-2 of fictitious H2 in front of the first PDR
-                          ! cell. D-350 removed that zone test: its premise is
-                          ! gone. The chemistry runs in every cell (D-198) and
-                          ! is seeded from MOCASSIN's ionization, with no
-                          ! molecules (D-208), so outside the zone pdrAbun is
-                          ! the chemistry's own answer - dissociated gas has no
-                          ! H2 to shield with, and says so itself. What the
-                          ! removal adds is measured below (cH2non) and printed.
+                          ! x(H2) = 0.3 - the chemistry never ran there. D-350
+                          ! removed that test (the chemistry runs in every cell,
+                          ! D-198, seeded with no molecules, D-208) and measured
+                          ! what it added: at most 2.7e12 cm^-2, at the front.
+                          ! D-352 removed the zone flag itself.
                           ! ...and only cells IN FRONT of this one. Including
                           ! the target cell's own near half makes its H2 shield
                           ! itself, and that feedback is positive: more H2 ->
@@ -1397,8 +1388,6 @@ module pdr_mod
                              cH2S = cH2S + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
                              cCS  = cCS  + nd*dble(grid(iG)%pdrAbun(cP,NC ))*ds
                              cCOS = cCOS + nd*dble(grid(iG)%pdrAbun(cP,NCO))*ds
-                             if (grid(iG)%pdrZone(cP) /= 1) cH2non = cH2non &
-                                  & + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
                           end if
                        end do
 
@@ -1427,7 +1416,6 @@ module pdr_mod
                        fTot = fTot + fS
                        fSum = fSum + fS*exp(-RfuvL*avS/dble(magPerTau))
                        wH2  = wH2 + fS*cH2S
-                       wH2non = wH2non + fS*cH2non
                        wC   = wC  + fS*cCS
                        wCO  = wCO + fS*cCOS
                        wB   = wB  + fS*dble(magPerTau)*tauB
@@ -1441,24 +1429,11 @@ module pdr_mod
                        grid(iG)%pdrColC (cellP) = real(wC /fTot)
                        grid(iG)%pdrColCO(cellP) = real(wCO/fTot)
                        grid(iG)%AVback  (cellP) = real(wB /fTot)
-                       ! D-350: how much of this cell's H2 column the zone
-                       ! test used to drop, for the zone cells it matters to
-                       if (grid(iG)%pdrZone(cellP) == 1 .and. wH2 > 0.d0) then
-                          nTgt    = nTgt + 1
-                          fracNon = wH2non/wH2
-                          fracMax = max(fracMax, fracNon)
-                          if (fracNon > 0.01d0) nNon1  = nNon1 + 1
-                          if (fracNon > 0.10d0) nNon10 = nNon10 + 1
-                       end if
                     end if
                  end do
               end do
            end do
         end do
-        if (taskid == 0) print '(a,i7,a,i7,a,i7,a,es10.3)', &
-             & " ! [D350] zone test gone: PDR cells", nTgt, &
-             & "   H2 column >1% from non-zone cells", nNon1, "   >10%", nNon10, &
-             & "   max fraction", fracMax
 
       contains
 
@@ -1542,7 +1517,6 @@ module pdr_mod
       ! D-348: what traceDiffuseSites reads, per cell, taken once per MC
       ! iteration beside the source-ward columns:
       !   difSrc(:,1:3)  n(H2), n(C), n(CO) [cm^-3] that shield, in every cell
-      !                  (D-350 removed the zone test, as in computeAVradial)
       !   difSrc(:,4)    FUV extinction coefficient [1/cm], R_FUV*kappa_V from
       !                  this cell's own grains (D-109)
       !   difSrc(:,5)    FUV scattering emissivity sum_nu kSca(nu)*J(nu)
@@ -1568,8 +1542,7 @@ module pdr_mod
            grid(iG)%difSrc = 0.d0
            do cP = 1, grid(iG)%nCells
               if (grid(iG)%Hden(cP) <= 0.) cycle
-              ! D-350: every cell shields, with whatever the chemistry holds
-              ! there - see computeAVradial for why the zone test went
+              ! every cell shields, with whatever the chemistry holds there
               nd = dble(grid(iG)%Hden(cP))
               grid(iG)%difSrc(cP,1) = nd*dble(grid(iG)%pdrAbun(cP,NH2))
               grid(iG)%difSrc(cP,2) = nd*dble(grid(iG)%pdrAbun(cP,NC ))
@@ -1847,8 +1820,8 @@ module pdr_mod
 
 #ifdef RAYTHEIA
         ! D-348: the diffuse-site walk reads this snapshot, taken from the
-        ! same abundances and zone flags the source-ward columns below are
-        ! integrated from, so the two legs of every two-leg column agree.
+        ! same abundances the source-ward columns below are integrated from,
+        ! so the two legs of every two-leg column agree.
         call snapDiffuseSources(grid)
 #endif
 
@@ -1969,7 +1942,7 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
 
         integer          :: iG, i, j, k, ifreq, iS, cellP, yTop
-        double precision :: uFUV, chi, chi0, rr, dx, dy, dz, xHII, tauFUV
+        double precision :: uFUV, chi, chi0, rr, dx, dy, dz, tauFUV
         double precision :: chi0Plane
         double precision :: Lfuv(nStars)
         real             :: fFUV
@@ -2076,38 +2049,11 @@ module pdr_mod
                     ! iteration (iteration_mod.f90:779). Overwriting it here was
                     ! why adding computeAVradial changed nothing at first.
 
-                    ! zone flag (D-007): PDR chemistry runs in the neutral gas
-                    xHII = dble(grid(iG)%ionDen(cellP, elementXref(1), 2))
-                    ! Latching, not a bare threshold. The handover writes the
-                    ! PDR temperature into grid%Te, which changes the ionization
-                    ! balance, which moves x(H+) - the very quantity the zone
-                    ! test uses. Measured consequence: a cell entered the zone,
-                    ! got a temperature, left the zone next iteration and was
-                    ! never revisited, so the grid ended up a patchwork of cells
-                    ! converged at different iterations. Once a cell is in the
-                    ! zone it stays there, so the criterion cannot be perturbed
-                    ! by its own effect (DEVLOG D-031).
-                    if (xHII < dble(pdrZoneLim)) then
-                       grid(iG)%pdrZone(cellP) = 1
-                    else if (grid(iG)%pdrZone(cellP) == 0) then
-                       grid(iG)%pdrZone(cellP) = 0
-                    end if
-
-                    ! Seed the thermal state the first time a cell enters the
-                    ! zone. 3D-PDR's GUESS_TEMP estimate, T = 10(1+(2chi)^1/3),
-                    ! is a far better starting point than MOCASSIN's T_e here -
-                    ! which D-030 measured at 30-3550 K in gas that belongs at
-                    ! 10-100 K. The bracket starts wide and is halved each
-                    ! iteration (D-031).
-                    if (grid(iG)%pdrZone(cellP) == 1 .and. &
-                        & grid(iG)%pdrTgas(cellP) <= 0.) then
-                       grid(iG)%pdrTgas(cellP)  = &
-                            & real(10.d0*(1.d0 + (2.d0*max(chi,0.d0))**(1.d0/3.d0)))
-                       grid(iG)%pdrTgas(cellP)  = &
-                            & min(max(grid(iG)%pdrTgas(cellP), pdrTmin), pdrTmax)
-                       grid(iG)%pdrTlow(cellP)  = pdrTmin
-                       grid(iG)%pdrThigh(cellP) = pdrTmax
-                    end if
+                    ! D-352: no zone flag. D-007's x(H+) < pdrZoneLim latch
+                    ! decided where the PDR's own thermal balance ran; since
+                    ! D-193 there is none (MOCASSIN owns T in every cell) and
+                    ! since D-198 the chemistry runs everywhere, so the flag
+                    ! decided nothing a model quantity does not already say.
 
                  end do
               end do
@@ -2581,18 +2527,18 @@ module pdr_mod
       ! convergence (D-008). Converging the chemistry here would multiply the
       ! two solvers' iteration counts.
       !
-      ! The radiation field is handed over in the D-001 effective-A_V form:
-      ! rad_surface(k) = chi/nrays and AV(k) = A_V,eff on every ray, so
-      ! 3D-PDR's own sum_k alpha*rad_surface(k)*exp(-gamma*AV(k)) collapses to
-      ! alpha*chi*exp(-gamma*A_V,eff) with A_V,eff measured from this model's
-      ! grains (D-026).
+      ! The radiation field (D-350, 3D build): every photorate takes the MC's
+      ! own local field at A_V = 0 - the direct part (Jste - Jdif) on one ray
+      ! with the source-ward shielding columns, the diffuse part (Jdif) on
+      ! D-348's scattering sites with their two-leg columns - and the H2, HD,
+      ! CO and C I rates take each part's Lyman-Werner window share
+      ! (ray_lw_factor). The 1D build still hands over D-001's prescription,
+      ! chi0/12 on twelve rays at A_V,eff (D-350 audit item 5, open).
       !
-      ! SHIELDING COLUMNS ARE SLAB-EQUIVALENT, not ray-traced. N_H is recovered
-      ! from the local extinction, N_H = A_V/AV_fac, and each shielding column
-      ! is that times the local fractional abundance. For a 1D slab - the
-      ! geometry of every published PDR benchmark - this is exact. For genuinely
-      ! 3D geometry it is an approximation, and the HEALPix trace of D-002 is
-      ! the upgrade. Flagged rather than hidden.
+      ! Temperatures: the chemistry, the level populations and the heating
+      ! and cooling are all evaluated at MOCASSIN's Te (D-193); nothing here
+      ! solves for a temperature, and no zone flag decides where it runs
+      ! (D-198, D-352).
       !-----------------------------------------------------------------
       subroutine pdrStep(grid, xP, yP, zP)
         implicit none
@@ -2617,14 +2563,9 @@ module pdr_mod
         double precision   :: chiDir, fDir, fDif, sumT, sumD, lwT, lwD, jT, jD, fLWd  ! D-350
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
-        integer            :: ik, il, jl, nlev, itherm, ilev
+        integer            :: ik, il, jl, nlev, ilev
         integer            :: iTnear                     ! D-215
-        double precision   :: coolTot, coolK, nSpec, Zpart, lsum, Fbal, Tlo, Thi, TgIn
-        double precision   :: Flo, Fhi, Fratio, Fden, xlo, xhi, xnewT, denom
-        logical            :: doChop
-        logical            :: lgChemOnly   ! D-131: outside the zone, chemistry only
-        character(len=1)   :: prevChange, illLast
-        double precision   :: TdMoc, TdHTT, T0HTT
+        double precision   :: coolTot, coolK, nSpec, Zpart, lsum
         double precision   :: fIonL                      ! D-266
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
@@ -2635,7 +2576,6 @@ module pdr_mod
         integer            :: kray
         double precision   :: mu, colA, avBack
         double precision   :: nH, Tg, Td, chi, chiLoc, av, NHcol, sH2, sC, sCO
-        double precision   :: chiHeat
         double precision   :: AVfacL, RfuvL          ! this cell's own dust (D-109)
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
         integer            :: iLnk, jLnk, iSpN, iSpI      ! D-153
@@ -2671,52 +2611,18 @@ module pdr_mod
         ! missing.
         !
         ! Outside the molecular gas the chemistry answers "no molecules here"
-        ! by itself and needs no threshold to be switched off. lgChemOnly is
-        ! kept because it still means something - the cell publishes no PDR
-        ! temperature - but it is now decided by the zone flag alone, not by
-        ! whether the solver ran.
-        lgChemOnly = (grid%pdrZone(cellP) == 0)
+        ! by itself and needs no threshold to be switched off. D-352 removed
+        ! the last use of the zone flag here (lgChemOnly, which decided only
+        ! whether the vestigial pdrTgas was written).
 
         nH  = dble(grid%Hden(cellP))
         if (nH <= 0.d0) return
 
-        ! The PDR temperature, NOT grid%Te. MOCASSIN's thermal balance solves
-        ! for photoionised gas and barely constrains T at low ionisation; D-030
-        ! measured it at 30-3550 K where a PDR belongs at 10-100 K.
-        Tg  = dble(grid%pdrTgas(cellP))
-        if (Tg <= 0.d0) Tg = dble(grid%Te(cellP))
-        ! D-131: in chemistry-only cells MOCASSIN's thermal balance is the
-        ! authority - it is photoionized gas, which is what that balance is for
-        ! - so take its temperature and do not iterate on it below.
-        if (lgChemOnly) Tg = dble(grid%Te(cellP))
         ! D-132/D-193: MOCASSIN owns the thermal balance in every cell, with
         ! no switch. The PDR evaluates its chemistry, level populations and
         ! heating/cooling AT this temperature and reports them back.
         Tg = dble(grid%Te(cellP))
-        ! ---- dust temperature (DEVLOG D-033, D-036) ----------------------
-        ! MOCASSIN solves dust equilibrium against the local radiation field
-        ! with no floor, so a deeply shielded cell has almost nothing heating
-        ! its grains and T_dust tends to zero - measured at 0.59 K. Fine for an
-        ! H II region; unphysical for a PDR, and damaging twice over: H2 forms
-        ! on grains and the Cazaux & Tielens rate collapses as T_dust -> 0, and
-        ! cosmic-ray heating is proportional to x(H2), so it collapses with it.
-        !
-        ! Hollenbach, Takahashi & Tielens (1991) parametrise T_dust from the FUV
-        ! field and A_V, including the re-radiated IR and the CMB - designed for
-        ! exactly this regime. Their own routine ends by flooring T_dust at 10 K
-        ! "since values below 10 K can dramatically limit the rate of H2
-        ! formation on grains", which is the same failure found here.
-        !
-        ! The two estimates are combined by taking the larger. MOCASSIN's failure
-        ! mode is specifically to UNDER-estimate - it omits heat sources rather
-        ! than inventing them - so max() keeps its full radiative transfer where
-        ! the grains see light and falls back to HTT91 where they do not.
-        ! D-065: chi and A_V must be in hand BEFORE the dust block - HTT91
-        ! reads both. They used to be assigned ~25 lines later, so HTT91 ran on
-        ! uninitialised locals: with chi = 0 it reduces to (T_cmb^5)^0.2 = 2.73 K
-        ! and then hits its own max(...,10), returning exactly 10.00 K in every
-        ! cell of every model regardless of the radiation field. Measured: 10.00
-        ! at the illuminated face where the correct value is 20.9 K.
+        ! ---- the field and A_V this cell's chemistry is handed -----------
         chi = dble(grid%chiFUV0(cellP))
         if (chi <= 0.d0) chi = dble(grid%chiFUV(cellP))
         av  = dble(grid%AVeff(cellP))
@@ -2732,8 +2638,8 @@ module pdr_mod
 
         ! AV_fac is read from a module global inside the vendored chemistry
         ! (CRattenuation, UVfield) - reseed it per cell so those routines get
-        ! THIS cell's grains.
-        pdrAVfacMod = AVfacL*dble(pdrMetal)
+        ! THIS cell's grains. (No metallicity factor: D-352.)
+        pdrAVfacMod = AVfacL
 
         ! D-195: same idea for the H2 formation rate. H2_FORMATION_RATE is
         ! linear in the grain cross section per H nucleus and upstream hardcodes
@@ -2748,16 +2654,9 @@ module pdr_mod
            pdrH2xsecSil = -1.d0
            pdrH2xsecGra = -1.d0
         end if
-        !
-        ! UV_fac is deliberately NOT reseeded from RfuvL. It is not a measured
-        ! dust property but the exponent of a PRESCRIPTION, exp(-UV_fac*A_V),
-        ! that reconstructs a local field from the surface field. D-090 measured
-        ! what the transported field actually does in this geometry -
-        ! gamma_eff = 1.85, because the mirror walls return laterally scattered
-        ! photons - against 3.31 for pure extinction and 3.02 for 3D-PDR's
-        ! prescription. RfuvL/magPerTau is the pure-extinction number, i.e. the
-        ! one D-090 showed is wrong here, so substituting it would be a
-        ! regression dressed as self-consistency. It stays at the input value.
+        ! (UV_fac, the exponent of 3D-PDR's exp(-UV_fac*A_V) prescription, is
+        ! read only under GRAINRECOMB, which is not built. D-352 retired the
+        ! keyword; calibratePDRdust sets it from this model's own R_FUV.)
 
         ! D-076: heating takes the LOCAL, attenuated field; the reaction rates
         ! take the SURFACE field. 3D-PDR keeps them separate and we did not:
@@ -2775,56 +2674,17 @@ module pdr_mod
         chiLoc = dble(grid%chiFUV(cellP))
         if (chiLoc <= 0.d0) chiLoc = chi*exp(-av*RfuvL)
 
-        ! D-089, diagnostic only. The reaction rates already run on 3D-PDR's
-        ! prescription - CALCULATE_REACTION_RATES rebuilds
-        ! chi0*exp(-gamma*A_V) internally from radSurf and AVray - but the
-        ! heating and the HTT91 dust temperature take the TRANSPORTED field,
-        ! which carries scattered light the prescription has no term for. At
-        ! A_V ~ 2 the two differ by an order of magnitude. pdrFUVmode = 1
-        ! substitutes the prescription here as well, which isolates whether
-        ! the mid-cloud temperature excess is the field or the thermal
-        ! balance. Not a physical mode: it throws away the transfer that is
-        ! the reason for coupling the codes at all.
-        chiHeat = dble(grid%chiFUV(cellP))
-        if (pdrFUVmode == 1) then
-           chiLoc  = chi*exp(-av*RfuvL)
-           chiHeat = chiLoc
-        end if
-
-        TdMoc = dble(grid%Tdust(0,0,cellP))
-
-        ! HTT91, evaluated with the single effective ray of D-001 carrying the
-        ! full local field (3D-PDR's own 1D mode does the same, putting all the
-        ! flux on one ray).
-        ! D-065: HTT91 uses TWO different fields, and conflating them is what
-        ! made the deep cloud run hot. 3D-PDR's dust_t.F90:
-        !
-        !   Tdust = 8.9e-11*NU_0*(1.71*PDR(P)%UVfield) + Tcmb**5   <- LOCAL field
-        !   T_0   = 12.2*(1.71*PDR(P)%RAD_SURFACE(J))**0.2         <- SURFACE field
-        !   if (AV(J) > 1) T_0 = T_0 * AV(J)**(-0.4)
-        !
-        ! The first term is the direct FUV heating where the grain sits, so it
-        ! must be the ATTENUATED local field; the second is the re-radiated IR
-        ! from the illuminated skin, so it carries the surface field and its own
-        ! Rowan-Robinson depth attenuation. Feeding the surface field to both
-        ! left T_dust near 21 K at every depth and heated the deep gas to 50 K.
-        TdHTT = 8.9d-11*2.65d15*(1.71d0*chiHeat) + pdrTcmb**5
-        T0HTT = 12.2d0*(1.71d0*max(chi,0.d0))**0.2d0
-        if (av > 1.0d0) T0HTT = T0HTT*av**(-0.4d0)
-        if (T0HTT > 0.d0) TdHTT = TdHTT + &
-             & (0.42d0 - log(3.45d-5*T0HTT))*(3.45d-5*T0HTT)*T0HTT**5
-        TdHTT = max(TdHTT, 0.d0)**0.2d0
-        TdHTT = max(TdHTT, 10.0d0)          ! HTT91's own floor, and the reason for it
-
-        select case (pdrDustModel)
-        case (0)
-           Td = max(TdMoc, dble(pdrTcmb))
-        case (2)
-           Td = TdHTT
-        case default
-           Td = max(TdMoc, TdHTT)
-        end select
-        if (Td <= 0.d0) Td = dble(pdrTdustMod)
+        ! ---- dust temperature (D-033, D-036, D-094, D-352) ---------------
+        ! MOCASSIN's own radiative-equilibrium T_dust - the temperature its dust
+        ! emission uses - is the only one. D-352 removed the alternatives the
+        ! pdrDustModel keyword offered (HTT91's parametric estimate, alone or
+        ! as a max() floor; D-094 had already shown max() imposed HTT91's
+        ! artificial 10 K floor) and pdrFUVmode's prescribed heating field.
+        ! The CMB bound stays: MOCASSIN transports no CMB, and T_CMB is what a
+        ! grain is held at with no other heating. Where it binds, MOCASSIN's
+        ! own dust emission sees a colder grain than the chemistry does - an
+        ! open item (the fix is the CMB in MOCASSIN's field), not a choice.
+        Td = max(dble(grid%Tdust(0,0,cellP)), dble(pdrTcmb))
         ! D-050: 3D-PDR re-applies the attenuation itself, through
         ! alpha*rad_surface*exp(-gamma*A_V) inside CALCULATE_REACTION_RATES.
         ! The field handed over must therefore be the UNATTENUATED one; passing
@@ -3048,8 +2908,7 @@ module pdr_mod
                 & abun(pdrNelect) = &
                 & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
            ! D-230: what the imposition actually wrote, at the moment it wrote it
-           if (teProbe /= 0 .and. taskid == 0 .and. nProbe230 < 24 .and. &
-                & grid%pdrZone(cellP) == 1) then
+           if (teProbe /= 0 .and. taskid == 0 .and. nProbe230 < 24) then
               nProbe230 = nProbe230 + 1
               print '(a,i7,a,i3,a,es11.4,a,es11.4,a,es11.4,a,f8.2)', &
                    & " ! [D230] cell", cellP, "  NELECT idx", pdrNelect, &
@@ -3259,8 +3118,7 @@ module pdr_mod
         ! nProbe230b, not nProbe230: gating the pair on the first counter left
         ! this print firing for every cell once that counter had stopped
         ! rising, and it wrote the per-cell state of the whole grid to the log.
-        if (teProbe /= 0 .and. taskid == 0 .and. nProbe230b < 24 .and. &
-             & grid%pdrZone(cellP) == 1) then
+        if (teProbe /= 0 .and. taskid == 0 .and. nProbe230b < 24) then
            nProbe230b = nProbe230b + 1
            print '(a,i7,a,es11.4,a,es11.4,a,es11.4,a,es11.4,a,es11.4)', &
                 & " ! [D230]      after solve, cell", cellP, &
@@ -3288,8 +3146,6 @@ module pdr_mod
                  lgNanFound = .true.; nanWhere = "pdrHeatPE"; nanCell = cellP
               else if (.not.(grid%pdrHeatGG(cellP) == grid%pdrHeatGG(cellP))) then
                  lgNanFound = .true.; nanWhere = "pdrHeatGG"; nanCell = cellP
-              else if (.not.(grid%pdrTgas(cellP) == grid%pdrTgas(cellP))) then
-                 lgNanFound = .true.; nanWhere = "pdrTgas"; nanCell = cellP
               end if
            end if
            if (lgNanFound .and. taskid == 0) print*, &
@@ -3327,7 +3183,7 @@ module pdr_mod
         ! Measured from the output files, ours is ~1e9 for H2+ (D-257 s11).
         ! Diagnostic only; fixed-size saved flags, so no allocation and none
         ! of the D-245/D-253 leak class.
-        if (pdrDiagRates /= 0 .and. taskid == 0 .and. grid%pdrZone(cellP) == 1) then
+        if (pdrDiagRates /= 0 .and. taskid == 0) then
            ! D-258b: re-arm every MC iteration. The first version latched each
            ! A_V bin on first visit and never cleared, so all six bins were
            ! captured during iteration 4 - the FIRST chemistry pass, with the
@@ -3391,377 +3247,301 @@ module pdr_mod
         end if
 
 
-        ! ---- inner thermal-balance loop (DEVLOG D-031) -------------------
-        ! D-008's rule - one pass, let the outer MC loop converge - holds for
-        ! the chemistry but NOT for thermal balance. The level populations lag
-        ! the temperature, so a single bracketing step per MC iteration chases
-        ! a moving target: measured heat/cool stayed at 0.15 and 9.4 at the
-        ! extremes after 8 MC iterations, while mid-range cells reached 1.0.
-        ! Standalone 3D-PDR needs ~65 iterations for this; MOCASSIN runs 10-20.
-        ! So the temperature and the populations are relaxed together here.
-        ! Start each MC iteration with NO bracket and search for one. An
-        ! assumed bracket is worthless here: if F does not change sign across
-        ! it, bisection simply walks to whichever bound it started nearest,
-        ! which is what pinned cells at 5 K and 3700 K in the first attempt.
-        ! D-051: seed the march deterministically. The incoming Tg is the
-        ! cell's previous temperature, which carries Monte Carlo noise. Where
-        ! F(T) = heating - cooling has more than one root, the noise decides
-        ! which direction the march sets off in and therefore which root is
-        ! found - so transverse cells that are physically IDENTICAL (same A_V,
-        ! density and field, by the slab's symmetry) settled a factor of four
-        ! apart, at 33 K and 135 K. Starting above the expected root and
-        ! marching DOWN selects the highest (surface-heated) root consistently.
-        ! D-051 (reverted): seeding the march from a fixed temperature to make
-        ! the root selection deterministic does NOT work - see the DEVLOG. The
-        ! incoming temperature is kept as the seed; TgIn only guards the
-        ! non-finite exit below so a failed cell never reports a bogus value.
-        TgIn = Tg
-        Tlo = 0.d0
-        Thi = 0.d0
-
-        ! D-193: one pass. The PDR no longer marches a temperature of its own.
-        do itherm = 1, 1
-
-           ! PDR heating budget for this cell: 12 terms, total in slot 12. The
-           ! photoelectric part is kept separately because it is the term
-           ! MOCASSIN also computes, and D-007's blend band ramps between the
-           ! two rather than adding them.
-           call CALC_HEATING(nH, Tg, Td, chiLoc, dble(pdrVturb)*1.d5, pdrNspecMod, &
-                & abun, pdrNreacMod, pdrRate, heat, &
-                & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
-
-           grid%pdrHeat(cellP)   = real(heat(12))
-           ! D-095: heat(2) ALONE. TOTAL_HEATING takes only PAHPHOTOELEC_HEATING from
-           ! the photoelectric family - heat(1) is hard-set to zero and heat(3),
-           ! Weingartner & Draine, is an ALTERNATIVE prescription commented out of
-           ! the sum. Summing all three was harmless while this was a diagnostic;
-           ! once D-093 started subtracting it from the grain energy budget it
-           ! removed about twice the right amount, including a term the gas never
-           ! received.
-           grid%pdrHeatPE(cellP) = real(heat(2))
-           grid%pdrHeatGG(cellP) = real(heat(11))
-           grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
-           grid%H2den(cellP)     = real(abun(NH2)*nH)         ! D-107
-
-           ! ---- line cooling (DEVLOG D-030) --------------------------------
-           ! Non-LTE level populations per coolant, solved with an escape
-           ! probability. The ray structure is collapsed to ONE ray carrying ONE
-           ! evaluation point whose path length is the slab depth implied by the
-           ! local extinction - the same slab-equivalent approximation the
-           ! shielding columns use (D-027), and exact for 1D geometry.
-           !
-           ! One pass per MC iteration, not an inner convergence loop: the outer
-           ! loop carries level-population convergence exactly as it carries the
-           ! chemistry (D-008).
-           ! ---- D-166: two evaluations, one power law ----------------------
-           ! The coolants are solved at Tg and again at pdrCoolTfac*Tg. Only the
-           ! first stores anything; the second exists so thermBalance can be
-           ! handed d ln C / d ln T and evaluate C(T) inside its temperature
-           ! loop instead of reading a constant. Cloudy re-evaluates the entire
-           ! cooling function at every trial temperature; this is the two-point
-           ! version of the same requirement, at twice the level-population cost
-           ! per coupling pass rather than thirty times.
-           coolTot  = 0.d0
-           coolTot2 = 0.d0
-           coolTot3 = 0.d0
-           ! pdrCoolTdep 2 adds a THIRD evaluation, at 1/pdrCoolTfac * Tg, used
-           ! only to check the power law against a real solve on the other side
-           ! of Tref. An extrapolation is worth nothing until someone has looked
-           ! at how far it misses.
-           ! D-215: walk the tabulation grid from the bottom up, so each
-           ! level-population solve warm-starts from the one below it - the
-           ! same chaining D-166 used for its second point, extended along
-           ! the whole grid. iTnear is the entry closest to the cell's actual
-           ! temperature; it is the one whose populations are stored and whose
-           ! value goes into pdrCoolSp, so everything that reads those still
-           ! reads the coolant AT Tg.
-           iTnear = 1
-           do iTpass = 2, pdrNtab
-              if (abs(log(dble(pdrTabT(iTpass))/Tg)) < &
-                & abs(log(dble(pdrTabT(iTnear))/Tg))) iTnear = iTpass
-           end do
-           do iTpass = 1, pdrNtab
-              Tc = dble(pdrTabT(iTpass))
-
-           do ik = 1, pdrNcool
-              nlev = pdrCoolant2(ik)%cnlev
-              nSpec = abun(pdrCoolant2(ik)%cspec)*nH
-              ! D-266: an atomic ION coolant (C+) must be excited at the
-              ! density of its own stage. Its carrier holds every ionized
-              ! stage, so take the stage-2 share of MOCASSIN's ionized total.
-              ! In the PDR that share is 1 and nothing changes; in the H II
-              ! gas it keeps C++ out of the [C II] cooling that replaces
-              ! MOCASSIN's own C II lines.
-              if (.not.pdrCoolIsMol(ik) .and. pdrCoolIon(ik) == 2) then
-                 fIonL = mocIonizedFrac(grid, cellP, pdrCoolElem(ik))
-                 if (fIonL > 0.d0) nSpec = nSpec &
-                      & *dble(grid%ionDen(cellP, elementXref(pdrCoolElem(ik)), 2))/fIonL
-              end if
-
-              ! Skip a coolant whose carrier has been chemically destroyed.
-              ! Below this the level populations are numerically meaningless
-              ! and the transition matrix goes singular - solvlevpop's
-              ! Gauss-Jordan then hits a zero pivot, returns NaN, and the NaN
-              ! rides the cooling into T_gas and out into MOCASSIN (D-041).
-              if (nSpec <= pdrNspecFloor*nH) then
-                 ! D-131: zero it, do not just skip. pdrCoolSp is now read by
-                 ! MOCASSIN's thermal balance, and leaving the previous MC
-                 ! iteration's value in place would feed a cell the cooling of
-                 ! a carrier the chemistry has since destroyed.
-                 grid%pdrCoolTab(cellP, ik, iTpass) = 0.        ! D-215
-                 if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
-                 cycle
-              end if
-
-              lpop(1:nlev) = grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
-
-              ! First visit to this cell: start from LTE, as 3D-PDR does.
-              if (all(lpop(1:nlev) <= 0.d0)) then
-                 call calculate_partition_function(Zpart, nlev, &
-                      & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, Tc)
-                 call calculate_lte_populations(nlev, lpop(1:nlev), &
-                      & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, &
-                      & Zpart, nSpec, Tc)
-              else
-                 ! rescale to the abundance the chemistry just produced
-                 lsum = sum(lpop(1:nlev))
-                 if (lsum > 0.d0) lpop(1:nlev) = lpop(1:nlev)*nSpec/lsum
-              end if
-
-              call FIND_CCOEFF(pdrCoolant2(ik)%cntemp, nlev, Tc, &
-                   & pdrCoolant2(ik)%temperatures, pdrCoolant2(ik)%H_COL, &
-                   & pdrCoolant2(ik)%HP_COL, pdrCoolant2(ik)%EL_COL, &
-                   & pdrCoolant2(ik)%HE_COL, pdrCoolant2(ik)%H2_COL, &
-                   & pdrCoolant2(ik)%PH2_COL, pdrCoolant2(ik)%OH2_COL, &
-                   & Ccoef(1:nlev,1:nlev), abun(pdrNHsp)*nH, abun(NPROTON)*nH, &
-                   & abun(pdrNelect)*nH, abun(NHe)*nH, abun(NH2)*nH)
-
-              ! Rebuild the upward rates by detailed balance at the local gas
-              ! temperature, as coolingfunctions does (avoids "supercooling").
-              do il = 2, nlev
-                 do jl = 1, il-1
-                    Ccoef(jl,il) = Ccoef(il,jl) &
-                         & *pdrCoolant2(ik)%weights(il)/pdrCoolant2(ik)%weights(jl) &
-                         & *exp(-(pdrCoolant2(ik)%energies(il) &
-                         &       -pdrCoolant2(ik)%energies(jl))/(KB*Tc))
-                 end do
-              end do
-
-              ! ---- D-060: converge the level populations AT FIXED T -------
-              ! One pass per thermal step is not enough. The populations then
-              ! lag the temperature by a step, and the cooling they produce is
-              ! not a monotonic function of T - measured at one face cell it
-              ! ran 5.1e-22 at 34.6 K, 4.0e-23 at 17.3 K and 3.3e-24 at 24.5 K.
-              ! A bracket search on a non-monotonic F(T) finds an arbitrary
-              ! root, which is why the surface settled 12x hotter than
-              ! standalone 3D-PDR and why physically identical cells landed
-              ! decades apart (D-051 blamed bistability; it was this).
-              !
-              ! 3D-PDR guards the same thing: changetemperature.F90 opens with
-              ! `if (.not.level_conv) return` - it refuses to move T until the
-              ! populations have converged. D-056 ported its arithmetic but not
-              ! that guard. Here the equivalent is an inner fixed-T iteration.
-              ! ---- D-083: geometry for whichever branch was compiled --------
-              ! The branch and the arguments must agree. ONEDIMENSIONAL takes
-              ! evaluation-point coordinates and uses only ray 6; RAYTHEIA takes
-              ! a per-ray path length and uses all of them. See the PDRGEOM
-              ! switch in the Makefile.
-              avBack = dble(grid%AVback(cellP))
-#ifdef RAYTHEIA
-              ! Per-ray slab geometry. HEALPix nside=1 is three rings: 4 rays at
-              ! mu = +2/3, 4 at mu = 0, 4 at mu = -2/3 along the slab normal.
-              ! Rays looking back at the illuminated face see A_V/|mu|; rays
-              ! looking inward see the remaining column A_Vback/mu; rays parallel
-              ! to an infinite slab never escape.
-              !
-              ! NOTE: this is the SLAB closed form. A genuinely 3D model needs
-              ! per-ray columns ray-traced through the grid, as 3D-PDR does in
-              ! columndensity.F90. Until that exists, a 3D run using this is
-              ! approximating every ray's column by the plane-parallel result.
-              ! D-190 read a ray-traced A_V here from computeRayColumns' colRayAV
-              ! when it was allocated. It was allocated only in the D-341 runs
-              ! (and there on the wrong rank for 93% of cells, D-348); D-348
-              ! removed the routine, so the closed form below is what every
-              ! other run has always used. The line-escape column along a 3D
-              ! ray is a separate question from the FUV angular model and is
-              ! not addressed by D-348.
-              do kray = 0, nraysLoc-1
-                 if (kray < 4) then
-                    mu =  2.d0/3.d0
-                 else if (kray < 8) then
-                    mu =  0.d0
-                 else
-                    mu = -2.d0/3.d0
-                 end if
-                 if (mu > 1.d-6) then
-                    colA = avBack/mu
-                 else if (mu < -1.d-6) then
-                    colA = av/abs(mu)
-                 else
-                    colA = 1.d30
-                 end if
-                 jjr(kray)    = 1
-                 plen(kray,0) = 0.d0
-                 plen(kray,1) = min((colA/AVfacL)/nH/PC, 1.d30)
-              end do
-#else
-              colA   = av
-              jjr    = 1
-              evpt   = 0.d0
-              evpt(1,6,0) = 0.d0
-              evpt(1,6,1) = (colA/AVfacL)/nH/PC
-#endif
-
-              do ilev = 1, max(pdrLevIter,1)
-              evpop = 0.d0
-              do kray = 0, nraysLoc-1
-                 evpop(kray,0,1:nlev) = lpop(1:nlev)
-                 evpop(kray,1,1:nlev) = lpop(1:nlev)
-              end do
-
-              trans(1:nlev,1:nlev) = 0.d0
-#ifdef RAYTHEIA
-              call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
-                   & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
-                   & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
-                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
-                   & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
-                   & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
-                   & pdrCoolant2(ik)%molweight, plen)
-#else
-              call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
-                   & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
-                   & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
-                   & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
-                   & lpop(1:nlev), evpt, pdrCoolant2(ik)%weights, coolK, &
-                   & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
-                   & pdrCoolant2(ik)%molweight)
-#endif
-
-              call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
-
-              ! Validate before trusting it. A singular matrix returns NaN
-              ! rather than failing, and that NaN surfaces far away as
-              ! "getGrainRecombination: insane eta" - a symptom naming neither
-              ! this routine nor the real cause. Keep the previous populations
-              ! and leave this coolant out of the budget for this pass.
-              if (any(lsol(1:nlev) /= lsol(1:nlev)) .or. &
-                & any(lsol(1:nlev) < 0.d0) .or. &
-                & sum(lsol(1:nlev)) <= 0.d0 .or. coolK /= coolK) then
-                 pdrNbadPop = pdrNbadPop + 1
-                 cycle
-              end if
-
-              ! converged when the populations stop moving at this T
-              lsum = 0.d0
-              do il = 1, nlev
-                 if (lsol(il) > 0.d0) lsum = max(lsum, &
-                      & abs(lsol(il)-lpop(il))/lsol(il))
-              end do
-              lpop(1:nlev) = lsol(1:nlev)
-              if (lsum < dble(pdrLevTol)) exit
-              end do
-
-              grid%pdrCoolTab(cellP, ik, iTpass) = real(coolK)          ! D-215
-              if (iTpass == iTnear) then
-                 grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) &
-                      & = lsol(1:nlev)
-                 coolTot = coolTot + coolK
-                 grid%pdrCoolSp(cellP, ik) = real(coolK)                 ! D-096
-              end if
-
-              ! D-060 diagnostic: per-coolant budget at the illuminated face
-              if (pdrDiagCool > 0 .and. taskid == 0 .and. iTpass == 1) then
-                 if (pdrNdiag < 400000) then
-                    pdrNdiag = pdrNdiag + 1
-                    print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
-                       & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
-                       & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
-                       & " cool=", coolK, " Td=", Td, " T=", real(Tc), " pop=", lsol(1), lsol(2), &
-                       & " nSpec=", nSpec, " ne=", abun(pdrNelect)*nH, " nH0=", abun(pdrNHsp)*nH
-                 end if
-              end if
-           end do
-           end do
-           ! Local power law, clamped: below the excitation temperature a
-           ! fine-structure coolant rises nearly exponentially, above it the
-           ! line saturates and the index goes to zero. Extrapolating an
-           ! unclamped index over three decades is not defensible.
-           ! D-215: kept, but DIAGNOSTIC only - the balance no longer reads
-           ! either of these. The slope is now measured off the table across
-           ! the entry nearest Tg and the one above it, so the [D213] line
-           ! still reports the local logarithmic index of the real cooling
-           ! function rather than the exponent of a prescription.
-           coolTot2 = 0.d0
-           do ik = 1, pdrNcool
-              coolTot2 = coolTot2 &
-                   & + dble(grid%pdrCoolTab(cellP, ik, min(iTnear+1, pdrNtab)))
-           end do
-           if (coolTot > 0.d0 .and. coolTot2 > 0.d0 .and. iTnear < pdrNtab) then
-              grid%pdrCoolSlope(cellP) = real( &
-                   & log(coolTot2/coolTot) &
-                   & /log(dble(pdrTabT(iTnear+1))/dble(pdrTabT(iTnear))))
-           else
-              grid%pdrCoolSlope(cellP) = 0.
-           end if
-           grid%pdrCoolTref(cellP) = pdrTabT(iTnear)
-           ! D-215: the D-166 power-law check is gone with the power law it
-           ! checked. There is nothing left to validate here - the balance
-           ! reads solves, not an extrapolation from them.
+        ! ---- the PDR's line cooling at MOCASSIN's temperature --------------
+        ! D-031 relaxed a PDR gas temperature here, and D-193 made MOCASSIN
+        ! own T in every cell, which left a one-pass bracket whose answer was
+        ! overwritten by Te. D-352 removed it: what this block produces is
+        ! the level populations and the cooling tabulated in T (D-215).
 
 
-           grid%pdrCool(cellP) = real(coolTot)
-
-           ! F(T) = heating - cooling. F > 0 means the gas is too cold.
-           ! Cooling is exponentially sensitive to T - a single bisection step
-           ! can move it by two orders of magnitude - so the bracket has to be
-           ! found by marching before bisecting, not assumed.
-           ! Never let a non-finite budget move the temperature.
-           if (heat(12) /= heat(12) .or. coolTot /= coolTot) then
-              if (Tlo <= 0.d0 .or. Thi <= 0.d0) Tg = TgIn   ! never report the seed
-              exit
-           end if
-
-           ! D-056 (reverted): porting 3D-PDR's +-30% expansion + Illinois
-           ! regula falsi into this loop made things worse - transverse spread
-           ! at A_V~0.1 went from 150-152 K to 167-814 K, heat/cool from 0.997
-           ! to 1.055. Its +-30% steps assume 3D-PDR's ~65 OUTER iterations with
-           ! the bracket persisting across them; this inner loop gets 12 steps
-           ! and resets each MC iteration, so the search never reaches the root.
-           ! Porting it properly means persisting Tlow/Thigh/Flow/Fhigh and the
-           ! direction flags on the grid, not just the arithmetic.
-           Fbal = heat(12) - coolTot
-           if (Fbal > 0.d0) then
-              Tlo = Tg
-           else
-              Thi = Tg
-           end if
-
-           if (Tlo > 0.d0 .and. Thi > 0.d0) then
-              Tg = sqrt(Tlo*Thi)
-           else if (Fbal > 0.d0) then
-              Tg = Tg*2.d0
-           else
-              Tg = Tg*0.5d0
-           end if
-           ! D-131/D-193: every cell keeps MOCASSIN's temperature.
-           if (.true.) then
-              Tg = dble(grid%Te(cellP))
-           else
-              Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
-           end if
-
+        ! ---- line cooling (DEVLOG D-030) --------------------------------
+        ! Non-LTE level populations per coolant, solved with an escape
+        ! probability. The ray structure is collapsed to ONE ray carrying ONE
+        ! evaluation point whose path length is the slab depth implied by the
+        ! local extinction - the same slab-equivalent approximation the
+        ! shielding columns use (D-027), and exact for 1D geometry.
+        !
+        ! One pass per MC iteration, not an inner convergence loop: the outer
+        ! loop carries level-population convergence exactly as it carries the
+        ! chemistry (D-008).
+        ! ---- D-166: two evaluations, one power law ----------------------
+        ! The coolants are solved at Tg and again at pdrCoolTfac*Tg. Only the
+        ! first stores anything; the second exists so thermBalance can be
+        ! handed d ln C / d ln T and evaluate C(T) inside its temperature
+        ! loop instead of reading a constant. Cloudy re-evaluates the entire
+        ! cooling function at every trial temperature; this is the two-point
+        ! version of the same requirement, at twice the level-population cost
+        ! per coupling pass rather than thirty times.
+        coolTot  = 0.d0
+        coolTot2 = 0.d0
+        coolTot3 = 0.d0
+        ! pdrCoolTdep 2 adds a THIRD evaluation, at 1/pdrCoolTfac * Tg, used
+        ! only to check the power law against a real solve on the other side
+        ! of Tref. An extrapolation is worth nothing until someone has looked
+        ! at how far it misses.
+        ! D-215: walk the tabulation grid from the bottom up, so each
+        ! level-population solve warm-starts from the one below it - the
+        ! same chaining D-166 used for its second point, extended along
+        ! the whole grid. iTnear is the entry closest to the cell's actual
+        ! temperature; it is the one whose populations are stored and whose
+        ! value goes into pdrCoolSp, so everything that reads those still
+        ! reads the coolant AT Tg.
+        iTnear = 1
+        do iTpass = 2, pdrNtab
+           if (abs(log(dble(pdrTabT(iTpass))/Tg)) < &
+             & abs(log(dble(pdrTabT(iTnear))/Tg))) iTnear = iTpass
         end do
+        do iTpass = 1, pdrNtab
+           Tc = dble(pdrTabT(iTpass))
 
-        ! Re-evaluate once at the converged temperature so the stored heating
-        ! and cooling correspond to the stored T. Without this they are one
-        ! bisection step stale, and because cooling is exponential in T that
-        ! makes a converged cell look like a factor-of-20 imbalance.
-        call CALC_HEATING(nH, Tg, Td, chiLoc, dble(pdrVturb)*1.d5, pdrNspecMod, &
-             & abun, pdrNreacMod, pdrRate, heat, &
+        do ik = 1, pdrNcool
+           nlev = pdrCoolant2(ik)%cnlev
+           nSpec = abun(pdrCoolant2(ik)%cspec)*nH
+           ! D-266: an atomic ION coolant (C+) must be excited at the
+           ! density of its own stage. Its carrier holds every ionized
+           ! stage, so take the stage-2 share of MOCASSIN's ionized total.
+           ! In the PDR that share is 1 and nothing changes; in the H II
+           ! gas it keeps C++ out of the [C II] cooling that replaces
+           ! MOCASSIN's own C II lines.
+           if (.not.pdrCoolIsMol(ik) .and. pdrCoolIon(ik) == 2) then
+              fIonL = mocIonizedFrac(grid, cellP, pdrCoolElem(ik))
+              if (fIonL > 0.d0) nSpec = nSpec &
+                   & *dble(grid%ionDen(cellP, elementXref(pdrCoolElem(ik)), 2))/fIonL
+           end if
+
+           ! Skip a coolant whose carrier has been chemically destroyed.
+           ! Below this the level populations are numerically meaningless
+           ! and the transition matrix goes singular - solvlevpop's
+           ! Gauss-Jordan then hits a zero pivot, returns NaN, and the NaN
+           ! rides the cooling into T_gas and out into MOCASSIN (D-041).
+           if (nSpec <= pdrNspecFloor*nH) then
+              ! D-131: zero it, do not just skip. pdrCoolSp is now read by
+              ! MOCASSIN's thermal balance, and leaving the previous MC
+              ! iteration's value in place would feed a cell the cooling of
+              ! a carrier the chemistry has since destroyed.
+              grid%pdrCoolTab(cellP, ik, iTpass) = 0.        ! D-215
+              if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
+              cycle
+           end if
+
+           lpop(1:nlev) = grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
+
+           ! First visit to this cell: start from LTE, as 3D-PDR does.
+           if (all(lpop(1:nlev) <= 0.d0)) then
+              call calculate_partition_function(Zpart, nlev, &
+                   & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, Tc)
+              call calculate_lte_populations(nlev, lpop(1:nlev), &
+                   & pdrCoolant2(ik)%energies, pdrCoolant2(ik)%weights, &
+                   & Zpart, nSpec, Tc)
+           else
+              ! rescale to the abundance the chemistry just produced
+              lsum = sum(lpop(1:nlev))
+              if (lsum > 0.d0) lpop(1:nlev) = lpop(1:nlev)*nSpec/lsum
+           end if
+
+           call FIND_CCOEFF(pdrCoolant2(ik)%cntemp, nlev, Tc, &
+                & pdrCoolant2(ik)%temperatures, pdrCoolant2(ik)%H_COL, &
+                & pdrCoolant2(ik)%HP_COL, pdrCoolant2(ik)%EL_COL, &
+                & pdrCoolant2(ik)%HE_COL, pdrCoolant2(ik)%H2_COL, &
+                & pdrCoolant2(ik)%PH2_COL, pdrCoolant2(ik)%OH2_COL, &
+                & Ccoef(1:nlev,1:nlev), abun(pdrNHsp)*nH, abun(NPROTON)*nH, &
+                & abun(pdrNelect)*nH, abun(NHe)*nH, abun(NH2)*nH)
+
+           ! Rebuild the upward rates by detailed balance at the local gas
+           ! temperature, as coolingfunctions does (avoids "supercooling").
+           do il = 2, nlev
+              do jl = 1, il-1
+                 Ccoef(jl,il) = Ccoef(il,jl) &
+                      & *pdrCoolant2(ik)%weights(il)/pdrCoolant2(ik)%weights(jl) &
+                      & *exp(-(pdrCoolant2(ik)%energies(il) &
+                      &       -pdrCoolant2(ik)%energies(jl))/(KB*Tc))
+              end do
+           end do
+
+           ! ---- D-060: converge the level populations AT FIXED T -------
+           ! One pass per thermal step is not enough. The populations then
+           ! lag the temperature by a step, and the cooling they produce is
+           ! not a monotonic function of T - measured at one face cell it
+           ! ran 5.1e-22 at 34.6 K, 4.0e-23 at 17.3 K and 3.3e-24 at 24.5 K.
+           ! A bracket search on a non-monotonic F(T) finds an arbitrary
+           ! root, which is why the surface settled 12x hotter than
+           ! standalone 3D-PDR and why physically identical cells landed
+           ! decades apart (D-051 blamed bistability; it was this).
+           !
+           ! 3D-PDR guards the same thing: changetemperature.F90 opens with
+           ! `if (.not.level_conv) return` - it refuses to move T until the
+           ! populations have converged. D-056 ported its arithmetic but not
+           ! that guard. Here the equivalent is an inner fixed-T iteration.
+           ! ---- D-083: geometry for whichever branch was compiled --------
+           ! The branch and the arguments must agree. ONEDIMENSIONAL takes
+           ! evaluation-point coordinates and uses only ray 6; RAYTHEIA takes
+           ! a per-ray path length and uses all of them. See the PDRGEOM
+           ! switch in the Makefile.
+           avBack = dble(grid%AVback(cellP))
+#ifdef RAYTHEIA
+           ! Per-ray slab geometry. HEALPix nside=1 is three rings: 4 rays at
+           ! mu = +2/3, 4 at mu = 0, 4 at mu = -2/3 along the slab normal.
+           ! Rays looking back at the illuminated face see A_V/|mu|; rays
+           ! looking inward see the remaining column A_Vback/mu; rays parallel
+           ! to an infinite slab never escape.
+           !
+           ! NOTE: this is the SLAB closed form. A genuinely 3D model needs
+           ! per-ray columns ray-traced through the grid, as 3D-PDR does in
+           ! columndensity.F90. Until that exists, a 3D run using this is
+           ! approximating every ray's column by the plane-parallel result.
+           ! D-190 read a ray-traced A_V here from computeRayColumns' colRayAV
+           ! when it was allocated. It was allocated only in the D-341 runs
+           ! (and there on the wrong rank for 93% of cells, D-348); D-348
+           ! removed the routine, so the closed form below is what every
+           ! other run has always used. The line-escape column along a 3D
+           ! ray is a separate question from the FUV angular model and is
+           ! not addressed by D-348.
+           do kray = 0, nraysLoc-1
+              if (kray < 4) then
+                 mu =  2.d0/3.d0
+              else if (kray < 8) then
+                 mu =  0.d0
+              else
+                 mu = -2.d0/3.d0
+              end if
+              if (mu > 1.d-6) then
+                 colA = avBack/mu
+              else if (mu < -1.d-6) then
+                 colA = av/abs(mu)
+              else
+                 colA = 1.d30
+              end if
+              jjr(kray)    = 1
+              plen(kray,0) = 0.d0
+              plen(kray,1) = min((colA/AVfacL)/nH/PC, 1.d30)
+           end do
+#else
+           colA   = av
+           jjr    = 1
+           evpt   = 0.d0
+           evpt(1,6,0) = 0.d0
+           evpt(1,6,1) = (colA/AVfacL)/nH/PC
+#endif
+
+           do ilev = 1, max(pdrLevIter,1)
+           evpop = 0.d0
+           do kray = 0, nraysLoc-1
+              evpop(kray,0,1:nlev) = lpop(1:nlev)
+              evpop(kray,1,1:nlev) = lpop(1:nlev)
+           end do
+
+           trans(1:nlev,1:nlev) = 0.d0
+#ifdef RAYTHEIA
+           call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
+                & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
+                & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
+                & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
+                & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
+                & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
+                & pdrCoolant2(ik)%molweight, plen)
+#else
+           call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
+                & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
+                & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
+                & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
+                & lpop(1:nlev), evpt, pdrCoolant2(ik)%weights, coolK, &
+                & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
+                & pdrCoolant2(ik)%molweight)
+#endif
+
+           call solvlevpop(nlev, trans(1:nlev,1:nlev), nSpec, lsol(1:nlev))
+
+           ! Validate before trusting it. A singular matrix returns NaN
+           ! rather than failing, and that NaN surfaces far away as
+           ! "getGrainRecombination: insane eta" - a symptom naming neither
+           ! this routine nor the real cause. Keep the previous populations
+           ! and leave this coolant out of the budget for this pass.
+           if (any(lsol(1:nlev) /= lsol(1:nlev)) .or. &
+             & any(lsol(1:nlev) < 0.d0) .or. &
+             & sum(lsol(1:nlev)) <= 0.d0 .or. coolK /= coolK) then
+              pdrNbadPop = pdrNbadPop + 1
+              cycle
+           end if
+
+           ! converged when the populations stop moving at this T
+           lsum = 0.d0
+           do il = 1, nlev
+              if (lsol(il) > 0.d0) lsum = max(lsum, &
+                   & abs(lsol(il)-lpop(il))/lsol(il))
+           end do
+           lpop(1:nlev) = lsol(1:nlev)
+           if (lsum < dble(pdrLevTol)) exit
+           end do
+
+           grid%pdrCoolTab(cellP, ik, iTpass) = real(coolK)          ! D-215
+           if (iTpass == iTnear) then
+              grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) &
+                   & = lsol(1:nlev)
+              coolTot = coolTot + coolK
+              grid%pdrCoolSp(cellP, ik) = real(coolK)                 ! D-096
+           end if
+
+           ! D-060 diagnostic: per-coolant budget at the illuminated face
+           if (pdrDiagCool > 0 .and. taskid == 0 .and. iTpass == 1) then
+              if (pdrNdiag < 400000) then
+                 pdrNdiag = pdrNdiag + 1
+                 print '(a,i3,a,es9.2,a,i3,a,es10.3,a,es11.3,a,f7.2,a,f9.1,a,2es11.3,a,es10.3,a,es10.3,a,es10.3)', &
+                    & " [D060] coolant", ik, " A_V=", grid%AVeff(cellP), &
+                    & " cspec=", pdrCoolant2(ik)%cspec, " n=", nSpec, &
+                    & " cool=", coolK, " Td=", Td, " T=", real(Tc), " pop=", lsol(1), lsol(2), &
+                    & " nSpec=", nSpec, " ne=", abun(pdrNelect)*nH, " nH0=", abun(pdrNHsp)*nH
+              end if
+           end if
+        end do
+        end do
+        ! Local power law, clamped: below the excitation temperature a
+        ! fine-structure coolant rises nearly exponentially, above it the
+        ! line saturates and the index goes to zero. Extrapolating an
+        ! unclamped index over three decades is not defensible.
+        ! D-215: kept, but DIAGNOSTIC only - the balance no longer reads
+        ! either of these. The slope is now measured off the table across
+        ! the entry nearest Tg and the one above it, so the [D213] line
+        ! still reports the local logarithmic index of the real cooling
+        ! function rather than the exponent of a prescription.
+        coolTot2 = 0.d0
+        do ik = 1, pdrNcool
+           coolTot2 = coolTot2 &
+                & + dble(grid%pdrCoolTab(cellP, ik, min(iTnear+1, pdrNtab)))
+        end do
+        if (coolTot > 0.d0 .and. coolTot2 > 0.d0 .and. iTnear < pdrNtab) then
+           grid%pdrCoolSlope(cellP) = real( &
+                & log(coolTot2/coolTot) &
+                & /log(dble(pdrTabT(iTnear+1))/dble(pdrTabT(iTnear))))
+        else
+           grid%pdrCoolSlope(cellP) = 0.
+        end if
+        grid%pdrCoolTref(cellP) = pdrTabT(iTnear)
+        ! D-215: the D-166 power-law check is gone with the power law it
+        ! checked. There is nothing left to validate here - the balance
+        ! reads solves, not an extrapolation from them.
+
+
+        grid%pdrCool(cellP) = real(coolTot)
+
+
+        ! ---- the PDR's heating terms, at MOCASSIN's temperature ------------
+        ! 12 terms, total in slot 12 (heatingfunctions.F90). Evaluated once, at
+        ! grid%Te as it stands - NOT the Tg the rates were taken at, which is
+        ! Te clamped to [pdrTmin, pdrTmax] (above). The two differ only where
+        ! Te leaves that range (3 cells of pn150k, none of hiipdr); D-352 keeps
+        ! the behaviour and records the mismatch as open.
+        call CALC_HEATING(nH, dble(grid%Te(cellP)), Td, chiLoc, dble(pdrVturb)*1.d5, &
+             & pdrNspecMod, abun, pdrNreacMod, pdrRate, heat, &
              & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
         grid%pdrHeat(cellP)   = real(heat(12))
-        grid%pdrHeatPE(cellP) = real(heat(2))   ! D-095: heat(2) alone, see above
+        ! D-095: heat(2) ALONE. TOTAL_HEATING takes only PAHPHOTOELEC_HEATING from
+        ! the photoelectric family - heat(1) is hard-set to zero and heat(3),
+        ! Weingartner & Draine, is an ALTERNATIVE prescription commented out of
+        ! the sum. Summing all three was harmless while this was a diagnostic;
+        ! once D-093 started subtracting it from the grain energy budget it
+        ! removed about twice the right amount, including a term the gas never
+        ! received.
+        grid%pdrHeatPE(cellP) = real(heat(2))
         ! D-131: the part of the PDR heating MOCASSIN has no term for. Excluded
         ! because MOCASSIN already computes them: heat(2) PAH photoelectric
         ! (photoelHeat_g), heat(4) carbon photoionization (its own heatSte sum
@@ -3797,44 +3577,12 @@ module pdr_mod
                 & " AV =", grid%AVeff(cellP), " nH =", grid%Hden(cellP)
         end if
         grid%pdrHeatGG(cellP) = real(heat(11))
-        grid%NePDR(cellP)     = real(abun(pdrNelect)*nH)   ! D-105
         grid%H2den(cellP)     = real(abun(NH2)*nH)         ! D-107
 
-        ! D-131: leave pdrTgas at zero outside the zone. handBackPDR skips any
-        ! cell with pdrTgas <= 0, so a chemistry-only cell publishes abundances
-        ! without also publishing a temperature MOCASSIN did not ask for.
-        if (.not. lgChemOnly) then
-           grid%pdrTgas(cellP)  = real(Tg)
-           grid%pdrTlow(cellP)  = real(Tlo)
-           grid%pdrThigh(cellP) = real(Thi)
-        end if
-
-        ! Fold PDR thermal balance into MOCASSIN's convergence test (D-032).
-        !
-        ! Without this the run stops on MOCASSIN's own criterion - which counts
-        ! its ionization and electron-temperature convergence and knows nothing
-        ! about the PDR - while PDR cells are still moving. Measured: the test
-        ! model reported 97.8% converged after 3 MC iterations, by which point
-        ! cells that had only just entered the zone had received a single
-        ! thermal step.
-        !
-        ! lgConverged uses the same owner-contributes reduction as Te and Ne and
-        ! is exchanged after this loop, so clearing it here for an unbalanced
-        ! cell is enough; no change to the counting logic is needed.
-        ! D-176: count it, and let it be switched off where it is meaningless.
-        ! Under pdrTeFromMocassin the PDR does not solve for the temperature,
-        ! so its own heat and cool are evaluated at MOCASSIN's answer and need
-        ! not balance; and with pdrAllCells this ran in ionized cells too,
-        ! where the PDR chemistry is not what the model is converging.
-        if (max(abs(heat(12)), coolTot) > 0.d0) then
-           if (abs(heat(12)-coolTot)/max(abs(heat(12)), coolTot) > dble(pdrFcrit)) then
-              if (grid%lgConverged(cellP) == 1) cvPdrCleared = cvPdrCleared + 1
-              ! D-193: the PDR's heat and cool are evaluated at MOCASSIN's
-              ! temperature and are not required to balance - only MOCASSIN's
-              ! own thermal balance is. Left switchable purely as a probe.
-              if (pdrFcritConv /= 0) grid%lgConverged(cellP) = 0
-           end if
-        end if
+        ! D-032's PDR heat/cool test on lgConverged is gone (D-352): the PDR's
+        ! heat and cool are evaluated at MOCASSIN's temperature and nothing
+        ! solves for them to balance, so the test (off by default since D-228)
+        ! asked whether an unsolved balance happened to hold.
 
       end subroutine pdrStep
 

@@ -9,8 +9,6 @@ contains
 
         implicit none
         integer :: i, ios                    ! counter, io state
-        integer :: env_stat                  ! D-286
-        character(len=32) :: reccool_env
         integer :: iup, ilow                 ! H counters
 
     ! initialise all the arrays that we are reading in
@@ -118,18 +116,8 @@ contains
 
         close(17)
 
-        ! D-286: recombination cooling treatment in the thermal balance.
-        ! Same switch and spelling as mocassin_HM_2026 dd3006c, so a run of
-        ! either repository can be put in the other's mode the same way.
-        call get_environment_variable("MOCASSIN_RECCOOL", reccool_env, status=env_stat)
-        if (env_stat == 0 .and. (trim(reccool_env) == "legacy" .or. &
-             & trim(reccool_env) == "caseB" .or. trim(reccool_env) == "caseb")) then
-           lgCaseARecCool = .false.
-           if (taskid == 0) print*, "! readData: using legacy Case B recombination cooling in thermal balance"
-        else
-           lgCaseARecCool = .true.
-           if (taskid == 0) print*, "! readData: using Case A recombination cooling in thermal balance (Hummer 1994, Hummer & Storey 1998)"
-        end if
+        ! D-286/D-352: recombination cooling is Case A (update_mod, thermBalance);
+        ! the MOCASSIN_RECCOOL switch to the legacy Case B is retired.
 
     end subroutine readData
 
