@@ -29,6 +29,7 @@ re-applied by hand at the next upstream merge.
 | `modules.F90`, `calculate_abundances.c`, `odes_reduced.c` | per-species formation/destruction rates exported from the ODE right-hand side and re-evaluated at the returned abundances (`odes_reduced.c` via `tools/patch_odes_capture.py`) | D-113 |
 | `modules.F90`, `h2_form.F90` | `h2form_xsec_sil`/`h2form_xsec_gra`: host-measured grain area per H replaces the diffuse-ISM constants when supplied | D-195 |
 | all six files above | one-line modification notice at the top of the file (GPL v3 s.5(a)) | D-272 |
+| `modules.F90`, `calc_reac_rates.F90` | `ray_lw_factor`: host-supplied per-ray factor on the field driving the four Lyman-Werner-window photoreactions (H2, HD, CO photodissociation; C I photoionization) - the ray's 11.2-13.6 eV share over the Draine field's. Not allocated: factor 1, upstream behaviour. `calc_reac_rates.F90` also gains the modification notice | D-350 |
 | `dataPDR/16o.dat`, `dataPDR/12c.dat` | the `1D`/`1S` -> `3P_J` collision rates split by `g_J/9`; upstream gives each J the whole-term value. Re-apply with `tools/d285_split_3p.py`, which only touches rows still identical across J | D-285 |
 
 Every change except the header notices is marked in place with its DEVLOG ID.

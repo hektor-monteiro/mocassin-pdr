@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-349, 2026-09-25. Reference model throughout: the 150 kK PN,
+Status as of D-350, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -211,9 +211,15 @@ understates the window-driven rates 20-40% at the front and overstates them
 compared the wrong quantity and is corrected. It is also why the baseline
 tracked Cloudy: MOCASSIN's window field over the old prescription is flat at
 2.0-2.8 at every depth - the constant being the 40 kK star's window share,
-x1.97 over Draine, so the baseline has run those rates ~2x low. **Proposed, not
-implemented:** window-driven reactions take the window's own field on every
-ray via a per-ray hook in `calc_reac_rates.F90`; expected ~x2.5 on those rates.
+x1.97 over Draine, so the baseline has run those rates ~2x low. **Implemented in D-350**
+(3D flavour), in a stronger form than first proposed: every photorate now runs
+on MOCASSIN's own local field at A_V = 0 - the direct part on the source-ward
+column, the diffuse part on the D-348 sites - with H2, HD, CO and C I taking
+each part's window field through a vendored per-ray hook (`ray_lw_factor`),
+the C I continuum term dropped because the MC transports it, and the stale
+zone test on the shielding columns removed. `runs/d350-window` against
+`runs/d350-base11` (11 iterations, seed 1001) is the test. The 1D flavour keeps
+the prescription.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly

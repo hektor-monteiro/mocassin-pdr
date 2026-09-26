@@ -87,6 +87,7 @@ module pdr_mod
                                ! resolved to the local double and abun(NH) indexed
                                ! a 33-element array at 1000. gfortran accepts the
                                ! real subscript as a legacy extension, silently.
+                               & pdrRayLW => ray_lw_factor, &       ! D-350
                                & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
                                & NCx, NO, NOx, NMG, NMGx, &
                                ! D-258: H2+ and H3+, for the chain diagnostic
@@ -123,12 +124,11 @@ module pdr_mod
     ! D-348: the scattering sites of the cell pdrStep is solving, filled by
     ! traceDiffuseSites - weight, and (H2, C, CO) two-leg columns [cm^-2]
     double precision, allocatable :: siteW(:), siteN(:,:)
-    integer, allocatable          :: siteK(:)          ! the direction it lies on
 
     ! D-348: per-A_V-bin sums over the cells this rank solved in the current
     ! coupling pass, reduced and printed by reportDiffuseDiag. The bins are
     ! D-344's, so the diffuse fractions read straight against its table.
-    integer, parameter :: nDifBin = 9, nDifCol = 18
+    integer, parameter :: nDifBin = 9, nDifCol = 20
     double precision, parameter :: difBinEdge(0:nDifBin) = &
          & (/ 0.d0, 0.2d0, 0.47d0, 0.8d0, 1.2d0, 1.6d0, 2.1d0, 2.6d0, 3.05d0, 1.d30 /)
     double precision :: difDiag(nDifCol, nDifBin) = 0.d0
@@ -1298,9 +1298,12 @@ module pdr_mod
         double precision :: fSum, fTot, kap, rr, avS
         double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, span, nd
         double precision :: RfuvL                          ! D-109
+        double precision :: cH2non, wH2non, fracNon, fracMax   ! D-350
+        integer          :: nNon1, nNon10, nTgt                ! D-350
 
         if (pdrRfuv <= 0.) return
 
+        nNon1 = 0; nNon10 = 0; nTgt = 0; fracMax = 0.d0
         do iG = 1, nGrids
            do i = 1, grid(iG)%nx
               do j = 1, grid(iG)%ny
@@ -1321,6 +1324,7 @@ module pdr_mod
                     wC   = 0.d0
                     wCO  = 0.d0
                     wB   = 0.d0
+                    wH2non = 0.d0
                     do iS = 1, nStars
                        sx = dble(starPosition(iS)%x)
                        sy = dble(starPosition(iS)%y)
@@ -1341,6 +1345,7 @@ module pdr_mod
                        cH2S = 0.d0
                        cCS  = 0.d0
                        cCOS = 0.d0
+                       cH2non = 0.d0
                        do istep = 1, nstep
                           rr = (dble(istep)-0.5d0)*ds
                           ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
@@ -1363,14 +1368,18 @@ module pdr_mod
                           ! included. That is the D-078 error again, and it is
                           ! far larger here: it self-shields H2 from the first
                           ! PDR cell on.
-                          ! only PDR cells shield. Elsewhere pdrAbun still
-                          ! holds seedPDR's values - x(H2) = 0.3, x(C) and
-                          ! x(CO) likewise - because the chemistry is never
-                          ! solved there, and integrating those across the H II
-                          ! region puts ~1e21 cm^-2 of fictitious H2 in front
-                          ! of the first PDR cell. In the ionized gas the
-                          ! molecules are dissociated and carbon is C+ or
-                          ! higher, so the true shielding column is zero.
+                          ! D-088 let only PDR-zone cells shield, because
+                          ! outside the zone pdrAbun still held seedPDR's
+                          ! x(H2) = 0.3 - the chemistry never ran there - and
+                          ! integrating that across the H II region put ~1e21
+                          ! cm^-2 of fictitious H2 in front of the first PDR
+                          ! cell. D-350 removed that zone test: its premise is
+                          ! gone. The chemistry runs in every cell (D-198) and
+                          ! is seeded from MOCASSIN's ionization, with no
+                          ! molecules (D-208), so outside the zone pdrAbun is
+                          ! the chemistry's own answer - dissociated gas has no
+                          ! H2 to shield with, and says so itself. What the
+                          ! removal adds is measured below (cH2non) and printed.
                           ! ...and only cells IN FRONT of this one. Including
                           ! the target cell's own near half makes its H2 shield
                           ! itself, and that feedback is positive: more H2 ->
@@ -1383,11 +1392,13 @@ module pdr_mod
                           ! true centre column by half a cell, which is an
                           ! error that shrinks with resolution instead of
                           ! amplifying.
-                          if (cP /= cellP .and. grid(iG)%pdrZone(cP) == 1) then
+                          if (cP /= cellP) then
                              nd   = dble(grid(iG)%Hden(cP))
                              cH2S = cH2S + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
                              cCS  = cCS  + nd*dble(grid(iG)%pdrAbun(cP,NC ))*ds
                              cCOS = cCOS + nd*dble(grid(iG)%pdrAbun(cP,NCO))*ds
+                             if (grid(iG)%pdrZone(cP) /= 1) cH2non = cH2non &
+                                  & + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
                           end if
                        end do
 
@@ -1416,6 +1427,7 @@ module pdr_mod
                        fTot = fTot + fS
                        fSum = fSum + fS*exp(-RfuvL*avS/dble(magPerTau))
                        wH2  = wH2 + fS*cH2S
+                       wH2non = wH2non + fS*cH2non
                        wC   = wC  + fS*cCS
                        wCO  = wCO + fS*cCOS
                        wB   = wB  + fS*dble(magPerTau)*tauB
@@ -1429,11 +1441,24 @@ module pdr_mod
                        grid(iG)%pdrColC (cellP) = real(wC /fTot)
                        grid(iG)%pdrColCO(cellP) = real(wCO/fTot)
                        grid(iG)%AVback  (cellP) = real(wB /fTot)
+                       ! D-350: how much of this cell's H2 column the zone
+                       ! test used to drop, for the zone cells it matters to
+                       if (grid(iG)%pdrZone(cellP) == 1 .and. wH2 > 0.d0) then
+                          nTgt    = nTgt + 1
+                          fracNon = wH2non/wH2
+                          fracMax = max(fracMax, fracNon)
+                          if (fracNon > 0.01d0) nNon1  = nNon1 + 1
+                          if (fracNon > 0.10d0) nNon10 = nNon10 + 1
+                       end if
                     end if
                  end do
               end do
            end do
         end do
+        if (taskid == 0) print '(a,i7,a,i7,a,i7,a,es10.3)', &
+             & " ! [D350] zone test gone: PDR cells", nTgt, &
+             & "   H2 column >1% from non-zone cells", nNon1, "   >10%", nNon10, &
+             & "   max fraction", fracMax
 
       contains
 
@@ -1516,8 +1541,8 @@ module pdr_mod
       !-----------------------------------------------------------------
       ! D-348: what traceDiffuseSites reads, per cell, taken once per MC
       ! iteration beside the source-ward columns:
-      !   difSrc(:,1:3)  n(H2), n(C), n(CO) [cm^-3] that SHIELD - zero outside
-      !                  the PDR zone, the rule computeAVradial applies (D-088)
+      !   difSrc(:,1:3)  n(H2), n(C), n(CO) [cm^-3] that shield, in every cell
+      !                  (D-350 removed the zone test, as in computeAVradial)
       !   difSrc(:,4)    FUV extinction coefficient [1/cm], R_FUV*kappa_V from
       !                  this cell's own grains (D-109)
       !   difSrc(:,5)    FUV scattering emissivity sum_nu kSca(nu)*J(nu)
@@ -1543,12 +1568,12 @@ module pdr_mod
            grid(iG)%difSrc = 0.d0
            do cP = 1, grid(iG)%nCells
               if (grid(iG)%Hden(cP) <= 0.) cycle
-              if (grid(iG)%pdrZone(cP) == 1) then
-                 nd = dble(grid(iG)%Hden(cP))
-                 grid(iG)%difSrc(cP,1) = nd*dble(grid(iG)%pdrAbun(cP,NH2))
-                 grid(iG)%difSrc(cP,2) = nd*dble(grid(iG)%pdrAbun(cP,NC ))
-                 grid(iG)%difSrc(cP,3) = nd*dble(grid(iG)%pdrAbun(cP,NCO))
-              end if
+              ! D-350: every cell shields, with whatever the chemistry holds
+              ! there - see computeAVradial for why the zone test went
+              nd = dble(grid(iG)%Hden(cP))
+              grid(iG)%difSrc(cP,1) = nd*dble(grid(iG)%pdrAbun(cP,NH2))
+              grid(iG)%difSrc(cP,2) = nd*dble(grid(iG)%pdrAbun(cP,NC ))
+              grid(iG)%difSrc(cP,3) = nd*dble(grid(iG)%pdrAbun(cP,NCO))
               kV = dble(grid(iG)%absOpac(cP,VbandP)) &
                  & + dble(grid(iG)%scaOpac(cP,VbandP))
               rfuvL = dble(grid(iG)%dustRfuv(cP))
@@ -1642,9 +1667,9 @@ module pdr_mod
 
         need = 12*nstep
         if (allocated(siteW)) then
-           if (size(siteW) < need) deallocate(siteW, siteN, siteK)
+           if (size(siteW) < need) deallocate(siteW, siteN)
         end if
-        if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need), siteK(need))
+        if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need))
 
         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
 
@@ -1703,7 +1728,6 @@ module pdr_mod
                     ! the site sits mid-step: half its own cell is between it
                     ! and the cell (when that cell shields at all)
                     siteN(:,nSite) = max(col1, 0.d0) + cN + 0.5d0*dN
-                    siteK(nSite)   = kray
                     wRay(kray)     = wRay(kray) + w
                  end if
               end if
@@ -1745,6 +1769,44 @@ module pdr_mod
         end if
 
       end subroutine traceDiffuseSites
+
+
+      !-----------------------------------------------------------------
+      ! D-350: the share of the Draine (1978) field's 6-13.6 eV energy that
+      ! lies in the Lyman-Werner window, on MOCASSIN's own FUV bins - the
+      ! spectral shape the rate coefficients were measured in. The same
+      ! formula integrated over the band gives uDraine (8.938e-14 against the
+      ! constant's 8.94e-14), so this is the unit's own definition carried to
+      ! the window, not a new number. Computed once; D-349 found 0.1516 for
+      ! the continuous band.
+      !-----------------------------------------------------------------
+      double precision function draineWindowShare()
+        implicit none
+        double precision, parameter :: eVperRyd = 13.605693d0
+        double precision, save      :: share = -1.d0
+        double precision            :: e, de, u, uT, uW
+        integer                     :: j
+
+        if (share < 0.d0) then
+           uT = 0.d0; uW = 0.d0
+           do j = FUVlowP, FUVhighP
+              e  = dble(nuArray(j))*eVperRyd
+              de = dble(widFlx(j))*eVperRyd
+              ! Draine (1978): photons cm^-2 s^-1 sr^-1 eV^-1, times E for energy
+              u  = e*(1.658d6*e - 2.152d5*e**2 + 6.919d3*e**3)*de
+              uT = uT + u
+              if (nuArray(j) >= nuLWlo .and. nuArray(j) < nuFUVhi) uW = uW + u
+           end do
+           if (uT <= 0.d0 .or. uW <= 0.d0) then
+              print*, "! draineWindowShare: no FUV bins in the band or the window"
+              stop
+           end if
+           share = uW/uT
+           if (taskid == 0) print '(a,f8.5)', &
+                & " ! [D350] Draine field's Lyman-Werner share on the FUV bins:", share
+        end if
+        draineWindowShare = share
+      end function draineWindowShare
 
 
       ! nearest axis index by bisection. computeRayColumns used a linear scan,
@@ -2550,8 +2612,9 @@ module pdr_mod
         double precision, allocatable :: colS(:)
         integer            :: nSite, iSite, nUnsetL, iBinD, ifreqD, iDifFb   ! D-348
         double precision   :: chiDif, wTotD, anisoD, colWalkD, avWalkD      ! D-348
-        double precision   :: rDirD, rDifSrcD, rDif2D, rDifIsoD             ! D-348
-        double precision   :: wRayD(0:11)                                   ! D-348
+        double precision   :: rDirD, rDifSrcD, rDif2D, rOldD                ! D-348/D-350
+        integer            :: nDir                                          ! D-350
+        double precision   :: chiDir, fDir, fDif, sumT, sumD, lwT, lwD, jT, jD, fLWd  ! D-350
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
         integer            :: ik, il, jl, nlev, itherm, ilev
@@ -2771,40 +2834,50 @@ module pdr_mod
         ! keep the chemistry inside the temperature range it was fitted over
         Tg = min(max(Tg, dble(pdrTmin)), dble(pdrTmax))
 
-        ! ---------------------------------------------------------- D-348
-        ! THE ANGULAR MODEL (specified in D-347): the direct stellar field on
-        ! its own, plus the diffuse field as scattering sites along twelve
-        ! HEALPix directions, each site shielded by the column its photons
-        ! actually crossed.
+        ! ---------------------------------------------------------- D-350
+        ! THE PHOTORATES SEE MOCASSIN'S OWN FIELD (D-350: D-348's angular
+        ! model, with its direct ray taken off the prescription).
         !
-        ! Direct. Slots 0-11 carry chi0/12 at the source-ward A_V and column -
-        ! today's calculation, byte for byte: the twelve identical twelfths
-        ! are the one physical direct ray (D-342), and keeping them as twelve
-        ! means that with no diffuse field every rate sum is the same sum as
-        ! before plus exact zeros.
+        ! D-348 kept the direct ray on 3D-PDR's prescription - chi0 attenuated
+        ! by exp(-gamma*A_V) and SCATTER, i.e. the Savage & Mathis curve, FRR80
+        ! slab scattering with albedo 0.3 and g 0.8, and an assumed Draine
+        ! spectral shape - where MOCASSIN transports that field itself on its
+        ! own grains. That is the constant-standing-in-for-the-model the
+        ! project rules call a bug, and D-349 measured it: MOCASSIN's
+        ! Lyman-Werner field runs 2.0-2.8x the prescription's at every depth.
         !
-        ! Diffuse. chi_dif is the MC's own diffuse FUV in this cell - Jdif,
-        ! scattered and re-emitted packets, a subset of the chiFUV the heating
-        ! already takes (D-158/D-343) - and until now the reaction rates saw
-        ! none of it (D-053: "the diffuse field is currently bypassed"). It is
-        ! spread over the sites in proportion to each site's formal-solution
-        ! weight, so the MC sets the magnitude and the walk sets only how that
-        ! magnitude is distributed over directions and columns. D-347 wrote
-        ! f_dif/12 per direction; weighting by the formal solution instead
-        ! is the same sites and the same total, without assuming the diffuse
-        ! field isotropic - which is the half of O-14's matched pair D-342
-        ! identified as the defect.
+        ! Now every photorate is driven by the MC's local field, split only so
+        ! that each part is shielded by the column its photons crossed:
         !
-        ! A_V = 0 on the sites (D-343): MOCASSIN's transfer has already put
-        ! the dust attenuation into chi_dif, and applying 3D-PDR's
-        ! exp(-gamma*A_V) again would count the dust twice. The LINE shielding
-        ! still has to be applied, because MOCASSIN's dust transfer knows
-        ! nothing of H2, CO or C I lines - hence columns but no extinction.
+        !   direct   Jste - Jdif   one ray      the source-ward columns
+        !   diffuse  Jdif          the sites    their two-leg columns (D-348)
+        !
+        ! A_V = 0 on every ray: MOCASSIN's transfer has already applied the
+        ! dust, and exp(-gamma*A_V) again would count it twice (D-343). The C I
+        ! continuum term goes for the same reason (colC = 0 below): MOCASSIN's
+        ! opacity carries C I photoionization absorption (tauNu.out, tau
+        ! 12.8 -> 18.5 across 1100 A). What the chemistry adds is what the MC
+        ! does not transport - H2 and CO line shielding and the H2-line term of
+        ! the C I rate.
+        !
+        ! And the band. H2, HD and CO dissociation and C I ionization see only
+        ! 11.2-13.6 eV, while radSurf is the 6-13.6 eV integral the other
+        ! photoreactions take, and the rate coefficients assume a Draine-shaped
+        ! field. Each part's measured window share over the Draine field's
+        ! goes to the vendored routine as ray_lw_factor (D-349: this cloud's
+        ! share runs 0.299 -> 0.008 against Draine's 0.152).
+        !
+        ! The 1D flavour keeps the prescription and 12 direct twelfths: it has
+        ! no site walk, and changing it was not part of D-350 (L-24).
         nSite  = 0
         iDifFb = 0
         chiDif = 0.d0
+        chiDir = 0.d0
+        fDir   = 1.d0
+        fDif   = 1.d0
         wTotD  = 0.d0
 #ifdef RAYTHEIA
+        nDir = 1
         if (.not.allocated(grid%difSrc)) then
            ! computeAVdust takes the snapshot before any pdrStep can run; an
            ! absent one is a sequencing bug, and D-341 is what a silently
@@ -2814,10 +2887,26 @@ module pdr_mod
         end if
         call traceDiffuseSites(grid, xP, yP, zP, cellP, nSite, wTotD, &
              & anisoD, colWalkD, avWalkD, nUnsetL)
+        sumT = 0.d0; sumD = 0.d0; lwT = 0.d0; lwD = 0.d0
         do ifreqD = FUVlowP, FUVhighP
-           chiDif = chiDif + dble(grid%Jdif(cellP,ifreqD))
+           jT = dble(grid%Jste(cellP,ifreqD))
+           ! under lgDebug the diffuse packets are in Jdif ALONE
+           if (lgDebug) jT = jT + dble(grid%Jdif(cellP,ifreqD))
+           jD = dble(grid%Jdif(cellP,ifreqD))
+           sumT = sumT + jT
+           sumD = sumD + jD
+           if (nuArray(ifreqD) >= nuLWlo .and. nuArray(ifreqD) < nuFUVhi) then
+              lwT = lwT + jT
+              lwD = lwD + jD
+           end if
         end do
-        chiDif = chiDif/(dble(c)*dble(uDraine))
+        ! Jdif is a subset of Jste deposit by deposit; max() only absorbs the
+        ! rounding of two single-precision sums taken in different orders
+        chiDir = max(sumT - sumD, 0.d0)/(dble(c)*dble(uDraine))
+        chiDif = sumD/(dble(c)*dble(uDraine))
+        fLWd   = draineWindowShare()
+        if (sumT - sumD > 0.d0) fDir = max(lwT - lwD, 0.d0)/(sumT - sumD)/fLWd
+        if (sumD > 0.d0)        fDif = lwD/sumD/fLWd
         ! A diffuse field with no scattering site to place it on (no dust on
         ! any of the twelve directions) cannot be a scattered field; carry it
         ! on the source-ward column (D-344's slab-equivalent) so none of the
@@ -2826,22 +2915,33 @@ module pdr_mod
            nSite  = 0
            iDifFb = 1
         end if
+#else
+        nDir = nraysLoc
 #endif
-        nChem = nraysLoc + nSite + iDifFb
+        nChem = nDir + nSite + iDifFb
         allocate(radSurf(0:nChem-1), AVray(0:nChem-1), colH2(0:nChem-1), &
              & colHD(0:nChem-1), colCO(0:nChem-1), colC(0:nChem-1), &
              & colS(0:nChem-1))
 
-        radSurf(0:nraysLoc-1) = chi/dble(nraysLoc)
-        AVray(0:nraysLoc-1)   = av
+#ifdef RAYTHEIA
+        radSurf(0) = chiDir
+        AVray      = 0.d0
         do iSite = 1, nSite
-           radSurf(nraysLoc+iSite-1) = chiDif*siteW(iSite)/wTotD
-           AVray(nraysLoc+iSite-1)   = 0.d0
+           radSurf(nDir+iSite-1) = chiDif*siteW(iSite)/wTotD
         end do
-        if (iDifFb == 1) then
-           radSurf(nChem-1) = chiDif
-           AVray(nChem-1)   = 0.d0
+        if (iDifFb == 1) radSurf(nChem-1) = chiDif
+        ! the window factor per ray: the direct part's on ray 0, the diffuse
+        ! part's on every site and the fallback
+        if (allocated(pdrRayLW)) then
+           if (ubound(pdrRayLW,1) < nChem-1) deallocate(pdrRayLW)
         end if
+        if (.not.allocated(pdrRayLW)) allocate(pdrRayLW(0:max(nChem-1, 1023)))
+        pdrRayLW(0) = fDir
+        if (nChem > 1) pdrRayLW(1:nChem-1) = fDif
+#else
+        radSurf = chi/dble(nraysLoc)
+        AVray   = av
+#endif
 
         ! slab-equivalent shielding columns (see header)
         NHcol = av/AVfacL
@@ -2986,10 +3086,15 @@ module pdr_mod
         ! N(star -> site) + N(site -> cell). The fallback slot, if any, keeps
         ! the source-ward column assigned just above.
         do iSite = 1, nSite
-           colH2(nraysLoc+iSite-1) = siteN(1,iSite)
-           colC (nraysLoc+iSite-1) = siteN(2,iSite)
-           colCO(nraysLoc+iSite-1) = siteN(3,iSite)
+           colH2(nDir+iSite-1) = siteN(1,iSite)
+           colC (nDir+iSite-1) = siteN(2,iSite)
+           colCO(nDir+iSite-1) = siteN(3,iSite)
         end do
+#ifdef RAYTHEIA
+        ! D-350: MOCASSIN transports the C I continuum absorption, so the
+        ! chemistry's 1.1e-17*N(C) term would count it a second time
+        colC = 0.d0
+#endif
         ! D-342 removed the per-ray override that stood here: it gave each of
         ! twelve chi/12 rays its own cell -> boundary column, and the rays
         ! pointing OUT of the cloud then delivered their share unshielded,
@@ -3002,12 +3107,12 @@ module pdr_mod
         colS  = 0.d0
 
 #ifdef RAYTHEIA
-        ! D-348 diagnostics, per A_V bin: what the MC measured, what the walk
-        ! predicts, and what the angular model does to the H2 rate. The three
-        ! H2 rates are per unit alpha, from the same vendored H2PDRATE the
-        ! chemistry calls: the direct ray, the diffuse field as if it had
-        ! arrived on the source-ward column (the slab-equivalent), and the
-        ! diffuse field on its sites' two-leg columns (what is now used).
+        ! D-350 diagnostics, per A_V bin (D-348's, re-cut for the new handoff):
+        ! the field the MC measured and its window fields, the old
+        ! prescription's H2 field for comparison, and four H2 photorates per
+        ! unit alpha from the same vendored H2PDRATE the chemistry calls - the
+        ! old handoff on these columns, the new direct ray, and the diffuse
+        ! part on the source-ward column and on the sites' two-leg columns.
         iBinD = nDifBin
         do ik = 1, nDifBin
            if (av < difBinEdge(ik)) then
@@ -3015,51 +3120,37 @@ module pdr_mod
               exit
            end if
         end do
-        rDirD    = pdrH2PDRATE(1.d0, chi, av, sH2)
-        rDifSrcD = pdrH2PDRATE(1.d0, chiDif, 0.d0, sH2)
+        rOldD    = pdrH2PDRATE(1.d0, chi, av, sH2)
+        rDirD    = pdrH2PDRATE(1.d0, chiDir*fDir, 0.d0, sH2)
+        rDifSrcD = pdrH2PDRATE(1.d0, chiDif*fDif, 0.d0, sH2)
         rDif2D   = 0.d0
         do iSite = 1, nSite
-           rDif2D = rDif2D + pdrH2PDRATE(1.d0, radSurf(nraysLoc+iSite-1), &
+           rDif2D = rDif2D + pdrH2PDRATE(1.d0, radSurf(nDir+iSite-1)*fDif, &
                 & 0.d0, siteN(1,iSite))
         end do
         if (iDifFb == 1) rDif2D = rDifSrcD
-        ! ...and what D-347's literal f_dif/12 per direction would give on the
-        ! same sites: each direction carries chi_dif/12 whatever its brightness
-        wRayD = 0.d0
-        do iSite = 1, nSite
-           wRayD(siteK(iSite)) = wRayD(siteK(iSite)) + siteW(iSite)
-        end do
-        rDifIsoD = 0.d0
-        do iSite = 1, nSite
-           rDifIsoD = rDifIsoD + pdrH2PDRATE(1.d0, &
-                & chiDif/12.d0*siteW(iSite)/wRayD(siteK(iSite)), 0.d0, siteN(1,iSite))
-        end do
-        if (iDifFb == 1) rDifIsoD = rDifSrcD
         difDiag( 1,iBinD) = difDiag( 1,iBinD) + 1.d0
         difDiag( 2,iBinD) = difDiag( 2,iBinD) + dble(grid%chiFUV(cellP))
         difDiag( 3,iBinD) = difDiag( 3,iBinD) + chiDif
         difDiag( 4,iBinD) = difDiag( 4,iBinD) + wTotD/12.d0/(dble(c)*dble(uDraine))
-        ! the direct beam MOCASSIN's own extinction gives on the source-ward
-        ! A_V, against the MC's direct part chi_MC - chi_dif (D-347's
-        ! conservation property)...
-        difDiag( 5,iBinD) = difDiag( 5,iBinD) + chi*exp(-RfuvL*av/dble(magPerTau))
-        ! ...and the field the direct ray actually hands H2: 3D-PDR's SCATTER
-        ! at 1000 A, which carries its own slab scattering (FRR80)
-        difDiag( 6,iBinD) = difDiag( 6,iBinD) + chi*pdrSCATTER(av, 1000.d0)
-        difDiag( 7,iBinD) = difDiag( 7,iBinD) + rDirD
-        difDiag( 8,iBinD) = difDiag( 8,iBinD) + rDifSrcD
-        difDiag( 9,iBinD) = difDiag( 9,iBinD) + rDif2D
+        difDiag( 5,iBinD) = difDiag( 5,iBinD) + chiDir
+        difDiag( 6,iBinD) = difDiag( 6,iBinD) + chiDir*fDir
+        difDiag( 7,iBinD) = difDiag( 7,iBinD) + chiDif*fDif
+        difDiag( 8,iBinD) = difDiag( 8,iBinD) + chi*pdrSCATTER(av, 1000.d0)
+        difDiag( 9,iBinD) = difDiag( 9,iBinD) + rOldD
+        difDiag(10,iBinD) = difDiag(10,iBinD) + rDirD
+        difDiag(11,iBinD) = difDiag(11,iBinD) + rDifSrcD
+        difDiag(12,iBinD) = difDiag(12,iBinD) + rDif2D
         if (colWalkD >= 0.d0) then
-           difDiag(10,iBinD) = difDiag(10,iBinD) + colWalkD
-           difDiag(11,iBinD) = difDiag(11,iBinD) + sH2
-           difDiag(12,iBinD) = difDiag(12,iBinD) + avWalkD
-           difDiag(13,iBinD) = difDiag(13,iBinD) + av
+           difDiag(13,iBinD) = difDiag(13,iBinD) + colWalkD
+           difDiag(14,iBinD) = difDiag(14,iBinD) + sH2
+           difDiag(15,iBinD) = difDiag(15,iBinD) + avWalkD
+           difDiag(16,iBinD) = difDiag(16,iBinD) + av
         end if
-        difDiag(14,iBinD) = difDiag(14,iBinD) + anisoD
-        difDiag(15,iBinD) = difDiag(15,iBinD) + dble(nSite)
-        difDiag(16,iBinD) = difDiag(16,iBinD) + dble(iDifFb)
-        difDiag(17,iBinD) = difDiag(17,iBinD) + dble(nUnsetL)
-        difDiag(18,iBinD) = difDiag(18,iBinD) + rDifIsoD
+        difDiag(17,iBinD) = difDiag(17,iBinD) + anisoD
+        difDiag(18,iBinD) = difDiag(18,iBinD) + dble(nSite)
+        difDiag(19,iBinD) = difDiag(19,iBinD) + dble(iDifFb)
+        difDiag(20,iBinD) = difDiag(20,iBinD) + dble(nUnsetL)
 #endif
 
         abun0 = abun
@@ -3764,29 +3855,26 @@ module pdr_mod
         include 'mpif.h'
         integer, intent(in) :: iterMC
 #ifdef RAYTHEIA
-        double precision :: tot(nDifCol, nDifBin), n, dirMC
-        integer          :: ib, ierr
+        double precision :: tot(nDifCol, nDifBin), n
+        integer          :: ib, ierr, k
 
         call mpi_allreduce(difDiag, tot, nDifCol*nDifBin, &
              & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
         if (taskid == 0) then
-           print '(a,i4,a)', " ! [D348] diffuse rays, iteration", iterMC, &
+           print '(a,i4,a)', " ! [D350] photorate field, iteration", iterMC, &
                 & ", last coupling pass - means per cell, ratios of sums"
-           print '(a)', " ! [D348]  A_V bin     cells   chi_MC   chi_dif  chi_pred" // &
-                & "   dir_MC  dir_ext  dir_3DPDR    R_dir   R_difSrc  R_dif2leg  R_difIso" // &
+           print '(a)', " ! [D350]  A_V bin     cells   chi_MC   chi_dif  chi_pred  chi_dir" // &
+                & "   win_dir  win_dif  presc_H2    R_old     R_dir   R_difSrc R_dif2leg" // &
                 & "  Nwalk/N  AVwalk/AV  aniso  sites  fb  unset"
            do ib = 1, nDifBin
               n = tot(1,ib)
               if (n <= 0.d0) cycle
-              dirMC = (tot(2,ib) - tot(3,ib))/n
-              print '(a,f5.2,a,f5.2,i8,6es9.2,4es10.2,2f9.4,f7.2,f7.0,2i5)', &
-                   & " ! [D348] ", difBinEdge(ib-1), "-", min(difBinEdge(ib), 99.d0), &
-                   & nint(n), tot(2,ib)/n, tot(3,ib)/n, tot(4,ib)/n, dirMC, &
-                   & tot(5,ib)/n, tot(6,ib)/n, tot(7,ib)/n, tot(8,ib)/n, tot(9,ib)/n, &
-                   & tot(18,ib)/n, &
-                   & tot(10,ib)/max(tot(11,ib), 1.d-99), &
-                   & tot(12,ib)/max(tot(13,ib), 1.d-99), &
-                   & tot(14,ib)/n, tot(15,ib)/n, nint(tot(16,ib)), nint(tot(17,ib))
+              print '(a,f5.2,a,f5.2,i8,7es9.2,4es10.2,2f9.4,f7.2,f7.0,2i5)', &
+                   & " ! [D350] ", difBinEdge(ib-1), "-", min(difBinEdge(ib), 99.d0), &
+                   & nint(n), (tot(k,ib)/n, k = 2, 8), (tot(k,ib)/n, k = 9, 12), &
+                   & tot(13,ib)/max(tot(14,ib), 1.d-99), &
+                   & tot(15,ib)/max(tot(16,ib), 1.d-99), &
+                   & tot(17,ib)/n, tot(18,ib)/n, nint(tot(19,ib)), nint(tot(20,ib))
            end do
         end if
 #endif

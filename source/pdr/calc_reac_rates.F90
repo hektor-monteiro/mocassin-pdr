@@ -1,3 +1,4 @@
+! Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md.
 !=======================================================================
 !
 !  Calculate the rate coefficients for all reactions at the specified
@@ -50,6 +51,7 @@
       real(kind=dp)::nelectron_grc
 #endif
       real(kind=dp) :: loctemperature
+      real(kind=dp) :: LWF(0:NRAYS-1)               ! D-350
 #ifdef SUPRATHERMAL
       character(len=10)::isition1,isition2
       integer::isp
@@ -58,6 +60,18 @@
 
 !     Initialize the rate coefficients.
       RATE=0.0D0
+
+!     D-350: the Lyman-Werner-window factor per ray, when the host supplies
+!     one (global_module ray_lw_factor); otherwise 1, the upstream behaviour.
+!     A supplied array too short for NRAYS is a host error, not a default.
+      LWF=1.0D0
+      IF(ALLOCATED(ray_lw_factor)) THEN
+         IF(LBOUND(ray_lw_factor,1).GT.0 .OR. UBOUND(ray_lw_factor,1).LT.NRAYS-1) THEN
+            WRITE(6,*) 'CALCULATE_REACTION_RATES: ray_lw_factor does not cover the rays'
+            STOP
+         ENDIF
+         LWF(0:NRAYS-1)=ray_lw_factor(0:NRAYS-1)
+      ENDIF
 
 !     Initialize the stored reaction numbers. If they are not assigned
 !     subsequently, any attempt to access that reaction will generate an
@@ -247,7 +261,7 @@
  1       IF(REACTANT(I,1).EQ."H2 " .AND. REACTANT(I,3).EQ."   ") THEN
 !           Loop over all rays
             DO K=0,NRAYS-1
-               RATE(I)=RATE(I) + H2PDRATE(ALPHA(I),RAD_SURFACE(K),AV(K),COLUMN_NH2(K))
+               RATE(I)=RATE(I) + H2PDRATE(ALPHA(I),RAD_SURFACE(K)*LWF(K),AV(K),COLUMN_NH2(K))   ! D-350
             ENDDO
             IF(PRODUCT(I,1).EQ."H " .AND. PRODUCT(I,2).EQ."H ") NRH2=I
             GOTO 10
@@ -258,7 +272,7 @@
          IF(REACTANT(I,1).EQ."HD " .AND. REACTANT(I,3).EQ."   ") THEN
 !           Loop over all rays
             DO K=0,NRAYS-1
-               RATE(I)=RATE(I) + H2PDRATE(ALPHA(I),RAD_SURFACE(K),AV(K),COLUMN_NHD(K))
+               RATE(I)=RATE(I) + H2PDRATE(ALPHA(I),RAD_SURFACE(K)*LWF(K),AV(K),COLUMN_NHD(K))   ! D-350
             ENDDO
             IF(ANY(PRODUCT(I,:).EQ."H ") .AND. ANY(PRODUCT(I,:).EQ."D ")) NRHD=I
             GOTO 10
@@ -270,7 +284,7 @@
        & ANY(PRODUCT(I,:).EQ."C ") .AND. ANY(PRODUCT(I,:).EQ."O ")) THEN
 !           Loop over all rays
             DO K=0,NRAYS-1
-               RATE(I)=RATE(I) + COPDRATE(ALPHA(I),RAD_SURFACE(K),AV(K),COLUMN_NCO(K),COLUMN_NH2(K))
+               RATE(I)=RATE(I) + COPDRATE(ALPHA(I),RAD_SURFACE(K)*LWF(K),AV(K),COLUMN_NCO(K),COLUMN_NH2(K))   ! D-350
             ENDDO
             NRCO=I
             GOTO 10
@@ -284,7 +298,7 @@
       &     (PRODUCT(I,1).EQ."e- " .AND. PRODUCT(I,2).EQ."C+ "))) THEN
 !           Loop over all rays
             DO K=0,NRAYS-1
-               RATE(I)=RATE(I) + CIPDRATE(ALPHA(I),RAD_SURFACE(K),AV(K),GAMMA(I),COLUMN_NC(K),COLUMN_NH2(K),TEMPERATURE)
+               RATE(I)=RATE(I) + CIPDRATE(ALPHA(I),RAD_SURFACE(K)*LWF(K),AV(K),GAMMA(I),COLUMN_NC(K),COLUMN_NH2(K),TEMPERATURE)   ! D-350
             ENDDO
             NRCI=I
             GOTO 10

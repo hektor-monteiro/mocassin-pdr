@@ -399,6 +399,15 @@ module global_module
  REAL(kind=dp) :: h2form_xsec_sil = -1.0d0
  REAL(kind=dp) :: h2form_xsec_gra = -1.0d0
 
+! D-350: per-ray factor on the field that drives the Lyman-Werner-window
+! photoreactions - H2, HD and CO photodissociation and C I photoionization -
+! as supplied by the host: the ray's 11.2-13.6 eV share of its 6-13.6 eV
+! energy density, over the Draine field's share. The rate coefficients assume a
+! Draine-shaped field; a host that transports the real spectrum knows the
+! window's share and supplies it here. Not allocated means "not supplied" and
+! the window reactions take RAD_SURFACE unchanged, as upstream.
+ REAL(kind=dp), allocatable :: ray_lw_factor(:)
+
  real(kind=dp),allocatable :: allheating(:) 
  
 end module global_module

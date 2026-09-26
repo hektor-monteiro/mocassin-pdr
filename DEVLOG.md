@@ -349,6 +349,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-347 | **The angular model, specified at the user's direction: one direct ray plus twelve HEALPix rays, with the diffuse column redefined as (star -> scatterer) + (scatterer -> cell). D-346's "change the transport" conclusion is WITHDRAWN - this is one subroutine, using arrays that already exist.** The user asked why 1 + 12 rays through the existing 3D-PDR-style tracer cannot simply be done, and called out the circularity in my answers. The objection I had been raising was never about the rays; it was about the **column**. `computeRayColumns` traces **cell -> outer boundary**, which answers "how much is radiation arriving from OUTSIDE attenuated on its way in" - exactly right for 3D-PDR, whose FUV is an external boundary condition with `rad_surface(k)` as surface brightness streaming inward. Our geometry is the reverse: the star is inside and the diffuse field is made by scattering within the cloud, so a cell->boundary column on 11 of 12 rays asserts illumination from outside a nebula that has no outside source. That is the whole of D-342's H2 x 0.002. **The correct column is a two-leg path.** A photon scattered at P and arriving at cell C traversed `N_eff = N(star->P) + N(P->C)`, and both legs are already in hand: `N(star->P)` is stored per cell as `grid%pdrColH2/C/CO` (D-078), so it is a lookup at whichever cell the ray step is in; `N(P->C)` is what the loop already accumulates; and the weight is `scaOpac(cP)` times the local field, `scaOpac` already being read in that same loop for `cAV`. So per ray one accumulates `sum_i w_i * shield(pdrColH2(cP_i) + cH2_i)`, evaluating the non-linear shielding factor **per scattering site** rather than on a mean column. **Design:** ray 12 direct, weight `1 - f_dif`, source-ward column - i.e. today's calculation; rays 0-11 diffuse, weight `f_dif/12`, the two-leg effective column. `f_dif` is not a free parameter: D-344/D-345 measured it at 0.35 at the front rising to 1.00 at the far edge. **None of D-100's three objections applies** - no per-bin kappa is defined, the band-integrated `shield()` is applied per site, and no line resolution is needed. **Withdrawn:** D-346 said this required a new per-packet state variable carried through `pathSegment` and a new estimator array. It does not; that was me re-deriving from `ionization_mod` instead of reading what `computeRayColumns` already held. The per-packet route remains a valid but more expensive alternative, not the necessary one. **Test already built:** same fixture, seed 1001, exact comparison against both measured extremes - source-ward-everything (H/H2 at A_V 1.17) and outward-everything (no molecular zone). Not implemented yet. | Accepted | 2026-09-25 |
 | D-348 | **The angular model is implemented - and D-342's collapse was mostly a rank-ownership defect, not the outward columns.** `computeRayColumns` kept cells by `mod(cellP-(taskid+1),numtasks)` (active index) while `pdrStep` runs by `mod(iCell-(taskid+1),numtasks)` with iCell counting INACTIVE cells too, and nothing reduced the arrays: on hiipdr only **1011 of 15204** cells (6.6%) had their columns computed on the rank that read them; **93% read zeros on all twelve rays** - no shielding and optically thin line escape. So D-342's x(H2) x 0.002 measured mostly that; its arithmetic stands, its measurement (and its 0-1% for the mirror fold) is withdrawn, and the far end of D-345's bracket was never measured. **Implemented (D-347, one departure):** `computeRayColumns`/`colRay*` removed; `snapDiffuseSources` (in computeAVdust, same abundances as the source-ward columns) and `traceDiffuseSites` (per cell, on the consuming rank) walk twelve HEALPix directions; every step is a scattering site with the isotropic formal-solution weight from MOCASSIN's own grains and field and a two-leg column pdrColX(P) + N(P->C); each site is its own chemistry ray (`chi_dif*w/sum w`, A_V = 0), so H2SHIELD1/COSHIELD/C I are evaluated per site. Slots 0-11 are today's direct ray byte for byte. `Jdif` is live in every PDR run (`lgJdifLive`, derived, not a keyword). Departure: the MC's chi_dif is distributed by formal-solution weight, not `f_dif/12` per direction - the smoke test measures the brightest direction at 1.9-3.1x the mean; `R_difIso` reports the literal split. **Smoke test** (600k photons): tracer scale check passes (walked N(H2) and A_V vs computeAVradial 0.2-2%); direct + diffuse = chi_MC to +0..+8% in the H2 band, so SCATTER's own slab scattering double-counts at most 8%; at fixed abundances the H2 rate rises **x3.4 / x8.6 / x19 / x60 / x170** from A_V 1 to 2.8, almost all from the diffuse MAGNITUDE the reaction rates never saw (D-053) - the two-leg column takes back only 5-32%. Formal solution recovers 53-130% of chi_dif, falling with depth, unexplained. **Prediction** (tools/d348_angular.py): H/H2 crossing deeper, into A_V 1.8-2.6, molecular zone survives. Found, not fixed: the chemistry-pass column rescale compounds (`col0*(a1/a0)*(a2/a0)`). **Result** (`runs/d348-angular`, 22 it, 81.5%, 1 h 25): H/H2 crossing **1.168 -> 1.635** - deeper as predicted but short of the 1.8-2.6 range (the prediction used iteration 4's seeded columns, which under-shield the converged ones); molecular zone survives; x(H2) x0.02-0.98 and x(CO) x0.015-0.08 across the PDR; **C+ = C unmoved (2.283 -> 2.276), refuting that part** - C+/C is MOCASSIN's (D-162), and its transfer always carried the diffuse field; ionization front identical, T_dust within 0.15%, H budget 1.87e-4. Against Cloudy H2 moves away (crossing 1.64 vs 1.09) and deep CO moves toward it (63-120x -> 1.6-4.2x). The band-integrated normalisation this run uses overstates the Lyman-Werner drive at depth - D-349. | Accepted | 2026-09-25 |
 | D-349 | **The spectral branch reopened: the chemistry is handed the wrong band - and that is why the previous results tracked Cloudy.** H2/CO dissociation and C I ionization see only 11.2-13.6 eV, but every chi handed over is the 6-13.6 eV integral, assumed Draine-shaped (window share 0.1516, from the same Draine 1978 formula that gives uDraine). The MC's window share falls **0.299 -> 0.152 -> 0.094 -> 0.041 -> 0.008** from A_V 0.07 to 2.5 - dust extinction rising to 912 A and C I continuum above 11.26 eV - so the band integral understates window-driven rates 20-40% at the front and overstates them **1.7x / 3.9x / 20x** at A_V 1.1 / 1.7 / 2.5. **D-345 is corrected**: its f_LW/f_band compared diffuse fractions, which cannot see hardening that direct and diffuse share. **Why the baseline tracked Cloudy** (the user's question): MOCASSIN's window field over the old prescription's H2 field is **flat at 2.0-2.8 at every depth** while the band ratio grows 1.3 -> 39 - the missing diffuse field is 6-11 eV light that dissociates nothing, the prescription happens to track the window's decline, the constant factor is the 40 kK star's window share (x1.97 over Draine, so the baseline ran window-driven rates ~2x low from the first cell), and fronts move logarithmically; Cloudy's big non-stellar field is lines outside the window (D-291). Corrected: the baseline's shallow C+ = C is MOCASSIN's (D-162), not the chemistry's field. D-348's band-integrated sites therefore overshoot (x3-x170 where the window supports x2.0-2.8). **Proposed, not implemented:** window-driven reactions take the window field on every ray (direct: source share/0.1516; sites: Jdif share/0.1516) via a per-ray hook in calc_reac_rates, and the sites drop the C I continuum term the MC already transports; expected ~x2.5 on those rates. Also the direct-beam excess is spectral hardening (per-bin extinction matches the MC to 0-12%, band-mean off 8x). **Decided:** hiipdr runs 11 iterations, at the user's direction (plateau by 9). | Accepted | 2026-09-25 |
+| D-350 | **The photorates on MOCASSIN's own field, after an audit against CLAUDE.md.** The user asked whether I had read the project rules; the D-348/D-349 work broke six. Fixed at once: the four-flavour build claimed in fe4816c was unverified after the last edit (rebuilt: all four compile), and computeRayColumns was deleted untagged (now `d348-raycolumns-removed` at c7a7075). The top rule: D-348 kept the direct ray on 3D-PDR's diffuse-ISM prescription (Savage-Mathis, FRR80 albedo 0.3/g 0.8, gamma, Draine shape) where MOCASSIN owns that field, D-349's x1.97 fix patched the prescription instead of replacing it, and D-347's 'direct weight 1 - f_dif' was departed from silently. The zone test was copied into snapDiffuseSources though its D-088 premise died at D-198/D-208. Not changed: difSrc as a lagged copy and the 1D flavour's two fields; the D-348 page omitted the 3D-PDR reference. **Decided (the user):** every photorate on MOCASSIN's local field - direct (Jste - Jdif) on the source-ward column, diffuse (Jdif) on the D-348 sites' two-leg columns, A_V = 0 on all rays; H2/HD/CO/C I take each part's window field via a vendored per-ray hook `ray_lw_factor` (upstream default when unallocated), the Draine share computed on MOCASSIN's bins; the C I continuum term dropped (the MC carries it); the zone test removed from computeAVradial and the snapshot, its contribution measured in-run. 1D unchanged. **Prediction first:** crossing into A_V 1.25-1.45, H2/CO fall, C+ = C within 0.05, front and dust < 1%, budget < 3e-4, zone removal small, direct window/prescription 1.9-2.6 in the first bin, baseline = s1001 for 11 iterations. Runs d350-window and d350-base11 (c7a7075), 11 iterations, seed 1001. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -28309,3 +28310,107 @@ comparisons need the same iteration count on both sides, so the first
 Cloudy's window field; the effect of the window fix itself; whether the
 prescription's tracking of MOCASSIN's window field (point 2) holds in other
 models; why the formal solution recovers only 52-130% of `chi_dif`.
+
+---
+
+## D-350 - The photorates on MOCASSIN's own field, after an audit against the project rules (2026-09-26)
+
+### The audit
+
+The user asked whether I had read the project rules in CLAUDE.md. Measured
+against them, the D-348/D-349 work broke six.
+
+  - **"All four must compile before any change is called done."** Commit
+    `fe4816c` said all four flavours build, but the `R_difIso` diagnostic was
+    added after the 1D, plain and warm-start builds and only the 3D flavour was
+    rebuilt. Rebuilt from the committed code: all four compile. The claim was
+    true and unverified.
+  - **"Reverted work is tagged rather than deleted."** `computeRayColumns`, its
+    D-340 mirror fold and the `colRay*` arrays were deleted with no tag. Now
+    tagged `d348-raycolumns-removed` at `c7a7075`.
+  - **The top rule - no prescribed value standing in for what the model
+    knows.** D-348 kept the direct ray on 3D-PDR's diffuse-ISM prescription:
+    the Savage & Mathis curve, FRR80 slab scattering (albedo 0.3, g 0.8),
+    per-reaction gamma and an assumed Draine spectral shape - where MOCASSIN
+    transports the direct field itself, per bin, on its own grains. D-349's flat
+    x2.0-2.8 is that bug measured, and D-349's proposed fix patched the
+    prescription with a x1.97 factor instead of replacing it. It also departed
+    silently from D-347's "direct weight 1 - f_dif" - MOCASSIN's own direct
+    fraction - where only the `f_dif/12` departure was flagged.
+  - **No artificial gates.** `snapDiffuseSources` copied `computeAVradial`'s
+    `pdrZone == 1` test. Its reason (D-088: seedPDR's x(H2) = 0.3 outside the
+    zone) was removed by D-198 and D-208 - the chemistry runs in every cell,
+    seeded from MOCASSIN with no molecules - so the test was stale in both
+    places, and was propagated rather than questioned.
+  - **One reality per quantity.** `difSrc` is a lagged second copy of n(H2),
+    n(C), n(CO), and the 1D flavour still has two FUV fields (heating on the MC
+    field, chemistry on the prescription). Not changed here.
+  - **Artifacts.** The D-348 page compared against the baseline and Cloudy and
+    left out the standalone 3D-PDR reference the practice includes as a sanity
+    range.
+
+**Decided, the user's direction:** fix the first two now; implement the top
+rule and the gate removal next, in place of D-349's proposal; test at 11
+iterations against an 11-iteration baseline.
+
+### The design
+
+Every photorate is driven by MOCASSIN's local field, split only so each part is
+shielded by the column its photons crossed:
+
+    direct   Jste - Jdif   ray 0          source-ward columns
+    diffuse  Jdif          D-348's sites  two-leg columns
+
+  - **A_V = 0 on every ray.** MOCASSIN's transfer has applied the dust;
+    `exp(-gamma*A_V)` again would count it twice (D-343's argument, now for the
+    direct part too).
+  - **The window.** H2, HD and CO dissociation and C I ionization take each
+    part's Lyman-Werner field: `radSurf` stays the 6-13.6 eV integral the other
+    photoreactions use, and a new vendored hook, `ray_lw_factor` in
+    `global_module` (D-195's pattern: not allocated means upstream behaviour),
+    multiplies it in those four branches by the part's measured window share
+    over the Draine field's. The Draine share is computed from the Draine (1978)
+    formula on MOCASSIN's own FUV bins (`draineWindowShare`), the formula that
+    also reproduces `uDraine`. Recorded in `UPSTREAM.md`.
+  - **The C I continuum term goes** (`colC = 0`): MOCASSIN's opacity carries C I
+    photoionization absorption (`tauNu.out`, tau 12.8 -> 18.5 across 1100 A).
+    The chemistry keeps what the MC does not transport: H2 and CO line
+    shielding and the H2-line term of the C I rate.
+  - **The zone test is removed** from `computeAVradial` and
+    `snapDiffuseSources`; every cell shields with what the chemistry holds.
+    What that adds to the H2 columns is measured in the run (`[D350] zone test
+    gone`), so the two changes can be told apart without a second run.
+  - The 1D flavour is unchanged: no site walk, the prescription on twelve
+    twelfths, the hook unallocated. Changing it is item 5 of the audit, not
+    decided.
+
+Cost stated plainly: the other ~48 photoreactions lose 3D-PDR's per-reaction
+dust factors and take the band-integrated MC field - an approximation, but on
+MOCASSIN's own data.
+
+All four flavours compile.
+
+### The test, and the prediction committed first
+
+Two runs, seed 1001, 14 ranks each, 11 iterations: `runs/d350-window` (this
+code) and `runs/d350-base11` (commit `c7a7075`, the physics of s1001, built in a
+worktree). Run side by side, 28 ranks on the 14 physical cores; results depend
+only on the seed and the rank count, so this costs time, not correctness.
+
+In `tools/d350_window.py`:
+
+  1. H/H2 crossing deeper than the baseline's, by much less than D-348's: into
+     A_V **1.25-1.45**;
+  2. x(H2) and x(CO) fall against the baseline at every sampled depth, and at
+     A_V >= 1.3 by less than in D-348 (no bracket claimed nearer the front,
+     where the window factor exceeds D-348's band-shaped one);
+  3. C+ = C moves by less than 0.05;
+  4. ionization front and T_dust each move by less than 1%;
+  5. the hydrogen budget holds to better than 3e-4;
+  6. non-zone cells supply more than 1% of the H2 column in fewer than 1% of
+     PDR cells;
+  7. in the first A_V bin the direct window field over the old prescription's
+     H2 field is 1.9-2.6 - the star's window share over Draine's;
+  8. the baseline reproduces s1001's first 11 iterations to nine digits.
+
+T_gas and the minor species are not predicted.
