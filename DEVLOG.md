@@ -345,6 +345,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-343 | **The revert verifies (15 of 17 files byte-identical, the other two explained and one of them a third uninitialised read), and the user corrects the premise of the direct/diffuse design before it was built.** `runs/d342-revert` against `runs/d334-hiipdr/s1001` at seed 1001: **15 of 17 output files byte-identical**, confirming the D-342 revert restored the exact validated state rather than something close. Of the two that differ, `summary.out` is wall-clock timestamps, and `SED.out` has **all 2400 spectral entries identical** with only its final line changed - `Final SEDratio: 1.12e-44` against `-2.51e+36`, for a quantity that is a ratio of two luminosities. Cause: `SEDratio` is assigned inside `do imu = 1, nAngleBins` and printed after it, so with no viewpoints configured (`nAngleBins = 0`, what every PDR fixture uses) the loop never ran and the print read an uninitialised local. **Harmless** - the loop that would have divided the SED by it never ran either - but it is the **third uninitialised read this session** after `ionDenPrev` (D-334) and it made the byte-identity test permanently dirty, which is the test the seed keyword exists to enable. Initialised to 1. **On the design: the user's correction lands before any code.** I had read `chiFUV` as the direct field only, because `mocassinToPDR` sums `Jste` and adds `Jdif` just `if (lgDebug)`. The user pointed out that **`Jste` already carries the diffuse packets summed in** - `Jdif` is a mirrored subset kept as a diagnostic (D-158), not an additional term. So the diffuse component is **not missing from the magnitude**: `chiFUV` is the total local field, and the D-026 inversion folds scattering into `A_V,eff`. What is actually wrong is only its **direction** - the diffuse part is being given the source-ward molecular column for line shielding when it arrives from many directions. That makes the split much safer than D-342's failure suggests: there, 100% of the field was spread isotropically over rays with no column, which is why H2 died; here only the genuinely diffuse **fraction** would be, so the effect is bounded by that fraction. **Design, recorded before implementation:** 13 rays - index 12 the direct ray carrying `chiFUV0` with the source-ward `A_V` and source-ward columns (exactly today's calculation, so it reduces to the validated answer as the diffuse fraction goes to zero), indices 0-11 the diffuse rays carrying `chi_dif/12` with **`A_V = 0`** (the MC has already attenuated it - attenuating again would double-count dust) and their own traced columns. Energy is conserved by construction if the direct ray's effective `A_V` is inverted against `Jste - Jdif` rather than `Jste`. **Blocking unknown, so measure first:** `Jdif` is only reset and MPI-reduced when `pdrSplitField /= 0` or debug is on, so by default it is stale and carries ~1/numtasks of the field - D-225 already found that, reading a "diffuse fraction" of ~0.07 whatever the truth. A `chi_dif` column is added to `pdrFUV.out` (diagnostic, documented as meaningless without the switch) and `runs/d343-diffuse` runs hiipdr at seed 1001 with `pdrSplitField 1`. It answers two things at once: the diffuse fraction against depth, which sizes the whole design, and - by byte-comparing the physics outputs against s1001 - whether `pdrSplitField` is genuinely physics-neutral. **No field-splitting code written yet, deliberately.** | Accepted | 2026-09-25 |
 | D-344 | **The diffuse fraction is measured, it dominates the PDR (75-100%), and it kills the 13-ray design I proposed one entry ago rather than justifying it.** `runs/d343-diffuse` (hiipdr, seed 1001, `pdrSplitField 1`): **`pdrSplitField` is verified physics-neutral** - all 22 iterations match `runs/d334-hiipdr/s1001` to nine digits and 14 of 17 output files are byte-identical, the three exceptions being `summary.out` (timestamps), `pdrFUV.out` (the new `chi_dif` column) and `SED.out` (only the `SEDratio` line D-343 fixed). The code asserted this switch was diagnostic-only and nobody had checked; it is. **The measurement:** diffuse fraction `chi_dif/chi_MC` against depth = **0.346 / 0.572 / 0.747 / 0.866 / 0.929 / 0.966 / 0.991 / 1.000** at A_V 0-0.2 / 0.2-0.47 / 0.47-0.8 / 0.8-1.2 / 1.2-1.6 / 1.6-2.1 / 2.1-2.6 / 2.6-3.05, monotonic, on 15204 cells. Physically as expected: the direct beam is extinguished exponentially while the scattered field is replenished from all sides, so **deep PDR gas sees essentially no direct starlight at all.** So this is not a few-per-cent effect to be closed as negligible - the angular question is real and large. **But D-343's design is wrong, and this measurement is what shows it.** It would give each diffuse ray the column traced **outward** from the cell to the boundary. That measures only the *last leg* of a scattered photon's path. A photon scattered near the outer edge and travelling inward passed through the inward column from the star *before* it scattered, and that H2 is not in the outward trace. Using the outward column therefore under-counts the H2 the photon actually crossed - which is precisely the error D-342 measured, where H2 fell by 500-1000x and the molecular zone vanished. **The slab-equivalent treatment is a better approximation than it looks**, because the dominant H2 column along almost any FUV photon's path is the inward leg it shares with the direct beam. Proper treatment needs the absorption history accumulated along each packet's path - a Monte Carlo problem MOCASSIN is equipped for, not a twelve-ray post-hoc geometry. **And a sharper question displaces the angular one entirely.** The band is 0.4537-0.9997 Ryd (2010-912 A). H2 and CO dissociation and C ionization all live in the Lyman-Werner range **0.821-0.999 Ryd** (1110-912 A). **Lyman alpha sits at 0.7496 Ryd - inside the band, below the dissociating range.** If the diffuse FUV is Lya-dominated, as an H II region makes likely and as D-303/D-304's existing Lya correction against Cloudy already hints, then the single band-integrated chi handed to every photoreaction is **inflated for the reactions that matter** while contributing nothing to them, and the model over-dissociates H2. Consistent with hiipdr's H/H2 crossing sitting at A_V 1.17 against Cloudy's 1.09 - MOCASSIN's H2 forms slightly too deep. **Falsifiable and cheap:** dump `Jdif` per frequency bin across 384-420 for a few cells and see whether the diffuse excess is concentrated at the Lya bin or spread across the band. That measurement decides whether the angular model matters for molecules at all, and it comes before any of it. No field-splitting code written. | Accepted | 2026-09-25 |
 | D-345 | **The diffuse FUV is dust-scattered continuum, flat across the band - so the spectral branch is closed as measured-and-small, and the angular model is what is left. The pre-registered prediction is refuted.** `runs/d345-fuvspec` (hiipdr, seed 1001, `pdrSplitField 1`, 22 iterations, 74.8553009%, tracking `s1001` to nine digits at every iteration, so the dump is physics-neutral). `Jdif/Jste` per bin, shell-averaged: in the outermost shell it runs **0.99, 0.98, 0.97, 0.95, 0.93, 0.94, 0.96, 0.91, 0.97, 0.93, 0.93** from 0.454 to 0.999 Ryd - **flat, with only a mild blue-ward decline.** Diffuse fraction of the whole band against diffuse fraction inside the Lyman-Werner window: **f_LW/f_band = 0.83 / 0.86 / 0.86 / 0.89 / 0.91 / 0.93 / 0.94 / 0.98** over eight log-radial shells, and the Lya bin carries **0.2-1.8%** of the diffuse total. **So there is no spectral inflation to fix.** The band integral overstates the LW-relevant diffuse content by 17% in the innermost shell (13 cells, noisy) and by **2-9% through the PDR proper** - real, measured, and far too small to explain anything. D-291's conclusion is confirmed from MOCASSIN's own side for the first time rather than from code inspection: no Lya, because `ilow >= 2` excludes the Lyman series by construction, and what is there is scattered continuum. `f_band` itself reproduces D-344 on a different binning (0.17 -> 0.98 over radial shells against 0.35 -> 1.00 over A_V), which is a useful cross-check on both. **What remains is the angular treatment, and the bracket on it is alarming rather than reassuring.** Both extremes are now measured on the same fixture at the same seed: give every ray the source-ward column (today) and the H/H2 crossing sits at A_V 1.17 against Cloudy's 1.09; give every ray its own outward-traced column (D-342) and **there is no molecular zone at all**. The truth is somewhere in that interval, which spans "a normal PDR" to "no molecules". Since 75-100% of the PDR field is diffuse (D-344), the line shielding of the scattered component is a **first-order** control on molecular content, not a refinement - and the sign of the correction is not predictable from anything measured, because a scattered photon's path is longer than the radial one but runs partly through less molecular gas. **Consequence for D-331/D-333:** the molecular observables the code is being taken to production for - CO and H2 line intensities - sit downstream of a quantity currently bracketed between "normal" and "zero". That ordering was not visible before this measurement. Proper treatment needs H2 line opacity accumulated along each packet's path during transport, which MOCASSIN is equipped to do and a twelve-ray post-hoc geometry is not (D-344). Not started. | Accepted | 2026-09-25 |
+| D-346 | **D-345's "next step" is corrected: H2 opacity IS implemented, and D-100 already ruled out the route I proposed - for three structural reasons, one of which no amount of path accumulation fixes.** The user pointed out that H2 opacity exists. It does: `yanH2xSec` (Yan, Sadeghpour & Dalgarno) is in the Monte Carlo opacity via `addOpacity` (`ionization_mod.f90:385-470`). But it is the **photoionization continuum above 15.43 eV**, and its own comment says it is "explicitly ZERO below the 15.4 eV threshold" because H2 absorption in 13.6-15.4 eV is line opacity in the higher electronic bands, not a continuum - Cloudy the same (D-139, which added a 13.6-15.4 eV continuum and then reverted it). The **Lyman-Werner window is 0.821-0.999 Ryd = 11.2-13.6 eV**, entirely below 15.43 eV, so the implemented cross section returns exactly zero across the whole band that dissociates H2. D-100 chose it *for that reason*: "its decisive property is where it sits ... it cannot double-count against anything 3D-PDR is already doing", the live hazard being D-050's double-attenuation, not accuracy. **And D-100 already answered the question D-345 re-opened.** Asked whether 3D-PDR's self-shielding could be reused as a MOCASSIN opacity, it said no, structurally: (1) `H2SHIELD1` is a function of the **column**, and the MC accumulates `tau = sum kappa ds` with no memory of what a packet already traversed - a shielding factor is that integral, already taken; (2) it is **not an exponential**, so no kappa reproduces it - the implied sigma runs 3.22e-15 at N(H2)=1e14 down to 6.90e-21 at 1e20, a factor **4.7e5**, because absorption sits in ~30 discrete bands whose cores black out early and then the damping wings do the work; (3) **no frequency resolution** - 17 bins across 912-1108 A at ~3564 km/s each against a thermal H2 line width of ~0.9 km/s at 100 K. **What that does to D-345's proposal.** I wrote "H2/CO line opacity accumulated along each packet's path during transport". As an *opacity per frequency bin* that is refuted by all three points. What is not refuted, and is what I should have written, is a **per-packet accumulated-column estimator**: each packet carries the H2 column it has traversed and contributes `weight x shield(N_traversed)` to a separate dissociation-rate estimator, applying the existing band-integrated shielding function **per packet** rather than to a mean column. That supplies exactly the memory D-100 identified as missing (1), needs no exponential (2), and needs no line resolution (3), because the band-integrated factor is what is being weighted. It is a new per-packet state variable and a new estimator array - a real change to the transport, not a patch, and correspondingly not cheap. **Nothing in D-345's measurements changes**; only its stated next step, and the register entry that repeated it. **Process:** this is the third time in this session that prior work has corrected a conclusion I reached from the code in front of me - D-338/D-339 on O-14's contents, D-344/D-345 on Lya, and now this. The log holds 345 entries and searching it costs one grep. Doing that first is now the rule, not the remedy. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27718,3 +27719,89 @@ doing before the full implementation:
     star to that point plus the column from there to the cell. That is a
     tractable approximation with the right limiting behaviour, and it would
     show whether the answer sits near the source-ward end or the outward end.
+
+---
+
+## D-346 - H2 opacity exists, and D-100 already ruled out D-345's route (2026-09-25)
+
+The user pointed out that H2 opacity has already been implemented. It has, and
+the correction matters more than the fact.
+
+### What is implemented, and where it sits
+
+`yanH2xSec` (Yan, Sadeghpour & Dalgarno) at `ionization_mod.f90:385`, entering
+the Monte Carlo opacity at :470 through `addOpacity`. It is the H2
+**photoionization continuum**, and its own comment is explicit:
+
+> Zero below the 15.4 eV threshold: H2 absorption in the 13.6-15.4 eV window is
+> line opacity in the higher electronic bands, not a continuum, and Cloudy
+> treats it that way too (D-139).
+
+D-139 tried adding a continuum in 13.6-15.4 eV and reverted it, because Cloudy
+puts zero there and nothing was leaking anyway.
+
+The Lyman-Werner window is **0.821-0.999 Ryd = 11.2-13.6 eV**, entirely below
+15.43 eV. So the implemented cross section returns exactly zero across the whole
+band that dissociates H2. That is not an oversight - D-100 selected it for that
+property:
+
+> Its decisive property is *where it sits*: 15.43 eV is above the Lyman limit and
+> far above the FUV band the PDR owns. **It cannot double-count against anything
+> 3D-PDR is already doing** - and double-counting is the live hazard, not
+> accuracy.
+
+The hazard named there is D-050: handing the PDR an already-attenuated field
+while its rate expressions re-apply `exp(-gamma*A_V)`.
+
+### D-100 already answered what D-345 re-opened
+
+Asked whether 3D-PDR's self-shielding function could serve as a MOCASSIN
+opacity, D-100 said no, and gave three structural reasons:
+
+1. **Column, not density.** The Monte Carlo accumulates `tau = sum kappa ds`
+   cell by cell with no memory of what a packet already traversed. A shielding
+   factor *is* that integral, already taken.
+2. **Not an exponential**, so no `kappa` reproduces it. Defining
+   `kappa_eff = -d ln f / dN` gives 3.22e-15 at N(H2) = 1e14 falling to
+   6.90e-21 at 1e20 - a factor **4.7e5** - because absorption sits in ~30
+   discrete bands whose cores black out early, after which the damping wings do
+   the work. One opacity per frequency bin cannot represent a medium opaque at
+   line centre and transparent between lines.
+3. **No frequency resolution.** 17 bins across 912-1108 A, ~3564 km/s each,
+   against a thermal H2 line width of ~0.9 km/s at 100 K.
+
+### What that does to D-345's next step
+
+D-345 said: "H2/CO line opacity accumulated along each packet's path during
+transport." Read as *an opacity per frequency bin*, which is how it is written,
+all three objections apply and it is refuted.
+
+What survives - and what I should have written - is a different object: a
+**per-packet accumulated-column estimator.** Each packet carries the H2 column
+it has traversed, and contributes `weight x shield(N_traversed)` to a separate
+dissociation-rate estimator. The band-integrated shielding function is applied
+**per packet**, not to a mean column.
+
+That answers each objection rather than evading it. It supplies exactly the
+memory (1) identifies as missing. It never needs an exponential, because the
+non-linear factor is evaluated once per packet at its own column (2). And it
+needs no line resolution, because what is being weighted is the band-integrated
+factor the chemistry already uses (3).
+
+It is also honestly expensive: a new per-packet state variable carried through
+`pathSegment`, and a new estimator array beside `Jste`/`Jdif`. A change to the
+transport, not to the handoff.
+
+D-345's *measurements* are untouched - the diffuse field is still scattered
+continuum, still flat across the band, and the bracket on the angular treatment
+is still "normal PDR" to "no molecules". Only the stated next step changes, and
+the register entry that repeated it.
+
+### Process
+
+This is the third time this session that prior work has corrected a conclusion I
+reached from the code in front of me: D-338/D-339 on what O-14 actually
+contained, D-344/D-345 on Lyman alpha, and now D-100 on the H2 opacity route.
+Each time the answer was already in the log, and each time the user found it
+first. The log has 346 entries and searching it costs one grep. Searching before
+proposing is the rule now, not the remedy after.

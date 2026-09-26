@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-345, 2026-09-25. Reference model throughout: the 150 kK PN,
+Status as of D-346, 2026-09-25. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -172,10 +172,28 @@ shielding bracket the answer between an H/H2 crossing at A_V 1.17 and **no
 molecular zone at all** (D-342). CO and H2 observables sit downstream of that
 bracket; [C II] does not.
 
-**Next:** H2/CO line opacity accumulated along each packet's path during
-transport - a design task in the transport, not a patch in the handoff. Two
-cheaper narrowing steps first: check `colRayAV` against the cell's own A_V for a
-scale error in `computeRayColumns` (listed in D-342, not done), and a
+**Next** (restated by D-346). Note first what is already there: `yanH2xSec` puts
+the H2 **photoionization continuum** into the Monte Carlo opacity, but it is zero
+below 15.43 eV by design, so it contributes nothing across the Lyman-Werner
+window (0.821-0.999 Ryd) that dissociates H2. D-100 chose it precisely because it
+cannot double-count against 3D-PDR's own self-shielding.
+
+D-100 also ruled out the obvious route: 3D-PDR's shielding function cannot be
+reused as a per-bin opacity, because it is a function of the column not the
+density, it is not an exponential (implied sigma varies 4.7e5 from
+N(H2) = 1e14 to 1e20), and the grid has 17 bins of ~3564 km/s across 912-1108 A
+against a ~0.9 km/s thermal line width.
+
+What survives is a **per-packet accumulated-column estimator**: each packet
+carries the H2 column it has traversed and contributes `weight x
+shield(N_traversed)` to a separate dissociation-rate estimator, applying the
+band-integrated shielding factor per packet rather than to a mean column. That
+supplies the memory D-100 identified as missing, needs no exponential, and needs
+no line resolution. It is a change to the transport - a new per-packet state
+variable and a new estimator array - not a patch in the handoff.
+
+Two cheaper narrowing steps first: check `colRayAV` against the cell's own A_V
+for a scale error in `computeRayColumns` (listed in D-342, not done), and a
 single-scattering estimate using the column from the star to the scattering
 point plus the column from there to the cell.
 
