@@ -355,6 +355,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-353 | **Both Cloudy artifacts rebuilt on the current code, and the two fixtures now disagree in opposite ways about H2.** hiipdr v13 from `runs/d352-s2` (no rerun: same binary and settings): the H/H2 crossing moved from A_V 1.18 to 1.37, away from Cloudy's 1.09, because D-350's photorates see a Lyman-Werner field 2.5-4.6x the old prescription; T_dust 3-7% below Cloudy (was 5-9%); v12's headline front (3.80 pc) and C+ = C (2.24) were stale and are 3.824 and 2.273 by the page's own scripts. pn150k on `runs/d353-pn150k` (seed 1001, against `d334-pn150k/s1001`): 90.13% at iteration 9 in 1 h 28; **the H/H2 crossing moved 0.252 -> 0.375, onto Cloudy's 0.368**, with a window field 4.9-6.4x the prescription; CO's edge excess 60x -> 2.6x; PDR dust up 3-7% toward Cloudy, **but ionized-gas dust down 7-8%, away from it (not decomposed)**; T_gas -6%/-4% at A_V 0.28/0.37 where the transition moved; high-ionization lines 2-5% lower, not separated from the earlier stop. | Accepted | 2026-09-26 |
 | D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). **Result: passes 2-5 then moved no cell by 0.1% (largest 4.6e-4); one pass of one solve matches five of three to 0.1% in T_gas, 0.4% in PE, exactly in T_dust, at 20:48 against 50:42 (1.5 against 5.3 min per chemistry iteration). The rescale was a positive feedback: hiipdr's H/H2 crossing moves 1.367 -> 1.444, further from Cloudy's 1.09 - the fix is taken. Loops collapsed, `pdrCoupleIter`/`pdrChemIter` retired (inert), refactor verified byte-identical (17/18 files, summary.out timestamps). L-25 closed.** | Accepted | 2026-09-26 |
 | D-355 | **Both Cloudy artifacts rebuilt on the D-354 code. pn150k runs 2.4x faster (36 min against 1 h 28) and its H/H2 crossing moves 0.375 -> 0.405, from 0.007 to 0.037 past Cloudy's 0.368 - the same direction as hiipdr's 1.367 -> 1.444, and smaller.** hiipdr from `runs/d354-collapse` (the committed binary); pn150k `runs/d355-pn150k` (seed 1001, d353's input): 90.65% at iteration 9, chemistry iterations 3.6-5.7 min against 12.2-14.5. n(H2) at A_V 0.30 107 -> 64 (Cloudy 110); CO down 9-50%; T_gas within 1.8%, T_dust and PE unchanged, lines within 0.2%. hiipdr v15 and pn150k v13 published; the 'about 4 min' claim corrected on both. | Accepted | 2026-09-26 |
+| D-356 | **The user's four observations against Cloudy, measured channel by channel on both fixtures. (2) The ionized-zone molecular excess (H2 3e4-2e5x, CO to 1e14x, HCO+ to 1e20x) is a MOCASSIN defect: inside the chemistry solve the linked ions recombine with no ionization source, so the H II region's molecules are computed in neutral 9-20 kK gas (solver x(H) = 1, x(H+) = 1e-3, x_e = 1e-3 of MOCASSIN's) and only the atoms are re-imposed after - two x(H+) in one cell; O-03 diagnosed. H2 grain formation runs 5000x Cloudy's on that n(H); photodissociation per H2 agrees to 15%; Cloudy's H2 photoionization (54-81% of its loss) is absent. (3) H3+: follows H2 in the ionized zone, goes as n(H2)^2 through the transition (39x H2 -> 1600x), plus HeH+ routes absent; deep formation agrees to 1-3%, the 3-4x excess is the electron deficit. (4) Oxygen closes to 3e-5; molecules hold <= 3e-4 of O. (1) Cloudy's approximations bound at order unity; the gaps are chemistry.** `pdrDiagRates 2`, `tools/d356_channels.py`, `tools/d356_compare.py`; D-258's H2+/CH5+ label swap found still live. Fix options A/B/C put to the user. | Open | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -29562,3 +29563,283 @@ Accepted. Open:
     the chemistry sees MOCASSIN's own field and no self-shielding feedback;
   - the ionized-gas dust temperature on pn150k (D-353);
   - run-to-run timing variation of ~20% on an unloaded machine.
+
+---
+
+## D-356 - Four observations against Cloudy, and what its assumptions allow (2026-09-26)
+
+The user, looking at D-355's pages, made four points and asked that they be
+understood in the light of Cloudy's assumptions:
+
+  1. Cloudy uses an outward-only approximation for the diffuse field and
+     escape probabilities for line transfer. The comparisons should not be
+     exact: Cloudy is a reference, not a target.
+  2. In the ionized zone of both models the molecules are systematically more
+     abundant in MOCASSIN than in Cloudy.
+  3. H3+ is one of the most discrepant species in both.
+  4. O does not seem to fall as CO, OH and the other molecules rise.
+
+### Step A: measured from the D-355 runs (`d356_ratios.py`)
+
+MOCASSIN/Cloudy, the ionized zone matched in radius:
+
+    hiipdr  r [pc]   1.55     2.06     2.57     3.07
+      H2            2.3e5    1.4e5    7.2e4    2.9e4
+      H3+           8.1e3    8.6e3    6.6e3    3.0e3
+      CO            2e11     6e9      3e8      7e6
+      OH            9e7      1e7      2e6      2e5
+      HCO+          2e16     7e14     3e13     5e11
+      H, e-, O+    0.9-1.4, 1.0, 1.0-1.5
+    pn150k r [pc]  0.032    0.054    0.076    0.097
+      H2            2.2e5    4.7e4    1.5e4    2.4e3
+      CO            1e14     7e10     6e8      5e6
+      HCO+          2e20     5e16     1e14     1e11
+
+The atoms and electrons agree to tens of per cent, and the molecular excess
+grows toward the star. **Point 4 is expected in both codes.** CO + OH + H2O
+hold at most 5.7e-4 of the oxygen (hiipdr, A_V 2.9) and 1.4e-5 (pn150k), and
+Cloudy's shares are smaller still. O/O_tot is 0.9994-1.0000 everywhere past
+the front in both, so no visible fall is possible. (Closure of MOCASSIN's own
+oxygen sum against O/H x n_H, O2 included, is checked below.)
+
+### The hypothesis for point 2, recorded before the rate diagnostic
+
+Read from the code, not yet measured. Inside the chemistry solve the network
+keeps radiative recombination of H+, He+, O+ (reactions 242, 243, 248) and C+
+and Mg+. D-260 restored them because without them the internal x_e inflated
+in shielded gas. But it has **no photoionization of H, He or O at all**; C
+and Mg have their FUV channels. MOCASSIN re-imposes its own ionization after
+the solve (D-162, D-231), but not before the molecules are computed.
+
+In an H II cell, then, H+ recombines inside the solve on ~1 / (alpha n_e)
+~ 800 yr at 1e4 K and n_e = 100, well inside the solver's 1e7 yr span. The
+molecules come out of the chemistry of a 10^4 K **neutral** gas:
+
+  - x(H) ~ 1 instead of 1e-4, so grain formation of H2 rises by the same
+    factor;
+  - x(H+) near the cosmic-ray level, so H+ + H2 -> H2+ + H, the leading H2
+    sink at 1e4 K, is lost;
+  - x_e from the cations, ~C+ only, so the dissociative recombinations that
+    destroy HCO+, H3+ and OH+ are 1e3 slower;
+  - O neutral, so H2 + O -> OH (3e-9 cm^3 s^-1 at 1e4 K) opens the oxygen
+    chain.
+
+The re-imposition then puts x(H), x(H+) and n_e back to MOCASSIN's values,
+which is why H0 and n_e agree with Cloudy while H2 is 1e5 high. It is O-03's
+signature (D-267: "H0 and n_e agreeing"), and it would be a
+one-reality-per-quantity defect: x(H+) inside the solve is not MOCASSIN's.
+
+**Predictions for the diagnostic below** (`pdrDiagRates 2`, hiipdr seed 1001):
+
+  - (a) In cells with MOCASSIN x(H+) > 0.9, the solver's internal x(H+) is
+    below 1e-2 and its internal x(H) above 0.5.
+  - (b) There H2 formation is dominated by grains, at a rate within a factor
+    of a few of k_gr n_H n_H x(H)_internal. H2 loss is dominated by
+    photodissociation, because H+ + H2 is starved.
+  - (c) The internal x_e is < 1e-2 of MOCASSIN's in those cells.
+
+*Falsified* if the internal x(H+) tracks MOCASSIN's in ionized cells. The
+excess would then have to come from missing destruction channels (H2
+photoionization above 15.4 eV, EUV photodissociation, the H- route Cloudy
+has), which are candidates in either case.
+
+For point 3, two H3+ regimes need separating: the ionized zone, where it
+follows the H2 excess, and the transition (hiipdr A_V 0.66-1.19, where
+H3+/Cloudy is 6e-5-1e-2 while H2/Cloudy is 0.004-0.7). That is a deficit
+that H2 alone does not explain. Cloudy's creation and destruction channels
+for H3+ there will be read from a Cloudy re-run (`save chemistry rates`),
+not assumed. Candidates are H2 photoionization past the front, excited H2
+(H2*) + H+ -> H2+, which the reduced network has no H2* for, and the deep
+electron deficit (MOCASSIN n_e 0.3-0.4x Cloudy past A_V 2.2, where H3+ is
+1.7-3.5x).
+
+For point 1: an outward-only diffuse field or escape-probability line
+transfer changes fields and level populations by factors of order unity. It
+cannot make five to twenty decades. Where the codes differ by that much, the
+difference is in the chemistry each solves, and that is what is measured
+here.
+
+### The instruments
+
+  - **`pdrDiagRates 2`** (`pdr_mod.f90` `writeReactionRates`) writes
+    `output/pdrReacRates.out` for one cell per 0.1 dex of A_V on rank 0, from
+    the last MC iteration. Each row holds every reaction's volume rate on the
+    solver's own state, with the ODE's weights (`odes_reduced.c`), plus that
+    state and the state MOCASSIN re-imposes after it. It is diagnostic only:
+    `runs/d356-hiirates` reproduces `d354-collapse` in 17 of 18 files, and
+    `runs/d356-pnrates` reproduces `d355-pn150k` in 17 of 18, with only the
+    `summary.out` timestamps differing.
+  - **`tools/d356_channels.py`** attributes the rates to species with the
+    network's stoichiometry. **`tools/d356_compare.py`** sets MOCASSIN's
+    leading channels beside Cloudy's at matched depth: radius inside the
+    front, A_V beyond it.
+  - **Cloudy re-runs** `runs/d356-cloudy-hii` and `runs/d356-cloudy-pn` are
+    the D-277/D-302 inputs plus `save chemistry rates creation/destruction`
+    for H2, H2+, H3+, CO and OH. Cloudy's `mole_save` writes k times the
+    reactant densities, the same units.
+  - **D-258's label defect is still live.** `species_reduced.d` names slot 3
+    H2+ and slot 5 CH5+; the generated ODE integrates them the other way
+    round. D-258 recorded that transposing the two lines fixes it and never
+    did. Every output labelled H2+ is CH5+, and vice versa, but the
+    chemistry itself is right in the ODE's own indices. The reader swaps the
+    labels back and re-weights the affected rates. Where one slot is exactly
+    zero (ionized cells), those few rates cannot be recovered and are left
+    out.
+
+### Result: the hypothesis for point 2 holds, and it is a defect
+
+  - **(a) Held.** In every ionized cell, the solver works on neutral gas:
+
+        hiipdr, A_V 0.13-0.40 (T 8600-9400 K)  solver     MOCASSIN
+          x(H)                                  1.0        1.2e-4 - 3.6e-3
+          x(H+)                                 8.6e-4     1.0
+          x_e                                   1.1e-3     1.10
+          x(O) / x(O+)                          3.3e-4 / 2e-7    1e-9 - 1e-6 / 3.3e-4
+          x(He+)                                1.4e-6     0.10
+        pn150k, A_V 0.01-0.10 (T 12000-20000 K): the same, x(H) 1.0 vs 2e-4-3e-2
+
+    It reaches past the front on pn150k. At A_V 0.15-0.23 (T 5240-236 K)
+    the solver's x(H+) is 10-30x below MOCASSIN's, and at 0.15 its x_e is
+    25x lower. That is where pn150k's H2 and H3+ transition sits. In the PDR
+    proper the two states agree.
+  - **(b) Held.** In hiipdr's ionized cells H2 is 93% formed on grains, on
+    the solver's x(H) = 1, and 90% destroyed by photodissociation.
+    H+ + H2 -> H2+ + H, the leading H2 sink at 1e4 K, is starved by the
+    solver's x(H+) = 1e-3.
+  - **(c) Held.** The internal x_e is 1e-3 of MOCASSIN's.
+
+**Channel by channel against Cloudy, ionized zone (radius-matched):**
+
+  - **H2.** Both codes form it on grains, but MOCASSIN at 5000-6000x Cloudy's
+    rate (hiipdr 2.4e-15 against 5e-19 cm^-3 s^-1 at 2.9 pc), because the
+    solver's n(H) is 1e4x the real one. **The photodissociation rate per H2
+    agrees**: 2.7e-8 against Cloudy's 3.1e-8 s^-1. Cloudy also photoionizes
+    H2 (H2 + hnu -> H2+ + e), 54-71% of its loss on hiipdr and 81% on pn150k.
+    The network has no such channel, although MOCASSIN's MC already absorbs
+    those photons in its H2 opacity (`yanH2xSec`, D-346). Together, ~1e4
+    times ~3 accounts for the measured 3e4-2e5. On pn150k at 13 700 K the
+    solver's H2 loss is instead collisional (H + H2 -> 3H, on its
+    n(H) ~ 1000 cm^-3).
+  - **OH.** MOCASSIN makes it 87-98% as H2 + O -> OH + H, on the solver's
+    neutral O and H2 excess. Cloudy makes it by H- + O -> OH + e; H- is not
+    in the reduced network. Cloudy destroys 65-96% of it by
+    H+ + OH -> OH+ + H, which the solver's starved H+ cannot do.
+  - **CO, HCO+.** These form down the same chains, multiplied. Cloudy
+    destroys 22-26% of its CO by He+ + CO, and the solver's He+ is 1e-5 of
+    MOCASSIN's.
+
+So the ionized-zone excess is not Cloudy's approximation and not missing
+EUV physics alone. It is the solver computing the molecules of an H II
+region as if the region were neutral. MOCASSIN owns the ionization and
+re-imposes it only after the molecules are computed, so there are two
+x(H+) in one cell. The D-260 channels kept the solver's electrons physical
+in shielded gas, the only place D-260 checked them, and produce this in
+ionized gas. O-03 (D-267) had exactly this signature from the start, "H0
+and n_e agreeing". Its "check the grain formation rate at 1e4 K" was the
+right place to look for the wrong reason: the rate coefficient is fine
+(Hollenbach & McKee sticking ~1e-3 at 1e4 K); its n(H) is not.
+
+### Point 3: H3+, three regimes, each with a measured cause
+
+  - **Ionized zone:** H3+ follows the H2 excess. Cloudy's small H3+ there
+    comes from two radiative associations, H + H2+ and H+ + H2, that the
+    network lacks.
+  - **Transition** (hiipdr A_V 0.94-1.34; pn150k 0.24-0.33):
+    - H2+ + H2 -> H3+ is 1600x slower in MOCASSIN at hiipdr A_V 0.94. H2 is
+      39x lower there, and **H3+ goes as n(H2)^2**, since H2+ comes from
+      cosmic-ray ionization of H2 and then meets another H2: 39^2 ~ 1500.
+    - Cloudy also forms H3+ by HeH+ + H2 (21-79% at hiipdr A_V 0.63-0.94;
+      60% at pn150k A_V 0.24) and ArH+ + H2. HeH+ and ArH+ are not in the
+      reduced network.
+    - On pn150k, part of the gap is the solver's partially ionized state
+      just past the front.
+  - **Deep** (hiipdr A_V >= 1.8, pn150k 0.64): the H3+ formation rate
+    agrees with Cloudy's to 1-3%, so the cosmic-ray rates are matched.
+    hiipdr's H3+ is 3-4x Cloudy's only because MOCASSIN's electrons there
+    are 0.3-0.4x (O-01). On pn150k it agrees to 6%. **Deep H3+ is a tracer
+    of the electron deficit, not a chemistry defect.**
+
+### Point 4: oxygen closes; nothing to see is expected
+
+Summed over every O-bearing species of the network, O2 included,
+oxygen closes against O/H to 3e-5 on hiipdr and 1.5e-5 on pn150k. It closes
+in the solver's state and in the re-imposed one; carbon likewise. O2 holds
+at most 2e-7 of it. CO + OH + H2O reach 3.3e-4 of O at hiipdr's edge and
+2e-5 on pn150k; in Cloudy at most 1e-5. O cannot visibly fall in either code.
+
+### Point 1: what Cloudy's assumptions can and cannot explain
+
+The outward-only diffuse field and escape-probability line transfer act on
+fields and level populations at factors of order unity. Where the measured
+rates bear on them, the two codes agree: the ionized-zone H2
+photodissociation rate per molecule to 15%, deep H3+ formation to 1-3%, and
+the cosmic-ray rates exactly. The ionized-zone gaps of 1e4-1e20 come from
+chemistry. They are this defect, plus species and channels absent from the
+reduced network: H- (and so H- + O -> OH and the H- route to H2), H2
+photoionization, HeH+, ArH+, and Cl chemistry. Cloudy loses 11-27% of
+pn150k's H2 to Cl+ + H2. Cloudy's H2 destruction and formation also do not
+balance in its creation and destruction lists at the PDR edge, which points
+to its excited-H2 (H2*) cascade. Its H2 numbers there are read with that in
+mind.
+
+### Found along the way, not yet explained
+
+  - **Grain formation of H2 in the transition** is 13x Cloudy's per
+    n_H n(H) on hiipdr (2.3e-17 against 1.8e-18 cm^3 s^-1) and 21x on pn150k.
+    MOCASSIN's value is near the classic 3e-17. Cloudy's is low, and its
+    grain temperatures, sticking and per-size efficiency are not
+    decomposed. Yet MOCASSIN's per-H2 dissociation there is 35x Cloudy's,
+    and its H2 forms later. Both factors differ; neither is understood yet.
+  - **Deep CO** on hiipdr is 50x Cloudy's. The formation routes are the same;
+    Cloudy photodissociates CO ~90x faster per molecule at A_V 2.8, where
+    MOCASSIN's CO loss is instead He+ + CO. The FUV at the edge (D-350: the
+    window field is 0.8x the prescription there) and Cloudy's outward-only
+    field are both candidates. This is the one gap here where Cloudy's field
+    approximation could plausibly matter.
+
+### Options for the fix (a design decision; the user is asked)
+
+The defect: inside the solve the linked ions recombine with the network's
+coefficients and have no ionization source. The first-order slots to carry
+one already exist in the generated ODE: H/He/C/O + CRP -> X+ + e (reactions
+293, 297-299), C and Mg + PHOTON (269, 289), and H2 + CRP -> H2+ + e (296).
+
+  - **A. The same rates in both solvers** (recommended). Give the network
+    MOCASSIN's own photoionization rate of each linked neutral per cell,
+    through those first-order slots added to the cosmic-ray terms. Replace
+    its radiative recombination coefficients for the linked ions with
+    MOCASSIN's. Add MOCASSIN's H2 photoionization rate (from the same MC
+    field and `yanH2xSec`) to slot 296. Inside the solve the ionization
+    then follows MOCASSIN's physics, departing only by the chemistry's own
+    extra channels (charge exchange, cosmic rays), which already reach
+    MOCASSIN through D-118. The post-solve re-imposition stays and should
+    then change little. Needs MOCASSIN's per-cell Gamma and alpha for five
+    elements stored beside the field; no ODE regeneration.
+  - **B. Hold the linked ions and the electrons at MOCASSIN's values during
+    the solve** (remove them from the integration). Exact one-reality for
+    the ions, but the chemistry owns H/H2 in the PDR. Freezing x(H) there
+    breaks the hydrogen budget, and freezing only the ions leaves x(H) with
+    no physical source in H II gas. It needs a constraint the generated ODE
+    does not have.
+  - **C. A larger network**, on top of A or B, for the missing species. The
+    tree ships generated ODEs for all four networks (`odes_medium.c`,
+    `odes_full.c`); only REDUCED is built. `medium` (78 species, 1322
+    reactions) adds HeH+. `full` (215, 2926) adds H-, HeH+ and Cl+. None
+    carries ArH+ or H2 photoionization. The cost scales with the network,
+    and the coupling's links and labels (D-258's defect is per network
+    file) would need re-validating.
+
+Separately, D-258's relabelling of `species_reduced.d` slots 3 and 5 should
+be made. It is labels only (D-258: T moves 1.8e-5), but every H2+/CH5+ output
+and diagnostic is crossed until it is.
+
+### Status
+
+Open, pending the choice of fix. Measured and recorded:
+
+  - points 2 and 3 are explained channel by channel on both fixtures;
+  - point 4 closes;
+  - point 1 is bounded.
+
+O-03 is diagnosed. O-07 (the H3+/CH/H2O dip inside the front) belongs to
+the same cause on pn150k.

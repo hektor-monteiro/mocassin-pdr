@@ -1097,7 +1097,10 @@ Temperature range over which the chemistry's rate fits are evaluated, defaults
 1.0 and 2.0e4; the gas temperature is MOCASSIN's and is not clamped by these.
 .TP
 .B pdrDiagCool, pdrDiagRates, pdrDiagAV, pdrTrackCell, pdrSplitField
-Diagnostics only; none changes the physics.
+Diagnostics only; none changes the physics. \fBpdrDiagRates 2\fR also writes
+\fIoutput/pdrReacRates.out\fR: every reaction's volume rate, with the chemistry
+solver's state and the state MOCASSIN re-imposes, for one cell per 0.1 dex of
+A_V, rewritten each iteration (read with \fItools/d356_channels.py\fR).
 .PP
 \fBRetired keywords.\fR A keyword that selected alternative physics or stood in
 for a quantity the model computes is refused and stops the run:

@@ -760,7 +760,7 @@ module common_mod
     real                :: pdrVturb   = 1.0        ! turbulent velocity [km/s]
     real                :: pdrTmin    = 1.0        ! floor gas temperature [K]
     real                :: pdrTmax    = 2.0e4      ! ceiling gas temperature [K]
-    integer             :: pdrDiagRates = 0      ! print the D-113 exported form/loss
+    integer             :: pdrDiagRates = 0      ! 1: print the D-113 exported form/loss; 2: also output/pdrReacRates.out (D-356)
     real                :: pdrDiagAV  = 1.0        ! A_V at which to print them
     integer             :: pdrTrackCell = 0   ! D-150: follow this cell across iterations
     integer             :: nTrackHit = 0      ! D-152: cap on failing-cell reports

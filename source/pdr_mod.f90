@@ -3095,6 +3095,14 @@ module pdr_mod
                 & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
         end if
 
+        ! D-356: every reaction's rate in this cell, one cell per 0.1 dex of
+        ! A_V on rank 0, the solver's state beside the re-imposed one.
+        ! Diagnostic only.
+        if (pdrDiagRates >= 2 .and. taskid == 0) &
+             & call writeReactionRates(cellP, sqrt(dble(grid%xAxis(xP))**2 &
+             & + dble(grid%yAxis(yP))**2 + dble(grid%zAxis(zP))**2), &
+             & av, nH, Tg, abunPre, abun)
+
         ! D-354: the shielding columns are NOT rescaled here any more.
         ! D-078 wrote them as NHcol*abun(X), the local abundance times the
         ! whole column, and scaled them by abun(X)/abun0(X) after each
@@ -3683,6 +3691,96 @@ module pdr_mod
         passCnt = 0.d0
         passMax = 0.d0
       end subroutine reportPassChange
+
+      !-----------------------------------------------------------------
+      ! D-356: one row per sampled cell holding every reaction's volume rate
+      ! [cm^-3 s^-1], taken from the solver's own state so that formation
+      ! and loss of each species close at its steady state. The weights are
+      ! the ODE's (odes_reduced.c): k n1 n2 for two bodies, k n(X) for
+      ! PHOTON, CRP and CRPHOT, k n_H n(H) for formation on grains, and the
+      ! electrons as the sum of the cations, which is how the ODE builds
+      ! them. The state MOCASSIN re-imposes after the solve is written
+      ! beside the solver's, so the two can be compared cell by cell.
+      ! One cell per 0.1 dex of A_V on rank 0. The file is rewritten each MC
+      ! iteration, so it ends holding the last. Channels are attributed
+      ! offline from dataPDR's rate file (tools/d356_channels.py).
+      !-----------------------------------------------------------------
+      subroutine writeReactionRates(cellP, rCell, av, nH, Tg, xs, xi)
+        implicit none
+        integer, intent(in)          :: cellP
+        double precision, intent(in) :: rCell, av, nH, Tg
+        double precision, intent(in) :: xs(:), xi(:)
+
+        integer, save              :: iterLast = -1, lun = -1
+        logical, save              :: lgBin(0:40) = .false.
+        integer, allocatable, save :: rIdx(:,:)
+        integer          :: i, j, k, ib
+        double precision :: xe, rr
+        double precision, allocatable :: R(:)
+
+        if (av <= 0.d0) return
+        ib = int((log10(av) + 2.5d0)*10.d0)
+        if (ib < 0 .or. ib > 40) return
+        if (nIterateMC /= iterLast) then
+           if (lun > 0) close(lun)
+           open(newunit=lun, file='output/pdrReacRates.out', status='replace', &
+                & action='write')
+           write(lun, '(a,i4,a,i4,a,i5)') '# D-356 reaction rates, MC iteration', &
+                & nIterateMC, '  nspec', pdrNspecMod, '  nreac', pdrNreacMod
+           write(lun, '(a)') '# row: cell r[cm] A_V n_H[cm-3] T[K] x_e(solver), ' // &
+                & 'x(1:nspec) solver, x(1:nspec) imposed, R(1:nreac) [cm-3 s-1]'
+           write(lun, '(a)', advance='no') '# species:'
+           do j = 1, pdrNspecMod
+              write(lun, '(1x,a)', advance='no') trim(adjustl(pdrSpecies(j)))
+           end do
+           write(lun, *)
+           lgBin = .false.
+           iterLast = nIterateMC
+        end if
+        if (lgBin(ib)) return
+        lgBin(ib) = .true.
+
+        if (.not.allocated(rIdx)) then
+           allocate(rIdx(pdrNreacMod, 3))
+           rIdx = 0
+           do i = 1, pdrNreacMod
+              do k = 1, 3
+                 do j = 1, pdrNspecMod
+                    if (trim(adjustl(pdrReactant(i,k))) == trim(adjustl(pdrSpecies(j)))) &
+                         & rIdx(i,k) = j
+                 end do
+              end do
+           end do
+        end if
+
+        xe = 0.d0
+        do j = 1, pdrNspecMod
+           if (index(pdrSpecies(j), '+') > 0) xe = xe + xs(j)
+        end do
+
+        allocate(R(pdrNreacMod))
+        do i = 1, pdrNreacMod
+           rr = pdrRate(i)
+           if (any(adjustl(pdrReactant(i,:)) == '#')) then
+              rr = rr*nH*xs(rIdx(i,1))*nH                ! k n_H n(H)
+           else
+              do k = 1, 3
+                 if (rIdx(i,k) <= 0) cycle
+                 if (rIdx(i,k) == pdrNelect) then
+                    rr = rr*xe*nH
+                 else
+                    rr = rr*xs(rIdx(i,k))*nH
+                 end if
+              end do
+           end if
+           R(i) = rr
+        end do
+        write(lun, '(i7,4es13.5,es12.4)', advance='no') cellP, rCell, av, nH, Tg, xe
+        ! es13.4e3: a plain es12.4 drops the E of a three-digit exponent
+        write(lun, '(999es13.4e3)') xs(1:pdrNspecMod), xi(1:pdrNspecMod), R
+        flush(lun)
+        deallocate(R)
+      end subroutine writeReactionRates
 
 
       !-----------------------------------------------------------------
