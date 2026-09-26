@@ -61,6 +61,11 @@ def fix_labels(reac, species, cells):
     with H2+ (CH5+) as a reactant was weighted with slot 3 (5). Swap the two
     labels back and rescale those reactions to the ODE's weighting."""
     a, b = 'H2+', 'CH5+'
+    # D-357 relabelled species_reduced.d; a file written after it needs nothing
+    if species.index(a) == 5 and species.index(b) == 3:
+        for c in cells:
+            c['unknown'] = 0
+        return
     for c in cells:
         for key in ('xs', 'xi'):
             c[key][a], c[key][b] = c[key][b], c[key][a]
@@ -107,8 +112,8 @@ def main(argv):
     reac = read_network()
     it, species, cells = read_rates(run)
     fix_labels(reac, species, cells)
-    print(f'{run}: {len(cells)} sampled cells, MC iteration {it}, {len(reac)} reactions '
-          '(H2+/CH5+ labels corrected, D-258)')
+    print(f'{run}: {len(cells)} sampled cells, MC iteration {it}, {len(reac)} reactions'
+          + (' (H2+/CH5+ labels corrected, D-258)' if species.index('H2+') == 3 else ''))
     if '--state' in argv:
         keys = ['H', 'H+', 'O', 'O+', 'He+', 'C+', 'H2', 'CO', 'OH', 'H3+', 'HCO+']
         print('\n   A_V    r[pc]     T     x_e solver/imposed  ' +

@@ -356,6 +356,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). **Result: passes 2-5 then moved no cell by 0.1% (largest 4.6e-4); one pass of one solve matches five of three to 0.1% in T_gas, 0.4% in PE, exactly in T_dust, at 20:48 against 50:42 (1.5 against 5.3 min per chemistry iteration). The rescale was a positive feedback: hiipdr's H/H2 crossing moves 1.367 -> 1.444, further from Cloudy's 1.09 - the fix is taken. Loops collapsed, `pdrCoupleIter`/`pdrChemIter` retired (inert), refactor verified byte-identical (17/18 files, summary.out timestamps). L-25 closed.** | Accepted | 2026-09-26 |
 | D-355 | **Both Cloudy artifacts rebuilt on the D-354 code. pn150k runs 2.4x faster (36 min against 1 h 28) and its H/H2 crossing moves 0.375 -> 0.405, from 0.007 to 0.037 past Cloudy's 0.368 - the same direction as hiipdr's 1.367 -> 1.444, and smaller.** hiipdr from `runs/d354-collapse` (the committed binary); pn150k `runs/d355-pn150k` (seed 1001, d353's input): 90.65% at iteration 9, chemistry iterations 3.6-5.7 min against 12.2-14.5. n(H2) at A_V 0.30 107 -> 64 (Cloudy 110); CO down 9-50%; T_gas within 1.8%, T_dust and PE unchanged, lines within 0.2%. hiipdr v15 and pn150k v13 published; the 'about 4 min' claim corrected on both. | Accepted | 2026-09-26 |
 | D-356 | **The user's four observations against Cloudy, measured channel by channel on both fixtures. (2) The ionized-zone molecular excess (H2 3e4-2e5x, CO to 1e14x, HCO+ to 1e20x) is a MOCASSIN defect: inside the chemistry solve the linked ions recombine with no ionization source, so the H II region's molecules are computed in neutral 9-20 kK gas (solver x(H) = 1, x(H+) = 1e-3, x_e = 1e-3 of MOCASSIN's) and only the atoms are re-imposed after - two x(H+) in one cell; O-03 diagnosed. H2 grain formation runs 5000x Cloudy's on that n(H); photodissociation per H2 agrees to 15%; Cloudy's H2 photoionization (54-81% of its loss) is absent. (3) H3+: follows H2 in the ionized zone, goes as n(H2)^2 through the transition (39x H2 -> 1600x), plus HeH+ routes absent; deep formation agrees to 1-3%, the 3-4x excess is the electron deficit. (4) Oxygen closes to 3e-5; molecules hold <= 3e-4 of O. (1) Cloudy's approximations bound at order unity; the gaps are chemistry.** `pdrDiagRates 2`, `tools/d356_channels.py`, `tools/d356_compare.py`; D-258's H2+/CH5+ label swap found still live. Fix options A/B/C put to the user. | Open | 2026-09-26 |
+| D-357 | **`species_reduced.d` relabelled: lines 4 and 6 (zero-based slots 3 and 5) now read CH5+ and H2+, as the generated ODE integrates them (D-258's finding, never applied). Labels only: H2+/H3+/CH5+ now balance to <4e-5 with no correction; front, H/H2 crossing, C+ = C, T_gas (1.000-1.001) and T_dust unchanged; convergence identical through iteration 6.** Name-based consumers corrected: the chemical-heating table's H2+ terms, the D-258/D-356 diagnostics. `runs/d357-labels`. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -29843,3 +29844,62 @@ Open, pending the choice of fix. Measured and recorded:
 
 O-03 is diagnosed. O-07 (the H3+/CH/H2O dip inside the front) belongs to
 the same cause on pn150k.
+
+---
+
+## D-357 - species_reduced.d relabelled: slots 3 and 5 are CH5+ and H2+ (2026-09-26)
+
+At the user's direction (with D-356's fix choice), and separately from it.
+D-258 found that `species_reduced.d` labels slot 3 H2+ and slot 5 CH5+, while
+the generated `odes_reduced.c` integrates slot 3 with CH5+'s reactions and
+slot 5 with H2+'s. It recorded that transposing the two lines fixes this, but
+the fix was not made. D-356 found it still live: every output and diagnostic
+labelled H2+ was CH5+.
+
+**The change.** Lines 4 and 6 of `dataPDR/species_reduced.d` now read
+`4,CH5+,...,17.0` and `6,H2+,...,2.0`. The slot numbers and the ODE are
+untouched. `tools/d356_channels.py` swaps the labels only in files written
+before this change.
+
+**What can move.** The ODE works in slot indices, so the chemistry does not
+move. What changes is everything that finds a species by name:
+
+  - `chemical_heating.F90`'s heating table (`spec_index`), whose H2+ terms
+    (H2+ + e- 10.9 eV, H2+ + H 0.94 eV, and He+ + H2 -> H2+) were weighted
+    with CH5+'s abundance;
+  - the D-258 and D-356 diagnostics;
+  - `NH2x`.
+
+**Predictions** (`runs/d357-labels`, hiipdr seed 1001, `pdrDiagRates 2`,
+against `runs/d356-hiirates`):
+
+  - (a) In the new `pdrReacRates.out`, H2+ and CH5+ balance
+    (|form - loss|/form < 1e-3 in the PDR cells) with no label correction.
+  - (b) The run is not byte-identical, because the heating change moves T_e
+    and the MC decorrelates from iteration 4. Everything stays within
+    run-to-run scatter: front +-0.1%, H/H2 crossing +-0.01 mag, T_gas within
+    1% at the D-326 depths, T_dust within 0.1%.
+
+### Result (added after the run)
+
+`runs/d357-labels`: clean exit, 77.34% at iteration 11 (d356-hiirates:
+77.35%), 18 min 10 s.
+
+  - **(a) Held.** Every sampled cell balances with no label correction:
+    H2+, H3+ and CH5+ to |form - loss|/form < 4e-5. CH5+ in the ionized
+    cells is exactly zero, where the residual means nothing. The labels now
+    name what the ODE integrates.
+  - **(b) Held, and smaller than allowed.** The front is 3.839 against
+    3.840 pc, the H/H2 crossing 1.443 against 1.444, and C+ = C 2.277
+    against 2.278. T_gas new/old is 1.000-1.001 at all seven D-326 depths,
+    and T_dust is 1.000. Convergence is identical to all nine printed digits
+    through iteration 6 and parts in the third figure at iteration 7
+    (1.5128 against 1.5193). The heating the relabelling corrected (H2+
+    terms weighted with CH5+'s abundance) is that small.
+
+The other networks' species files (`medium`, `full`, `mynetwork`) have not
+been checked against their ODEs. They are not built.
+
+### Status
+
+Accepted.
