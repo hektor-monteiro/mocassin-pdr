@@ -350,6 +350,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-348 | **The angular model is implemented - and D-342's collapse was mostly a rank-ownership defect, not the outward columns.** `computeRayColumns` kept cells by `mod(cellP-(taskid+1),numtasks)` (active index) while `pdrStep` runs by `mod(iCell-(taskid+1),numtasks)` with iCell counting INACTIVE cells too, and nothing reduced the arrays: on hiipdr only **1011 of 15204** cells (6.6%) had their columns computed on the rank that read them; **93% read zeros on all twelve rays** - no shielding and optically thin line escape. So D-342's x(H2) x 0.002 measured mostly that; its arithmetic stands, its measurement (and its 0-1% for the mirror fold) is withdrawn, and the far end of D-345's bracket was never measured. **Implemented (D-347, one departure):** `computeRayColumns`/`colRay*` removed; `snapDiffuseSources` (in computeAVdust, same abundances as the source-ward columns) and `traceDiffuseSites` (per cell, on the consuming rank) walk twelve HEALPix directions; every step is a scattering site with the isotropic formal-solution weight from MOCASSIN's own grains and field and a two-leg column pdrColX(P) + N(P->C); each site is its own chemistry ray (`chi_dif*w/sum w`, A_V = 0), so H2SHIELD1/COSHIELD/C I are evaluated per site. Slots 0-11 are today's direct ray byte for byte. `Jdif` is live in every PDR run (`lgJdifLive`, derived, not a keyword). Departure: the MC's chi_dif is distributed by formal-solution weight, not `f_dif/12` per direction - the smoke test measures the brightest direction at 1.9-3.1x the mean; `R_difIso` reports the literal split. **Smoke test** (600k photons): tracer scale check passes (walked N(H2) and A_V vs computeAVradial 0.2-2%); direct + diffuse = chi_MC to +0..+8% in the H2 band, so SCATTER's own slab scattering double-counts at most 8%; at fixed abundances the H2 rate rises **x3.4 / x8.6 / x19 / x60 / x170** from A_V 1 to 2.8, almost all from the diffuse MAGNITUDE the reaction rates never saw (D-053) - the two-leg column takes back only 5-32%. Formal solution recovers 53-130% of chi_dif, falling with depth, unexplained. **Prediction** (tools/d348_angular.py): H/H2 crossing deeper, into A_V 1.8-2.6, molecular zone survives. Found, not fixed: the chemistry-pass column rescale compounds (`col0*(a1/a0)*(a2/a0)`). **Result** (`runs/d348-angular`, 22 it, 81.5%, 1 h 25): H/H2 crossing **1.168 -> 1.635** - deeper as predicted but short of the 1.8-2.6 range (the prediction used iteration 4's seeded columns, which under-shield the converged ones); molecular zone survives; x(H2) x0.02-0.98 and x(CO) x0.015-0.08 across the PDR; **C+ = C unmoved (2.283 -> 2.276), refuting that part** - C+/C is MOCASSIN's (D-162), and its transfer always carried the diffuse field; ionization front identical, T_dust within 0.15%, H budget 1.87e-4. Against Cloudy H2 moves away (crossing 1.64 vs 1.09) and deep CO moves toward it (63-120x -> 1.6-4.2x). The band-integrated normalisation this run uses overstates the Lyman-Werner drive at depth - D-349. | Accepted | 2026-09-25 |
 | D-349 | **The spectral branch reopened: the chemistry is handed the wrong band - and that is why the previous results tracked Cloudy.** H2/CO dissociation and C I ionization see only 11.2-13.6 eV, but every chi handed over is the 6-13.6 eV integral, assumed Draine-shaped (window share 0.1516, from the same Draine 1978 formula that gives uDraine). The MC's window share falls **0.299 -> 0.152 -> 0.094 -> 0.041 -> 0.008** from A_V 0.07 to 2.5 - dust extinction rising to 912 A and C I continuum above 11.26 eV - so the band integral understates window-driven rates 20-40% at the front and overstates them **1.7x / 3.9x / 20x** at A_V 1.1 / 1.7 / 2.5. **D-345 is corrected**: its f_LW/f_band compared diffuse fractions, which cannot see hardening that direct and diffuse share. **Why the baseline tracked Cloudy** (the user's question): MOCASSIN's window field over the old prescription's H2 field is **flat at 2.0-2.8 at every depth** while the band ratio grows 1.3 -> 39 - the missing diffuse field is 6-11 eV light that dissociates nothing, the prescription happens to track the window's decline, the constant factor is the 40 kK star's window share (x1.97 over Draine, so the baseline ran window-driven rates ~2x low from the first cell), and fronts move logarithmically; Cloudy's big non-stellar field is lines outside the window (D-291). Corrected: the baseline's shallow C+ = C is MOCASSIN's (D-162), not the chemistry's field. D-348's band-integrated sites therefore overshoot (x3-x170 where the window supports x2.0-2.8). **Proposed, not implemented:** window-driven reactions take the window field on every ray (direct: source share/0.1516; sites: Jdif share/0.1516) via a per-ray hook in calc_reac_rates, and the sites drop the C I continuum term the MC already transports; expected ~x2.5 on those rates. Also the direct-beam excess is spectral hardening (per-bin extinction matches the MC to 0-12%, band-mean off 8x). **Decided:** hiipdr runs 11 iterations, at the user's direction (plateau by 9). | Accepted | 2026-09-25 |
 | D-350 | **The photorates on MOCASSIN's own field, after an audit against CLAUDE.md.** The user asked whether I had read the project rules; the D-348/D-349 work broke six. Fixed at once: the four-flavour build claimed in fe4816c was unverified after the last edit (rebuilt: all four compile), and computeRayColumns was deleted untagged (now `d348-raycolumns-removed` at c7a7075). The top rule: D-348 kept the direct ray on 3D-PDR's diffuse-ISM prescription (Savage-Mathis, FRR80 albedo 0.3/g 0.8, gamma, Draine shape) where MOCASSIN owns that field, D-349's x1.97 fix patched the prescription instead of replacing it, and D-347's 'direct weight 1 - f_dif' was departed from silently. The zone test was copied into snapDiffuseSources though its D-088 premise died at D-198/D-208. Not changed: difSrc as a lagged copy and the 1D flavour's two fields; the D-348 page omitted the 3D-PDR reference. **Decided (the user):** every photorate on MOCASSIN's local field - direct (Jste - Jdif) on the source-ward column, diffuse (Jdif) on the D-348 sites' two-leg columns, A_V = 0 on all rays; H2/HD/CO/C I take each part's window field via a vendored per-ray hook `ray_lw_factor` (upstream default when unallocated), the Draine share computed on MOCASSIN's bins; the C I continuum term dropped (the MC carries it); the zone test removed from computeAVradial and the snapshot, its contribution measured in-run. 1D unchanged. **Prediction first:** crossing into A_V 1.25-1.45, H2/CO fall, C+ = C within 0.05, front and dust < 1%, budget < 3e-4, zone removal small, direct window/prescription 1.9-2.6 in the first bin, baseline = s1001 for 11 iterations. Runs d350-window and d350-base11 (c7a7075), 11 iterations, seed 1001. **Result:** crossing **1.184 -> 1.364** (inside the range; D-348's was 1.635), C+ = C +0.001, front and dust unmoved, budget 2.7e-4, baseline identical to s1001 for all 11 iterations. Two predictions failed and are understood: deep CO rises 31% at A_V 2.9 because the window field there falls below the prescription (C I continuum and dust empty MOCASSIN's window at 1000 A); and the zone-removal fraction exceeds 1% in 1.6% of cells, all at the front where the whole H2 column is ~1e12 cm^-2 (max added 2.7e12, far below self-shielding) - negligible. **D-349's 'flat 2.0-2.8' is corrected**: per-cell A_V bins give window/prescription 2.5 / 3.1 / 3.6 / 4.1 / 4.6 / 3.7 / 0.8 from the front to the edge - the shell means were set by each shell's shallow edge. Against Cloudy: crossing 1.36 vs 1.09, mid-PDR CO 0.3-3.8x (was 0.3-13.7x), deep CO still 83-100x. | Accepted | 2026-09-26 |
+| D-351 | **A full audit of the code, and the blockers to science production re-ranked against `51289e5`. Three measurements from runs already on disk, none of them in any earlier entry. (1) Within an MC iteration the five chemistry passes run on frozen inputs, yet mean f_mol alternates with period 2 and a growing swing (d350-window 0.8462/0.8546/0.8435/0.8596; s1001 0.003-0.004). The only pass-to-pass channel found is pdrStep rescaling the shielding columns, which exclude the target cell, by the target cell's own abundance ratio, compounding (pdr_mod.f90:3236). (2) x(HI)+2x(H2)+x(HII)=1 holds by construction after rescaleIonToAvail, so D-350's budget prediction was a free pass. The pre-rescale [D220] figure is 0.020 (29% of cells >1%) against the baseline's 0.007 (9%), and |dx(H0)|/x p90 is 0.34 against 0.09: D-350 moves the molecular state three times more per iteration, hidden by 76.1% against 75.0% converged. (3) The cause: every photorate now reads the MC field, whose per-cell seed scatter is 7/14/22% at A_V 1.6-2.1/2.1-2.6/2.6-3.05, so the deep chemistry is noise-limited per cell. Also newly registered: the 3D line escape caps beta at 2/3 (4 of 12 rays at infinite column), and lineFlux.out reports electron-only PDR lines while 3D-PDR's populations cool the gas. No live zone gate remains on the default path. Ranked in five tiers; 102 commits exist only on this machine.** | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -28493,3 +28494,297 @@ budget deviation; the formal solution's 52-130%; items 3 and 5 of the audit
 
 Figures: `runs/d350-window/figs/` - `d348_*` against the baseline,
 `cloudy_*` against Cloudy, `roellig_*` against the 3D-PDR reference.
+
+---
+
+## D-351 - A full audit of the code, and what stands between it and science production (2026-09-26)
+
+The user asked for a full audit of the code and an evaluation of the standing
+issues that must be resolved before science production. D-333 (2026-09-23)
+ranked the blockers three days and seventeen entries ago; this entry re-ranks
+them against the code as it stands at `51289e5`. The criterion is D-333's: *does
+it stop us publishing a number*. It also records the measurements taken to rank
+the issues, three of which found something no earlier entry had.
+
+### What was audited, and how
+
+  - `source/pdr_mod.f90` read in full, every routine. `iteration_mod.f90`'s PDR
+    sequence (setup, updateCell, the coupling passes, the reductions, the
+    rescale, the output). The PDR-facing parts of `update_mod.f90`, namely
+    coolant substitution, extra heating, the cosmic-ray block, the zone probes
+    and `NePDR`. The vendored routines MOCASSIN actually calls: `calc_reac_rates`,
+    `escape_probability`, `heatingfunctions`, `h2_form` and `odes_reduced.c`.
+    `set_input_mod` for keywords and defaults, `grid_mod` for checkpointing,
+    and the Makefile for flag reach.
+  - Every live use of `pdrZone`, of each `pdr*` keyword, and of each
+    environment variable, traced to what it changes.
+  - The 3D flavour built from a clean `git archive` of HEAD in the scratchpad
+    with `-Wall -Wuninitialized -Wmaybe-uninitialized`. It produced 117
+    warnings. None are in `pdr_mod.f90` or the vendored units. All are in
+    legacy MOCASSIN (`grid_mod`, `ph_mod`, `emission_mod`, `update_mod`), and
+    nearly all are gfortran array-descriptor false positives. The scalar ones
+    (`heatIonDif`, `enPacket%weight`, `normDust`, `nwavold`) sit on paths
+    guarded by `lgDebug` or by the model type, and were not chased further.
+    The code has not changed since D-350's four-flavour build, so the other
+    three flavours were not rebuilt.
+  - The run logs of `runs/d350-window`, `runs/d350-base11` and
+    `runs/d334-hiipdr/s1001`, and the four-seed ensemble
+    `runs/d334-hiipdr/s1001-s1004`. No new runs.
+  - Checked clean: no `RAYTHEIA`/`ONEDIMENSIONAL` guard outside `pdr_mod.f90`,
+    so the D-341 flag-reach trap does not recur. The retired keywords sampled
+    (`pdrAllCells`, `pdrIonFromMocassin`, `pdrCoolFeedback`,
+    `pdrTeFromMocassin`, `pdrOwnIon`, `pdrAtomicH`, `pdrSyncAbun`) each print
+    that they are retired. `pdrCoolTdep`, `pdrCoolTfac` and `pdrZoneLim`'s
+    second value `pdrBlendLo` are read silently. An unrecognised keyword gets
+    a warning and the run continues. Reactions 330/331 (He+/C+ + e- on grains, a fixed diffuse-ISM
+    coefficient) are absent from the generated `odes_reduced.c`, so they are
+    dead and no fixed grain rate reaches the ion balance. `pdrIonRate` (D-118)
+    is computed and reduced but read only by the `[D183]` diagnostic, so the
+    network's ionization channels are not double counted into ionBalance.
+
+### Three measurements the ranking needed
+
+**(1) The chemistry passes oscillate, on inputs that do not change.** Within an
+MC iteration, updateCell runs once. The five coupling passes then re-solve the
+chemistry with Te, ionDen, Ne, the field and the snapshot columns all frozen
+(D-216; the `[D119]` residual reads exactly zero). Yet the mean f_mol after
+each pass, from the `[D205]` lines, reads:
+
+    run / last iteration        after pass 1   2        3        4
+    d334-hiipdr/s1001            0.8879   0.8904   0.8870   0.8914
+    d350-base11                  0.8834   0.8888   0.8840   0.8902
+    d350-window                  0.8462   0.8546   0.8435   0.8596
+
+It alternates with period 2, and in all three runs the swing *grows*
+from pass to pass. The extra heating does the same: 2.009 / 1.956 / 2.031 /
+1.923e-27 per H in `d350-window`, swings of 2.6, 3.8 and 5.3%. The published
+state is whatever pass 5 lands on, and the phase varies between iterations: in
+`d350-window` iteration 10 decays onto its low phase, iteration 11 grows onto
+its high one.
+
+One channel carries state from one pass to the next other than the CVODE
+starting point: `pdrStep` rescales every shielding column by the target cell's
+own abundance ratio, `colH2 = colH2*abun(NH2)/abun0(NH2)` (`pdr_mod.f90:3236`),
+compounding over the `pdrChemIter = 3` inner passes. Since D-088 those columns
+exclude the target cell, so the target cell's H2 has no business scaling them.
+The rescale is a leftover from D-078's `NHcol*abun` form. It adds positive
+self-shielding feedback: more local H2 lengthens the column in front, which
+shields more and makes more H2. A loop gain near or past -1 would give exactly
+this signature. **Hypothesis, not yet tested:** delete the rescale and the
+alternation disappears. It is inert at an exact fixed point, since the ratio
+tends to 1. What it corrupts is the approach to that fixed point, and on a
+bistable front it may select the branch.
+
+**(2) The hydrogen budget test cannot fail where it is printed, and D-350's
+chemistry converges three times worse than its baseline.**
+`rescaleIonToAvail` normalises MOCASSIN's H stages to the chemistry's `x(H) +
+x(H+)` before `[D196]` prints the budget and before `writeGrid`. So `x(HI) +
+2x(H2) + x(HII) = 1` holds in the log and in every output file by construction,
+up to H held in other species. **D-350's prediction 5, "budget holds to 3e-4",
+was a free pass**, the D-176..D-181 failure CLAUDE.md warns about. The
+informative number is the `[D220]` "before" figure: the lag between
+MOCASSIN's ion stages and the chemistry's newest molecules. Last three
+iterations of each run:
+
+    run            [D220] mean |budget-1|   cells >1% off   |dx(H0)|/x p90   f_mol moved >0.1
+    s1001          0.0102 0.0088 0.0086      9.3-9.8%          0.100             2.47%
+    d350-base11    0.0123 0.0076 0.0068      8.7-11.3%         0.094             1.69%
+    d350-window    0.0156 0.0258 0.0201      28.3-30.2%        0.337             5.49%
+
+D-350 reported 76.1% converged against the baseline's 75.0%, which reads as
+unchanged. Measured on the molecular state itself, the D-350 handoff moves
+three times as much per iteration. The convergence percentage did not show it.
+
+**(3) Why: every photorate now reads the Monte Carlo's per-cell noise.** In the
+four-seed ensemble (`runs/d334-hiipdr/s1001-s1004`, 22 iterations, 6e6
+packets), the seed-to-seed scatter of each cell's `chiFUV` is:
+
+    A_V bin     cells   chi_MC     per-cell sd/mean
+    0.80-1.20     914   11.3       median 0.023   p90 0.039
+    1.20-1.60    1565    3.15             0.041       0.070
+    1.60-2.10    3180    0.91             0.074       0.132
+    2.10-2.60    4812    0.27             0.138       0.242
+    2.60-3.05    4131    0.096            0.223       0.379
+
+Before D-350 the photorates ran on `chi0*exp(-gamma*A_V)` from a geometric
+A_V, which is deterministic, so they carried no Monte Carlo noise at all. Since
+D-350 they take this field, and 12,000 of the 15,204 cells sit where it
+scatters 7-22%. Each MC iteration draws fresh packets and MOCASSIN does not
+accumulate J across iterations, so every iteration's chemistry sees a new
+draw. Deep x(H0) is set by the photodissociation rate, and a 15-22% field draw
+against a 10% `convLimit` accounts for the p90 of 0.34. D-350's one-reality fix
+is right. Its price is that the deep chemistry is now **noise-limited per
+cell**. The bin means that the published profiles show average over thousands
+of cells. The per-cell values that a 3D map would show do not average, and
+through the non-linear photorates the noise can also bias bin means (Jensen:
+`<1/chi> = (1+sigma^2)/<chi>`, +5% at 22%). *Estimate, not measured.*
+
+### The ranking
+
+**Tier 1 - defects in the current code that move numbers now**
+
+  1. **The pass-to-pass oscillation** (measurement 1). Fix: delete the column
+     rescale. Test: a seeded pair at 11 iterations, where the alternation should
+     vanish. Do this before anything that reads per-cell chemistry.
+  2. **Noise-limited chemistry** (measurement 3). The options are more
+     packets (noise goes as N^-1/2, so 20x to reach 5% at A_V 2.8, which is not
+     practical), accumulating the FUV estimator over the iterations once the
+     field has settled (the standard MC remedy; noise then goes as
+     (N_iter N_packets)^-1/2), or FUV variance reduction. This is a design
+     decision, and it must be taken before any per-cell product is published.
+  3. **Verification that cannot fail.** Report the pre-rescale `[D220]` budget
+     as the conserved-sum test. Convergence should be judged on the molecular
+     state (f_mol, x(H0) at depth) rather than on the cell percentage alone.
+     `doc/pdr-status.md` section 2's "holds" row is corrected to say what it
+     now measures.
+  4. **Line escape in the 3D flavour is the slab closed form, with 4 of the 12
+     rays never escaping** (`pdr_mod.f90:3588-3606`: `mu = 0` gives
+     `colA = 1e30`, so beta_ray is about 1e-30). `escape_probability` divides
+     by all 12 rays, so beta is at most 2/3 even for a thin line. In the
+     two-level limit the cooling goes as `1/(1 + n/(beta n_crit))`. For [C II]
+     (n_crit ~3e3 on H) the loss is about 2% at n_H = 1e2 (hiipdr), 11% at 1e3
+     (pn150k), 28% at 1e4 and 33% at 1e5. *Estimate, not measured.* On top of
+     that, the rays toward the star carry the cell's own populations over the
+     whole column back to the star. That overstates tau for CO, whose
+     abundance rises with depth. The cap was known at D-061/D-063 and D-190,
+     but it is absent from the limitations register and was never measured on
+     a 3D fixture. It blocks dense-PDR science and every line observable.
+
+**Tier 2 - blocks the science the code is being taken to production for**
+
+  5. **No PDR line observables, and the line output that does exist disagrees
+     with the thermal balance.** In PDR cells, `lineFlux.out` reports [C II],
+     [O I] and [C I] from MOCASSIN's electron-only excitation. The gas, however,
+     is cooled by 3D-PDR's level populations with H, H2, He and H+ partners.
+     That is two realities for one line. The per-transition emissivities
+     (`escape_probability.F90`, `line(i,j)`) are computed and discarded, and
+     `pdrCoolSp.out` holds each coolant's total, not each line (D-331, D-333
+     item 5).
+  6. **The 3D capability is unvalidated** (D-338). Every fixture is a uniform
+     sphere. D-348's site walk carries real direction dependence even there
+     (anisotropy 1.9-3.1), but no clump, shell asymmetry or gradient has been
+     run. A structured fixture with an internal reference, smooth against
+     clumped at equal mass, is still not built.
+  7. **pn150k has no result on the current code.** Its last run is D-336's
+     ensemble, before D-348 and D-350. `hiipdr Against Cloudy` (v12) and
+     `150 kK PN Against Cloudy` (v11), both from 2026-09-24, and `hiipdr
+     Against 3D-PDR` (2026-09-14) all show pre-D-348 physics.
+  8. **The carbon transition** (L-3/O-01, and the deep CO excess). C+ = C sits
+     at A_V 2.29 against Cloudy's 2.95. Against 3D-PDR, C+ collapses to 0.38 at
+     A_V 2.33. Deep CO is 83-100x Cloudy's. **Hypothesis:** one cause. MOCASSIN
+     owns C+/C (D-162), and a transition placed too shallow puts neutral carbon
+     where the CO chemistry can use it. The test needs no run: compare
+     MOCASSIN's per-cell C I photoionization and C II recombination rates
+     against Cloudy's at matched A_V. One related gap: MOCASSIN's C I
+     photoionization has no H2 line shielding, because the MC does not
+     transport Lyman-Werner lines. The chemistry's `CIPDRATE` has it, but the
+     chemistry's C+/C is overwritten. At A_V 3 this is a few tens of per cent
+     *(estimate)*, and it has the opposite sign to L-3, so it does not explain
+     it.
+
+**Tier 3 - paths that are compiled and offered but not exercised**
+
+  9. **Warm start** (L-14). Beyond the untested equivalence, `pdrLevPop`,
+     `pdrCoolTab`, `pdrHeatXtra` and `pdrCoolSp` are not checkpointed.
+     updateCell runs before pdrStep in each iteration, so the first resumed
+     thermal balance runs without the PDR coolants or the PDR heating.
+  10. `mocassinOutput` and `mocassinPlot` have never been run (L-20).
+  11. **The plain flavour.** Its last Lexington comparison was D-270/D-279
+      (2026-09-14/15). At least ten core-physics changes have landed since:
+      g-averaging and path stretching (D-280), Case A recombination cooling
+      (D-286), the WD01 yield (D-289), grain-charge units (D-290), line
+      transport on by default (D-307), the Q-file path (D-313), sticking
+      (D-326), and CHIANTI 10.1 data (D-330).
+  12. **The 1D flavour**, which is what `make PDR=1` builds by default, still
+      runs its chemistry on the prescription: two FUV fields (D-350 audit
+      item 5).
+  13. **Rank-local state.** `pdrCoolTab` and `pdrHeatXtra` are never reduced.
+      They are correct only because updateCell and pdrStep happen to share the
+      ownership formula `mod(iCell-(taskid+1),numtasks)`. That is D-348's
+      defect class. It needs either a reduction or an assertion.
+
+**Tier 4 - rule compliance (CLAUDE.md)**
+
+  14. **Alternative-physics switches.** The keywords `pdrFUVmode`,
+      `pdrDustModel`, `pdrOwnDust`, `pdrDustFeedback`, `pdrPEfromPDR`,
+      `pdrUseNePDR`, `pdrCoolZoneGate` and `pdrFcritConv` all select
+      alternative physics, as do the environment variables `MOCASSIN_LINES`,
+      `_RECCOOL`, `_YIELD` and `_GRAINQ`. The environment variables are recorded
+      in the log only, not in the input or any output file. Every default is
+      the adopted physics, and every other branch is an untested path.
+      `pdrZone` (x(H+) < `pdrZoneLim`) now reaches only diagnostics, three of
+      those off-by-default switches, and the vestigial `pdrTgas`. **No gate
+      remains on the default path.** That corrects the impression a grep gives,
+      of zone tests still deciding ownership.
+  15. **Constants still standing in for the model** on live paths:
+      - `pdrMetal` multiplies H2 formation on top of MOCASSIN's measured grain
+        area (`h2_form.F90:119`) and multiplies `AV_fac`
+        (`pdr_mod.f90:2736`). It is harmless at 1 and double counts otherwise.
+      - `escape_probability`'s dust background, `NGRAIN = 2e-12 n Z` with a
+        fixed emissivity, although MOCASSIN has J_nu at the line.
+      - `L_TURB = 5 pc` in turbulent heating.
+      - `seedMolecules` applies SCATTER(A_V) to `chiFUV`, which is already
+        attenuated. This affects the seed only.
+      - The 1D flavour's `X_GRID` curve is taken from one calibration cell.
+  16. **Vestigial code.**
+      - pdrStep's thermal bracket is computed and then overwritten by Te.
+      - `pdrTgas` is a lagged copy of Te, written to `pdrGrid.out` in the
+        temperature slot.
+      - The `[D119]` ionDen damping is zero by construction.
+      - Stale comments: pdrStep's header still says "slab-equivalent,
+        chi/12, A_V,eff". CLAUDE.md says "185 entries" and still calls
+        `PDRGEOM=3D` "per-ray columns".
+      - `doc/pdr-status.md` has a duplicated L-19 line and still gives L-22's
+        "Next: set sticking", which D-326/D-328 did.
+  17. **Diagnostics are about 155 `[D...]`-tagged prints** in the three core
+      files, with per-cell probes in hot loops. A run log is 91,000 lines.
+
+**Tier 5 - provenance and infrastructure**
+
+  18. **Nothing off this machine.** `pdr-photoionization` is 102 commits
+      ahead of `origin/main` and has no remote branch. Every tag and the whole
+      DEVLOG since 2026-09-15 exist only locally.
+  19. Fixtures carry an absolute `pdrDataDir` into this home directory, and
+      D-330's `data/` against `~/.local/share` question (D-333 tier 5) is
+      unresolved.
+  20. **No fast regression test.** Every check is a 1.25 h run. There is no
+      per-phase timing either, so the cost of the four chemistry passes that
+      add nothing but item 1's oscillation is unknown.
+  21. The memory model (~58^3 per rank, full grid replicated) caps 3D science
+      resolution.
+
+### What changed against D-333
+
+D-333's Tier 1 item 1 (reproducibility) is closed (D-334..D-336). Its item 2
+(two contradicting fixtures) is sharpened by D-338 into item 6 here. Its tier 3
+(the photoelectric deficit on pn150k, L-19, L-9) stands, and is folded into the
+register rather than repeated. Four items are new: 1, 2, 3 and the
+line-output half of 5. Item 4 was known and unregistered.
+
+### Corrections to D-350
+
+Its prediction 5 could not fail (measurement 2). Its "76.1% against 75.0%
+converged" hid a threefold rise in per-iteration movement of the molecular
+state (measurements 2 and 3). The headline profile shifts are bin means over
+thousands of cells, and they stand to within the Jensen bias noted above. The
+per-cell state does not.
+
+### What is not known
+
+  - Whether the column rescale is the whole of the oscillation. It is the only
+    channel found, and the test is the run in item 1.
+  - How much of the deep MC noise the Jensen bias converts into bin-mean bias.
+  - Whether L-3 and the deep CO excess share a cause (item 8's test).
+  - The run-time split between transport, chemistry and thermal balance.
+
+### Recommended order
+
+Item 1 costs one line and one run pair, and it must precede item 2, since the
+oscillation and the noise both feed the same convergence numbers. Item 3 is
+reporting and costs nothing. Item 2 is a design decision for the user. Then
+item 7 (pn150k and the three artifacts on the current code), then item 8's
+no-run test, then items 4 and 5 together, since both need per-ray line
+transfer. Item 18 needs the user's word before anything is pushed.
+
+No code changed in this entry. `doc/pdr-status.md` gains L-25..L-29 and its
+stale lines are corrected.
