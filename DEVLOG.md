@@ -29215,9 +29215,44 @@ against `runs/d302-cloudy-trim-rad/150k`:
 
 ### 150 kK PN Against Cloudy, version 12
 
-https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV - rebuilt on
-`runs/d353-pn150k` after the run; its contents are recorded when it is
-published.
+https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV
+
+The three Roellig figures were redrawn with `tools/d260_roellig.py --cloudy
+runs/d353-pn150k runs/d302-cloudy-trim-rad/150k`, and the headline numbers,
+selected depths, lines, coolants and cost table come from `tools/d285_kpis.py`.
+The ratio table comes from `tools/d326_check.py` against
+`d334-pn150k/s1001`, with T_dust at the same depths by the selected-depths
+method. The photoelectric figure and the line-transport figure are historical
+and are kept, labelled as such.
+
+The new "Since version 11" section carries the three code changes, the two
+before/after tables above, the Lyman-Werner field ratios, and why H2 landing
+on Cloudy's here while hiipdr's overshoots is a measurement. It also records
+the T_gas fall where the transition moved, the two-way dust result, the
+high-ionization lines, what the error bars still mean, and a note that D-354
+is testing the chemistry passes.
+
+**Stale claims corrected in place, all found by reading v11 against the
+code:**
+  - "It sits behind `MOCASSIN_LINES` and is off by default" and "the channel
+    remains off by default": the thin lines became the default at D-307, and
+    D-352 removed the switch.
+  - The "Reading it" bullet that put the PDR's cold entirely down to "the
+    3.0-3.5x deficit in the FUV field, and nothing else". The field has been
+    0.91 of Lya-corrected Cloudy since the lines were transported (D-303). The
+    bullet now says what the page's own sections say: the heating is 0.27-0.42
+    of Cloudy's, and the gap is in the conversion.
+  - The dust bullet, "8-25%, with MOCASSIN warmer", which predates D-309/D-313.
+  - The line table's Cloudy Hbeta, 2.78, which D-303 had already found in no
+    block of the output. It now reads 2.48 (4 pi R_in^2 x intensity), ratio
+    1.06.
+  - The cost section's 26 elements, two graphite components and 2 h 42 min.
+    It now has the current run's table and the D-354 timing.
+  - The selected-depths caption's "H+ front 2% further out", now 0.2%.
+
+**hiipdr v13's meta line is corrected** (republished as version 14): its
+1 h 07 min was d352-s2 sharing the machine with d352-s1 (D-354). It now says
+so and gives the ~4 min per chemistry iteration measured alone.
 
 ### Status
 
