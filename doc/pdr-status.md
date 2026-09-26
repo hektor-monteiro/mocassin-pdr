@@ -219,7 +219,7 @@ each part's window field through a vendored per-ray hook (`ray_lw_factor`),
 the C I continuum term dropped because the MC transports it, and the stale
 zone test on the shielding columns removed. Result (`runs/d350-window`
 against `runs/d350-base11`, 11 iterations, seed 1001): H/H2 crossing **1.184 ->
-1.364**, C+ = C, front and dust unmoved, CO down 1.3-5x through the mid-PDR and
+1.364**, C+ = C, front and dust unmoved, CO down 1.1-5x through the mid-PDR and
 up 31% at the far edge, where MOCASSIN's window field drops below the old
 prescription. The window field over the old prescription runs 2.5 / 3.6 / 4.6 /
 0.8 at A_V 0.1 / 1.0 / 1.8 / 2.8 (correcting D-349's shell-averaged "flat
