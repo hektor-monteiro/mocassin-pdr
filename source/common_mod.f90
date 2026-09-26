@@ -446,7 +446,6 @@ module common_mod
                                                      ! in the order pdrCoolants lists them
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
-        real, allocatable         :: pdrHeatGG(:)    ! gas-grain collisional term alone (D-093);
         ! D-131: the PDR heating MOCASSIN does not compute for itself, summed
         ! per cell. heat(12) is the PDR total, but MOCASSIN already has three of
         ! its terms - PAH photoelectric (heat 2) via photoelHeat_g, carbon
@@ -754,7 +753,6 @@ module common_mod
     real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face
     integer             :: pdrNdiag=0              ! D-060 diagnostic line counter
-    integer             :: nDustCapped = 0           ! D-093: grain-budget caps hit this iteration
     real                :: pdrZeta    = 1.0e-16    ! CR ionization rate [1/s]
     real                :: pdrEndTime = 1.0e7      ! chemistry integration span [yr]
     ! D-352: A_V per N_H, MEASURED from this model's grains by calibratePDRdust

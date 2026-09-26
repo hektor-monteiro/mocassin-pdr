@@ -3131,9 +3131,9 @@ module pdr_mod
         if (all(abun == abun0)) pdrNstuck = pdrNstuck + 1
 
         ! D-121: the chemistry's outputs are the first hand-off in the chain.
-        ! A NaN here reaches the grain energy balance through pdrHeatPE and
-        ! pdrHeatGG (D-093) and thence T_dust, where it stops the run under a
-        ! message about sublimation that names nothing useful.
+        ! A NaN in them used to reach T_dust through the D-093 grain feedback
+        ! (removed at D-352) and stop the run under a message about
+        ! sublimation that named nothing useful; it is still caught here first.
         if (.not.lgNanFound) then
            do ik = 1, pdrNspec
               if (.not.(abun(ik) == abun(ik))) then
@@ -3144,8 +3144,6 @@ module pdr_mod
            if (.not.lgNanFound) then
               if (.not.(grid%pdrHeatPE(cellP) == grid%pdrHeatPE(cellP))) then
                  lgNanFound = .true.; nanWhere = "pdrHeatPE"; nanCell = cellP
-              else if (.not.(grid%pdrHeatGG(cellP) == grid%pdrHeatGG(cellP))) then
-                 lgNanFound = .true.; nanWhere = "pdrHeatGG"; nanCell = cellP
               end if
            end if
            if (lgNanFound .and. taskid == 0) print*, &
@@ -3576,7 +3574,6 @@ module pdr_mod
                 & " ionDen H0 =", grid%ionDen(cellP,elementXref(1),1), &
                 & " AV =", grid%AVeff(cellP), " nH =", grid%Hden(cellP)
         end if
-        grid%pdrHeatGG(cellP) = real(heat(11))
         grid%H2den(cellP)     = real(abun(NH2)*nH)         ! D-107
 
         ! D-032's PDR heat/cool test on lgConverged is gone (D-352): the PDR's

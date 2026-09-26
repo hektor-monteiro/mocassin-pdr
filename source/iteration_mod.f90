@@ -57,7 +57,6 @@ module iteration_mod
            real, allocatable :: pdrCoolTmp(:), pdrCoolSum(:)
            double precision, allocatable :: pdrLevTmp(:,:), pdrLevSum(:,:)
            real, allocatable :: pdrHeatPETmp(:), pdrHeatPESum(:)
-           real, allocatable :: pdrHeatGGTmp(:), pdrHeatGGSum(:)      ! D-096
            real, allocatable :: pdrCoolSlTmp(:), pdrCoolSlSum(:)      ! D-166
            real, allocatable :: pdrCoolTrTmp(:), pdrCoolTrSum(:)      ! D-166
            real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
@@ -1926,8 +1925,6 @@ module iteration_mod
                  allocate(pdrHeatSum(0:grid(iG)%nCells),   stat=err)
                  allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrHeatGGTmp(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrHeatGGSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolSlTmp(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolSlSum(0:grid(iG)%nCells), stat=err)
                  allocate(pdrCoolTrTmp(0:grid(iG)%nCells), stat=err)
@@ -1950,7 +1947,6 @@ module iteration_mod
                  pdrHeatTmp   = 0.
                  pdrHeatSum   = 0.
                  pdrHeatPETmp = 0.
-                 pdrHeatGGTmp = 0.
                  pdrCoolSlTmp = 0.
                  pdrCoolTrTmp = 0.
                  H2denTmp = 0.
@@ -1981,8 +1977,6 @@ module iteration_mod
                                      & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
                                 pdrCoolTmp(grid(iG)%active(i,j,k))   = &
                                      & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
-                                pdrHeatGGTmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%pdrHeatGG(grid(iG)%active(i,j,k))
                                 pdrCoolSlTmp(grid(iG)%active(i,j,k)) = &
                                      & grid(iG)%pdrCoolSlope(grid(iG)%active(i,j,k))
                                 pdrCoolTrTmp(grid(iG)%active(i,j,k)) = &
@@ -2023,9 +2017,6 @@ module iteration_mod
                  call mpi_allreduce(pdrCoolTrTmp, pdrCoolTrSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%pdrCoolTref(1:grid(iG)%nCells) = pdrCoolTrSum(1:grid(iG)%nCells)
-                 call mpi_allreduce(pdrHeatGGTmp, pdrHeatGGSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrHeatGG(1:grid(iG)%nCells) = pdrHeatGGSum(1:grid(iG)%nCells)
                  call mpi_allreduce(H2denTmp, H2denSum, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
                  grid(iG)%H2den(1:grid(iG)%nCells) = H2denSum(1:grid(iG)%nCells)
@@ -2074,7 +2065,6 @@ module iteration_mod
                  ! ~4.5 MB/rank/iteration, so this is most of it. Last use of
                  ! all ten is :2060-2076, so freeing here is safe.
 
-                 deallocate(pdrHeatGGTmp, pdrHeatGGSum)
                  deallocate(H2denTmp, H2denSum)
                  deallocate(pdrCoolSpTmp, pdrCoolSpSum)
                  deallocate(pdrIonRateTmp, pdrIonRateSum)
@@ -2852,13 +2842,6 @@ module iteration_mod
                  print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
                       &int(grid(iG)%noTeBal),"% Te balance not reached in grid", iG
 #ifdef PDR
-                 ! D-093: a non-zero count means the PDR's grain heating terms
-                 ! exceeded what MOCASSIN's grains absorbed in those cells, and
-                 ! the loss was capped to keep the dust balance solvable.
-                 if (lgPDR .and. nDustCapped > 0) &
-                      & print*, "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
-                      & nDustCapped," grain energy-budget caps hit"
-                 nDustCapped = 0
 #endif
                  write(21,*) "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
                       &int(convPercent),"% converged cells in grid ", iG

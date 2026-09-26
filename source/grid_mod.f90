@@ -1423,10 +1423,6 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeat memory"; stop
                 end if
-                allocate(grid%pdrHeatGG(0:grid%nCells), stat = err)
-                if (err /= 0) then
-                   print*, "! setMotherGrid: can't allocate pdrHeatGG memory"; stop
-                end if
                 allocate(grid%pdrHeatPE(0:grid%nCells), stat = err)
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeatPE memory"; stop
@@ -1533,7 +1529,6 @@ module grid_mod
                 grid%pdrHeat = 0.
                 grid%pdrHeatPE = 0.
                 grid%pdrHeatXtra = 0.
-                grid%pdrHeatGG = 0.
                 grid%pdrLevPop = 0.d0
                 grid%pdrAbun = 0.d0
              end if
@@ -3777,10 +3772,6 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrHeat memory"; stop
                end if
-               allocate(grid(iG)%pdrHeatGG(0:grid(iG)%nCells), stat = err)
-               if (err /= 0) then
-                  print*, "! resetGrid: can't allocate pdrHeatGG memory"; stop
-               end if
                allocate(grid(iG)%pdrHeatPE(0:grid(iG)%nCells), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrHeatPE memory"; stop
@@ -3889,7 +3880,6 @@ end function getVolume
                grid(iG)%pdrIonRate = 0.
                grid(iG)%pdrHeat = 0.
                grid(iG)%pdrHeatPE = 0.
-               grid(iG)%pdrHeatGG = 0.
                grid(iG)%pdrLevPop = 0.d0
                grid(iG)%pdrAbun = 0.d0
             end if
