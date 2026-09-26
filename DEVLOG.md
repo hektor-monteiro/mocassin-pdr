@@ -346,6 +346,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-344 | **The diffuse fraction is measured, it dominates the PDR (75-100%), and it kills the 13-ray design I proposed one entry ago rather than justifying it.** `runs/d343-diffuse` (hiipdr, seed 1001, `pdrSplitField 1`): **`pdrSplitField` is verified physics-neutral** - all 22 iterations match `runs/d334-hiipdr/s1001` to nine digits and 14 of 17 output files are byte-identical, the three exceptions being `summary.out` (timestamps), `pdrFUV.out` (the new `chi_dif` column) and `SED.out` (only the `SEDratio` line D-343 fixed). The code asserted this switch was diagnostic-only and nobody had checked; it is. **The measurement:** diffuse fraction `chi_dif/chi_MC` against depth = **0.346 / 0.572 / 0.747 / 0.866 / 0.929 / 0.966 / 0.991 / 1.000** at A_V 0-0.2 / 0.2-0.47 / 0.47-0.8 / 0.8-1.2 / 1.2-1.6 / 1.6-2.1 / 2.1-2.6 / 2.6-3.05, monotonic, on 15204 cells. Physically as expected: the direct beam is extinguished exponentially while the scattered field is replenished from all sides, so **deep PDR gas sees essentially no direct starlight at all.** So this is not a few-per-cent effect to be closed as negligible - the angular question is real and large. **But D-343's design is wrong, and this measurement is what shows it.** It would give each diffuse ray the column traced **outward** from the cell to the boundary. That measures only the *last leg* of a scattered photon's path. A photon scattered near the outer edge and travelling inward passed through the inward column from the star *before* it scattered, and that H2 is not in the outward trace. Using the outward column therefore under-counts the H2 the photon actually crossed - which is precisely the error D-342 measured, where H2 fell by 500-1000x and the molecular zone vanished. **The slab-equivalent treatment is a better approximation than it looks**, because the dominant H2 column along almost any FUV photon's path is the inward leg it shares with the direct beam. Proper treatment needs the absorption history accumulated along each packet's path - a Monte Carlo problem MOCASSIN is equipped for, not a twelve-ray post-hoc geometry. **And a sharper question displaces the angular one entirely.** The band is 0.4537-0.9997 Ryd (2010-912 A). H2 and CO dissociation and C ionization all live in the Lyman-Werner range **0.821-0.999 Ryd** (1110-912 A). **Lyman alpha sits at 0.7496 Ryd - inside the band, below the dissociating range.** If the diffuse FUV is Lya-dominated, as an H II region makes likely and as D-303/D-304's existing Lya correction against Cloudy already hints, then the single band-integrated chi handed to every photoreaction is **inflated for the reactions that matter** while contributing nothing to them, and the model over-dissociates H2. Consistent with hiipdr's H/H2 crossing sitting at A_V 1.17 against Cloudy's 1.09 - MOCASSIN's H2 forms slightly too deep. **Falsifiable and cheap:** dump `Jdif` per frequency bin across 384-420 for a few cells and see whether the diffuse excess is concentrated at the Lya bin or spread across the band. That measurement decides whether the angular model matters for molecules at all, and it comes before any of it. No field-splitting code written. | Accepted | 2026-09-25 |
 | D-345 | **The diffuse FUV is dust-scattered continuum, flat across the band - so the spectral branch is closed as measured-and-small, and the angular model is what is left. The pre-registered prediction is refuted.** `runs/d345-fuvspec` (hiipdr, seed 1001, `pdrSplitField 1`, 22 iterations, 74.8553009%, tracking `s1001` to nine digits at every iteration, so the dump is physics-neutral). `Jdif/Jste` per bin, shell-averaged: in the outermost shell it runs **0.99, 0.98, 0.97, 0.95, 0.93, 0.94, 0.96, 0.91, 0.97, 0.93, 0.93** from 0.454 to 0.999 Ryd - **flat, with only a mild blue-ward decline.** Diffuse fraction of the whole band against diffuse fraction inside the Lyman-Werner window: **f_LW/f_band = 0.83 / 0.86 / 0.86 / 0.89 / 0.91 / 0.93 / 0.94 / 0.98** over eight log-radial shells, and the Lya bin carries **0.2-1.8%** of the diffuse total. **So there is no spectral inflation to fix.** The band integral overstates the LW-relevant diffuse content by 17% in the innermost shell (13 cells, noisy) and by **2-9% through the PDR proper** - real, measured, and far too small to explain anything. D-291's conclusion is confirmed from MOCASSIN's own side for the first time rather than from code inspection: no Lya, because `ilow >= 2` excludes the Lyman series by construction, and what is there is scattered continuum. `f_band` itself reproduces D-344 on a different binning (0.17 -> 0.98 over radial shells against 0.35 -> 1.00 over A_V), which is a useful cross-check on both. **What remains is the angular treatment, and the bracket on it is alarming rather than reassuring.** Both extremes are now measured on the same fixture at the same seed: give every ray the source-ward column (today) and the H/H2 crossing sits at A_V 1.17 against Cloudy's 1.09; give every ray its own outward-traced column (D-342) and **there is no molecular zone at all**. The truth is somewhere in that interval, which spans "a normal PDR" to "no molecules". Since 75-100% of the PDR field is diffuse (D-344), the line shielding of the scattered component is a **first-order** control on molecular content, not a refinement - and the sign of the correction is not predictable from anything measured, because a scattered photon's path is longer than the radial one but runs partly through less molecular gas. **Consequence for D-331/D-333:** the molecular observables the code is being taken to production for - CO and H2 line intensities - sit downstream of a quantity currently bracketed between "normal" and "zero". That ordering was not visible before this measurement. Proper treatment needs H2 line opacity accumulated along each packet's path during transport, which MOCASSIN is equipped to do and a twelve-ray post-hoc geometry is not (D-344). Not started. | Accepted | 2026-09-25 |
 | D-346 | **D-345's "next step" is corrected: H2 opacity IS implemented, and D-100 already ruled out the route I proposed - for three structural reasons, one of which no amount of path accumulation fixes.** The user pointed out that H2 opacity exists. It does: `yanH2xSec` (Yan, Sadeghpour & Dalgarno) is in the Monte Carlo opacity via `addOpacity` (`ionization_mod.f90:385-470`). But it is the **photoionization continuum above 15.43 eV**, and its own comment says it is "explicitly ZERO below the 15.4 eV threshold" because H2 absorption in 13.6-15.4 eV is line opacity in the higher electronic bands, not a continuum - Cloudy the same (D-139, which added a 13.6-15.4 eV continuum and then reverted it). The **Lyman-Werner window is 0.821-0.999 Ryd = 11.2-13.6 eV**, entirely below 15.43 eV, so the implemented cross section returns exactly zero across the whole band that dissociates H2. D-100 chose it *for that reason*: "its decisive property is where it sits ... it cannot double-count against anything 3D-PDR is already doing", the live hazard being D-050's double-attenuation, not accuracy. **And D-100 already answered the question D-345 re-opened.** Asked whether 3D-PDR's self-shielding could be reused as a MOCASSIN opacity, it said no, structurally: (1) `H2SHIELD1` is a function of the **column**, and the MC accumulates `tau = sum kappa ds` with no memory of what a packet already traversed - a shielding factor is that integral, already taken; (2) it is **not an exponential**, so no kappa reproduces it - the implied sigma runs 3.22e-15 at N(H2)=1e14 down to 6.90e-21 at 1e20, a factor **4.7e5**, because absorption sits in ~30 discrete bands whose cores black out early and then the damping wings do the work; (3) **no frequency resolution** - 17 bins across 912-1108 A at ~3564 km/s each against a thermal H2 line width of ~0.9 km/s at 100 K. **What that does to D-345's proposal.** I wrote "H2/CO line opacity accumulated along each packet's path during transport". As an *opacity per frequency bin* that is refuted by all three points. What is not refuted, and is what I should have written, is a **per-packet accumulated-column estimator**: each packet carries the H2 column it has traversed and contributes `weight x shield(N_traversed)` to a separate dissociation-rate estimator, applying the existing band-integrated shielding function **per packet** rather than to a mean column. That supplies exactly the memory D-100 identified as missing (1), needs no exponential (2), and needs no line resolution (3), because the band-integrated factor is what is being weighted. It is a new per-packet state variable and a new estimator array - a real change to the transport, not a patch, and correspondingly not cheap. **Nothing in D-345's measurements changes**; only its stated next step, and the register entry that repeated it. **Process:** this is the third time in this session that prior work has corrected a conclusion I reached from the code in front of me - D-338/D-339 on O-14's contents, D-344/D-345 on Lya, and now this. The log holds 345 entries and searching it costs one grep. Doing that first is now the rule, not the remedy. | Accepted | 2026-09-25 |
+| D-347 | **The angular model, specified at the user's direction: one direct ray plus twelve HEALPix rays, with the diffuse column redefined as (star -> scatterer) + (scatterer -> cell). D-346's "change the transport" conclusion is WITHDRAWN - this is one subroutine, using arrays that already exist.** The user asked why 1 + 12 rays through the existing 3D-PDR-style tracer cannot simply be done, and called out the circularity in my answers. The objection I had been raising was never about the rays; it was about the **column**. `computeRayColumns` traces **cell -> outer boundary**, which answers "how much is radiation arriving from OUTSIDE attenuated on its way in" - exactly right for 3D-PDR, whose FUV is an external boundary condition with `rad_surface(k)` as surface brightness streaming inward. Our geometry is the reverse: the star is inside and the diffuse field is made by scattering within the cloud, so a cell->boundary column on 11 of 12 rays asserts illumination from outside a nebula that has no outside source. That is the whole of D-342's H2 x 0.002. **The correct column is a two-leg path.** A photon scattered at P and arriving at cell C traversed `N_eff = N(star->P) + N(P->C)`, and both legs are already in hand: `N(star->P)` is stored per cell as `grid%pdrColH2/C/CO` (D-078), so it is a lookup at whichever cell the ray step is in; `N(P->C)` is what the loop already accumulates; and the weight is `scaOpac(cP)` times the local field, `scaOpac` already being read in that same loop for `cAV`. So per ray one accumulates `sum_i w_i * shield(pdrColH2(cP_i) + cH2_i)`, evaluating the non-linear shielding factor **per scattering site** rather than on a mean column. **Design:** ray 12 direct, weight `1 - f_dif`, source-ward column - i.e. today's calculation; rays 0-11 diffuse, weight `f_dif/12`, the two-leg effective column. `f_dif` is not a free parameter: D-344/D-345 measured it at 0.35 at the front rising to 1.00 at the far edge. **None of D-100's three objections applies** - no per-bin kappa is defined, the band-integrated `shield()` is applied per site, and no line resolution is needed. **Withdrawn:** D-346 said this required a new per-packet state variable carried through `pathSegment` and a new estimator array. It does not; that was me re-deriving from `ionization_mod` instead of reading what `computeRayColumns` already held. The per-packet route remains a valid but more expensive alternative, not the necessary one. **Test already built:** same fixture, seed 1001, exact comparison against both measured extremes - source-ward-everything (H/H2 at A_V 1.17) and outward-everything (no molecular zone). Not implemented yet. | Accepted | 2026-09-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -27805,3 +27806,104 @@ contained, D-344/D-345 on Lyman alpha, and now D-100 on the H2 opacity route.
 Each time the answer was already in the log, and each time the user found it
 first. The log has 346 entries and searching it costs one grep. Searching before
 proposing is the rule now, not the remedy after.
+
+---
+
+## D-347 - The angular model, specified (2026-09-25)
+
+At the user's direction, and after they pointed out that my answers had become
+circular. The specification below is theirs: one direct-to-source ray plus twelve
+full-4pi HEALPix rays, through the ray tracer that already exists.
+
+### The objection was never the rays - it was the column
+
+`computeRayColumns` traces **cell -> outer boundary**. That column answers one
+question: *how much is radiation arriving from outside attenuated on its way in?*
+
+For 3D-PDR that is exactly the right question. Its FUV field is an external
+boundary condition: `rad_surface(k)` is surface brightness in direction k,
+streaming inward, and the ray column from the cell out to the surface is exactly
+the attenuation it suffers. The tracer is correct for the geometry it was built
+for.
+
+Our geometry is the reverse. The star is **inside**, and the diffuse field is
+produced by scattering **within** the cloud. So attaching a cell->boundary column
+to 11 of 12 rays asserts illumination arriving from outside a nebula that has no
+outside source. That is the entirety of D-342's result - H2 falling by a factor
+500-1000 and the molecular zone vanishing - and it is why that experiment failed.
+It is not an argument against 1 + 12 rays.
+
+### The correct column is a two-leg path, and both legs already exist
+
+A photon scattered at P and arriving at cell C has traversed
+
+    N_eff  =  N(star -> P)  +  N(P -> C)
+
+  - `N(star -> P)` is already stored **per cell** as `grid%pdrColH2`,
+    `grid%pdrColC`, `grid%pdrColCO` (D-078). Inside the ray walk the step is
+    always in a known cell `cP`, so this is a lookup, not a computation.
+  - `N(P -> C)` is precisely what the loop already accumulates as `cH2`/`cC`/`cCO`.
+  - the weight is the local scattering emissivity, and `scaOpac(cP)` is already
+    read in that same loop, two lines below, to build `cAV`.
+
+So per ray:
+
+    sum_i  w_i * shield( pdrColH2(cP_i) + cH2_i )
+
+evaluating the non-linear shielding factor **at each scattering site** rather
+than once on a mean column. That is the property D-100 said a per-bin opacity
+could not have, obtained without defining an opacity at all.
+
+### The design
+
+    ray 12    direct    weight 1 - f_dif    column: source-ward (today's)
+    rays 0-11 diffuse   weight f_dif / 12   column: two-leg N_eff above
+
+`f_dif` is not a free parameter. D-344 and D-345 measured it: 0.35 just inside
+the front, rising monotonically to 1.00 at the far edge, and the diffuse light is
+dust-scattered continuum, flat across the band, so a single band-integrated
+weight is defensible.
+
+Two properties to preserve, as in D-343: it must reduce to today's calculation as
+`f_dif -> 0`, which it does because ray 12 *is* today's calculation; and the
+weights must sum to the field the Monte Carlo actually measured, which requires
+the direct ray's effective A_V to be inverted against `Jste - Jdif` rather than
+against `Jste`.
+
+### D-100's objections, checked one at a time
+
+  1. *Function of the column, not the density; the MC has no memory.* Not hit:
+     nothing here is a `kappa` multiplied by a path length. The column is
+     constructed explicitly, per site, from two stored quantities.
+  2. *Not an exponential.* Not hit: `shield()` is evaluated as itself, per site.
+  3. *No frequency resolution.* Not hit: what is evaluated is the
+     band-integrated factor the chemistry already uses.
+
+### Withdrawn
+
+D-346 concluded this needed "a new per-packet state variable carried through
+`pathSegment`, and a new estimator array beside `Jste`/`Jdif` - a change to the
+transport, not the handoff." **That is withdrawn.** It is a change inside
+`computeRayColumns` plus the handoff in `pdrStep`, using arrays that already
+exist. I reached the wrong conclusion by reasoning from `ionization_mod`, which I
+had just been reading, instead of from what the ray tracer already held.
+
+The per-packet estimator remains a valid and more general alternative - it would
+handle multiple scatterings, which the two-leg form approximates as one - but it
+is not the necessary route, and proposing it as such was over-engineering.
+
+### Process
+
+Three times this session a conclusion of mine was corrected by work already in
+this log: D-338/D-339 on what O-14 contained, D-344/D-345 on Lyman alpha, and
+D-346 on the opacity route. The user found each one. The common failure is not
+forgetting - it is re-deriving from whichever file I had most recently opened
+instead of from the design. Searching the log before proposing, and reading the
+routine I intend to change before declaring what it cannot do.
+
+### Status
+
+Specified, not implemented. The test is already built: same fixture,
+`randomSeed 1001`, exact comparison with no Monte Carlo noise, against both
+measured extremes - source-ward-everything giving an H/H2 crossing at A_V 1.17,
+and outward-everything giving no molecular zone at all.
