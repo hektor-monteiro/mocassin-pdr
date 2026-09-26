@@ -353,7 +353,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-351 | **A full audit of the code, and the blockers to science production re-ranked against `51289e5`. Three measurements from runs already on disk, none of them in any earlier entry. (1) Within an MC iteration the five chemistry passes run on frozen inputs, yet mean f_mol alternates with period 2 and a growing swing (d350-window 0.8462/0.8546/0.8435/0.8596; s1001 0.003-0.004). The only pass-to-pass channel found is pdrStep rescaling the shielding columns, which exclude the target cell, by the target cell's own abundance ratio, compounding (pdr_mod.f90:3236). (2) x(HI)+2x(H2)+x(HII)=1 holds by construction after rescaleIonToAvail, so D-350's budget prediction was a free pass. The pre-rescale [D220] figure is 0.020 (29% of cells >1%) against the baseline's 0.007 (9%), and |dx(H0)|/x p90 is 0.34 against 0.09: D-350 moves the molecular state three times more per iteration, hidden by 76.1% against 75.0% converged. (3) The cause: every photorate now reads the MC field, whose per-cell seed scatter is 7/14/22% at A_V 1.6-2.1/2.1-2.6/2.6-3.05, so the deep chemistry is noise-limited per cell. Also newly registered: the 3D line escape caps beta at 2/3 (4 of 12 rays at infinite column), and lineFlux.out reports electron-only PDR lines while 3D-PDR's populations cool the gas. No live zone gate remains on the default path. Ranked in five tiers; 102 commits exist only on this machine.** | Accepted | 2026-09-26 |
 | D-352 | **pdrZone removed, and every switch that selected physics at run time. The zone flag (x(H+) < 0.3) decided nothing on the default path any more: 44 references, the live ones being three off-by-default switches and the analysis tools. Removed, together with the vestigial PDR temperature (pdrTgas, a lagged second copy of Te), eleven keywords that selected alternative physics or stood in for the model (pdrFUVmode, pdrDustModel, pdrOwnDust, pdrDustFeedback, pdrPEfromPDR, pdrUseNePDR, pdrCoolZoneGate, pdrFcritConv, pdrZoneLimit, pdrMetallicity, pdrGrainRadius - now refused), eleven inert ones (retired with a message), and the four MOCASSIN_* environment variables with their legacy branches. pdrGrid.out is v2, with a header so old readers fail loudly. Tag d352-zone-and-switches. Found on the way: the DEFAULT pdrDustFeedback = 1 fed 3D-PDR's PAH photoelectric term into MOCASSIN's grain balance while the gas took MOCASSIN's own - the grains lost 5-150x more PE energy than the gas received at A_V > 0.5. Stage 1 (physics-neutral) predicted byte-identical at seed 1001; stage 2 (MOCASSIN's own grain terms) predicted T_dust +0.1-1.5% at depth.** | Accepted | 2026-09-26 |
 | D-353 | **Both Cloudy artifacts rebuilt on the current code, and the two fixtures now disagree in opposite ways about H2.** hiipdr v13 from `runs/d352-s2` (no rerun: same binary and settings): the H/H2 crossing moved from A_V 1.18 to 1.37, away from Cloudy's 1.09, because D-350's photorates see a Lyman-Werner field 2.5-4.6x the old prescription; T_dust 3-7% below Cloudy (was 5-9%); v12's headline front (3.80 pc) and C+ = C (2.24) were stale and are 3.824 and 2.273 by the page's own scripts. pn150k on `runs/d353-pn150k` (seed 1001, against `d334-pn150k/s1001`): 90.13% at iteration 9 in 1 h 28; **the H/H2 crossing moved 0.252 -> 0.375, onto Cloudy's 0.368**, with a window field 4.9-6.4x the prescription; CO's edge excess 60x -> 2.6x; PDR dust up 3-7% toward Cloudy, **but ionized-gas dust down 7-8%, away from it (not decomposed)**; T_gas -6%/-4% at A_V 0.28/0.37 where the transition moved; high-ionization lines 2-5% lower, not separated from the earlier stop. | Accepted | 2026-09-26 |
-| D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). | In progress | 2026-09-26 |
+| D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). **Result: passes 2-5 then moved no cell by 0.1% (largest 4.6e-4); one pass of one solve matches five of three to 0.1% in T_gas, 0.4% in PE, exactly in T_dust, at 20:48 against 50:42 (1.5 against 5.3 min per chemistry iteration). The rescale was a positive feedback: hiipdr's H/H2 crossing moves 1.367 -> 1.444, further from Cloudy's 1.09 - the fix is taken. Loops collapsed, `pdrCoupleIter`/`pdrChemIter` retired (inert), refactor verified byte-identical (17/18 files, summary.out timestamps). L-25 closed.** | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -29356,3 +29356,129 @@ MC iteration.
 If (a) and (c) hold, `pdrCoupleIter` and `pdrChemIter` no longer select
 anything a run depends on. They would be retired rather than left as
 settings, and the pass loop collapsed.
+
+### Result, step 1 (added after the run)
+
+`runs/d354-norescale`: clean exit, 11 iterations, **77.27%** converged
+(d352-s2: 76.40%), 50 min 42 s with the machine to itself. Iterations 1-3 are
+identical to d352-s2 to every printed digit (0.00000000 / 0.249934226 /
+0.506445587), as they must be, since the chemistry starts at iteration 4. The
+hydrogen budget is 1.0000 at min, median and max, with no cell off by more
+than 1%.
+
+  - **(a) Held, and more strongly than stated.** In every iteration, passes
+    2-5 moved **no** cell's x(H2) or x(CO) by more than 0.1%. The largest
+    relative move in any cell, pass or iteration was 4.5e-5 for H2 and
+    4.6e-4 for CO, both at iteration 8, pass 2; from pass 3 on it is ~2e-8.
+    The D-205 mean f_mol is identical to four digits across passes 2-5 of
+    every iteration (e.g. 0.7496 x4 at iteration 4, 0.8123 x4 at 11), where
+    d352-s2's iteration 11 went 0.8369 / 0.8450 / 0.8340 / 0.8499 / 0.8334.
+    L-25's hypothesis is confirmed: the rescale was the whole of the
+    pass-to-pass channel, and without it passes 2-5 recompute pass 1.
+  - **(b) Failed on size.** Against d352-s2:
+
+        quantity                  d352-s2   no rescale   Cloudy
+        ionization front [pc]      3.840      3.839       3.765
+        H/H2 crossing A_V          1.367      1.444       1.090
+        C+ = C A_V                 2.278      2.278       2.950
+
+        A_V              0.81   1.05   1.35   1.53   1.74   2.21   2.89
+        T_gas new/old    0.998  0.974  0.991  0.996  1.000  1.000  1.000
+        PE new/old       1.002  1.052  1.010  1.002  1.001  0.997    -
+        T_dust new/old   1.000 at every depth
+
+    The crossing moved **+0.077 mag**, outside the +-0.05 predicted.
+    T_gas fell 2.6% at A_V 1.05, outside the 2% predicted, and is within 1%
+    elsewhere. The front, C+ = C and T_dust held. The move is confined to
+    the transition. n(H2) at A_V 0.70 / 1.00 / 1.50 went from 5.4e-4 / 2.21 /
+    34.8 to 3.2e-4 / 0.20 / 30.2 cm^-3 (Cloudy 5.8e-4 / 14.1 / 46.2), and
+    n(CO) at 1.00 from 1.2e-9 to 3.4e-11. At A_V >= 2 nothing moved.
+    **The sign was not predicted, and it should have been.** The rescale
+    was a positive feedback, exactly as D-088 argued for the self-term: a
+    cell whose H2 rose in the solve got a larger shielding column in the
+    next round, and so more H2. Removing it makes H2 form later. On hiipdr
+    that moves MOCASSIN further from Cloudy's crossing. This is a fix against
+    a prettier number, and the fix is taken.
+  - **Something the passes had been hiding.** Pass 1 of each late iteration
+    still moves x(H2) by more than 1% in 39% of cells and x(CO) in 97-99%
+    (iterations 9-11). With the passes silent, that is the
+    iteration-to-iteration change, the per-cell Monte Carlo noise of L-26
+    seen directly.
+  - **(d) Cost, and a correction to this entry's opening.** With five passes
+    and the machine to itself, the chemistry iterations took 7.2 / 6.1 / 5.7
+    / 5.4 / 5.3 / 5.3 / 5.3 / 5.3 min, the same as `d334-hiipdr/s1001`'s
+    5.3. The "4.0 and 3.9 min alone" quoted above from d352-s2's last two
+    iterations is **not** the solo cost. Those two iterations are
+    unexplained; rank placement on the cores once d352-s1 had gone is a
+    guess, not a measurement. The contention finding stands: d352-s2's
+    7.6-10.3 min overlapped d352-s1. Both published pages quote "about 4
+    min", which is wrong and is corrected at their next rebuild.
+
+### Result, step 2 (added after the run)
+
+`runs/d354-onepass`, with `pdrCoupleIter 1` and `pdrChemIter 1`: clean exit,
+**77.35%** converged, **20 min 48 s**, hydrogen budget 1.0000 everywhere.
+
+  - **(c) Held.** Against step 1 (five passes of three):
+
+        A_V              0.81   1.05   1.35   1.53   1.74   2.21   2.89
+        T_gas 1/5        1.000  1.000  1.000  1.000  1.001  0.999  1.000
+        PE 1/5           1.000  1.000  0.999  1.001  1.004  0.996    -
+        T_dust 1/5       1.000 at every depth
+
+    The H/H2 crossing is 1.444 in both, the front 3.840 against 3.839, and
+    C+ = C 2.277 against 2.278 (`d285_kpis_hiipdr.py`). `d326_check.py`'s
+    per-cell C+ = C gives 2.245 against 2.272, its usual scatter. Every
+    selected-depth value agrees to three figures. Convergence is identical to
+    all nine printed digits through iteration 7 (1.51933706 in both). It
+    parts only in the fourth figure after that (39.305 / 77.046 / 78.197 /
+    77.348 against 39.338 / 77.039 / 78.131 / 77.269), which is the solver's
+    restarts moving abundances inside its tolerance and the seed then
+    decorrelating.
+  - **(d) Beaten.** The chemistry iterations took 3.15 / 2.23 / 1.88 / 1.62 /
+    1.50 / 1.50 / 1.47 / 1.47 min, against 7.2 / 6.1 / 5.7 / 5.4 / 5.3 / 5.3 /
+    5.3 / 5.3 with five passes: 3.6x per iteration and 2.4x on the run.
+    ~2.5 min had been predicted. (Iterations 2-3, which have no chemistry,
+    ran 2.7 and 2.6 min against 2.0 and 2.5, slowed by my analysis scripts
+    running beside them.)
+
+### Step 3: the loops collapsed, the keywords retired
+
+(a) and (c) held, so the pass and round counts no longer select anything a run
+depends on. At the user's direction ("proceed as suggested"), both loops are
+removed rather than left at 1:
+
+  - `iteration_mod.f90`: the `do iCouple` loop is gone and its body dedented.
+    The pass-1-only blocks (the D-217 budget reductions, the D-204 probe, the
+    D-217..D-226 prints) run unconditionally. `reportDiffuseDiag` and
+    `reportPassChange` are called once per iteration. The `[D205]` line
+    loses its pass number, and `[D204]` keeps its label because
+    `tools/d202_series.py` parses it.
+  - `pdr_mod.f90`: the `do it = 1, pdrChemIter` loop is gone. `[D354]` now
+    prints each iteration's change against the last.
+  - `pdrCoupleIter` and `pdrChemIter` join the inert retired keywords: they
+    are accepted with a D-354 message and ignored. That is inert rather than
+    fatal because a value above 1 could only have repeated the same solve.
+    The man page and `common_mod.f90` say so, and D-123's history comment is
+    replaced by why its ladder no longer applies. D-123 measured D-119's
+    loop, which re-ran `updateCell` on every pass, so the passes had inputs
+    to converge against then. D-216 took that away and left the passes
+    re-solving fixed inputs, with only the rescale to make them differ.
+
+All four flavours build. `doc/pdr-status.md`: L-25 closed. Under L-4 the
+compounding rescale is recorded as deleted. L-19 carries D-353's pn150k dust
+re-measurement, and L-26 notes the `[D354]` line that now shows the
+per-iteration noise directly.
+
+**Verified as a refactor.** `runs/d354-collapse` ran the collapsed binary on
+d354-onepass's own input, retired keywords included. Both D-354 retirement
+messages print and the run continues. **17 of 18 output files are
+byte-identical to d354-onepass**; `summary.out` differs only in its
+timestamps. 19 min 52 s.
+
+### Status
+
+Accepted. The chemistry is solved once per MC iteration. Open, and next: both
+Cloudy artifacts were built at D-353 on code with the rescale, so they are
+stale on hiipdr's transition (crossing 1.367 there, 1.444 now). pn150k has not
+yet been run on this code.

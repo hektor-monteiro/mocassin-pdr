@@ -747,7 +747,6 @@ module common_mod
     character(len=200)  :: pdrDataDir = ''         ! '' -> PREFIX/share/mocassin/dataPDR
     integer             :: pdrNspec   = 0          ! species in the network
     integer             :: pdrNreac   = 0          ! reactions in the network
-    integer             :: pdrChemIter= 3          ! chemistry passes per MC iteration (D-008)
     integer             :: pdrStartIter=1          ! let MOCASSIN converge this many MC iterations first (D-062)
     integer             :: pdrLevIter=25           ! D-060: fixed-T level-population passes
     real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
@@ -801,20 +800,10 @@ module common_mod
     ! recursion. It exists so the chemistry can inject per-ion-stage source and
     ! sink terms (D-111), which a product of ratios cannot represent.
     logical             :: lgIonMatrix = .true.  ! matrix ionBalance
-    ! D-119: how many times to close the ionization <-> chemistry loop inside a
-    ! single MC iteration. 1 reproduces the sequential behaviour exactly.
-    ! Cloudy's equivalent lives in conv_base and needs damping plus oscillation
-    ! detection, which is evidence that two solvers passing rates can chase
-    ! each other rather than settle.
-    !
-    ! D-123 measured the ladder 1/3/5/7 on three fixtures. The loop converges:
-    ! the change from 5 to 7 passes is 0.0009-0.0030 in front ratio against
-    ! 0.108-0.451 from 1 to 3. It also collapses the between-fixture spread
-    ! from 0.564 to 0.130 while leaving the mean error near 5% - i.e. it buys
-    ! internal consistency, not accuracy, and at 1 pass the fixtures merely
-    ! straddled the reference. 5 is converged at ~2.5-3x the cost of 1; 3 is
-    ! within 2.2% of converged at ~40% of that cost.
-    integer             :: pdrCoupleIter = 5
+    ! D-354: pdrCoupleIter (D-119's coupling passes) and pdrChemIter (D-008's
+    ! chemistry rounds) are gone. D-123's ladder measured a loop that re-ran
+    ! updateCell each pass; since D-216 the passes re-solved fixed inputs,
+    ! and without D-078's column rescale they recompute the first to 4.6e-4.
     ! The linked (element, stage) pairs: which MOCASSIN ion each network species
     ! is. Set in initPDRnetwork once the species indices are known.
     integer, parameter  :: pdrNlink = 10

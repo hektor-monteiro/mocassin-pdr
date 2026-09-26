@@ -1088,13 +1088,6 @@ Turbulent velocity, default 1.0.
 .B pdrStartIter \fIn\fR
 First Monte Carlo iteration at which the chemistry runs, default 1.
 .TP
-.B pdrCoupleIter \fIn\fR
-Chemistry passes per Monte Carlo iteration against the fixed MOCASSIN state,
-default 5.
-.TP
-.B pdrChemIter \fIn\fR
-Chemistry solves per pass, default 3.
-.TP
 .B pdrEndTime \fIyears\fR
 Chemistry integration span, default 1.0e7. With steady-state chemistry this is
 the initial span rather than a physical age.
@@ -1117,7 +1110,9 @@ was settled earlier are accepted with a message and ignored: \fBpdrHealpix\fR,
 \fBpdrAVfac\fR and \fBpdrUVfac\fR (both measured from the model's grains),
 \fBpdrCoolTdep\fR, \fBpdrCoolTfac\fR, \fBpdrSyncAbun\fR, \fBpdrAtomicH\fR,
 \fBpdrOwnIon\fR, \fBpdrIonFromMocassin\fR, \fBpdrTeFromMocassin\fR,
-\fBpdrAllCells\fR, \fBpdrCoolFeedback\fR, \fBionChemRates\fR.
+\fBpdrAllCells\fR, \fBpdrCoolFeedback\fR, \fBionChemRates\fR, and
+\fBpdrCoupleIter\fR and \fBpdrChemIter\fR (the chemistry is solved once per
+Monte Carlo iteration, since nothing it reads changes within one).
 The environment variables MOCASSIN_LINES, MOCASSIN_RECCOOL, MOCASSIN_YIELD and
 MOCASSIN_GRAINQ are retired too; a run in which one is set stops. The git tag
 \fId352-zone-and-switches\fR builds every retired mode.

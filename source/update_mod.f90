@@ -939,7 +939,7 @@ subroutine iterateT()
 
     ! Determine if the entire cell model has converged by checking H ionization.
     ! D-155: against the value at the start of the MC ITERATION, not at entry to
-    ! this call. updateCell runs pdrCoupleIter times per iteration, so comparing
+    ! this call. updateCell then ran once per coupling pass (D-119), so comparing
     ! with XOldHI measured the inner coupling loop settling - which it always
     ! does - and reported convergence while the model was still moving 81% per
     ! iteration.

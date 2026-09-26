@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-352, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-354, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -201,8 +201,8 @@ integral, which overstates the Lyman-Werner drive at depth.
 **Open under L-4.** The formal solution recovers only 52-130% of the MC's
 `chi_dif`, falling with depth, unexplained (gas two-photon emission, phase
 function, and twelve-direction quadrature are the candidates). The column
-rescale between chemistry passes compounds (`col0*(a1/a0)*(a2/a0)`), found and
-not yet fixed. The 1D flavour keeps the direct-only chemistry.
+rescale between chemistry passes compounded (`col0*(a1/a0)*(a2/a0)`); deleted
+at D-354 (L-25). The 1D flavour keeps the direct-only chemistry.
 
 **L-24. The chemistry is handed the wrong band** (D-349). H2 and CO
 dissociation and C I ionization see only 11.2-13.6 eV; every `chi` handed over
@@ -277,10 +277,15 @@ diffuse-transport difference D-307 measured from the other side, and it is
 what remains of O-02's dust half (D-315). **Stale since D-352:** the grains had
 also been losing 3D-PDR's PAH photoelectric term through the D-093 feedback,
 5-150x the energy the gas received at A_V > 0.5. Removing it raised hiipdr's
-PDR T_dust by 2-4% beyond A_V 1 and by 0.2-1.1% at A_V < 0.8, so pn150k's
-9-13% needs re-measuring on the current code.
+PDR T_dust by 2-4% beyond A_V 1 and by 0.2-1.1% at A_V < 0.8. **Re-measured
+on pn150k at D-353:** the PDR's grains are now 0.92-0.94 of Cloudy (6-8% cool,
+was 9-13%), but in the fully ionized gas T_dust fell 7-8%, to 0.94 and 0.81 of
+Cloudy at A_V 0.05 and 0.10 (was 1.01 and 0.88). The balance swapped two terms
+at once there (3D-PDR's heat(2) and heat(11) for MOCASSIN's photoelHeat_d and
+gasDustColl_d), and which of them supplies the fall is not decomposed.
 
-**L-25. The chemistry passes oscillate on frozen inputs** (D-351). Within an
+**L-25. CLOSED 2026-09-26 (D-354). The chemistry passes oscillated on frozen
+inputs** (D-351). Within an
 MC iteration the five coupling passes re-solve the chemistry with Te, ionDen,
 Ne, the field and the snapshot columns all fixed. Yet mean f_mol alternates
 with period 2 and a growing swing: `d350-window` 0.8462 / 0.8546 / 0.8435 /
@@ -289,8 +294,16 @@ state is whatever pass 5 lands on. The only pass-to-pass channel found is
 pdrStep rescaling every shielding column by the target cell's own abundance
 ratio, compounding over `pdrChemIter` (`pdr_mod.f90:3236`). Since D-088 those
 columns exclude the target cell, so the rescale is a leftover of D-078's
-`NHcol*abun` form. *Hypothesis:* deleting it removes the alternation. Not yet
-run.
+`NHcol*abun` form. *Hypothesis:* deleting it removes the alternation.
+
+**Confirmed and closed (D-354).** With the rescale deleted, passes 2-5 moved no
+cell's x(H2) or x(CO) by 0.1% in any iteration of hiipdr (largest move 4.6e-4),
+and mean f_mol was identical to four digits across them. One pass with one
+solve then reproduced five passes of three to 0.1% in T_gas, 0.4% in PE and
+exactly in T_dust, at 20:48 against 50:42. The loops are collapsed and
+`pdrCoupleIter`/`pdrChemIter` retired. The rescale was a positive feedback, the
+self-term D-088 removed: without it hiipdr's H/H2 crossing moves from A_V 1.367
+to 1.444 (Cloudy 1.09), and n(H2) at A_V 1.0 falls from 2.2 to 0.2 cm^-3.
 
 **L-26. Since D-350 the deep chemistry is Monte Carlo noise-limited per cell**
 (D-351). The photorates now read each cell's MC field, whose seed-to-seed
@@ -305,7 +318,9 @@ x(H0) change, the fraction of cells whose f_mol moved >0.1):
     |dx(H0)|/x p90           0.34                        against 0.09
     f_mol moved >0.1          5.5%                        against 1.7%
 
-The cell percentage (76.1% against 75.0%) did not show this. Bin means over
+The cell percentage (76.1% against 75.0%) did not show this. Since D-354 it is
+printed directly: `[D354]` shows each iteration's chemistry moving x(H2) by more
+than 1% in 39% of hiipdr's cells and x(CO) in 97-99% at iterations 9-11. Bin means over
 thousands of cells survive. Per-cell values, which are what a 3D map shows, do
 not. Non-linear photorates can also convert the noise into a bin-mean bias,
 estimated at +5% at 22% scatter. Remedies are a design decision: accumulate

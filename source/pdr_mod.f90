@@ -133,10 +133,10 @@ module pdr_mod
          & (/ 0.d0, 0.2d0, 0.47d0, 0.8d0, 1.2d0, 1.6d0, 2.1d0, 2.6d0, 3.05d0, 1.d30 /)
     double precision :: difDiag(nDifCol, nDifBin) = 0.d0
 
-    ! D-354: how far one coupling pass moved x(H2) and x(CO) in the cells this
-    ! rank solved, against each cell's state when the pass began: cells
-    ! counted, moved by >0.1%, moved by >1%, and the largest relative move.
-    ! Reduced and printed after every pass by reportPassChange.
+    ! D-354: how far this MC iteration's chemistry moved x(H2) and x(CO) in
+    ! the cells this rank solved, against each cell's state from the last
+    ! iteration: cells counted, moved by >0.1%, moved by >1%, and the largest
+    ! relative move. Reduced and printed by reportPassChange.
     double precision :: passCnt(2,3) = 0.d0, passMax(2) = 0.d0
 
     contains
@@ -2530,9 +2530,9 @@ module pdr_mod
       !-----------------------------------------------------------------
       ! One cell of PDR chemistry (DEVLOG D-027).
       !
-      ! Takes pdrChemIter passes and returns; the outer MC loop carries the
-      ! convergence (D-008). Converging the chemistry here would multiply the
-      ! two solvers' iteration counts.
+      ! Solves the chemistry once and returns; the outer MC loop carries the
+      ! convergence (D-008). Every input the solve reads is fixed within an MC
+      ! iteration, so repeating it here would recompute the same answer (D-354).
       !
       ! The radiation field (D-350, 3D build): every photorate takes the MC's
       ! own local field at A_V = 0 - the direct part (Jste - Jdif) on one ray
@@ -3026,90 +3026,89 @@ module pdr_mod
 
         abunPre = abun                                 ! D-258c
         pdrOmega = dble(grainAlbedoLW(grid, cellP))    ! D-280
-        do it = 1, pdrChemIter
-           call CALCULATE_REACTION_RATES(Tg, Td, nChem, radSurf, AVray, &
-                & colH2, colHD, colCO, colC, colS, &
-                & pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
-                & pdrGamma, pdrRate, pdrRtmin, pdrRtmax, pdrDuplicate, &
-                & pdrNspecMod, NRGR, NR2, NR3, NR4, NR5, NR6, &
-                & abun(pdrNelect)*nH, nH, pdrZetaMod)
+        call CALCULATE_REACTION_RATES(Tg, Td, nChem, radSurf, AVray, &
+             & colH2, colHD, colCO, colC, colS, &
+             & pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
+             & pdrGamma, pdrRate, pdrRtmin, pdrRtmax, pdrDuplicate, &
+             & pdrNspecMod, NRGR, NR2, NR3, NR4, NR5, NR6, &
+             & abun(pdrNelect)*nH, nH, pdrZetaMod)
 
-           call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
-                & pdrNspecMod, pdrNreacMod)
-           abunPre = abun   ! D-258c: the chemistry's own state, before D-162/D-231 re-impose
-           ! D-162: THERE IS ONE x(H+), AND MOCASSIN COMPUTES IT.
-           !
-           ! D-153 imposed MOCASSIN's ionization ratio before the solve and let
-           ! CVODE evolve it. The network has no H + PHOTON -> H+ + e- reaction
-           ! at all (D-161) - every H -> H+ channel in it is charge exchange or
-           ! cosmic rays - so it relaxes the ratio straight back to the
-           ! cosmic-ray equilibrium, x(H+) ~ 9e-4, whatever it was handed. That
-           ! is not a second opinion about the same quantity; it is the answer
-           ! to a different question, and letting it stand was the reason no
-           ! blend weight, zone gate or initial condition could reconcile the
-           ! two codes.
-           !
-           ! So re-impose the ratio afterwards as well. The chemistry keeps what
-           ! it legitimately owns - how much of each element is locked in
-           ! molecules, which is returned through elemAvail - and MOCASSIN keeps
-           ! the ionization state, which is the only physics that can compute
-           ! it here. Neither overrides the other's domain, and there is no
-           ! quantity that both determine.
-           if (.true.) then                        ! D-193: unconditional
-              do iLnk = 1, pdrNlink
-                 if (pdrLinkSpec(iLnk) <= 0) cycle
-                 if (pdrLinkIon(iLnk) /= 1) cycle
-                 iSpN = pdrLinkSpec(iLnk)
-                 iSpI = 0
-                 do jLnk = 1, pdrNlink
-                    if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
-                         & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
-                 end do
-                 if (iSpI <= 0) cycle
-                 availTot = abun(iSpN) + abun(iSpI)
-                 if (availTot <= 0.d0) cycle
-                 mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
-                 ! D-266: all ionized stages, which the ion carrier stands for
-                 mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
-                 if (mocNeut + mocIon <= 0.d0) cycle
-                 abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
-                 abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
+        call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
+             & pdrNspecMod, pdrNreacMod)
+        abunPre = abun   ! D-258c: the chemistry's own state, before D-162/D-231 re-impose
+        ! D-162: THERE IS ONE x(H+), AND MOCASSIN COMPUTES IT.
+        !
+        ! D-153 imposed MOCASSIN's ionization ratio before the solve and let
+        ! CVODE evolve it. The network has no H + PHOTON -> H+ + e- reaction
+        ! at all (D-161) - every H -> H+ channel in it is charge exchange or
+        ! cosmic rays - so it relaxes the ratio straight back to the
+        ! cosmic-ray equilibrium, x(H+) ~ 9e-4, whatever it was handed. That
+        ! is not a second opinion about the same quantity; it is the answer
+        ! to a different question, and letting it stand was the reason no
+        ! blend weight, zone gate or initial condition could reconcile the
+        ! two codes.
+        !
+        ! So re-impose the ratio afterwards as well. The chemistry keeps what
+        ! it legitimately owns - how much of each element is locked in
+        ! molecules, which is returned through elemAvail - and MOCASSIN keeps
+        ! the ionization state, which is the only physics that can compute
+        ! it here. Neither overrides the other's domain, and there is no
+        ! quantity that both determine.
+        if (.true.) then                        ! D-193: unconditional
+           do iLnk = 1, pdrNlink
+              if (pdrLinkSpec(iLnk) <= 0) cycle
+              if (pdrLinkIon(iLnk) /= 1) cycle
+              iSpN = pdrLinkSpec(iLnk)
+              iSpI = 0
+              do jLnk = 1, pdrNlink
+                 if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
+                      & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
               end do
+              if (iSpI <= 0) cycle
+              availTot = abun(iSpN) + abun(iSpI)
+              if (availTot <= 0.d0) cycle
+              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
+              ! D-266: all ionized stages, which the ion carrier stands for
+              mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
+              if (mocNeut + mocIon <= 0.d0) cycle
+              abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
+              abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
+           end do
 
-              ! ---------------------------------------------------- D-231
-              ! And the electrons, for the same reason and on the same
-              ! footing. D-212 imposed them BEFORE the solve only. D-230
-              ! measured what the solve then does to that entry: x306, x26,
-              ! x16, /14 against the value imposed, matching neither
-              ! MOCASSIN's Ne nor the chemistry's own cations - it is
-              ! whatever CVODE left in the slot, the restore in
-              ! calculate_abundances.c (line 451) not taking effect on this
-              ! path. The rates inside the solve use the imposed value (it is
-              ! passed separately), so what was corrupted is the exported
-              ! state vector - and that is what the level populations, the
-              ! substituted cooling and the next pass's rates all read.
-              !
-              ! One reality per quantity: there is one electron density and
-              ! MOCASSIN computes it.
-              if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
-                   & abun(pdrNelect) = &
-                   & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
-           end if
+           ! ---------------------------------------------------- D-231
+           ! And the electrons, for the same reason and on the same
+           ! footing. D-212 imposed them BEFORE the solve only. D-230
+           ! measured what the solve then does to that entry: x306, x26,
+           ! x16, /14 against the value imposed, matching neither
+           ! MOCASSIN's Ne nor the chemistry's own cations - it is
+           ! whatever CVODE left in the slot, the restore in
+           ! calculate_abundances.c (line 451) not taking effect on this
+           ! path. The rates inside the solve use the imposed value (it is
+           ! passed separately), so what was corrupted is the exported
+           ! state vector - and that is what the level populations, the
+           ! substituted cooling and the next pass's rates all read.
+           !
+           ! One reality per quantity: there is one electron density and
+           ! MOCASSIN computes it.
+           if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
+                & abun(pdrNelect) = &
+                & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+        end if
 
-           ! D-354: the shielding columns are NOT rescaled here any more.
-           ! D-078 wrote them as NHcol*abun(X), the local abundance times the
-           ! whole column, and scaled them by abun(X)/abun0(X) after each
-           ! solve so they followed the chemistry. Since D-088 they are the
-           ! integrated columns of the cells IN FRONT of this one (both legs,
-           ! computeAVradial and traceDiffuseSites), and the target cell is
-           ! kept out of them precisely because its own H2 shielding itself
-           ! is a positive feedback. Scaling them by this cell's abundance
-           ! change put that self-term back, compounded over pdrChemIter, and
-           ! it was the only input that differed between rounds and passes:
-           ! T, n_e (imposed from MOCASSIN, above), the field and the columns
-           ! are all fixed within an MC iteration. D-351 found the passes
-           ! alternating on it (L-25).
-        end do
+        ! D-354: the shielding columns are NOT rescaled here any more.
+        ! D-078 wrote them as NHcol*abun(X), the local abundance times the
+        ! whole column, and scaled them by abun(X)/abun0(X) after each
+        ! solve so they followed the chemistry. Since D-088 they are the
+        ! integrated columns of the cells IN FRONT of this one (both legs,
+        ! computeAVradial and traceDiffuseSites), and the target cell is
+        ! kept out of them precisely because its own H2 shielding itself
+        ! is a positive feedback. Scaling them by this cell's abundance
+        ! change put that self-term back, compounded over pdrChemIter, and
+        ! it was the only input that differed between rounds and passes:
+        ! T, n_e (imposed from MOCASSIN, above), the field and the columns
+        ! are all fixed within an MC iteration. D-351 found the passes
+        ! alternating on it (L-25). With it gone every round and pass
+        ! recomputed the first, so the chemistry is solved once (D-354).
 
         ! Make a silent solver failure visible. calculate_abundances copies the
         ! CVODE state vector back unconditionally, so when the integration does
@@ -3165,10 +3164,10 @@ module pdr_mod
                 & "  cell", nanCell, " index", nanIdx
         end if
 
-        ! D-354: abun0 is what this cell held when the pass began - the last
-        ! pass's answer, or the last MC iteration's for pass 1. H2 and CO
-        ! are neither imposed from MOCASSIN nor rescaled, so any move here is
-        ! the chemistry's own.
+        ! D-354: abun0 is what this cell held at the last MC iteration. H2
+        ! and CO are neither imposed from MOCASSIN nor rescaled, so the move
+        ! is the chemistry's own answer to this iteration's field - since
+        ! D-350, largely its per-cell Monte Carlo noise (L-26).
         do iqP = 1, 2
            ispP = NH2
            if (iqP == 2) ispP = NCO
@@ -3636,7 +3635,7 @@ module pdr_mod
              & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
         if (taskid == 0) then
            print '(a,i4,a)', " ! [D350] photorate field, iteration", iterMC, &
-                & ", last coupling pass - means per cell, ratios of sums"
+                & " - means per cell, ratios of sums"
            print '(a)', " ! [D350]  A_V bin     cells   chi_MC   chi_dif  chi_pred  chi_dir" // &
                 & "   win_dir  win_dif  presc_H2    R_old     R_dir   R_difSrc R_dif2leg" // &
                 & "  Nwalk/N  AVwalk/AV  aniso  sites  fb  unset"
@@ -3656,13 +3655,13 @@ module pdr_mod
       end subroutine reportDiffuseDiag
 
       !-----------------------------------------------------------------
-      ! D-354: print passCnt/passMax for the pass just finished, then clear
-      ! them. Collective: every rank calls it after every pass.
+      ! D-354: print passCnt/passMax for this iteration's chemistry, then
+      ! clear them. Collective: every rank calls it once per iteration.
       !-----------------------------------------------------------------
-      subroutine reportPassChange(iterMC, iPass)
+      subroutine reportPassChange(iterMC)
         implicit none
         include 'mpif.h'
-        integer, intent(in) :: iterMC, iPass
+        integer, intent(in) :: iterMC
         double precision    :: cnt(2,3), mx(2)
         integer             :: iq, ierr
         character(len=2), parameter :: lab(2) = (/ 'H2', 'CO' /)
@@ -3673,9 +3672,9 @@ module pdr_mod
              & mpi_max, mpi_comm_world, ierr)
         if (taskid == 0) then
            do iq = 1, 2
-              print '(a,i3,a,i2,3a,i7,a,f8.3,a,f8.3,a,es9.2)', &
-                   & " ! [D354] iteration", iterMC, " pass", iPass, &
-                   & " vs its start:  ", lab(iq), "  cells", nint(cnt(iq,1)), &
+              print '(a,i3,3a,i7,a,f8.3,a,f8.3,a,es9.2)', &
+                   & " ! [D354] iteration", iterMC, &
+                   & " vs the last:  ", lab(iq), "  cells", nint(cnt(iq,1)), &
                    & "   moved >0.1%", 100.d0*cnt(iq,2)/max(cnt(iq,1), 1.d0), &
                    & "%   >1%", 100.d0*cnt(iq,3)/max(cnt(iq,1), 1.d0), &
                    & "%   max", mx(iq)

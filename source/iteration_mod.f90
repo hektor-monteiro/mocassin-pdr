@@ -27,10 +27,11 @@ module iteration_mod
        ! local variables
 
        integer :: i, j, k                     ! counters
-        ! D-119: the coupling loop wraps updateCell, which compiles in EVERY
-        ! flavour, so these cannot sit behind #ifdef PDR. Third time this trap
-        ! has been sprung in this file - see D-096 and D-109.
-        integer           :: iCouple, iDum, jDum, kDum
+        ! D-119: used around updateCell, which compiles in EVERY flavour, so
+        ! these cannot sit behind #ifdef PDR. Third time this trap has been
+        ! sprung in this file - see D-096 and D-109. (D-354 removed the
+        ! coupling loop's counter that stood here too.)
+        integer           :: iDum, jDum, kDum
         integer           :: nCv1                      ! D-175
 
        ! To perform message spliting in mpi
@@ -1236,13 +1237,18 @@ module iteration_mod
               ! that pushes back when the gas ionizes and the opacity changes.
               ! A lag closed by an unstable inner loop is worse than a lag.
               !
-              ! pdrCoupleIter is now the number of CHEMISTRY passes. It is a
-              ! numerical convergence parameter, not an ownership switch: it
-              ! cannot move a quantity from one code to the other, only decide
-              ! how far the chemistry is iterated against a fixed MOCASSIN
-              ! state. The count stays FIXED rather than convergence-tested
-              ! because every rank must execute the same number of passes or
-              ! the MPI collectives inside deadlock.
+              ! D-354: and the chemistry is then solved ONCE. After D-216 the
+              ! loop that followed ran pdrCoupleIter (5) chemistry passes, and
+              ! every input they read was already fixed for the iteration: Te,
+              ! ionDen and Ne from updateCell above, the field, and the
+              ! shielding columns and site snapshot from computeAVdust. The
+              ! only thing that differed between passes was pdrStep's rescale
+              ! of those columns by the cell's own abundance change, a D-078
+              ! leftover that D-354 deleted. Without it, passes 2-5 moved no
+              ! cell's H2 or CO by 0.1% in any iteration (largest move 4.6e-4),
+              ! and one pass reproduced five on hiipdr to 0.1% in T_gas and
+              ! 0.4% in PE, at 20:48 against 50:42. D-123's 1/3/5/7 ladder was
+              ! measured on D-119's loop, which re-ran updateCell each pass.
               if(taskid==0) print*, 'iterateMC: updateCell in', iG
               iCell = 0
               do i = 1, grid(iG)%nx
@@ -1257,7 +1263,6 @@ module iteration_mod
               end do
               if(taskid==0) print*, 'iterateMC: updateCell out', iG
 
-              do iCouple = 1, max(pdrCoupleIter, 1)
 #ifdef PDR
 
               ! ---------------------------------------------------- D-204
@@ -1281,618 +1286,607 @@ module iteration_mod
               ! Every rank runs all three collectives unconditionally: a
               ! collective a subset of ranks skips is a deadlock.
               if (lgPDR .and. nIterateMC >= pdrStartIter) then
-                 nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
-                 molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
-                 pcSubSum = 0.d0; pcNulSum = 0.d0
-                 tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
-                 budSum = 0.d0
-                 budSum2 = 0.d0
-                 budSum3 = 0.d0
-                 budSum4 = 0.d0
-                 budSum5 = 0.d0
-                 budSum6 = 0.d0
-                 budSum7 = 0.d0
-                 budSum8 = 0.d0
-                 budSum9 = 0.d0
-                 iCell = 0
-                 do i = 1, grid(iG)%nx
-                    do j = 1, yTop
-                       do k = 1, grid(iG)%nz
-                          iCell = iCell + 1
-                          if (mod(iCell-(taskid+1),numtasks) /= 0) cycle
-                          if (grid(iG)%active(i,j,k) <= 0) cycle
-                          iDum = grid(iG)%active(i,j,k)
-                          if (grid(iG)%Hden(iDum) <= 0.) cycle
-                          nUpd1 = nUpd1 + 1
-                          teUpd1Sum = teUpd1Sum + dble(grid(iG)%Te(iDum))
-                          if (grid(iG)%Te(iDum) > 3000.) nUpd1Hot = nUpd1Hot + 1
-                          ! f_mol as the thermal balance just saw it, and the
-                          ! PDR terms it was handed. All four per H nucleus so
-                          ! the heating and cooling are directly comparable.
-                          if (allocated(grid(iG)%H2den)) molUpdSum = molUpdSum &
+              nUpd1 = 0; nUpd1Hot = 0; teUpd1Sum = 0.d0
+              molUpdSum = 0.d0; pcSum = 0.d0; phSum = 0.d0; ppeSum = 0.d0
+              pcSubSum = 0.d0; pcNulSum = 0.d0
+              tfacSum = 0.d0; trefSum = 0.d0; slopSum = 0.d0; spSum = 0.d0
+              budSum = 0.d0
+              budSum2 = 0.d0
+              budSum3 = 0.d0
+              budSum4 = 0.d0
+              budSum5 = 0.d0
+              budSum6 = 0.d0
+              budSum7 = 0.d0
+              budSum8 = 0.d0
+              budSum9 = 0.d0
+              iCell = 0
+              do i = 1, grid(iG)%nx
+                 do j = 1, yTop
+                    do k = 1, grid(iG)%nz
+                       iCell = iCell + 1
+                       if (mod(iCell-(taskid+1),numtasks) /= 0) cycle
+                       if (grid(iG)%active(i,j,k) <= 0) cycle
+                       iDum = grid(iG)%active(i,j,k)
+                       if (grid(iG)%Hden(iDum) <= 0.) cycle
+                       nUpd1 = nUpd1 + 1
+                       teUpd1Sum = teUpd1Sum + dble(grid(iG)%Te(iDum))
+                       if (grid(iG)%Te(iDum) > 3000.) nUpd1Hot = nUpd1Hot + 1
+                       ! f_mol as the thermal balance just saw it, and the
+                       ! PDR terms it was handed. All four per H nucleus so
+                       ! the heating and cooling are directly comparable.
+                       if (allocated(grid(iG)%H2den)) molUpdSum = molUpdSum &
+                            & + 2.d0*dble(grid(iG)%H2den(iDum)) &
+                            &   /dble(grid(iG)%Hden(iDum))
+                       ! D-207. These are what the substitution actually
+                       ! did to MOCASSIN's budget, not 3D-PDR's own totals.
+                       ! The first version of this line reported pdrCool,
+                       ! pdrHeat and pdrHeatPE, and pdrHeatPE does not enter
+                       ! the balance at all unless pdrPEfromPDR is set - it
+                       ! is 0 by default and no fixture sets it - so the
+                       ! heating column was ~1.9e-25 per H where the true
+                       ! contribution is ~1.4e-26. An instrument reporting a
+                       ! quantity adjacent to the one that matters is the
+                       ! fourth of these in this audit, and the first I
+                       ! built myself (D-196, D-202, D-205, here).
+                       if (allocated(grid(iG)%pdrCoolUsed)) pcSum = pcSum &
+                            & + dble(grid(iG)%pdrCoolUsed(iDum))
+                       if (allocated(grid(iG)%pdrHeatUsed)) phSum = phSum &
+                            & + dble(grid(iG)%pdrHeatUsed(iDum))
+                       if (allocated(grid(iG)%pdrCoolSub)) pcSubSum = pcSubSum &
+                            & + dble(grid(iG)%pdrCoolSub(iDum))
+                       if (allocated(grid(iG)%pdrCoolNul)) pcNulSum = pcNulSum &
+                            & + dble(grid(iG)%pdrCoolNul(iDum))
+                       ! D-213: the two factors whose product is `added`
+                       if (allocated(grid(iG)%pdrTfacUsed)) tfacSum = tfacSum &
+                            & + dble(grid(iG)%pdrTfacUsed(iDum))
+                       if (allocated(grid(iG)%pdrCoolTref)) trefSum = trefSum &
+                            & + dble(grid(iG)%pdrCoolTref(iDum))
+                       if (allocated(grid(iG)%pdrCoolSlope)) slopSum = slopSum &
+                            & + dble(grid(iG)%pdrCoolSlope(iDum))
+                       if (allocated(grid(iG)%pdrCoolSp)) then
+                          do iCoolD = 1, min(4, pdrNcool)
+                             spSum(iCoolD) = spSum(iCoolD) &
+                                  & + dble(grid(iG)%pdrCoolSp(iDum,iCoolD)) &
+                                  &   /dble(grid(iG)%Hden(iDum))
+                          end do
+                       end if
+                       ! ------------------------------------------ D-217
+                       ! MOCASSIN's own budget, grouped by what the thermal
+                       ! solve did to the cell: cold at the start of the
+                       ! iteration and hot after it, cold throughout, or
+                       ! hot from the start. Grouping by OUTCOME is what
+                       ! keeps each mean describing one population - the
+                       ! D-209 input line averaged a hot and a cold
+                       ! population together and described neither. 3000 K
+                       ! is the census's existing hot threshold and bins
+                       ! the report only; it decides nothing.
+                       ! updateCell runs once per MC iteration (D-216), and
+                       ! so does the chemistry (D-354).
+                       if (allocated(grid(iG)%mocBud) &
+                            & .and. allocated(grid(iG)%TeIterStart)) then
+                          if (grid(iG)%TeIterStart(iDum) > 3000.) then
+                             iBudG = 3
+                          else if (grid(iG)%Te(iDum) > 3000.) then
+                             iBudG = 1
+                          else
+                             iBudG = 2
+                          end if
+                          do iBudT = 1, 10
+                             budSum(iBudG, iBudT) = budSum(iBudG, iBudT) &
+                                  & + dble(grid(iG)%mocBud(iDum, 1, iBudT))
+                             budSum(iBudG, 10+iBudT) = budSum(iBudG, 10+iBudT) &
+                                  & + dble(grid(iG)%mocBud(iDum, 2, iBudT))
+                          end do
+                          budSum(iBudG, 21) = budSum(iBudG, 21) + 1.d0
+                          ! ---------------------------------------- D-218
+                          ! What sets the photoionization heating D-217
+                          ! found: heating per H ~ x(H0) * J, and J at
+                          ! depth is what the opacity in front lets through.
+                          ! So per group: depth (A_V), the absorbers
+                          ! (x(H0), f_mol), the field above hydrogen's
+                          ! threshold, and tau per cell AT that threshold -
+                          ! HlevNuP(1) is the bin the H0 cross section
+                          ! itself starts from (ph_mod). The opacity is
+                          ! rebuilt at the top of the MC iteration and not
+                          ! rewritten by updateCell, and Jste is reduced
+                          ! after the transfer, so both are global here.
+                          budSum2(iBudG,1) = budSum2(iBudG,1) &
+                               & + dble(grid(iG)%AVeff(iDum))
+                          budSum2(iBudG,2) = budSum2(iBudG,2) &
+                               & + dble(grid(iG)%ionDen(iDum,elementXref(1),1))
+                          if (allocated(grid(iG)%H2den)) &
+                               & budSum2(iBudG,3) = budSum2(iBudG,3) &
                                & + 2.d0*dble(grid(iG)%H2den(iDum)) &
                                &   /dble(grid(iG)%Hden(iDum))
-                          ! D-207. These are what the substitution actually
-                          ! did to MOCASSIN's budget, not 3D-PDR's own totals.
-                          ! The first version of this line reported pdrCool,
-                          ! pdrHeat and pdrHeatPE, and pdrHeatPE does not enter
-                          ! the balance at all unless pdrPEfromPDR is set - it
-                          ! is 0 by default and no fixture sets it - so the
-                          ! heating column was ~1.9e-25 per H where the true
-                          ! contribution is ~1.4e-26. An instrument reporting a
-                          ! quantity adjacent to the one that matters is the
-                          ! fourth of these in this audit, and the first I
-                          ! built myself (D-196, D-202, D-205, here).
-                          if (allocated(grid(iG)%pdrCoolUsed)) pcSum = pcSum &
-                               & + dble(grid(iG)%pdrCoolUsed(iDum))
-                          if (allocated(grid(iG)%pdrHeatUsed)) phSum = phSum &
-                               & + dble(grid(iG)%pdrHeatUsed(iDum))
-                          if (allocated(grid(iG)%pdrCoolSub)) pcSubSum = pcSubSum &
-                               & + dble(grid(iG)%pdrCoolSub(iDum))
-                          if (allocated(grid(iG)%pdrCoolNul)) pcNulSum = pcNulSum &
-                               & + dble(grid(iG)%pdrCoolNul(iDum))
-                          ! D-213: the two factors whose product is `added`
-                          if (allocated(grid(iG)%pdrTfacUsed)) tfacSum = tfacSum &
-                               & + dble(grid(iG)%pdrTfacUsed(iDum))
-                          if (allocated(grid(iG)%pdrCoolTref)) trefSum = trefSum &
-                               & + dble(grid(iG)%pdrCoolTref(iDum))
-                          if (allocated(grid(iG)%pdrCoolSlope)) slopSum = slopSum &
-                               & + dble(grid(iG)%pdrCoolSlope(iDum))
-                          if (allocated(grid(iG)%pdrCoolSp)) then
-                             do iCoolD = 1, min(4, pdrNcool)
-                                spSum(iCoolD) = spSum(iCoolD) &
-                                     & + dble(grid(iG)%pdrCoolSp(iDum,iCoolD)) &
-                                     &   /dble(grid(iG)%Hden(iDum))
+                          budSum2(iBudG,4) = budSum2(iBudG,4) &
+                               & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):nbins)))
+                          if (i < grid(iG)%nx) then
+                             dxCell = dble(grid(iG)%xAxis(i+1) - grid(iG)%xAxis(i))
+                          else
+                             dxCell = dble(grid(iG)%xAxis(i) - grid(iG)%xAxis(i-1))
+                          end if
+                          budSum2(iBudG,5) = budSum2(iBudG,5) &
+                               & + dble(grid(iG)%opacity(iDum,HlevNuP(1)))*dxCell
+                          ! D-221: the field and H0's heating on each side
+                          ! of 15.43 eV, where H2's continuum begins
+                          if (iH2thrC == 0) then
+                             iH2thrC = nbins + 1
+                             do iNuD = 1, nbins
+                                if (nuArray(iNuD) >= 1.1345) then
+                                   iH2thrC = iNuD
+                                   exit
+                                end if
                              end do
                           end if
-                          ! ------------------------------------------ D-217
-                          ! MOCASSIN's own budget, grouped by what the thermal
-                          ! solve did to the cell: cold at the start of the
-                          ! iteration and hot after it, cold throughout, or
-                          ! hot from the start. Grouping by OUTCOME is what
-                          ! keeps each mean describing one population - the
-                          ! D-209 input line averaged a hot and a cold
-                          ! population together and described neither. 3000 K
-                          ! is the census's existing hot threshold and bins
-                          ! the report only; it decides nothing.
-                          ! updateCell runs once per MC iteration (D-216), so
-                          ! the budget is the same on every chemistry pass and
-                          ! is taken on pass 1.
-                          if (iCouple == 1 .and. allocated(grid(iG)%mocBud) &
-                               & .and. allocated(grid(iG)%TeIterStart)) then
-                             if (grid(iG)%TeIterStart(iDum) > 3000.) then
-                                iBudG = 3
-                             else if (grid(iG)%Te(iDum) > 3000.) then
-                                iBudG = 1
-                             else
-                                iBudG = 2
-                             end if
-                             do iBudT = 1, 10
-                                budSum(iBudG, iBudT) = budSum(iBudG, iBudT) &
-                                     & + dble(grid(iG)%mocBud(iDum, 1, iBudT))
-                                budSum(iBudG, 10+iBudT) = budSum(iBudG, 10+iBudT) &
-                                     & + dble(grid(iG)%mocBud(iDum, 2, iBudT))
+                          if (iH2thrC > HlevNuP(1)) budSum3(iBudG,1) = budSum3(iBudG,1) &
+                               & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):iH2thrC-1)))
+                          if (iH2thrC <= nbins) budSum3(iBudG,2) = budSum3(iBudG,2) &
+                               & + dble(sum(grid(iG)%Jste(iDum,iH2thrC:nbins)))
+                          if (allocated(grid(iG)%mocBand)) then
+                             budSum3(iBudG,3) = budSum3(iBudG,3) &
+                                  & + dble(grid(iG)%mocBand(iDum,1))
+                             budSum3(iBudG,4) = budSum3(iBudG,4) &
+                                  & + dble(grid(iG)%mocBand(iDum,2))
+                          end if
+                          ! ---------------------------------------- D-222
+                          ! per band: the field and H0's entry heating; per
+                          ! representative bin of bands 2-5: tau per cell of
+                          ! each gas absorber, of dust, and of the total
+                          ! opacity the transport used, so the split can be
+                          ! checked against the total it should sum to
+                          call setHardBands()
+                          if (bandRepP(5) > 0) then
+                             do kBd = 1, 5
+                                budSum4(iBudG,kBd) = budSum4(iBudG,kBd) &
+                                     & + dble(sum(grid(iG)%Jste(iDum,bandP(kBd):bandP(kBd+1)-1)))
+                                if (allocated(grid(iG)%mocBand)) &
+                                     & budSum4(iBudG,5+kBd) = budSum4(iBudG,5+kBd) &
+                                     & + dble(grid(iG)%mocBand(iDum,2+kBd))
                              end do
-                             budSum(iBudG, 21) = budSum(iBudG, 21) + 1.d0
-                             ! ---------------------------------------- D-218
-                             ! What sets the photoionization heating D-217
-                             ! found: heating per H ~ x(H0) * J, and J at
-                             ! depth is what the opacity in front lets through.
-                             ! So per group: depth (A_V), the absorbers
-                             ! (x(H0), f_mol), the field above hydrogen's
-                             ! threshold, and tau per cell AT that threshold -
-                             ! HlevNuP(1) is the bin the H0 cross section
-                             ! itself starts from (ph_mod). The opacity is
-                             ! rebuilt at the top of the MC iteration and not
-                             ! rewritten by updateCell, and Jste is reduced
-                             ! after the transfer, so both are global here.
-                             budSum2(iBudG,1) = budSum2(iBudG,1) &
-                                  & + dble(grid(iG)%AVeff(iDum))
-                             budSum2(iBudG,2) = budSum2(iBudG,2) &
-                                  & + dble(grid(iG)%ionDen(iDum,elementXref(1),1))
-                             if (allocated(grid(iG)%H2den)) &
-                                  & budSum2(iBudG,3) = budSum2(iBudG,3) &
-                                  & + 2.d0*dble(grid(iG)%H2den(iDum)) &
-                                  &   /dble(grid(iG)%Hden(iDum))
-                             budSum2(iBudG,4) = budSum2(iBudG,4) &
-                                  & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):nbins)))
-                             if (i < grid(iG)%nx) then
-                                dxCell = dble(grid(iG)%xAxis(i+1) - grid(iG)%xAxis(i))
-                             else
-                                dxCell = dble(grid(iG)%xAxis(i) - grid(iG)%xAxis(i-1))
-                             end if
-                             budSum2(iBudG,5) = budSum2(iBudG,5) &
-                                  & + dble(grid(iG)%opacity(iDum,HlevNuP(1)))*dxCell
-                             ! D-221: the field and H0's heating on each side
-                             ! of 15.43 eV, where H2's continuum begins
-                             if (iH2thrC == 0) then
-                                iH2thrC = nbins + 1
-                                do iNuD = 1, nbins
-                                   if (nuArray(iNuD) >= 1.1345) then
-                                      iH2thrC = iNuD
-                                      exit
-                                   end if
-                                end do
-                             end if
-                             if (iH2thrC > HlevNuP(1)) budSum3(iBudG,1) = budSum3(iBudG,1) &
-                                  & + dble(sum(grid(iG)%Jste(iDum,HlevNuP(1):iH2thrC-1)))
-                             if (iH2thrC <= nbins) budSum3(iBudG,2) = budSum3(iBudG,2) &
-                                  & + dble(sum(grid(iG)%Jste(iDum,iH2thrC:nbins)))
-                             if (allocated(grid(iG)%mocBand)) then
-                                budSum3(iBudG,3) = budSum3(iBudG,3) &
-                                     & + dble(grid(iG)%mocBand(iDum,1))
-                                budSum3(iBudG,4) = budSum3(iBudG,4) &
-                                     & + dble(grid(iG)%mocBand(iDum,2))
-                             end if
-                             ! ---------------------------------------- D-222
-                             ! per band: the field and H0's entry heating; per
-                             ! representative bin of bands 2-5: tau per cell of
-                             ! each gas absorber, of dust, and of the total
-                             ! opacity the transport used, so the split can be
-                             ! checked against the total it should sum to
-                             call setHardBands()
-                             if (bandRepP(5) > 0) then
-                                do kBd = 1, 5
-                                   budSum4(iBudG,kBd) = budSum4(iBudG,kBd) &
-                                        & + dble(sum(grid(iG)%Jste(iDum,bandP(kBd):bandP(kBd+1)-1)))
-                                   if (allocated(grid(iG)%mocBand)) &
-                                        & budSum4(iBudG,5+kBd) = budSum4(iBudG,5+kBd) &
-                                        & + dble(grid(iG)%mocBand(iDum,2+kBd))
-                                end do
-                                do mBd = 2, 5
-                                   if (allocated(grid(iG)%opaRep)) then
-                                      do kBd = 1, 6
-                                         budSum4(iBudG,10+(mBd-2)*8+kBd) = &
-                                              & budSum4(iBudG,10+(mBd-2)*8+kBd) &
-                                              & + dble(grid(iG)%opaRep(iDum,mBd-1,kBd))*dxCell
-                                      end do
-                                   end if
-                                   if (lgDust) budSum4(iBudG,10+(mBd-2)*8+7) = &
-                                        & budSum4(iBudG,10+(mBd-2)*8+7) &
-                                        & + dble(grid(iG)%absOpac(iDum,bandRepP(mBd)) &
-                                        &      + grid(iG)%scaOpac(iDum,bandRepP(mBd)))*dxCell
-                                   budSum4(iBudG,10+(mBd-2)*8+8) = &
-                                        & budSum4(iBudG,10+(mBd-2)*8+8) &
-                                        & + dble(grid(iG)%opacity(iDum,bandRepP(mBd)))*dxCell
-                                end do
-                             end if
-                             ! ---------------------------------------- D-223
-                             ! Is each flipping cell next to a cell that was
-                             ! already hot? D-222 found no energy present in the
-                             ! field lets photons cross these cells (tau >= ~89
-                             ! per cell), so the field inside them must enter a
-                             ! skin from a neighbour or be emitted locally. A
-                             ! front advancing a cell per iteration predicts the
-                             ! flippers border hot cells, upstream in A_V;
-                             ! scattered heating predicts they do not. The
-                             ! stayed-cold group is the control.
-                             ! "Hot" is the NEIGHBOUR's iteration-start Te, which
-                             ! every rank holds for every cell (copied from the
-                             ! reduced grid) - budGrpLast is only valid on the
-                             ! rank that owns a cell, so it cannot be read for a
-                             ! neighbour. Upstream is decided by A_V, which needs
-                             ! no assumption about where the star sits.
-                             if (allocated(grid(iG)%TeIterStart)) then
-                                nHotD = 0; nUpD = 0; nDnD = 0
-                                tMinD = huge(1.d0); tUpMinD = huge(1.d0); nbMinD = 0   ! D-224
-                                do iOffD = 1, 6
-                                   niD = i; njD = j; nkD = k
-                                   select case (iOffD)
-                                   case (1); niD = i - 1
-                                   case (2); niD = i + 1
-                                   case (3); njD = j - 1
-                                   case (4); njD = j + 1
-                                   case (5); nkD = k - 1
-                                   case (6); nkD = k + 1
-                                   end select
-                                   if (niD < 1 .or. niD > grid(iG)%nx) cycle
-                                   if (njD < 1 .or. njD > yTop)        cycle
-                                   if (nkD < 1 .or. nkD > grid(iG)%nz) cycle
-                                   nbD = grid(iG)%active(niD,njD,nkD)
-                                   if (nbD <= 0) cycle
-                                   budSum5(iBudG,5) = budSum5(iBudG,5) + 1.d0
-                                   ! D-224: what the photons care about - the
-                                   ! neighbour's tau per cell at band 2's
-                                   ! representative bin, from the opacity the
-                                   ! transport used (reduced, so every rank
-                                   ! holds it for every cell)
-                                   if (bandRepP(2) > 0) then
-                                      tNbD = dble(grid(iG)%opacity(nbD,bandRepP(2)))*dxCell
-                                      if (tNbD < tMinD) then
-                                         tMinD = tNbD
-                                         nbMinD = nbD
-                                      end if
-                                      if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) &
-                                           & tUpMinD = min(tUpMinD, tNbD)
-                                   end if
-                                   if (grid(iG)%TeIterStart(nbD) > 3000.) then
-                                      nHotD = nHotD + 1
-                                      if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) then
-                                         nUpD = nUpD + 1
-                                      else
-                                         nDnD = nDnD + 1
-                                      end if
-                                   end if
-                                end do
-                                if (nHotD > 0) budSum5(iBudG,1) = budSum5(iBudG,1) + 1.d0
-                                budSum5(iBudG,2) = budSum5(iBudG,2) + dble(nHotD)
-                                if (nUpD > 0)  budSum5(iBudG,3) = budSum5(iBudG,3) + 1.d0
-                                if (nDnD > 0)  budSum5(iBudG,4) = budSum5(iBudG,4) + 1.d0
-                                ! D-224: the most transparent face-neighbour,
-                                ! and where this cell's band-2 stellar field
-                                ! came from (trcJ, summed after the transfer)
-                                if (nbMinD > 0) then
-                                   if (tMinD < 0.1d0) then
-                                      iHD = 1
-                                   else if (tMinD < 1.d0) then
-                                      iHD = 2
-                                   else if (tMinD < 10.d0) then
-                                      iHD = 3
-                                   else if (tMinD < 100.d0) then
-                                      iHD = 4
-                                   else
-                                      iHD = 5
-                                   end if
-                                   budSum6(iBudG,iHD) = budSum6(iBudG,iHD) + 1.d0
-                                   budSum6(iBudG,6) = budSum6(iBudG,6) + log10(max(tMinD, 1.d-10))
-                                   budSum6(iBudG,8) = budSum6(iBudG,8) + dble(grid(iG)%TeIterStart(nbMinD))
-                                   if (allocated(grid(iG)%xHIiterStart)) budSum6(iBudG,9) = &
-                                        & budSum6(iBudG,9) + dble(grid(iG)%xHIiterStart(nbMinD))
-                                   if (grid(iG)%AVeff(nbMinD) < grid(iG)%AVeff(iDum)) &
-                                        & budSum6(iBudG,10) = budSum6(iBudG,10) + 1.d0
-                                   budSum6(iBudG,15) = budSum6(iBudG,15) + 1.d0
-                                end if
-                                if (tUpMinD < 1.d0) budSum6(iBudG,14) = budSum6(iBudG,14) + 1.d0
-                                if (allocated(grid(iG)%trcJ)) then
-                                   do kBd = 1, 3
-                                      budSum6(iBudG,10+kBd) = budSum6(iBudG,10+kBd) &
-                                           & + dble(grid(iG)%trcJ(iDum,kBd))
-                                   end do
-                                end if
-                                ! D-225: closure, checkpoint 2 - at the census,
-                                ! per group, in absolute terms. Jste and trcJ
-                                ! are both reduced, so any cell can be read here.
-                                if (allocated(grid(iG)%trcJ) .and. bandP(2) > 0 &
-                                     & .and. pdrSplitField /= 0) then
-                                   sclD = 1.d-9
-                                   if (lgSymmetricXYZ) sclD = sclD/8.d0
-                                   jbD  = dble(sum(grid(iG)%Jste(iDum, bandP(2):bandP(3)-1)))
-                                   jdD  = dble(sum(grid(iG)%Jdif(iDum, bandP(2):bandP(3)-1)))
-                                   tj1D = dble(grid(iG)%trcJ(iDum,1))*sclD
-                                   tj4D = dble(grid(iG)%trcJ(iDum,4))*sclD
-                                   budSum7(iBudG,1) = budSum7(iBudG,1) + jbD
-                                   budSum7(iBudG,2) = budSum7(iBudG,2) + jdD
-                                   budSum7(iBudG,3) = budSum7(iBudG,3) + tj1D
-                                   budSum7(iBudG,4) = budSum7(iBudG,4) + tj4D
-                                   budSum7(iBudG,5) = budSum7(iBudG,5) + dble(grid(iG)%trcJ(iDum,5))
-                                   budSum7(iBudG,6) = budSum7(iBudG,6) + dble(grid(iG)%trcJ(iDum,6))
-                                   if (abs(jbD - tj4D) > 1.d-3*max(jbD, tj4D)) &
-                                        & budSum7(iBudG,7) = budSum7(iBudG,7) + 1.d0
-                                end if
-                                ! D-226: what this cell's re-emission spectrum
-                                ! puts into the band - the probability that a
-                                ! diffuse packet born here is a 15.4-24.6 eV
-                                ! continuum photon, bin by bin (recPDF is the
-                                ! cumulative continuum PDF, totalLines the line
-                                ! share; both reduced after emissionDriver) -
-                                ! with the field in the same bins beside it
-                                if (bandP(2) > 1 .and. bandP(3) > bandP(2)) then
-                                   nB226 = min(bandP(3) - bandP(2), 64)
-                                   pLinD = dble(grid(iG)%totalLines(iDum))
-                                   do kB226 = 0, nB226 - 1
-                                      dP226 = (1.d0 - pLinD) &
-                                           & *dble(grid(iG)%recPDF(iDum, bandP(2)+kB226) &
-                                           &     - grid(iG)%recPDF(iDum, bandP(2)+kB226-1))
-                                      budSum8(iBudG,6+kB226) = budSum8(iBudG,6+kB226) + dP226
-                                      budSum8(iBudG,1) = budSum8(iBudG,1) + dP226
-                                      budSum9(iBudG,1+kB226) = budSum9(iBudG,1+kB226) &
-                                           & + dble(grid(iG)%Jste(iDum, bandP(2)+kB226))
-                                   end do
-                                   if (grid(iG)%TeIterStart(iDum) < 100.) &
-                                        & budSum8(iBudG,2) = budSum8(iBudG,2) + 1.d0
-                                   budSum8(iBudG,3) = budSum8(iBudG,3) &
-                                        & + dble(grid(iG)%ionDen(iDum,elementXref(2),2))
-                                   budSum8(iBudG,4) = budSum8(iBudG,4) &
-                                        & + dble(grid(iG)%ionDen(iDum,elementXref(1),2))
-                                   budSum8(iBudG,5) = budSum8(iBudG,5) + pLinD
-                                end if
-                                ! D-232: what the cell's re-emission spectrum is
-                                ! made of, before normalisation - gas terms and
-                                ! dust term, whole band and above 13.6/24.6 eV.
-                                ! A dust absorption samples the pooled PDF, so a
-                                ! nonzero gas ionizing part is dust-absorbed
-                                ! energy able to come back out ionizing.
-                                if (allocated(grid(iG)%pdfSrc)) then
+                             do mBd = 2, 5
+                                if (allocated(grid(iG)%opaRep)) then
                                    do kBd = 1, 6
-                                      budSum8(iBudG,15+kBd) = budSum8(iBudG,15+kBd) &
-                                           & + dble(grid(iG)%pdfSrc(iDum,kBd))
+                                      budSum4(iBudG,10+(mBd-2)*8+kBd) = &
+                                           & budSum4(iBudG,10+(mBd-2)*8+kBd) &
+                                           & + dble(grid(iG)%opaRep(iDum,mBd-1,kBd))*dxCell
                                    end do
                                 end if
+                                if (lgDust) budSum4(iBudG,10+(mBd-2)*8+7) = &
+                                     & budSum4(iBudG,10+(mBd-2)*8+7) &
+                                     & + dble(grid(iG)%absOpac(iDum,bandRepP(mBd)) &
+                                     &      + grid(iG)%scaOpac(iDum,bandRepP(mBd)))*dxCell
+                                budSum4(iBudG,10+(mBd-2)*8+8) = &
+                                     & budSum4(iBudG,10+(mBd-2)*8+8) &
+                                     & + dble(grid(iG)%opacity(iDum,bandRepP(mBd)))*dxCell
+                             end do
+                          end if
+                          ! ---------------------------------------- D-223
+                          ! Is each flipping cell next to a cell that was
+                          ! already hot? D-222 found no energy present in the
+                          ! field lets photons cross these cells (tau >= ~89
+                          ! per cell), so the field inside them must enter a
+                          ! skin from a neighbour or be emitted locally. A
+                          ! front advancing a cell per iteration predicts the
+                          ! flippers border hot cells, upstream in A_V;
+                          ! scattered heating predicts they do not. The
+                          ! stayed-cold group is the control.
+                          ! "Hot" is the NEIGHBOUR's iteration-start Te, which
+                          ! every rank holds for every cell (copied from the
+                          ! reduced grid) - budGrpLast is only valid on the
+                          ! rank that owns a cell, so it cannot be read for a
+                          ! neighbour. Upstream is decided by A_V, which needs
+                          ! no assumption about where the star sits.
+                          if (allocated(grid(iG)%TeIterStart)) then
+                             nHotD = 0; nUpD = 0; nDnD = 0
+                             tMinD = huge(1.d0); tUpMinD = huge(1.d0); nbMinD = 0   ! D-224
+                             do iOffD = 1, 6
+                                niD = i; njD = j; nkD = k
+                                select case (iOffD)
+                                case (1); niD = i - 1
+                                case (2); niD = i + 1
+                                case (3); njD = j - 1
+                                case (4); njD = j + 1
+                                case (5); nkD = k - 1
+                                case (6); nkD = k + 1
+                                end select
+                                if (niD < 1 .or. niD > grid(iG)%nx) cycle
+                                if (njD < 1 .or. njD > yTop)        cycle
+                                if (nkD < 1 .or. nkD > grid(iG)%nz) cycle
+                                nbD = grid(iG)%active(niD,njD,nkD)
+                                if (nbD <= 0) cycle
+                                budSum5(iBudG,5) = budSum5(iBudG,5) + 1.d0
+                                ! D-224: what the photons care about - the
+                                ! neighbour's tau per cell at band 2's
+                                ! representative bin, from the opacity the
+                                ! transport used (reduced, so every rank
+                                ! holds it for every cell)
+                                if (bandRepP(2) > 0) then
+                                   tNbD = dble(grid(iG)%opacity(nbD,bandRepP(2)))*dxCell
+                                   if (tNbD < tMinD) then
+                                      tMinD = tNbD
+                                      nbMinD = nbD
+                                   end if
+                                   if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) &
+                                        & tUpMinD = min(tUpMinD, tNbD)
+                                end if
+                                if (grid(iG)%TeIterStart(nbD) > 3000.) then
+                                   nHotD = nHotD + 1
+                                   if (grid(iG)%AVeff(nbD) < grid(iG)%AVeff(iDum)) then
+                                      nUpD = nUpD + 1
+                                   else
+                                      nDnD = nDnD + 1
+                                   end if
+                                end if
+                             end do
+                             if (nHotD > 0) budSum5(iBudG,1) = budSum5(iBudG,1) + 1.d0
+                             budSum5(iBudG,2) = budSum5(iBudG,2) + dble(nHotD)
+                             if (nUpD > 0)  budSum5(iBudG,3) = budSum5(iBudG,3) + 1.d0
+                             if (nDnD > 0)  budSum5(iBudG,4) = budSum5(iBudG,4) + 1.d0
+                             ! D-224: the most transparent face-neighbour,
+                             ! and where this cell's band-2 stellar field
+                             ! came from (trcJ, summed after the transfer)
+                             if (nbMinD > 0) then
+                                if (tMinD < 0.1d0) then
+                                   iHD = 1
+                                else if (tMinD < 1.d0) then
+                                   iHD = 2
+                                else if (tMinD < 10.d0) then
+                                   iHD = 3
+                                else if (tMinD < 100.d0) then
+                                   iHD = 4
+                                else
+                                   iHD = 5
+                                end if
+                                budSum6(iBudG,iHD) = budSum6(iBudG,iHD) + 1.d0
+                                budSum6(iBudG,6) = budSum6(iBudG,6) + log10(max(tMinD, 1.d-10))
+                                budSum6(iBudG,8) = budSum6(iBudG,8) + dble(grid(iG)%TeIterStart(nbMinD))
+                                if (allocated(grid(iG)%xHIiterStart)) budSum6(iBudG,9) = &
+                                     & budSum6(iBudG,9) + dble(grid(iG)%xHIiterStart(nbMinD))
+                                if (grid(iG)%AVeff(nbMinD) < grid(iG)%AVeff(iDum)) &
+                                     & budSum6(iBudG,10) = budSum6(iBudG,10) + 1.d0
+                                budSum6(iBudG,15) = budSum6(iBudG,15) + 1.d0
                              end if
-                             ! the diffuse part of the field in the three bands
-                             ! that carry any: Jdif holds the diffuse packets
-                             ! alone when pdrSplitField is set, Jste both
-                             if (pdrSplitField /= 0 .and. bandRepP(5) > 0) then
+                             if (tUpMinD < 1.d0) budSum6(iBudG,14) = budSum6(iBudG,14) + 1.d0
+                             if (allocated(grid(iG)%trcJ)) then
                                 do kBd = 1, 3
-                                   budSum5(iBudG,5+kBd) = budSum5(iBudG,5+kBd) &
-                                        & + dble(sum(grid(iG)%Jdif(iDum,bandP(kBd):bandP(kBd+1)-1)))
+                                   budSum6(iBudG,10+kBd) = budSum6(iBudG,10+kBd) &
+                                        & + dble(grid(iG)%trcJ(iDum,kBd))
                                 end do
                              end if
-                             ! the same cell's group one MC iteration ago;
-                             ! ownership is fixed per rank, so each rank
-                             ! carries its own cells' history without a
-                             ! reduction
-                             iLastG = 0
-                             if (allocated(grid(iG)%budGrpLast)) then
-                                iLastG = grid(iG)%budGrpLast(iDum)
-                                grid(iG)%budGrpLast(iDum) = iBudG
+                             ! D-225: closure, checkpoint 2 - at the census,
+                             ! per group, in absolute terms. Jste and trcJ
+                             ! are both reduced, so any cell can be read here.
+                             if (allocated(grid(iG)%trcJ) .and. bandP(2) > 0 &
+                                  & .and. pdrSplitField /= 0) then
+                                sclD = 1.d-9
+                                if (lgSymmetricXYZ) sclD = sclD/8.d0
+                                jbD  = dble(sum(grid(iG)%Jste(iDum, bandP(2):bandP(3)-1)))
+                                jdD  = dble(sum(grid(iG)%Jdif(iDum, bandP(2):bandP(3)-1)))
+                                tj1D = dble(grid(iG)%trcJ(iDum,1))*sclD
+                                tj4D = dble(grid(iG)%trcJ(iDum,4))*sclD
+                                budSum7(iBudG,1) = budSum7(iBudG,1) + jbD
+                                budSum7(iBudG,2) = budSum7(iBudG,2) + jdD
+                                budSum7(iBudG,3) = budSum7(iBudG,3) + tj1D
+                                budSum7(iBudG,4) = budSum7(iBudG,4) + tj4D
+                                budSum7(iBudG,5) = budSum7(iBudG,5) + dble(grid(iG)%trcJ(iDum,5))
+                                budSum7(iBudG,6) = budSum7(iBudG,6) + dble(grid(iG)%trcJ(iDum,6))
+                                if (abs(jbD - tj4D) > 1.d-3*max(jbD, tj4D)) &
+                                     & budSum7(iBudG,7) = budSum7(iBudG,7) + 1.d0
                              end if
-                             budSum2(iBudG,6+iLastG) = budSum2(iBudG,6+iLastG) + 1.d0
+                             ! D-226: what this cell's re-emission spectrum
+                             ! puts into the band - the probability that a
+                             ! diffuse packet born here is a 15.4-24.6 eV
+                             ! continuum photon, bin by bin (recPDF is the
+                             ! cumulative continuum PDF, totalLines the line
+                             ! share; both reduced after emissionDriver) -
+                             ! with the field in the same bins beside it
+                             if (bandP(2) > 1 .and. bandP(3) > bandP(2)) then
+                                nB226 = min(bandP(3) - bandP(2), 64)
+                                pLinD = dble(grid(iG)%totalLines(iDum))
+                                do kB226 = 0, nB226 - 1
+                                   dP226 = (1.d0 - pLinD) &
+                                        & *dble(grid(iG)%recPDF(iDum, bandP(2)+kB226) &
+                                        &     - grid(iG)%recPDF(iDum, bandP(2)+kB226-1))
+                                   budSum8(iBudG,6+kB226) = budSum8(iBudG,6+kB226) + dP226
+                                   budSum8(iBudG,1) = budSum8(iBudG,1) + dP226
+                                   budSum9(iBudG,1+kB226) = budSum9(iBudG,1+kB226) &
+                                        & + dble(grid(iG)%Jste(iDum, bandP(2)+kB226))
+                                end do
+                                if (grid(iG)%TeIterStart(iDum) < 100.) &
+                                     & budSum8(iBudG,2) = budSum8(iBudG,2) + 1.d0
+                                budSum8(iBudG,3) = budSum8(iBudG,3) &
+                                     & + dble(grid(iG)%ionDen(iDum,elementXref(2),2))
+                                budSum8(iBudG,4) = budSum8(iBudG,4) &
+                                     & + dble(grid(iG)%ionDen(iDum,elementXref(1),2))
+                                budSum8(iBudG,5) = budSum8(iBudG,5) + pLinD
+                             end if
+                             ! D-232: what the cell's re-emission spectrum is
+                             ! made of, before normalisation - gas terms and
+                             ! dust term, whole band and above 13.6/24.6 eV.
+                             ! A dust absorption samples the pooled PDF, so a
+                             ! nonzero gas ionizing part is dust-absorbed
+                             ! energy able to come back out ionizing.
+                             if (allocated(grid(iG)%pdfSrc)) then
+                                do kBd = 1, 6
+                                   budSum8(iBudG,15+kBd) = budSum8(iBudG,15+kBd) &
+                                        & + dble(grid(iG)%pdfSrc(iDum,kBd))
+                                end do
+                             end if
                           end if
-                          if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
-                               & + dble(grid(iG)%pdrHeatXtra(iDum)) &
-                               &   /dble(grid(iG)%Hden(iDum))
-                       end do
+                          ! the diffuse part of the field in the three bands
+                          ! that carry any: Jdif holds the diffuse packets
+                          ! alone when pdrSplitField is set, Jste both
+                          if (pdrSplitField /= 0 .and. bandRepP(5) > 0) then
+                             do kBd = 1, 3
+                                budSum5(iBudG,5+kBd) = budSum5(iBudG,5+kBd) &
+                                     & + dble(sum(grid(iG)%Jdif(iDum,bandP(kBd):bandP(kBd+1)-1)))
+                             end do
+                          end if
+                          ! the same cell's group one MC iteration ago;
+                          ! ownership is fixed per rank, so each rank
+                          ! carries its own cells' history without a
+                          ! reduction
+                          iLastG = 0
+                          if (allocated(grid(iG)%budGrpLast)) then
+                             iLastG = grid(iG)%budGrpLast(iDum)
+                             grid(iG)%budGrpLast(iDum) = iBudG
+                          end if
+                          budSum2(iBudG,6+iLastG) = budSum2(iBudG,6+iLastG) + 1.d0
+                       end if
+                       if (allocated(grid(iG)%pdrHeatXtra)) ppeSum = ppeSum &
+                            & + dble(grid(iG)%pdrHeatXtra(iDum)) &
+                            &   /dble(grid(iG)%Hden(iDum))
                     end do
                  end do
-                 call mpi_allreduce(MPI_IN_PLACE, nUpd1, 1, mpi_integer, &
-                      & mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, nUpd1Hot, 1, mpi_integer, &
-                      & mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, teUpd1Sum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, molUpdSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, pcSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, phSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, ppeSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, pcSubSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, pcNulSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, tfacSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, trefSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, slopSum, 1, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(MPI_IN_PLACE, spSum, 4, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 ! D-217: iCouple is the same on every rank, so this
-                 ! collective cannot be skipped by a subset of them.
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum, 63, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum2, 27, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-218
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum3, 12, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-221
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum4, 126, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-222
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum5, 24, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-223
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum6, 45, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-224
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum7, 21, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-225
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum8, 210, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
-                 if (iCouple == 1) call mpi_allreduce(MPI_IN_PLACE, budSum9, 192, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
-                 ! D-205. The pass-1 line is the D-204 ordering probe and keeps
-                 ! its label; passes 2..n are the same numbers inside the loop,
-                 ! where the runaway actually happens. The [D119] residual
-                 ! beside these decays monotonically through an excursion that
-                 ! takes the hot fraction from 5% to 77% - it measures ion
-                 ! fractions and cannot see this, which is why the loop looked
-                 ! like it was settling.
-                 if (taskid == 0 .and. nUpd1 > 0) then
-                    if (iCouple == 1) then
-                       print '(a,es11.4,a,i7,a,f6.2,a)', &
-                            & " ! [D204]   pass-1 updateCell done, chemistry not&
-                            & yet run:  mean Te ", teUpd1Sum/dble(nUpd1), &
-                            & "  Te>3000 K in", nUpd1Hot, " (", &
-                            & 100.d0*dble(nUpd1Hot)/dble(nUpd1), "%)"
-                    end if
-                    print '(a,i2,a,es11.4,a,f6.2,a,f7.4)', &
-                         & " ! [D205]   pass", iCouple, " after updateCell:  mean Te ", &
-                         & teUpd1Sum/dble(nUpd1), "  hot ", &
-                         & 100.d0*dble(nUpd1Hot)/dble(nUpd1), " %   f_mol ", &
-                         & molUpdSum/dble(nUpd1)
-                    print '(a,3(es11.4,a))', &
-                         & " ! [D205]      per H, as USED by the balance:  cool ", &
-                         & pcSum/dble(nUpd1), "  heat ", phSum/dble(nUpd1), &
-                         & "  (heatXtra ", ppeSum/dble(nUpd1), ")"
-                    ! D-210. The net above goes NEGATIVE, meaning the
-                    ! substitution removes more of MOCASSIN's cooling than it
-                    ! puts back. These two say why: `removed` is MOCASSIN's own
-                    ! coolant taken out, `added` is 3D-PDR's put in (net +
-                    ! removed, by construction), and `guard kept` counts the
-                    ! coolants where 3D-PDR had nothing and MOCASSIN's was
-                    ! left alone (D-167). If added is well below removed while
-                    ! the guard is quiet, the loss is 3D-PDR's coolants being
-                    ! SMALLER, which nothing guards against.
-                    print '(a,2(es11.4,a),f8.3)', &
-                         & " ! [D210]      cooling: removed ", &
-                         & pcSubSum/dble(nUpd1), "  added ", &
-                         & (pcSum + pcSubSum)/dble(nUpd1), &
-                         & "   guard kept, per cell ", pcNulSum/dble(nUpd1)
-                    ! D-213. `added` is the product of these two. The raw
-                    ! coolants come straight from pdrCoolSp; the factor is
-                    ! D-166's (TeUsed/Tref)^slope, clamped to 1e-8..1e8,
-                    ! which extrapolates a cold-gas coolant to whatever
-                    ! temperature the solver is trying. If the coolants hold
-                    ! steady while the factor collapses, the loss is the
-                    ! extrapolation and not the chemistry.
-                    print '(a,4(es11.4,a))', &
-                         & " ! [D213]      coolants per H:  CO ", spSum(1)/dble(nUpd1), &
-                         & "  C+ ", spSum(2)/dble(nUpd1), "  C ", spSum(3)/dble(nUpd1), &
-                         & "  O ", spSum(4)/dble(nUpd1)
-                    print '(a,3(es11.4,a))', &
-                         & " ! [D213]      D-166 factor: mean (Te/Tref)^slope ", &
-                         & tfacSum/dble(nUpd1), "   Tref ", trefSum/dble(nUpd1), &
-                         & "   slope ", slopSum/dble(nUpd1)
-                    ! D-217. Per group, per H nucleus: at ENTRY (the cell's
-                    ! iteration-start Te under the new field - what changed)
-                    ! and at EXIT (where the solve left it). Heating is
-                    ! phot + PE + PDR, cooling is coll + rec + ff + gd + PDR,
-                    ! and H-C is their difference; the terms are additive, so
-                    ! the means are too.
-                    if (iCouple == 1) then
-                       budLab = (/ 'cold -> hot', 'stayed cold', 'started hot' /)
-                       do iBudG = 1, 3
-                          if (budSum(iBudG,21) <= 0.d0) cycle
-                          print '(a,a,a,i8)', " ! [D217] ", budLab(iBudG), &
-                               & "   cells", nint(budSum(iBudG,21))
-                          print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
-                               & " ! [D217]   entry  Te", &
-                               & budSum(iBudG,10)/budSum(iBudG,21), &
-                               & "  heat phot/PE/PDR", &
-                               & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
-                               & "  cool coll/rec/ff/gd/PDR", &
-                               & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
-                               & "  H-C", budSum(iBudG,9)/budSum(iBudG,21)
-                          print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
-                               & " ! [D217]   exit   Te", &
-                               & budSum(iBudG,20)/budSum(iBudG,21), &
-                               & "  heat phot/PE/PDR", &
-                               & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
-                               & "  cool coll/rec/ff/gd/PDR", &
-                               & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
-                               & "  H-C", budSum(iBudG,19)/budSum(iBudG,21)
-                          ! D-218: depth, absorbers, field, tau at threshold,
-                          ! and where these cells were one iteration ago
-                          print '(a,f7.3,a,es10.3,a,f7.4,a,es10.3,a,es10.3,a,4i7)', &
-                               & " ! [D218]   A_V", budSum2(iBudG,1)/budSum(iBudG,21), &
-                               & "  x(H0)", budSum2(iBudG,2)/budSum(iBudG,21), &
-                               & "  f_mol", budSum2(iBudG,3)/budSum(iBudG,21), &
-                               & "  J>H0thr", budSum2(iBudG,4)/budSum(iBudG,21), &
-                               & "  tau/cell@thr", budSum2(iBudG,5)/budSum(iBudG,21), &
-                               & "   last it none/c->h/cold/hot", &
-                               & (nint(budSum2(iBudG,5+iLastG)), iLastG = 1, 4)
-                          ! D-221: which band. H0 share is H0's heating over the
-                          ! group's entry photoionization heating (D-217 term 1).
-                          print '(a,2es10.3,a,2es10.3,a,f8.4)', &
-                               & " ! [D221]   J 13.6-15.4 / >15.4 eV", &
-                               & budSum3(iBudG,1)/budSum(iBudG,21), &
-                               & budSum3(iBudG,2)/budSum(iBudG,21), &
-                               & "  H0 phot heat 13.6-15.4 / >15.4", &
-                               & budSum3(iBudG,3)/budSum(iBudG,21), &
-                               & budSum3(iBudG,4)/budSum(iBudG,21), &
-                               & "  H0 share", &
-                               & (budSum3(iBudG,3)+budSum3(iBudG,4)) &
-                               & /max(budSum(iBudG,1), 1.d-99)
-                          ! D-222: by band, then the absorber split at each hard
-                          ! band's representative energy, with (gas+dust)/total
-                          if (bandRepP(5) > 0) then
-                             print '(a,5es10.2,a,5es10.2)', &
-                                  & " ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top", &
-                                  & (budSum4(iBudG,kBd)/budSum(iBudG,21), kBd = 1, 5), &
-                                  & "   H0 heat by band", &
-                                  & (budSum4(iBudG,5+kBd)/budSum(iBudG,21), kBd = 1, 5)
-                             do mBd = 2, 5
-                                print '(a,f7.1,a,7es10.2,a,f8.4)', &
-                                     & " ! [D222]   tau/cell @", nuArray(bandRepP(mBd))*13.605693, &
-                                     & " eV  H2/ff/H0/He0/He+/Z/dust", &
-                                     & (budSum4(iBudG,10+(mBd-2)*8+kBd)/budSum(iBudG,21), kBd = 1, 7), &
-                                     & "  (gas+dust)/total", &
-                                     & sum(budSum4(iBudG,10+(mBd-2)*8+1:10+(mBd-2)*8+7)) &
-                                     & /max(budSum4(iBudG,10+(mBd-2)*8+8), 1.d-99)
-                             end do
-                          end if
-                          ! D-223: neighbours, and the diffuse share of the field
-                          print '(a,f7.2,a,f5.2,a,f7.2,a,f7.2,a)', &
-                               & " ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in", &
-                               & 100.d0*budSum5(iBudG,1)/budSum(iBudG,21), &
-                               & "%   mean", budSum5(iBudG,2)/budSum(iBudG,21), &
-                               & "   upstream (lower A_V) >=1 in", &
-                               & 100.d0*budSum5(iBudG,3)/budSum(iBudG,21), &
-                               & "%   downstream >=1 in", &
-                               & 100.d0*budSum5(iBudG,4)/budSum(iBudG,21), "%"
-                          if (pdrSplitField /= 0 .and. bandRepP(5) > 0) &
-                               & print '(a,3f9.4)', &
-                               & " ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4", &
-                               & (budSum5(iBudG,5+kBd)/max(budSum4(iBudG,kBd), 1.d-99), kBd = 1, 3)
-                          ! D-224: neighbours by optical depth, and where the
-                          ! 15.4-24.6 eV stellar field came from
-                          if (bandRepP(2) > 0) then
-                             print '(a,f6.1,a,5f7.2,a,f7.2)', &
-                                  & " ! [D224]   most transparent face-neighbour, tau/cell @", &
-                                  & nuArray(bandRepP(2))*13.605693, &
-                                  & " eV  <0.1 / 0.1-1 / 1-10 / 10-100 / >=100 (%)", &
-                                  & (100.d0*budSum6(iBudG,kBd)/max(budSum6(iBudG,15), 1.d0), kBd = 1, 5), &
-                                  & "   <log10>", budSum6(iBudG,6)/max(budSum6(iBudG,15), 1.d0)
-                             print '(a,f8.1,a,es10.3,a,f7.2,a,f7.2,a)', &
-                                  & " ! [D224]   that neighbour: Te_start", &
-                                  & budSum6(iBudG,8)/max(budSum6(iBudG,15), 1.d0), &
-                                  & "   x(H0)_start", budSum6(iBudG,9)/max(budSum6(iBudG,15), 1.d0), &
-                                  & "   upstream", 100.d0*budSum6(iBudG,10)/max(budSum6(iBudG,15), 1.d0), &
-                                  & "%   any upstream neighbour tau/cell<1 in", &
-                                  & 100.d0*budSum6(iBudG,14)/max(budSum(iBudG,21), 1.d0), "%"
-                             ! D-232: the re-emission spectrum by source term
-                             if (budSum8(iBudG,16)+budSum8(iBudG,17) > 0.d0) then
-                                print '(a,f8.5,a,es10.3,a,es10.3,a,es10.3,a,es10.3)', &
-                                     & " ! [D232]   re-emission spectrum: dust share", &
-                                     & budSum8(iBudG,17) &
-                                     & /max(budSum8(iBudG,16)+budSum8(iBudG,17), 1.d-99), &
-                                     & "   gas >13.6 eV / gas", &
-                                     & budSum8(iBudG,18)/max(budSum8(iBudG,16), 1.d-99), &
-                                     & "   dust >13.6 eV / dust", &
-                                     & budSum8(iBudG,19)/max(budSum8(iBudG,17), 1.d-99), &
-                                     & "   gas >24.6 eV / gas", &
-                                     & budSum8(iBudG,20)/max(budSum8(iBudG,16), 1.d-99), &
-                                     & "   dust >24.6 eV / dust", &
-                                     & budSum8(iBudG,21)/max(budSum8(iBudG,17), 1.d-99)
-                             end if
-                             print '(a,2f9.5)', &
-                                  & " ! [D224]   15.4-24.6 eV stellar J share: steps not in their cell / entering from tau/cell<1", &
-                                  & budSum6(iBudG,12)/max(budSum6(iBudG,11), 1.d-99), &
-                                  & budSum6(iBudG,13)/max(budSum6(iBudG,11), 1.d-99)
-                             ! D-225: the closure, and the transport events
-                             ! that actually happened in these cells
-                             if (pdrSplitField /= 0) then
-                                print '(a,es10.3,a,es10.3,a,f9.6,a,f7.2,a)', &
-                                     & " ! [D225]   15.4-24.6 eV per cell: Jste", &
-                                     & budSum7(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   traced, all packets", budSum7(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   traced/Jste", budSum7(iBudG,4)/max(budSum7(iBudG,1), 1.d-99), &
-                                     & "   cells not closing to 1e-3", &
-                                     & 100.d0*budSum7(iBudG,7)/max(budSum(iBudG,21), 1.d0), "%"
-                                print '(a,es10.3,a,es10.3,a,f9.6,a,es10.3,a,es10.3)', &
-                                     & " ! [D225]   stellar per cell: Jste-Jdif", &
-                                     & (budSum7(iBudG,1)-budSum7(iBudG,2))/max(budSum(iBudG,21), 1.d0), &
-                                     & "   traced stellar", budSum7(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   ratio", budSum7(iBudG,3)/max(budSum7(iBudG,1)-budSum7(iBudG,2), 1.d-99), &
-                                     & "   stellar interactions/cell", budSum7(iBudG,5)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   stellar steps/cell", budSum7(iBudG,6)/max(budSum(iBudG,21), 1.d0)
-                             end if
-                             ! D-226: the re-emission spectrum in the band,
-                             ! and where in the band the field sits
-                             if (bandP(3) > bandP(2) .and. bandP(2) > 1) then
-                                nB226 = min(bandP(3) - bandP(2), 64)
-                                kTopP = maxloc(budSum8(iBudG,6:5+nB226), 1) - 1
-                                kTopJ = maxloc(budSum9(iBudG,1:nB226), 1) - 1
-                                print '(a,es10.3,a,f7.2,a,es10.3,a,f7.2,a,es10.3,a,es10.3,a,f6.3)', &
-                                     & " ! [D226]   P(re-emitted packet born in 15.4-24.6 eV)", &
-                                     & budSum8(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   top bin", nuArray(bandP(2)+kTopP)*13.605693, &
-                                     & " eV carries", budSum8(iBudG,6+kTopP)/max(budSum8(iBudG,1), 1.d-99), &
-                                     & "   Te_start<100 K (%)", 100.d0*budSum8(iBudG,2)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   x(He+)", budSum8(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   x(H+)", budSum8(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
-                                     & "   line fraction", budSum8(iBudG,5)/max(budSum(iBudG,21), 1.d0)
-                                print '(a,f7.2,a,f6.3,a,f7.2,a,f6.3)', &
-                                     & " ! [D226]   Jste 15.4-24.6 eV: top bin", nuArray(bandP(2)+kTopJ)*13.605693, &
-                                     & " eV holds", budSum9(iBudG,1+kTopJ)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99), &
-                                     & " of the band;  the top-P bin", nuArray(bandP(2)+kTopP)*13.605693, &
-                                     & " eV holds", budSum9(iBudG,1+kTopP)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99)
-                             end if
-                          end if
+              end do
+              call mpi_allreduce(MPI_IN_PLACE, nUpd1, 1, mpi_integer, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, nUpd1Hot, 1, mpi_integer, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, teUpd1Sum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, molUpdSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, pcSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, phSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, ppeSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, pcSubSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, pcNulSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, tfacSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, trefSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, slopSum, 1, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, spSum, 4, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, budSum, 63, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, budSum2, 27, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-218
+              call mpi_allreduce(MPI_IN_PLACE, budSum3, 12, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-221
+              call mpi_allreduce(MPI_IN_PLACE, budSum4, 126, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-222
+              call mpi_allreduce(MPI_IN_PLACE, budSum5, 24, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-223
+              call mpi_allreduce(MPI_IN_PLACE, budSum6, 45, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-224
+              call mpi_allreduce(MPI_IN_PLACE, budSum7, 21, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-225
+              call mpi_allreduce(MPI_IN_PLACE, budSum8, 210, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
+              call mpi_allreduce(MPI_IN_PLACE, budSum9, 192, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)   ! D-226
+              ! D-205. The D-204 line is the ordering probe and keeps its
+              ! label (tools/d202_series.py reads it); the D-205 lines are the
+              ! state the chemistry is about to be solved against.
+              if (taskid == 0 .and. nUpd1 > 0) then
+                 print '(a,es11.4,a,i7,a,f6.2,a)', &
+                      & " ! [D204]   pass-1 updateCell done, chemistry not&
+                      & yet run:  mean Te ", teUpd1Sum/dble(nUpd1), &
+                      & "  Te>3000 K in", nUpd1Hot, " (", &
+                      & 100.d0*dble(nUpd1Hot)/dble(nUpd1), "%)"
+                 print '(a,es11.4,a,f6.2,a,f7.4)', &
+                      & " ! [D205]   after updateCell:  mean Te ", &
+                      & teUpd1Sum/dble(nUpd1), "  hot ", &
+                      & 100.d0*dble(nUpd1Hot)/dble(nUpd1), " %   f_mol ", &
+                      & molUpdSum/dble(nUpd1)
+                 print '(a,3(es11.4,a))', &
+                      & " ! [D205]      per H, as USED by the balance:  cool ", &
+                      & pcSum/dble(nUpd1), "  heat ", phSum/dble(nUpd1), &
+                      & "  (heatXtra ", ppeSum/dble(nUpd1), ")"
+                 ! D-210. The net above goes NEGATIVE, meaning the
+                 ! substitution removes more of MOCASSIN's cooling than it
+                 ! puts back. These two say why: `removed` is MOCASSIN's own
+                 ! coolant taken out, `added` is 3D-PDR's put in (net +
+                 ! removed, by construction), and `guard kept` counts the
+                 ! coolants where 3D-PDR had nothing and MOCASSIN's was
+                 ! left alone (D-167). If added is well below removed while
+                 ! the guard is quiet, the loss is 3D-PDR's coolants being
+                 ! SMALLER, which nothing guards against.
+                 print '(a,2(es11.4,a),f8.3)', &
+                      & " ! [D210]      cooling: removed ", &
+                      & pcSubSum/dble(nUpd1), "  added ", &
+                      & (pcSum + pcSubSum)/dble(nUpd1), &
+                      & "   guard kept, per cell ", pcNulSum/dble(nUpd1)
+                 ! D-213. `added` is the product of these two. The raw
+                 ! coolants come straight from pdrCoolSp; the factor is
+                 ! D-166's (TeUsed/Tref)^slope, clamped to 1e-8..1e8,
+                 ! which extrapolates a cold-gas coolant to whatever
+                 ! temperature the solver is trying. If the coolants hold
+                 ! steady while the factor collapses, the loss is the
+                 ! extrapolation and not the chemistry.
+                 print '(a,4(es11.4,a))', &
+                      & " ! [D213]      coolants per H:  CO ", spSum(1)/dble(nUpd1), &
+                      & "  C+ ", spSum(2)/dble(nUpd1), "  C ", spSum(3)/dble(nUpd1), &
+                      & "  O ", spSum(4)/dble(nUpd1)
+                 print '(a,3(es11.4,a))', &
+                      & " ! [D213]      D-166 factor: mean (Te/Tref)^slope ", &
+                      & tfacSum/dble(nUpd1), "   Tref ", trefSum/dble(nUpd1), &
+                      & "   slope ", slopSum/dble(nUpd1)
+                 ! D-217. Per group, per H nucleus: at ENTRY (the cell's
+                 ! iteration-start Te under the new field - what changed)
+                 ! and at EXIT (where the solve left it). Heating is
+                 ! phot + PE + PDR, cooling is coll + rec + ff + gd + PDR,
+                 ! and H-C is their difference; the terms are additive, so
+                 ! the means are too.
+                 budLab = (/ 'cold -> hot', 'stayed cold', 'started hot' /)
+                 do iBudG = 1, 3
+                    if (budSum(iBudG,21) <= 0.d0) cycle
+                    print '(a,a,a,i8)', " ! [D217] ", budLab(iBudG), &
+                         & "   cells", nint(budSum(iBudG,21))
+                    print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
+                         & " ! [D217]   entry  Te", &
+                         & budSum(iBudG,10)/budSum(iBudG,21), &
+                         & "  heat phot/PE/PDR", &
+                         & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
+                         & "  cool coll/rec/ff/gd/PDR", &
+                         & (budSum(iBudG,iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
+                         & "  H-C", budSum(iBudG,9)/budSum(iBudG,21)
+                    print '(a,f9.1,a,3es10.2,a,5es10.2,a,es10.2)', &
+                         & " ! [D217]   exit   Te", &
+                         & budSum(iBudG,20)/budSum(iBudG,21), &
+                         & "  heat phot/PE/PDR", &
+                         & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 1, 3), &
+                         & "  cool coll/rec/ff/gd/PDR", &
+                         & (budSum(iBudG,10+iBudT)/budSum(iBudG,21), iBudT = 4, 8), &
+                         & "  H-C", budSum(iBudG,19)/budSum(iBudG,21)
+                    ! D-218: depth, absorbers, field, tau at threshold,
+                    ! and where these cells were one iteration ago
+                    print '(a,f7.3,a,es10.3,a,f7.4,a,es10.3,a,es10.3,a,4i7)', &
+                         & " ! [D218]   A_V", budSum2(iBudG,1)/budSum(iBudG,21), &
+                         & "  x(H0)", budSum2(iBudG,2)/budSum(iBudG,21), &
+                         & "  f_mol", budSum2(iBudG,3)/budSum(iBudG,21), &
+                         & "  J>H0thr", budSum2(iBudG,4)/budSum(iBudG,21), &
+                         & "  tau/cell@thr", budSum2(iBudG,5)/budSum(iBudG,21), &
+                         & "   last it none/c->h/cold/hot", &
+                         & (nint(budSum2(iBudG,5+iLastG)), iLastG = 1, 4)
+                    ! D-221: which band. H0 share is H0's heating over the
+                    ! group's entry photoionization heating (D-217 term 1).
+                    print '(a,2es10.3,a,2es10.3,a,f8.4)', &
+                         & " ! [D221]   J 13.6-15.4 / >15.4 eV", &
+                         & budSum3(iBudG,1)/budSum(iBudG,21), &
+                         & budSum3(iBudG,2)/budSum(iBudG,21), &
+                         & "  H0 phot heat 13.6-15.4 / >15.4", &
+                         & budSum3(iBudG,3)/budSum(iBudG,21), &
+                         & budSum3(iBudG,4)/budSum(iBudG,21), &
+                         & "  H0 share", &
+                         & (budSum3(iBudG,3)+budSum3(iBudG,4)) &
+                         & /max(budSum(iBudG,1), 1.d-99)
+                    ! D-222: by band, then the absorber split at each hard
+                    ! band's representative energy, with (gas+dust)/total
+                    if (bandRepP(5) > 0) then
+                       print '(a,5es10.2,a,5es10.2)', &
+                            & " ! [D222]   J by band win/H2-He0/He0-He+/He+-mid/mid-top", &
+                            & (budSum4(iBudG,kBd)/budSum(iBudG,21), kBd = 1, 5), &
+                            & "   H0 heat by band", &
+                            & (budSum4(iBudG,5+kBd)/budSum(iBudG,21), kBd = 1, 5)
+                       do mBd = 2, 5
+                          print '(a,f7.1,a,7es10.2,a,f8.4)', &
+                               & " ! [D222]   tau/cell @", nuArray(bandRepP(mBd))*13.605693, &
+                               & " eV  H2/ff/H0/He0/He+/Z/dust", &
+                               & (budSum4(iBudG,10+(mBd-2)*8+kBd)/budSum(iBudG,21), kBd = 1, 7), &
+                               & "  (gas+dust)/total", &
+                               & sum(budSum4(iBudG,10+(mBd-2)*8+1:10+(mBd-2)*8+7)) &
+                               & /max(budSum4(iBudG,10+(mBd-2)*8+8), 1.d-99)
                        end do
                     end if
-                 end if
+                    ! D-223: neighbours, and the diffuse share of the field
+                    print '(a,f7.2,a,f5.2,a,f7.2,a,f7.2,a)', &
+                         & " ! [D223]   hot face-neighbour (Te_start>3000 K): >=1 in", &
+                         & 100.d0*budSum5(iBudG,1)/budSum(iBudG,21), &
+                         & "%   mean", budSum5(iBudG,2)/budSum(iBudG,21), &
+                         & "   upstream (lower A_V) >=1 in", &
+                         & 100.d0*budSum5(iBudG,3)/budSum(iBudG,21), &
+                         & "%   downstream >=1 in", &
+                         & 100.d0*budSum5(iBudG,4)/budSum(iBudG,21), "%"
+                    if (pdrSplitField /= 0 .and. bandRepP(5) > 0) &
+                         & print '(a,3f9.4)', &
+                         & " ! [D223]   diffuse fraction of J  win / 15.4-24.6 / 24.6-54.4", &
+                         & (budSum5(iBudG,5+kBd)/max(budSum4(iBudG,kBd), 1.d-99), kBd = 1, 3)
+                    ! D-224: neighbours by optical depth, and where the
+                    ! 15.4-24.6 eV stellar field came from
+                    if (bandRepP(2) > 0) then
+                       print '(a,f6.1,a,5f7.2,a,f7.2)', &
+                            & " ! [D224]   most transparent face-neighbour, tau/cell @", &
+                            & nuArray(bandRepP(2))*13.605693, &
+                            & " eV  <0.1 / 0.1-1 / 1-10 / 10-100 / >=100 (%)", &
+                            & (100.d0*budSum6(iBudG,kBd)/max(budSum6(iBudG,15), 1.d0), kBd = 1, 5), &
+                            & "   <log10>", budSum6(iBudG,6)/max(budSum6(iBudG,15), 1.d0)
+                       print '(a,f8.1,a,es10.3,a,f7.2,a,f7.2,a)', &
+                            & " ! [D224]   that neighbour: Te_start", &
+                            & budSum6(iBudG,8)/max(budSum6(iBudG,15), 1.d0), &
+                            & "   x(H0)_start", budSum6(iBudG,9)/max(budSum6(iBudG,15), 1.d0), &
+                            & "   upstream", 100.d0*budSum6(iBudG,10)/max(budSum6(iBudG,15), 1.d0), &
+                            & "%   any upstream neighbour tau/cell<1 in", &
+                            & 100.d0*budSum6(iBudG,14)/max(budSum(iBudG,21), 1.d0), "%"
+                       ! D-232: the re-emission spectrum by source term
+                       if (budSum8(iBudG,16)+budSum8(iBudG,17) > 0.d0) then
+                          print '(a,f8.5,a,es10.3,a,es10.3,a,es10.3,a,es10.3)', &
+                               & " ! [D232]   re-emission spectrum: dust share", &
+                               & budSum8(iBudG,17) &
+                               & /max(budSum8(iBudG,16)+budSum8(iBudG,17), 1.d-99), &
+                               & "   gas >13.6 eV / gas", &
+                               & budSum8(iBudG,18)/max(budSum8(iBudG,16), 1.d-99), &
+                               & "   dust >13.6 eV / dust", &
+                               & budSum8(iBudG,19)/max(budSum8(iBudG,17), 1.d-99), &
+                               & "   gas >24.6 eV / gas", &
+                               & budSum8(iBudG,20)/max(budSum8(iBudG,16), 1.d-99), &
+                               & "   dust >24.6 eV / dust", &
+                               & budSum8(iBudG,21)/max(budSum8(iBudG,17), 1.d-99)
+                       end if
+                       print '(a,2f9.5)', &
+                            & " ! [D224]   15.4-24.6 eV stellar J share: steps not in their cell / entering from tau/cell<1", &
+                            & budSum6(iBudG,12)/max(budSum6(iBudG,11), 1.d-99), &
+                            & budSum6(iBudG,13)/max(budSum6(iBudG,11), 1.d-99)
+                       ! D-225: the closure, and the transport events
+                       ! that actually happened in these cells
+                       if (pdrSplitField /= 0) then
+                          print '(a,es10.3,a,es10.3,a,f9.6,a,f7.2,a)', &
+                               & " ! [D225]   15.4-24.6 eV per cell: Jste", &
+                               & budSum7(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
+                               & "   traced, all packets", budSum7(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
+                               & "   traced/Jste", budSum7(iBudG,4)/max(budSum7(iBudG,1), 1.d-99), &
+                               & "   cells not closing to 1e-3", &
+                               & 100.d0*budSum7(iBudG,7)/max(budSum(iBudG,21), 1.d0), "%"
+                          print '(a,es10.3,a,es10.3,a,f9.6,a,es10.3,a,es10.3)', &
+                               & " ! [D225]   stellar per cell: Jste-Jdif", &
+                               & (budSum7(iBudG,1)-budSum7(iBudG,2))/max(budSum(iBudG,21), 1.d0), &
+                               & "   traced stellar", budSum7(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
+                               & "   ratio", budSum7(iBudG,3)/max(budSum7(iBudG,1)-budSum7(iBudG,2), 1.d-99), &
+                               & "   stellar interactions/cell", budSum7(iBudG,5)/max(budSum(iBudG,21), 1.d0), &
+                               & "   stellar steps/cell", budSum7(iBudG,6)/max(budSum(iBudG,21), 1.d0)
+                       end if
+                       ! D-226: the re-emission spectrum in the band,
+                       ! and where in the band the field sits
+                       if (bandP(3) > bandP(2) .and. bandP(2) > 1) then
+                          nB226 = min(bandP(3) - bandP(2), 64)
+                          kTopP = maxloc(budSum8(iBudG,6:5+nB226), 1) - 1
+                          kTopJ = maxloc(budSum9(iBudG,1:nB226), 1) - 1
+                          print '(a,es10.3,a,f7.2,a,es10.3,a,f7.2,a,es10.3,a,es10.3,a,f6.3)', &
+                               & " ! [D226]   P(re-emitted packet born in 15.4-24.6 eV)", &
+                               & budSum8(iBudG,1)/max(budSum(iBudG,21), 1.d0), &
+                               & "   top bin", nuArray(bandP(2)+kTopP)*13.605693, &
+                               & " eV carries", budSum8(iBudG,6+kTopP)/max(budSum8(iBudG,1), 1.d-99), &
+                               & "   Te_start<100 K (%)", 100.d0*budSum8(iBudG,2)/max(budSum(iBudG,21), 1.d0), &
+                               & "   x(He+)", budSum8(iBudG,3)/max(budSum(iBudG,21), 1.d0), &
+                               & "   x(H+)", budSum8(iBudG,4)/max(budSum(iBudG,21), 1.d0), &
+                               & "   line fraction", budSum8(iBudG,5)/max(budSum(iBudG,21), 1.d0)
+                          print '(a,f7.2,a,f6.3,a,f7.2,a,f6.3)', &
+                               & " ! [D226]   Jste 15.4-24.6 eV: top bin", nuArray(bandP(2)+kTopJ)*13.605693, &
+                               & " eV holds", budSum9(iBudG,1+kTopJ)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99), &
+                               & " of the band;  the top-P bin", nuArray(bandP(2)+kTopP)*13.605693, &
+                               & " eV holds", budSum9(iBudG,1+kTopP)/max(sum(budSum9(iBudG,1:nB226)), 1.d-99)
+                       end if
+                    end if
+                 end do
+              end if
               end if
 #endif
 
@@ -1912,217 +1906,207 @@ module iteration_mod
               ! otherwise skipped cells (inactive, or outside the PDR zone)
               ! would come back zero and lose their seeded abundances.
               if (lgPDR .and. nIterateMC >= pdrStartIter) then
-                 if (taskid==0) print*, '! iterateMC: pdrStep in', iG
-                 allocate(pdrAbunTemp(0:grid(iG)%nCells,1:pdrNspec), stat=err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate pdrAbunTemp"; stop
-                 end if
-                 allocate(pdrAbunSum(0:grid(iG)%nCells,1:pdrNspec), stat=err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate pdrAbunSum"; stop
-                 end if
-                 allocate(pdrHeatTmp(0:grid(iG)%nCells),   stat=err)
-                 allocate(pdrHeatSum(0:grid(iG)%nCells),   stat=err)
-                 allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrCoolSlTmp(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrCoolSlSum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrCoolTrTmp(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrCoolTrSum(0:grid(iG)%nCells), stat=err)
-                 allocate(H2denTmp(0:grid(iG)%nCells), stat=err)
-                 allocate(H2denSum(0:grid(iG)%nCells), stat=err)
-                 allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
-                 allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
-                 allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
-                 allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
-                 allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
-                 allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
-                 allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
-                 allocate(pdrLevSum(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
-                 end if
-                 pdrAbunTemp  = 0.d0
-                 pdrAbunSum   = 0.d0
-                 pdrHeatTmp   = 0.
-                 pdrHeatSum   = 0.
-                 pdrHeatPETmp = 0.
-                 pdrCoolSlTmp = 0.
-                 pdrCoolTrTmp = 0.
-                 H2denTmp = 0.
-                 pdrCoolSpTmp = 0.
-                 pdrIonRateTmp = 0.; pdrIonRateSum = 0.
-                 pdrHeatPESum = 0.
-                 pdrCoolTmp   = 0.
-                 pdrCoolSum   = 0.
-                 pdrLevTmp    = 0.d0
-                 pdrLevSum    = 0.d0
-                 pdrNstuck   = 0
-                 pdrNbadPop  = 0
-                 call resetDiffuseDiag()                    ! D-348
+              if (taskid==0) print*, '! iterateMC: pdrStep in', iG
+              allocate(pdrAbunTemp(0:grid(iG)%nCells,1:pdrNspec), stat=err)
+              if (err /= 0) then
+                 print*, "! iterateMC: can't allocate pdrAbunTemp"; stop
+              end if
+              allocate(pdrAbunSum(0:grid(iG)%nCells,1:pdrNspec), stat=err)
+              if (err /= 0) then
+                 print*, "! iterateMC: can't allocate pdrAbunSum"; stop
+              end if
+              allocate(pdrHeatTmp(0:grid(iG)%nCells),   stat=err)
+              allocate(pdrHeatSum(0:grid(iG)%nCells),   stat=err)
+              allocate(pdrHeatPETmp(0:grid(iG)%nCells), stat=err)
+              allocate(pdrHeatPESum(0:grid(iG)%nCells), stat=err)
+              allocate(pdrCoolSlTmp(0:grid(iG)%nCells), stat=err)
+              allocate(pdrCoolSlSum(0:grid(iG)%nCells), stat=err)
+              allocate(pdrCoolTrTmp(0:grid(iG)%nCells), stat=err)
+              allocate(pdrCoolTrSum(0:grid(iG)%nCells), stat=err)
+              allocate(H2denTmp(0:grid(iG)%nCells), stat=err)
+              allocate(H2denSum(0:grid(iG)%nCells), stat=err)
+              allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
+              allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
+              allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
+              allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
+              allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
+              allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
+              allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
+              allocate(pdrLevSum(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
+              if (err /= 0) then
+                 print*, "! iterateMC: can't allocate PDR reduction buffers"; stop
+              end if
+              pdrAbunTemp  = 0.d0
+              pdrAbunSum   = 0.d0
+              pdrHeatTmp   = 0.
+              pdrHeatSum   = 0.
+              pdrHeatPETmp = 0.
+              pdrCoolSlTmp = 0.
+              pdrCoolTrTmp = 0.
+              H2denTmp = 0.
+              pdrCoolSpTmp = 0.
+              pdrIonRateTmp = 0.; pdrIonRateSum = 0.
+              pdrHeatPESum = 0.
+              pdrCoolTmp   = 0.
+              pdrCoolSum   = 0.
+              pdrLevTmp    = 0.d0
+              pdrLevSum    = 0.d0
+              pdrNstuck   = 0
+              pdrNbadPop  = 0
+              call resetDiffuseDiag()                    ! D-348
 
-                 iCell = 0
-                 do i = 1, grid(iG)%nx
-                    do j = 1, yTop
-                       do k = 1, grid(iG)%nz
-                          iCell = iCell+1
-                          if (mod(iCell-(taskid+1),numtasks)==0) then
-                             call pdrStep(grid(iG),i,j,k)
-                             if (grid(iG)%active(i,j,k) > 0) then
-                                pdrAbunTemp(grid(iG)%active(i,j,k),:) = &
-                                     & grid(iG)%pdrAbun(grid(iG)%active(i,j,k),:)
-                                pdrHeatTmp(grid(iG)%active(i,j,k))   = &
-                                     & grid(iG)%pdrHeat(grid(iG)%active(i,j,k))
-                                pdrHeatPETmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
-                                pdrCoolTmp(grid(iG)%active(i,j,k))   = &
-                                     & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
-                                pdrCoolSlTmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%pdrCoolSlope(grid(iG)%active(i,j,k))
-                                pdrCoolTrTmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%pdrCoolTref(grid(iG)%active(i,j,k))
-                                H2denTmp(grid(iG)%active(i,j,k)) = &
-                                     & grid(iG)%H2den(grid(iG)%active(i,j,k))
-                                pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
-                                     & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
-                                pdrIonRateTmp(grid(iG)%active(i,j,k),:) = &
-                                     & grid(iG)%pdrIonRate(grid(iG)%active(i,j,k),:)
-                                pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
-                                     & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
-                             end if
+              iCell = 0
+              do i = 1, grid(iG)%nx
+                 do j = 1, yTop
+                    do k = 1, grid(iG)%nz
+                       iCell = iCell+1
+                       if (mod(iCell-(taskid+1),numtasks)==0) then
+                          call pdrStep(grid(iG),i,j,k)
+                          if (grid(iG)%active(i,j,k) > 0) then
+                             pdrAbunTemp(grid(iG)%active(i,j,k),:) = &
+                                  & grid(iG)%pdrAbun(grid(iG)%active(i,j,k),:)
+                             pdrHeatTmp(grid(iG)%active(i,j,k))   = &
+                                  & grid(iG)%pdrHeat(grid(iG)%active(i,j,k))
+                             pdrHeatPETmp(grid(iG)%active(i,j,k)) = &
+                                  & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
+                             pdrCoolTmp(grid(iG)%active(i,j,k))   = &
+                                  & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
+                             pdrCoolSlTmp(grid(iG)%active(i,j,k)) = &
+                                  & grid(iG)%pdrCoolSlope(grid(iG)%active(i,j,k))
+                             pdrCoolTrTmp(grid(iG)%active(i,j,k)) = &
+                                  & grid(iG)%pdrCoolTref(grid(iG)%active(i,j,k))
+                             H2denTmp(grid(iG)%active(i,j,k)) = &
+                                  & grid(iG)%H2den(grid(iG)%active(i,j,k))
+                             pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
+                                  & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
+                             pdrIonRateTmp(grid(iG)%active(i,j,k),:) = &
+                                  & grid(iG)%pdrIonRate(grid(iG)%active(i,j,k),:)
+                             pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
+                                  & grid(iG)%pdrLevPop(grid(iG)%active(i,j,k),:)
                           end if
-                       end do
+                       end if
                     end do
                  end do
+              end do
 
-                 size = (grid(iG)%nCells+1)*pdrNspec
-                 call mpi_allreduce(pdrAbunTemp, pdrAbunSum, size, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              size = (grid(iG)%nCells+1)*pdrNspec
+              call mpi_allreduce(pdrAbunTemp, pdrAbunSum, size, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
 
-                 ! The heating budget needs the same treatment. Without it only
-                 ! the cells owned by rank 0 survive into the output, so the
-                 ! array looks ~1/numtasks populated - which reads like a
-                 ! physics problem rather than a missing exchange.
-                 size = grid(iG)%nCells+1
-                 call mpi_allreduce(pdrHeatTmp, pdrHeatSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(pdrHeatPETmp, pdrHeatPESum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 call mpi_allreduce(pdrCoolTmp, pdrCoolSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrCool(1:grid(iG)%nCells) = pdrCoolSum(1:grid(iG)%nCells)
-                 call mpi_allreduce(pdrCoolSlTmp, pdrCoolSlSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrCoolSlope(1:grid(iG)%nCells) = pdrCoolSlSum(1:grid(iG)%nCells)
-                 call mpi_allreduce(pdrCoolTrTmp, pdrCoolTrSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrCoolTref(1:grid(iG)%nCells) = pdrCoolTrSum(1:grid(iG)%nCells)
-                 call mpi_allreduce(H2denTmp, H2denSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%H2den(1:grid(iG)%nCells) = H2denSum(1:grid(iG)%nCells)
-                 size = (grid(iG)%nCells+1)*max(pdrNcool,1)
-                 call mpi_allreduce(pdrCoolSpTmp, pdrCoolSpSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrCoolSp(1:grid(iG)%nCells,:) = pdrCoolSpSum(1:grid(iG)%nCells,:)
-                 size = (grid(iG)%nCells+1)*2*pdrNlink
-                 call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrIonRate(1:grid(iG)%nCells,:) = pdrIonRateSum(1:grid(iG)%nCells,:)
-                 size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
-                 call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
-                      & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-                 grid(iG)%pdrLevPop(1:grid(iG)%nCells,:) = pdrLevSum(1:grid(iG)%nCells,:)
-                 grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
-                 grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
+              ! The heating budget needs the same treatment. Without it only
+              ! the cells owned by rank 0 survive into the output, so the
+              ! array looks ~1/numtasks populated - which reads like a
+              ! physics problem rather than a missing exchange.
+              size = grid(iG)%nCells+1
+              call mpi_allreduce(pdrHeatTmp, pdrHeatSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(pdrHeatPETmp, pdrHeatPESum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(pdrCoolTmp, pdrCoolSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrCool(1:grid(iG)%nCells) = pdrCoolSum(1:grid(iG)%nCells)
+              call mpi_allreduce(pdrCoolSlTmp, pdrCoolSlSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrCoolSlope(1:grid(iG)%nCells) = pdrCoolSlSum(1:grid(iG)%nCells)
+              call mpi_allreduce(pdrCoolTrTmp, pdrCoolTrSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrCoolTref(1:grid(iG)%nCells) = pdrCoolTrSum(1:grid(iG)%nCells)
+              call mpi_allreduce(H2denTmp, H2denSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%H2den(1:grid(iG)%nCells) = H2denSum(1:grid(iG)%nCells)
+              size = (grid(iG)%nCells+1)*max(pdrNcool,1)
+              call mpi_allreduce(pdrCoolSpTmp, pdrCoolSpSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrCoolSp(1:grid(iG)%nCells,:) = pdrCoolSpSum(1:grid(iG)%nCells,:)
+              size = (grid(iG)%nCells+1)*2*pdrNlink
+              call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrIonRate(1:grid(iG)%nCells,:) = pdrIonRateSum(1:grid(iG)%nCells,:)
+              size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
+              call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
+                   & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrLevPop(1:grid(iG)%nCells,:) = pdrLevSum(1:grid(iG)%nCells,:)
+              grid(iG)%pdrHeat(1:grid(iG)%nCells)   = pdrHeatSum(1:grid(iG)%nCells)
+              grid(iG)%pdrHeatPE(1:grid(iG)%nCells) = pdrHeatPESum(1:grid(iG)%nCells)
 
-                 ! cell 0 is the inactive dump cell: several (i,j,k) map to it,
-                 ! so it is deliberately left out of the exchange
-                 grid(iG)%pdrAbun(1:grid(iG)%nCells,:) = &
-                      & pdrAbunSum(1:grid(iG)%nCells,:)
+              ! cell 0 is the inactive dump cell: several (i,j,k) map to it,
+              ! so it is deliberately left out of the exchange
+              grid(iG)%pdrAbun(1:grid(iG)%nCells,:) = &
+                   & pdrAbunSum(1:grid(iG)%nCells,:)
 
-                 deallocate(pdrAbunTemp)
-                 deallocate(pdrAbunSum)
-                 deallocate(pdrHeatTmp)
-                 deallocate(pdrHeatSum)
-                 deallocate(pdrHeatPETmp)
-                 deallocate(pdrHeatPESum)
-                 deallocate(pdrCoolTmp)
-                 deallocate(pdrCoolSum)
-                 deallocate(pdrLevTmp)
-                 deallocate(pdrLevSum)
-                 deallocate(pdrCoolSlTmp, pdrCoolSlSum, pdrCoolTrTmp, pdrCoolTrSum)  ! D-166
-                 ! ------------------------------------------------------ D-253
-                 ! These ten are allocated in the same guarded block at
-                 ! :1942-1961 and were omitted from this list, so every MC
-                 ! iteration left them behind. That matters because iterateMC
-                 ! is RECURSIVE - it advances nIterateMC and calls itself at
-                 ! :3258 rather than looping - so an allocatable still
-                 ! allocated at that call stays live in that frame and in
-                 ! every frame beneath it. D-245 exactly, in the same routine.
-                 !
-                 ! ~3.1 MB per iteration per rank at 15205 cells, dominated by
-                 ! pdrIonRate{Tmp,Sum} at 1.16 MB each; measured drift was
-                 ! ~4.5 MB/rank/iteration, so this is most of it. Last use of
-                 ! all ten is :2060-2076, so freeing here is safe.
+              deallocate(pdrAbunTemp)
+              deallocate(pdrAbunSum)
+              deallocate(pdrHeatTmp)
+              deallocate(pdrHeatSum)
+              deallocate(pdrHeatPETmp)
+              deallocate(pdrHeatPESum)
+              deallocate(pdrCoolTmp)
+              deallocate(pdrCoolSum)
+              deallocate(pdrLevTmp)
+              deallocate(pdrLevSum)
+              deallocate(pdrCoolSlTmp, pdrCoolSlSum, pdrCoolTrTmp, pdrCoolTrSum)  ! D-166
+              ! ------------------------------------------------------ D-253
+              ! These ten are allocated in the same guarded block at
+              ! :1942-1961 and were omitted from this list, so every MC
+              ! iteration left them behind. That matters because iterateMC
+              ! is RECURSIVE - it advances nIterateMC and calls itself at
+              ! :3258 rather than looping - so an allocatable still
+              ! allocated at that call stays live in that frame and in
+              ! every frame beneath it. D-245 exactly, in the same routine.
+              !
+              ! ~3.1 MB per iteration per rank at 15205 cells, dominated by
+              ! pdrIonRate{Tmp,Sum} at 1.16 MB each; measured drift was
+              ! ~4.5 MB/rank/iteration, so this is most of it. Last use of
+              ! all ten is :2060-2076, so freeing here is safe.
 
-                 deallocate(H2denTmp, H2denSum)
-                 deallocate(pdrCoolSpTmp, pdrCoolSpSum)
-                 deallocate(pdrIonRateTmp, pdrIonRateSum)
+              deallocate(H2denTmp, H2denSum)
+              deallocate(pdrCoolSpTmp, pdrCoolSpSum)
+              deallocate(pdrIonRateTmp, pdrIonRateSum)
 
-                 call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
-                      & mpi_sum, mpi_comm_world, ierr)
-                 ! D-348: iCouple is the same on every rank, so every rank
-                 ! enters the reduction inside or none does
-                 if (iCouple == max(pdrCoupleIter, 1)) &
-                      & call reportDiffuseDiag(nIterateMC)
-                 call reportPassChange(nIterateMC, iCouple)      ! D-354
-                 if (taskid==0) then
-                    print*, '! iterateMC: pdrStep out', iG
-                    if (pdrNbadPop > 0) print*, &
-                         & "! iterateMC: [warning] ", pdrNbadPop, &
-                         & " level-population solves rejected as non-finite (D-041)"
-                    if (i1PdrStuck > 0) then
-                       print*, "! iterateMC: chemistry unchanged in ", i1PdrStuck, &
-                            & " cells (converged or stalled) - thermal balance still runs"
-                    end if
+              call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
+                   & mpi_sum, mpi_comm_world, ierr)
+              call reportDiffuseDiag(nIterateMC)                ! D-348
+              call reportPassChange(nIterateMC)                 ! D-354
+              if (taskid==0) then
+                 print*, '! iterateMC: pdrStep out', iG
+                 if (pdrNbadPop > 0) print*, &
+                      & "! iterateMC: [warning] ", pdrNbadPop, &
+                      & " level-population solves rejected as non-finite (D-041)"
+                 if (i1PdrStuck > 0) then
+                    print*, "! iterateMC: chemistry unchanged in ", i1PdrStuck, &
+                         & " cells (converged or stalled) - thermal balance still runs"
                  end if
+              end if
 
-                 ! ------------------------------------------------- D-199
-                 ! Publish elemAvail HERE, inside the coupling loop, not once
-                 ! per MC iteration after it.
-                 !
-                 ! pdrToMocassin is the only writer of elemAvail, and until now
-                 ! it ran after this loop closed. updateCell reads elemAvail and
-                 ! runs pdrCoupleIter times per iteration, so every one of those
-                 ! passes was normalising the ion stages to a molecular fraction
-                 ! a full MC iteration out of date.
-                 !
-                 ! That was survivable while pdrToMocassin also wrote ionDen
-                 ! directly - the handback corrected its own lag. D-193 removed
-                 ! that write: ionDen is now ionBalance's answer normalised to
-                 ! elemAvail and nothing else, so a stale elemAvail goes
-                 ! straight into x(H0), which is the quantity the convergence
-                 ! test measures. Measured at D-198: the ion/chemistry x(H+)
-                 ! ratio rang 1.05 -> 19.5 -> 0.166 across iterations 4-6 while
-                 ! the converged fraction sat at 0.00% for three passes.
-                 !
-                 ! The old call site carried a note that it had to follow the Te
-                 ! allreduce, which overwrites grid%Te wholesale. That no longer
-                 ! binds: under D-193 pdrToMocassin writes elemAvail and nothing
-                 ! else. It does need the pdrAbun reduction above, which is why
-                 ! it sits here rather than higher up.
-                 if (lgPDR .and. nIterateMC >= pdrStartIter) &
-                      & call pdrToMocassin(grid(1:nGrids))
+              ! ------------------------------------------------- D-199
+              ! Publish elemAvail HERE, inside the coupling loop, not once
+              ! per MC iteration after it.
+              !
+              ! pdrToMocassin is the only writer of elemAvail, and until now
+              ! it ran after this loop closed. updateCell read elemAvail and
+              ! then ran once per coupling pass, so every one of those passes
+              ! was normalising the ion stages to a molecular fraction a full
+              ! MC iteration out of date.
+              !
+              ! That was survivable while pdrToMocassin also wrote ionDen
+              ! directly - the handback corrected its own lag. D-193 removed
+              ! that write: ionDen is now ionBalance's answer normalised to
+              ! elemAvail and nothing else, so a stale elemAvail goes
+              ! straight into x(H0), which is the quantity the convergence
+              ! test measures. Measured at D-198: the ion/chemistry x(H+)
+              ! ratio rang 1.05 -> 19.5 -> 0.166 across iterations 4-6 while
+              ! the converged fraction sat at 0.00% for three passes.
+              !
+              ! The old call site carried a note that it had to follow the Te
+              ! allreduce, which overwrites grid%Te wholesale. That no longer
+              ! binds: under D-193 pdrToMocassin writes elemAvail and nothing
+              ! else. It does need the pdrAbun reduction above, which is why
+              ! it sits here rather than higher up.
+              if (lgPDR .and. nIterateMC >= pdrStartIter) &
+                   & call pdrToMocassin(grid(1:nGrids))
               end if
 #endif
 
-#ifdef PDR
-              ! D-352: D-119's damping of ionDen between chemistry passes is
-              ! gone. Since D-216 updateCell runs once per MC iteration, so
-              ! ionDen does not change across the passes; the [D119] residual
-              ! read exactly zero and the damping was an identity.
-#endif
-              end do
 
 
               if (lgTraceHeating.and.taskid==0) then
@@ -2158,7 +2142,7 @@ module iteration_mod
                  do iDum = 1, grid(iG)%nCells
                     if (grid(iG)%lgConverged(iDum) == 1) nCv1 = nCv1 + 1
                  end do
-                 print*, "! [D175] pass", iCouple, " rank0 pre-reduce: ==1", nCv1, &
+                 print*, "! [D175] rank0 pre-reduce: ==1", nCv1, &
                       & " max", maxval(grid(iG)%lgConverged(1:grid(iG)%nCells)), &
                       & " sum", sum(grid(iG)%lgConverged(1:grid(iG)%nCells))
               end if
@@ -2169,7 +2153,7 @@ module iteration_mod
                  do iDum = 1, grid(iG)%nCells
                     if (lgConvergedTemp(iDum) == 1) nCv1 = nCv1 + 1
                  end do
-                 print*, "! [D175] pass", iCouple, " post-reduce:     ==1", nCv1, &
+                 print*, "! [D175] post-reduce:     ==1", nCv1, &
                       & " max", maxval(lgConvergedTemp(1:grid(iG)%nCells)), &
                       & " sum", sum(lgConvergedTemp(1:grid(iG)%nCells))
               end if

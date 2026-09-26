@@ -633,9 +633,6 @@ module set_input_mod
             case ("pdrZeta")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrZeta
-            case ("pdrChemIter")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrChemIter
             case ("pdrStartIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrStartIter
@@ -643,9 +640,6 @@ module set_input_mod
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, pdrDiagCool
 
-            case ("pdrCoupleIter")
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, pdrCoupleIter
             case ("ionMatrix")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, lgIonMatrix
@@ -725,7 +719,8 @@ module set_input_mod
                  & "pdrTeFromMocassin", "pdrAllCells", "pdrCoolFeedback", &
                  & "pdrSyncAbun", "ionChemRates", "pdrTseed", "pdrThermIter", &
                  & "pdrCoolTdep", "pdrCoolTfac", "pdrFcrit", "pdrCoupleDamp", &
-                 & "pdrHealpix", "pdrAVfac", "pdrUVfac")
+                 & "pdrHealpix", "pdrAVfac", "pdrUVfac", "pdrCoupleIter", &
+                 & "pdrChemIter")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword
                 call retiredKeyword(keyword, .false.)
@@ -1119,6 +1114,8 @@ module set_input_mod
                why = "D-352: the PDR's own heat and cool, taken at MOCASSIN's T, are not a test"
             case ("pdrCoupleDamp")
                why = "D-352: ionDen is fixed across chemistry passes (D-216); the damping was an identity"
+            case ("pdrCoupleIter", "pdrChemIter")
+               why = "D-354: the chemistry is solved once per MC iteration; its inputs do not change within one"
             case ("pdrHealpix")
                why = "D-352: pdrStep's rays are HEALPix level 0 by construction"
             case ("pdrAVfac")
