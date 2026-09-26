@@ -352,6 +352,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-350 | **The photorates on MOCASSIN's own field, after an audit against CLAUDE.md.** The user asked whether I had read the project rules; the D-348/D-349 work broke six. Fixed at once: the four-flavour build claimed in fe4816c was unverified after the last edit (rebuilt: all four compile), and computeRayColumns was deleted untagged (now `d348-raycolumns-removed` at c7a7075). The top rule: D-348 kept the direct ray on 3D-PDR's diffuse-ISM prescription (Savage-Mathis, FRR80 albedo 0.3/g 0.8, gamma, Draine shape) where MOCASSIN owns that field, D-349's x1.97 fix patched the prescription instead of replacing it, and D-347's 'direct weight 1 - f_dif' was departed from silently. The zone test was copied into snapDiffuseSources though its D-088 premise died at D-198/D-208. Not changed: difSrc as a lagged copy and the 1D flavour's two fields; the D-348 page omitted the 3D-PDR reference. **Decided (the user):** every photorate on MOCASSIN's local field - direct (Jste - Jdif) on the source-ward column, diffuse (Jdif) on the D-348 sites' two-leg columns, A_V = 0 on all rays; H2/HD/CO/C I take each part's window field via a vendored per-ray hook `ray_lw_factor` (upstream default when unallocated), the Draine share computed on MOCASSIN's bins; the C I continuum term dropped (the MC carries it); the zone test removed from computeAVradial and the snapshot, its contribution measured in-run. 1D unchanged. **Prediction first:** crossing into A_V 1.25-1.45, H2/CO fall, C+ = C within 0.05, front and dust < 1%, budget < 3e-4, zone removal small, direct window/prescription 1.9-2.6 in the first bin, baseline = s1001 for 11 iterations. Runs d350-window and d350-base11 (c7a7075), 11 iterations, seed 1001. **Result:** crossing **1.184 -> 1.364** (inside the range; D-348's was 1.635), C+ = C +0.001, front and dust unmoved, budget 2.7e-4, baseline identical to s1001 for all 11 iterations. Two predictions failed and are understood: deep CO rises 31% at A_V 2.9 because the window field there falls below the prescription (C I continuum and dust empty MOCASSIN's window at 1000 A); and the zone-removal fraction exceeds 1% in 1.6% of cells, all at the front where the whole H2 column is ~1e12 cm^-2 (max added 2.7e12, far below self-shielding) - negligible. **D-349's 'flat 2.0-2.8' is corrected**: per-cell A_V bins give window/prescription 2.5 / 3.1 / 3.6 / 4.1 / 4.6 / 3.7 / 0.8 from the front to the edge - the shell means were set by each shell's shallow edge. Against Cloudy: crossing 1.36 vs 1.09, mid-PDR CO 0.3-3.8x (was 0.3-13.7x), deep CO still 83-100x. | Accepted | 2026-09-26 |
 | D-351 | **A full audit of the code, and the blockers to science production re-ranked against `51289e5`. Three measurements from runs already on disk, none of them in any earlier entry. (1) Within an MC iteration the five chemistry passes run on frozen inputs, yet mean f_mol alternates with period 2 and a growing swing (d350-window 0.8462/0.8546/0.8435/0.8596; s1001 0.003-0.004). The only pass-to-pass channel found is pdrStep rescaling the shielding columns, which exclude the target cell, by the target cell's own abundance ratio, compounding (pdr_mod.f90:3236). (2) x(HI)+2x(H2)+x(HII)=1 holds by construction after rescaleIonToAvail, so D-350's budget prediction was a free pass. The pre-rescale [D220] figure is 0.020 (29% of cells >1%) against the baseline's 0.007 (9%), and |dx(H0)|/x p90 is 0.34 against 0.09: D-350 moves the molecular state three times more per iteration, hidden by 76.1% against 75.0% converged. (3) The cause: every photorate now reads the MC field, whose per-cell seed scatter is 7/14/22% at A_V 1.6-2.1/2.1-2.6/2.6-3.05, so the deep chemistry is noise-limited per cell. Also newly registered: the 3D line escape caps beta at 2/3 (4 of 12 rays at infinite column), and lineFlux.out reports electron-only PDR lines while 3D-PDR's populations cool the gas. No live zone gate remains on the default path. Ranked in five tiers; 102 commits exist only on this machine.** | Accepted | 2026-09-26 |
 | D-352 | **pdrZone removed, and every switch that selected physics at run time. The zone flag (x(H+) < 0.3) decided nothing on the default path any more: 44 references, the live ones being three off-by-default switches and the analysis tools. Removed, together with the vestigial PDR temperature (pdrTgas, a lagged second copy of Te), eleven keywords that selected alternative physics or stood in for the model (pdrFUVmode, pdrDustModel, pdrOwnDust, pdrDustFeedback, pdrPEfromPDR, pdrUseNePDR, pdrCoolZoneGate, pdrFcritConv, pdrZoneLimit, pdrMetallicity, pdrGrainRadius - now refused), eleven inert ones (retired with a message), and the four MOCASSIN_* environment variables with their legacy branches. pdrGrid.out is v2, with a header so old readers fail loudly. Tag d352-zone-and-switches. Found on the way: the DEFAULT pdrDustFeedback = 1 fed 3D-PDR's PAH photoelectric term into MOCASSIN's grain balance while the gas took MOCASSIN's own - the grains lost 5-150x more PE energy than the gas received at A_V > 0.5. Stage 1 (physics-neutral) predicted byte-identical at seed 1001; stage 2 (MOCASSIN's own grain terms) predicted T_dust +0.1-1.5% at depth.** | Accepted | 2026-09-26 |
+| D-353 | **Both Cloudy artifacts rebuilt on the current code, and the two fixtures now disagree in opposite ways about H2.** hiipdr v13 from `runs/d352-s2` (no rerun: same binary and settings): the H/H2 crossing moved from A_V 1.18 to 1.37, away from Cloudy's 1.09, because D-350's photorates see a Lyman-Werner field 2.5-4.6x the old prescription; T_dust 3-7% below Cloudy (was 5-9%); v12's headline front (3.80 pc) and C+ = C (2.24) were stale and are 3.824 and 2.273 by the page's own scripts. pn150k on `runs/d353-pn150k` (seed 1001, against `d334-pn150k/s1001`): 90.13% at iteration 9 in 1 h 28; **the H/H2 crossing moved 0.252 -> 0.375, onto Cloudy's 0.368**, with a window field 4.9-6.4x the prescription; CO's edge excess 60x -> 2.6x; PDR dust up 3-7% toward Cloudy, **but ionized-gas dust down 7-8%, away from it (not decomposed)**; T_gas -6%/-4% at A_V 0.28/0.37 where the transition moved; high-ionization lines 2-5% lower, not separated from the earlier stop. | Accepted | 2026-09-26 |
+| D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). | In progress | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -29081,3 +29083,241 @@ new against stage 1, with the 3D-PDR reference).
 ### Status
 
 Accepted.
+
+---
+
+## D-353 - Both Cloudy artifacts rebuilt on the current code (2026-09-26)
+
+The user asked for the hiipdr and pn150k models to be run and the two Cloudy
+comparison artifacts updated. The last rebuilds were D-337 (v12 and v11,
+2026-09-24), on code from before D-348.
+
+### The runs
+
+  - **hiipdr: no new run.** `runs/d352-s2` is this fixture on the current code:
+    seed 1001, 11 iterations (the per-run count the user set at D-349), and a
+    binary that `cmp` reports identical to the current build. The source has
+    not changed since `0717ce9`. A rerun at the same seed and rank count would
+    be byte-identical, so the hour went to pn150k instead, and the user was
+    told so.
+  - **pn150k: `runs/d353-pn150k`.** The inputs are `runs/d334-pn150k/s1001`'s
+    (the trimmed 11-element composition of D-303, seed 1001,
+    `maxIterateMC 11 90.`). That makes the old-code ensemble member at the same
+    seed a clean before/after pair.
+
+### hiipdr Against Cloudy, v13
+
+https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx
+
+The three Roellig figures were redrawn with `tools/d260_roellig.py --cloudy
+runs/d352-s2 runs/d277-cloudy/hiipdr`. The headline numbers and both tables
+come from `tools/d285_kpis_hiipdr.py`, and the temperature and PE ratios from
+`tools/d326_check.py`, all on the same run. What moved since v12, with the
+effects separated by `runs/d350-base11` (the old physics at the new length):
+
+    quantity              v12 run (22 it)  old physics, 11 it  now     Cloudy
+    ionization front [pc]      3.824            3.839          3.840    3.765
+    H/H2 crossing A_V          1.175            1.186          1.367    1.090
+    C+ = C A_V                 2.273            2.275          2.278    2.950
+
+The front's +0.4% is the shorter run. The H/H2 crossing's +0.18 mag is D-350's
+photorates on MOCASSIN's own Lyman-Werner field, 2.5-4.6x the old prescription
+through the transition. T_gas/Cloudy at A_V 0.81 / 1.53 / 2.21 / 2.89 moved
+from 1.056 / 0.835 / 0.789 / 0.788 to 1.052 / 0.819 / 0.802 / 0.807.
+T_dust/Cloudy at A_V 0.73-2.91 moved from 0.953-0.950 to 0.959-0.967; that is
+D-352's grain balance. CO/Cloudy went to 1.2x at A_V 1.5 (4.3x at v12) and to
+77x at the far edge (53x).
+
+**A correction to v12, found by recomputing it.** v12's headline front
+(3.80 pc) and C+ = C (2.24) are not what the page's own scripts give on the run
+it names. `runs/d326-stick` returns 3.824 and 2.273 with both the current tool
+and the pre-D-352 one (tag `d352-zone-and-switches`), and so do all four
+ensemble seeds (3.823-3.825, 2.270-2.279). Those two values were stale. Every
+number in v13 comes from the scripts, and the page says so.
+
+The page gains a "Since version 12" section: the three code changes and the run
+length, the two tables above, the Lyman-Werner field ratio, why the H2 move is
+not a regression (the old agreement rested on a field the model does not
+transport), the dust result, the v12 correction, and what the error bars still
+mean. The ensemble predates D-348; since D-350 the photorates see per-cell MC
+noise, 7-22% beyond A_V 1.6, so the bars are a lower bound per cell (L-26).
+The register's O-15 (the pdrZone flag and the ownership switches) is marked
+closed by D-352, and O-14 as replaced by D-348/D-350, with what remains open
+(L-27, and no non-spherical fixture).
+
+### pn150k on the current code
+
+`runs/d353-pn150k`: clean exit, **90.13% converged at iteration 9** (against
+`d334-pn150k/s1001`'s 90.52% at 10), 1 h 28 min. No cell missed ion or Te
+balance in any iteration. The two runs track each other iteration for
+iteration until the chemistry engages (0.161% and 0.161% at iteration 3, 0.820
+and 0.828 at 4), then part. From `tools/d285_kpis.py` and `tools/d326_check.py`
+against `runs/d302-cloudy-trim-rad/150k`:
+
+    quantity                 old code (s1001)   now      Cloudy
+    H+ front [pc]                 0.1280       0.1282    0.1279
+    He2+ front [pc]               0.0844       0.0831    0.0880
+    H/H2 crossing A_V             0.252        0.375     0.368
+    Hbeta [1e34 erg/s]            2.610        2.627     2.48
+
+    A_V                       0.21   0.28   0.37   0.49   0.65
+    T_gas / Cloudy, old       0.708  0.755  0.734  0.626  0.678
+    T_gas / Cloudy, now       0.700  0.711  0.705  0.620  0.680
+    PE new/old                1.001  1.022  1.006  1.001  0.994
+    PE / Cloudy, now          0.311  0.420  0.424  0.318  0.265
+    T_dust new/old            1.031  1.032  1.042  1.055  1.066
+
+  - **The H/H2 crossing moved 0.12 mag deeper and onto Cloudy's**, 0.375
+    against 0.368, where it had been 0.12 mag shallow. That is the direction
+    hiipdr moved in, but there it moved *away* from Cloudy (1.18 to 1.37,
+    against 1.09). The cause is the same, D-348/D-350: in this run's last iteration
+    MOCASSIN's Lyman-Werner window field is 4.9 / 6.1 / 6.4x the old
+    prescription's H2 field in the A_V bins 0-0.2 / 0.2-0.47 / 0.47-0.8 (the
+    direct beam alone 2.8 / 2.2 / 1.9x), against 2.5-4.6x on hiipdr. A
+    150 kK star is harder still in the window than a 40 kK one. That one
+    fixture now agrees and the other does not is itself the result: whatever
+    separates MOCASSIN's H2 from Cloudy's on hiipdr is no longer the
+    chemistry ignoring the field MOCASSIN transports.
+  - **CO fell toward Cloudy.** n(CO) at A_V 0.30 / 0.50 / 0.65 went from
+    2.2e-5 / 5.0e-5 / 1.4e-4 to 4.0e-7 / 2.0e-6 / 6.4e-6 cm^-3, against
+    Cloudy's 2.7e-6 / 4.2e-6 / 2.4e-6. The edge excess went from 60x to 2.6x.
+    At A_V 0.30 it is now 0.15x, below Cloudy.
+  - **T_gas fell 6% and 4% at A_V 0.28 and 0.37**, the depths the H2
+    transition moved through (n(H2) at A_V 0.30: 374 to 107 cm^-3, Cloudy 110).
+    It is unchanged within 1.2% elsewhere. The photoelectric heating moved
+    by 2.2% at most, so the change is not in the heating's input; the
+    mechanism is not decomposed. The ensemble bars at those depths are
+    0.07-0.21%, so it is 30-60 of those sigma, and they are now a lower
+    bound (L-26).
+  - **T_dust rose 3-7% in the PDR, toward Cloudy: 0.935 / 0.930 / 0.921 /
+    0.930 of it at A_V 0.20 / 0.30 / 0.50 / 0.65** (0.907 / 0.899 / 0.869 /
+    0.872 on the old code). This is D-352's grain balance, and larger here
+    than on hiipdr (2-4%).
+  - **But T_dust fell 7-8% in the ionized gas, away from Cloudy**: 82.5 and
+    57.3 K at A_V 0.05 and 0.10 (88.7 and 62.1 before), against Cloudy's 87.5
+    and 70.8, so 0.943 and 0.809 of it (was 1.014 and 0.877). The grain
+    balance is the only change here that acts on T_dust. It swapped two terms
+    in every dusty cell: 3D-PDR's `heat(2)` (a PAH photoelectric loss) and
+    `heat(11)` (gas-grain exchange for fixed 0.1 um grains, evaluated here at
+    15 000 K) became MOCASSIN's own `photoelHeat_d` and `gasDustColl_d`. At
+    T ~ P^(1/5.5), a 7% fall means roughly a third less net heating. Which of
+    the two swaps supplies that has **not been decomposed; open.** Only
+    MOCASSIN's versions of the two terms describe this dust, so the new
+    balance is the self-consistent one either way.
+  - **The high-ionization lines are 2-5% lower than in the old run**: He II
+    4686 0.3171 to 0.3006, [O IV] 25.9 um 4.426 to 4.273, [O III] 4363
+    0.1696 to 0.1631, [O III] 5007 1.8% down. The low-ionization lines agree
+    to 0.5%. Nothing in D-348-D-352 acts on the He2+ zone directly. This run
+    also stopped an iteration earlier, and the seed decorrelates from
+    iteration 4. The two are not separated.
+  - PE/Cloudy is unchanged at 0.27-0.42, so this model's cold PDR (T/Cloudy
+    0.62-0.71) stands as it did.
+
+### 150 kK PN Against Cloudy, version 12
+
+https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV - rebuilt on
+`runs/d353-pn150k` after the run; its contents are recorded when it is
+published.
+
+### Status
+
+Accepted. Both artifacts are on the current code. Open from this entry: the
+ionized-gas dust temperature on pn150k (7-8% down, away from Cloudy, not
+decomposed); the 2-5% fall of the high-ionization lines (not separated from
+the earlier stopping iteration); why hiipdr's H2 now forms 0.28 mag deeper
+than Cloudy's while pn150k's agrees.
+
+---
+
+## D-354 - The chemistry passes re-solve fixed inputs: the column rescale goes, and one pass should do (2026-09-26)
+
+The user asked why a pn150k iteration takes 14 minutes, since D-303 had already
+cut the element list for speed. It is the chemistry, not the elements. Measured
+on `runs/d353-pn150k` iteration 7, with a timestamp logger on the run log: MC
+transport plus `updateCell` 1.3 min, the diagnostics between them 0.5 min, and
+the five coupling passes 2:22, 2:15, 2:22, 2:22 and 2:22. D-303 had recorded
+the same thing: the trim sped the MC-only iterations up 2.2-2.5x and the
+chemistry iterations only 1.5x. Iterations with chemistry have taken 10.3-16.3
+min in every pn150k run since then (d302-trim-on, d330-pn150k, d334-pn150k,
+d353-pn150k), so this run is not slower than earlier ones.
+
+**A correction found while timing it.** `runs/d352-s2`'s 7.6-10.3 min
+chemistry iterations were contention, not cost: `d352-s1` ran at the same time
+(09:25-10:31 against 09:33-10:39), 28 ranks on 14 physical cores. Once s1 had
+finished, s2's iterations 10 and 11 took 4.0 and 3.9 min, against
+`d334-hiipdr/s1001`'s 5.3. D-348/D-350 did not make hiipdr slower. The same
+applies to `d350-window`/`d350-base11`, which also ran together. hiipdr v13's
+meta line quotes d352-s2's 1 h 07 min, which is therefore not its cost.
+
+The user then asked whether a single pass would do, since the temperature,
+ionization, field and shielding columns are all held until the next MC
+iteration. Checked in the code rather than assumed:
+
+  - Fixed within an MC iteration: T_e, ionDen and n_e (`updateCell` runs once,
+    before the loop, since D-216); the electron abundance, imposed from
+    MOCASSIN's n_e before and after every solve (D-212/D-231), so the rates
+    see the same x_e in every round; the field `Jste`; the source-ward columns
+    and the D-348 site snapshot, both taken in `computeAVdust` before the loop.
+  - No cross-cell coupling between passes: line escape uses the cell's own
+    populations on the slab closed form (L-27), and the populations iterate to
+    `pdrLevTol` inside each call. `pdrToMocassin`, which runs every pass, writes
+    `elemAvail`, and `pdrStep` does not read it.
+  - The solver runs to steady state (CHEMSTEADY: doubling blocks until no
+    species moves by more than 1%), so a start from the previous answer
+    matters only in bistable cells (D-112). A single pass still starts there
+    from the previous MC iteration's answer.
+  - **The one input that differed between rounds and passes** was the
+    shielding-column rescale after each solve,
+    `colH2 = colH2*abun(NH2)/abun0(NH2)` and the same for CO and C. It is a
+    leftover of D-078's `NHcol*abun(X)` form. Since D-088 both legs of every
+    column are integrated over the cells in front of the target and exclude
+    it, precisely because a cell's own H2 shielding itself is a positive
+    feedback. The rescale put that self-term back, compounded over
+    `pdrChemIter` against `abun0`. This is D-351's L-25 hypothesis, and the
+    user's question is the same point from the other side.
+
+**The change.** The rescale is deleted (`pdr_mod.f90`, with a D-354 comment in
+its place). A per-pass diagnostic is added: `[D354]` prints, for x(H2) and
+x(CO), how many cells moved by more than 0.1% and 1% during the pass,
+measured against each cell's state when the pass began, and the largest
+relative move. Neither species is imposed from MOCASSIN or rescaled any more,
+so any move is the chemistry's own. Pass 1 is measured against the previous
+MC iteration.
+
+**The test, in two steps.**
+
+  1. `runs/d354-norescale`: hiipdr at seed 1001, 11 iterations, the
+     fixture's other settings, and the current 5 passes x 3 rounds. Compared
+     with `runs/d352-s2`.
+  2. `runs/d354-onepass`: the same with `pdrCoupleIter 1` and `pdrChemIter 1`.
+     Compared with step 1.
+
+**Predictions, recorded before either run.**
+
+  - (a) Step 1, from pass 2 on: `[D354]` shows H2 and CO moving by more than
+    1% in well under 1% of cells, with the maximum a few per cent at most,
+    which is the solver's own acceptance criterion. The mean f_mol across
+    passes 2-5 is constant to ~1e-4, where d352-s2's iteration 11 swings
+    0.8369 / 0.8450 / 0.8340 / 0.8499 / 0.8334. *Falsified* if passes 2-5
+    still move more than 1% of cells by more than 1%: that would mean a
+    pass-to-pass channel not found by reading the code.
+  - (b) Step 1 against d352-s2: small, of the order of the old alternation.
+    The H/H2 crossing is within +-0.05 mag of 1.367, T_gas within 2% at
+    A_V 0.8-2.9, and the ionization front and C+ = C are unmoved. The sign of
+    the H2 change is not predicted. The rescale fed back in both directions,
+    and d352-s2 published whichever point pass 5 landed on.
+  - (c) Step 2 against step 1: agreement at the level of seed scatter. It
+    cannot be byte-identical: a solver restart moves abundances within its
+    1% tolerance, which changes the opacities, and therefore which photon
+    histories the fixed seed produces.
+  - (d) Cost. Step 1 is about the same as now (~4 min per chemistry
+    iteration alone), perhaps a little less because restarts at a steady
+    state are cheap. Step 2 cuts the chemistry from 15 solves per cell per
+    MC iteration to 1. On hiipdr that should give ~2.5 min per chemistry
+    iteration. On pn150k the saving from passes 2-5 alone is ~9 of 14 min;
+    the split of one pass between the three rounds and the cooling table is
+    unmeasured.
+
+If (a) and (c) hold, `pdrCoupleIter` and `pdrChemIter` no longer select
+anything a run depends on. They would be retired rather than left as
+settings, and the pass loop collapsed.

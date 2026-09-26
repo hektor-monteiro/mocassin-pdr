@@ -113,6 +113,7 @@ module pdr_mod
              & initPDRcoolTab, rescaleIonToAvail, &
             & mocassinToPDR, pdrStep, pdrToMocassin
     public :: resetDiffuseDiag, reportDiffuseDiag        ! D-348
+    public :: reportPassChange                           ! D-354
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
     ! component, split by material. Fixed by the size distribution and the
@@ -131,6 +132,12 @@ module pdr_mod
     double precision, parameter :: difBinEdge(0:nDifBin) = &
          & (/ 0.d0, 0.2d0, 0.47d0, 0.8d0, 1.2d0, 1.6d0, 2.1d0, 2.6d0, 3.05d0, 1.d30 /)
     double precision :: difDiag(nDifCol, nDifBin) = 0.d0
+
+    ! D-354: how far one coupling pass moved x(H2) and x(CO) in the cells this
+    ! rank solved, against each cell's state when the pass began: cells
+    ! counted, moved by >0.1%, moved by >1%, and the largest relative move.
+    ! Reduced and printed after every pass by reportPassChange.
+    double precision :: passCnt(2,3) = 0.d0, passMax(2) = 0.d0
 
     contains
 
@@ -2563,6 +2570,8 @@ module pdr_mod
         double precision   :: chiDir, fDir, fDif, sumT, sumD, lwT, lwD, jT, jD, fLWd  ! D-350
         double precision   :: abun(pdrNspec)
         double precision   :: abun0(pdrNspec), heat(12)
+        integer            :: iqP, ispP                  ! D-354
+        double precision   :: dqP                        ! D-354
         integer            :: ik, il, jl, nlev, ilev
         integer            :: iTnear                     ! D-215
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum
@@ -3087,14 +3096,19 @@ module pdr_mod
                    & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
            end if
 
-           ! shielding columns follow the abundances between passes
-           ! columns follow the abundances between passes, scaled from the
-           ! integrated value so the depth weighting is preserved (D-078)
-           ! D-190: rescale in PLACE so a traced per-ray column keeps its own
-           ! value; the old form overwrote all twelve with the scalar again.
-           if (abun0(NH2) > 0.d0) colH2 = colH2*abun(NH2)/abun0(NH2)
-           if (abun0(NCO) > 0.d0) colCO = colCO*abun(NCO)/abun0(NCO)
-           if (abun0(NC ) > 0.d0) colC  = colC *abun(NC )/abun0(NC )
+           ! D-354: the shielding columns are NOT rescaled here any more.
+           ! D-078 wrote them as NHcol*abun(X), the local abundance times the
+           ! whole column, and scaled them by abun(X)/abun0(X) after each
+           ! solve so they followed the chemistry. Since D-088 they are the
+           ! integrated columns of the cells IN FRONT of this one (both legs,
+           ! computeAVradial and traceDiffuseSites), and the target cell is
+           ! kept out of them precisely because its own H2 shielding itself
+           ! is a positive feedback. Scaling them by this cell's abundance
+           ! change put that self-term back, compounded over pdrChemIter, and
+           ! it was the only input that differed between rounds and passes:
+           ! T, n_e (imposed from MOCASSIN, above), the field and the columns
+           ! are all fixed within an MC iteration. D-351 found the passes
+           ! alternating on it (L-25).
         end do
 
         ! Make a silent solver failure visible. calculate_abundances copies the
@@ -3150,6 +3164,21 @@ module pdr_mod
                 & "! [D121] first non-finite: ", trim(nanWhere), &
                 & "  cell", nanCell, " index", nanIdx
         end if
+
+        ! D-354: abun0 is what this cell held when the pass began - the last
+        ! pass's answer, or the last MC iteration's for pass 1. H2 and CO
+        ! are neither imposed from MOCASSIN nor rescaled, so any move here is
+        ! the chemistry's own.
+        do iqP = 1, 2
+           ispP = NH2
+           if (iqP == 2) ispP = NCO
+           if (max(abun0(ispP), abun(ispP)) < 1.d-12) cycle
+           dqP = abs(abun(ispP) - abun0(ispP))/max(abun0(ispP), abun(ispP))
+           passCnt(iqP,1) = passCnt(iqP,1) + 1.d0
+           if (dqP > 1.d-3) passCnt(iqP,2) = passCnt(iqP,2) + 1.d0
+           if (dqP > 1.d-2) passCnt(iqP,3) = passCnt(iqP,3) + 1.d0
+           passMax(iqP) = max(passMax(iqP), dqP)
+        end do
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
 
@@ -3625,6 +3654,36 @@ module pdr_mod
 #endif
         difDiag = 0.d0
       end subroutine reportDiffuseDiag
+
+      !-----------------------------------------------------------------
+      ! D-354: print passCnt/passMax for the pass just finished, then clear
+      ! them. Collective: every rank calls it after every pass.
+      !-----------------------------------------------------------------
+      subroutine reportPassChange(iterMC, iPass)
+        implicit none
+        include 'mpif.h'
+        integer, intent(in) :: iterMC, iPass
+        double precision    :: cnt(2,3), mx(2)
+        integer             :: iq, ierr
+        character(len=2), parameter :: lab(2) = (/ 'H2', 'CO' /)
+
+        call mpi_allreduce(passCnt, cnt, 6, mpi_double_precision, &
+             & mpi_sum, mpi_comm_world, ierr)
+        call mpi_allreduce(passMax, mx, 2, mpi_double_precision, &
+             & mpi_max, mpi_comm_world, ierr)
+        if (taskid == 0) then
+           do iq = 1, 2
+              print '(a,i3,a,i2,3a,i7,a,f8.3,a,f8.3,a,es9.2)', &
+                   & " ! [D354] iteration", iterMC, " pass", iPass, &
+                   & " vs its start:  ", lab(iq), "  cells", nint(cnt(iq,1)), &
+                   & "   moved >0.1%", 100.d0*cnt(iq,2)/max(cnt(iq,1), 1.d0), &
+                   & "%   >1%", 100.d0*cnt(iq,3)/max(cnt(iq,1), 1.d0), &
+                   & "%   max", mx(iq)
+           end do
+        end if
+        passCnt = 0.d0
+        passMax = 0.d0
+      end subroutine reportPassChange
 
 
       !-----------------------------------------------------------------

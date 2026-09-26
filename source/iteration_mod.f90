@@ -2075,6 +2075,7 @@ module iteration_mod
                  ! enters the reduction inside or none does
                  if (iCouple == max(pdrCoupleIter, 1)) &
                       & call reportDiffuseDiag(nIterateMC)
+                 call reportPassChange(nIterateMC, iCouple)      ! D-354
                  if (taskid==0) then
                     print*, '! iterateMC: pdrStep out', iG
                     if (pdrNbadPop > 0) print*, &
