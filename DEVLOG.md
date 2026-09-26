@@ -354,6 +354,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-352 | **pdrZone removed, and every switch that selected physics at run time. The zone flag (x(H+) < 0.3) decided nothing on the default path any more: 44 references, the live ones being three off-by-default switches and the analysis tools. Removed, together with the vestigial PDR temperature (pdrTgas, a lagged second copy of Te), eleven keywords that selected alternative physics or stood in for the model (pdrFUVmode, pdrDustModel, pdrOwnDust, pdrDustFeedback, pdrPEfromPDR, pdrUseNePDR, pdrCoolZoneGate, pdrFcritConv, pdrZoneLimit, pdrMetallicity, pdrGrainRadius - now refused), eleven inert ones (retired with a message), and the four MOCASSIN_* environment variables with their legacy branches. pdrGrid.out is v2, with a header so old readers fail loudly. Tag d352-zone-and-switches. Found on the way: the DEFAULT pdrDustFeedback = 1 fed 3D-PDR's PAH photoelectric term into MOCASSIN's grain balance while the gas took MOCASSIN's own - the grains lost 5-150x more PE energy than the gas received at A_V > 0.5. Stage 1 (physics-neutral) predicted byte-identical at seed 1001; stage 2 (MOCASSIN's own grain terms) predicted T_dust +0.1-1.5% at depth.** | Accepted | 2026-09-26 |
 | D-353 | **Both Cloudy artifacts rebuilt on the current code, and the two fixtures now disagree in opposite ways about H2.** hiipdr v13 from `runs/d352-s2` (no rerun: same binary and settings): the H/H2 crossing moved from A_V 1.18 to 1.37, away from Cloudy's 1.09, because D-350's photorates see a Lyman-Werner field 2.5-4.6x the old prescription; T_dust 3-7% below Cloudy (was 5-9%); v12's headline front (3.80 pc) and C+ = C (2.24) were stale and are 3.824 and 2.273 by the page's own scripts. pn150k on `runs/d353-pn150k` (seed 1001, against `d334-pn150k/s1001`): 90.13% at iteration 9 in 1 h 28; **the H/H2 crossing moved 0.252 -> 0.375, onto Cloudy's 0.368**, with a window field 4.9-6.4x the prescription; CO's edge excess 60x -> 2.6x; PDR dust up 3-7% toward Cloudy, **but ionized-gas dust down 7-8%, away from it (not decomposed)**; T_gas -6%/-4% at A_V 0.28/0.37 where the transition moved; high-ionization lines 2-5% lower, not separated from the earlier stop. | Accepted | 2026-09-26 |
 | D-354 | **The five chemistry passes (x3 rounds) re-solve inputs that are all fixed within an MC iteration; the only thing that differed between them was a shielding-column rescale by the cell's own abundance change - D-078's leftover, which puts back the self-shielding D-088 removed. Rescale deleted; per-pass diagnostic `[D354]` added; predictions recorded before the runs.** Timed on pn150k: 1.3 min MC + 0.5 min diagnostics + 5 passes of 2:15-2:22 per iteration; the D-303 element trim never touched the chemistry. d352-s2's 8-10 min iterations were contention with d352-s1 (4.0 min alone). Test: `runs/d354-norescale` (5x3) then `runs/d354-onepass` (1x1). **Result: passes 2-5 then moved no cell by 0.1% (largest 4.6e-4); one pass of one solve matches five of three to 0.1% in T_gas, 0.4% in PE, exactly in T_dust, at 20:48 against 50:42 (1.5 against 5.3 min per chemistry iteration). The rescale was a positive feedback: hiipdr's H/H2 crossing moves 1.367 -> 1.444, further from Cloudy's 1.09 - the fix is taken. Loops collapsed, `pdrCoupleIter`/`pdrChemIter` retired (inert), refactor verified byte-identical (17/18 files, summary.out timestamps). L-25 closed.** | Accepted | 2026-09-26 |
+| D-355 | **Both Cloudy artifacts rebuilt on the D-354 code. pn150k runs 2.4x faster (36 min against 1 h 28) and its H/H2 crossing moves 0.375 -> 0.405, from 0.007 to 0.037 past Cloudy's 0.368 - the same direction as hiipdr's 1.367 -> 1.444, and smaller.** hiipdr from `runs/d354-collapse` (the committed binary); pn150k `runs/d355-pn150k` (seed 1001, d353's input): 90.65% at iteration 9, chemistry iterations 3.6-5.7 min against 12.2-14.5. n(H2) at A_V 0.30 107 -> 64 (Cloudy 110); CO down 9-50%; T_gas within 1.8%, T_dust and PE unchanged, lines within 0.2%. hiipdr v15 and pn150k v13 published; the 'about 4 min' claim corrected on both. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -29482,3 +29483,82 @@ Accepted. The chemistry is solved once per MC iteration. Open, and next: both
 Cloudy artifacts were built at D-353 on code with the rescale, so they are
 stale on hiipdr's transition (crossing 1.367 there, 1.444 now). pn150k has not
 yet been run on this code.
+
+---
+
+## D-355 - Both Cloudy artifacts rebuilt on the D-354 code (2026-09-26)
+
+D-354 changed the chemistry step of both fixtures, and D-353's two artifacts,
+built an hour earlier, were stale on the H/H2 transition. They are rebuilt on
+the committed code (`8e90b27`), with the analysis run only after both runs had
+finished, so neither run's timing shares the machine with a script.
+
+### The runs
+
+  - **hiipdr: `runs/d354-collapse`** (D-354's verification run: the committed
+    binary, byte-identical to `d354-onepass`). 77.35% at iteration 11,
+    19 min 52 s.
+  - **pn150k: `runs/d355-pn150k`**, the committed binary on
+    `runs/d353-pn150k`'s input and seed. Clean exit, **90.65% at iteration 9,
+    36 min 30 s against 1 h 28 min 16 s.** No ion or Te balance failures, and
+    the hydrogen budget is 1.0000 everywhere. Iterations with chemistry took
+    5.7 / 5.2 / 4.4 / 3.9 / 3.7 / 3.6 min against 12.2-14.5. The first two
+    iterations, which have no chemistry, took 4.05 and 4.27 min against
+    d353's 3.4 and 3.4. My analysis was held back until the run ended, but
+    the machine's other load was not checked during it, so that difference is
+    **not explained**. It is the second
+    such timing anomaly today, after d352-s2's 4-minute iterations (D-354),
+    so single-run timings here carry ~20% of unexplained variation.
+
+### pn150k against D-353's run (`tools/d285_kpis.py`, `tools/d326_check.py`)
+
+    quantity                    d353 (5x3, rescale)   d355 (1 solve)   Cloudy
+    H/H2 crossing A_V                0.375               0.405          0.368
+    n(H2) at A_V 0.20 / 0.30        0.33 / 107          0.39 / 64      0.016 / 110
+    n(H2) at A_V 0.50 / 0.65        393 / 446           376 / 442       394 / 448
+    n(CO) at A_V 0.30 / 0.65      4.0e-7 / 6.4e-6     2.0e-7 / 5.8e-6  2.7e-6 / 2.4e-6
+
+    A_V            0.21   0.28   0.37   0.49   0.65
+    T_gas new/old  0.982  0.991  0.991  0.996  1.000
+    PE new/old     0.999  1.005  1.005  0.998  1.000
+    T_dust         1.000 at every depth
+
+The fronts, Hbeta and every line are unchanged to 0.2%. **The crossing moved
+0.030 mag deeper, the same direction as hiipdr's 0.077, for the same reason**:
+the rescale had held H2 up in the cells where it forms. Version 12 of the
+pn150k page reported the crossing 0.007 mag from Cloudy's; part of that rested
+on the feedback, and it is now 0.037 past. Both fixtures now form H2 later
+than Cloudy, hiipdr by 0.35 mag and pn150k by 0.04. That is recorded, not
+tuned.
+
+### The pages
+
+  - **hiipdr Against Cloudy, version 15**
+    (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx).
+    - Figures redrawn from `runs/d354-collapse`.
+    - A new "Since version 14" section covers the rescale, the single solve,
+      a before/after table, why the fix stands against the prettier number,
+      what did not move, and a correction of version 14's "about 4 min alone".
+    - KPIs, the selected-depth rows D-354 moved, the Reading-it temperatures
+      (now at A_V 0.81 and 1.05) and the meta line are updated.
+    - Version 12's section is relabelled as history: its "now" became "v13".
+  - **150 kK PN Against Cloudy, version 13**
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV).
+    - Figures redrawn from `runs/d355-pn150k`.
+    - A new "Since version 12" section, "A fix that undoes part of an
+      agreement".
+    - Version 11's section is relabelled as version 12's state, and its "In
+      progress" note replaced.
+    - Updated: the lede ("within 0.04 mag of Cloudy's"), the KPIs, the
+      selected depths, the fourth figures of the line table, and Reading it.
+    - The cost section: 36 min; the chemistry *had been* the cost; the
+      unexplained MC-only timing; hiipdr's 1.5 min per chemistry iteration.
+
+### Status
+
+Accepted. Open:
+
+  - why MOCASSIN's H2 forms later than Cloudy's on both fixtures, now that
+    the chemistry sees MOCASSIN's own field and no self-shielding feedback;
+  - the ionized-gas dust temperature on pn150k (D-353);
+  - run-to-run timing variation of ~20% on an unloaded machine.
