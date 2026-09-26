@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-354, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-358, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -363,6 +363,36 @@ recorded so that it is not found late:
   - The chemistry's T_dust is floored at T_CMB, because MOCASSIN transports no
     CMB. Where the floor binds, the chemistry and MOCASSIN's dust emission see
     different grain temperatures; the fix is the CMB in MOCASSIN's field.
+
+**L-31. CLOSED 2026-09-26 (D-358). The chemistry solved H II gas as neutral**
+(D-356). Inside the solve the linked ions recombined with no photoionization,
+so an H II cell integrated to x(H) = 1, x(H+) = 1e-3, x_e = 1e-3 of MOCASSIN's.
+The molecules were formed there, and MOCASSIN re-imposed only the atoms
+afterwards: two x(H+) in one cell. Ionized-zone H2 was 1e4-1e5x Cloudy's and
+CO up to 1e14x. The solve now runs on MOCASSIN's own photoionization and
+recombination rates for H, He, C, O, Mg and MOCASSIN's H2 photoionization,
+through the network's first-order slots. Ionized-zone H2 is now 5-71x Cloudy's
+and destroyed the way Cloudy's is. Nothing past the fronts moved.
+
+**L-32. One ion carrier per element** (D-358). The network has O+ for all of
+O++-O6+ and C+ for C++-C4+. Each carrier takes chemistry its true stages do
+not have: charge exchange into the neutral, and C+ + OH -> CO. In pn150k's
+20 kK zone the solver's neutral O is 5.4 dex above MOCASSIN's, and CO, OH and
+HCO+ run 3e7x, 630x and 1e12x Cloudy's at 0.03 pc, falling outward. Where the
+carrier is the true stage (hiipdr) it does not show.
+
+**L-33. Grain H2 formation 5-25x Cloudy's** per n_H n(H), at every depth
+compared on both fixtures (D-356, D-358). MOCASSIN's coefficient is near the
+classic 3e-17 cm^3 s^-1; Cloudy's is not. Not decomposed: sticking, grain
+temperature, per-size efficiency.
+
+**L-34. The PDR's H+ has channels MOCASSIN's ion balance lacks** (O-05; D-358).
+These are H2 + CRP -> H+ + e + H and He+ + H2 -> He + H+ + H. The solver's
+x(H+) is up to 4x MOCASSIN's at A_V 1.8-2.8 on hiipdr, and He+ 0.25-0.5x. The
+re-imposition keeps MOCASSIN's. D-193 stopped injecting the chemistry's
+source and sink terms into `ionBalance` because they double-counted the
+molecular drain. Carrying these channels without that needs a decision of
+its own.
 
 ### Medium
 
