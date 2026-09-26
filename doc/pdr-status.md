@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-351, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-352, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -62,7 +62,8 @@ same physical column. That was unchecked until D-305. It holds.
 
 The deep PDR is a two-term thermostat - grain photoelectric heating against
 subthermal [C II] 158 um - on both sides. Across the `MOCASSIN_LINES` on/off
-pair, with one binary and one switch,
+pair (a switch retired at D-352; tag `d352-zone-and-switches` rebuilds it),
+with one binary and one switch,
 
     exp(-91.2/T_on) / exp(-91.2/T_off)  =  H_on / H_off
 
@@ -71,7 +72,8 @@ temperature is set by the heating, and the cooling side is not at fault.
 
 ### Regression
 
-With `MOCASSIN_LINES=off`, the current binary reproduces the pre-change binary
+(D-314, before the switch was retired at D-352.) With `MOCASSIN_LINES=off`,
+the binary of that cycle reproduced the pre-change binary
 (b83e0e0) within the same-binary Monte Carlo scatter on every measured
 quantity, and A_V matches **exactly** (D-314). The only functional change in
 the cycle is the default flip; the dust cross-section and opacity chain is
@@ -272,7 +274,11 @@ FUV against MOCASSIN's 0.107, while MOCASSIN carries more at 0.01-0.44 Ryd
 (0.504 against 0.362). C_abs is orders of magnitude larger in the FUV, so
 Cloudy's smaller field is concentrated where grains absorb. This is the same
 diffuse-transport difference D-307 measured from the other side, and it is
-what remains of O-02's dust half (D-315).
+what remains of O-02's dust half (D-315). **Stale since D-352:** the grains had
+also been losing 3D-PDR's PAH photoelectric term through the D-093 feedback,
+5-150x the energy the gas received at A_V > 0.5. Removing it raised hiipdr's
+PDR T_dust by 2-4% beyond A_V 1 and by 0.2-1.1% at A_V < 0.8, so pn150k's
+9-13% needs re-measuring on the current code.
 
 **L-25. The chemistry passes oscillate on frozen inputs** (D-351). Within an
 MC iteration the five coupling passes re-solve the chemistry with Te, ionDen,
@@ -331,6 +337,18 @@ log and in every output file up to H in other species, whatever the coupling
 does. D-350's prediction 5 was therefore a free pass. The informative figure is
 the pre-rescale `[D220]` line.
 
+**L-30. Clamps that still decide a value** (D-352, which removed every run-time
+ownership switch and the zone flag). None binds on hiipdr today, and each is
+recorded so that it is not found late:
+  - The chemistry's rates are evaluated at Te clamped to [pdrTmin, pdrTmax],
+    its heating terms at the unclamped Te: two temperatures in one pdrStep
+    wherever Te > 2e4 K (3 cells of pn150k).
+  - `teFloor` holds MOCASSIN's T at 10 K or above. The coldest hiipdr cell is
+    10.9 K.
+  - The chemistry's T_dust is floored at T_CMB, because MOCASSIN transports no
+    CMB. Where the floor binds, the chemistry and MOCASSIN's dust emission see
+    different grain temperatures; the fix is the CMB in MOCASSIN's field.
+
 ### Medium
 
 **L-5. The gas phase is not depleted for what is locked in grains.** The model
@@ -357,6 +375,10 @@ so this is a fidelity gap rather than a live error (D-305, D-306).
 the loop runs over atomic elements and ionisation stages only. Measured 68x
 weaker than Cloudy's dust cooling at A_V 0.65, so 4.9e-5 of the budget against
 Cloudy's 1.3e-3: negligible at n_H = 1e3, decisive at high density (D-305).
+Since D-352 the grain side of the exchange uses the same MOCASSIN term. D-093's
+substitution of 3D-PDR's heat(11), computed on a fixed 0.1 um grain population,
+is gone, so gas and grain now agree on the energy they exchange, H2 omitted
+on both sides.
 
 **L-10. Bulk-graphite optics on the smallest size bin**, where Draine's own
 table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
@@ -539,8 +561,8 @@ Stated explicitly, because absence of a reported problem is not evidence.
         make clean && make $f || echo "FAIL $f"
     done
 
-    # regression against a previous binary, with the noise floor measured
-    tools/regress.sh <fixture> <new-binary> <baseline-binary> <outdir> [np]
+    # regression against a previous binary, exact at a fixed randomSeed (D-352)
+    tools/regress.sh <fixture> <new-binary> <baseline-binary> <outdir> [np] [seed]
     ~/miniforge3/envs/astro/bin/python tools/regress_cmp.py <A>/output <B>/output
 
     # dust optics against Draine's tables, and the extinction curve

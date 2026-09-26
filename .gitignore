@@ -1,5 +1,8 @@
 # Prerequisites
 *.d
+# ...but not the chemical networks, which share the extension (D-352): they
+# were ignored by the line above and never versioned.
+!dataPDR/*.d
 
 # Compiled Object files
 *.slo

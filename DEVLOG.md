@@ -28964,3 +28964,120 @@ depth (D-351, L-26):
      scatter between the two runs' last iterations. No systematic shift is
      predicted: Cazaux & Tielens' formation efficiency is near unity and flat
      in T_dust well below 100 K, and gas-grain coupling is negligible here.
+
+### Result (added after the runs)
+
+Both runs ran side by side, 14 ranks each, and exited cleanly in 1 h 07.
+
+**Stage 1** (`runs/d352-s1` against `runs/d350-window`). Convergence is
+76.1181259% in both, to every digit. `tools/d352_identity.py`:
+
+  1. **Held for every physics-state file.** These are byte-identical:
+     `grid0-3.out`, every retained column of `pdrGrid.out` (chiFUV, AVeff,
+     pdrCool, pdrHeat, pdrHeatPE and all 33 abundances), `pdrCoolSp.out`,
+     `pdrFUV.out`, `pdrFUVspec.out`, `pdrRad.out`, `tauNu.out`, `lineFlux.out`,
+     `SED.out`, `temperature.out`, `ionratio.out` and `photoSource.out`.
+     Three files are not:
+     - `summary.out` differs only in wall-clock timestamps. The prediction
+       should not have listed it.
+     - `dustGrid.out` differs in 1 of its 1.07 million temperatures:
+       51.0816574 against 51.0816612, a relative change of 7e-8.
+     - `thermBudget.out` differs in 1 value, the gas-dust cooling of one deep
+       cell (A_V 2.96): 1.2e-6 relative.
+
+     **Cause found, not assumed.** `pdrGrainRadM` used to be set as
+     `dble(pdrGrainRad)`, and that variable is the single-precision 1.0e-5,
+     which widens to 9.99999975e-6. Stage 1 pinned it to `1.0d-5`, which
+     moves the vendored grain radius by 2.5e-8. Its only live consumer on
+     the stage-1 path is 3D-PDR's gas-grain term heat(11). The D-093
+     feedback fed that term into T_dust, and T_dust sets MOCASSIN's
+     gas-dust term. So the two quantities that moved are exactly that
+     chain, in its order. Stage 2 removes the chain, so stage 1 was not
+     re-run.
+  2. **Failed as stated, for a reason of my own making.** The census lines
+     `[D196]`, `[D202]`, `[D205]`, `[D210]`, `[D213]`, `[D217]` and
+     `[D218]` differ because stage 1 widened them from zone cells to all gas
+     cells, which the prediction overlooked. The diagnostics that were not
+     touched agree exactly: all 80 `[D350]` photorate-table lines and all
+     `[D220]` lines are identical.
+
+So stage 1 is physics-neutral.
+
+**Stage 2** (`runs/d352-s2` against `runs/d352-s1`, same seed).
+Convergence is 76.40% against 76.12%. `tools/d352_grainbal.py`, bin means
+new/old:
+
+    A_V bin    cells   T_dust    T_gas     x(H2)     x(CO)
+    0.00-0.20    43   1.00219   0.99994   0.99661   0.99968
+    0.20-0.47   109   1.01088   0.99994   0.97904   0.98865
+    0.47-0.80   450   1.00487   1.00087   1.51982   1.18431
+    0.80-1.20   914   1.01014   0.99935   0.97503   0.95870
+    1.20-1.60  1565   1.02358   0.99815   0.99211   0.98842
+    1.60-2.10  3180   1.03569   0.99963   0.99885   1.00519
+    2.10-2.60  4812   1.02941   0.99989   0.99986   0.99936
+    2.60-3.05  4131   1.02076   0.99932   0.99995   1.00079
+
+  3. **Direction held; size failed, 2-3x the estimate.** At A_V < 0.8 T_dust
+     rose 0.2-1.1%, against a predicted < 0.2%. Beyond A_V 1.6 it rose
+     2.1-3.6%, against a predicted 0.1-1.5%. The seed scatter of a bin-mean
+     T_dust is 0.01-0.05% (the `d334` four-seed ensemble), so these rises
+     are 10-100 sigma. The estimate put heat(2) at 1-6% of the absorbed
+     FUV, using a bulk cross section per H. Measured, the loss was ~10-20% of
+     what the grains that set the mean absorb. One plausible reason: D-093
+     spread the loss by geometric area, while small grains absorb less than
+     their area at long wavelengths. Not decomposed further.
+  4. **Held.** The ionization front moved from 3.8614 to 3.8615 pc, the H/H2
+     crossing from 1.3641 to 1.3701, and C+ = C from 2.2896 to 2.2906.
+  5. **Held.** T_gas moved within 0.2%. x(H2) and x(CO) moved within the
+     seed scatter of the bin mean, which the ensemble puts at 23-30% at A_V
+     0.47-1.2, where both are trace, and below 1% deeper. The +52% in x(H2)
+     at 0.47-0.8 is 1.6 sd of a pair difference, and the ensemble predates
+     D-350's noise, so it is a lower bound.
+
+What it means: the PDR's grains were being cooled by an energy loss the gas
+never received, and removing it raises their temperature 2-4% beyond A_V 1.
+That is toward Cloudy. L-19's "9-13% cool" was measured on pn150k before this
+change and should be re-measured. Figures in `runs/d352-s2/figs/` (`d348_*`,
+new against stage 1, with the 3D-PDR reference).
+
+### Also found and fixed on the way
+
+  - **The chemical networks were never under version control.**
+    `.gitignore`'s boilerplate `*.d` (compiler dependency files) matched
+    `dataPDR/species_*.d` and `rates_*.d`, so a fresh clone could not run
+    any PDR model. They are now tracked, through a `!dataPDR/*.d`
+    exception. sha256 of the two in use: `species_reduced.d`
+    `9c7ffbf0...62878c5`, `rates_reduced.d` `06c6c453...d01a4f` (full hashes
+    in the commit). Whether they are byte-identical to upstream's
+    `chemfiles/` was not checked, since there is no local upstream copy.
+  - `tools/__pycache__/` was tracked despite being ignored; it is now
+    untracked.
+  - The man page's PDR section is rewritten. It documented `pdrDustModel`
+    with default 1 (it was 0), `pdrFcrit` 0.10 (0.005) and `pdrZoneLimit`
+    0.5 (0.3), and listed options that did nothing.
+  - `tools/regress.sh` is now a seeded new-against-baseline regression with
+    the retired variables removed from the environment. `doc/dust.md` is
+    updated.
+
+### Left open in this class (not changed)
+
+  - **Clamps.**
+    - The chemistry's rates are evaluated at Te clamped to [pdrTmin,
+      pdrTmax], its heating at the unclamped Te; this touches 3 cells of
+      pn150k and none of hiipdr.
+    - `teFloor` holds T at 10 K or above; it binds nowhere in hiipdr today.
+    - The chemistry's T_dust is floored at T_CMB, because MOCASSIN
+      transports no CMB. Where the floor binds, MOCASSIN's own dust emission
+      sees a colder grain.
+  - **Vendored stand-ins on live paths.** `escape_probability`'s fixed
+    NGRAIN dust background, and the turbulent heating length L_TURB = 5 pc.
+    The 1D flavour still hands the chemistry the prescription (D-350 audit
+    item 5).
+  - **Diagnostic-only switches.** `MOCASSIN_DUSTPROBE` and `pdrSplitField`.
+  - **Reference-only outputs.** `pdrHeat` and `pdrHeatPE` in `pdrGrid.out`
+    are 3D-PDR's reference values; nothing uses them.
+  - **pn150k** has not been run on the current code (D-351 item 7).
+
+### Status
+
+Accepted.

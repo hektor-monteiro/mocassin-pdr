@@ -185,8 +185,9 @@ model, and it never called `setGrainYield`. Both are fixed.
     equilibrium `integral C_abs J dnu = integral C_abs B_nu(T) dnu`, solved by
     lookup in a table built at 1 K steps. `pdrRad.out` reports the
     abundance- and number-weighted mean.
-  - **Photoelectric heating** — WD01 yield by default; `MOCASSIN_YIELD=baldwin`
-    selects the older two-parameter form.
+  - **Photoelectric heating** — the Weingartner & Draine (2001) yield. The
+    `MOCASSIN_YIELD=baldwin` switch to the older two-parameter form is retired
+    (D-352); tag `d352-zone-and-switches` builds it.
   - **Stochastic heating** — available via `quantumHeatGrain`, off by default.
     It changes the emitted spectrum, not the tabulated temperature.
 

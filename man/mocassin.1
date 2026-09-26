@@ -1055,16 +1055,20 @@ Pure-dust models are less computationally expensive than gas or dust and gas one
 
 .SH PHOTODISSOCIATION REGIONS
 Support for coupled PDR chemistry (3D-PDR) is compiled in only when MOCASSIN is
-built with \fBPDR=1\fR. These keywords are otherwise ignored.
+built with \fBPDR=1\fR (add \fBPDRGEOM=3D\fR for the 3D handoff). These keywords
+are otherwise ignored. MOCASSIN owns the radiation field, the dust, the
+ionization and the temperature in every cell; the chemistry runs in every cell
+and returns the molecular content and the heating and cooling that follow from
+it. There is no zone threshold and no input keyword that moves a quantity from
+one code to the other (DEVLOG D-193, D-198, D-352).
 .TP
 .B pdr \fI[0|1]\fR
 Enable the PDR module. Requires dust: without it the FUV field is not
-transported and the radiation field driving the chemistry would be silently
-wrong. A bare \fBpdr\fR enables it.
+transported. A bare \fBpdr\fR enables it.
 .TP
 .B pdrNetwork \fI"name"\fR
-Chemical network, default \fIreduced\fR (33 species, 331 reactions). The ODE
-system is generated C selected at compile time, so this is validated against the
+Chemical network, default \fIreduced\fR (33 species). The ODE system is
+generated C selected at compile time, so this is validated against the
 compiled-in network rather than switching it; a mismatch is a fatal error.
 .TP
 .B pdrDataDir \fI"path"\fR
@@ -1073,66 +1077,54 @@ Directory holding the species, rates and coolant datafiles. Defaults to
 .TP
 .B pdrCoolants \fIn "file1" ... "filen"\fR
 Coolant datafiles in LAMDA/RADEX format, e.g. \fB4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"\fR.
+Atomic coolants replace MOCASSIN's own lines for that ion; molecular ones are added.
 .TP
 .B pdrZeta \fIrate\fR
 Cosmic-ray ionization rate per second, default 1.0e-16.
 .TP
-.B pdrHealpix \fIlevel\fR
-HEALPix level of refinement for the ray tracing, default 0 (12 rays).
+.B pdrVturb \fIkm/s\fR
+Turbulent velocity, default 1.0.
+.TP
+.B pdrStartIter \fIn\fR
+First Monte Carlo iteration at which the chemistry runs, default 1.
+.TP
+.B pdrCoupleIter \fIn\fR
+Chemistry passes per Monte Carlo iteration against the fixed MOCASSIN state,
+default 5.
 .TP
 .B pdrChemIter \fIn\fR
-Chemistry passes per Monte Carlo iteration, default 3. The outer MC loop carries
-convergence, so this should stay small.
-.TP
-.B pdrThermIter \fIn\fR
-Thermal-balance steps per Monte Carlo iteration, default 12. Unlike the
-chemistry, thermal balance cannot be left to the outer loop: cooling is
-exponentially sensitive to temperature, so the temperature and the level
-populations must be relaxed together.
-.TP
-.B pdrFcrit \fIfraction\fR
-Relative heating/cooling imbalance a PDR cell may retain and still count as
-converged, default 0.10. PDR cells failing this clear their converged flag, so
-a run will not stop while the PDR is still settling.
-.TP
-.B pdrDustModel \fI0|1|2\fR
-Source of the dust temperature used by the PDR chemistry: 0 uses MOCASSIN's
-radiative-equilibrium value floored at the CMB, 2 uses the Hollenbach, Takahashi
-& Tielens (1991) parametrisation, and 1 (default) takes the larger of the two.
-MOCASSIN solves dust equilibrium against the local field only, so deeply
-shielded cells tend towards 0 K, which suppresses H2 formation on grains and,
-through it, cosmic-ray heating.
+Chemistry solves per pass, default 3.
 .TP
 .B pdrEndTime \fIyears\fR
 Chemistry integration span, default 1.0e7. With steady-state chemistry this is
 the initial span rather than a physical age.
 .TP
-.B pdrAVfac \fIvalue\fR
-N(H) to A_V conversion, default 6.289e-22.
-.TP
-.B pdrUVfac \fIvalue\fR
-FUV dust attenuation exponent, default 3.02.
-.TP
-.B pdrGrainRadius \fIcm\fR
-Grain radius, default 1.0e-5.
-.TP
-.B pdrMetallicity \fIvalue\fR
-Metallicity, default 1.0.
-.TP
-.B pdrVturb \fIkm/s\fR
-Turbulent velocity, default 1.0.
-.TP
 .B pdrTmin \fIK\fR, .B pdrTmax \fIK\fR
-Floor and ceiling gas temperature, defaults 1.0 and 2.0e4. The floor is raised
-to the CMB temperature if lower.
+Temperature range over which the chemistry's rate fits are evaluated, defaults
+1.0 and 2.0e4; the gas temperature is MOCASSIN's and is not clamped by these.
 .TP
-.B pdrZoneLimit \fIxlim xblend\fR
-Ionized fraction x(H+) below which PDR chemistry runs, and the lower edge of the
-blend band over which the photoelectric and gas-grain heating prescriptions ramp
-between the two codes. Defaults 0.5 and 0.01.
+.B pdrDiagCool, pdrDiagRates, pdrDiagAV, pdrTrackCell, pdrSplitField
+Diagnostics only; none changes the physics.
 .PP
-PDR state is checkpointed to \fIoutput/pdrGrid.out\fR and resumed by
-\fBmocassinWarm\fR. Design decisions are recorded in \fIDEVLOG.md\fR.
+\fBRetired keywords.\fR A keyword that selected alternative physics or stood in
+for a quantity the model computes is refused and stops the run:
+\fBpdrZoneLimit\fR, \fBpdrFUVmode\fR, \fBpdrDustModel\fR, \fBpdrOwnDust\fR,
+\fBpdrDustFeedback\fR, \fBpdrPEfromPDR\fR, \fBpdrUseNePDR\fR, \fBpdrCoolZoneGate\fR,
+\fBpdrFcritConv\fR, \fBpdrMetallicity\fR, \fBpdrGrainRadius\fR. Metallicity and
+grain properties come from the abundance and dust files. Keywords whose choice
+was settled earlier are accepted with a message and ignored: \fBpdrHealpix\fR,
+\fBpdrThermIter\fR, \fBpdrTseed\fR, \fBpdrFcrit\fR, \fBpdrCoupleDamp\fR,
+\fBpdrAVfac\fR and \fBpdrUVfac\fR (both measured from the model's grains),
+\fBpdrCoolTdep\fR, \fBpdrCoolTfac\fR, \fBpdrSyncAbun\fR, \fBpdrAtomicH\fR,
+\fBpdrOwnIon\fR, \fBpdrIonFromMocassin\fR, \fBpdrTeFromMocassin\fR,
+\fBpdrAllCells\fR, \fBpdrCoolFeedback\fR, \fBionChemRates\fR.
+The environment variables MOCASSIN_LINES, MOCASSIN_RECCOOL, MOCASSIN_YIELD and
+MOCASSIN_GRAINQ are retired too; a run in which one is set stops. The git tag
+\fId352-zone-and-switches\fR builds every retired mode.
+.PP
+PDR state is checkpointed to \fIoutput/pdrGrid.out\fR (layout v2, marked by its
+first line) and resumed by \fBmocassinWarm\fR. Design decisions are recorded in
+\fIDEVLOG.md\fR.
 .SH BUGS
 No known bugs.
 .SH AUTHOR
