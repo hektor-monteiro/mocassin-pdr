@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-348, 2026-09-25. Reference model throughout: the 150 kK PN,
+Status as of D-349, 2026-09-25. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -186,14 +186,34 @@ reaction rates saw ~100x less than the heating at depth; and at fixed
 abundances the H2 photodissociation rate rises x3.4 at A_V ~1 to x170 at
 A_V ~2.8 - **almost all of it the diffuse field's magnitude** (D-053's "the
 diffuse field is currently bypassed"), the two-leg columns taking back only
-5-32%. Predicted: the H/H2 crossing moves deeper, into A_V 1.8-2.6, with the
-molecular zone surviving. `runs/d348-angular` (seed 1001) is the test.
+5-32%.
 
-**Open under L-4.** The formal solution recovers only 53-130% of the MC's
+**Result** (`runs/d348-angular`, seed 1001): the H/H2 crossing moved **1.168 ->
+1.635** (predicted deeper, into 1.8-2.6 - direction right, range wrong), the
+molecular zone survives, CO fell 13-65x, C+ = C did not move (C+/C is
+MOCASSIN's, D-162), front and dust unmoved, hydrogen budget intact. Against
+Cloudy, H2 moves away (1.64 vs 1.09) and the deep CO excess largely closes.
+**This result overshoots** - see L-24: the diffuse sites carry the band
+integral, which overstates the Lyman-Werner drive at depth.
+
+**Open under L-4.** The formal solution recovers only 52-130% of the MC's
 `chi_dif`, falling with depth, unexplained (gas two-photon emission, phase
 function, and twelve-direction quadrature are the candidates). The column
 rescale between chemistry passes compounds (`col0*(a1/a0)*(a2/a0)`), found and
 not yet fixed. The 1D flavour keeps the direct-only chemistry.
+
+**L-24. The chemistry is handed the wrong band** (D-349). H2 and CO
+dissociation and C I ionization see only 11.2-13.6 eV; every `chi` handed over
+is the 6-13.6 eV integral, assumed Draine-shaped (window share 0.152). The MC's
+window share falls from 0.299 at A_V 0.07 to 0.008 at 2.5, so the band integral
+understates the window-driven rates 20-40% at the front and overstates them
+1.7x / 3.9x / 20x at A_V 1.1 / 1.7 / 2.5. D-345's closing of the spectral branch
+compared the wrong quantity and is corrected. It is also why the baseline
+tracked Cloudy: MOCASSIN's window field over the old prescription is flat at
+2.0-2.8 at every depth - the constant being the 40 kK star's window share,
+x1.97 over Draine, so the baseline has run those rates ~2x low. **Proposed, not
+implemented:** window-driven reactions take the window's own field on every
+ray via a per-ray hook in `calc_reac_rates.F90`; expected ~x2.5 on those rates.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly
