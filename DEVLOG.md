@@ -28305,6 +28305,11 @@ At the user's direction. Both runs plateau by iteration 9: convergence flat at
 comparisons need the same iteration count on both sides, so the first
 11-iteration test needs an 11-iteration baseline beside it.
 
+**Follow-up, 2026-09-26, the user:** the committed fixture
+(`benchmarks/pdr/hiipdr/input/input.in`) stays at `maxIterateMC 22`; the 11 is
+set in each run's own copied input. D-350's pair was the first run this way,
+and its baseline matched s1001 for all 11 iterations.
+
 ### Not yet known
 
 Cloudy's window field; the effect of the window fix itself; whether the
