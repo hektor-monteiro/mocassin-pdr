@@ -217,9 +217,14 @@ on MOCASSIN's own local field at A_V = 0 - the direct part on the source-ward
 column, the diffuse part on the D-348 sites - with H2, HD, CO and C I taking
 each part's window field through a vendored per-ray hook (`ray_lw_factor`),
 the C I continuum term dropped because the MC transports it, and the stale
-zone test on the shielding columns removed. `runs/d350-window` against
-`runs/d350-base11` (11 iterations, seed 1001) is the test. The 1D flavour keeps
-the prescription.
+zone test on the shielding columns removed. Result (`runs/d350-window`
+against `runs/d350-base11`, 11 iterations, seed 1001): H/H2 crossing **1.184 ->
+1.364**, C+ = C, front and dust unmoved, CO down 1.3-5x through the mid-PDR and
+up 31% at the far edge, where MOCASSIN's window field drops below the old
+prescription. The window field over the old prescription runs 2.5 / 3.6 / 4.6 /
+0.8 at A_V 0.1 / 1.0 / 1.8 / 2.8 (correcting D-349's shell-averaged "flat
+2.0-2.8"). Against Cloudy: crossing 1.36 vs 1.09; deep CO still 83-100x high.
+The 1D flavour keeps the prescription.
 
 **L-22. The gas-temperature crossover is the grain charge balance** (D-322,
 corrected by D-324). hiipdr's PE heating crosses Cloudy's at A_V ~1.3, exactly
