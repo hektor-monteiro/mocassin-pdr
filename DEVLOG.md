@@ -31127,8 +31127,9 @@ random stream - the differences below include run-to-run scatter):
 
 Headline numbers: front 3.840 -> 3.843 pc, H/H2 crossing A_V 1.447 -> 1.443,
 C+ = C 2.258 -> 2.273, deep C+ still 0.21-0.34 of Cloudy, every line in the
-page's table within 1% ([O I] 63 0.0551 -> 0.0550, [C II] 158 0.181 -> 0.183),
-Hbeta +0.24%. The direction pattern is gone (axis and planes within +-0.02).
+page's table within 3% ([O I] 63 0.0551 -> 0.0550, [C II] 158 0.181 -> 0.183,
+[C I] 609 -1.5%, [C I] 370 -2.7%; first written here as "within 1%", which
+missed the [C I] rows), Hbeta +0.24%. The direction pattern is gone (axis and planes within +-0.02).
 **So the published hiipdr numbers survive the fix, except per-cell maps and
 deep CO (~10%).** Not explained: why a 16-17% stronger deep FUV field leaves
 deep x(C+) unmoved; the deep C+ deficit at 31^3 is the packet-count effect
