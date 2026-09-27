@@ -365,6 +365,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-363 | **One atom per ion (the user's choice after L-38 was explained): MOCASSIN's own C I, C II and O I atoms take the chemistry's H, H+, He and o/p-H2 collision rates and its per-transition escape probabilities, and serve the thermal balance at every trial T, the diffuse line emission and lineFlux.out; the D-133 substitution and D-362's output substitution are retired; the atoms' table passes are gone (L-36 now CO only).** Plain flavour byte-identical on all four Lexington models. The two atoms agree to 0.4-7% in neutral gas; H II lines back on CHIANTI (C II] 2325 +2.1%/+0.1% of D-361); [C II] 158 -7%, [O I] 63 within 3%; front and crossing within 0.7%. Both PDRs 1-4% colder (7% at pn150k A_V 0.2), further from Cloudy - hiipdr's sign was predicted wrong (pooled table sums are warm-cell dominated). No speed-up (predicted 10-30%). The round trip found resetGrid rounding H2den differently from the D-200 damping (7e-8 in [C I] 370); fixed, now byte-identical. pdrLineEm.out v2 carries the escape probabilities. | Accepted | 2026-09-27 |
 | D-364 | **Both Cloudy artifacts rebuilt on the D-363 code: hiipdr v17 (`runs/d363-hii`) and 150 kK PN v15 (`runs/d363-pn`).** Redrawn figures; a new section on each page on the fine-structure lines (what was wrong, one atom per ion, line tables against Cloudy, [O I] set by unresolved front cells, the 1-4% colder PDR, the D-361 H I fix), with the CO ladder on pn150k; pn150k's line table now lists [C II] 158, [O I] 63/145, [C I], C II] 2326 and CO in place of the chemistry's coolant totals. hiipdr's stale '0.77-0.82x Cloudy beyond A_V 1.5' corrected to 0.61-0.80x from its own table. | Accepted | 2026-09-27 |
 | D-365 | **hiipdr at twice the resolution (61^3, 7 ranks - all the memory allows) with packets doubling from 6.25e7: MC noise per cell falls ~5x as predicted, deep carbon recovers, and [O I] 63 falls from 9.5x to 5.5x Cloudy, confirming L-37. The per-cell map is now limited by a fixed grid-direction pattern in MOCASSIN's field (new L-39), and the H II region is not converged in 11 iterations at either resolution (new L-40).** An upstream autoPackets defect counted the first star twice and capped the run at 5e8 of the requested 1e9; fixed (`nPhotonsTot = 0`). Iteration-to-iteration noise in the FUV field at 5e8: 0.8/1.5/2.8/4.8% at A_V 1-1.5/1.5-2/2-2.5/2.5-3.5, against L-26's 7/14/22% at 6e6 on 31^3. The scatter about the radial profile barely moves (0.16 at A_V 1.5-2 from 1.25e8 to 5e8) because cells deviate the same way every iteration (r = 0.95-1.00): +29% along the axes, -16% on the diagonals, +44% on the symmetry planes at A_V 2.5-3.5, the same at 31^3 (+24/-17/+41%); T_dust carries it too (+3.0/-1.7/+3.7%), so it is transport, not chemistry. C+ = C A_V 2.26 -> 2.72 (Cloudy 2.95), deep C+ x3.7, n_e at A_V 2.5 0.3 -> 0.92 of Cloudy. [O I] 63's front-cell part scales 0.53x for half the cell size. Front 3.830 -> 3.699 pc (Cloudy 3.765) and still moving 0.008 pc per iteration at iteration 11; the 31^3 22-iteration runs sit at 3.787 pc. Hbeta 8.82 -> 8.19 E36 against Cloudy's 9.95. pn150k 81^3 launched on 3 ranks with the fix | Open | 2026-09-27 |
+| D-366 | **L-39 found and fixed, on the user's hypothesis that the anisotropic dust scattering was involved: after a mirror reflection MOCASSIN turned the step direction (`vHat`) but not the packet's stored direction, and the next Henyey-Greenstein scattering starts from the stored one - so the first scattering after every bounce was forward-peaked about the pre-bounce direction and sent the packet back to the plane it had left.** Upstream since the initial import (38aca36), at all four reflection sites (two symmetric-grid, the planeIonization walls). A/B at 31^3, 4 iterations, seed 1001, 3 ranks: the defect gives +0.30 (axis) / +0.44 (planes) / -0.15 (diagonal) in ln chi at A_V 2.5-3.5; `isotropicScattering` with the defect gives +0.02 / +0.04 / -0.10 (it cannot see the stale direction); the fix gives -0.02 / +0.02 / +0.01. T_dust's pattern (+3.0/-1.7/+3.7%) goes to <0.3%. The defect also biased the radial mean: fixed/defect shell-median chi is 1.00, 1.01, 1.08, 1.13, 1.18 over A_V 0.5-3.5, T_dust 1.00-1.01, Hbeta +0.15%. Slabs: a lateral flip cannot bias a depth profile in a laterally uniform slab, so their fix is expected to be neutral (not run). pn150k (g = 0.29, A_V < 0.8) carries only ~2% at 41^3; `runs/d365-pn81` continues on the old code. Every hiipdr number published so far carries it | Done | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30993,3 +30994,123 @@ peak is 30.1 GB. Its result will be D-366.
 ### Status
 
 Open until pn150k is read.
+
+---
+
+## D-366 - The grid-direction pattern (L-39) is a mirror-reflection defect in the scattering (2026-09-27)
+
+### Prompt
+
+The user, on L-39: "could it not be due to the dust scattering which is not
+isotropic?"
+
+My first answer was that it should not be, physically: a Henyey-Greenstein
+phase function depends only on the angle to the packet's own direction, so in
+a uniform sphere the scattered field stays spherical for any g (the run logs
+give FUV albedo 0.45 and g = 0.61 for hiipdr). I read `hg` and
+`randomUnitVector`, found both correct, and said the planes pointed at the
+mirror treatment instead. **The user's hypothesis was the right one**, and my
+reading missed how the two combine: the defect is in the mirror treatment,
+and only anisotropic scattering can see it.
+
+### The test
+
+Three 31^3 hiipdr runs, 4 iterations (the pattern is fully formed by the first
+chemistry iteration: 61^3 it04 and it11 agree to 0.02), 3 ranks, seed 1001,
+6e6 packets, next to the running pn150k:
+
+  - `runs/d365-hg`: the code as it was.
+  - `runs/d365-iso`: the same plus `isotropicScattering`.
+  - `runs/d366-fix`: the fix below, Henyey-Greenstein.
+
+Median deviation of ln chi from the radial profile (`tools/d366_direction.py`):
+
+    A_V band               0.5-1   1-1.5   1.5-2   2-2.5   2.5-3.5
+    axis    hg             +0.045  +0.131  +0.193  +0.222  +0.297
+            iso            -0.019  -0.002  -0.002  -0.015  +0.018
+            fix            -0.016  -0.013  +0.006  -0.001  -0.016
+    planes  hg             +0.111  +0.198  +0.294  +0.359  +0.439
+            iso            -0.000  +0.008  +0.003  +0.018  +0.043
+            fix            -0.000  +0.015  -0.006  +0.020  +0.015
+    diag    hg             -0.181  -0.181  -0.222  -0.177  -0.153
+            iso            -0.087  -0.058  -0.065  -0.047  -0.105
+            fix            -0.092  -0.054  -0.030  -0.028  +0.010
+
+The diagonal bin holds 24-132 cells; its shallow -0.09 is in all three runs and
+is small-sample/discretisation, not this. T_dust in the PDR: +3.0/-1.7/+3.7%
+under the defect, <0.3% with the fix (the shallow diagonal again -1.7%).
+
+### The defect
+
+`pathSegment` propagates along a local copy `vHat`, set from
+`enPacket%direction` when the segment starts (`:1395`) and after a scattering
+(`:2204`). The mirror reflections - two for `symmetricXYZ` (the start of each
+step and after each move) and the four walls of `planeIonization` - flip
+`vHat` only. A dust scattering then builds the new packet from
+`enPacket%direction` (`:2192`) and `hg` rotates *that*. So after a bounce the
+stored direction still points through the mirror, and the first scattering is
+forward-peaked about the pre-bounce direction: a packet that bounced off x = 0
+moving outward is sent back toward x = 0. Light is held near the planes and
+starved on the diagonals, more so with every scattering, i.e. with depth, and
+by angle rather than by cell - hence identical at 31^3 and 61^3. Isotropic
+scattering discards the incoming direction, so it cannot see the stale one.
+Present at all four sites in the initial import (38aca36).
+
+Fix: `enPacket%direction = vHat` after each reflection block (four sites, one
+comment explaining it at the step-loop reflection). Between the first and
+second symmetric-grid sites nothing reads `enPacket%direction`, so the first
+sync changes nothing that `runs/d366-fix` computed; that run verifies the
+symmetric-grid fix as committed.
+
+**Slabs, argued and not run.** A wall bounce in a slab flips x or z; the
+depth component is unchanged, and a laterally uniform slab is invariant under
+x -> -x about any point, so a mirrored lateral component cannot bias a depth
+profile. The planeIonization fix is expected to be statistically neutral. The
+sphere is different because its mirror symmetry holds only about x = 0.
+
+### What it did to the radial means (fixed / defect, shell medians, 4 iterations)
+
+    A_V band     0.5-1   1-1.5   1.5-2   2-2.5   2.5-3.5
+    chi          1.00    1.01    1.08    1.13    1.18
+    T_dust       1.00    1.00    1.00    1.00    1.01
+    x(C+)        1.00    1.00    1.00    1.62    0.99   (the C+/C transition)
+    x(CO)        0.99    0.96    0.87    0.96    0.99
+
+Hbeta +0.15%. So the defect did not only rearrange light at fixed radius: it
+kept the deep field up to 15% low in the shell mean, the quantity every
+artifact plots. At 4 iterations T_gas has not converged, so the converged
+effect on hiipdr's headline numbers is being measured separately
+(`runs/d366-hii`, 31^3, 11 iterations, 4 ranks).
+
+### Reach
+
+  - **hiipdr, every published number**: forward-peaked FUV scattering
+    (g = 0.61) to A_V 3. Artifact v17 and all earlier versions carry it.
+  - **pn150k**: g = 0.29 and A_V < 0.8. At 41^3 (`runs/d363-pn`) the pattern
+    is +1.5-2.0% (axes), +1-2% (planes), -1.5% (diagonals). `runs/d365-pn81`
+    was started on the defective binary and is left running: at this size the
+    defect is below what the run was launched to measure, and restarting
+    costs ~4.5 h of a ~24 h run. Its per-cell maps will carry the ~2%.
+  - **Lexington (gas only)**: no dust, no scattering, unaffected.
+  - **Slabs**: see above.
+
+### Predictions (scratchpad/d366_pred.md)
+
+  - P1 (pattern to the isotropic run's level, axis and planes within +-0.05):
+    **holds**, -0.016 to +0.020.
+  - P2 (T_dust below 1%): **holds**.
+  - P3 (shell-median chi moves <10% at every depth): **fails at A_V > 2**
+    (+13%, +18%). I had reasoned the median cell (mu 0.80-0.95) was unbiased
+    because its deviation from the median was ~0; that is circular - the
+    median is made of those cells.
+  - P4 (ionized gas within 1%): **holds**, Hbeta +0.15%.
+
+### Also
+
+`tools/d366_direction.py` (the direction breakdown) and `D365_BANDS` in
+`tools/d365_noise.py` for fixtures whose PDR is shallower than hiipdr's. All
+four flavours build.
+
+### Status
+
+Done. The converged hiipdr impact and the pn150k result follow.

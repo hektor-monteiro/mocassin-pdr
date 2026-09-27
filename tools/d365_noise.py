@@ -28,7 +28,10 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import d260_roellig as R
 
-BANDS = [(0.5, 1.0), (1.0, 1.5), (1.5, 2.0), (2.0, 2.5), (2.5, 3.5)]
+# hiipdr's PDR runs to A_V ~3; pn150k's to ~0.8, so the bands can be set with
+# e.g. D365_BANDS="0.05-0.15,0.15-0.3,0.3-0.45,0.45-0.6,0.6-0.8".
+BANDS = [tuple(map(float, b.split('-'))) for b in os.environ.get(
+    'D365_BANDS', '0.5-1.0,1.0-1.5,1.5-2.0,2.0-2.5,2.5-3.5').split(',')]
 QTY = ['Tgas', 'chi', 'x(H2)', 'x(C+)', 'x(C)', 'x(CO)']
 
 

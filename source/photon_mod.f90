@@ -1541,6 +1541,9 @@ module photon_mod
                       if (vHat%z<0.) vHat%z = -vHat%z
                       rVec%z = grid(1)%zAxis(1)
                    end if
+                   ! D-366: reflect the stored direction with vHat (see the
+                   ! note at the reflection further down the step loop).
+                   enPacket%direction = vHat
                 end if
 
                 if (vHat%x>1.e-10) then
@@ -1878,6 +1881,16 @@ module photon_mod
                       if (vHat%z<0.) vHat%z = -vHat%z
                       rVec%z = grid(gP)%zAxis(1)
                    end if
+                   ! D-366: a mirror reflection must turn the packet, not just
+                   ! the step. The scattering below starts from
+                   ! enPacket%direction; left unreflected, the first
+                   ! Henyey-Greenstein scattering after a bounce was
+                   ! forward-peaked about the pre-bounce direction and sent the
+                   ! packet back to the plane it had left - a grid-direction
+                   ! pattern in the scattered field (+44% on the planes, -16%
+                   ! on the diagonals at A_V 3 in hiipdr), absent under
+                   ! isotropicScattering. Upstream since the initial import.
+                   enPacket%direction = vHat
                 end if
 
                 ! D-224: an interaction of a 15.4-24.6 eV stellar packet in a
@@ -2806,6 +2819,11 @@ module photon_mod
 
                    end if
 
+                   ! D-366: the mirror walls above flip vHat; the stored
+                   ! direction, which the next scattering starts from, must
+                   ! flip with it (see the note at the symmetric-grid
+                   ! reflection in the step loop).
+                   enPacket%direction = vHat
 
                    if (lgReturn) then
 
@@ -3190,6 +3208,10 @@ module photon_mod
                      zP=1
                      rVec%z = grid(1)%zAxis(1)
                   end if
+
+                  ! D-366: reflect the stored direction with vHat, as at the
+                  ! reflection inside the step loop (see the note there).
+                  enPacket%direction = vHat
 
                end if
 

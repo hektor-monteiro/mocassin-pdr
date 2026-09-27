@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-365, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-366, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -498,6 +498,15 @@ unbiased and path stretching is off. Untested candidates: the mirror treatment
 at the symmetry planes, or the scattered field that dominates at depth. The
 test is the fixture without `symmetricXYZ`. Radial means over shells average
 it out; per-cell maps and single sight lines do not.
+**CLOSED 2026-09-27 (D-366)**, on the user's hypothesis that the anisotropic
+scattering was involved. The mirror reflections turned the step direction but
+not the packet's stored one, and the next Henyey-Greenstein scattering starts
+from the stored one, so after every bounce the packet was scattered back
+toward the plane. Upstream since the initial import, at all four reflection
+sites. Fixed: the pattern falls to +-0.02 (isotropic scattering, which cannot
+see it, gives the same). The radial means were biased too: the deep field
+rises 8/13/18% at A_V 1.5-2/2-2.5/2.5-3.5 with the fix. Every published
+hiipdr number carries the defect; pn150k (g = 0.29, A_V < 0.8) about 2%.
 
 **L-40. The H II region is not converged in 11 iterations** (D-365). hiipdr's
 front is still moving inward 0.008 pc per iteration at iteration 11 on 61^3
