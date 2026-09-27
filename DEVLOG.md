@@ -366,6 +366,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-364 | **Both Cloudy artifacts rebuilt on the D-363 code: hiipdr v17 (`runs/d363-hii`) and 150 kK PN v15 (`runs/d363-pn`).** Redrawn figures; a new section on each page on the fine-structure lines (what was wrong, one atom per ion, line tables against Cloudy, [O I] set by unresolved front cells, the 1-4% colder PDR, the D-361 H I fix), with the CO ladder on pn150k; pn150k's line table now lists [C II] 158, [O I] 63/145, [C I], C II] 2326 and CO in place of the chemistry's coolant totals. hiipdr's stale '0.77-0.82x Cloudy beyond A_V 1.5' corrected to 0.61-0.80x from its own table. | Accepted | 2026-09-27 |
 | D-365 | **hiipdr at twice the resolution (61^3, 7 ranks - all the memory allows) with packets doubling from 6.25e7: MC noise per cell falls ~5x as predicted, deep carbon recovers, and [O I] 63 falls from 9.5x to 5.5x Cloudy, confirming L-37. The per-cell map is now limited by a fixed grid-direction pattern in MOCASSIN's field (new L-39), and the H II region is not converged in 11 iterations at either resolution (new L-40).** An upstream autoPackets defect counted the first star twice and capped the run at 5e8 of the requested 1e9; fixed (`nPhotonsTot = 0`). Iteration-to-iteration noise in the FUV field at 5e8: 0.8/1.5/2.8/4.8% at A_V 1-1.5/1.5-2/2-2.5/2.5-3.5, against L-26's 7/14/22% at 6e6 on 31^3. The scatter about the radial profile barely moves (0.16 at A_V 1.5-2 from 1.25e8 to 5e8) because cells deviate the same way every iteration (r = 0.95-1.00): +29% along the axes, -16% on the diagonals, +44% on the symmetry planes at A_V 2.5-3.5, the same at 31^3 (+24/-17/+41%); T_dust carries it too (+3.0/-1.7/+3.7%), so it is transport, not chemistry. C+ = C A_V 2.26 -> 2.72 (Cloudy 2.95), deep C+ x3.7, n_e at A_V 2.5 0.3 -> 0.92 of Cloudy. [O I] 63's front-cell part scales 0.53x for half the cell size. Front 3.830 -> 3.699 pc (Cloudy 3.765) and still moving 0.008 pc per iteration at iteration 11; the 31^3 22-iteration runs sit at 3.787 pc. Hbeta 8.82 -> 8.19 E36 against Cloudy's 9.95. pn150k 81^3 launched on 3 ranks with the fix | Open | 2026-09-27 |
 | D-366 | **L-39 found and fixed, on the user's hypothesis that the anisotropic dust scattering was involved: after a mirror reflection MOCASSIN turned the step direction (`vHat`) but not the packet's stored direction, and the next Henyey-Greenstein scattering starts from the stored one - so the first scattering after every bounce was forward-peaked about the pre-bounce direction and sent the packet back to the plane it had left.** Upstream since the initial import (38aca36), at all four reflection sites (two symmetric-grid, the planeIonization walls). A/B at 31^3, 4 iterations, seed 1001, 3 ranks: the defect gives +0.30 (axis) / +0.44 (planes) / -0.15 (diagonal) in ln chi at A_V 2.5-3.5; `isotropicScattering` with the defect gives +0.02 / +0.04 / -0.10 (it cannot see the stale direction); the fix gives -0.02 / +0.02 / +0.01. T_dust's pattern (+3.0/-1.7/+3.7%) goes to <0.3%. The defect also biased the radial mean: fixed/defect shell-median chi is 1.00, 1.01, 1.08, 1.13, 1.18 over A_V 0.5-3.5, T_dust 1.00-1.01, Hbeta +0.15%. Slabs: a lateral flip cannot bias a depth profile in a laterally uniform slab, so their fix is expected to be neutral (not run). pn150k (g = 0.29, A_V < 0.8) carries only ~2% at 41^3; `runs/d365-pn81` continues on the old code. Every hiipdr number published so far carries it | Done | 2026-09-27 |
+| D-367 | **The D-366 mirror-reflection fix ported to this repository's `dev` as da02212 (not pushed).** Same four sites, CRLF endings kept, source only (tracked binaries restored), all four dev targets build; worktree at ~/software/mocassin_dev removed afterwards (the D-281 procedure). Checked on dev with hiipdr as a dust+gas model (PDR keywords removed, 31^3, 3 ranks, converged at iteration 3): ln T_dust off its radial profile goes from +2.7-3.1% near the axes, +3.9-4.2% on the planes and -1.9-2.7% on the diagonals to within 0.2%; Hbeta +0.18%. dust/1D/p0tau10 cannot see it (0.1-0.3% either way). **Misstep, reverted:** I first took "the dev branch" to be the core fork's `dev` (~/software/mocassin_HM_2026) and made a worktree, a branch and an uncommitted edit there; the user said to use this repository and touch no other. All three removed; that repository is as it was (dev at fea0149, the user's 31 uncommitted files, empty stash, no new reflog entries) | Done | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31135,3 +31136,72 @@ D-365 measured, not this.
 ### Status
 
 Done. The pn150k result follows.
+
+---
+
+## D-367 - The mirror-reflection fix on `dev` (2026-09-27)
+
+The user: "this seems like an important bug to be fixed in the dev branch
+also", then "I mean the dev branch in this repository. Do not touch any other
+repository".
+
+### Misstep first
+
+I read "the dev branch" as the core fork's `dev` (`~/software/mocassin_HM_2026`,
+pushed to GitHub), because it carries this branch's earlier fixes as its own
+commits (901a7f8 is D-281's 411ff93) and is newer than this repository's `dev`.
+I made a worktree there on a new branch `fix/mirror-scattering-direction`,
+applied the fix uncommitted and built. On the user's correction all of it was
+removed: worktree, branch, edit. The one `git stash`/`pop` made in that worktree
+left the stash list empty. That repository is as it was: `dev` at fea0149, the
+user's 31 uncommitted files, no new reflog entries. Recorded in the memory
+notes: ports go to this repository's `dev`, and other repositories are not
+touched.
+
+### The port
+
+Worktree of this repository's `dev` (a3f5ce5) at `~/software/mocassin_dev`.
+`photon_mod.f90` there has CRLF endings (3260 of 3260 lines), and the four
+reflection sites are the same as on this branch: two `symmetricXYZ` blocks in
+the step loop, the four `planeIonization` walls, and the end-of-segment block.
+Each gets `enPacket%direction = vHat`, with the explanation at the step-loop
+reflection and no DEVLOG numbers (dev's comments carry none). Diff: 22 lines,
+endings kept. Built without and with the fix by swapping the file (no stash).
+All four targets build. Tracked binaries restored before the commit, as in
+D-281. Committed as **da02212**, not pushed. Worktree removed.
+
+### The check on dev
+
+`dev` has no `randomSeed`, so a byte-identity test is impossible there.
+`dust/1D/p0tau10` cannot see the defect: its grains are heated in the IR by a
+2500 K star and scatter little, so both binaries give 0.1-0.3%.
+
+The discriminating test is hiipdr run by dev as a dust+gas model: the same
+input with the `pdr*` and `randomSeed` lines removed, `maxIterateMC 5 90.`, 3
+ranks each (`runs/d366-dev-before`, `runs/d366-dev-after`). Both converged and
+stopped at iteration 3. Median deviation of ln T_dust from its radial profile,
+by radius quartile:
+
+    quartile            1        2        3        4
+    axis    before   +0.0122  +0.0265  +0.0313  +0.0276
+            after    -0.0023  -0.0007  -0.0010  +0.0005
+    planes  before   +0.0204  +0.0390  +0.0422  +0.0405
+            after    +0.0002  -0.0021  -0.0023  +0.0001
+    diag    before   -0.0258  -0.0268  -0.0230  -0.0191
+            after    -0.0138  -0.0020  -0.0014  -0.0023
+
+This is the PDR flavour's pattern (this branch, the same measure: +2.8/+3.5/
+-2.0% before, <0.2% after). The innermost diagonal -1.4% has 103 cells and
+shows in every fixed run on both branches. Hbeta 13.401 -> 13.425 E36 (+0.18%).
+
+### Not done
+
+  - Not pushed.
+  - The slab (planeIonization) change is argued neutral (D-366) and was not run.
+  - dev's own benchmarks were not re-run. `dust/2D/tau1.000` (mirrored grid,
+    Henyey-Greenstein, the midplane a symmetry plane) and `test_Problem`
+    (symmetricXYZ, 35 sizes + PAH) are the ones expected to move.
+
+### Status
+
+Done.
