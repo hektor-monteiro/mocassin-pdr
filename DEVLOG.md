@@ -360,6 +360,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-358 | **The chemistry solve runs on MOCASSIN's own ionization and recombination rates (D-356 option A, the user's choice).** ionBalance stores per cell each linked neutral's photoionization (and H's collisional ionization) and alphaTot, plus H2 -> H2+ from the MC field and yanH2xSec; pdrStep adds them to the network's first-order slots (H/He/C/O + CRP, Mg + CRPHOT, H2 + CRP), zeroes the network's own C/Mg photoionization, and gives the linked radiative recombinations MOCASSIN's coefficient. `[D358]` reports the solver's X+/X against MOCASSIN's. **Result: in H II cells the solver's ionization now equals MOCASSIN's (was neutral); ionized-zone H2 vs Cloudy 3e4-2e5x -> 5-25x (hiipdr), 2e3-2e5x -> 19-71x (pn150k), destroyed like Cloudy's (photoionization 70/83% vs 65/81%); CO 1e11-1e14x -> 51-8e3x (hiipdr); OH and H3+ in H II gas now below Cloudy (H- and radiative associations absent); nothing past the fronts moved (crossings 1.444 / 0.405 unchanged). Prediction (a) failed as stated: the PDR's H+ differs because the network has H+ channels MOCASSIN's ionBalance lacks (O-05). Exposed: one ion carrier per element (pn150k inner CO 3e7x), grain H2 formation 5-25x Cloudy's.** | Accepted | 2026-09-26 |
 | D-359 | **Both Cloudy artifacts rebuilt on the D-358 code: hiipdr v16 (`runs/d358-hii`) and 150 kK PN v14 (`runs/d358-pn`).** New figures; a new section on each page explaining the neutral-solver defect (D-356), the fix (D-358) and the label correction (D-357), with before/after ionized-zone ratios, the matched destruction channels, what Cloudy's own approximations can and cannot account for, and what stays open (grain H2 formation, H-/radiative associations absent, HCO+, one ion carrier per element); changed selected-depth rows, Reading-it bullets, meta and provenance; hiipdr's O-03 register row closed. | Accepted | 2026-09-26 |
 | D-360 | **Audit against science production: the reported lines are the blocker.** (1) New: every PDR run's H I line list is corrupt - `hlinex` extrapolates Storey & Hummer's table (300-30,000 K, n_e 1e2-1e14) polynomially in log space to the PDR's 11-27 K and n_e ~0.01, giving Balmer/Paschen/Brackett n = 16-25 up to 1e22 x Hbeta; 88,000 of hiipdr's 90,561 log lines are its overflow prints; legacy code (38aca36), latent until gas went below 300 K; it also clamps T > 30 kK by overwriting the caller's TeUsed. (2) L-28 measured: lineFlux.out reports [O I]/[C II]/[C I] from MOCASSIN's electron-only atoms while the gas is cooled by the chemistry's populations - [O I] 63+145 reported 0.0016 Hbeta against 0.0059 cooling and 0.0070 Cloudy (hiipdr), 0.0063 against 0.068 and 0.20 (pn150k); no CO lines at all. Checked clean: D-358 does not reach the PDR heating; its rates are set on every cell (0 unset); the coolant substitution agrees with MOCASSIN's to 0.1% in fully ionized cells. Decision: next is one reality for every line reported - hlinex bounded by its own table, then the PDR's line emissivities exported in place of MOCASSIN's C+/C/O lines plus the CO ladder, then L-27. 115 commits are local only. | Accepted | 2026-09-26 |
+| D-361 | **H I emissivities bounded by their own table; mocassinOutput reads its data (D-360 step 1).** `hlinex` evaluates inside `e1bx.dat`'s domain: the low-density limit below 1e2 cm^-3, the 300 K ratio below 300 K. It no longer writes to the caller's TeUsed, and `[D361]` counts edge evaluations once per run. `mocassinOutput`, run for the first time (L-20), reproduced the run's lineFlux.out except all 630 He II rows, zero because it never called `readData()` - fixed. The first build of the fix was inert: `minval` over 15 slots of an 11-entry table found the empty zeros. Regenerated from the D-358 grids: non-H I lines and Hbeta byte-identical, Balmer series within 1% of Case B, log 86,656 -> 187 lines. Prediction (c) failed - the extrapolation had also reached low lines on hiipdr (Halpha/Hbeta 2.910 -> 2.889, H8 0.127 -> 0.1045, Br/Pf n = 12-15 by 25-88%); pn150k <0.43%. No artifact quotes an affected line. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30339,3 +30340,75 @@ for fixtures not yet built. The steps:
 ### Status
 
 Accepted. No code changed in this entry.
+
+---
+
+## D-361 - H I emissivities bounded by their own table; mocassinOutput reads its data (2026-09-26)
+
+Step 1 of D-360's decision.
+
+### What changed
+
+`hlinex` (`output_mod.f90`):
+  - Evaluates Storey & Hummer's `e1bx.dat` inside the table's own domain.
+    Below its lowest density (1e2 cm^-3) it takes the low-density limit. Below
+    its lowest temperature (300 K) it takes the 300 K line ratio, and Hbeta's
+    fit in `RecLinesEmission` still carries the T dependence. The bounds are the
+    table's own, over the filled entries.
+  - It never writes to its arguments. The old high-T branch set `xt`, which
+    is the caller's `TeUsed`, to 30 kK, and `forLines` then used it.
+  - The per-call print is gone. `outputGas` instead prints one `[D361]` line
+    counting the evaluations taken at each edge.
+
+`mocassinOutput.f90` calls `readData()` after `makeElements`, as
+`mocassin`, `mocassinWarm` and `mocassinPlot` do.
+
+### How it was tested, and what failed on the way
+
+`mocassinOutput` had never been run (L-20). Its unfixed build, run on the
+`runs/d358-hii` grid (5.8 s, one rank - `outputGas` runs on rank 0 only),
+reproduced the run's own `lineFlux.out` byte for byte except for all 630
+He II rows, which it wrote as zero. The cause was that `HeIIRecLineData` is
+filled only by `readData`, which `mocassinOutput` never called. That is the
+second defect found by running this tool for the first time.
+
+The first build of the fix changed nothing: the `[D361]` counters read zero,
+and the log was still 86,656 lines. `tempx` and `densx` are declared with 15
+slots, but the table fills 11 and 13. `minval` over the whole array found the
+empty slots' zeros, so the lower bound was 0 and never bit. The old code's
+`maxval(tempx)` had been right only because zeros cannot raise a maximum. The
+bounds are now taken over `1:ntempx` and `1:ndensx`.
+
+Predictions (`scratchpad/d361_pred.md`, 21:34, before the build) against the
+regenerated files:
+
+  (a) every non-H I line byte-identical to the run's own file, He II included -
+      **holds** on both fixtures (0 rows differ);
+  (b) Hbeta changes < 1e-5 - **holds** (identical to nine digits);
+  (c) H I lines with upper level n <= 15 change < 1e-4 - **fails**. On
+      hiipdr the extrapolation had reached the low lines too: Halpha/Hbeta
+      goes from 2.910 to 2.889, H8 from 0.1266 to 0.1045 (Case B at 1e4 K:
+      0.105), and the Brackett and Pfund lines at n = 12-15 by 25-88%. On
+      pn150k all n <= 15 changes are below 0.43%. The new Balmer series
+      matches Case B to 1% on both;
+  (d) n = 16-30 fall monotonically, all below Hbeta - **holds**. The one
+      exception, series 8, is the Lyalpha that `RecLinesEmission` stores in
+      slot (30, 8), at 24.8 Hbeta;
+  (e) no overflow print, with only low edges counted - **holds**. The log
+      goes from 86,656 lines to 187. The counts are 2.64e6 T-low and
+      2.65e6 n_e-low evaluations on hiipdr, which is its 15,016 cold cells x
+      176 transitions, and none high.
+
+Four flavours built, plus `mocassinOutput` with and without PDR.
+
+### What it means for published numbers
+
+Every PDR run's H I line list since the PDR gas first went below 300 K.
+On hiipdr that includes Halpha/Hbeta (0.7%) and H8 (21%). No published artifact
+quotes an H I line other than Hbeta, which was unaffected. Old runs can be
+corrected without rerunning them: `mocassinOutput` regenerates `lineFlux.out`
+from the grid files in seconds.
+
+### Status
+
+Accepted. L-35 closed; L-20 closed for `mocassinOutput`.

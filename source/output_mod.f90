@@ -11,6 +11,12 @@ module output_mod
     use continuum_mod, only : inSpectrumProbDen
 #endif
 
+    ! D-361: hlinex evaluations taken at an edge of the Storey & Hummer table
+    ! rather than extrapolated beyond it - below its lowest temperature, above
+    ! its highest, below its lowest density, above its highest. Reset and
+    ! reported once per outputGas.
+    integer, private :: nHlxEdge(4) = 0
+
     contains
 
 #ifdef PDR
@@ -537,6 +543,7 @@ module output_mod
 
         ! read in data file for higher level H transitions
         call hdatx
+        nHlxEdge = 0                     ! D-361
 
         ! calculate analytical emissivities first
 
@@ -1653,6 +1660,10 @@ endif
            if (allocated(resLinesVolCorr)) deallocate(resLinesVolCorr)
         end if
 
+        ! D-361: how many H I emissivities were taken at a table edge
+        print '(a,4i10)', " ! [D361] H I emissivities at the table edge"// &
+             & " (T low, T high, n_e low, n_e high):", nHlxEdge
+
       contains
 
 !get wavelength of H I and He II lines
@@ -2560,24 +2571,43 @@ endif
 
       integer                    :: i
       real                       :: rint, rrr, xp, yp
+      real                       :: xtB, xdB   ! D-361: xt, xd inside the table
 
       common/hdatax/densx,tempx,ex,ntempx,ndensx,ntop,nll,nlu
       data maxv/4/ni/2,3,4,5,6/       ! interpolation parameters
 
       ncut=0 ! RW 19/06/2016 - was not initialised previously
 
-!are we calculating something at higher temperature than the data exists for?
-      if (xt.gt.maxval(tempx)) then
-        print *,"temperature out of range!"
-        print *,"temperature is ",xt,"but emissivity data only goes up to ",maxval(tempx)
-        print *,"emissivity calculated for T=",maxval(tempx)
-        xt=maxval(tempx)
-      endif
-
       if (xd .eq. 0.d0) then ! no material = no emission
         fh = 0.d0
         return
       endif
+
+      ! D-361: evaluate inside the table's own domain (e1bx.dat: T 300-30000 K,
+      ! n_e 1e2-1e14), never beyond it. The interpolation below is a 5-point
+      ! polynomial in log(emissivity); outside the table it extrapolates, and
+      ! in PDR gas (11-27 K, n_e ~0.01) that gave H I n = 16-25 lines at up to
+      ! 1e22 x Hbeta and overflowed single precision some 28,000 times per
+      ! run (D-360). Below the table's density the emissivities are at their
+      ! low-density limit; below its temperature the line ratio is taken at
+      ! 300 K, and the caller's Hbeta fit still carries the T dependence. The
+      ! old high-T branch clamped by overwriting xt - the caller's TeUsed, which
+      ! forLines then used - and printed at every call; neither is kept.
+      ! The arrays hold 15 slots and the table fills ntempx = 11 and
+      ! ndensx = 13 of them, so the bounds are taken over the filled part
+      ! only; minval over the whole array finds the empty slots' zeros.
+      xtB = xt
+      xdB = xd
+      if (xtB < minval(tempx(1:ntempx))) then
+         xtB = minval(tempx(1:ntempx)); nHlxEdge(1) = nHlxEdge(1) + 1
+      else if (xtB > maxval(tempx(1:ntempx))) then
+         xtB = maxval(tempx(1:ntempx)); nHlxEdge(2) = nHlxEdge(2) + 1
+      end if
+      if (xdB < minval(densx(1:ndensx))) then
+         xdB = minval(densx(1:ndensx)); nHlxEdge(3) = nHlxEdge(3) + 1
+      else if (xdB > maxval(densx(1:ndensx))) then
+         xdB = maxval(densx(1:ndensx)); nHlxEdge(4) = nHlxEdge(4) + 1
+      end if
 
 !          interpolation variables
       x=log10(densx)
@@ -2603,8 +2633,8 @@ endif
       endif
 !          interpolate in r-table
       nt=1
-      xp=log10(xd)           ! interpolate in log(dens)
-      yp=sqrt(xt)             ! interpolate in temp**0.5
+      xp=log10(xdB)          ! interpolate in log(dens)
+      yp=sqrt(xtB)            ! interpolate in temp**0.5
 !          find interpolation box
       i=1
       if(xp.lt.x(i)) then

@@ -13,6 +13,7 @@ program MoCaSSiNoutput
     use grid_mod
     use iteration_mod
     use output_mod
+    use readdata_mod
 #ifdef PDR
     use pdr_mod
 #endif
@@ -72,6 +73,10 @@ program MoCaSSiNoutput
 
     ! prepare atomica data stuff
     call makeElements()
+    ! D-361: the recombination-line tables (He II among them) that mocassin,
+    ! mocassinWarm and mocassinPlot all read here; without it every He II
+    ! line came out zero
+    call readData()
 
     if (taskid ==  0) then
         ! determine final statistics

@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-360, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-361, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -413,6 +413,14 @@ hiipdr's log with overflow prints. It also clamps T > 30 kK by overwriting the
 caller's `TeUsed`, which is latent on both fixtures. The code is legacy
 (`38aca36`) and surfaced only when gas went below 300 K. Hbeta and every
 non-H I line are unaffected.
+**CLOSED 2026-09-26 (D-361).** `hlinex` now evaluates inside the table: the
+low-density limit below 1e2 cm^-3, and the 300 K line ratio below 300 K. It no
+longer writes to its arguments, and it reports once per run how many
+evaluations sat at a table edge (`[D361]`). Regenerated from the D-358 grids,
+every non-H I line and Hbeta are byte-identical, and the Balmer series matches
+Case B to 1%. The contamination had also reached low-n lines on hiipdr:
+Halpha/Hbeta went from 2.910 to 2.889 and H8 from 0.127 to 0.1045 Hbeta.
+hiipdr's log shrinks from 90,561 lines to 187.
 
 ### Medium
 
@@ -542,7 +550,11 @@ running cold to convergence. **Also (D-351):** `pdrLevPop`, `pdrCoolTab`,
 before pdrStep, so the first resumed thermal balance has neither the PDR
 coolants nor the PDR heating.
 
-**L-20. `mocassinPlot` and `mocassinOutput` are fixed but unrun.** Both had
+**L-20. `mocassinPlot` is fixed but unrun; `mocassinOutput` has now run
+(D-361).** Run on both D-358 grids, `mocassinOutput` reproduced the run's own
+`lineFlux.out` byte for byte except every He II line, which it gave as zero:
+it never called `readData()`. It now does, and it reproduces the file.
+Both had
 the D-317 defect - `lgPDR` consumed before anything set it, so `resetGrid`
 skipped every PDR allocation and the tools would have emitted output with the
 PDR state silently absent. `readInput()` is now called in both and both
