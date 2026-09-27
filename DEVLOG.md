@@ -372,6 +372,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-370 | **Third audit against science production: the reported Hbeta is computed from a power law 4.6-5.2% below the Storey & Hummer table every other H I line in lineFlux.out already comes from, so every Hbeta is low and every line ratio high by that much, in every flavour and upstream since the import.** `output_mod`/`mocassinPlot` take Hbeta = 2530/T^0.833; `hlinex` (e1bx.dat) gives the H I ratios; the transport (`emission_mod`) uses a third form, S&H's fit 10^(-0.870 log T + 3.57). Against e1bx.dat's own Hbeta at n_e 100: 0.954/0.948/0.954/0.965/0.977 at 5/7.5/10/12.5/15 kK. `tools/d370_hbeta.py`, from grids on disk: taking Hbeta from the table raises it x1.0546 on hiipdr and x1.0404 on pn150k; hiipdr's gap to Cloudy goes from -11.6% to -6.7%, and what is left is the ionized gas 4.4% hotter (EM-weighted 9005 K against 8628; emission measure 0.989); on pn150k emission measure and temperature match Cloudy's to 0.4% and 0.1%, so the formula was the only Hbeta difference. Also: L-27 now sits in the cooling and the lines (D-363 hands its beta to MOCASSIN's atoms) - [C II] 158 +2/+12/+38% at n_H 1e2/1e3/1e4 in the two-level limit if beta reached 1; the per-cell convergence test covers x(H0), x(H2) and T_e but not helium (L-40's "x(H0) only" corrected); the measured memory is 0.47 GB + 38 kB per ACTIVE cell per rank (nbins 600, dust+gas+PDR; three points, 15k-276k cells), so 14 ranks hold ~46k active cells (~44^3 octant sphere), not 58^3; a vendored diffuse-ISM grain emissivity in `escape_probability`. **Decision: finish one reality for every reported line - Hbeta from the table (output only, verified from existing grids with mocassinOutput), then L-27 along the real 3D rays, then helium in the stopping test.** No model code changed. | Decided | 2026-09-27 |
 | D-371 | **Hbeta from Storey & Hummer's own table (D-370 step 1; closes L-41).** `output_mod`'s `RecLinesEmission` and `mocassinPlot`'s copy take Hbeta = `hlinex(4,2)` at the cell's T and n_e, the table every other H I line was already a ratio from, in place of 2530/T^0.833. Verified without a new run: the unfixed `mocassinOutput` (both flavours) reproduced all six runs' `lineFlux.out` byte for byte (`runs/d366-hii`, `runs/d363-pn`, the four `runs/d363-lex` models); the fixed one raises Hbeta x1.0518 / 1.0390 / 1.0538 / 1.0547 / 1.0428 / 1.0488, every non-H I value (He I, He II, heavy ions, `lineFluxMol` L/Hbeta) falls by exactly 1/F to 2e-6, absolute luminosities and the Ne/Te diagnostics are unchanged, H I ratios move -0.075..+0.038% (each line is now the table's own emissivity, weighted per cell as the table is), no other file changes. **Hbeta is now inside the Lexington codes' range on all four models** (0.986/1.009/1.020/1.012 of their median; three were below it). Against Cloudy: hiipdr 9.300 vs 10.00 (like-for-like 0.95: EM 0.989, T +4.4%), pn150k 0.02726 vs 0.0278 (1.003 like-for-like). Cloudy's own per-zone Hbeta emissivity equals the S&H table to 0.1% at 11-15 kK. **He II 4686's fit checked** by hydrogenic scaling of the same table: 0.999-1.009 of S&H at 5-14 kK, 1.02-1.03 at 17.5-20 kK - right; Cloudy's He II 4686 emissivity is 0.80-0.88 of case B in pn150k's He++ zones, a divergence to report. The transport's copy (`emission_mod`, 0.994/0.997 of the table EM-weighted) is left for its own seeded pair. | Done | 2026-09-27 |
 | D-372 | **Found while checking Lya for D-371: since D-307 the Monte Carlo carries Lya as 8.15 um photons.** `emission_mod.f90:566` adds Lya into `HIRecLines(15,8)`, a slot upstream used only to count Lya's energy in `totalLines` while line packets were dropped. D-292's frequency map and D-307's default-on line transport emit every packet drawn from that slot at the 15->8 frequency (0.01118 Ryd, 8.15 um); D-292's comment "the Lyman series and with it Lya is excluded" is wrong. Measured in `SED.out`: hiipdr's 8.33 um bin carries 1.705e38 erg/s (78% of the Lya row, 5.6% of the emergent SED); pn150k's 8.40 um bin 7.12e35 erg/s (18.8% of the SED, 27% of 1-1000 um). So the emergent IR SED has a spurious line, the energy a dusty nebula puts into its grains passes through the PDR at 8 um instead, and 0.0112 Ryd lies inside the 0.01-0.44 Ryd band where L-19 measures MOCASSIN's field in excess of Cloudy's (a candidate, not measured). `lineFlux.out` also reports Lya in the H I 30->8 row at 6.28 um. `dev` has the slot but no line transport, so its Lya is dropped, not misplaced. Registered as L-42; **not fixed - where Lya's energy goes is a design decision** (options in the body). | Open | 2026-09-27 |
+| D-373 | **The Hbeta fix ported to this repository's `dev` as 605e838 (not pushed), with D-361's table bounds, which it needs there.** `dev`'s `hlinex` still extrapolated below 300 K and n_e 1e2 and overwrote the caller's TeUsed above 30 kK; with Hbeta taken from the table that extrapolation would reach Hbeta itself, so the bounds went in too (no counters, no D-numbers, LF endings as the files have). Checked with `dev`'s own `mocassinOutput` on `runs/d366-dev-after` (dev's hiipdr dust+gas grid): the unfixed build reproduces the run's `lineFlux.out` byte for byte except the He II rows, which it writes as zero because it never calls `readData` (D-361's other defect, still on `dev`). Bounds alone: only H I rows move - `dev`'s own list had Balmer/Paschen n >= 18 at Infinity x Hbeta, others to 5.6e8, H8 14.7, now 0.104 as on this branch. Hbeta then x1.0512 and every non-H I value by exactly 1/F. All four `dev` targets build; tracked binaries restored; worktree removed. | Done | 2026-09-27 |
+| D-374 | **CLAUDE.md's memory figure corrected at the user's request: ~0.47 GB + 38 kB per active cell per rank (D-370), ~46k active cells at 14 ranks (~44^3 octant sphere), ~104k at 7, ~260k at 3, replacing "~234 MB + 10.5 kB/cell; ~58^3 is the ceiling".** The memory note carries the same table. The D-365/D-368 fine runs peaked at 34.8 and 34.5 GB and survived; the ~31 GB budget stays as the note's, a safety margin rather than a measured limit. | Done | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31777,3 +31779,95 @@ it a row of its own.
 ### Status
 
 Open. Registered as L-42. No code changed.
+
+---
+
+## D-373 - The Hbeta fix on `dev` (2026-09-27)
+
+The user: "apply Hbeta fix to dev". This repository's `dev`, by the D-367
+procedure: a worktree at `~/software/mocassin_dev`, one commit, tracked
+binaries restored, all four targets built, not pushed, worktree removed.
+
+### What `dev` needed
+
+`dev` (da02212) has the same power law in `output_mod.f90` (line 2097) and
+`mocassinPlot.f90` (758). But its `hlinex` is the pre-D-361 one: it
+extrapolates its polynomial below 300 K and below n_e 1e2, and above 30 kK
+it clamps by overwriting the caller's `TeUsed`, printing at every call. With
+Hbeta taken from `hlinex(4,2)`, that extrapolation would reach Hbeta itself,
+so D-361's bounds were ported with it. The port has no edge counters and no
+DEVLOG numbers in comments, since `dev`'s comments carry none. Both files are
+LF on `dev` (only `photon_mod.f90` is CRLF) and stay so. The commit is
+605e838: 2 files, +41/-14.
+
+### The check
+
+`dev` has no `randomSeed`, so the check regenerates a `dev` grid rather than
+comparing runs. `runs/d373-dev-hbeta/hii/{base,bounds,fix}` are copies of
+`runs/d366-dev-after`, dev's hiipdr as a dust+gas model from D-367, each run
+through a `dev` `mocassinOutput`: unfixed, bounds only (built for the check,
+not committed), and the commit.
+
+  - **Unfixed against the run's own file.** Identical byte for byte except
+    the He II rows, which `dev`'s `mocassinOutput` writes as zero because it
+    never calls `readData`. That is D-361's second defect, still on `dev` and
+    not part of this port.
+  - **Bounds only.** Hbeta and every non-H I value are unchanged, and H I rows
+    change. `dev`'s own list for this model was corrupt:
+    - Balmer and Paschen n = 18-27 at `Infinity` x Hbeta;
+    - 17->3, 24->6, 18->5 at 4-6e8 x Hbeta;
+    - H8 at 14.68 x Hbeta.
+    With the bounds, H8 is 0.1045, as on this branch after D-361. The cause
+    is the gas beyond the front: cold and at n_e far below 1e2.
+  - **Bounds + Hbeta.** Hbeta goes from 13.425 to 14.113 E36 (F = 1.0512).
+    Every changed He I and heavy-ion value falls by exactly 1/F, and H I
+    ratios move -0.24..+0.01%. This is the same signature as D-371.
+
+All four targets (`mocassin`, `mocassinWarm`, `mocassinOutput`,
+`mocassinPlot`) build.
+
+### Noticed, not pursued
+
+`dev`'s Hbeta for this grid, 14.11 E36, is 52% above this branch's hiipdr
+(9.30) and 41% above Cloudy's 10.00, on the same star and density. That run
+was 3 MC iterations, 3 ranks, with no PDR, so it is not a like-for-like
+comparison. The ionizing photons the dust takes is the first thing to
+compare if it matters.
+
+### Not done
+
+  - Not pushed.
+  - `dev`'s `mocassinOutput` still skips `readData`, so its He II lines are
+    zero.
+  - `dev`'s transport keeps its own Hbeta fit, as this branch's does.
+
+### Status
+
+Done.
+
+---
+
+## D-374 - CLAUDE.md's memory figure (2026-09-27)
+
+The user: "correct the memory figure in CLAUDE.md". The "Running" paragraph
+said "~234 MB + 10.5 kB/cell per rank; ~58^3 is the ceiling at nbins=600". It
+now gives D-370's measured model, **~0.47 GB + 38 kB per active cell per
+rank** (dust+gas+PDR, nbins 600), with what it allows within the ~31 GB
+budget:
+
+    ranks   active cells   symmetricXYZ octant sphere (~52% of the cube active)
+    14      ~46k           ~44^3
+    7       ~104k          ~58^3
+    3       ~260k          ~79^3
+
+It also notes that hiipdr 31^3 (15k active) and pn150k 41^3 (35k) fit at 14.
+The memory note carries the same table. The D-365/D-368 fine runs peaked at
+34.8 and 34.5 GB and survived. The ~31 GB budget stays as the note's: a margin
+against systemd-oomd, not a measured limit.
+
+CLAUDE.md's "185 entries" in the DEVLOG section is also stale (374 now). It was
+not asked for and is left.
+
+### Status
+
+Done.

@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-372, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-374, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -557,7 +557,8 @@ same factor.
 (three were below it). The He II 4686 fit is S&H case B to <=1% below 15 kK
 (hydrogenic scaling of the same table); Cloudy's own 4686 emissivity is 0.80-0.88
 of case B in pn150k's He++ zones, a divergence to report. The transport's copy
-(`emission_mod`, 0.994-0.997 of the table) waits for its own seeded pair.
+(`emission_mod`, 0.994-0.997 of the table) waits for its own seeded pair. Ported
+to this repository's `dev` with D-361's table bounds (605e838, D-373).
 
 **L-42. Lya is carried as an 8.15 um line** (D-372). `emission_mod` adds Lya
 into `HIRecLines(15,8)`, and since D-292/D-307 every line packet drawn from

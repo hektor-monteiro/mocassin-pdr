@@ -57,8 +57,13 @@ time, so the `pdrNetwork` keyword can only validate - it cannot switch anything.
     mpirun -np 14 ./mocassin
 
 **Always 14** unless there is a specific reason otherwise: that is the physical
-core count, and more ranks multiply memory rather than sharing it (~234 MB +
-10.5 kB/cell per rank; ~58^3 is the ceiling at nbins=600).
+core count, and more ranks multiply memory rather than sharing it. Measured for
+dust+gas+PDR runs at nbins=600 (D-370): **~0.47 GB + 38 kB per active cell per
+rank**. Within the ~31 GB the machine can safely give a run (systemd-oomd), that
+is ~46k active cells at 14 ranks (about 44^3 for a `symmetricXYZ` octant
+sphere, whose active cells are ~52% of the cube), ~104k at 7 and ~260k at 3.
+hiipdr 31^3 (15k active) and pn150k 41^3 (35k) fit at 14; a larger grid means
+fewer ranks.
 
 MOCASSIN reads `input/input.in` relative to the working directory and does
 **not** create `output/` - make it first. Fixtures live under `benchmarks/pdr/`
