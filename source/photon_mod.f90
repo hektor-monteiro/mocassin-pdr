@@ -225,93 +225,11 @@ module photon_mod
         end if
 
 
-        if (lgDust.and.convPercent>=resLinesTransfer .and.&
-             & .not.lgResLinesFirst&
-             & .and. (.not.nIterateMC==1)) then
-
-           print*, "! energyPacketDriver: starting resonance line packets transfer"
-
-
-           iCell = 0
-           do igrid = 1, nGrids
-
-              if (igrid==1) then
-                 igp = 1
-              else if (igrid>1) then
-                 igp = 2
-              else
-                 print*, "! energyPacketDriver: insane grid pointer"
-                 stop
-              end if
-
-
-              do ix = 1, grid(igrid)%nx
-                 do iy = 1, grid(igrid)%ny
-                    do iz = 1, grid(igrid)%nz
-                       iCell = iCell+1
-
-                       if (mod(iCell-(taskid+1),numtasks)==0) then
-                          if (grid(igrid)%active(ix,iy,iz)>0) then
-
-                             do iPhot = 1, grid(igrid)%resLinePackets(grid(igrid)%active(ix,iy,iz))
-
-                                chTypeD = "diffuse"
-                                posVector%x = grid(igrid)%xAxis(ix)
-                                posVector%y = grid(igrid)%yAxis(iy)
-                                posVector%z = grid(igrid)%zAxis(iz)
-
-                                inX=-1
-                                inY=-1
-                                inZ=-1
-                                inX(igp)=ix
-                                inY(igp)=iy
-                                inZ(igp)=iz
-
-                                if (igrid>1) then
-                                   ! check location on mother grid
-                                   call locate(grid(grid(igrid)%motherP)%xAxis, &
-                                        & posVector%x,inX(1))
-                                   if (posVector%x > (grid(grid(igrid)%motherP)%xAxis(inX(1))+&
-                                        & grid(grid(igrid)%motherP)%xAxis(inX(1)+1) )/2.) &
-                                        & inX(1) = inX(1)+1
-                                   call locate(grid(grid(igrid)%motherP)%yAxis, &
-                                        & posVector%y,inY(1))
-                                   if (posVector%y > (grid(grid(igrid)%motherP)%yAxis(inY(1))+&
-                                        & grid(grid(igrid)%motherP)%yAxis(inY(1)+1) )/2.) &
-                                        & inY(1) = inY(1)+1
-                                   call locate(grid(grid(igrid)%motherP)%zAxis, &
-                                        & posVector%z,inZ(1))
-                                   if (posVector%z > (grid(grid(igrid)%motherP)%zAxis(inZ(1))+&
-                                        & grid(grid(igrid)%motherP)%zAxis(inZ(1)+1) )/2.) &
-                                        & inZ(1) = inZ(1)+1
-                                end if
-
-                                chTypeIn = chTypeD
-                                positionIn = posVector
-                                gPIn = igrid
-                                reRun = 0
-
-                                do i = 1, recursionLimit
-                                   call energyPacketRun(chTypeIn, positionIn, inX, inY, &
-                                        &inZ, gPIn, reRun)
-                                   if (rerun == 0) exit
-
-                                end do
-                                if (i>=recursionLimit) trapped = trapped+1
-
-                             end do
-                          end if
-                       end if
-
-                    end do
-                 end do
-              end do
-
-           end do
-
-           print*, "! energyPacketDriver: ending resonance line packets transfer"
-
-        end if
+        ! D-376: the extra packets upstream launched here for the dust-absorbed
+        ! fraction of each resonance line are gone. They were drawn as gas
+        ! emission ("diffuse"), and on top of lines linePDF already carried
+        ! at full strength. The fraction is now converted to dust emission at
+        ! the line draw in newPhotonPacket.
 
 
         if (iStar>0 .and. taskid==0) print*, 'Qphot = ', Qphot
@@ -860,6 +778,7 @@ module photon_mod
             integer                            :: igpn           ! grid pointe 1=motehr, 2=sub
 
             real                               :: random         ! random number
+            logical                            :: lgResDust      ! D-376
 
             if (gP==1) then
                igpn = 1
@@ -1013,6 +932,37 @@ module photon_mod
                    nuP = 0
                    if (lineP >= 1 .and. allocated(lineTrNuP)) then
                       if (lineP <= nLinesPDF) nuP = lineTrNuP(lineP)
+                   end if
+
+                   ! D-376: a resonance line (data/resLines.dat, Lya among
+                   ! them) is destroyed by the local dust with probability
+                   ! 1 - fEscapeResPhotons (Harrington, Cohen & Hess 1984, as
+                   ! setResLineEscapeProb computes it for this cell), and
+                   ! the energy leaves as this cell's dust emission - the
+                   ! grains' absorption of it is resLineHeating's term in
+                   ! getDustT. The escaping fraction is traced at the line's
+                   ! own frequency, thin, as every line is: once out of the
+                   ! ion's zone it meets only dust.
+                   lgResDust = .false.
+                   if (nuP > 0 .and. lgDust .and. allocated(lineTrRes)) then
+                      if (lineTrRes(lineP) > 0 .and. &
+                           & allocated(grid(gP)%fEscapeResPhotons)) then
+                         nResDrawn = nResDrawn + 1
+                         call random_number(random)
+                         if (random >= grid(gP)%fEscapeResPhotons( &
+                              & grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)), lineTrRes(lineP))) then
+                            lgResDust = .true.
+                            nResDust = nResDust + 1
+                            call getNu2(grid(gP)%dustPDF(grid(gP)%active(xP(igPn),yP(igPn),zP(igPn)),&
+                                 & 1:nbins), nuP)
+                            if (nuP >= nbins .or. nuP < 1) then
+                               print*, "! newPhotonPacket: insanity in the dust re-emission of a ", &
+                                    & "resonance line (D-376): nuP", nuP, " cell", &
+                                    & grid(gP)%active(xP(igPn),yP(igPn),zP(igPn))
+                               stop
+                            end if
+                         end if
+                      end if
                    end if
 
                    ! initialize the new photon packet

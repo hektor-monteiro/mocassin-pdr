@@ -374,7 +374,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-372 | **Found while checking Lya for D-371: since D-307 the Monte Carlo carries Lya as 8.15 um photons.** `emission_mod.f90:566` adds Lya into `HIRecLines(15,8)`, a slot upstream used only to count Lya's energy in `totalLines` while line packets were dropped. D-292's frequency map and D-307's default-on line transport emit every packet drawn from that slot at the 15->8 frequency (0.01118 Ryd, 8.15 um); D-292's comment "the Lyman series and with it Lya is excluded" is wrong. Measured in `SED.out`: hiipdr's 8.33 um bin carries 1.705e38 erg/s (78% of the Lya row, 5.6% of the emergent SED); pn150k's 8.40 um bin 7.12e35 erg/s (18.8% of the SED, 27% of 1-1000 um). So the emergent IR SED has a spurious line, the energy a dusty nebula puts into its grains passes through the PDR at 8 um instead, and 0.0112 Ryd lies inside the 0.01-0.44 Ryd band where L-19 measures MOCASSIN's field in excess of Cloudy's (a candidate, not measured). `lineFlux.out` also reports Lya in the H I 30->8 row at 6.28 um. `dev` has the slot but no line transport, so its Lya is dropped, not misplaced. Registered as L-42; **not fixed - where Lya's energy goes is a design decision** (options in the body). | Open | 2026-09-27 |
 | D-373 | **The Hbeta fix ported to this repository's `dev` as 605e838 (not pushed), with D-361's table bounds, which it needs there.** `dev`'s `hlinex` still extrapolated below 300 K and n_e 1e2 and overwrote the caller's TeUsed above 30 kK; with Hbeta taken from the table that extrapolation would reach Hbeta itself, so the bounds went in too (no counters, no D-numbers, LF endings as the files have). Checked with `dev`'s own `mocassinOutput` on `runs/d366-dev-after` (dev's hiipdr dust+gas grid): the unfixed build reproduces the run's `lineFlux.out` byte for byte except the He II rows, which it writes as zero because it never calls `readData` (D-361's other defect, still on `dev`). Bounds alone: only H I rows move - `dev`'s own list had Balmer/Paschen n >= 18 at Infinity x Hbeta, others to 5.6e8, H8 14.7, now 0.104 as on this branch. Hbeta then x1.0512 and every non-H I value by exactly 1/F. All four `dev` targets build; tracked binaries restored; worktree removed. | Done | 2026-09-27 |
 | D-374 | **CLAUDE.md's memory figure corrected at the user's request: ~0.47 GB + 38 kB per active cell per rank (D-370), ~46k active cells at 14 ranks (~44^3 octant sphere), ~104k at 7, ~260k at 3, replacing "~234 MB + 10.5 kB/cell; ~58^3 is the ceiling".** The memory note carries the same table. The D-365/D-368 fine runs peaked at 34.8 and 34.5 GB and survived; the ~31 GB budget stays as the note's, a safety margin rather than a measured limit. | Done | 2026-09-27 |
-| D-375 | **The user asked why Lya is not transferred as the other resonance lines are. MOCASSIN's resonance-line treatment (`resLinesTransfer`, off by default, never run in this project) is not a transfer but an escape-probability destruction scheme, and it is D-372's option (a) - with three defects to fix before it can run on this branch.** For the six lines in `resLines.dat` (H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2800, Si IV 1397), `setResLineEscapeProb` takes the line-centre optical depth from the cell to the grid edge along 125 directions and the dust/line opacity ratio (Harrington, Cohen & Hess 1984, eqns A1/A5); `resLineHeating` gives the absorbed fraction (1 - f_esc) to the cell's grains in the dust temperature solve (Harrington, Monk & Clegg 1988 sect. 3.2); `initResLinePackets` adds that energy as extra packets from the cell. By default the five heavy-element lines are carried like every other line since D-307, optically thin at their own wavelength, and Lya at 8.15 um (D-372). **Defects:** (1) with line transport on, the lines are also in `linePDF` at full strength (Lya through the (15,8) slot), so the absorbed fraction would be emitted twice; (2) the extra packets are launched as `"diffuse"`, which since D-233 samples the gas's emission only, so dust-absorbed line energy would come out as gas lines and recombination continuum, ionizing photons included, instead of as `"dustEmi"`; (3) `resLinesTransfer` is a run-time switch selecting physics, which D-352 removed everywhere else. Proposed: all six lines by this scheme, as the default, with the absorbed fraction taken out of `linePDF` and re-emitted as dust emission, the escaping fraction sent to the emergent spectrum, and Lya out of the (15,8) slot; a seeded pair on each fixture. | Proposed | 2026-09-27 |
+| D-375 | **The user asked why Lya is not transferred as the other resonance lines are. MOCASSIN's resonance-line treatment (`resLinesTransfer`, off by default, never run in this project) is not a transfer but an escape-probability destruction scheme, and it is D-372's option (a) - with three defects to fix before it can run on this branch.** For the six lines in `resLines.dat` (H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2800, Si IV 1397), `setResLineEscapeProb` takes the line-centre optical depth from the cell to the grid edge along 125 directions and the dust/line opacity ratio (Harrington, Cohen & Hess 1984, eqns A1/A5); `resLineHeating` gives the absorbed fraction (1 - f_esc) to the cell's grains in the dust temperature solve (Harrington, Monk & Clegg 1988 sect. 3.2); `initResLinePackets` adds that energy as extra packets from the cell. By default the five heavy-element lines are carried like every other line since D-307, optically thin at their own wavelength, and Lya at 8.15 um (D-372). **Defects:** (1) with line transport on, the lines are also in `linePDF` at full strength (Lya through the (15,8) slot), so the absorbed fraction would be emitted twice; (2) the extra packets are launched as `"diffuse"`, which since D-233 samples the gas's emission only, so dust-absorbed line energy would come out as gas lines and recombination continuum, ionizing photons included, instead of as `"dustEmi"`; (3) `resLinesTransfer` is a run-time switch selecting physics, which D-352 removed everywhere else. Proposed: all six lines by this scheme, as the default, with the absorbed fraction taken out of `linePDF` and re-emitted as dust emission, the escaping fraction sent to the emergent spectrum, and Lya out of the (15,8) slot; a seeded pair on each fixture. | Done (D-376) | 2026-09-27 |
+| D-376 | **The six resonance lines of `resLines.dat` (Lya among them) are destroyed by the local dust with their escape probability in every dust+gas run, and Lya has its own `linePDF` slot at 1216 A (closes L-42, D-375's proposal).** A packet drawn on a resonance line is destroyed with probability 1 - f_esc (Harrington, Cohen & Hess 1984, computed every iteration) and leaves as the cell's dust emission; the grains absorb it through `resLineHeating`, now always on; the escaping fraction is traced thin at the line's frequency (D-375 had proposed sending it straight to the SED - corrected: f_esc is escape from resonant trapping). Upstream's extra-packet relaunch (as gas emission, on top of full-strength lines) is removed; `resLinesTransfer` is retired; escape fractions are checkpointed (`resLineEsc.out`) so `mocassinOutput` reproduces a run byte for byte. **Seeded pairs:** the 8.3 um line is gone and its energy is in the 15-1000 um continuum to 1.00 (hiipdr) / 1.03 (pn150k); total luminosity unchanged. Ionized-zone T_dust now matches Cloudy: hiipdr 0.965 -> 0.996 at A_V 0.30, pn150k 0.94/0.81 -> 1.01/0.98 at A_V 0.05/0.10 (L-19's ionized deficit); PDR grains 0.5-2% cooler; pn150k's PDR FUV -7..-9% (C IV 1549 two-thirds destroyed); fronts, Hbeta, H/H2 crossing, C+ = C, PDR T_gas and every line unchanged within 1%. Dust budget: Lya 0.076 / 0.30 of grain heating, matching its share of the dust IR (0.078 / 0.26). L-19 re-measured: the 0.01-0.44 Ryd excess was the 8 um Lya (0.508 -> 0.346, Cloudy 0.362) but the 1.2-1.3x bolometric excess stays, now in the far-IR. Dust-free Lexington: Lya leaves at 1216 A, everything else within seed scatter. | Done | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31949,3 +31950,230 @@ Tested with a seeded pair on each fixture.
 ### Status
 
 Proposed, awaiting the user. No code changed.
+
+---
+
+## D-376 - Resonance lines destroyed by the local dust, Lya in its own slot (2026-09-27)
+
+The user, on D-375's proposal: "proceed".
+
+### What changed
+
+  - **Lya has its own slot.** `emission_mod`'s `RecLinesEmission` keeps Lya
+    in `LyaEmis` instead of adding it to `HIRecLines(15,8)`. `setLineNuP`
+    gives it the last slot of `linePDF`, at 1215.67 A (`lineTrLya`). It still
+    enters `totalLines`, so the gas's line/continuum split is unchanged.
+    `output_mod` does the same: Lya has a row of its own, "HI 1216 (Lya)",
+    after He II 4686, and the H I 30->8 row is that line alone. `mocassinPlot`
+    stops adding Lya to its 30->8 entry.
+  - **The six resonance lines are found among the stored lines.** These are
+    H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2800 and Si IV 1397.
+    `setLineNuP` builds `lineTrRes(slot)` from `resLines.dat`'s levels.
+    Each component's wavelength in MOCASSIN's own atomic data must be within
+    2% of the file's, or the run stops. That guards against the level
+    numbering having changed with the data files (CHIANTI, D-330). Every
+    component was found on both fixtures.
+  - **The escape probabilities are computed in every iteration of every
+    dust+gas run.** `setResLineEscapeProb` is unchanged except that it zeroes
+    before accumulating. It is called from `emissionDriver` for each cell,
+    zeroed on every rank beforehand and allreduced afterwards.
+  - **The draw.** In `newPhotonPacket`, a diffuse packet drawn on a
+    resonance-line slot is destroyed by the dust with probability
+    1 - f_esc(cell, line). It then leaves the cell as dust emission (a
+    frequency from the cell's `dustPDF`). Otherwise it is traced at the
+    line's own frequency, as every line is. `[D376]` reports per iteration
+    how many were drawn and how many destroyed.
+  - **The grains are heated by the destroyed fraction.** `getDustT`'s
+    `resLineHeating` (Harrington, Monk & Clegg 1988) is always on for dust
+    and gas. It was gated on `resLinesTransfer`.
+  - **Removed:** `initResLinePackets`, `resLinePackets` and the extra-packet
+    loop in `energyPacketDriver`, which launched the destroyed fraction as
+    gas emission on top of full-strength lines, and `lgResLinesFirst`.
+    `resLinesTransfer` is retired as a no-effect keyword (D-352's
+    mechanism). The variable remains only for the grid checkpoint's format.
+    The "dust temperatures may be underestimated" warning that every
+    dust+gas run printed is gone with it.
+  - **Checkpoint.** `writeGrid` writes `output/resLineEsc.out`.
+    `mocassinOutput` and `mocassinWarm` call `initResLines` and
+    `readResLineEsc`, so `lineFlux.out`'s "Resonance Lines Attenuated by dust
+    absorption" table, now printed in every dust+gas run, regenerates from a
+    grid.
+  - **`man/mocassin.1`:** the keyword is documented as retired, with what
+    replaced it. The entry's name `resLineTransfer` is corrected.
+
+### A correction to D-375's proposal
+
+D-375 said the escaping fraction should go straight to the emergent
+spectrum, "f_esc is escape from the nebula". Reading the formula again, it
+is not. The line-centre optical depth accumulates only where the ion exists,
+and the dust term is the emitting cell's own k_d. So f_esc is escape from
+resonant trapping, and once out of the ion's zone the photon meets only
+dust. It is therefore traced, thin, at the line's frequency, and the PDR's
+grains can still absorb it. For Lya it makes no difference, because f_esc is
+~1e-5.
+
+### The runs
+
+  - hiipdr: `runs/d376-hii` (new binary) against `runs/d366-hii` (the
+    committed physics). 31^3, seed 1001, 4 ranks, 11 iterations, 42:50.
+  - pn150k: `runs/d376-pn-new` against `runs/d376-pn-base`. Both built from
+    2bd8123 and this change, seed 1001, 5 ranks, exactly 9 iterations
+    (`maxIterateMC 9 100.`).
+  - Plain flavour: the four Lexington models at 2 ranks
+    (`runs/d376-lex/*/{base,new}`), and PN150 and PN75 at seed 1002 for the
+    scatter.
+
+The three dust+gas runs ran concurrently. The predictions were written
+before any of them (`scratchpad/d376_pred.md`). Tools:
+`tools/d376_resonance.py` (new) and `tools/d285_kpis*.py`.
+
+### Results
+
+**The 8.15 um line is gone, and its energy is in the dust continuum.**
+
+    emergent SED [erg/s]          hiipdr: base -> new         pn150k: base -> new
+    total                         3.0645e39 -> 3.0646e39     3.7963e36 -> 3.7963e36
+    8.3/8.4 um bin                1.705e38  -> 6.46e34       7.128e35  -> 1.26e33
+    15-1000 um                    2.624e39  -> 2.794e39      1.701e36  -> 2.437e36
+      gain                        +1.703e38                  +7.36e35
+      against the 8 um excess     1.705e38 (1.00)            7.12e35 (1.03)
+    6-13.6 eV                     x0.990                     x0.893
+
+**Destroyed fraction ([D376]):**
+  - hiipdr: 0.9958 in iteration 1, then 0.9994-0.99996.
+  - pn150k: 0.957-0.979. Of pn150k's C IV 1549, 2.94 Hbeta intrinsic, 1.01
+    escapes. Of Lya, 23.4 Hbeta, 0.22 escapes. N V, 0.086, is half
+    destroyed.
+
+**The dust budget at the last iteration** gives Lya 0.076 of the grain
+heating on hiipdr and 0.30 on pn150k. Lya's destroyed luminosity over the
+15-1000 um dust emission is 0.078 and 0.26, so `resLineHeating`'s
+normalisation agrees with the Monte Carlo's energy. The upstream term had
+never been run here, so this check matters. The smoke test's 0.60, in its
+second iteration, came from an unconverged ionization, which the analytic
+emissivity follows.
+
+**T_dust.** Medians, and each code's value against Cloudy (`d285_kpis*`):
+
+    hiipdr   ionized x(H+)>0.5 median  53.43 -> 55.35 K (+3.6%)
+             A_V 0.30 (ionized)         54.5 -> 56.3 K; Cloudy 56.5 (0.965 -> 0.996)
+             A_V 0.45 (front)           41.3 -> 42.6 K; Cloudy 42.1 (0.981 -> 1.012)
+             PDR, A_V 0.5-1 ... 2.5-3.5  -0.1 / -0.5 / -1.0 / -1.5 / -2.0%
+             A_V 2.9                    13.2 -> 12.9 K; Cloudy 13.5 (0.978 -> 0.956)
+    pn150k   ionized median             59.91 -> 70.88 K (+18.3%)
+             A_V 0.05                   82.4 -> 88.2 K; Cloudy 87.5 (0.942 -> 1.008)
+             A_V 0.10                   57.2 -> 69.2 K; Cloudy 70.8 (0.808 -> 0.977)
+             PDR, every band            -0.4 to -0.5%
+
+The ionized-zone grains now match Cloudy on both fixtures. That is L-19's
+ionized-gas deficit (D-353: 0.94 and 0.81 of Cloudy), and the missing piece
+was Lya heating the grains, which Cloudy has. In the PDR the grains are
+0.5-2% cooler: the energy now reaches the PDR as far-IR from warmer ionized
+dust, not as 8 um photons, which silicate absorbs better.
+
+**The PDR's FUV field.** hiipdr's changes by -1..+0.7% (C IV is negligible at
+40 kK). pn150k's falls 7-9% at every depth (chi 43.7 -> 40.6 at A_V 0.2),
+because two thirds of its C IV 1549 is now destroyed in the ionized gas
+instead of streaming thin into the PDR.
+
+**Unchanged (both fixtures):**
+  - hiipdr:
+    - Hbeta 9.3004 (D-371's regeneration of the base grid) -> 9.2978;
+    - H+ front 3.843 -> 3.842 pc;
+    - H/H2 crossing 1.443 -> 1.443;
+    - C+ = C 2.273 -> 2.274;
+    - PDR T_gas 23-51 K both;
+    - ionized T_gas within 0.5%;
+    - lines within 1% ([O I] 63 -1.0%, [C II] 158 -0.3%, the rest
+      <=0.14%).
+  - pn150k:
+    - Hbeta 0.027263 -> 0.027260;
+    - H+ front 0.1283 and He2+ front 0.0831 pc both;
+    - H/H2 crossing 0.400 -> 0.399;
+    - PDR T_gas 25-44 K both;
+    - He II 4686, [C II], [O I], [O III], [N II], C IV intrinsic within
+      0.25%;
+    - [C I] 609 +0.85%.
+
+**The bolometric field against Cloudy (L-19, `tools/d307_fieldcmp.py` on
+pn150k).**
+  - MOCASSIN's Fbol over its own thin stellar flux is unchanged:
+    1.300/1.198/1.094 -> 1.298/1.195/1.091 at A_V 0.15/0.30/0.65, against
+    Cloudy's 0.97/0.95/0.95.
+  - Its bands moved. At A_V 0.30 the 0.01-0.44 Ryd share falls 0.508 ->
+    0.346 (Cloudy 0.362), and the <0.01 Ryd share rises 0.390 -> 0.560
+    (Cloudy 0.383).
+  - So L-19's mid-band excess was Lya at 8 um. The 1.2-1.3x bolometric
+    excess is now all far-IR, and the FUV share (0.094 against 0.255) is
+    untouched.
+
+**The plain flavour, dust-free (Lexington).**
+  - Without dust there is nothing to destroy the lines, and Lya only moves
+    slot. HII40's Lya now leaves at 1216 A: 4.72e38 erg/s, 1.2% from its
+    row's 23.67 Hbeta, where 4.70e38 had left at 8 um, 38% of the SED.
+  - The grids are not byte-identical. Moving Lya to the last slot remaps
+    which line each random number selects, and 469 of PN150's 1284 stored
+    lines are ionizing.
+  - The differences are the seed-to-seed scatter, as the table below shows.
+
+    Hbeta new/base            HII40 1.00001, HII20 1.00000, PN150 0.99869,
+                              PN75 0.99989
+    line |ln| median/max      PN150 new-base 0.0018/0.0132 vs seed-seed
+                              0.0008/0.0130
+                              PN75 0.0004/0.0050 vs 0.0020/0.0065
+
+**Round trip.** The new `mocassinOutput` on the pn150k grid reproduces its
+`lineFlux.out` and `lineFluxMol.out` byte for byte, resonance table
+included. On the smoke grid it reproduces `lineFlux.out` too.
+
+### Predictions, scored
+
+  - P1 (8 um bin within 2x its neighbours) holds on hiipdr (1.6x) and
+    fails as worded on pn150k (3.5x). The residual 1.3e33 is the lines that
+    share the bin.
+  - P2 holds: the gain is 1.00x and 1.03x the removed excess.
+  - P3 holds: >=0.9994 and >=0.957.
+  - P4 holds on hiipdr (+3.6% against +2..+6%) and fails on pn150k (+18.3%
+    against +5..+15%). Lya carries 30% of the grain heating there, not the
+    <=30% of the whole I had guessed for the ionized zone alone.
+  - P5, P6 and P7 hold.
+  - P8 holds for chi (-7..-9% against -5..-30%). The H/H2 crossing moved
+    0.25% shallower, inside the 0-5% range but at its bottom.
+  - P9 holds (0.076; 0.30 at the top of 0.15-0.30).
+  - D-375's "MOCASSIN's field at 0.01-0.44 Ryd in the PDR falls" holds for
+    the band. Its implied reading, that L-19's bolometric excess would
+    shrink, is refuted: the energy only moved in frequency.
+
+### Builds
+
+`PDR=1 PDRGEOM=3D mocassin`, `PDR=1 mocassin`, `mocassin` and `PDR=1
+mocassinWarm` all build. So do `mocassinOutput` and `mocassinPlot` in both
+flavours.
+
+### What it means for published numbers
+
+  - Every dust+gas run of this project carried Lya at 8.15 um. That covers
+    both Cloudy pages and "Fine Grids Against Cloudy".
+  - Their ionized-zone T_dust is 3-19% low, and their emergent SEDs carry
+    the false line.
+  - PDR quantities move by <=2% on hiipdr. On pn150k the PDR FUV moves
+    7-9%, but its chemistry and temperature do not.
+  - They are corrected at the rebuild.
+  - The plain flavour's dust-free SEDs carried Lya at 8 um too, and nothing
+    else in them changes.
+
+### Not done, not known
+
+  - `dev` is untouched. It has no line transport, so Lya is dropped there,
+    and its resonance-line option still relaunches the destroyed fraction as
+    gas emission.
+  - The escape probability walks upstream's 125 rotations, which give only
+    the 8 cube diagonals. Not examined.
+  - With several grain species, `resLineHeating` gives each species the
+    whole line (the denominator lacks `grainAbun`). It is harmless on both
+    fixtures, which are single-species since D-313, and is recorded here.
+  - Why MOCASSIN's far-IR field in the PDR is 1.5x Cloudy's share.
+
+### Status
+
+Done. L-42 closed; L-19 re-measured.

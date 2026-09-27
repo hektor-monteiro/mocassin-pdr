@@ -19,6 +19,7 @@ module emission_mod
 
     real                                :: BjumpTemp=0   !
     real                                :: HbetaProb   ! probability of Hbeta
+    real                                :: LyaEmis=0.  ! D-376: this cell's Lya, in HIRecLines' units
     real                                :: log10Ne     ! log10(Ne) at this cell
     real                                :: log10Te     ! log10(Te) at this cell
     real                                :: sqrTeUsed   ! sqr(Te) at this cell
@@ -151,77 +152,21 @@ module emission_mod
         ! set the PDFs for diffuse radiation
         call setDiffusePDF()
 
-        ! set the resonance line escape probabilities
-        if (lgDust.and.convPercent>=resLinesTransfer .and. lgResLinesFirst &
-             & .and. (.not.nIterateMC==1)) then
-           call setResLineEscapeProb(grids,ig,ix,iy,iz)
-        end if
-
-        ! set the extra packets due to dust absorption of resonance lines
-        if (lgDust.and.convPercent>=resLinesTransfer &
-             & .and. (.not.nIterateMC==1)) then
-           call initResLinePackets()
-        end if
+        ! D-376: the resonance lines' escape probabilities, in every MC
+        ! iteration of every dust+gas run. They were computed once, from the
+        ! iteration at which convergence first reached resLinesTransfer, and
+        ! only if that keyword was given - which no run of this project did -
+        ! so every resonance line, Lya included, was carried as optically
+        ! thin. They now decide, packet by packet, which resonance-line
+        ! photons the local dust destroys (photon_mod, the line draw) and how
+        ! much the grains absorb (update_mod, resLineHeating). The extra
+        ! packets initResLinePackets added for the destroyed fraction are
+        ! gone: they were launched as gas emission, and on top of lines that
+        ! linePDF already carried at full strength.
+        if (lgDust .and. nResLines > 0) call setResLineEscapeProb(grids,ig,ix,iy,iz)
 
     contains
 
-      subroutine initResLinePackets()
-        implicit none
-        real                :: lineIntensity
-        integer             :: iRes, imul, n, ai
-
-        species: do n = 1, nSpeciesPart(nspE)
-           do ai = 1, nSizes
-              if (grainRadius(ai) >= componentMinRadius(nspE, n) .and. grainRadius(ai) <= componentMaxRadius(nspE, n)) then
-                 if (grids(iG)%Tdust(n,ai,cellPUsed)>0. .and. &
-                      & grids(iG)%Tdust(n,ai,cellPUsed)<TdustSublime(dustComPoint(nspE)-1+n)) exit species
-              endif
-           end do
-        end do species
-
-        if (n>nSpeciesPart(nspE)) then
-           ! all grains have sublimed
-           grids(iG)%resLinePackets(cellPUsed) = 0
-           return
-        end if
-
-        ! calculate total energy deposited into grains at location icell in grid igrid
-        lineIntensity=0.
-        do iRes = 1, nResLines
-           do imul = 1, resLine(iRes)%nmul
-              if (resLine(iRes)%elem==1) then
-                 if ( resLine(iRes)%ion == 1 .and. resLine(iRes)%moclow(imul)==1 &
-                      & .and. resLine(iRes)%mochigh(imul)==2 ) then
-                    ! fits to Storey and Hummer MNRAS 272(1995)41
-                    lineIntensity = lineIntensity+10**(-0.897*log10(TeUsed) + 5.05)* &
-                         & grids(iG)%elemAbun(abFileUsed,1)*ionDenUsed(elementXref(1),2)*&
-                         &  NeUsed*grids(iG)%Hden(cellPUsed)*dV*&
-                         & (1.-grids(iG)%fEscapeResPhotons(cellPUsed, iRes))
-                 else
-                    print*, "! initResLinePackets: [warning] only dust heating &
-                         &from H Lyman alpha and resonance lines from heavy &
-                         &elements is implemented in this version. &
-                         &Please contact B. Ercolano -1-", ires
-                 end if
-              else if (resLine(iRes)%elem>2) then
-                 lineIntensity = lineIntensity+&
-                      &real(forbiddenLines(resLine(iRes)%elem,resLine(iRes)%ion,&
-                      &resLine(iRes)%moclow(imul),resLine(iRes)%mochigh(imul))*&
-                      & grids(iG)%Hden(cellPUsed)*dV*&
-                      & (1.-grids(iG)%fEscapeResPhotons(cellPUsed, iRes)))
-              else
-                 print*, "! initResLinePackets: [warning] only dust heating from &
-                      &H Lyman alpha and resonance lines from heavy &
-                      &elements is implemented in this version. &
-                      &Please contact B. Ercolano -2-", ires
-              end if
-           end do
-        end do
-
-        ! calculate number of dust emitted extra packets to be transfered from this location
-        grids(iG)%resLinePackets(cellPUsed) = nint(lineIntensity*1.e-16/(Lstar(1)/Nphotons(1)))
-
-      end subroutine initResLinePackets
 
       ! this subroutine calculates the H, He and heavy ions f-b and f-f emission coefficients
       subroutine fb_ff()
@@ -562,9 +507,14 @@ module emission_mod
             end do
         end do
 
+        ! D-376: Lya has its own slot in linePDF (setLineNuP). It used to be
+        ! added to HIRecLines(15,8), which only carried its energy into
+        ! totalLines while line packets were dropped; once they were traced
+        ! (D-292, D-307) every packet drawn there left at the 15->8
+        ! frequency, 8.15 um - 5.6% of hiipdr's emergent luminosity and 18.8%
+        ! of pn150k's (D-372).
         Lalpha = 10**(-0.897*log10Te + 5.05)
-        HIRecLines(15, 8) =HIRecLines(15, 8) + grids(iG)%elemAbun(abFileUsed,1)*&
-             & ionDenUsed(elementXref(1),2)* NeUsed*Lalpha
+        LyaEmis = grids(iG)%elemAbun(abFileUsed,1)*ionDenUsed(elementXref(1),2)* NeUsed*Lalpha
 
         HeIIRecLines = HeIIRecLinedata
 
@@ -908,7 +858,7 @@ module emission_mod
         ! is a property of the gas emission.
         normalize = normHI + normHeI + normHeII
 
-        normRec = 0.
+        normRec = real(LyaEmis)                        ! D-376: Lya, now outside HIRecLines
         do iup = 3, 15
             do ilow = 2, min0(8, iup-1)
                 normRec = normRec+real(HIRecLines(iup, ilow))
@@ -1062,6 +1012,12 @@ module emission_mod
                end if
            end do
         end do
+        ! D-376: Lya last, in the slot setLineNuP gave it after all the others.
+        if (lineTrLya > 0) then
+           lineAcc = lineAcc + real(LyaEmis / grids(iG)%totalLines(cellPUsed))
+           if (lineAcc > 1.) lineAcc = 1.
+           grids(iG)%linePDF(cellPUsed, lineTrLya) = lineAcc
+        end if
         ! The PDF's shortfall below 1 is the mass of the lines with no
         ! frequency bin, which are dropped (D-296).
 
@@ -1559,14 +1515,21 @@ module emission_mod
       double precision, allocatable :: wavLoc(:,:), emLoc(:,:)
       real    :: nuLine
       integer :: iup, ilow, i, j, elem, ion, err
+      ! D-376: which stored line is which resonance line
+      integer, allocatable :: resOfLine(:)
+      integer :: iRes, imul, nThin, nuPLya
+      integer :: nResComp(max(nResLines,1))
+      real, parameter :: wavLya = 1215.67        ! [A], data/resLines.dat's
 
       if (allocated(lineNuP)) return
 
-      allocate(lineNuP(1:nLines), stat=err)
+      allocate(lineNuP(1:nLines), resOfLine(1:nLines), stat=err)
       if (err /= 0) then
          print*, "! setLineNuP: can't allocate lineNuP memory"; stop
       end if
       lineNuP = 0
+      resOfLine = 0
+      nResComp = 0
 
       i = 1
 
@@ -1621,6 +1584,30 @@ module emission_mod
                      if (wavLoc(iup,ilow) > 0.d0) then
                         nuLine = 911.2671/real(wavLoc(iup,ilow))
                         call setOneLineNuP(i, nuLine)
+                        ! D-376: is this a component of a resonance line?
+                        ! (wavLoc and forbiddenLines are (lower, upper), as
+                        ! resLines.dat's moclow/mochigh are.) The data file's
+                        ! level numbers must still be MOCASSIN's: a component
+                        ! whose wavelength disagrees stops the run rather
+                        ! than tagging the wrong transition.
+                        do iRes = 1, nResLines
+                           if (resLine(iRes)%elem /= elem .or. resLine(iRes)%ion /= ion) cycle
+                           do imul = 1, resLine(iRes)%nmul
+                              if (resLine(iRes)%moclow(imul) /= iup .or. &
+                                   & resLine(iRes)%mochigh(imul) /= ilow) cycle
+                              if (abs(wavLoc(iup,ilow) - dble(resLine(iRes)%wav)) > &
+                                   & 0.02d0*dble(resLine(iRes)%wav)) then
+                                 print*, "! setLineNuP: resonance line ", iRes, " (elem", elem, &
+                                      & " ion", ion, ") levels", iup, ilow, " are at", &
+                                      & real(wavLoc(iup,ilow)), " A in the atomic data, not near", &
+                                      & resLine(iRes)%wav, " A - resLines.dat's level numbers", &
+                                      & " no longer match the data file (D-376)"
+                                 stop
+                              end if
+                              resOfLine(i) = iRes
+                              nResComp(iRes) = nResComp(iRes) + 1
+                           end do
+                        end do
                      end if
                      i = i+1
                   end do
@@ -1645,19 +1632,29 @@ module emission_mod
 
       ! D-296. The compact linePDF index: only the lines that reach a
       ! frequency bin are stored.
-      nLinesPDF = count(lineNuP > 0)
+      ! D-376: plus one slot for Lya, last, if it falls inside the grid.
+      nThin = count(lineNuP > 0)
+      nuPLya = 0
+      nuLine = 911.2671/wavLya
+      if (nuLine > nuArray(1) .and. nuLine < nuArray(nbins)) then
+         call locate(nuArray, nuLine, nuPLya)
+         if (nuPLya < 1) nuPLya = 1
+      end if
+      nLinesPDF = nThin
+      if (nuPLya > 0) nLinesPDF = nThin + 1
       if (nLinesPDF < 1) nLinesPDF = 1
 
       allocate(lineTrSlot(1:nLines), stat=err)
       if (err /= 0) then
          print*, "! setLineNuP: can't allocate lineTrSlot memory"; stop
       end if
-      allocate(lineTrNuP(1:nLinesPDF), stat=err)
+      allocate(lineTrNuP(1:nLinesPDF), lineTrRes(1:nLinesPDF), stat=err)
       if (err /= 0) then
          print*, "! setLineNuP: can't allocate lineTrNuP memory"; stop
       end if
       lineTrSlot = 0
       lineTrNuP  = 0
+      lineTrRes  = 0
 
       j = 0
       do i = 1, nLines
@@ -1666,7 +1663,31 @@ module emission_mod
          if (j > nLinesPDF) exit
          lineTrSlot(i) = j
          lineTrNuP(j)  = lineNuP(i)
+         lineTrRes(j)  = resOfLine(i)
       end do
+
+      ! D-376: Lya's slot, and its resonance-line index when the resonance
+      ! lines are treated (dust and gas both present)
+      lineTrLya = 0
+      if (nuPLya > 0) then
+         lineTrLya = nThin + 1
+         lineTrNuP(lineTrLya) = nuPLya
+         do iRes = 1, nResLines
+            if (resLine(iRes)%elem == 1 .and. resLine(iRes)%ion == 1) then
+               lineTrRes(lineTrLya) = iRes
+               nResComp(iRes) = nResComp(iRes) + 1
+            end if
+         end do
+      end if
+      if (taskid == 0) then
+         print*, "! setLineNuP: [D376] Lya has slot ", lineTrLya, " at bin ", nuPLya
+         do iRes = 1, nResLines
+            print '(a,i3,a,a3,i3,f11.3,a,i3,a,i4)', " ! setLineNuP: [D376] resonance line ", iRes, &
+                 & " ", trim(resLine(iRes)%species), resLine(iRes)%ion, resLine(iRes)%wav, &
+                 & " A: ", nResComp(iRes), " stored component(s) of ", resLine(iRes)%nmul
+         end do
+      end if
+      deallocate(resOfLine)
 
       if (taskid == 0) print*, "! setLineNuP: linePDF stores ", nLinesPDF, &
            & " lines per cell (was ", nLines, ")"
@@ -2175,14 +2196,6 @@ module emission_mod
          end if
          grid(iGrid)%fEscapeResPhotons(0:grid(iGrid)%nCells,1:nResLines) = 0.
 
-         ! and the extra packets to be transferred from each location
-         allocate(grid(iGrid)%resLinePackets(0:grid(iGrid)%nCells), stat = err)
-         if (err /= 0) then
-            print*, "! initResLines: can't allocate array memory, resLinePackets"
-            stop
-         end if
-         grid(iGrid)%resLinePackets(0:grid(iGrid)%nCells) = 0
-
       end do
 
       allocate(dustHeatingBudget(0:nAbComponents, 0:nResLines), stat=err)
@@ -2193,6 +2206,48 @@ module emission_mod
       dustHeatingBudget=0.
 
     end subroutine initResLines
+
+  !-----------------------------------------------------------------
+  ! D-376: read back the escape probabilities writeGrid saved, for
+  ! mocassinOutput and mocassinWarm (after initResLines has allocated them).
+  ! A checkpoint without the file, or written for a different line list,
+  ! leaves them at zero and says so.
+  !-----------------------------------------------------------------
+  subroutine readResLineEsc(grid)
+    implicit none
+    type(grid_type), intent(inout) :: grid(*)
+    integer :: ios, iGrid, i, nR, nC
+    character(len=200) :: hdr
+
+    if (nResLines <= 0) return
+    close(41)
+    open(unit=41, file="output/resLineEsc.out", action="read", position="rewind", &
+         & status="old", iostat=ios)
+    if (ios /= 0) then
+       if (taskid == 0) print*, "! readResLineEsc: no output/resLineEsc.out (a checkpoint ", &
+            & "from before D-376) - resonance-line escape fractions left at zero"
+       return
+    end if
+    read(41, '(a)', iostat=ios) hdr
+    do iGrid = 1, nGrids
+       read(41, *, iostat=ios) nR, nC
+       if (ios /= 0 .or. nR /= nResLines .or. nC /= grid(iGrid)%nCells) then
+          print*, "! readResLineEsc: output/resLineEsc.out does not match this model (", &
+               & nR, nC, " against ", nResLines, grid(iGrid)%nCells, ")"
+          stop
+       end if
+       do i = 1, nC
+          read(41, *, iostat=ios) grid(iGrid)%fEscapeResPhotons(i, 1:nResLines)
+          if (ios /= 0) then
+             print*, "! readResLineEsc: output/resLineEsc.out ends early, grid ", iGrid, " cell ", i
+             stop
+          end if
+       end do
+    end do
+    close(41)
+    if (taskid == 0) print*, "! readResLineEsc: resonance-line escape fractions read for ", &
+         & nResLines, " lines"
+  end subroutine readResLineEsc
 
     subroutine setResLineEscapeProb(grids, gPin, xPin,yPin,zPin)
       implicit none
@@ -2271,6 +2326,10 @@ module emission_mod
          compoP = grids(gPin)%abFileIndex(xP,yP,zP)
 
          Pline=0.
+         ! D-376: computed afresh every MC iteration now, and the sum over
+         ! directions below accumulates into this element - it was set once
+         ! at allocation when the routine ran a single time
+         grids(gPin)%fEscapeResPhotons(cellP,iLine) = 0.
 
          ! calculate mean line opacity for this cell
          DeltaNuD = (resLine(iLine)%freq*fr1Ryd/c)*(2.76124e-16*gastemperature0/resLine(iLine)%m_ion)**0.5

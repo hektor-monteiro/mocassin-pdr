@@ -802,13 +802,8 @@ program MoCaSSiNplot
         enddo
 
 
-        ! add contribution of Lyman alpha
-        ! fits to Storey and Hummer MNRAS 272(1995)41
-        Lalpha = 10**(-0.897*log10TeLoc + 5.05)
-
-        HIRecLines(30, 8) =HIRecLines(30, 8) + grid3D(iG)%elemAbun(abFileIndexUsed,1)*&
-             & ionDenUsed(elementXref(1),2)*&
-             & NeUsed*Lalpha
+        ! D-376: Lya is no longer summed into HIRecLines(30,8), which is the
+        ! H I 30->8 line alone, as in output_mod (where Lya has its own row)
 
         HeIIRecLines = HeIIRecLineData
 

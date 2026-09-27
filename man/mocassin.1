@@ -643,11 +643,9 @@ Default value: \fB.false.\fR
 
 
 .TP
-.B resLineTransfer real
+.B resLinesTransfer real
 
-real tells at what level of grid convergence the resonance line photons escape fractions should be calculated. This should be included when both dust and gas are present.
-
-Default value: \fB101.\fR
+Retired (MOCASSIN-PDR D-376): still parsed so old input files run, and ignored. Whenever both dust and gas are present, the resonance lines listed in data/resLines.dat (H I Lyman alpha, C II 1335, C IV 1549, N V 1240, Mg II 2800, Si IV 1397) are destroyed by the local dust with their escape probability (Harrington, Cohen & Hess 1984), in every iteration: the destroyed fraction heats the cell's grains and leaves as the cell's dust emission, and the escaping fraction is traced at the line's own frequency. The "Resonance Lines Attenuated by dust absorption" table of lineFlux.out gives each line's intrinsic and escaping emission, and Lyman alpha has its own row, "HI 1216 (Lya)".
 
 
 
@@ -1023,13 +1021,11 @@ Below is the input.in file used for the dust and gas model of NGC 3918 as descri
   dustFile 'ngc3918/primary_grainspecies.dat' 'ngc3918/primary_grainsizes.dat'
   writeGrid 50.
   convLimit 0.03
-  resLinesTransfer 90.
 
 In summary, it should be clear from the example above that the only keywords that differentiate the file above from the input of a gas-only model are :
 MdMh (dust to hydrogen mass ratio)
 dustFile (files containing the grain size distribution and species information)
-resLinesTransfer (which tells at what level of grid convergence the resonance line photons escape fractions should be calculated).
-Note that the first two keywords that define how much, what type and what size grains are to be used is also needed to run dust-only models (although MdMh could be substituted by Ndust or by MdMg). resLinesTransfer is only needed if there is gas also in the simulation (which would then be emitting resonance lines capable of heating the grains).
+Both are also needed to run dust-only models (although MdMh could be substituted by Ndust or by MdMg). When gas is present too, the resonance lines it emits heat the grains without any further keyword (resLinesTransfer is retired).
 
 .TP
 .B The accessories/ subdirectory

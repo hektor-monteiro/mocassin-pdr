@@ -4190,8 +4190,11 @@ end subroutine iterateT
                         end if
                      end do
 
-                     if (lgGas .and. convPercent>=resLinesTransfer .and. (.not.lgResLinesFirst) .and. &
-                          & (.not.nIterateMC==1) ) then
+                     ! D-376: the grains' share of each resonance line's
+                     ! dust-destroyed fraction, in every dust+gas run and every
+                     ! iteration; it was gated on resLinesTransfer, which no run
+                     ! of this project set, so no grain was ever heated by Lya
+                     if (lgGas .and. nResLines > 0) then
                         dustHeatingBudget(grid%abFileIndex(xp,yp,zp),0) = dustHeatingBudget(grid%abFileIndex(xp,yp,zp),0)+&
                              & dustAbsIntegral*grainWeight(ai)*grainAbun(nspU,nS)*grid%Ndust(cellP)
                         dustHeatingBudget(0,0) = dustHeatingBudget(0,0)+&

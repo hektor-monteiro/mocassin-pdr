@@ -77,6 +77,12 @@ program MoCaSSiNoutput
     ! mocassinWarm and mocassinPlot all read here; without it every He II
     ! line came out zero
     call readData()
+    ! D-376: the resonance lines and the escape fractions the run used, for
+    ! lineFlux.out's "Resonance Lines Attenuated by dust absorption" table
+    if (lgGas .and. lgDust) then
+       call initResLines(grid3D(1:nGrids))
+       call readResLineEsc(grid3D(1:nGrids))
+    end if
 
     if (taskid ==  0) then
         ! determine final statistics

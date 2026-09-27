@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-374, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-376, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -283,6 +283,18 @@ was 9-13%), but in the fully ionized gas T_dust fell 7-8%, to 0.94 and 0.81 of
 Cloudy at A_V 0.05 and 0.10 (was 1.01 and 0.88). The balance swapped two terms
 at once there (3D-PDR's heat(2) and heat(11) for MOCASSIN's photoelHeat_d and
 gasDustColl_d), and which of them supplies the fall is not decomposed.
+**Re-measured at D-376**, with Lya destroyed by the local grains (L-42):
+  - The ionized-zone deficit is gone. pn150k's T_dust is 1.01 and 0.98 of
+    Cloudy at A_V 0.05 and 0.10 (was 0.94 and 0.81); hiipdr's 0.996 at 0.30
+    (was 0.965). The grains had been missing Lya's heat, which Cloudy gives
+    them.
+  - The 0.01-0.44 Ryd excess was Lya carried at 8.15 um. At A_V 0.30 that
+    share is now 0.346 against Cloudy's 0.362 (was 0.508).
+  - The bolometric excess stays (1.09-1.30 of the thin flux against Cloudy's
+    0.95-0.97), and it is now all below 0.01 Ryd: 0.560 against 0.383.
+  - The FUV share is untouched (0.094 against 0.255).
+  - The PDR's grains are 0.5-2% cooler than before, so 0.92-0.93 of Cloudy on
+    pn150k.
 
 **L-25. CLOSED 2026-09-26 (D-354). The chemistry passes oscillated on frozen
 inputs** (D-351). Within an
@@ -570,6 +582,19 @@ excess band (a candidate, not measured). `lineFlux.out` reports Lya in the H I
 30->8 row at 6.28 um. Not on `dev`, which has no line transport. Where Lya's
 energy should go is a design decision; D-372 recommends absorbing it in the
 local dust.
+**CLOSED 2026-09-27 (D-376).**
+  - Lya has its own slot at 1216 A.
+  - The six resonance lines of `resLines.dat` are destroyed by the local dust
+    with their escape probability in every dust+gas run. The destroyed part
+    leaves as dust emission and heats the grains through `resLineHeating`; the
+    rest is traced at the line.
+  - The 8 um line is gone, and its energy is in the 15-1000 um continuum to
+    1.00 (hiipdr) and 1.03 (pn150k).
+  - Fronts, Hbeta, the H/H2 crossing, C+ = C and the lines are unchanged
+    within 1%.
+  - pn150k's PDR FUV falls 7-9%, because C IV is now mostly destroyed.
+  - `resLinesTransfer` is retired, and `lineFlux.out` has a "HI 1216 (Lya)"
+    row.
 
 ### Medium
 

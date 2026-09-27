@@ -30,7 +30,6 @@ module common_mod
     logical         :: lgWarm=.false.           ! warm started?
     logical         :: lgFluorescence=.false.   ! fluorescence run?
     logical         :: lgNeInput=.false.        ! Ne distribution entered
-    logical         :: lgResLinesFirst = .true. ! first time the res lines transfer proc is called?
     logical         :: lgPhotoelectric = .true. ! photoelectric effect on
     logical         :: lgQheat = .false.        ! temperature spiking on?
     logical         :: lgWritePss=.false.       ! write Pss for qHeat file?
@@ -124,6 +123,19 @@ module common_mod
     integer :: nLinesPDF = 0                   ! second extent of linePDF
     integer, allocatable :: lineTrSlot(:)      ! (nLines) -> slot, 0 = not stored
     integer, allocatable :: lineTrNuP(:)       ! (nLinesPDF) -> freq bin, 0 = drop
+    ! D-376. The resonance lines of data/resLines.dat, found among the stored
+    ! slots: lineTrRes(slot) is the resLine index of that slot's line (0 for
+    ! every other line). A packet drawn on a resonance line is destroyed by
+    ! the local dust with probability 1 - fEscapeResPhotons, and re-emitted
+    ! from the cell's dust PDF; otherwise it is traced at the line's own
+    ! frequency. Lya has a slot of its own, the last (lineTrLya): it used to
+    ! ride in the H I 15->8 slot and was traced at 8.15 um (D-372).
+    integer, allocatable :: lineTrRes(:)       ! (nLinesPDF) -> resLine index, 0 = none
+    integer :: lineTrLya = 0                   ! Lya's slot, 0 = outside the frequency grid
+    ! D-376: this rank's resonance-line packets in the current MC iteration -
+    ! drawn, and of those destroyed by the dust. Reset and reported per
+    ! iteration by iterateMC.
+    integer(kind=8) :: nResDrawn = 0, nResDust = 0
     ! D-292. Transport the optically thin diffuse lines. MOCASSIN created them
     ! as packets and discarded them, which removed ~17% of the local FUV field
     ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is
@@ -302,7 +314,6 @@ module common_mod
         integer :: motherP                          ! pointer to the motherGrid
 
         integer, allocatable :: dustAbunIndex(:)        ! dust chemistry file index (cell)
-        integer, allocatable :: resLinePackets(:)       ! extraPackets to be generated cell (cell)
         integer, allocatable :: abFileIndex(:,:,:)      ! abundance file index axxay
         integer, allocatable :: lgConverged(:)          ! has the model converged at this grid cell?
         ! D-155: x(H0) at the START of the MC iteration. The convergence test
@@ -352,6 +363,8 @@ module common_mod
         real, allocatable :: scaOpac(:,:)               ! dust scattering opacity
         real, allocatable :: dustPDF(:,:)               ! dust emission PDF
         real, allocatable :: fEscapeResPhotons(:,:)     ! frac of res line photons escaping (cell,resline)
+                                                        ! D-376: every MC iteration, for every
+                                                        ! dust+gas run
         real, allocatable :: fluorescenceCube(:,:,:)    ! escaped fluorescence packets (ncell,nFluo,nVP)
         real, allocatable :: Hden(:)                    ! density of H [1/cm^3]
         real, allocatable :: Ne(:)                      ! electron density [1/cm^3]
@@ -735,7 +748,8 @@ module common_mod
     real               :: nuMax            ! max nu limit [Ryd]
     real               :: nuMin            ! min nu limit [Ryd]
     real               :: nuStepSize       !
-    real               :: resLinesTransfer ! after what conv percent should the resonant line transfer start?
+    real               :: resLinesTransfer ! D-376: selects nothing - kept only so the
+                                           ! grid checkpoint keeps its format
     real               :: Rnx,Rny,Rnz      ! edges [cm]
     real               :: R_in             ! inner radius [cm]
     real               :: R_out            ! outer radius [cm]

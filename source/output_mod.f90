@@ -306,6 +306,8 @@ module output_mod
         real                        :: g        ! alpha*h*nu (used to calculate line intensities)
         real, allocatable               :: HbetaLuminosity(:) ! MC Hbeta luminosity [E36 erg/sec]
         real, allocatable               :: HbetaVol(:) ! analytical Hbeta vol em  [E36  erg/sec]
+        real, allocatable               :: LyaVol(:)   ! D-376: analytical Lya, as HbetaVol
+        real                            :: LyaCell     ! D-376: this cell's Lya, as HIRecLines
         real                        :: LtotAn   ! HbetaVol * sumAn
         real                        :: LtotMC   ! HbetaLuminosity * sumMC
         real                        :: sumAn    ! sum of the relative an intensities
@@ -359,7 +361,10 @@ module output_mod
         ! allocate and initialize arrays and variables
 
 
-        if (convPercent >= resLinesTransfer .and. lgDust) then
+        ! D-376: the resonance lines are treated whenever there is dust (and
+        ! gas, which outputGas needs anyway); the table no longer waits on a
+        ! convergence level set by the retired resLinesTransfer
+        if (lgDust .and. nResLines > 0) then
            allocate(resLinesVol(0:nAbComponents, 1:nResLines), stat=err)
            if (err /= 0) then
               print*, "! output mod: can't allocate array resLinesVol memory"
@@ -430,7 +435,7 @@ module output_mod
            print*, "! output mod: can't allocate array denominatorTe memory"
            stop
         end if
-        allocate(HbetaVol(0:nAbComponents), stat=err)
+        allocate(HbetaVol(0:nAbComponents), LyaVol(0:nAbComponents), stat=err)
         if (err /= 0) then
            print*, "! output mod: can't allocate array HbetaVol memory"
            stop
@@ -466,6 +471,7 @@ module output_mod
         denominatorTe   = 0.
         g               = 0.
         HbetaVol        = 0.
+        LyaVol          = 0.                                     ! D-376
 #ifdef PDR
         if (lgPDR) then                                   ! D-362
            if (allocated(lnVol362)) lnVol362 = 0.d0
@@ -763,6 +769,8 @@ module output_mod
                        ! Hbeta
                        HbetaVol(abFileUsed) = HbetaVol(abFileUsed) + real(HIRecLines(4,2)*HdenUsed*dV)
                        HbetaVol(0) = HbetaVol(0) + real(HIRecLines(4,2)*HdenUsed*dV)
+                       LyaVol(abFileUsed) = LyaVol(abFileUsed) + LyaCell*HdenUsed*dV   ! D-376
+                       LyaVol(0) = LyaVol(0) + LyaCell*HdenUsed*dV
 if (HbetaVol(0) .ne. HbetaVol(0)) then
   print *,real(HIRecLines(4,2)),HdenUsed,dV
   stop
@@ -856,7 +864,7 @@ endif
                        end if
 #endif
 
-                       if (lgDust .and. convPercent>resLinesTransfer) then
+                       if (lgDust .and. nResLines > 0) then                   ! D-376
 
                           do iRes =1, nResLines
 
@@ -1178,6 +1186,7 @@ endif
                     HIVol(iAb,iup,ilow) = HIVol(iAb,iup,ilow) /HbetaVol(iAb)
                  end do
               end do
+              LyaVol(iAb) = LyaVol(iAb) / HbetaVol(iAb)                ! D-376
 
               ! HeI
               HeIVol(iAb,:) = HeIVol(iAb,:) / HbetaVol(iAb)
@@ -1202,7 +1211,7 @@ endif
 !                 end do
 !              end do
 
-              if (lgDust .and. convPercent>resLinesTransfer) then
+              if (lgDust .and. nResLines > 0) then                          ! D-376
                  do iRes = 1, nResLines
                     resLinesVol(iAb, iRes) = resLinesVol(iAb, iRes)/HbetaVol(iAb)
                     resLinesVolCorr(iAb, iRes) = resLinesVolCorr(iAb, iRes)/HbetaVol(iAb)
@@ -1347,6 +1356,9 @@ endif
               write(10, *) HeIrecLineCoeff(i,1,4), HeIVol(iAb,i)
            end do
            write(10, *) "HeII 4686", HeIIVol(iAb,4,3)
+           ! D-376: Lya's own row. It used to be summed into the H I 30->8
+           ! entry below, and reported under that line's 6.28 um wavelength.
+           write(10, *) "HI 1216 (Lya)", LyaVol(iAb)
            if (lgElementOn(7) .and. lgDataAvailable(7,2)) then
               write(10, *)
               write(10, *) "[NII] 5755", forbVol(iAb,7,2,4,5)
@@ -1429,7 +1441,7 @@ endif
            write(10, *)
            write(10, *)
 
-           if (lgDust .and. convPercent>resLinesTransfer) then
+           if (lgDust .and. nResLines > 0) then                             ! D-376
               write(10,*) " Resonance Lines Attenuated by dust absorption"
               write(10,*) " Line                               Uncorrected         Corrected"
               do iRes = 1, nResLines
@@ -1756,6 +1768,7 @@ endif
         end do ! end of pass_idx loop
 
         if (allocated(HIVol)) deallocate(HIVol)
+        if (allocated(LyaVol)) deallocate(LyaVol)                    ! D-376
         if (allocated(HeIVol)) deallocate(HeIVol)
         if (allocated(HeIIVol)) deallocate(HeIIVol)
         if (allocated(ionDenVol)) deallocate(ionDenVol)
@@ -1776,7 +1789,7 @@ endif
            if (allocated(cMap)) deallocate(cMap)
            if (allocated(flam)) deallocate(flam)
         end if
-        if (convPercent >= resLinesTransfer .and. lgDust) then
+        if (lgDust .and. nResLines > 0) then                                ! D-376
            if (allocated(resLinesVol)) deallocate(resLinesVol)
            if (allocated(resLinesVolCorr)) deallocate(resLinesVolCorr)
         end if
@@ -2517,10 +2530,10 @@ endif
 
         ! add contribution of Lyman alpha
         ! fits to Storey and Hummer MNRAS 272(1995)41
+        ! D-376: into LyaCell, reported on its own row; HIRecLines(30,8) is the
+        ! H I 30->8 line alone
         Lalpha = 10**(-0.897*log10Te + 5.05)
-        HIRecLines(30, 8) =HIRecLines(30, 8) + elemAbundanceUsed(1)*&
-             & ionDenUsed(elementXref(1),2)*&
-             & NeUsed*Lalpha
+        LyaCell = elemAbundanceUsed(1)*ionDenUsed(elementXref(1),2)*NeUsed*Lalpha
 
         ! reinitialise HeIIRecLines
         ! file used to be read in here

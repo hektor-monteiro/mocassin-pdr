@@ -108,10 +108,14 @@ program MoCaSSiNwarm
       ! lgDebug. D-307 made transport the default, and setDiffusePDF stopped
       ! with "linePDF unallocated with line transport on". Same order as
       ! mocassin.f90: setLineNuP settles nLinesPDF, then the arrays are sized.
+      ! D-376: the resonance lines first, as mocassin.f90 does, and the escape
+      ! fractions the checkpointed run used
+      if (lgDust) call initResLines(grid3D(1:nGrids))
       call setLineNuP()
       do iGrid = 1, nGrids
          call allocLineArrays(grid3D(iGrid))
       end do
+      if (lgDust) call readResLineEsc(grid3D(1:nGrids))
     endif
 
     if (taskid == 0) then

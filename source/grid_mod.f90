@@ -3218,6 +3218,30 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
         ! close file
         close(40)
 
+        ! D-376: the resonance lines' escape probabilities, so that
+        ! mocassinOutput and a warm start see the fractions the run used
+        ! (the "Resonance Lines Attenuated" table in lineFlux.out, and the
+        ! line draw). One line per grid: nResLines, nCells; then one line per
+        ! active cell.
+        if (allocated(grid(1)%fEscapeResPhotons)) then
+           close(41)
+           open(unit=41, file="output/resLineEsc.out", action="write", position="rewind", &
+                & status="unknown", iostat = ios)
+           if (ios /= 0) then
+              print*, "! writeGrid: can't open file for writing - output/resLineEsc.out"
+              stop
+           end if
+           write(41, '(a)') "# resLineEsc v1 (D-376): per grid, nResLines and nCells, then"// &
+                & " fEscapeResPhotons(cell, 1:nResLines) for cells 1..nCells"
+           do iG = 1, size(grid)
+              write(41, *) size(grid(iG)%fEscapeResPhotons, 2), grid(iG)%nCells
+              do i = 1, grid(iG)%nCells
+                 write(41, *) grid(iG)%fEscapeResPhotons(i, :)
+              end do
+           end do
+           close(41)
+        end if
+
         print*, 'out writeGrid'
       end subroutine writeGrid
 

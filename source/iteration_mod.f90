@@ -51,7 +51,6 @@ module iteration_mod
            real, allocatable :: budgetTemp(:,:)      ! temporary dust heating budget array
            real, allocatable :: dustPDFTemp(:,:)     ! temporary dust emission PDF array
            real, allocatable :: escapedPacketsTemp(:,:,:)!temporary escaped packets array
-           real, allocatable :: fEscapeResPhotonsTemp(:,:) ! temporary escape res line phot
 #ifdef PDR
            integer :: i1PdrStuck                             ! cells whose chemistry stalled
            real, allocatable :: pdrHeatTmp(:), pdrHeatSum(:)
@@ -144,7 +143,6 @@ module iteration_mod
            real                   :: totheatdust     ! total dust heating
 
            integer, allocatable       :: planeIonDistributionTemp(:,:)
-           integer, allocatable       :: resLinePacketsTemp(:) ! temporary array for extra packets
            integer                :: err             ! allocation error status
            integer                :: freq,nS         ! counters
            integer                :: ifreq, ian      ! counters
@@ -379,33 +377,13 @@ module iteration_mod
               end if
            end if
 
-           ! check if min convergence was reached to carry out resonant line transfer
-           if (lgDust .and. lgGas .and. convPercent>=resLinesTransfer .and. lgResLinesFirst &
-                &.and. (.not.nIterateMC==1)) then
-
-              call initResLines(grid(1:nGrids))
-
+           ! D-376: the resonance lines' escape probabilities are recomputed in
+           ! every iteration of a dust+gas run (initResLines ran at start-up,
+           ! before setLineNuP). Each cell's are set by the rank that sets its
+           ! PDFs, so zero them everywhere and sum across ranks afterwards.
+           if (lgDust .and. lgGas .and. nResLines > 0) then
               do iG = 1, nGrids
-                 if (allocated(fEscapeResPhotonsTemp)) deallocate(fEscapeResPhotonsTemp)
-                 allocate(fEscapeResPhotonsTemp(0:grid(iG)%nCells, 1:nResLines), stat &
-                      &= err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate array&
-                         & memory:fEscapeResPhotonsTemp"
-                    stop
-                 end if
-                 fEscapeResPhotonsTemp = 0.
-
-                 if (allocated(resLinePacketsTemp)) deallocate(resLinePacketsTemp)
-                 allocate(resLinePacketsTemp(0:grid(iG)%nCells), stat &
-                      &= err)
-                 if (err /= 0) then
-                    print*, "! iterateMC: can't allocate array&
-                         & memory:resLinePacketsTemp"
-                    stop
-                 end if
-                 resLinePacketsTemp = 0
-
+                 grid(iG)%fEscapeResPhotons = 0.
               end do
            end if
 
@@ -562,31 +540,12 @@ module iteration_mod
                  if ( allocated(recPDFTemp) ) deallocate(recPDFTemp)
               end if
 
-              ! check if min convergence was reached to carry out resonant line transfer
-              if (lgDust .and. lgGas .and. convPercent>=resLinesTransfer .and. lgResLinesFirst &
-                   &.and. (.not.nIterateMC==1)) then
-
-                 if (iG==nGrids) lgResLinesFirst = .false.
-
+              ! D-376: the escape probabilities onto every rank, every
+              ! iteration - the line draw reads them for any cell
+              if (lgDust .and. lgGas .and. nResLines > 0) then
                  size = (grid(iG)%nCells+1)*nResLines
-
-                 call mpi_allreduce(grid(iG)%fEscapeResPhotons, fEscapeResPhotonsTemp, size, &
+                 call mpi_allreduce(MPI_IN_PLACE, grid(iG)%fEscapeResPhotons, size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
-
-                 grid(iG)%fEscapeResPhotons(0:grid(iG)%nCells, 1:nResLines) = fEscapeResPhotonsTemp
-
-                 size = grid(iG)%nCells+1
-
-                 if (allocated(fEscapeResPhotonsTemp)) deallocate(fEscapeResPhotonsTemp)
-                 call mpi_allreduce(grid(iG)%resLinePackets, resLinePacketsTemp, size, &
-                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
-
-                 grid(iG)%resLinePackets(0:grid(iG)%nCells) = resLinePacketsTemp
-
-                 if (allocated(resLinePacketsTemp)) deallocate(resLinePacketsTemp)
-
-                 call mpi_barrier(mpi_comm_world, ierr)
-
               end if
 
 
@@ -615,6 +574,8 @@ module iteration_mod
 
 
            totalEscaped = 0
+           nResDrawn = 0                    ! D-376
+           nResDust  = 0
 
            do iG = 1, nGrids
               grid(iG)%escapedPackets(0:grid(iG)%nCells, 0:nbins,0:nAngleBins) = 0.
@@ -695,6 +656,19 @@ module iteration_mod
                  end do
               end do
 
+           end if
+
+           ! D-376: how many diffuse packets were drawn on a resonance line,
+           ! and how many of those the local dust destroyed (re-emitted from
+           ! the cell's dust PDF)
+           if (nResLines > 0) then
+              call mpi_allreduce(MPI_IN_PLACE, nResDrawn, 1, MPI_INTEGER8, mpi_sum, &
+                   & mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, nResDust, 1, MPI_INTEGER8, mpi_sum, &
+                   & mpi_comm_world, ierr)
+              if (taskid == 0) print '(a,i4,a,i14,a,i14,a,f8.5)', " ! [D376] iteration ", nIterateMC, &
+                   & ": resonance-line packets drawn ", nResDrawn, ", destroyed by dust ", &
+                   & nResDust, ", fraction ", real(nResDust)/real(max(nResDrawn,1_8))
            end if
 
 
@@ -2269,8 +2243,7 @@ module iteration_mod
                  call mpi_allreduce(TdustTemp,grid(iG)%Tdust,size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
 
-                 if (lgGas .and. convPercent>=resLinesTransfer .and. (.not.lgResLinesFirst) &
-                      & .and. .not.(nIterateMC==1)) then
+                 if (lgGas .and. nResLines > 0) then                     ! D-376
 
                     allocate(budgetTemp(0:nAbComponents,0:nResLines), stat=err)
                     if (err /= 0) then
@@ -2862,8 +2835,7 @@ module iteration_mod
                       &int(grid(iG)%noIonBal),"% Ion balance not reached in grid ", iG
                  write(21,*) "! iterateMC: [Summary] Iteration ",nIterateMC,'; ', &
                       &int(grid(iG)%noTeBal),"% Te balance not reached in grid", iG
-                 if (lgGas .and. convPercent>=resLinesTransfer .and. .not.lgResLinesFirst .and. &
-                      & (.not. nIterateMC==1) ) then
+                 if (lgGas .and. nResLines > 0) then                     ! D-376
                     write(21,*) "! iterateMC: [Summary] Iteration ",nIterateMC,'; '
                     write(21,*) "Dust Budgets: "
                     do icomp = 0, nAbComponents
@@ -2882,8 +2854,7 @@ module iteration_mod
 
            end do
 
-           if (lgDust .and. convPercent>=resLinesTransfer .and. lgGas .and. &
-                & (.not. nIterateMC==1) .and. (.not.lgResLinesFirst)) dustHeatingBudget = 0.
+           if (lgDust .and. lgGas .and. nResLines > 0) dustHeatingBudget = 0.      ! D-376
 
            totCells = 0
            do iG =1,nGrids

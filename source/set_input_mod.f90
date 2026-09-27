@@ -221,9 +221,11 @@ module set_input_mod
                !print*, keyword
                lgDustScattering = .false.
             case("resLinesTransfer")
+               ! D-376: retired - the resonance lines are always treated when
+               ! dust and gas are both present. Still parsed, so old inputs run.
                backspace 10
-               read(unit=10, fmt=*, iostat=ios) keyword, resLinesTransfer
-               !print*, keyword, resLinesTransfer
+               read(unit=10, fmt=*, iostat=ios) keyword
+               call retiredKeyword(keyword, .false.)
             case("multiGrids")
                backspace 10
                read(unit=10, fmt=*, iostat=ios) keyword, nGrids, gridList
@@ -908,10 +910,6 @@ module set_input_mod
         if (lgPlaneIonization .and. lg2d) then
            print*, "! readInput: planeIonization and 2D options are not compatible"
            stop
-        else if (resLinesTransfer >= minConvergence .and. resLinesTransfer /= 101. .and. lgDust) then
-           print*, "! readInput: the min convergence level assigned to the calculation of &
-                &the resonant lines transfer is higher or equal to that assigned by maxIterateMC"
-           stop
         else if (.not.allocated(abundanceFile) .and. lgGas) then
            print*, "! readInput: no elemental abundance file has been specified"
            stop
@@ -1050,16 +1048,6 @@ module set_input_mod
         ! (DEVLOG D-025 fixed one instance; D-046 found six more, the earliest
         ! of which shadowed 27 fatal validations for any dust+gas model).
 
-        if (resLinesTransfer >= 100.5 .and. lgDust .and. lgGas) then
-           print*, "! readInput: [warning] both dust and gas processes have been activated, but the &
-                &resonanceLinesTransfer keyword is absent. The dust temperatures may be underestimated!!!!"
-        end if
-
-        if (resLinesTransfer <= 100 .and. (.not.lgDust .or. .not.lgGas)) then
-           print*, "! readInput: [warning] both dust and gas processes must be activated, to use the&
-                &resonanceLinesTransfer keyword. Reset to 101."
-           resLinesTransfer = 101.
-        end if
 
         if ( lgDebug .and. .not.(lgGas) ) then
            print*, "! readInput: debugging mode can only be used when a gas component is present. &
@@ -1144,6 +1132,9 @@ module set_input_mod
                why = "D-352: metallicity is MOCASSIN's abundances and dust; the chemistry reads the measured grain area"
             case ("pdrGrainRadius")
                why = "D-352: grain sizes are MOCASSIN's size distribution"
+            case ("resLinesTransfer")
+               why = "D-376: with dust and gas, resonance lines are always destroyed by the local dust"// &
+                    & " with their escape probability, from the first iteration"
             case default
                why = "D-352"
             end select

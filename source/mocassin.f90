@@ -134,6 +134,9 @@ program MoCaSSiN
       ! D-296: setLineNuP first - it settles nLinesPDF, the compact extent
       ! linePDF is allocated with. Its inputs (nuArray, HeIrecLineCoeff,
       ! dataFile/lgDataAvailable) are all in place by this point.
+      ! D-376: with dust, the resonance lines first, so that setLineNuP can
+      ! tell which stored lines they are
+      if (lgDust) call initResLines(grid3D(1:nGrids))
       call setLineNuP()
       do iGrid = 1, nGrids
          call allocLineArrays(grid3D(iGrid))
