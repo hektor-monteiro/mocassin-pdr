@@ -358,6 +358,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-356 | **The user's four observations against Cloudy, measured channel by channel on both fixtures. (2) The ionized-zone molecular excess (H2 3e4-2e5x, CO to 1e14x, HCO+ to 1e20x) is a MOCASSIN defect: inside the chemistry solve the linked ions recombine with no ionization source, so the H II region's molecules are computed in neutral 9-20 kK gas (solver x(H) = 1, x(H+) = 1e-3, x_e = 1e-3 of MOCASSIN's) and only the atoms are re-imposed after - two x(H+) in one cell; O-03 diagnosed. H2 grain formation runs 5000x Cloudy's on that n(H); photodissociation per H2 agrees to 15%; Cloudy's H2 photoionization (54-81% of its loss) is absent. (3) H3+: follows H2 in the ionized zone, goes as n(H2)^2 through the transition (39x H2 -> 1600x), plus HeH+ routes absent; deep formation agrees to 1-3%, the 3-4x excess is the electron deficit. (4) Oxygen closes to 3e-5; molecules hold <= 3e-4 of O. (1) Cloudy's approximations bound at order unity; the gaps are chemistry.** `pdrDiagRates 2`, `tools/d356_channels.py`, `tools/d356_compare.py`; D-258's H2+/CH5+ label swap found still live. Fix options A/B/C put to the user. | Open | 2026-09-26 |
 | D-357 | **`species_reduced.d` relabelled: lines 4 and 6 (zero-based slots 3 and 5) now read CH5+ and H2+, as the generated ODE integrates them (D-258's finding, never applied). Labels only: H2+/H3+/CH5+ now balance to <4e-5 with no correction; front, H/H2 crossing, C+ = C, T_gas (1.000-1.001) and T_dust unchanged; convergence identical through iteration 6.** Name-based consumers corrected: the chemical-heating table's H2+ terms, the D-258/D-356 diagnostics. `runs/d357-labels`. | Accepted | 2026-09-26 |
 | D-358 | **The chemistry solve runs on MOCASSIN's own ionization and recombination rates (D-356 option A, the user's choice).** ionBalance stores per cell each linked neutral's photoionization (and H's collisional ionization) and alphaTot, plus H2 -> H2+ from the MC field and yanH2xSec; pdrStep adds them to the network's first-order slots (H/He/C/O + CRP, Mg + CRPHOT, H2 + CRP), zeroes the network's own C/Mg photoionization, and gives the linked radiative recombinations MOCASSIN's coefficient. `[D358]` reports the solver's X+/X against MOCASSIN's. **Result: in H II cells the solver's ionization now equals MOCASSIN's (was neutral); ionized-zone H2 vs Cloudy 3e4-2e5x -> 5-25x (hiipdr), 2e3-2e5x -> 19-71x (pn150k), destroyed like Cloudy's (photoionization 70/83% vs 65/81%); CO 1e11-1e14x -> 51-8e3x (hiipdr); OH and H3+ in H II gas now below Cloudy (H- and radiative associations absent); nothing past the fronts moved (crossings 1.444 / 0.405 unchanged). Prediction (a) failed as stated: the PDR's H+ differs because the network has H+ channels MOCASSIN's ionBalance lacks (O-05). Exposed: one ion carrier per element (pn150k inner CO 3e7x), grain H2 formation 5-25x Cloudy's.** | Accepted | 2026-09-26 |
+| D-359 | **Both Cloudy artifacts rebuilt on the D-358 code: hiipdr v16 (`runs/d358-hii`) and 150 kK PN v14 (`runs/d358-pn`).** New figures; a new section on each page explaining the neutral-solver defect (D-356), the fix (D-358) and the label correction (D-357), with before/after ionized-zone ratios, the matched destruction channels, what Cloudy's own approximations can and cannot account for, and what stays open (grain H2 formation, H-/radiative associations absent, HCO+, one ion carrier per element); changed selected-depth rows, Reading-it bullets, meta and provenance; hiipdr's O-03 register row closed. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30129,3 +30130,46 @@ What the fix exposed, recorded as open:
      H2+ + e-, the competing sink, is fitted for 10-300 K and extrapolated
      to 1e4 K (reaction 216). Whether Cloudy's H2+ is destroyed faster there
      is not yet checked.
+
+---
+
+## D-359 - Both Cloudy artifacts rebuilt on the D-358 code (2026-09-26)
+
+The user asked for the pages to be updated after D-358. No new runs: the
+D-358 verification runs are on the committed code, and `pdrDiagRates 2` is
+physics-neutral (D-356).
+
+  - **hiipdr Against Cloudy, version 16**
+    (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx), from
+    `runs/d358-hii`. The three Roellig figures are redrawn. A new "Since
+    version 15" section covers the neutral-solver defect, the fix, the
+    ionized-zone ratio table (H2 2.3e5-2.9e4 -> 4.7-25; CO 2e11-7e6 ->
+    8e3-51; OH and H3+ now below Cloudy; HCO+ 4e5-5e6), and H2 destroyed as
+    Cloudy destroys it (70/29 against 65/33). It says what Cloudy's
+    outward-only field and escape probabilities can and cannot account for,
+    and what did not move. Updated elsewhere:
+    - the lede and meta;
+    - the selected-depth rows at A_V 0.30-1.50;
+    - the deep-CO bullet (85-136x);
+    - the ionized-gas molecules bullet, rewritten;
+    - the O-03 register row, marked closed.
+  - **150 kK PN Against Cloudy, version 14**
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV), from
+    `runs/d358-pn`. Redrawn figures, and a new "Since version 13" section:
+    the defect and fix, the ratio table (H2 2.2e5-2.4e3 -> 19-71; CO, OH
+    and HCO+ down by up to eight decades), the H2+ return path at the front,
+    and the one-ion-carrier explanation of the inner-zone CO/OH/HCO+ (L-32).
+    Updated elsewhere:
+    - the selected-depth rows at A_V 0.05-0.30;
+    - the fourth figures of five line-table entries;
+    - the Reading-it H2 bullet;
+    - the cost table (37 min);
+    - the meta and provenance.
+
+Both ledes were first drafted overstating ("within one to four decades",
+"10-10^7x") and were corrected to the per-species figures before publishing.
+HCO+ is not within those ranges.
+
+### Status
+
+Accepted.
