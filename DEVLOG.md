@@ -31111,6 +31111,27 @@ effect on hiipdr's headline numbers is being measured separately
 `tools/d365_noise.py` for fixtures whose PDR is shallower than hiipdr's. All
 four flavours build.
 
+### Converged impact on hiipdr (runs/d366-hii: 31^3, 11 iterations, 4 ranks, fixed)
+
+Against the published `runs/d363-hii` (same input, 14 ranks, so a different
+random stream - the differences below include run-to-run scatter):
+
+    A_V band (shell medians)   0.5-1   1-1.5   1.5-2   2-2.5   2.5-3.5
+    chi                        0.94    1.02    1.08    1.16    1.17
+    T_dust                     0.99    1.00    1.00    1.01    1.01
+    T_gas                      1.00    1.00    1.01    1.06    1.00
+    x(H2), x(C+), x(C)         within 0.96-1.07
+    x(CO)                      1.12    0.94    0.90    0.90    0.88
+
+Headline numbers: front 3.840 -> 3.843 pc, H/H2 crossing A_V 1.447 -> 1.443,
+C+ = C 2.258 -> 2.273, deep C+ still 0.21-0.34 of Cloudy, every line in the
+page's table within 1% ([O I] 63 0.0551 -> 0.0550, [C II] 158 0.181 -> 0.183),
+Hbeta +0.24%. The direction pattern is gone (axis and planes within +-0.02).
+**So the published hiipdr numbers survive the fix, except per-cell maps and
+deep CO (~10%).** Not explained: why a 16-17% stronger deep FUV field leaves
+deep x(C+) unmoved; the deep C+ deficit at 31^3 is the packet-count effect
+D-365 measured, not this.
+
 ### Status
 
-Done. The converged hiipdr impact and the pn150k result follow.
+Done. The pn150k result follows.
