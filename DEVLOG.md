@@ -364,6 +364,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-362 | **The C, C+ and O lines in lineFlux.out now come from the chemistry's level populations - the ones the thermal balance cools by - replacing MOCASSIN's electron-only rows where the chemistry has the carrier; CO lines in the new lineFluxMol.out; per-cell emissivities checkpointed in pdrLineEm.out (mocassinOutput reproduces a run byte for byte).** One extra level solve at the cell's own T, inert: every physics file byte-identical to runs/d358-*. [O I] 63+145 0.0063 -> 0.280 Hbeta on pn150k (Cloudy 0.202), 0.0016 -> 0.059 on hiipdr (Cloudy 0.0062); [C II] 158 0.213 / 0.194 (Cloudy 0.311 / 0.134). Predictions (c,d,f) failed: 74-92% of [O I] comes from unresolved front cells (L-37), and in H II gas the chemistry's atoms shift C II] 2325 x1.16-1.22 and [C I] 9850 x0.66 against CHIANTI (L-38). New diagnostic: the balance's coolant table misses an exact solve by mean 8-50%, up to x3 per cell (L-36). Two output defects found by the checks and fixed. Lexington: D-360 vs D-362 identical on every benchmark quantity; HII20's baseline had H I lines at 1e17 Hbeta (fixed by D-361); this branch sits 1-2 lines per model fewer in range than dev at D-270, unattributed. D-360's Cloudy values and cooling subset corrected. | Accepted | 2026-09-26 |
 | D-363 | **One atom per ion (the user's choice after L-38 was explained): MOCASSIN's own C I, C II and O I atoms take the chemistry's H, H+, He and o/p-H2 collision rates and its per-transition escape probabilities, and serve the thermal balance at every trial T, the diffuse line emission and lineFlux.out; the D-133 substitution and D-362's output substitution are retired; the atoms' table passes are gone (L-36 now CO only).** Plain flavour byte-identical on all four Lexington models. The two atoms agree to 0.4-7% in neutral gas; H II lines back on CHIANTI (C II] 2325 +2.1%/+0.1% of D-361); [C II] 158 -7%, [O I] 63 within 3%; front and crossing within 0.7%. Both PDRs 1-4% colder (7% at pn150k A_V 0.2), further from Cloudy - hiipdr's sign was predicted wrong (pooled table sums are warm-cell dominated). No speed-up (predicted 10-30%). The round trip found resetGrid rounding H2den differently from the D-200 damping (7e-8 in [C I] 370); fixed, now byte-identical. pdrLineEm.out v2 carries the escape probabilities. | Accepted | 2026-09-27 |
 | D-364 | **Both Cloudy artifacts rebuilt on the D-363 code: hiipdr v17 (`runs/d363-hii`) and 150 kK PN v15 (`runs/d363-pn`).** Redrawn figures; a new section on each page on the fine-structure lines (what was wrong, one atom per ion, line tables against Cloudy, [O I] set by unresolved front cells, the 1-4% colder PDR, the D-361 H I fix), with the CO ladder on pn150k; pn150k's line table now lists [C II] 158, [O I] 63/145, [C I], C II] 2326 and CO in place of the chemistry's coolant totals. hiipdr's stale '0.77-0.82x Cloudy beyond A_V 1.5' corrected to 0.61-0.80x from its own table. | Accepted | 2026-09-27 |
+| D-365 | **hiipdr at twice the resolution (61^3, 7 ranks - all the memory allows) with packets doubling from 6.25e7: MC noise per cell falls ~5x as predicted, deep carbon recovers, and [O I] 63 falls from 9.5x to 5.5x Cloudy, confirming L-37. The per-cell map is now limited by a fixed grid-direction pattern in MOCASSIN's field (new L-39), and the H II region is not converged in 11 iterations at either resolution (new L-40).** An upstream autoPackets defect counted the first star twice and capped the run at 5e8 of the requested 1e9; fixed (`nPhotonsTot = 0`). Iteration-to-iteration noise in the FUV field at 5e8: 0.8/1.5/2.8/4.8% at A_V 1-1.5/1.5-2/2-2.5/2.5-3.5, against L-26's 7/14/22% at 6e6 on 31^3. The scatter about the radial profile barely moves (0.16 at A_V 1.5-2 from 1.25e8 to 5e8) because cells deviate the same way every iteration (r = 0.95-1.00): +29% along the axes, -16% on the diagonals, +44% on the symmetry planes at A_V 2.5-3.5, the same at 31^3 (+24/-17/+41%); T_dust carries it too (+3.0/-1.7/+3.7%), so it is transport, not chemistry. C+ = C A_V 2.26 -> 2.72 (Cloudy 2.95), deep C+ x3.7, n_e at A_V 2.5 0.3 -> 0.92 of Cloudy. [O I] 63's front-cell part scales 0.53x for half the cell size. Front 3.830 -> 3.699 pc (Cloudy 3.765) and still moving 0.008 pc per iteration at iteration 11; the 31^3 22-iteration runs sit at 3.787 pc. Hbeta 8.82 -> 8.19 E36 against Cloudy's 9.95. pn150k 81^3 launched on 3 ranks with the fix | Open | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30790,3 +30791,205 @@ and the tags balance on both pages.
 ### Status
 
 Accepted.
+
+---
+
+## D-365 - hiipdr at twice the resolution, packets rising toward 1e9 (2026-09-27)
+
+### Request
+
+"Run models for hiipdr and pn150k, one at a time, with twice the grid
+resolution, letting the number of packets increase until 1e9. Let's see how
+much the signal can be improved. Adjust the number of CPUs to fit the available
+memory."
+
+### Setup
+
+Twice the resolution is the same box with half the spacing: hiipdr 31^3 ->
+61^3 (0.648 -> 0.324 pc), pn150k 41^3 -> 81^3 (0.0152 -> 0.0076 pc). Every
+other input line is `runs/d363-*`'s, including seed 1001 and
+`maxIterateMC 11 90.`.
+
+**Memory, measured, not modelled.** Two 2-rank probes at the target grids
+(`runs/d365-probe-*`, killed after iteration 1's transport), cgroup
+`memory.peak`: hiipdr 61^3 **4.5 GB per rank**, pn150k 81^3 **10.3 GB per
+rank**. The documented model (234 MB + 10.47 kB/cell) predicts 2.6 and 5.8 GB;
+it has understated every fixture since D-243. With ~47 GB available and the
+~31 GB budget the memory note sets (systemd-oomd), hiipdr gets **7 ranks** and
+pn150k **3**. hiipdr's peak rose from 31.6 GB at iteration 1 to 34.8 GB by
+iteration 11 (4.97 GB per rank), so the probes understate the peak by ~10%.
+
+**Packets.** `nPhotons 62500000` and `autoPackets 1000. 2. 1.e9`. The
+improvement test is disabled (1000.) on purpose: with the usual 0.20, the 31^3
+convergence history would have doubled only at iterations 5, 6, 10 and 11 and
+never reached 1e9 in 11 iterations. With it disabled the count doubles after
+every iteration from the first one with `totPercentOld > 0`.
+
+**Snapshots.** A second systemd unit copies the grid, chemistry and budget
+files after each iteration's `writeGrid` into `snaps/itNN`, so the noise can be
+measured at every packet count inside one run. The last snapshot raced the
+end-of-run rewrite of the grid files and was refreshed from `output/`; the
+pn150k script now does that itself. A third unit records `memory.peak`, which
+vanishes with the run's unit.
+
+### An upstream defect: the packet cap was half what was asked
+
+The run stopped doubling at 5e8. `iteration_mod`:
+
+    nPhotonsTot = nPhotons(1)
+    do iStar=1, nStars
+       nPhotonsTot = nPhotonsTot+nPhotons(iStar)
+
+counts the first star twice, so with one star `nPhotonsTot < maxPhotons` fails
+at maxPhotons/2. It has been there since the initial import (38aca36). Fixed
+by starting the sum at 0. All four flavours build. hiipdr ran iterations 6-11
+at 5e8, not 7-11 at 1e9 as planned.
+
+### Cost
+
+hiipdr, 7 ranks: 3 h 53 min. Iteration 1 3.7 min, 2-3 13 min each (6.25e7),
+4 21 min (1.25e8, first chemistry), 5 20 min, 6-11 26-29 min (5e8). Transport
+is cheap: 6.25e7 packets take ~2 min on 7 ranks, i.e. ~7e4 packets per second
+per rank at 61^3. The per-cell ionization/thermal balance (~11 min) and the
+chemistry (~6 min) dominate at these packet counts.
+
+### Noise: the MC part fell as predicted, and it is no longer what limits a map
+
+New tool `tools/d365_noise.py`. The model is spherically symmetric, so every
+cell at one radius should hold the same answer: it measures each quantity's
+robust fractional scatter (1.4826 MAD of ln q) about its own median radial
+profile, by A_V band, reading only grid0/grid1/pdrGrid so it works on
+snapshots. A second measure (`scratchpad/d365_pair.py`) compares the same cells
+in two consecutive iterations, which isolates the MC draw: the seed is
+re-mixed on every call (D-334), so iterations draw independent packets.
+
+**MC noise per cell per iteration** (pair measure, FUV field, 5e8, 61^3):
+
+    A_V      0.5-1   1-1.5   1.5-2   2-2.5   2.5-3.5
+    noise    0.3%    0.8%    1.5%    2.8%    4.8%
+
+against L-26's four-seed scatter of 2-4%, 7%, 14%, 22% at 6e6 on 31^3. Tracks
+per cell scale as packets x (cell size)^2 = 5e8/6e6 x 1/4 = 21x, so sqrt gives
+4.6x: measured 4.7-5x. Between 1.25e8/2.5e8 (it04->05) and 5e8 (it10->11) the
+same measure falls 1.7x against sqrt(2.8) = 1.7x.
+
+**The scatter about the radial profile does not fall with it.** The FUV field's
+scatter at A_V 1.5-2 is 0.19 at 31^3/6e6, and 0.160, 0.157, 0.158 at 61^3 with
+1.25e8, 2.5e8, 5e8 packets. Each cell's deviation correlates with its own
+deviation in the next iteration at r = 0.95-1.00. It is a fixed pattern, and
+it follows the grid:
+
+    median deviation of ln chi from the radial profile (61^3, it11)
+    A_V band            0.5-1   1-1.5   1.5-2   2-2.5   2.5-3.5
+    axis   (mu > 0.95)  +0.070  +0.154  +0.226  +0.273  +0.292
+    mu 0.80-0.95        -0.014  -0.006  +0.002  +0.005  +0.007
+    mu 0.65-0.80        -0.062  -0.082  -0.097  -0.101  -0.098
+    diagonal (< 0.65)   -0.096  -0.119  -0.139  -0.150  -0.158
+    on a symmetry plane +0.117  +0.213  +0.309  +0.392  +0.441
+
+(mu = max|x_i|/r: 1 on an axis, 0.577 on the diagonal.) 31^3 gives +0.244,
+-0.167 and +0.409 in the deepest band: the same at half the resolution, so it
+is not an error per cell crossing, which would double. CO follows inversely
+(-0.19 axis, +0.15 diagonal, -0.41 planes). T_dust in the PDR carries it too
+(+3.0%, -1.7%, +3.7%; T_dust ~ J^(1/6) makes that a ~+18/-10/+22% field), and
+the ionized gas shows under 1%. So it is in MOCASSIN's radiation field beyond
+the front, grows with depth, and is not produced by the chemistry. Read and
+found unbiased: `randomUnitVector` (isotropic emission) and `hg` (the
+Henyey-Greenstein draw and rotation). Path stretching is off
+(`lgPathStretch` defaults false, no keyword). **Remaining candidates,
+untested:** the mirror treatment at the symmetry planes (the plane cells are
+the most affected), or something else in the scattered field, which dominates
+at depth (D-255). The discriminating test is the same fixture without
+`symmetricXYZ`. Registered as **L-39**.
+
+### Lines (hiipdr, intrinsic / Hbeta)
+
+    line          31^3 6e6   61^3 5e8   Cloudy    61^3/Cloudy  (31^3/Cloudy)
+    [O I] 63      0.0551     0.0319     0.00581   5.49         (9.48)
+    [O I] 145     0.00510    0.00289    0.00044   6.58         (11.6)
+    [O I] 6300    0.0705     0.0486     0.0104    4.67         (6.78)
+    [C II] 158    0.181      0.159      0.134     1.19         (1.35)
+    [C I] 609     0.00488    0.00377    0.00230   1.64         (2.12)
+    [C I] 370     0.00161    0.00114    0.00076   1.50         (2.12)
+    C II] 2325    0.258      0.235      0.174     1.35         (1.48)
+    Hbeta [E36]   8.82       8.19       9.95
+
+**L-37 confirmed.** The [O I] 63 emitted by cells with x(H+) 0.01-0.95 is
+0.447 E36 erg/s at 31^3 and 0.236 at 61^3: 0.53x for half the cell size, the
+scaling of warm neutral volume carried by unresolved front cells. The front
+share is 93% -> 90%. A straight line in cell size through the two points puts
+the front part at ~0.025 E36 at zero cell size, i.e. [O I] 63 near Cloudy's -
+**two points only, not a result**; the front is not resolved at either.
+
+### Profiles (tools/d285_kpis_hiipdr.py against runs/d277-cloudy/hiipdr)
+
+    quantity                31^3 (d363-hii)   61^3 (d365-hii61)   Cloudy
+    front (radial shells)   3.840 pc          3.699 pc            3.765
+    front in A_V            0.458             0.439               0.446
+    H/H2 crossing A_V       1.447             1.415               1.090
+    C+ = C at A_V           2.258             2.713               2.950
+    T_gas A_V 2.5           12.4 K            17.1                20.2
+    n_e A_V 2.5             0.0061            0.0202              0.0219
+    deep C+ / Cloudy 2.3-2.5  0.21-0.32       0.91-0.97
+
+Deep carbon is the largest change and it is converged at 61^3 (C+ = C moves
+0.03 pc over iterations 10-11). D-241 found deep C+ recovering from 6e6 to
+2e7 packets on 31^3, and 31^3 at 6e6 had cells on the one-packet floor, so the
+packet count is the likely cause; the resolution was not held fixed, so that
+is not established. Figures: `runs/d365-hii61/figs`.
+
+### The H II region is not converged in 11 iterations - at either resolution
+
+Front radius per snapshot (median x(H+) in radial shells), 61^3:
+
+    it    6      7      8      9      10     11
+    pc    3.790  3.746  3.728  3.717  3.707  3.699
+
+The ionized-hydrogen mass is still falling ~0.7% per iteration at iteration
+11, and Hbeta with it. The same happens at 31^3: the 22-iteration runs
+(d342-revert, d348-angular) sit at 3.787 pc and Hbeta 8.63, against 3.830 and
+8.82 for the 11-iteration d358/d363. The converged-cell percentage (79.6%) does
+not see it, because each front cell moves by less than `convLimit`. So part of
+every 31^3/61^3 difference above is iteration count, not resolution, and the
+Hbeta gap to Cloudy (-13% at 31^3/22 iterations, -18% here) is not yet a
+converged number. Registered as **L-40**.
+
+### Predictions (scratchpad/d365_pred.md, written before any output)
+
+  - **P1 fails as worded, and its own caveat is what happened.** The MC noise
+    fell 4.7-5x as reasoned, but the scatter about the profile - what P1
+    named - fell only in T_gas at A_V 1.5-2.5 (0.052 -> 0.020, 0.118 -> 0.026),
+    rose at 2.5-3.5 (0.026 -> 0.090, where the deep chemistry changed state),
+    and barely moved in CO. The fixed pattern (L-39) sets it.
+  - **P2 holds for 63 um** (predicted ~5x, measured 5.49x) and **fails for
+    6300** (predicted 3.5-4x, measured 4.67x).
+  - **P3 fails:** [C II] 158 moved 12% relative to Hbeta, 18% in absolute
+    luminosity. By the chemistry's per-cell 158 um emissivity, at 31^3 a third
+    of it came from front cells (x(H+) 0.01-0.95) and a quarter from H II gas;
+    those parts fell 0.60x and 0.73x (0.534 -> 0.321 and 0.407 -> 0.299 E36),
+    while the cold PDR's is unchanged (0.706 -> 0.708). The "extended C+
+    zone" I reasoned from is the part that did not move; the front is in
+    [C II] too.
+  - **P4 half fails:** the H/H2 crossing (-0.03) and the front in A_V (-0.02)
+    hold; C+ = C moved +0.46 mag.
+  - **P6 holds:** 79.6% against 75.8%.
+  - P5 (pn150k) is pending.
+
+### Not known
+
+  - The cause of the direction pattern (L-39).
+  - How far the front still has to move, and whether Hbeta then closes on or
+    opens from Cloudy (L-40).
+  - How much of the deep-carbon recovery is packets and how much resolution.
+  - What 1e9 would add at 61^3. The measured sqrt(N) law says a further 1.4x
+    on the MC noise, which is already below the fixed pattern at every depth.
+
+### pn150k
+
+Launched at 06:05 on 3 ranks as `runs/d365-pn81` with the fixed binary
+(`mocassin.d365b`), same packet ladder, so it will reach 1e9. Iteration 1's
+peak is 30.1 GB. Its result will be D-366.
+
+### Status
+
+Open until pn150k is read.

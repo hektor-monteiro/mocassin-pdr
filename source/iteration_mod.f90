@@ -3084,7 +3084,11 @@ module iteration_mod
 
            end if
 
-           nPhotonsTot = nPhotons(1)
+           ! D-365: this used to start from nPhotons(1) and then add every star
+           ! including the first, so one star was counted twice and autoPackets
+           ! stopped doubling at maxPhotons/2 (runs/d365-hii61 capped at 5e8
+           ! of a requested 1e9).
+           nPhotonsTot = 0
            do iStar=1, nStars
               nPhotonsTot = nPhotonsTot+nPhotons(iStar)
            end do

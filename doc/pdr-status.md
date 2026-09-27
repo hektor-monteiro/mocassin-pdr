@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-363, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-365, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -326,6 +326,12 @@ not. Non-linear photorates can also convert the noise into a bin-mean bias,
 estimated at +5% at 22% scatter. Remedies are a design decision: accumulate
 the FUV estimator over the iterations once the field has settled, reduce its
 variance, or raise the packet count (roughly 20x for 5% at A_V 2.8).
+**Measured at 21x the tracks per cell (D-365)**: hiipdr at 61^3 with 5e8
+packets gives 0.8/1.5/2.8/4.8% iteration-to-iteration noise at A_V
+1-1.5/1.5-2/2-2.5/2.5-3.5, the sqrt(N) law to within 10%. Deep C+ recovered
+with it (C+ = C A_V 2.26 -> 2.72, Cloudy 2.95). The noise is now below the
+fixed grid-direction pattern (L-39) at every depth, so more packets no longer
+improve a per-cell map.
 
 **L-27. Line escape in the 3D flavour is a slab with a third of its rays shut**
 (D-061, D-063, D-190; registered D-351). `pdrStep` gives the four `mu = 0`
@@ -456,6 +462,12 @@ MOCASSIN's own [O I] 6300 has always been 6.5x and 1.42x, so the same layer
 drives both. The lines are the model's own state, and the balance cooled those
 cells by them. The test is a finer grid; any front-sensitive line needs a
 resolution check before it is published.
+**Tested (D-365):** at 61^3 the front cells' [O I] 63 is 0.53x the 31^3
+value for half the cell size, and [O I] 63 falls from 9.5x to 5.5x Cloudy
+(6300: 6.8x to 4.7x). [C II] 158 has a front share too: a third at 31^3,
+falling 0.60x, which takes [C II] from 1.35x to 1.19x Cloudy while its cold-PDR
+part does not move. Neither grid resolves the front, so neither number is
+converged; 81^3 is the most this machine holds for pn150k (`runs/d365-pn81`, running).
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
@@ -474,6 +486,27 @@ chemistry's escape probabilities carried over. C II] 2325 is back within
 atom and MOCASSIN's agree to 0.4-7% in the transitions they share. The escape
 probabilities keep L-27's flaw (beta <= 2/3 for thin lines), which matters
 only above the critical density.
+
+**L-39. MOCASSIN's field beyond the front carries a fixed grid-direction
+pattern** (D-365). At fixed radius in hiipdr the FUV field runs +29% along
+the grid axes, -16% on the diagonals and +44% on the symmetry planes at A_V
+2.5-3.5 (+7/-10/+12% at 0.5-1), the same at 31^3 and 61^3 and identical from
+one iteration to the next (r = 0.95-1.00), so it is neither noise nor a
+per-crossing error. T_dust carries it (+3.0/-1.7/+3.7%), the ionized gas does
+not (<1%), CO inverts it (-19/+15/-41%). `randomUnitVector` and `hg` are
+unbiased and path stretching is off. Untested candidates: the mirror treatment
+at the symmetry planes, or the scattered field that dominates at depth. The
+test is the fixture without `symmetricXYZ`. Radial means over shells average
+it out; per-cell maps and single sight lines do not.
+
+**L-40. The H II region is not converged in 11 iterations** (D-365). hiipdr's
+front is still moving inward 0.008 pc per iteration at iteration 11 on 61^3
+(3.790 -> 3.699 pc over iterations 6-11) and ionized hydrogen falls ~0.7% per
+iteration, with Hbeta. The 22-iteration 31^3 runs sit at 3.787 pc and Hbeta
+8.63 E36 against 3.830 and 8.82 at 11. The converged-cell percentage does not
+see it, because each front cell moves by less than `convLimit`. Every
+published hiipdr number that depends on the front or on Hbeta carries this;
+Hbeta is 13-18% below Cloudy's 9.95 E36 and not yet a converged number.
 
 ### Medium
 
