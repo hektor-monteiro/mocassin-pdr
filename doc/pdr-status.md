@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-358, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-360, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -344,6 +344,16 @@ excitation. The gas is cooled by 3D-PDR's level populations with H, H2, He and
 H+ as partners. The per-transition emissivities are computed in
 `escape_probability` and discarded; `pdrCoolSp.out` carries each coolant's
 total only. No PDR line observable exists yet (D-331).
+**Measured (D-360)**, in Hbeta units, with the chemistry's cooling summed over
+cells below 1000 K:
+
+    hiipdr  [O I] 63+145  reported 0.0016   the gas's cooling 0.0059   Cloudy 0.0070
+    pn150k  [O I] 63+145  reported 0.0063   the gas's cooling 0.068    Cloudy 0.20
+
+On hiipdr the cooling the model uses matches Cloudy to 16%, while the reported
+line is 4.4x low. No CO line is reported, though CO cooling enters the
+balance. **Next step (D-360):** export the chemistry's per-transition
+emissivities in place of MOCASSIN's C+, C and O lines, and add the CO ladder.
 
 **L-29. The conserved sum is enforced, not tested** (D-351). The hydrogen
 stages are normalised to the chemistry's `x(H) + x(H+)` before the budget is
@@ -393,6 +403,16 @@ re-imposition keeps MOCASSIN's. D-193 stopped injecting the chemistry's
 source and sink terms into `ionBalance` because they double-counted the
 molecular drain. Carrying these channels without that needs a decision of
 its own.
+
+**L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
+(`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
+n_e 1e2-1e14) with 5-point polynomials in log(emissivity). It extrapolates
+below both lower bounds. In PDR cells (11-27 K, n_e ~0.01) this gives H I
+n = 16-25 lines at up to 1e22 x Hbeta in `lineFlux.out`, and it fills 97% of
+hiipdr's log with overflow prints. It also clamps T > 30 kK by overwriting the
+caller's `TeUsed`, which is latent on both fixtures. The code is legacy
+(`38aca36`) and surfaced only when gas went below 300 K. Hbeta and every
+non-H I line are unaffected.
 
 ### Medium
 

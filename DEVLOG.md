@@ -359,6 +359,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-357 | **`species_reduced.d` relabelled: lines 4 and 6 (zero-based slots 3 and 5) now read CH5+ and H2+, as the generated ODE integrates them (D-258's finding, never applied). Labels only: H2+/H3+/CH5+ now balance to <4e-5 with no correction; front, H/H2 crossing, C+ = C, T_gas (1.000-1.001) and T_dust unchanged; convergence identical through iteration 6.** Name-based consumers corrected: the chemical-heating table's H2+ terms, the D-258/D-356 diagnostics. `runs/d357-labels`. | Accepted | 2026-09-26 |
 | D-358 | **The chemistry solve runs on MOCASSIN's own ionization and recombination rates (D-356 option A, the user's choice).** ionBalance stores per cell each linked neutral's photoionization (and H's collisional ionization) and alphaTot, plus H2 -> H2+ from the MC field and yanH2xSec; pdrStep adds them to the network's first-order slots (H/He/C/O + CRP, Mg + CRPHOT, H2 + CRP), zeroes the network's own C/Mg photoionization, and gives the linked radiative recombinations MOCASSIN's coefficient. `[D358]` reports the solver's X+/X against MOCASSIN's. **Result: in H II cells the solver's ionization now equals MOCASSIN's (was neutral); ionized-zone H2 vs Cloudy 3e4-2e5x -> 5-25x (hiipdr), 2e3-2e5x -> 19-71x (pn150k), destroyed like Cloudy's (photoionization 70/83% vs 65/81%); CO 1e11-1e14x -> 51-8e3x (hiipdr); OH and H3+ in H II gas now below Cloudy (H- and radiative associations absent); nothing past the fronts moved (crossings 1.444 / 0.405 unchanged). Prediction (a) failed as stated: the PDR's H+ differs because the network has H+ channels MOCASSIN's ionBalance lacks (O-05). Exposed: one ion carrier per element (pn150k inner CO 3e7x), grain H2 formation 5-25x Cloudy's.** | Accepted | 2026-09-26 |
 | D-359 | **Both Cloudy artifacts rebuilt on the D-358 code: hiipdr v16 (`runs/d358-hii`) and 150 kK PN v14 (`runs/d358-pn`).** New figures; a new section on each page explaining the neutral-solver defect (D-356), the fix (D-358) and the label correction (D-357), with before/after ionized-zone ratios, the matched destruction channels, what Cloudy's own approximations can and cannot account for, and what stays open (grain H2 formation, H-/radiative associations absent, HCO+, one ion carrier per element); changed selected-depth rows, Reading-it bullets, meta and provenance; hiipdr's O-03 register row closed. | Accepted | 2026-09-26 |
+| D-360 | **Audit against science production: the reported lines are the blocker.** (1) New: every PDR run's H I line list is corrupt - `hlinex` extrapolates Storey & Hummer's table (300-30,000 K, n_e 1e2-1e14) polynomially in log space to the PDR's 11-27 K and n_e ~0.01, giving Balmer/Paschen/Brackett n = 16-25 up to 1e22 x Hbeta; 88,000 of hiipdr's 90,561 log lines are its overflow prints; legacy code (38aca36), latent until gas went below 300 K; it also clamps T > 30 kK by overwriting the caller's TeUsed. (2) L-28 measured: lineFlux.out reports [O I]/[C II]/[C I] from MOCASSIN's electron-only atoms while the gas is cooled by the chemistry's populations - [O I] 63+145 reported 0.0016 Hbeta against 0.0059 cooling and 0.0070 Cloudy (hiipdr), 0.0063 against 0.068 and 0.20 (pn150k); no CO lines at all. Checked clean: D-358 does not reach the PDR heating; its rates are set on every cell (0 unset); the coolant substitution agrees with MOCASSIN's to 0.1% in fully ionized cells. Decision: next is one reality for every line reported - hlinex bounded by its own table, then the PDR's line emissivities exported in place of MOCASSIN's C+/C/O lines plus the CO ladder, then L-27. 115 commits are local only. | Accepted | 2026-09-26 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30173,3 +30174,168 @@ HCO+ is not within those ranges.
 ### Status
 
 Accepted.
+
+---
+
+## D-360 - Audit against science production: the reported lines are the blocker (2026-09-26)
+
+The user asked for the code to be audited, and the next step decided, with
+science production as the objective. D-351 (at `51289e5`) ranked the blockers
+nine entries ago. Since then D-352 removed the zone flag and the run-time
+physics switches, D-354 collapsed the chemistry passes, and D-356/D-358 fixed
+the neutral solver. This entry audits what changed since D-351 and then asks
+of the whole code one question: **what would a paper quote from a run today,
+and is it right?** A run's science products are `lineFlux.out`, the grid
+files (T, ionization, abundances), `SED.out` and the dust grid. Everything
+below was measured on files already on disk (`runs/d358-hii`,
+`runs/d358-pn`, the D-356 Cloudy runs). No new runs.
+
+### What was read
+
+  - `pdrStep` in full on the current code, including the D-358 injection and
+    re-imposition, the level-population block and `CALC_HEATING`.
+    `ionBalance`'s D-358 block. The coolant substitution in `update_mod`.
+    `chemical_heating.F90` and `heatingfunctions.F90`, checked for any use of
+    the rate slots D-358 now loads. `output_mod`'s line path
+    (`outputGas`, `RecLinesEmission`, `hlinex`). The run logs of both D-358 runs.
+  - **Checked clean.**
+    - D-358 does not leak into the PDR heating: cosmic-ray heating uses zeta,
+      not the CRP rate slots, and the chemical-heating table matches reactions
+      by name (correct since D-357).
+    - The rate hand-off is rank-local but verified: `[D358]` reports "rates
+      unset in 0" in every iteration of both runs, so no cell was solved on a
+      rank that had not stored its rates.
+    - The coolant substitution is consistent where both codes should agree. In
+      fully ionized cells (x(H+) > 0.95) the substituted-minus-native cooling
+      is +0.1% of the total on hiipdr and -0.1% on pn150k, median.
+    - The PDR's C+, C and O atoms are 5-level, the same level sets as
+      MOCASSIN's.
+
+### Finding 1 (new): every PDR run's H I line list is corrupt
+
+`lineFlux.out` gives H I Balmer n = 19-24 at 34-71,000 x Hbeta on pn150k.
+On hiipdr it gives n = 18-25 up to 1e16, Paschen and Brackett up to 1e22,
+across lines 16-25 of every series.
+
+**Cause.** `hlinex` (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat`
+with 5-point Lagrange polynomials in log(emissivity), against sqrt(T) and
+log(n_e). The table spans T = 300-30,000 K and n_e = 1e2-1e14. Above 30 kK it
+clamps, but by overwriting its argument, which is the caller's `TeUsed`, so
+`forLines()` would then run at 30 kK too. That is latent, since no cell of
+either fixture is that hot. Below 300 K, and below 1e2 cm^-3, it does not
+clamp at all: it extrapolates the polynomial. The cells that overflow are at
+11-27 K with n_e = 0.007-0.009 cm^-3.
+
+The overflow is also what fills the log. Each value above `huge()` prints
+four lines and is zeroed, about 7,000 times per transition. That is 88,000
+of hiipdr's 90,561 log lines (D-351 item 17's "91,000-line log"). The values
+that stay below `huge()`, such as 1e22, go into the file.
+
+The code came in with the 2023 import (`38aca36`) and is not PDR code. It
+only surfaces now because no plain-MOCASSIN model has gas below 300 K. Hbeta
+itself is not affected: it comes from a separate fit, and the PDR's
+n_e n(H+) is ~1e-8 of the H II region's.
+
+### Finding 2 (L-28, now measured): the PDR lines reported are not the lines the gas cools by
+
+The thermal balance cools every cell with the chemistry's C+, C and O level
+populations, excited by H, H2, He, H+ and e- (D-133). `lineFlux.out` reports
+those same ions' lines from MOCASSIN's own atoms, excited by electrons alone.
+
+The comparison below is summed over cells below 1000 K, so that [O I] 6300 and
+C II] 2325 from the warm front stay out. The volume integral was checked by
+recomputing Hbeta from the grid with `output_mod`'s own fit: it reproduces the
+reported Hbeta with a factor of exactly 8.000, the octant symmetry.
+
+    Hbeta units                 reported     the gas's cooling      Cloudy
+                                (lineFlux)   (pdrCoolSp, <1000 K)   (D-356 runs)
+    hiipdr  [O I] 63+145        0.0016       0.0059                 0.0070
+            [C II] 158          0.178        0.106 + H II part      0.134-0.145
+            [C I] 609+370       -            0.0090                 0.0044
+    pn150k  [O I] 63+145        0.0063       0.068                  0.20
+            [C II] 158          0.163        0.184 + H II part      0.31
+
+On hiipdr the cooling the model actually uses matches Cloudy's [O I] to 16%,
+while the line it reports is 4.4x low. On pn150k the reported [O I] is 11x
+below the model's own cooling and 32x below Cloudy. The cooling itself is 3x
+below Cloudy there, following that PDR's colder gas (L-19, L-22). [C I] is
+2x Cloudy on hiipdr, the carbon transition of L-3. CO lines are not reported
+at all, though CO cooling enters the balance. So the [O I], [C II], [C I] and
+CO observables of a PDR model are not what the model computed. The pn150k
+page lists [O I] and [C II] only as cooling, not in its line table, so no
+published line figure carries the wrong values.
+
+### The ranking, for science production
+
+**A - the products a paper would quote are wrong now**
+
+  1. The H I line list in every PDR run (Finding 1). Small fix.
+  2. The PDR fine-structure lines come from a second reality, and CO lines are
+     absent (Finding 2, L-28).
+  3. Line escape in the 3D flavour (L-27): beta is capped at 2/3 and uses the
+     slab closed form. Estimated 2-11% on [C II] at n_H 1e2-1e3, decisive at
+     1e4 and above. It enters as soon as 2 exports the lines.
+
+**B - physics differences against Cloudy, reported rather than tuned.**
+The H/H2 crossing is 1.44 against 1.09 on hiipdr and 0.405 against 0.368 on
+pn150k. pn150k's PDR is about a third colder. Deep CO is 85-136x high on
+hiipdr, and the carbon transition sits shallow (L-3). Grain H2 formation runs
+5-25x Cloudy's (L-33). The network has one ion carrier per element (L-32),
+and the PDR's H+ has channels MOCASSIN's ion balance lacks (L-34). None stops
+a paper, provided the paper states them; several are candidate MOCASSIN
+defects still to be decomposed.
+
+**C - per-cell products** (L-26). Since D-350 the deep chemistry carries each
+cell's Monte Carlo FUV noise. `[D354]` on `runs/d358-hii` shows x(H2) moving
+>1% in 45% of cells, and x(CO) in 98%, at iteration 11. Bin means and
+integrated fluxes average this out. A 3D map does not. This is a design
+decision to take before any map is published.
+
+**D - validation gaps.**
+  - No structured 3D fixture exists (D-338).
+  - The plain flavour has not been run against Lexington since D-270, though
+    the four fixtures are in `benchmarks/gas`.
+  - The warm start is not shown equivalent to a cold run (L-14).
+  - `mocassinOutput` and `mocassinPlot` have never been run (L-20).
+
+**E - provenance.** `pdr-photoionization` is 115 commits ahead of
+`origin/main`, with no remote branch. It needs the user's word before
+anything is pushed.
+
+### Decision
+
+Next is **A: one reality for every line MOCASSIN reports.** It ranks first
+for two reasons. Line fluxes are what MOCASSIN is for. And A2 is the D-351
+rule ("one reality per quantity") applied to the products rather than the
+internals. B-D are either reported divergences or matter only for maps and
+for fixtures not yet built. The steps:
+
+  1. `hlinex`:
+     - evaluate inside the table's own domain: n_e below the table taken at
+       its low-density limit, T below 300 K taking the 300 K line ratio
+       (Hbeta's own fit still carries the T dependence);
+     - never overwrite the caller's temperature;
+     - no per-cell print.
+     The bounds come from `e1bx.dat` itself, not from constants. Verified by
+     regenerating `lineFlux.out` from the D-358 grids with `mocassinOutput`.
+     That run first has to reproduce the current file with the unfixed code,
+     which also closes L-20 for `mocassinOutput`.
+  2. The PDR lines, from the populations that cool the gas:
+     - store the per-transition emissivities `escape_probability` already
+       computes, at the stored populations;
+     - in `outputGas`, substitute them for MOCASSIN's C+, C and O lines under
+       exactly the thermal balance's condition;
+     - add the CO ladder.
+     Predictions go on record before the run.
+  3. L-27 on those lines.
+
+### What is not known
+
+  - How much of the H II region's [C II] 158 each code assigns to the ionized
+    gas. The table's "H II part" is not separable from the files on disk.
+  - Whether pn150k's 3x [O I] cooling deficit against Cloudy is all
+    temperature (L-19/L-22), or partly the warm front layer excluded above.
+
+### Status
+
+Accepted. No code changed in this entry.
