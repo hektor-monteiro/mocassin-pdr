@@ -363,6 +363,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-361 | **H I emissivities bounded by their own table; mocassinOutput reads its data (D-360 step 1).** `hlinex` evaluates inside `e1bx.dat`'s domain: the low-density limit below 1e2 cm^-3, the 300 K ratio below 300 K. It no longer writes to the caller's TeUsed, and `[D361]` counts edge evaluations once per run. `mocassinOutput`, run for the first time (L-20), reproduced the run's lineFlux.out except all 630 He II rows, zero because it never called `readData()` - fixed. The first build of the fix was inert: `minval` over 15 slots of an 11-entry table found the empty zeros. Regenerated from the D-358 grids: non-H I lines and Hbeta byte-identical, Balmer series within 1% of Case B, log 86,656 -> 187 lines. Prediction (c) failed - the extrapolation had also reached low lines on hiipdr (Halpha/Hbeta 2.910 -> 2.889, H8 0.127 -> 0.1045, n = 12-15 onto levels 6-8 by 25-88%); pn150k <0.43%. No artifact quotes an affected line. | Accepted | 2026-09-26 |
 | D-362 | **The C, C+ and O lines in lineFlux.out now come from the chemistry's level populations - the ones the thermal balance cools by - replacing MOCASSIN's electron-only rows where the chemistry has the carrier; CO lines in the new lineFluxMol.out; per-cell emissivities checkpointed in pdrLineEm.out (mocassinOutput reproduces a run byte for byte).** One extra level solve at the cell's own T, inert: every physics file byte-identical to runs/d358-*. [O I] 63+145 0.0063 -> 0.280 Hbeta on pn150k (Cloudy 0.202), 0.0016 -> 0.059 on hiipdr (Cloudy 0.0062); [C II] 158 0.213 / 0.194 (Cloudy 0.311 / 0.134). Predictions (c,d,f) failed: 74-92% of [O I] comes from unresolved front cells (L-37), and in H II gas the chemistry's atoms shift C II] 2325 x1.16-1.22 and [C I] 9850 x0.66 against CHIANTI (L-38). New diagnostic: the balance's coolant table misses an exact solve by mean 8-50%, up to x3 per cell (L-36). Two output defects found by the checks and fixed. Lexington: D-360 vs D-362 identical on every benchmark quantity; HII20's baseline had H I lines at 1e17 Hbeta (fixed by D-361); this branch sits 1-2 lines per model fewer in range than dev at D-270, unattributed. D-360's Cloudy values and cooling subset corrected. | Accepted | 2026-09-26 |
 | D-363 | **One atom per ion (the user's choice after L-38 was explained): MOCASSIN's own C I, C II and O I atoms take the chemistry's H, H+, He and o/p-H2 collision rates and its per-transition escape probabilities, and serve the thermal balance at every trial T, the diffuse line emission and lineFlux.out; the D-133 substitution and D-362's output substitution are retired; the atoms' table passes are gone (L-36 now CO only).** Plain flavour byte-identical on all four Lexington models. The two atoms agree to 0.4-7% in neutral gas; H II lines back on CHIANTI (C II] 2325 +2.1%/+0.1% of D-361); [C II] 158 -7%, [O I] 63 within 3%; front and crossing within 0.7%. Both PDRs 1-4% colder (7% at pn150k A_V 0.2), further from Cloudy - hiipdr's sign was predicted wrong (pooled table sums are warm-cell dominated). No speed-up (predicted 10-30%). The round trip found resetGrid rounding H2den differently from the D-200 damping (7e-8 in [C I] 370); fixed, now byte-identical. pdrLineEm.out v2 carries the escape probabilities. | Accepted | 2026-09-27 |
+| D-364 | **Both Cloudy artifacts rebuilt on the D-363 code: hiipdr v17 (`runs/d363-hii`) and 150 kK PN v15 (`runs/d363-pn`).** Redrawn figures; a new section on each page on the fine-structure lines (what was wrong, one atom per ion, line tables against Cloudy, [O I] set by unresolved front cells, the 1-4% colder PDR, the D-361 H I fix), with the CO ladder on pn150k; pn150k's line table now lists [C II] 158, [O I] 63/145, [C I], C II] 2326 and CO in place of the chemistry's coolant totals. hiipdr's stale '0.77-0.82x Cloudy beyond A_V 1.5' corrected to 0.61-0.80x from its own table. | Accepted | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30735,6 +30736,56 @@ the final code.
     independent of beta below the critical density. Above it (e.g. [C II] in
     pn150k's ionized gas, n_e ~ 1000) the flaw now reaches MOCASSIN's atom,
     as it reached the chemistry's before.
+
+### Status
+
+Accepted.
+
+---
+
+## D-364 - Both Cloudy artifacts rebuilt on the D-363 code (2026-09-27)
+
+The user asked for the hiipdr and pn150k artifacts to be updated with the latest
+models. No new runs were needed: `runs/d363-hii` and `runs/d363-pn` are on the
+committed code (`994efe1`).
+
+  - **hiipdr Against Cloudy, version 17**
+    (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx).
+    - The Roellig figures are redrawn from `runs/d363-hii` against
+      `runs/d277-cloudy`.
+    - A new "Since version 16" section covers the fine-structure lines. It
+      says what was wrong (D-360), the one-atom fix (D-362, D-363), and gives
+      a line table (version 16 / now / Cloudy) for [O I] 63/145, [C II] 158,
+      [C I] 609/370, C II] 2326, [O I] 6300 and CO 1-0..3-2.
+    - It explains why [O I] runs 9.5x Cloudy: 92% of it comes from the 75
+      unresolved front cells (L-37).
+    - It states what moved (deep PDR 1-4% colder) and notes the D-361 H I fix.
+    - Updated elsewhere: lede, meta, headline figures (crossing 1.45, C+ = C
+      2.26), the matching table's thermal-balance row, the selected-depth rows,
+      the ionized-gas row at 3.3 pc, the Reading-it bullets, and the provenance.
+    - **One stale claim was corrected.** The page said the deep PDR was
+      "0.77-0.82x Cloudy beyond A_V 1.5", but its own table gave 0.64 at
+      A_V 2.5 already at version 16. It now reads 0.61-0.80x from the table.
+  - **150 kK PN Against Cloudy, version 15**
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV).
+    - Redrawn figures, and a new "Since version 14" section with the line
+      table and a CO ladder table against Cloudy (0.48 at 1-0 falling to 0.04
+      at 6-5).
+    - **Line table rebuilt.** The three "coolant, all lines (chemistry)" rows
+      and their note (electron-only lineFlux) are replaced by the lines
+      themselves, with Cloudy values from the page's own intrinsic block:
+      C II] 2326, [C I] 9824+9850, [C II] 158, [O I] 63 and 145,
+      [C I] 609/370 and CO 2-1.
+    - The ionized-gas lines' fourth figures are updated, as are the
+      selected-depth rows (A_V 0.15-0.65), the headline (Hbeta 2.62,
+      crossing 0.402, PDR T 25-44 K, 0.59-0.71 of Cloudy), and the Reading-it
+      bullets.
+    - Cost table: 40 min, 91.2%. The pre-chemistry iterations now take
+      4.8-5.0 min against 4.3-4.4, attributed as "most likely" to the new
+      collider terms. That attribution is not measured.
+
+Both new sections were rendered headless at 1200 and 400 px before publishing,
+and the tags balance on both pages.
 
 ### Status
 
