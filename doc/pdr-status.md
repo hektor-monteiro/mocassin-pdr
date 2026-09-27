@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-368, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-370, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -335,7 +335,7 @@ improve a per-cell map.
 
 **L-27. Line escape in the 3D flavour is a slab with a third of its rays shut**
 (D-061, D-063, D-190; registered D-351). `pdrStep` gives the four `mu = 0`
-HEALPix rays `colA = 1e30` (`pdr_mod.f90:3588-3606`), so their beta is about
+HEALPix rays `colA = 1e30` (`pdr_mod.f90:3664-3683`), so their beta is about
 1e-30. The `RAYTHEIA_MO` branch of `escape_probability` divides by all twelve,
 so beta is at most 2/3 even for a thin line. In the two-level limit, cooling
 goes as `1/(1 + n/(beta n_crit))`. For [C II] (n_crit ~3e3 on H) that loses
@@ -343,6 +343,14 @@ goes as `1/(1 + n/(beta n_crit))`. For [C II] (n_crit ~3e3 on H) that loses
 rays toward the star also carry the cell's own populations over the whole
 column. That overstates tau for CO, whose abundance rises with depth. Small
 on hiipdr. Decisive for dense PDRs and for every line observable.
+**Since D-363 it sets the cooling and the reported lines** (D-370): MOCASSIN's
+own C I, C II and O I atoms take this beta per transition, so the loss above
+is in the thermal balance and in `lineFlux.out` alike. Taking beta from 2/3 to
+1 raises [C II] 158 by 2/12/38/50% at n_H 1e2/1e3/1e4/1e5; real PN PDRs sit at
+1e4-1e5. The same routine pumps the lines with a vendored diffuse-ISM grain
+emissivity (`NGRAIN = 2e-12 n_H`), a constant standing in for MOCASSIN's own
+dust field; it reaches CO only. **Next after L-41** (D-370): per-ray columns
+along the twelve D-348 directions, with each traversed cell's populations.
 
 **L-28. Two realities for the PDR lines** (D-351). In PDR cells
 `lineFlux.out` reports [C II], [O I] and [C I] from MOCASSIN's electron-only
@@ -518,11 +526,32 @@ iteration, with Hbeta. The 22-iteration 31^3 runs sit at 3.787 pc and Hbeta
 8.63 E36 against 3.830 and 8.82 at 11. The converged-cell percentage does not
 see it, because each front cell moves by less than `convLimit`. Every
 published hiipdr number that depends on the front or on Hbeta carries this;
-Hbeta is 13-18% below Cloudy's 9.95 E36 and not yet a converged number.
+Hbeta is 13-18% below Cloudy's 9.95 E36 and not yet a converged number
+*(most of that gap is L-41, not convergence - D-370)*.
 pn150k at 81^3 (D-368) stopped itself at 94% converged cells with its He2+
 front still moving outward 0.003 pc per iteration (0.0799 pc against 0.0833 at
-41^3 and Cloudy's 0.0880), taking He II 4686 11% low: the stopping criterion
-tests x(H0) only.
+41^3 and Cloudy's 0.0880), taking He II 4686 11% low. The per-cell test covers
+x(H0), x(H2) and T_e but no helium stage (D-370; this line said "x(H0) only"
+until then).
+
+**L-41. The reported Hbeta is 5% low, so every line ratio is 5% high**
+(D-370). `outputGas` reports Hbeta from 2530/T^0.833 (`output_mod.f90:2485`,
+copied at `mocassinPlot.f90:784`) and takes every other H I line as a ratio
+to it from Storey & Hummer's `e1bx.dat`, whose own Hbeta the same routine
+computes and uses only as a denominator. The power law is 0.954/0.948/0.954/
+0.965/0.977 of the table at 5/7.5/10/12.5/15 kK. The transport uses a third
+form, S&H's fit 10^(-0.870 log T + 3.57) (`emission_mod.f90:556`), which is
+0.996-1.005 of the table at 7.5-15 kK. Upstream since the import, on `dev`,
+in every flavour. Taking Hbeta from the table (`tools/d370_hbeta.py`) raises
+it x1.0546 on hiipdr and x1.0404 on pn150k; every non-H I ratio falls by the
+same factor.
+  - hiipdr: the gap to Cloudy goes from -11.6% to -6.7%. What is left is the
+    ionized gas 4.4% hotter (EM-weighted 9005 K against 8628 K) and an
+    emission measure 1.1% lower.
+  - pn150k: emission measure and temperature match Cloudy's to 0.4% and
+    0.1%, so the formula was the whole difference.
+He II 4686 and Lya are single power-law fits too, not yet checked against
+their sources. **Next** (D-370).
 
 ### Medium
 

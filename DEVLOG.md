@@ -369,6 +369,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-367 | **The D-366 mirror-reflection fix ported to this repository's `dev` as da02212 (not pushed).** Same four sites, CRLF endings kept, source only (tracked binaries restored), all four dev targets build; worktree at ~/software/mocassin_dev removed afterwards (the D-281 procedure). Checked on dev with hiipdr as a dust+gas model (PDR keywords removed, 31^3, 3 ranks, converged at iteration 3): ln T_dust off its radial profile goes from +2.7-3.1% near the axes, +3.9-4.2% on the planes and -1.9-2.7% on the diagonals to within 0.2%; Hbeta +0.18%. dust/1D/p0tau10 cannot see it (0.1-0.3% either way). **Misstep, reverted:** I first took "the dev branch" to be the core fork's `dev` (~/software/mocassin_HM_2026) and made a worktree, a branch and an uncommitted edit there; the user said to use this repository and touch no other. All three removed; that repository is as it was (dev at fea0149, the user's 31 uncommitted files, empty stash, no new reflog entries) | Done | 2026-09-27 |
 | D-368 | **pn150k at twice the resolution (81^3, 3 ranks - all the memory allows): the packets reached 1e9 with the D-365 fix, the run converged (94%) and stopped at iteration 8 after 9 h 33 min, and the radial means were already converged at 41^3 - what 81^3/1e9 buys is the per-cell map, 3-4x quieter.** Scatter about the radial profile at A_V 0.35-0.8: FUV field 4-6.5% -> 1.2-1.7%, T_gas 2.2-2.8% -> 0.6-0.7%, CO 7-20% -> 3-5%; the old binary's direction pattern (+2.6/-1.8/+1.9% axis/diagonal/planes) is now as large as the noise. **[O I] 63 is not a resolution artefact on pn150k** (P5 fails): its front-cell part is 0.95x for half the cell size (hiipdr 0.53x) - the 150 kK star's hard photons make a partially ionized zone the 0.015 pc grid already resolves - so 1.35x -> 1.26x Cloudy is a model difference; [C II] 158 0.64 -> 0.65, [C I] unchanged. H+ front 0.1282 -> 0.1279 pc (Cloudy 0.1279), H/H2 crossing A_V 0.402 -> 0.407, PDR T unchanged. **The He2+ front was still moving +0.003 pc per iteration when the 90% criterion stopped the run** (0.0730, 0.0769, 0.0799; Cloudy 0.0880), so He II 4686 -11% is iteration count, not resolution (L-40) | Open | 2026-09-27 |
 | D-369 | **Artifact 'Fine Grids Against Cloudy' (https://claude.ai/artifact/36ngURUNJoJ3eW6q5JjwAr): the D-365..D-368 fine-grid runs against Cloudy.** Roellig figures for hiipdr 61^3 and pn150k 81^3 with a toggle to the published 31^3/41^3 ones; headline and line tables (coarse / fine / Cloudy, and hiipdr's 31^3-fixed column); three new diagnostic figures (per-cell noise, the mirror-reflection pattern for old/isotropic/fixed, front radius per iteration over Cloudy's). States that both fine-grid runs predate the D-366 fix and hiipdr stopped at 5e8. In checking the copy, D-366's 'every line within 1%' was found wrong ([C I] 370 -2.7%) and corrected | Done | 2026-09-27 |
+| D-370 | **Third audit against science production: the reported Hbeta is computed from a power law 4.6-5.2% below the Storey & Hummer table every other H I line in lineFlux.out already comes from, so every Hbeta is low and every line ratio high by that much, in every flavour and upstream since the import.** `output_mod`/`mocassinPlot` take Hbeta = 2530/T^0.833; `hlinex` (e1bx.dat) gives the H I ratios; the transport (`emission_mod`) uses a third form, S&H's fit 10^(-0.870 log T + 3.57). Against e1bx.dat's own Hbeta at n_e 100: 0.954/0.948/0.954/0.965/0.977 at 5/7.5/10/12.5/15 kK. `tools/d370_hbeta.py`, from grids on disk: taking Hbeta from the table raises it x1.0546 on hiipdr and x1.0404 on pn150k; hiipdr's gap to Cloudy goes from -11.6% to -6.7%, and what is left is the ionized gas 4.4% hotter (EM-weighted 9005 K against 8628; emission measure 0.989); on pn150k emission measure and temperature match Cloudy's to 0.4% and 0.1%, so the formula was the only Hbeta difference. Also: L-27 now sits in the cooling and the lines (D-363 hands its beta to MOCASSIN's atoms) - [C II] 158 +2/+12/+38% at n_H 1e2/1e3/1e4 in the two-level limit if beta reached 1; the per-cell convergence test covers x(H0), x(H2) and T_e but not helium (L-40's "x(H0) only" corrected); the measured memory is 0.47 GB + 38 kB per ACTIVE cell per rank (nbins 600, dust+gas+PDR; three points, 15k-276k cells), so 14 ranks hold ~46k active cells (~44^3 octant sphere), not 58^3; a vendored diffuse-ISM grain emissivity in `escape_probability`. **Decision: finish one reality for every reported line - Hbeta from the table (output only, verified from existing grids with mocassinOutput), then L-27 along the real 3D rays, then helium in the stopping test.** No model code changed. | Decided | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31358,3 +31359,220 @@ Corrected there (03a5a77) and stated as "under 3%" on the page.
 ### Status
 
 Done.
+
+---
+
+## D-370 - Third audit against science production: Hbeta, line escape, the stopping rule (2026-09-27)
+
+The user: "audit the code and decide on the next step considering science
+production as the main objective". D-351 and D-360 ranked the blockers before;
+D-360's decision ("one reality for every line MOCASSIN reports") was carried
+out as D-361 (H I list), D-362/D-363 (PDR lines, one atom per ion), and its
+third step, L-27, was not started - D-365..D-369 were the user's fine-grid
+runs. This entry audits the code changed since D-360 and asks again what a
+paper would quote from a run today, and whether it is right. Everything was
+measured on files already on disk; no new runs.
+
+### What was read
+
+  - The D-361..D-366 diffs: `buildPdrAtomMap`, `setLineColliders`,
+    `pdrNeutralRates`, the `equilibrium` changes in `emission_mod`, the
+    `escape_beta` hook, the retired D-133 substitution, the D-365 packet count
+    and the four D-366 reflection sites.
+  - pdrStep's line-escape set-up and the vendored `escape_probability`.
+  - The per-cell convergence test (`update_mod`) and the stopping logic
+    (`iteration_mod`).
+  - The H recombination-line path in `output_mod`, `emission_mod` and
+    `mocassinPlot`, and `data/e1bx.dat`.
+  - Every `(nCells, nbins)` allocation and its lifetime.
+  - **Checked clean.**
+    - D-363's neutral colliders cannot double count H2: every coolant file
+      lists either total H2 or o/p-H2 for a transition, never both, so the
+      thermal o/p split is applied once. The collider H0 is atomic H only
+      (x(HI) excludes H2 since D-177). The rate interpolation holds at the
+      table ends as `FIND_CCOEFF` does.
+    - `pdrLineEm`/`pdrLineBeta` reach every rank: the temporaries are zeroed,
+      only the owner fills a cell, and the sum is allreduced, so rank 0's
+      `outputGas` and every rank's next thermal balance see every cell.
+
+### Finding 1 (new): the reported Hbeta is 5% low, and every line ratio 5% high
+
+`output_mod.f90` `RecLinesEmission` sets Hbeta = 2530/T^0.833 [1e-25 erg cm^3
+s^-1] and takes every other H I line as a ratio to it from Storey & Hummer's
+case B table, `data/e1bx.dat`, via `hlinex` (`HIRecLines = (fh/hb)*Hbeta`).
+`hlinex(4,2)` is the table's own Hbeta, already computed on the line above and
+used only as the ratio's denominator. Against it, at n_e = 100:
+
+    T [K]            3000   5000   7500  10000  12500  15000  20000
+    power / table   0.984  0.954  0.948  0.954  0.965  0.977  1.005
+
+The commented-out fit beside it, 10^(-0.870 log T + 3.57), is 0.996-1.005 of
+the table over 7.5-15 kK. That fit is the one the transport uses
+(`emission_mod.f90` `RecLinesEmission`, with the fixed n_e = 100 ratio table
+`r1b0100.dat`). So Hbeta has three realities: the table (H I line ratios), the
+fit (the energy the MC carries in H I lines), and the power law (the Hbeta
+that `lineFlux.out` reports and that divides every other line). `mocassinPlot`
+carries a copy of the power law. It is upstream code, present since the
+import (`38aca36`) and on `dev`, and it touches the plain flavour as much as
+the PDR ones.
+
+**Size, per run** (`tools/d370_hbeta.py`: the table at each cell's T and n_e,
+weighted by n_e n_p dV, octant x8, symmetric-plane cells at half width, which
+reproduces the sphere's volume to 0.07%):
+
+    run            <T>_EM   factor   Hbeta reported -> table [E36]
+    d366-hii        9005 K   1.0546    8.843 -> 9.325
+    d363-hii        9009 K   1.0546    8.821 -> 9.303
+    d363-pn        12357 K   1.0404    0.02624 -> 0.02730
+    d365-pn81      12263 K   1.0411    0.02590 -> 0.02697
+
+Every non-H I line ratio in those runs' `lineFlux.out` is high by the same
+factor. H I ratios are not (both sides come from the table).
+
+**What it does to the gap to Cloudy.** Integrating Cloudy's own zones with the
+same table:
+
+    hiipdr   EM MOCASSIN/Cloudy 0.989   <T>_EM 9005 K / 8628 K (1.044)
+             Hbeta 9.325 (table) against 9.804 (Cloudy's zones, same table),
+             0.951 - the hotter gas (emissivity ~0.96) and the EM (0.99)
+    pn150k   EM 1.004   <T>_EM 12357 K / 12339 K (1.001)
+             Hbeta 0.02730 against 0.02717, 1.005
+
+Against Cloudy's printed Hbeta, hiipdr goes from 8.843/10.00 = -11.6% to
+-6.7%. The D-365/L-40 reading of the gap as "not yet a converged number" was
+incomplete: most of it is this formula and the rest the ionized gas's 4.4%
+excess temperature. On pn150k the nebula's structure matches Cloudy's to 0.4%
+in emission measure and 0.1% in temperature, and the formula was the only
+Hbeta difference. (Cloudy's integrated zones fall 2% short of its own printed
+Hbeta on hiipdr; the pn150k page's Cloudy Hbeta has been ambiguous since
+D-303/D-359, which is why the like-for-like integral is used here.)
+
+### Finding 2 (L-27, re-sized): the line-escape flaw is now in the cooling and the lines
+
+Since D-363 MOCASSIN's own C I, C II and O I atoms take the chemistry's escape
+probability per transition, so L-27 now sets both the thermal balance and the
+reported fine-structure lines. pdrStep still hands `escape_probability` the
+slab closed form: HEALPix nside 1 read as three rings about the radial
+direction, the four `mu = 0` rays given `colA = 1e30`, so beta <= 2/3 for a
+thin line, and the cell's own populations carried over the whole column to the
+boundary. In the two-level limit the emission goes as beta/(x + beta), x =
+n/n_crit, so taking beta from 2/3 to 1 raises [C II] 158 (n_crit ~3e3 on H)
+by 2/12/38/50% at n_H 1e2/1e3/1e4/1e5 - the same numbers as L-27's "2/11/28/33%
+lost". hiipdr (1e2) does not see it; pn150k (1e3) does; the PDRs of real
+planetary nebulae (1e4-1e5) are dominated by it. It is the D-360 step still
+open.
+
+### Finding 3: the stopping rule does not test helium
+
+The per-cell test (`update_mod`, D-155/D-179/D-229) passes a cell when x(H0),
+x(H2) (PDR runs) and T_e have each changed by less than `convLimit` since the
+iteration began. L-40 said "x(H0) only"; that is corrected. Helium is not
+tested, so pn150k 81^3 stopped at 94% with its He2+ front still moving 0.003
+pc per iteration and He II 4686 11% low (D-368). In a planetary nebula, He II
+4686 is the stellar-temperature diagnostic.
+
+### Finding 4: the memory model, measured
+
+Three measured points - 31^3 hiipdr 1.05 GB/rank (PSS, D-243), 61^3 hiipdr
+4.97 GB (cgroup peak / 7, D-365), 81^3 pn150k 10.3-11.5 GB (D-368) - fit
+
+    per rank = 0.47 GB + 38 kB per ACTIVE cell     (nbins 600, dust+gas+PDR)
+
+(15,204, 117,262 and 275,545 active cells; the fit through the first two
+predicts 11.05 GB for the third). The documented 234 MB + 10.5 kB/cell was
+per cell of a smaller configuration and understates these fixtures ~3.6x per
+active cell. At 14 ranks and the ~31 GB budget that is ~46k active cells,
+about 44^3 for an octant sphere - not 58^3. hiipdr 31^3 (15k) and pn150k 41^3
+(35k) fit at 14 ranks, which is why nothing has hit it. Of the 38 kB, the nine
+`(nCells, nbins)` real arrays (`opacity`, `absOpac`, `scaOpac`, `recPDF`,
+`dustPDF`, `Jste`, `Jdif`, `escapedPackets`, `JPEots`) are 21.6 kB and at most
+two transient reduction buffers another 4.8 kB. About 11 kB is not itemized
+here. Five of the nine (opacity, abs/sca opacity, the two emission PDFs) are
+read-only during transport; sharing them per node would give ~1.5x the cells
+per rank.
+
+### Smaller findings, recorded
+
+  - `escape_probability` pumps the lines with a vendored diffuse-ISM grain
+    emissivity (`NGRAIN = 2e-12 n_H`, rho 2, 0.01 x 1.3nu/3e11) - a constant
+    standing in for the dust emission MOCASSIN transports (`Jdif` at the line
+    frequency). It enters only the chemistry's own solve, i.e. CO's lines and
+    cooling and the beta it hands on. MOCASSIN's atoms take beta but no
+    background term at all; for [C I] 609 um the CMB occupation is ~2e-4, so
+    that is negligible. To be taken with L-27, the same routine.
+  - He II 4686 (10^(-0.997 log T + 5.16)) and Lya are single power-law fits as
+    well. S&H's He II table is not on disk (`r2b0100.dat` holds ratios only),
+    so neither is checked.
+  - `pdrCoolTab` (CO's table) and `pdrHeatXtra` are still rank-local and
+    right only because updateCell and pdrStep share the ownership formula
+    (D-351 item 13).
+  - The warm start is still unverified (L-14). It becomes the practical route
+    once a production model needs more iterations than one sitting (L-40).
+  - `pdr-photoionization` is 129 commits ahead of `origin/main` with no remote
+    branch.
+
+### The ranking, for science production
+
+**A - wrong in what a paper quotes, now**
+  1. Hbeta, and through it every line ratio (Finding 1, new L-41). Small.
+  2. PDR line escape (Finding 2, L-27). Medium: the ray walk exists.
+  3. The stopping rule without helium (Finding 3, L-40). Small.
+
+**B - divergences to report, not blockers.**
+  - hiipdr's ionized gas 4.4% hotter than Cloudy's (new; pn150k's matches to
+    0.1%).
+  - The H/H2 crossing; pn150k's colder PDR.
+  - L-32, L-33, L-34.
+  - L-37's resolution check, per model.
+
+**C - maps.** L-26's per-cell noise. D-365/D-368 showed 21x the tracks buys
+~5x; accumulating the estimator is the user's design decision.
+
+**D - capacity.** Finding 4. Not the next step: pn150k's radial means were
+already converged at 41^3 (D-368), and a PN model of the usual size fits.
+
+**E - provenance.** Nothing is off this machine; pushing needs the user's
+word.
+
+### Decision
+
+Next is to **finish D-360's A: one reality for every line MOCASSIN reports**,
+in this order.
+
+  1. **Hbeta from the table.** `output_mod` and `mocassinPlot` take Hbeta from
+     `hlinex(4,2)` at the cell's T and n_e, the source the other H I lines
+     already use. He II 4686 and Lya are checked against their sources in the
+     same pass. The transport's copy in `emission_mod` (0.1-2% from the table
+     at 5-15 kK) is brought onto the table as a separate seeded pair, because
+     it changes the physics. Verification needs no new run: `mocassinOutput`
+     on `runs/d366-hii`, `runs/d363-pn` and the four Lexington grids.
+     - H I ratios must be unchanged.
+     - Every other ratio must fall by that run's factor, and Hbeta rise by
+       it.
+     - Nothing else may move.
+     The plain flavour is affected, so a port to this repository's `dev` is
+     the user's call, as D-367 was.
+  2. **L-27 along the real 3D rays.** Per-ray line columns along the twelve
+     HEALPix directions the D-348 walk already takes, mirror reflection
+     included, accumulating each traversed cell's level populations
+     (`pdrLevPop` is on every rank). That is 3D-PDR's own tau along a ray.
+     - Rays leave at the outer boundary.
+     - The `mu = 0` rule and the slab closed form go.
+     - The vendored grain emissivity is replaced by MOCASSIN's own field.
+     Predictions go on record before the runs.
+  3. **Helium in the per-cell test**, so the rebuild runs stop where their He
+     lines have settled.
+
+Then one seeded run of each fixture and both Cloudy pages rebuilt.
+
+### What is not known
+
+  - Why hiipdr's ionized gas is 4.4% hotter than Cloudy's when pn150k's
+    matches to 0.1%.
+  - Whether the He II 4686 and Lya fits are right.
+  - Where ~11 kB per active cell of the memory goes.
+
+### Status
+
+Decided, awaiting the user's go-ahead. No model code changed; the tool
+`tools/d370_hbeta.py` added.
