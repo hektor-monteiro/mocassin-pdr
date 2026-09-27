@@ -119,7 +119,7 @@ def main(dirs):
             pk = '  ' + open(f).read().split()[-4] + ' packets'
         print(f'\n{p}  ({d["nx"]}^3, cell {d["dr"]:.3f} pc){pk}')
         print('  robust fractional sd about the radial profile, by A_V band')
-        print('  %-7s' % 'qty' + ''.join('  A_V %3.1f-%3.1f' % b for b in BANDS))
+        print('  %-7s' % 'qty' + ''.join('  A_V %4.2f-%4.2f' % b for b in BANDS))
         for qn in QTY:
             print('  %-7s' % qn + ''.join(
                 '  %7.3f (%4d)' % (v, n) if np.isfinite(v) else '  %14s' % '-'
