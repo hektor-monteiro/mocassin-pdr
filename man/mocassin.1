@@ -816,6 +816,27 @@ The first two columns give the element and ion number, these are followed by \fB
 
 If a multiChemistry model is being run, then the results will be given for each individual component.
 
+In a PDR run the rows of C I, C II and O I are the chemistry's: every transition its level
+populations carry (collisions with H, H2, He, H+ and electrons, the populations the thermal
+balance cools by) is reported in the row of MOCASSIN's matching transition, in each cell where
+the chemistry has the carrier. Rows from levels its atoms lack (e.g. C II 1335, O I 1304) stay
+MOCASSIN's. The levels are matched by energy at the start of the output and the match is printed
+("[D362]"). mocassinOutput reproduces the substitution from output/pdrLineEm.out; a checkpoint
+written before it existed gives MOCASSIN's own lines, with a warning.
+
+lineFluxMol.out
+
+PDR runs only. The molecular coolants' lines (CO), from the same level populations, integrated
+over the grid: coolant, upper and lower level as numbered in the coolant's data file (J+1 for
+CO), wavelength [um], E_up/k [K], luminosity [erg/s] and the ratio to Hbeta. A slit run also
+writes lineFluxMol-slit.out.
+
+pdrLineEm.out
+
+PDR runs only, a checkpoint: per grid point (the order of grid1.out), the net escaping emission
+[erg/s/cm^3] of every coolant transition, from a level-population solve at the cell's own
+temperature. A header line gives the number of transitions.
+
 temperature.out
 
 The file temperature.out contains the mean electronic temperatures weighted by the ionic species (see Ercolano et al., 2003 (http://cdsads.u-strasbg.fr/abs/2003MNRAS.340.1136E) for definition). This file has the same structure as the ionratio.out file.

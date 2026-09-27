@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-361, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-362, 2026-09-26. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -350,10 +350,19 @@ cells below 1000 K:
     hiipdr  [O I] 63+145  reported 0.0016   the gas's cooling 0.0059   Cloudy 0.0070
     pn150k  [O I] 63+145  reported 0.0063   the gas's cooling 0.068    Cloudy 0.20
 
-On hiipdr the cooling the model uses matches Cloudy to 16%, while the reported
-line is 4.4x low. No CO line is reported, though CO cooling enters the
-balance. **Next step (D-360):** export the chemistry's per-transition
-emissivities in place of MOCASSIN's C+, C and O lines, and add the CO ladder.
+(Corrected at D-362: that "cooling" summed only cells below 1000 K, at the
+nearest table temperature, and left out the front cells that carry most of
+[O I].)
+**CLOSED 2026-09-26 (D-362).** `lineFlux.out`'s C I, C II and O I rows now
+come from the chemistry's populations in every cell where it has the carrier,
+the thermal balance's own condition. Rows from levels the chemistry's atoms
+lack stay MOCASSIN's. CO lines are in `lineFluxMol.out`, and the per-cell
+emissivities are checkpointed in `pdrLineEm.out`. In Hbeta units:
+
+    [O I] 63+145   pn150k  0.0063 -> 0.280 (Cloudy 0.202)   hiipdr 0.0016 -> 0.059 (Cloudy 0.0062)
+    [C II] 158     pn150k  0.163  -> 0.213 (Cloudy 0.311)   hiipdr 0.178  -> 0.194 (Cloudy 0.134)
+
+What remains is registered as L-36, L-37 and L-38.
 
 **L-29. The conserved sum is enforced, not tested** (D-351). The hydrogen
 stages are normalised to the chemistry's `x(H) + x(H+)` before the budget is
@@ -421,6 +430,40 @@ every non-H I line and Hbeta are byte-identical, and the Balmer series matches
 Case B to 1%. The contamination had also reached low-n lines on hiipdr:
 Halpha/Hbeta went from 2.910 to 2.889 and H8 from 0.127 to 0.1045 Hbeta.
 hiipdr's log shrinks from 90,561 lines to 187.
+
+**L-36. The thermal balance's coolant table misses an exact solve by up to x3
+per cell** (D-362). The balance reads each coolant from D-215's 16-point
+table, log-log interpolated over brackets a factor 1.94 wide. `[D362]` compares
+it with a level-population solve at the cell's T. For C+ the per-cell mean
+|ln| is 0.20 (hiipdr) and 0.084 (pn150k), max 0.44. For O I it is 0.50 and
+0.18, max 1.09. In sum the table is 11% high for C+ on hiipdr and 10% low on
+pn150k, and within 3% for O, C and CO. The reported lines come from the exact
+solve; the temperature comes from the table. For [C II]-cooled cold gas a
+20% cooling error is ~4% in T *(estimate)*. The fix is a finer table or an
+interpolation in 1/T. Why the C+ sign differs between the fixtures is not
+known.
+
+**L-37. Unresolved ionization-front cells dominate the [O I] lines**
+(D-362). 92% (hiipdr) and 74% (pn150k) of [O I] 63 um comes from cells with
+x(H+) 0.01-0.95 at 5,600-11,000 K. A 31^3 hiipdr cell is ~0.5 pc, where the
+front is ~0.01 pc, so each front cell carries half a parsec of warm
+half-neutral gas. [O I] 63 is 9.3x Cloudy on hiipdr and 1.39x on pn150k.
+MOCASSIN's own [O I] 6300 has always been 6.5x and 1.42x, so the same layer
+drives both. The lines are the model's own state, and the balance cooled those
+cells by them. The test is a finer grid; any front-sensitive line needs a
+resolution check before it is published.
+
+**L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
+(D-362). The substitution runs in every cell with the carrier, as the balance
+does. In H II gas that swaps CHIANTI 10.1's electron-impact data for the
+coolant files'. The C II] 2325 multiplet rises x1.22 (hiipdr) and x1.16
+(pn150k), away from Cloudy on pn150k (0.94 against 0.62). The 2324 A
+component rises x2.1: 4P3/2 A = 1.71/5.24 s^-1 in `12c+.dat` against 1.38/8.35
+in CHIANTI. [C I] 9824/9850 falls to x0.66 (toward Cloudy), and [O I]
+6300/6363/5577 moves <1%. The principled fix is one atom per ion: MOCASSIN's
+CHIANTI levels and electron rates, plus the chemistry's H, H2, He and H+ rates
+for the levels they cover, solved once for the balance and the lines. That is
+a design decision.
 
 ### Medium
 
@@ -610,8 +653,12 @@ Stated explicitly, because absence of a reported problem is not evidence.
   - **pn150k on the current code.** Its last run is D-336, before D-348 and
     D-350. The two Cloudy artifacts (2026-09-24) and `hiipdr Against 3D-PDR`
     (2026-09-14) all show pre-D-348 physics (D-351).
-  - **The plain flavour against Lexington** since D-270/D-279
-    (2026-09-14/15), across at least ten core-physics changes (D-351).
+  - ~~**The plain flavour against Lexington**~~ - **run** (D-362). D-360 and
+    D-362 are identical on every benchmark quantity. Against the codes this
+    branch has 14/8/24/15 lines in range (HII40/HII20/PN150/PN75) where `dev`
+    had 16/9/26/16 at D-270. HII40's <T> is 8131 K, now inside the codes' range
+    (dev: 8358), and many collisional lines are 10-35% lower than dev's. The
+    change has not been attributed across D-280..D-330.
   - **The 1D PDR flavour** (`PDR=1` without `PDRGEOM=3D`), beyond compiling.
   - ~~**Any model reaching A_V > 0.7**, so L-3 is untested~~ - **superseded**
     (D-333): `runs/d326-stick` reaches A_V 2.999 and L-3 is measured there.

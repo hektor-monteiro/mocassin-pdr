@@ -62,6 +62,7 @@ module iteration_mod
            real, allocatable :: pdrCoolTrTmp(:), pdrCoolTrSum(:)      ! D-166
            real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
            real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
+           real, allocatable :: pdrLnTmp(:,:), pdrLnSum(:,:)          ! D-362
            real, allocatable :: pdrIonRateTmp(:,:), pdrIonRateSum(:,:) ! D-118
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
@@ -1927,6 +1928,8 @@ module iteration_mod
               allocate(H2denSum(0:grid(iG)%nCells), stat=err)
               allocate(pdrCoolSpTmp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
               allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
+              allocate(pdrLnTmp(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)   ! D-362
+              allocate(pdrLnSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
               allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
               allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
               allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
@@ -1945,6 +1948,7 @@ module iteration_mod
               pdrCoolTrTmp = 0.
               H2denTmp = 0.
               pdrCoolSpTmp = 0.
+              pdrLnTmp = 0.; pdrLnSum = 0.                               ! D-362
               pdrIonRateTmp = 0.; pdrIonRateSum = 0.
               pdrHeatPESum = 0.
               pdrCoolTmp   = 0.
@@ -1979,6 +1983,8 @@ module iteration_mod
                                   & grid(iG)%H2den(grid(iG)%active(i,j,k))
                              pdrCoolSpTmp(grid(iG)%active(i,j,k),:) = &
                                   & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
+                             pdrLnTmp(grid(iG)%active(i,j,k),:) = &          ! D-362
+                                  & grid(iG)%pdrLineEm(grid(iG)%active(i,j,k),:)
                              pdrIonRateTmp(grid(iG)%active(i,j,k),:) = &
                                   & grid(iG)%pdrIonRate(grid(iG)%active(i,j,k),:)
                              pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
@@ -2018,6 +2024,13 @@ module iteration_mod
               call mpi_allreduce(pdrCoolSpTmp, pdrCoolSpSum, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
               grid(iG)%pdrCoolSp(1:grid(iG)%nCells,:) = pdrCoolSpSum(1:grid(iG)%nCells,:)
+              ! D-362: the lines each rank solved, onto every rank, so the
+              ! output (rank 0) and writeGrid see every cell's
+              size = (grid(iG)%nCells+1)*max(pdrNln,1)
+              call mpi_allreduce(pdrLnTmp, pdrLnSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrLineEm(1:grid(iG)%nCells,:) = pdrLnSum(1:grid(iG)%nCells,:)
+              lgPdrLineEm = .true.
               size = (grid(iG)%nCells+1)*2*pdrNlink
               call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
@@ -2061,6 +2074,7 @@ module iteration_mod
 
               deallocate(H2denTmp, H2denSum)
               deallocate(pdrCoolSpTmp, pdrCoolSpSum)
+              deallocate(pdrLnTmp, pdrLnSum)                             ! D-362
               deallocate(pdrIonRateTmp, pdrIonRateSum)
 
               call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &

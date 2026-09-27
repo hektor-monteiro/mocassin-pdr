@@ -155,6 +155,12 @@ module pdr_mod
     ! and cells whose MOCASSIN rates were not yet set
     double precision :: ion358(2,3) = 0.d0
     integer          :: nUnset358 = 0
+    ! D-362: each coolant's cooling from a level-population solve at the
+    ! cell's own temperature against the log-log interpolation of the D-215
+    ! table the thermal balance reads: cells compared, the two sums, and
+    ! the sum and largest of |ln(exact/table)|. Reduced and printed by
+    ! reportPassChange.
+    double precision :: lnCmp362(30,4) = 0.d0, lnMax362(30) = 0.d0
 
     contains
 
@@ -175,6 +181,7 @@ module pdr_mod
         logical            :: lgDupPhot, lgDupRec
         integer            :: iTyp280          ! D-280: 1 CRP, 2 CRPHOT
         integer            :: ios, iS, iC
+        integer            :: iLv, iUp, nT362  ! D-362: transition list
         logical            :: lgAtomic
         ! D-131. Element symbols, lower case. Cobalt is deliberately ABSENT -
         ! see the note where this is used.
@@ -372,6 +379,48 @@ module pdr_mod
            pdrLevOff(iS) = pdrNlevTot
            pdrNlevTot = pdrNlevTot + pdrCoolant2(iS)%cnlev
            pdrMaxLev  = max(pdrMaxLev, pdrCoolant2(iS)%cnlev)
+        end do
+
+        ! D-362: every coolant's radiative transitions, in the order
+        ! escape_probability evaluates them (upper level outer, lower inner,
+        ! A_ij > 0), with their wavelengths and the level energies - all from
+        ! the coolant files themselves. pdrStep stores each transition's
+        ! emission per cell; outputGas matches the atomic ones to MOCASSIN's
+        ! own levels by energy.
+        pdrNln = 0
+        do iS = 1, pdrNcool
+           pdrLnOff(iS) = pdrNln
+           pdrLnN(iS)   = 0
+           do iUp = 2, pdrCoolant2(iS)%cnlev
+              do iLv = 1, iUp-1
+                 if (pdrCoolant2(iS)%A_COEFFS(iUp,iLv) /= 0.d0) pdrLnN(iS) = pdrLnN(iS) + 1
+              end do
+           end do
+           pdrNln = pdrNln + pdrLnN(iS)
+        end do
+        if (allocated(pdrLnUp)) deallocate(pdrLnUp, pdrLnLo, pdrLnWav, pdrLvE)
+        allocate(pdrLnUp(max(pdrNln,1)), pdrLnLo(max(pdrNln,1)), &
+             & pdrLnWav(max(pdrNln,1)), pdrLvE(max(pdrNlevTot,1)))
+        pdrLnUp = 0; pdrLnLo = 0; pdrLnWav = 0.d0; pdrLvE = 0.d0
+        do iS = 1, pdrNcool
+           nT362 = pdrLnOff(iS)
+           do iUp = 1, pdrCoolant2(iS)%cnlev
+              pdrLvE(pdrLevOff(iS)+iUp) = pdrCoolant2(iS)%energies(iUp) &
+                   & /(dble(hPlanck)*dble(c))
+           end do
+           do iUp = 2, pdrCoolant2(iS)%cnlev
+              do iLv = 1, iUp-1
+                 if (pdrCoolant2(iS)%A_COEFFS(iUp,iLv) == 0.d0) cycle
+                 nT362 = nT362 + 1
+                 pdrLnUp(nT362) = iUp
+                 pdrLnLo(nT362) = iLv
+                 if (pdrCoolant2(iS)%frequencies(iUp,iLv) > 0.d0) &
+                      & pdrLnWav(nT362) = dble(c)/pdrCoolant2(iS)%frequencies(iUp,iLv)*1.d8
+              end do
+           end do
+           if (taskid == 0) print '(a,a,a,i4,a)', " ! [D362] coolant ", &
+                & trim(adjustl(pdrCoolant(iS))), ": ", pdrLnN(iS), &
+                & " radiative transitions, emission stored per cell"
         end do
 
         ! ---- read the network -------------------------------------------
@@ -2674,6 +2723,8 @@ module pdr_mod
         logical, save      :: lgAVd113(8) = .false.      ! D-258
         integer, save      :: iterD113 = -1            ! D-258b
         double precision   :: abunPre(pdrNspec)          ! D-258c
+        integer            :: iLn362                     ! D-362
+        double precision   :: cTab362, d362              ! D-362
 
         cellP = grid%active(xP,yP,zP)
         if (cellP <= 0) return
@@ -3455,8 +3506,17 @@ module pdr_mod
            if (abs(log(dble(pdrTabT(iTpass))/Tg)) < &
              & abs(log(dble(pdrTabT(iTnear))/Tg))) iTnear = iTpass
         end do
-        do iTpass = 1, pdrNtab
-           Tc = dble(pdrTabT(iTpass))
+        ! D-362: one pass more, at the cell's own temperature. The table
+        ! entries are a factor 1.94 apart and the balance interpolates them;
+        ! the lines the run REPORTS come from this solve, at the T the cell
+        ! has, and they write nothing the physics reads. It starts from the
+        ! populations just stored at iTnear.
+        do iTpass = 1, pdrNtab + 1
+           if (iTpass <= pdrNtab) then
+              Tc = dble(pdrTabT(iTpass))
+           else
+              Tc = Tg
+           end if
 
         do ik = 1, pdrNcool
            nlev = pdrCoolant2(ik)%cnlev
@@ -3483,8 +3543,12 @@ module pdr_mod
               ! MOCASSIN's thermal balance, and leaving the previous MC
               ! iteration's value in place would feed a cell the cooling of
               ! a carrier the chemistry has since destroyed.
-              grid%pdrCoolTab(cellP, ik, iTpass) = 0.        ! D-215
-              if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
+              if (iTpass <= pdrNtab) then
+                 grid%pdrCoolTab(cellP, ik, iTpass) = 0.        ! D-215
+                 if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
+              else if (pdrLnN(ik) > 0) then
+                 grid%pdrLineEm(cellP, pdrLnOff(ik)+1:pdrLnOff(ik)+pdrLnN(ik)) = 0.  ! D-362
+              end if
               cycle
            end if
 
@@ -3636,6 +3700,25 @@ module pdr_mod
            lpop(1:nlev) = lsol(1:nlev)
            if (lsum < dble(pdrLevTol)) exit
            end do
+
+           ! D-362: the pass at the cell's own T stores its lines, and
+           ! measures the table interpolation the balance uses against it
+           if (iTpass > pdrNtab) then
+              do iLn362 = pdrLnOff(ik)+1, pdrLnOff(ik)+pdrLnN(ik)
+                 grid%pdrLineEm(cellP, iLn362) = &
+                      & real(lline(pdrLnUp(iLn362), pdrLnLo(iLn362)))
+              end do
+              cTab362 = pdrCoolAt(grid, cellP, ik, real(Tg))
+              if (coolK > 0.d0 .and. cTab362 > 0.d0) then
+                 d362 = abs(log(coolK/cTab362))
+                 lnCmp362(ik,1) = lnCmp362(ik,1) + 1.d0
+                 lnCmp362(ik,2) = lnCmp362(ik,2) + coolK
+                 lnCmp362(ik,3) = lnCmp362(ik,3) + cTab362
+                 lnCmp362(ik,4) = lnCmp362(ik,4) + d362
+                 lnMax362(ik)   = max(lnMax362(ik), d362)
+              end if
+              cycle
+           end if
 
            grid%pdrCoolTab(cellP, ik, iTpass) = real(coolK)          ! D-215
            if (iTpass == iTnear) then
@@ -3801,6 +3884,7 @@ module pdr_mod
         include 'mpif.h'
         integer, intent(in) :: iterMC
         double precision    :: cnt(2,3), mx(2)
+        double precision    :: cmp362(30,4), mx362(30)     ! D-362
         integer             :: iq, ierr
         character(len=2), parameter :: lab(2) = (/ 'H2', 'CO' /)
 
@@ -3837,6 +3921,24 @@ module pdr_mod
         end if
         ion358 = 0.d0
         nUnset358 = 0
+
+        ! D-362: the balance's interpolated cooling against a solve at T
+        call mpi_allreduce(lnCmp362, cmp362, 120, mpi_double_precision, &
+             & mpi_sum, mpi_comm_world, ierr)
+        call mpi_allreduce(lnMax362, mx362, 30, mpi_double_precision, &
+             & mpi_max, mpi_comm_world, ierr)
+        if (taskid == 0) then
+           do iq = 1, pdrNcool
+              if (cmp362(iq,1) < 1.d0) cycle
+              print '(a,i3,a,a10,a,i7,a,f8.4,a,f8.4,a,f8.4)', " ! [D362] iteration", &
+                   & iterMC, "  ", trim(adjustl(pdrCoolant(iq))), " cells", &
+                   & nint(cmp362(iq,1)), "  cooling at T / table", &
+                   & cmp362(iq,2)/max(cmp362(iq,3), 1.d-300), "  mean |ln|", &
+                   & cmp362(iq,4)/cmp362(iq,1), "  max |ln|", mx362(iq)
+           end do
+        end if
+        lnCmp362 = 0.d0
+        lnMax362 = 0.d0
       end subroutine reportPassChange
 
       !-----------------------------------------------------------------

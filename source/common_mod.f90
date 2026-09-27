@@ -453,6 +453,14 @@ module common_mod
         real, allocatable         :: pdrCoolTref(:)  ! T the coolants were solved at
         real, allocatable         :: pdrCoolSp(:,:)  ! per-coolant cooling [erg/s/cm^3] (D-096),
                                                      ! in the order pdrCoolants lists them
+        ! D-362: the net escaping emission of each coolant transition
+        ! [erg/s/cm^3], from a level-population solve at the cell's own
+        ! temperature (the table of D-215 is at fixed temperatures), packed
+        ! by pdrLnOff. Their sum over one coolant is that coolant's cooling
+        ! at T. outputGas reports the atomic ones in lineFlux.out in place of
+        ! MOCASSIN's electron-only C, C+ and O lines, and the molecular ones
+        ! in lineFluxMol.out.
+        real, allocatable         :: pdrLineEm(:,:)
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
         ! D-131: the PDR heating MOCASSIN does not compute for itself, summed
@@ -747,6 +755,20 @@ module common_mod
     integer             :: pdrNlevTot = 0           ! total coolant levels, summed over coolants
     integer             :: pdrMaxLev  = 1           ! largest cnlev over the coolants
     integer             :: pdrLevOff(30) = 0        ! offset of each coolant in pdrLevPop
+    ! D-362: every coolant's radiative transitions (A_ij > 0), packed end to
+    ! end per coolant in escape_probability's order (upper level outer, lower
+    ! inner), so pdrLineEm can be sliced like pdrLevPop. Built in
+    ! initPDRnetwork from the coolant data themselves.
+    integer             :: pdrNln = 0               ! transitions, all coolants
+    integer             :: pdrLnOff(30) = 0         ! offset of each coolant's first
+    integer             :: pdrLnN(30)   = 0         ! and its count
+    integer, allocatable          :: pdrLnUp(:), pdrLnLo(:)  ! levels, the coolant's own numbering
+    double precision, allocatable :: pdrLnWav(:)    ! vacuum wavelength [Angstrom]
+    double precision, allocatable :: pdrLvE(:)      ! level energy [cm^-1], packed as pdrLevPop
+    ! D-362: pdrLineEm holds a solve - set by the first pdrStep sweep, or by
+    ! resetGrid reading output/pdrLineEm.out. Until then outputGas keeps
+    ! MOCASSIN's own C, C+ and O lines, and says so.
+    logical             :: lgPdrLineEm = .false.
 
     ! --- PDR module controls (DEVLOG D-022) ------------------------------------
     ! Defaults reproduce 3D-PDR's shipped params.dat so an unspecified run is

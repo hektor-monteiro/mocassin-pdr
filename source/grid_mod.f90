@@ -1393,6 +1393,10 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
                 end if
+                allocate(grid%pdrLineEm(0:grid%nCells, 1:max(pdrNln,1)), stat = err)   ! D-362
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrLineEm memory"; stop
+                end if
                 allocate(grid%pdrCoolSlope(0:grid%nCells), stat = err)   ! D-166
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSlope memory"; stop
@@ -1530,6 +1534,7 @@ module grid_mod
                 grid%elemAvail = 1.
                 grid%H2den = 0.
                 grid%pdrCoolSp = 0.
+                grid%pdrLineEm = 0.                                         ! D-362
                 grid%pdrIonRate = 0.
                 grid%pdrPhotRate = -1.
                 grid%pdrAlphaRec = -1.
@@ -2940,6 +2945,18 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  print*, "! writeGrid: can't open file for writing - output/pdrCoolSp.out"
                  stop
               end if
+              ! D-362: every coolant transition's emissivity at the cell's own
+              ! temperature, so that mocassinOutput and a warm start report
+              ! the same lines the run did. The header carries the count;
+              ! resetGrid refuses a file whose count differs.
+              close(58)
+              open(unit=58, file="output/pdrLineEm.out", action="write",position="rewind",status="unknown", iostat = ios)
+              if (ios /= 0 ) then
+                 print*, "! writeGrid: can't open file for writing - output/pdrLineEm.out"
+                 stop
+              end if
+              write(58, '(a,i6,a)') "# pdrLineEm v1 (D-362): per grid point (i,j,k order),", &
+                   & max(pdrNln,1), " coolant transition emissivities [erg/s/cm^3]"
               close(53)
               open(unit=53, file="output/pdrRad.out", action="write",position="rewind",status="unknown", iostat = ios)
               if (ios /= 0 ) then
@@ -3032,6 +3049,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        ! coolant-by-coolant comparison against 3D-PDR's
                        ! .cool.fin no longer needs a rerun to reconstruct.
                        write(52, *) (grid(iG)%pdrCoolSp(cellP,iPdrS), iPdrS = 1, max(pdrNcool,1))
+                       write(58, *) (grid(iG)%pdrLineEm(cellP,iPdrS), iPdrS = 1, max(pdrNln,1))   ! D-362
                        ! D-104: where a cell's energy is. totalLines is the
                        ! fraction of re-emitted energy that escapes as a line
                        ! photon; the J sums say whether more energy is arriving
@@ -3086,6 +3104,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
 #ifdef PDR
         if (lgPDR) close(51)
         if (lgPDR) close(54)            ! D-285
+        if (lgPDR) close(58)            ! D-362
 #endif
         if (lgDust) then
            write(50,*) ' '
@@ -3340,6 +3359,7 @@ end function getVolume
       logical                        :: lgPDRrestart  ! checkpoint carries PDR state?
       character(len=20)              :: pdrNetRead    ! network name in the checkpoint
       character(len=200)             :: pdrHdr        ! D-352: pdrGrid.out format line
+      integer                        :: iPdrLn        ! D-362: pdrLineEm.out's count
       integer                        :: iLnkR, jLnkR  ! D-189
       double precision               :: availR        ! D-189
 #endif
@@ -3605,6 +3625,31 @@ end function getVolume
             print*, "!   built from tag d352-zone-and-switches."
             stop
          end if
+         ! D-362: the coolant transitions' emissivities, if this checkpoint
+         ! has them. One written before D-362 does not; outputGas then keeps
+         ! MOCASSIN's own C, C+ and O lines and says so (lgPdrLineEm).
+         close(92)
+         lgPdrLineEm = .false.
+         open(unit=92, file='output/pdrLineEm.out', action="read", position='rewind', &
+              &          status='old', iostat = err)
+         if (err == 0) then
+            read(92, '(a)', iostat = err) pdrHdr
+            if (err == 0 .and. index(pdrHdr, '# pdrLineEm v1') == 1) then
+               ! the count follows the header's LAST comma
+               read(pdrHdr(index(pdrHdr, ',', back=.true.)+1:), *, iostat = err) iPdrLn
+               if (err == 0 .and. iPdrLn == max(pdrNln,1)) then
+                  lgPdrLineEm = .true.
+               else
+                  print*, "! resetGrid: output/pdrLineEm.out has ", iPdrLn, &
+                       & " transitions, this run's coolants have ", pdrNln, &
+                       & " - not read; MOCASSIN's own C, C+ and O lines will be reported"
+               end if
+            end if
+            if (.not.lgPdrLineEm) close(92)
+         else
+            print*, "! resetGrid: no output/pdrLineEm.out (a checkpoint from before D-362) -"
+            print*, "!   MOCASSIN's own C, C+ and O lines will be reported"
+         end if
       end if
 #endif
       if (lgGas) then
@@ -3738,6 +3783,10 @@ end function getVolume
                allocate(grid(iG)%pdrCoolSp(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat = err)
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
+               end if
+               allocate(grid(iG)%pdrLineEm(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat = err) ! D-362
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrLineEm memory"; stop
                end if
                allocate(grid(iG)%pdrSeeded(0:grid(iG)%nCells), stat = err)     ! D-188
                if (err /= 0) then
@@ -3889,6 +3938,7 @@ end function getVolume
                grid(iG)%elemAvail = 1.
                grid(iG)%H2den = 0.
                grid(iG)%pdrCoolSp = 0.
+               grid(iG)%pdrLineEm = 0.                                      ! D-362
                grid(iG)%pdrIonRate = 0.
                grid(iG)%pdrPhotRate = -1.
                grid(iG)%pdrAlphaRec = -1.
@@ -4126,6 +4176,8 @@ end function getVolume
                           & grid(iG)%AVeff(cellP), grid(iG)%pdrCool(cellP), &
                           & grid(iG)%pdrHeat(cellP), grid(iG)%pdrHeatPE(cellP)
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
+                     if (lgPdrLineEm) read(92, *) &
+                          & (grid(iG)%pdrLineEm(cellP,iPdrS), iPdrS = 1, max(pdrNln,1))   ! D-362
                      ! D-188: a restored cell has already been seeded and has
                      ! real chemistry in it. Without this the first-visit seed
                      ! in pdrStep would overwrite the restored abundances with
@@ -4270,6 +4322,9 @@ end function getVolume
       end if
 
       if (lgDust) close(88)
+#ifdef PDR
+      if (lgPDR) close(92)          ! D-362
+#endif
 
       ! locate the origin of the axes
       call locate(grid(1)%xAxis, 0., iOrigin)
