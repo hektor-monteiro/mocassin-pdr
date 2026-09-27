@@ -781,14 +781,17 @@ program MoCaSSiNplot
            print*, "! recLineEmission: [warning] temperature exceeds 26000K - Hbeta &
                 & calculations may be uncertain"
         end if
-        Hbeta = 2530./(TeUsed**0.833) ! TeUsed < 26000K CASE
+!        Hbeta = 2530./(TeUsed**0.833) ! TeUsed < 26000K CASE
 
         ! fits to Storey and Hummer MNRAS 272(1995)41
 !        Hbeta = 10**(-0.870*log10Te + 3.57)
-        Hbeta = Hbeta*NeUsed*ionDenUsed(elementXref(1),2)*grid3D(iG)%elemAbun(abFileIndexUsed,1)
 
+        ! D-371: Hbeta from Storey & Hummer's own table, as in output_mod's
+        ! RecLinesEmission - the power law 2530/Te^0.833 was ~5% below it.
+        ! hlinex returns erg cm^3/s; HIRecLines are in units of 1e-25 of that.
         call hlinex(4,2,TeUsed,NeUsed,fh)
         hb = fh
+        Hbeta = hb*1.e25*NeUsed*ionDenUsed(elementXref(1),2)*grid3D(iG)%elemAbun(abFileIndexUsed,1)
 
         do ilow = 2, 8
            do iup = 30, ilow+1, -1

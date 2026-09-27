@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-370, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-372, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -550,8 +550,25 @@ same factor.
     emission measure 1.1% lower.
   - pn150k: emission measure and temperature match Cloudy's to 0.4% and
     0.1%, so the formula was the whole difference.
-He II 4686 and Lya are single power-law fits too, not yet checked against
-their sources. **Next** (D-370).
+**CLOSED 2026-09-27 (D-371).** Hbeta is `hlinex(4,2)`, the table's own value, in
+`output_mod` and `mocassinPlot`. Regenerated from the grids with
+`mocassinOutput`, every non-H I ratio falls by exactly 1/F and H I ratios move
+<0.08%. Hbeta is now inside the Lexington codes' range on all four models
+(three were below it). The He II 4686 fit is S&H case B to <=1% below 15 kK
+(hydrogenic scaling of the same table); Cloudy's own 4686 emissivity is 0.80-0.88
+of case B in pn150k's He++ zones, a divergence to report. The transport's copy
+(`emission_mod`, 0.994-0.997 of the table) waits for its own seeded pair.
+
+**L-42. Lya is carried as an 8.15 um line** (D-372). `emission_mod` adds Lya
+into `HIRecLines(15,8)`, and since D-292/D-307 every line packet drawn from
+that slot is emitted at the 15->8 frequency. `SED.out` has a spurious 8.3 um
+line carrying 5.6% of hiipdr's emergent luminosity and 18.8% of pn150k's (27%
+of its 1-1000 um). The energy that belongs in the grains near the front
+crosses the PDR at 8 um instead. 0.0112 Ryd is inside L-19's 0.01-0.44 Ryd
+excess band (a candidate, not measured). `lineFlux.out` reports Lya in the H I
+30->8 row at 6.28 um. Not on `dev`, which has no line transport. Where Lya's
+energy should go is a design decision; D-372 recommends absorbing it in the
+local dust.
 
 ### Medium
 

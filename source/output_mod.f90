@@ -2482,17 +2482,24 @@ endif
 !           print*, "! recLineEmission: [warning] temperature exceeds 26000K - Hbeta &
 !                & calculations may be uncertain"
 !        end if
-        Hbeta = 2530./(TeUsed**0.833) ! TeUsed < 26000K CASE
+!        Hbeta = 2530./(TeUsed**0.833) ! TeUsed < 26000K CASE
 
         ! fits to Storey and Hummer MNRAS 272(1995)41
 !        Hbeta = 10**(-0.870*log10Te + 3.57)
-        Hbeta = Hbeta*NeUsed*ionDenUsed(elementXref(1),2)*elemAbundanceUsed(1)
 
+        ! D-371: Hbeta from Storey & Hummer's own case B table (e1bx.dat, via
+        ! hlinex) at the cell's Te and Ne - the table every other H I line
+        ! below is a ratio from. The power law that stood here, 2530/Te^0.833,
+        ! is 0.948-0.977 of that table at 5,000-15,000 K, so every reported
+        ! Hbeta was ~5% low and every line relative to it ~5% high (x1.055
+        ! on hiipdr, x1.040 on pn150k; upstream since the initial import).
+        ! hlinex returns erg cm^3/s; HIRecLines are in units of 1e-25 of that.
         call hlinex(4,2,TeUsed,NeUsed,fh)
         hb = fh
         if (hb.eq.0.d0.or.hb.gt.huge(1.0)) then
           HIRecLines(:,:) = 0.d0 !needs fixing upstream, it should not be zero
         else
+          Hbeta = hb*1.e25*NeUsed*ionDenUsed(elementXref(1),2)*elemAbundanceUsed(1)
           do ilow = 2, 8
              do iup = 30, ilow+1, -1
                 call hlinex(iup,ilow,TeUsed,NeUsed,fh)
@@ -2720,8 +2727,9 @@ endif
       ! in PDR gas (11-27 K, n_e ~0.01) that gave H I n = 16-25 lines at up to
       ! 1e22 x Hbeta and overflowed single precision some 28,000 times per
       ! run (D-360). Below the table's density the emissivities are at their
-      ! low-density limit; below its temperature the line ratio is taken at
-      ! 300 K, and the caller's Hbeta fit still carries the T dependence. The
+      ! low-density limit; below its temperature they are taken at 300 K -
+      ! since D-371 Hbeta's too, which no longer comes from a separate fit
+      ! (recombination in gas that cold is ~1e-8 of a nebula's). The
       ! old high-T branch clamped by overwriting xt - the caller's TeUsed, which
       ! forLines then used - and printed at every call; neither is kept.
       ! The arrays hold 15 slots and the table fills ntempx = 11 and

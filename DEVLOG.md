@@ -370,6 +370,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-368 | **pn150k at twice the resolution (81^3, 3 ranks - all the memory allows): the packets reached 1e9 with the D-365 fix, the run converged (94%) and stopped at iteration 8 after 9 h 33 min, and the radial means were already converged at 41^3 - what 81^3/1e9 buys is the per-cell map, 3-4x quieter.** Scatter about the radial profile at A_V 0.35-0.8: FUV field 4-6.5% -> 1.2-1.7%, T_gas 2.2-2.8% -> 0.6-0.7%, CO 7-20% -> 3-5%; the old binary's direction pattern (+2.6/-1.8/+1.9% axis/diagonal/planes) is now as large as the noise. **[O I] 63 is not a resolution artefact on pn150k** (P5 fails): its front-cell part is 0.95x for half the cell size (hiipdr 0.53x) - the 150 kK star's hard photons make a partially ionized zone the 0.015 pc grid already resolves - so 1.35x -> 1.26x Cloudy is a model difference; [C II] 158 0.64 -> 0.65, [C I] unchanged. H+ front 0.1282 -> 0.1279 pc (Cloudy 0.1279), H/H2 crossing A_V 0.402 -> 0.407, PDR T unchanged. **The He2+ front was still moving +0.003 pc per iteration when the 90% criterion stopped the run** (0.0730, 0.0769, 0.0799; Cloudy 0.0880), so He II 4686 -11% is iteration count, not resolution (L-40) | Open | 2026-09-27 |
 | D-369 | **Artifact 'Fine Grids Against Cloudy' (https://claude.ai/artifact/36ngURUNJoJ3eW6q5JjwAr): the D-365..D-368 fine-grid runs against Cloudy.** Roellig figures for hiipdr 61^3 and pn150k 81^3 with a toggle to the published 31^3/41^3 ones; headline and line tables (coarse / fine / Cloudy, and hiipdr's 31^3-fixed column); three new diagnostic figures (per-cell noise, the mirror-reflection pattern for old/isotropic/fixed, front radius per iteration over Cloudy's). States that both fine-grid runs predate the D-366 fix and hiipdr stopped at 5e8. In checking the copy, D-366's 'every line within 1%' was found wrong ([C I] 370 -2.7%) and corrected | Done | 2026-09-27 |
 | D-370 | **Third audit against science production: the reported Hbeta is computed from a power law 4.6-5.2% below the Storey & Hummer table every other H I line in lineFlux.out already comes from, so every Hbeta is low and every line ratio high by that much, in every flavour and upstream since the import.** `output_mod`/`mocassinPlot` take Hbeta = 2530/T^0.833; `hlinex` (e1bx.dat) gives the H I ratios; the transport (`emission_mod`) uses a third form, S&H's fit 10^(-0.870 log T + 3.57). Against e1bx.dat's own Hbeta at n_e 100: 0.954/0.948/0.954/0.965/0.977 at 5/7.5/10/12.5/15 kK. `tools/d370_hbeta.py`, from grids on disk: taking Hbeta from the table raises it x1.0546 on hiipdr and x1.0404 on pn150k; hiipdr's gap to Cloudy goes from -11.6% to -6.7%, and what is left is the ionized gas 4.4% hotter (EM-weighted 9005 K against 8628; emission measure 0.989); on pn150k emission measure and temperature match Cloudy's to 0.4% and 0.1%, so the formula was the only Hbeta difference. Also: L-27 now sits in the cooling and the lines (D-363 hands its beta to MOCASSIN's atoms) - [C II] 158 +2/+12/+38% at n_H 1e2/1e3/1e4 in the two-level limit if beta reached 1; the per-cell convergence test covers x(H0), x(H2) and T_e but not helium (L-40's "x(H0) only" corrected); the measured memory is 0.47 GB + 38 kB per ACTIVE cell per rank (nbins 600, dust+gas+PDR; three points, 15k-276k cells), so 14 ranks hold ~46k active cells (~44^3 octant sphere), not 58^3; a vendored diffuse-ISM grain emissivity in `escape_probability`. **Decision: finish one reality for every reported line - Hbeta from the table (output only, verified from existing grids with mocassinOutput), then L-27 along the real 3D rays, then helium in the stopping test.** No model code changed. | Decided | 2026-09-27 |
+| D-371 | **Hbeta from Storey & Hummer's own table (D-370 step 1; closes L-41).** `output_mod`'s `RecLinesEmission` and `mocassinPlot`'s copy take Hbeta = `hlinex(4,2)` at the cell's T and n_e, the table every other H I line was already a ratio from, in place of 2530/T^0.833. Verified without a new run: the unfixed `mocassinOutput` (both flavours) reproduced all six runs' `lineFlux.out` byte for byte (`runs/d366-hii`, `runs/d363-pn`, the four `runs/d363-lex` models); the fixed one raises Hbeta x1.0518 / 1.0390 / 1.0538 / 1.0547 / 1.0428 / 1.0488, every non-H I value (He I, He II, heavy ions, `lineFluxMol` L/Hbeta) falls by exactly 1/F to 2e-6, absolute luminosities and the Ne/Te diagnostics are unchanged, H I ratios move -0.075..+0.038% (each line is now the table's own emissivity, weighted per cell as the table is), no other file changes. **Hbeta is now inside the Lexington codes' range on all four models** (0.986/1.009/1.020/1.012 of their median; three were below it). Against Cloudy: hiipdr 9.300 vs 10.00 (like-for-like 0.95: EM 0.989, T +4.4%), pn150k 0.02726 vs 0.0278 (1.003 like-for-like). Cloudy's own per-zone Hbeta emissivity equals the S&H table to 0.1% at 11-15 kK. **He II 4686's fit checked** by hydrogenic scaling of the same table: 0.999-1.009 of S&H at 5-14 kK, 1.02-1.03 at 17.5-20 kK - right; Cloudy's He II 4686 emissivity is 0.80-0.88 of case B in pn150k's He++ zones, a divergence to report. The transport's copy (`emission_mod`, 0.994/0.997 of the table EM-weighted) is left for its own seeded pair. | Done | 2026-09-27 |
+| D-372 | **Found while checking Lya for D-371: since D-307 the Monte Carlo carries Lya as 8.15 um photons.** `emission_mod.f90:566` adds Lya into `HIRecLines(15,8)`, a slot upstream used only to count Lya's energy in `totalLines` while line packets were dropped. D-292's frequency map and D-307's default-on line transport emit every packet drawn from that slot at the 15->8 frequency (0.01118 Ryd, 8.15 um); D-292's comment "the Lyman series and with it Lya is excluded" is wrong. Measured in `SED.out`: hiipdr's 8.33 um bin carries 1.705e38 erg/s (78% of the Lya row, 5.6% of the emergent SED); pn150k's 8.40 um bin 7.12e35 erg/s (18.8% of the SED, 27% of 1-1000 um). So the emergent IR SED has a spurious line, the energy a dusty nebula puts into its grains passes through the PDR at 8 um instead, and 0.0112 Ryd lies inside the 0.01-0.44 Ryd band where L-19 measures MOCASSIN's field in excess of Cloudy's (a candidate, not measured). `lineFlux.out` also reports Lya in the H I 30->8 row at 6.28 um. `dev` has the slot but no line transport, so its Lya is dropped, not misplaced. Registered as L-42; **not fixed - where Lya's energy goes is a design decision** (options in the body). | Open | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31576,3 +31578,202 @@ Then one seeded run of each fixture and both Cloudy pages rebuilt.
 
 Decided, awaiting the user's go-ahead. No model code changed; the tool
 `tools/d370_hbeta.py` added.
+
+---
+
+## D-371 - Hbeta from Storey & Hummer's own table (2026-09-27)
+
+The user: "start step 1 and apply Hbeta fix to dev then correct the memory
+figure in CLAUDE.md". Step 1 of D-370's decision; closes L-41.
+
+### What changed
+
+`output_mod.f90` `RecLinesEmission`: Hbeta = `hlinex(4,2)` x 1e25 x n_e x
+x(H+) x abundance, at the cell's T and n_e. That is the e1bx.dat value the
+routine already computed as the denominator of every other H I line. The
+power law 2530/T^0.833 stays as a comment, and the new value is computed only
+where `hlinex` returned a finite, non-zero number (the existing guard).
+`mocassinPlot.f90` carries the same change in its copy. The D-361 comment in
+`hlinex` is corrected: below 300 K Hbeta is now the 300 K value too, not a
+fit's.
+
+### Verification (no new run)
+
+The unfixed `mocassinOutput`, built in the PDR and plain flavours, run on
+copies of six grids (`runs/d371-hbeta/<model>/base`), reproduced each run's
+own `lineFlux.out`, and `lineFluxMol.out` where there is one, **byte for
+byte**. The fixed build was then run on the same copies (`.../fix`):
+
+    model       Hbeta [E36] base -> fix      F        (D-370 tool predicted)
+    d366-hii    8.8427  -> 9.3004         1.0518        1.0546
+    d363-pn     0.026241 -> 0.027263      1.0390        1.0404
+    HII40       19.179  -> 20.211         1.0538
+    HII20       4.6777  -> 4.9335         1.0547
+    PN150       0.26953 -> 0.28108        1.0428
+    PN75        0.055412 -> 0.058116      1.0488
+
+The tool differs from the code by up to 0.3% because it interpolates the
+table in its own way; `hlinex` uses 5-point Lagrange polynomials.
+
+Every number in the files was compared row by row (`scratchpad/d371_cmp2.py`,
+rows aligned on their integer keys):
+  - Every changed He I, He II and heavy-ion value, and `lineFluxMol`'s
+    L/Hbeta, is exactly 1/F of its old value, to 2e-6. Absolute luminosities
+    do not change.
+  - The [S II]/[O II] density and the [N II]/[O II]/[O III] temperature
+    diagnostics are identical.
+  - H I ratios move by -0.075% to +0.038%. Each H I line is now the table's
+    own emissivity summed over cells. Before, it was the table's ratio times
+    the power law, which weighted hot and cool cells slightly differently.
+  - The one H I entry that falls by 1/F is the 30->8 slot, which holds Lya's
+    fit (D-372).
+  - Two lines of ~1e-33 and 1e-45 Hbeta fell below the print threshold.
+  - No other output file changed.
+
+### Against the references
+
+**Lexington** (`scratchpad/lex371.py`, the codes' ranges from
+`dev_bench/lex/lex.json`). Hbeta is now inside the codes' range on all four
+models; before, three were below it:
+
+    model   codes (median)       base     fix      fix/median
+    HII40   2.02-2.10 (2.05)     1.918    2.021    0.986
+    HII20   4.83-5.04 (4.89)     4.678    4.933    1.009
+    PN150   2.47-2.86 (2.755)    2.695    2.811    1.020
+    PN75    5.56-6.08 (5.74)     5.541    5.812    1.012
+
+The line ratios, which all fall by 1/F, move both ways:
+  - HII40: in range 14 -> 14; median |dex| 0.040 -> 0.032.
+  - HII20: in range 8 -> 11; median |dex| 0.057 -> 0.034.
+  - PN150: in range 24 -> 24; median |dex| 0.077 -> 0.091.
+  - PN75: in range 15 -> 15; median |dex| 0.072 -> 0.085.
+The PN lines were already low (D-362's unattributed 10-35% fall), and a
+correct Hbeta moves them further down. That is D-362's open question, not
+something this fix introduced.
+
+**Cloudy.**
+  - hiipdr: 9.300 against 10.00 (-7.0%). Like-for-like, with both codes'
+    zones integrated with the same table, it is 0.95: emission measure
+    0.989, ionized gas 4.4% hotter.
+  - pn150k: 0.02726 against Cloudy's intrinsic 0.0278 (2.78e34 erg/s, from
+    "print line flux earth" at 1 kpc). Like-for-like it is 1.003.
+  - Cloudy's own saved per-zone Hbeta emissivity (`150k.emis`, fully ionized
+    zones) over the S&H table is 1.001 at 11-15 kK, 1.014 at 15-20 kK and
+    1.040 at 20-40 kK. That independently confirms the table as the right
+    source.
+
+### He II 4686 and Lya
+
+**He II 4686** (`10^(-0.997 log T + 5.16)`). S&H's He II table is not on
+disk, but He II is hydrogenic, so case B gives j(He II 4->3, T) = 8 j(H 4->3,
+T/4) from the same e1bx.dat. The fit over that is 1.009/1.004/1.001/0.999/
+1.008 at 5/7.5/10/12/14 kK, 1.022/1.030 at 17.5/20 kK and 1.054/1.074 at
+25/30 kK. **The fit is right** to <=1% below 15 kK and <=3% below 20 kK.
+Cloudy's He II 4686 emissivity (`150k.emis`, He++ zones) is 0.80/0.83/0.88
+of case B at 12/14/17.5 kK. That is why the fit applied to Cloudy's zones
+gives 4686/Hbeta 0.347 against Cloudy's printed 0.280. It is a divergence
+to report; a departure from case B in He II's Lyman lines is the candidate,
+not decomposed.
+
+**Lya** (`10^(-0.897 log T + 5.05)`). The fit gives 2.9e-24 erg cm^3 s^-1
+at 10^4 K, which is what alpha_B through 2p gives there. Its temperature
+dependence has no source on disk to test against. Checking where it goes found
+D-372.
+
+### The transport's copy
+
+`emission_mod`'s `RecLinesEmission` still uses S&H's fit
+10^(-0.870 log T + 3.57), with ratios fixed at 10^4 K (`r1b0100.dat`).
+EM-weighted it is 0.994 (hiipdr) and 0.997 (pn150k) of the table, and it
+sets only the energy the Monte Carlo carries in non-Lya H I lines. No
+reported number depends on it. Moving it onto the table changes the
+physics, and `hlinex` lives in `output_mod`, which `emission_mod` cannot
+use. It is left for its own seeded pair.
+
+### Builds
+
+`PDR=1 PDRGEOM=3D mocassin`, `PDR=1 mocassin`, `mocassin` and `PDR=1
+mocassinWarm` all build. So do `mocassinOutput` and `mocassinPlot` in both
+flavours.
+
+### What it means for published numbers
+
+Every Hbeta this project has published is 3.9-5.5% low, and every line in
+Hbeta units high by the same factor. That covers both Cloudy pages (hiipdr
+v17, 150 kK PN v15) and "Fine Grids Against Cloudy". They are corrected at
+the rebuild after steps 2 and 3. Old runs need no rerun: `mocassinOutput`
+regenerates `lineFlux.out` from the grids in seconds.
+
+### Status
+
+Done. L-41 closed. The `dev` port is D-373.
+
+---
+
+## D-372 - Lya is transported as an 8.15 um line (2026-09-27)
+
+Found while checking Lya's fit for D-371.
+
+### The defect
+
+`emission_mod.f90` `RecLinesEmission` (line 566) adds Lya's emissivity to
+`HIRecLines(15,8)`, and `output_mod` adds it to `HIRecLines(30,8)`. Upstream
+used those slots only to carry Lya's energy into `totalLines` (the line/
+continuum split of a diffuse emission) and the analytical sums. That was
+harmless while every line packet was given nu = 0 and dropped.
+
+D-292 gave each line in `linePDF` its own frequency, and D-307 made that
+transport the default. The (15,8) slot is in the list (ilow = 8 >= 2), so
+every packet drawn from it has been emitted at the 15->8 frequency, 1/64 -
+1/225 = 0.01118 Ryd = 8.15 um, and traced from there. Lya is nearly all of
+that slot. D-292's and D-296's comments that "linePDF starts at ilow = 2, so
+the Lyman series and with it Lya is excluded" are wrong, because the slot
+carries it.
+
+### Measured, from `SED.out`
+
+    run          spike bin   L [erg/s]    / Lya row   / emergent SED   / 1-1000 um
+    d366-hii     8.33 um     1.705e38      0.78         5.6%             6.0%
+    d363-pn      8.40 um     7.12e35       1.12         18.8%            27%
+
+The neighbouring bins carry 1e-3 of that or less. pn150k's ratio above 1 is the
+other lines sharing the bin plus Monte Carlo noise.
+
+### What it touches
+
+  - **The emergent SED.** It has a spurious line carrying 6-19% of the
+    luminosity.
+  - **The dust.** In a dusty nebula Lya is destroyed by grains near where it
+    is made (D-293: within A_V 0.02 of the front on pn150k). Here that
+    energy instead crosses the PDR at 8 um, where grains absorb weakly
+    (silicate more than graphite).
+  - **L-19.** 0.0112 Ryd lies inside the 0.01-0.44 Ryd band where MOCASSIN's
+    field exceeds Cloudy's (1.16-1.36x bolometric, D-307). This is a
+    candidate for part of L-19, not measured.
+  - **Not touched:** the thermal balance (recombination cooling is computed
+    on its own), the FUV photorates except through the dust, and every
+    reported line except Lya itself.
+  - **`lineFlux.out`** reports Lya in the H I 30->8 row, at 6.28 um and ~25
+    Hbeta. It is undocumented in `man/mocassin.1`.
+  - **`dev`** has the (15,8) slot but not D-292's transport, so there Lya is
+    dropped as it always was, not misplaced.
+
+### Options - the user's decision
+
+  (a) **Absorb Lya by the local dust** where it is made. That is its physical
+      fate in a dusty nebula and what D-293 measured. MOCASSIN already has
+      resonance-line dust heating (`initResLinePackets`, Kwan & Krolik
+      escape), but only behind `resLinesTransfer`, which is off by default
+      (101). This keeps the energy in the model and puts it into the IR
+      continuum. **Recommended.**
+  (b) Emit it at 1216 A as an optically thin line. Wrong: D-293 sized that
+      at 6x the stellar FUV in the front cells.
+  (c) Drop it, as before D-292. That deletes 6-19% of the luminosity from
+      the model.
+
+Any of these also takes Lya out of the 30->8 row of `lineFlux.out` and gives
+it a row of its own.
+
+### Status
+
+Open. Registered as L-42. No code changed.
