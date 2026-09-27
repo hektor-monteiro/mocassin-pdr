@@ -367,6 +367,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-365 | **hiipdr at twice the resolution (61^3, 7 ranks - all the memory allows) with packets doubling from 6.25e7: MC noise per cell falls ~5x as predicted, deep carbon recovers, and [O I] 63 falls from 9.5x to 5.5x Cloudy, confirming L-37. The per-cell map is now limited by a fixed grid-direction pattern in MOCASSIN's field (new L-39), and the H II region is not converged in 11 iterations at either resolution (new L-40).** An upstream autoPackets defect counted the first star twice and capped the run at 5e8 of the requested 1e9; fixed (`nPhotonsTot = 0`). Iteration-to-iteration noise in the FUV field at 5e8: 0.8/1.5/2.8/4.8% at A_V 1-1.5/1.5-2/2-2.5/2.5-3.5, against L-26's 7/14/22% at 6e6 on 31^3. The scatter about the radial profile barely moves (0.16 at A_V 1.5-2 from 1.25e8 to 5e8) because cells deviate the same way every iteration (r = 0.95-1.00): +29% along the axes, -16% on the diagonals, +44% on the symmetry planes at A_V 2.5-3.5, the same at 31^3 (+24/-17/+41%); T_dust carries it too (+3.0/-1.7/+3.7%), so it is transport, not chemistry. C+ = C A_V 2.26 -> 2.72 (Cloudy 2.95), deep C+ x3.7, n_e at A_V 2.5 0.3 -> 0.92 of Cloudy. [O I] 63's front-cell part scales 0.53x for half the cell size. Front 3.830 -> 3.699 pc (Cloudy 3.765) and still moving 0.008 pc per iteration at iteration 11; the 31^3 22-iteration runs sit at 3.787 pc. Hbeta 8.82 -> 8.19 E36 against Cloudy's 9.95. pn150k 81^3 launched on 3 ranks with the fix | Open | 2026-09-27 |
 | D-366 | **L-39 found and fixed, on the user's hypothesis that the anisotropic dust scattering was involved: after a mirror reflection MOCASSIN turned the step direction (`vHat`) but not the packet's stored direction, and the next Henyey-Greenstein scattering starts from the stored one - so the first scattering after every bounce was forward-peaked about the pre-bounce direction and sent the packet back to the plane it had left.** Upstream since the initial import (38aca36), at all four reflection sites (two symmetric-grid, the planeIonization walls). A/B at 31^3, 4 iterations, seed 1001, 3 ranks: the defect gives +0.30 (axis) / +0.44 (planes) / -0.15 (diagonal) in ln chi at A_V 2.5-3.5; `isotropicScattering` with the defect gives +0.02 / +0.04 / -0.10 (it cannot see the stale direction); the fix gives -0.02 / +0.02 / +0.01. T_dust's pattern (+3.0/-1.7/+3.7%) goes to <0.3%. The defect also biased the radial mean: fixed/defect shell-median chi is 1.00, 1.01, 1.08, 1.13, 1.18 over A_V 0.5-3.5, T_dust 1.00-1.01, Hbeta +0.15%. Slabs: a lateral flip cannot bias a depth profile in a laterally uniform slab, so their fix is expected to be neutral (not run). pn150k (g = 0.29, A_V < 0.8) carries only ~2% at 41^3; `runs/d365-pn81` continues on the old code. Every hiipdr number published so far carries it | Done | 2026-09-27 |
 | D-367 | **The D-366 mirror-reflection fix ported to this repository's `dev` as da02212 (not pushed).** Same four sites, CRLF endings kept, source only (tracked binaries restored), all four dev targets build; worktree at ~/software/mocassin_dev removed afterwards (the D-281 procedure). Checked on dev with hiipdr as a dust+gas model (PDR keywords removed, 31^3, 3 ranks, converged at iteration 3): ln T_dust off its radial profile goes from +2.7-3.1% near the axes, +3.9-4.2% on the planes and -1.9-2.7% on the diagonals to within 0.2%; Hbeta +0.18%. dust/1D/p0tau10 cannot see it (0.1-0.3% either way). **Misstep, reverted:** I first took "the dev branch" to be the core fork's `dev` (~/software/mocassin_HM_2026) and made a worktree, a branch and an uncommitted edit there; the user said to use this repository and touch no other. All three removed; that repository is as it was (dev at fea0149, the user's 31 uncommitted files, empty stash, no new reflog entries) | Done | 2026-09-27 |
+| D-368 | **pn150k at twice the resolution (81^3, 3 ranks - all the memory allows): the packets reached 1e9 with the D-365 fix, the run converged (94%) and stopped at iteration 8 after 9 h 33 min, and the radial means were already converged at 41^3 - what 81^3/1e9 buys is the per-cell map, 3-4x quieter.** Scatter about the radial profile at A_V 0.3-0.8: FUV field 4-6.5% -> 1.2-1.7%, T_gas 2.2-2.8% -> 0.6-0.7%, CO 7-20% -> 3-5%; the old binary's direction pattern (+2.6/-1.8/+1.9% axis/diagonal/planes) is now as large as the noise. **[O I] 63 is not a resolution artefact on pn150k** (P5 fails): its front-cell part is 0.95x for half the cell size (hiipdr 0.53x) - the 150 kK star's hard photons make a partially ionized zone the 0.015 pc grid already resolves - so 1.35x -> 1.26x Cloudy is a model difference; [C II] 158 0.64 -> 0.65, [C I] unchanged. H+ front 0.1282 -> 0.1279 pc (Cloudy 0.1279), H/H2 crossing A_V 0.402 -> 0.407, PDR T unchanged. **The He2+ front was still moving +0.003 pc per iteration when the 90% criterion stopped the run** (0.0730, 0.0769, 0.0799; Cloudy 0.0880), so He II 4686 -11% is iteration count, not resolution (L-40) | Open | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31205,3 +31206,112 @@ shows in every fixed run on both branches. Hbeta 13.401 -> 13.425 E36 (+0.18%).
 ### Status
 
 Done.
+
+---
+
+## D-368 - pn150k at twice the resolution, packets to 1e9 (2026-09-27)
+
+The second half of D-365's request. `runs/d365-pn81`: `runs/d363-pn`'s input
+with 81^3 (0.0152 -> 0.0076 pc), `nPhotons 62500000` and
+`autoPackets 1000. 2. 1.e9`, 3 ranks (10.3 GB per rank measured by the D-365
+probe; peak 34.5 GB, flat from iteration 3). Binary `mocassin.d365b`: the D-365
+autoPackets fix, but **before** the D-366 mirror-reflection fix.
+
+### Run
+
+    it   packets   minutes   converged
+    1    6.25e7    19        0
+    2    6.25e7    46        0
+    3    6.25e7    42        0.16%
+    4    6.25e7    96        0.30%   (first chemistry)
+    5    1.25e8    93        0.50%
+    6    2.5e8     72        0.61%
+    7    5e8       92        1.0%
+    8    1e9       138       94.0%   -> stop (>= 90%)
+
+9 h 33 min. The packet ladder reached 1e9, so the D-365 fix works; only one
+iteration ran there, because the run converged by its own criterion. (41^3
+stopped at iteration 9, 91.2%.)
+
+### Noise (tools/d365_noise.py, D365_BANDS for pn150k's A_V range)
+
+Robust fractional scatter about the radial profile:
+
+    A_V            0.1-0.2  0.2-0.3  0.3-0.5  0.5-0.6  0.6-0.8
+    chi   41^3     0.018    0.029    0.038    0.053    0.065
+          81^3     0.007    0.009    0.012    0.014    0.017
+    T_gas 41^3     0.215    0.027    0.022    0.025    0.028
+          81^3     0.043    0.015    0.007    0.006    0.006
+    CO    41^3     0.535    0.202    0.074    0.100    0.196
+          81^3     0.293    0.151    0.048    0.029    0.041
+    C     41^3     0.221    0.086    0.105    0.143    0.194
+          81^3     0.112    0.023    0.022    0.028    0.035
+
+Tracks per cell scale 1e9/6e6 x 1/4 = 42x (sqrt 6.5x); the field's scatter
+falls 2.6-3.8x. What stops it falling further is the D-366 pattern, present in
+this binary at +0.026 (axis), -0.018 (diagonal), +0.019 (planes) in ln chi at
+A_V 0.6-0.8 - the size of the whole scatter there. Iteration-to-iteration
+noise it07 -> it08 (5e8 and 1e9, and the state changed: 1% -> 94% converged):
+chi 0.3-1.2%, an upper bound.
+
+### Lines (intrinsic / Hbeta)
+
+    line          41^3 6e6   81^3 1e9   Cloudy    81^3/Cloudy  (41^3/Cloudy)
+    [O I] 63      0.252      0.236      0.187     1.26         (1.35)
+    [O I] 145     0.0211     0.0196     0.0145    1.35         (1.46)
+    [O I] 6300    0.423      0.367      0.292     1.26         (1.45)
+    [C II] 158    0.199      0.202      0.311     0.65         (0.64)
+    [C I] 609     1.29e-4    1.32e-4    2.41e-4   0.55         (0.54)
+    [C I] 370     1.81e-4    1.88e-4    4.26e-4   0.44         (0.43)
+    C II] 2325    0.809      0.764      0.617     1.24         (1.31)
+    Hbeta [E34]   2.624      2.590
+
+**[O I] 63 is not a resolution artefact here.** Split by ionization class
+(the chemistry's per-cell 63 um emissivity, `scratchpad/d365_oiwhere.py`), the
+front cells (x(H+) 0.01-0.95) give 68% at 41^3 and 70% at 81^3, and their
+absolute emission is **0.95x** for half the cell size - against 0.53x on
+hiipdr. A 150 kK star's hard photons penetrate far past the 13.6 eV front, so
+the partially ionized zone has a physical thickness the 0.015 pc grid already
+resolves; hiipdr's 40 kK front does not have one. The 1.26x against Cloudy is
+therefore a model difference to be explained, not a grid effect, and what
+the version-15 pn150k page says ("the front is thinner still ... a finer grid is
+the test") is wrong for this model.
+
+### Profiles (tools/d285_kpis.py against runs/d356-cloudy-pn/150k)
+
+H+ front 0.1282 -> 0.1279 pc (Cloudy 0.1279). H/H2 crossing A_V 0.402 ->
+0.407 (Cloudy 0.368). PDR T_gas 25-44 -> 25-45 K (Cloudy 37-66); the selected
+depths A_V 0.3-0.65 move by 1-6%. The PDR's radial means were converged at
+41^3. The figures (`runs/d365-pn81/figs`) are those of D-363 with a smoother
+front.
+
+The ionized-gas lines moved more: He II 4686 0.301 -> 0.268 (-11%), [Ne II]
+-15%, [S II] 6716/31 -11%, [O I] 6300 -13%, [O IV] 25.9 -6%, [N II] -4%. **The
+He2+ front had not converged when the run stopped** (`scratchpad/
+d365_fronts_pn.py` on the snapshots):
+
+    it     5       6       7       8
+    He2+   0.0683  0.0730  0.0769  0.0799 pc   (41^3 final 0.0833, Cloudy 0.0880)
+    H+     0.1342  0.1309  0.1292  0.1283 pc
+
+The H+ front has nearly settled; the He2+ front is still moving outward
+0.003 pc per iteration. The 94% converged-cell criterion does not see it
+(convLimit tests x(H0) only), so He II 4686's -11% is iteration count, not
+resolution. This is L-40 again, now with a He front and a run that stopped
+itself.
+
+### Predictions
+
+  - P5 ([O I] 63 1.35x -> 0.8-0.9x Cloudy): **fails** - 1.26x, for the reason
+    above.
+
+### Not known
+
+  - Why pn150k's [O I] 63/145/6300 run 1.26-1.35x Cloudy's, now that the grid
+    is excluded.
+  - Where He2+ would settle, and whether He II 4686 then returns to 41^3's
+    value.
+
+### Status
+
+Open (L-40).

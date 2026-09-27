@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-366, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-368, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -467,7 +467,10 @@ value for half the cell size, and [O I] 63 falls from 9.5x to 5.5x Cloudy
 (6300: 6.8x to 4.7x). [C II] 158 has a front share too: a third at 31^3,
 falling 0.60x, which takes [C II] from 1.35x to 1.19x Cloudy while its cold-PDR
 part does not move. Neither grid resolves the front, so neither number is
-converged; 81^3 is the most this machine holds for pn150k (`runs/d365-pn81`, running).
+converged. **pn150k is different (D-368):** at 81^3 its front cells' [O I] 63
+is 0.95x the 41^3 value - the hard 150 kK field makes a partially ionized zone
+0.015 pc cells already resolve - so its 1.26x Cloudy (1.35x at 41^3) is a model
+difference, not a grid effect.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
@@ -516,6 +519,10 @@ iteration, with Hbeta. The 22-iteration 31^3 runs sit at 3.787 pc and Hbeta
 see it, because each front cell moves by less than `convLimit`. Every
 published hiipdr number that depends on the front or on Hbeta carries this;
 Hbeta is 13-18% below Cloudy's 9.95 E36 and not yet a converged number.
+pn150k at 81^3 (D-368) stopped itself at 94% converged cells with its He2+
+front still moving outward 0.003 pc per iteration (0.0799 pc against 0.0833 at
+41^3 and Cloudy's 0.0880), taking He II 4686 11% low: the stopping criterion
+tests x(H0) only.
 
 ### Medium
 
