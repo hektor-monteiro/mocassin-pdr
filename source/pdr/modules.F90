@@ -408,6 +408,11 @@ module global_module
 ! the window reactions take RAD_SURFACE unchanged, as upstream.
  REAL(kind=dp), allocatable :: ray_lw_factor(:)
 
+! D-363: the escape probability escape_probability found for each transition
+! (upper, lower) of the coolant it last solved, averaged over rays as it uses
+! it. Filled only if the host allocates it; upstream never reads it.
+ REAL(kind=dp), allocatable :: escape_beta(:,:)
+
  real(kind=dp),allocatable :: allheating(:) 
  
 end module global_module

@@ -285,18 +285,14 @@ module output_mod
         integer                     :: pass_idx, num_passes
         logical                     :: isSlitPass
 #ifdef PDR
-        ! D-362: the chemistry's lines. map362 takes each atomic coolant's
-        ! levels to MOCASSIN's (lgMap362: the whole atom mapped); lgSub362
-        ! and cell*362 are this cell's substitution, sum*362 their volume
-        ! integrals over the cells substituted, lnVol362 every coolant
-        ! transition's emission times volume [erg/s / 1e45].
-        integer                     :: map362(30,17), ik362, t362, lo362, up362, el362, io362
-        integer                     :: nLv362, m1i362, nOrph362(30)
-        logical                     :: lgMap362(30), lgSub362(30)
-        double precision            :: cellPdr362(30), cellRep362(30), cellKeep362(30)
-        double precision            :: sumPdr362(30), sumRep362(30), sumKeep362(30)
-        double precision            :: nSub362(30)
-        double precision            :: e0362, d1362, d2362, dd362, sym362
+        ! D-362: lnVol362, every coolant transition's emission times volume
+        ! [erg/s / 1e45], for lineFluxMol.out. D-363: cmp363 sets the
+        ! chemistry's own 5-level atoms against MOCASSIN's, which now carry
+        ! the same neutral colliders and escape probabilities, in the
+        ! transitions both have: (1) chemistry and (2) MOCASSIN in neutral
+        ! cells, x(H+) < 0.01; (3) and (4) in ionized cells, x(H+) > 0.95.
+        integer                     :: ik362, t362, el362, io362
+        double precision            :: sym362, cmp363(30,4), cellC363, cellM363
         double precision, allocatable :: lnVol362(:,:)
 #endif
 
@@ -473,7 +469,7 @@ module output_mod
 #ifdef PDR
         if (lgPDR) then                                   ! D-362
            if (allocated(lnVol362)) lnVol362 = 0.d0
-           sumPdr362 = 0.d0; sumRep362 = 0.d0; sumKeep362 = 0.d0; nSub362 = 0.d0
+           cmp363 = 0.d0
         end if
 #endif
         HIVol           = 0.
@@ -567,70 +563,15 @@ module output_mod
         nHlxEdge = 0                     ! D-361
 
 #ifdef PDR
-        ! D-362: which of MOCASSIN's levels each atomic coolant's levels are,
-        ! by energy. A level is matched when MOCASSIN's nearest level is within
-        ! 1e-3 of its energy (1 cm^-1 below 1000 cm^-1) and closer than a fifth
-        ! of the distance to the second nearest, and the map must be
-        ! one-to-one. An atom that fails keeps MOCASSIN's own lines, and says
-        ! so. MOCASSIN's atoms (CHIANTI) have more levels than the chemistry's;
-        ! the rows from those extra levels stay MOCASSIN's.
-        ! Built once, on the first pass; hdatx sits inside the pass loop.
+        ! D-362: the molecular lines' accumulator, once (hdatx sits inside the
+        ! pass loop). D-363 retired D-362's substitution of the atomic rows:
+        ! MOCASSIN's own atoms now carry the chemistry's colliders and escape
+        ! probabilities (setLineColliders, in forLines below).
         if (lgPDR .and. .not.allocated(lnVol362)) then
-           lgMap362 = .false.
-           map362   = 0
-           nOrph362 = 0
-           ! zeroed here, not only at the top of each pass: on the first pass
-           ! that reset runs before this allocation
            allocate(lnVol362(0:nAbComponents, 1:max(pdrNln,1)))
            lnVol362 = 0.d0
-           do ik362 = 1, pdrNcool
-              if (pdrCoolIsMol(ik362) .or. pdrCoolElem(ik362) < 3) cycle
-              el362 = pdrCoolElem(ik362); io362 = pdrCoolIon(ik362)
-              if (.not.lgElementOn(el362)) cycle
-              if (.not.lgDataAvailable(el362, io362)) cycle
-              if (ik362 < pdrNcool) then
-                 nLv362 = pdrLevOff(ik362+1) - pdrLevOff(ik362)
-              else
-                 nLv362 = pdrNlevTot - pdrLevOff(ik362)
-              end if
-              lgMap362(ik362) = (nLv362 <= 17)
-              do lo362 = 1, min(nLv362, 17)
-                 e0362 = pdrLvE(pdrLevOff(ik362)+lo362)
-                 d1362 = huge(1.d0); d2362 = huge(1.d0); m1i362 = 0
-                 do up362 = 1, atomic_data_array(el362,io362)%nlevs
-                    dd362 = abs(atomic_data_array(el362,io362)%e(up362) - e0362)
-                    if (dd362 < d1362) then
-                       d2362 = d1362; d1362 = dd362; m1i362 = up362
-                    else if (dd362 < d2362) then
-                       d2362 = dd362
-                    end if
-                 end do
-                 if (m1i362 == 0 .or. d1362 > 1.d-3*max(e0362, 1000.d0) .or. d1362 > 0.2d0*d2362) then
-                    lgMap362(ik362) = .false.
-                 else if (lo362 > 1) then
-                    if (any(map362(ik362,1:lo362-1) == m1i362)) lgMap362(ik362) = .false.
-                 end if
-                 map362(ik362,lo362) = m1i362
-                 print '(a,i3,a,i3,a,i3,a,f12.3,a,i3,a,f12.3,a)', " ! [D362] elem", el362, &
-                      & " stage", io362, "  chemistry level", lo362, "  E", e0362, &
-                      & " cm-1  -> MOCASSIN's level", m1i362, " (", &
-                      & merge(atomic_data_array(el362,io362)%e(max(m1i362,1)), -1.d0, m1i362 > 0), ")"
-              end do
-              if (lgMap362(ik362)) then
-                 do t362 = pdrLnOff(ik362)+1, pdrLnOff(ik362)+pdrLnN(ik362)
-                    if (atomic_data_array(el362,io362)%a(map362(ik362,pdrLnUp(t362)), &
-                         & map362(ik362,pdrLnLo(t362))) == 0.d0) nOrph362(ik362) = nOrph362(ik362) + 1
-                 end do
-                 print '(a,i3,a,i3,a,i3,a,i3,a)', " ! [D362] elem", el362, " stage", io362, &
-                      & ": lineFlux.out takes the chemistry's", pdrLnN(ik362), &
-                      & " transitions,", nOrph362(ik362), " of them absent from MOCASSIN's atom"
-              else
-                 print '(a,i3,a,i3,a)', " ! [D362] elem", el362, " stage", io362, &
-                      & ": levels do NOT map onto MOCASSIN's atom - its own lines are reported"
-              end if
-           end do
            if (.not.lgPdrLineEm) print*, "! [D362] no chemistry line emissivities in memory - ", &
-                & "lineFlux.out carries MOCASSIN's own C, C+ and O lines"
+                & "lineFluxMol.out will be empty and C, C+, O take escape probability 1"
         end if
 #endif
 
@@ -884,15 +825,27 @@ endif
                        end do
 
 #ifdef PDR
-                       ! D-362: the substitution's volume integrals, and every
-                       ! coolant transition's emission for lineFluxMol.out
+                       ! D-362: every coolant transition's emission for
+                       ! lineFluxMol.out. D-363: the two atoms, compared.
                        if (lgPDR .and. lgPdrLineEm) then
                           do ik362 = 1, pdrNcool
-                             if (.not.lgSub362(ik362)) cycle
-                             nSub362(ik362)    = nSub362(ik362) + 1.d0
-                             sumPdr362(ik362)  = sumPdr362(ik362)  + cellPdr362(ik362)*dble(HdenUsed)*dble(dV)
-                             sumRep362(ik362)  = sumRep362(ik362)  + cellRep362(ik362)*dble(HdenUsed)*dble(dV)
-                             sumKeep362(ik362) = sumKeep362(ik362) + cellKeep362(ik362)*dble(HdenUsed)*dble(dV)
+                             if (pdrCoolIsMol(ik362) .or. pdrCoolElem(ik362) < 3) cycle
+                             el362 = pdrCoolElem(ik362); io362 = pdrCoolIon(ik362)
+                             if (pdrAtomOf(el362, io362) /= ik362) cycle
+                             cellC363 = 0.d0; cellM363 = 0.d0
+                             do t362 = pdrLnOff(ik362)+1, pdrLnOff(ik362)+pdrLnN(ik362)
+                                cellC363 = cellC363 + dble(grid(iG)%pdrLineEm(cellPUsed,t362))
+                                cellM363 = cellM363 + 1.d-25*dble(HdenUsed)* &
+                                     & forbiddenLines(el362, io362, pdrLvMap(ik362,pdrLnLo(t362)), &
+                                     &                pdrLvMap(ik362,pdrLnUp(t362)))
+                             end do
+                             if (ionDenUsed(elementXref(1),2) < 0.01) then
+                                cmp363(ik362,1) = cmp363(ik362,1) + cellC363*dble(dV)
+                                cmp363(ik362,2) = cmp363(ik362,2) + cellM363*dble(dV)
+                             else if (ionDenUsed(elementXref(1),2) > 0.95) then
+                                cmp363(ik362,3) = cmp363(ik362,3) + cellC363*dble(dV)
+                                cmp363(ik362,4) = cmp363(ik362,4) + cellM363*dble(dV)
+                             end if
                           end do
                           do t362 = 1, pdrNln
                              lnVol362(abFileUsed,t362) = lnVol362(abFileUsed,t362) + &
@@ -1300,19 +1253,19 @@ endif
         end do
 
 #ifdef PDR
-        ! D-362: what the substitution did, and the molecular lines. The
+        ! D-362/D-363: the two atoms compared, and the molecular lines. The
         ! chemistry's molecules have no counterpart among MOCASSIN's lines, so
         ! they go to a file of their own rather than into lineFlux.out, whose
         ! layout stays as it was.
         if (lgPDR .and. lgPdrLineEm) then
            do ik362 = 1, pdrNcool
-              if (.not.lgMap362(ik362)) cycle
-              print '(a,i3,a,i3,a,i7,a,es10.3,a,es10.3)', " ! [D362] lineFlux.out elem", &
-                   & pdrCoolElem(ik362), " stage", pdrCoolIon(ik362), ": the chemistry's lines in", &
-                   & nint(nSub362(ik362)), " cells;  chemistry/MOCASSIN in the rows replaced", &
-                   & sumPdr362(ik362)/max(sumRep362(ik362), 1.d-300), &
-                   & "   MOCASSIN's rows kept / chemistry's", &
-                   & sumKeep362(ik362)/max(sumPdr362(ik362), 1.d-300)
+              if (pdrCoolIsMol(ik362) .or. pdrCoolElem(ik362) < 3) cycle
+              if (pdrAtomOf(pdrCoolElem(ik362), pdrCoolIon(ik362)) /= ik362) cycle
+              print '(a,i3,a,i3,a,f8.4,a,f8.4)', " ! [D363] elem", pdrCoolElem(ik362), &
+                   & " stage", pdrCoolIon(ik362), &
+                   & ": chemistry's atom / MOCASSIN's, shared transitions - neutral cells", &
+                   & cmp363(ik362,1)/max(cmp363(ik362,2), 1.d-300), "   ionized cells", &
+                   & cmp363(ik362,3)/max(cmp363(ik362,4), 1.d-300)
            end do
 
            sym362 = 1.d0
@@ -2407,6 +2360,12 @@ endif
 
         ! re-initialize forbiddenLines
         forbiddenLines = 0.
+#ifdef PDR
+        ! D-363: this cell's neutral colliders and escape probabilities - the
+        ! same atom the thermal balance cooled the cell with
+        if (lgPDR) call setLineColliders(grid(iG), cellPUsed, ionDenUsed, &
+             & elemAbundanceUsed(2))
+#endif
 
         do elem = 3, nElements
            do ion = 1, min(elem+1, nstages)
@@ -2463,42 +2422,7 @@ endif
         forbiddenLines = forbiddenLines*1.9865e9
 
 #ifdef PDR
-        ! D-362: ONE REALITY FOR THE C, C+ AND O LINES. The thermal balance
-        ! cools every cell with the chemistry's level populations for these
-        ! ions - excited by H, H2, He, H+ and e-, where MOCASSIN's own atoms
-        ! see electrons alone (D-133) - whenever the chemistry has the
-        ! carrier (update_mod: pdrCoolAt > 0). D-360 measured what reporting
-        ! MOCASSIN's lines instead cost: [O I] 63+145 um 4.4x below the
-        ! cooling the gas actually does on hiipdr, 11x on pn150k. So each
-        ! transition the chemistry's atom has is reported from the chemistry,
-        ! under the balance's condition, in the row MOCASSIN's matching
-        ! transition occupies; rows from levels the chemistry's atom lacks
-        ! stay MOCASSIN's. Units: [1e-25 erg/s per H], as above.
-        lgSub362 = .false.
-        if (lgPDR .and. lgPdrLineEm) then
-           do ik362 = 1, pdrNcool
-              cellPdr362(ik362) = 0.d0; cellRep362(ik362) = 0.d0; cellKeep362(ik362) = 0.d0
-              if (.not.lgMap362(ik362)) cycle
-              if (pdrLnN(ik362) <= 0) cycle
-              if (HdenUsed <= 0.) cycle
-              if (sum(dble(grid(iG)%pdrLineEm(cellPUsed, &
-                   & pdrLnOff(ik362)+1:pdrLnOff(ik362)+pdrLnN(ik362)))) <= 0.d0) cycle
-              lgSub362(ik362) = .true.
-              el362 = pdrCoolElem(ik362); io362 = pdrCoolIon(ik362)
-              cellKeep362(ik362) = sum(dble(forbiddenLines(el362,io362,:,:)))
-              do t362 = pdrLnOff(ik362)+1, pdrLnOff(ik362)+pdrLnN(ik362)
-                 lo362 = map362(ik362, pdrLnLo(t362))
-                 up362 = map362(ik362, pdrLnUp(t362))
-                 cellRep362(ik362) = cellRep362(ik362) + dble(forbiddenLines(el362,io362,lo362,up362))
-                 forbiddenLines(el362,io362,lo362,up362) = &
-                      & 1.d25*dble(grid(iG)%pdrLineEm(cellPUsed,t362))/dble(HdenUsed)
-                 cellPdr362(ik362) = cellPdr362(ik362) + dble(forbiddenLines(el362,io362,lo362,up362))
-                 if (atomic_data_array(el362,io362)%a(up362,lo362) == 0.d0) &
-                      & wav(el362,io362,lo362,up362) = pdrLnWav(t362)
-              end do
-              cellKeep362(ik362) = cellKeep362(ik362) - cellRep362(ik362)
-           end do
-        end if
+        collCellP = 0                                   ! D-363
 #endif
 
     end subroutine forLines

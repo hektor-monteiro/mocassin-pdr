@@ -362,6 +362,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-360 | **Audit against science production: the reported lines are the blocker.** (1) New: every PDR run's H I line list is corrupt - `hlinex` extrapolates Storey & Hummer's table (300-30,000 K, n_e 1e2-1e14) polynomially in log space to the PDR's 11-27 K and n_e ~0.01, giving Balmer/Paschen/Brackett n = 16-25 up to 1e22 x Hbeta; 88,000 of hiipdr's 90,561 log lines are its overflow prints; legacy code (38aca36), latent until gas went below 300 K; it also clamps T > 30 kK by overwriting the caller's TeUsed. (2) L-28 measured: lineFlux.out reports [O I]/[C II]/[C I] from MOCASSIN's electron-only atoms while the gas is cooled by the chemistry's populations - [O I] 63+145 reported 0.0016 Hbeta against 0.0059 cooling and 0.0070 Cloudy (hiipdr), 0.0063 against 0.068 and 0.20 (pn150k); no CO lines at all. Checked clean: D-358 does not reach the PDR heating; its rates are set on every cell (0 unset); the coolant substitution agrees with MOCASSIN's to 0.1% in fully ionized cells. Decision: next is one reality for every line reported - hlinex bounded by its own table, then the PDR's line emissivities exported in place of MOCASSIN's C+/C/O lines plus the CO ladder, then L-27. 115 commits are local only. | Accepted | 2026-09-26 |
 | D-361 | **H I emissivities bounded by their own table; mocassinOutput reads its data (D-360 step 1).** `hlinex` evaluates inside `e1bx.dat`'s domain: the low-density limit below 1e2 cm^-3, the 300 K ratio below 300 K. It no longer writes to the caller's TeUsed, and `[D361]` counts edge evaluations once per run. `mocassinOutput`, run for the first time (L-20), reproduced the run's lineFlux.out except all 630 He II rows, zero because it never called `readData()` - fixed. The first build of the fix was inert: `minval` over 15 slots of an 11-entry table found the empty zeros. Regenerated from the D-358 grids: non-H I lines and Hbeta byte-identical, Balmer series within 1% of Case B, log 86,656 -> 187 lines. Prediction (c) failed - the extrapolation had also reached low lines on hiipdr (Halpha/Hbeta 2.910 -> 2.889, H8 0.127 -> 0.1045, n = 12-15 onto levels 6-8 by 25-88%); pn150k <0.43%. No artifact quotes an affected line. | Accepted | 2026-09-26 |
 | D-362 | **The C, C+ and O lines in lineFlux.out now come from the chemistry's level populations - the ones the thermal balance cools by - replacing MOCASSIN's electron-only rows where the chemistry has the carrier; CO lines in the new lineFluxMol.out; per-cell emissivities checkpointed in pdrLineEm.out (mocassinOutput reproduces a run byte for byte).** One extra level solve at the cell's own T, inert: every physics file byte-identical to runs/d358-*. [O I] 63+145 0.0063 -> 0.280 Hbeta on pn150k (Cloudy 0.202), 0.0016 -> 0.059 on hiipdr (Cloudy 0.0062); [C II] 158 0.213 / 0.194 (Cloudy 0.311 / 0.134). Predictions (c,d,f) failed: 74-92% of [O I] comes from unresolved front cells (L-37), and in H II gas the chemistry's atoms shift C II] 2325 x1.16-1.22 and [C I] 9850 x0.66 against CHIANTI (L-38). New diagnostic: the balance's coolant table misses an exact solve by mean 8-50%, up to x3 per cell (L-36). Two output defects found by the checks and fixed. Lexington: D-360 vs D-362 identical on every benchmark quantity; HII20's baseline had H I lines at 1e17 Hbeta (fixed by D-361); this branch sits 1-2 lines per model fewer in range than dev at D-270, unattributed. D-360's Cloudy values and cooling subset corrected. | Accepted | 2026-09-26 |
+| D-363 | **One atom per ion (the user's choice after L-38 was explained): MOCASSIN's own C I, C II and O I atoms take the chemistry's H, H+, He and o/p-H2 collision rates and its per-transition escape probabilities, and serve the thermal balance at every trial T, the diffuse line emission and lineFlux.out; the D-133 substitution and D-362's output substitution are retired; the atoms' table passes are gone (L-36 now CO only).** Plain flavour byte-identical on all four Lexington models. The two atoms agree to 0.4-7% in neutral gas; H II lines back on CHIANTI (C II] 2325 +2.1%/+0.1% of D-361); [C II] 158 -7%, [O I] 63 within 3%; front and crossing within 0.7%. Both PDRs 1-4% colder (7% at pn150k A_V 0.2), further from Cloudy - hiipdr's sign was predicted wrong (pooled table sums are warm-cell dominated). No speed-up (predicted 10-30%). The round trip found resetGrid rounding H2den differently from the D-200 damping (7e-8 in [C I] 370); fixed, now byte-identical. pdrLineEm.out v2 carries the escape probabilities. | Accepted | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -30608,3 +30609,133 @@ accumulated change since D-270, and it has not been attributed.**
 ### Status
 
 Accepted. Four flavours plus `mocassinOutput` both ways build on the final code.
+
+---
+
+## D-363 - One atom per ion: MOCASSIN's C I, C II and O I take the chemistry's neutral colliders and escape probabilities (2026-09-27)
+
+The user asked for L-38's fix to be explained before deciding, then chose the
+recommendation: one atom per ion, with the escape probabilities carried over.
+D-362 had made the reported lines agree with the thermal balance by reporting
+the chemistry's 5-level atoms. That left two atoms for each of the three ions,
+and three costs:
+  - older electron data in the ionized gas (L-38);
+  - MOCASSIN's levels 6-10 dropped from the cooling;
+  - a 16-point table in T for the balance (L-36).
+
+### What changed
+
+  - **`equilibrium`** (MOCASSIN's level solver, `emission_mod`) gains two
+    terms for an ion the chemistry also carries.
+    - First, the chemistry's collision rates for H, H+, He and ortho/para-H2
+      (`cN`), interpolated as 3D-PDR's FIND_CCOEFF does. The upward rates come
+      from detailed balance on MOCASSIN's own energies and weights. MOCASSIN's
+      CHIANTI electron rates stay.
+    - Second, the chemistry's escape probability per shared transition
+      (`bA`), which multiplies A in the rate matrix and in the emissivity.
+    - With no cell set (plain MOCASSIN, or a wavelength-only call), cN = 0 and
+      bA = 1, which are exact no-ops.
+  - **One solve serves three uses:** the thermal balance at every trial T, the
+    MC's diffuse line emission, and `lineFlux.out` (also `mocassinPlot`).
+    Each caller of `forLines` sets the cell's colliders (`setLineColliders`,
+    `common_mod`) and clears them after.
+    - The densities are the ones the chemistry's atoms used: H0, H+ and He0
+      from MOCASSIN's ionization, and H2 from `H2den`.
+    - The level map is D-362's energy rule, now built once
+      (`buildPdrAtomMap`) and printed.
+  - **The thermal balance no longer substitutes the atomic coolants** (the
+    D-133 branch). Only CO is added from the chemistry's table.
+  - **`pdrStep`** skips the 16 table passes for the atoms and solves them
+    once, at the cell's T. That solve yields the escape probabilities,
+    through a new vendored hook `escape_beta` (`modules.F90`,
+    `escape_probability.F90`, noted in UPSTREAM.md), and its lines are kept
+    for comparison. It also keeps the populations and a pdrCoolSp at T.
+  - **Reduction and checkpoint.** The escape probabilities are reduced across
+    ranks and checkpointed. `pdrLineEm.out` is now v2: each record is the
+    emissivities, then the escape probabilities. v1 is read with escape
+    probability 1 and a message.
+  - **Output.** D-362's substitution of the atomic rows is retired.
+    `lineFluxMol.out` is unchanged. `[D363]` compares the chemistry's own atom
+    with MOCASSIN's in the shared transitions.
+  - **Found by the round trip.** `mocassinOutput` reproduced the run's
+    `lineFlux.out` except [C I] 370 um, off in its 8th digit (7e-8).
+    `resetGrid` derived H2den as `real(x*n_H)`, while the D-200 damping step,
+    which writes the final H2den of every PDR run, uses `real(x)*n_H`.
+    `resetGrid` now uses the damping step's form, and the round trip is
+    byte-identical on both fixtures. D-362's round trip could not see this:
+    its lines did not depend on H2den.
+  - `pdrCoolSlope` (a diagnostic) is taken over the tabulated coolants only.
+
+### Predictions (`scratchpad/d363_pred.md`, 23:52, before any D-363 run) and results
+
+Runs: `runs/d363-lex/*` against `runs/d362-lex/*/new`, and `runs/d363-hii` /
+`runs/d363-pn` against `runs/d362-*`. All at seed 1001, 14 ranks.
+
+  (L1) **Holds.** All four Lexington models are byte-identical to D-362 in
+       every output file, `summary.out` up to timestamps. The plain flavour
+       is untouched.
+  (P1) **Holds.** The chemistry's atom over MOCASSIN's, in the shared
+       transitions:
+       - neutral cells: C II 1.041 / 1.022, C I 0.934 / 0.977, O I 0.996 /
+         0.996 (hiipdr / pn150k);
+       - ionized cells: C II 1.168 / 1.166 and O I 1.027 / 0.961. This is
+         D-362's data difference, seen from the other side;
+       - C I in ionized cells is 0.67 / 0.77, which was not predicted.
+       Where the neutral colliders set the populations, the two atoms agree to
+       0.4-7%.
+  (P2) **Holds.** The H II-region lines are back on CHIANTI. C II] 2325 is
+       0.2578 / 0.8089 against D-361's 0.2525 / 0.808 (+2.1% / +0.1%). [C I]
+       9824/9850 is 0.00224 / 0.0395 against 0.00224 / 0.0416. [O I] 6300 is
+       0.0705 / 0.4227 against D-362's 0.0673 / 0.4146 (+4.7% / +2.0%).
+  (P3) **Holds.** [C II] 158 is 0.181 / 0.199 (D-362 0.194 / 0.213, -7% on
+       both). [O I] 63 is 0.0551 / 0.252 (0.0543 / 0.259).
+  (P4) **Holds for pn150k, fails on sign for hiipdr.** Both PDRs got colder.
+       - pn150k: A_V 0.30/0.50/0.65 went 49.7/32.3/25.7 -> 48.7/31.4/25.4 K,
+         and A_V 0.20 went 137 -> 127 K (-7%).
+       - hiipdr: A_V 1.0/1.5/2.0/2.5/2.9 went 48.9/35.9/23.2/12.9/11.2 ->
+         48.2/34.6/22.2/12.4/10.9 K, where I predicted warmer.
+       The prediction took its sign from L-36's pooled sums (exact/table
+       0.889 for C+ on hiipdr), which the warm cells dominate. In cold gas a
+       Boltzmann-type cooling is concave in ln T, so the log-log chord of the
+       table lies below it: the table under-cooled cold cells, and exact
+       cooling makes them colder. *Consistent with the result, not shown
+       cell by cell.* **Both PDRs move further from Cloudy:** hiipdr A_V 1.5
+       at 34.6 K against 43.5, pn150k A_V 0.30 at 48.7 K against 68.6.
+  (P5) **Holds.** The front moved 3.839 -> 3.840 pc and 0.1282 -> 0.1282 pc.
+       The H/H2 crossing moved 1.444 -> 1.447 and 0.405 -> 0.402. C+ = C on
+       hiipdr moved 2.277 -> 2.258.
+  (P6) **Fails.** Run time was 1191 s against 1180 s, and 2375 s against
+       2296 s. Counting level solves (68 -> 20 per cell) ignored their size:
+       CO's 41-level solves dominate, and the atoms' 5-level ones cost little.
+       The thermal balance now evaluates three more collider sets per trial T.
+  (P7) **Holds for the low-J lines.** CO J <= 6 is within 20% on hiipdr
+       (0.95-0.81) and J <= 8 on pn150k (0.98-0.84). hiipdr's J = 7-6 and
+       8-7 fall 25% and 37%, following its colder gas.
+
+Convergence was 75.8% against 77.0% (hiipdr) and 91.2% against 90.6%
+(pn150k). Four flavours, plus `mocassinOutput` and `mocassinPlot`, build on
+the final code.
+
+### Registered
+
+  - **L-38 closed.**
+  - **L-36 narrowed to CO.** For C+ and O it was a mean per-cell |ln| of up
+    to 0.50; for CO it is 0.02 (hiipdr) and 0.004 (pn150k).
+  - The levels-6-10 drop is gone with the substitution.
+
+### What is not known
+
+  - Which of the table error, the missing background radiation (MOCASSIN's
+    atom has no CMB or dust pumping; the chemistry's has a fixed-emissivity
+    dust term) and the one-iteration lag of the escape probabilities carries
+    the 1-4% colder PDR. The cell-by-cell test is the table-free solve
+    against D-362's table at the D-362 state.
+  - The chemistry's escape probabilities keep L-27's flaw: a third of the
+    rays never escape, so a thin line has beta = 2/3. Emission is
+    independent of beta below the critical density. Above it (e.g. [C II] in
+    pn150k's ionized gas, n_e ~ 1000) the flaw now reaches MOCASSIN's atom,
+    as it reached the chemistry's before.
+
+### Status
+
+Accepted.

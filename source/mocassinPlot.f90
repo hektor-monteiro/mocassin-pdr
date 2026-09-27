@@ -689,6 +689,12 @@ program MoCaSSiNplot
 
         ! re-initialize forbiddenLines
         fLinePlot = 0.
+#ifdef PDR
+        ! D-363: the cell's neutral colliders and escape probabilities, so the
+        ! maps show the atom lineFlux.out and the thermal balance use
+        if (lgPDR) call setLineColliders(grid3D(iG), grid3D(iG)%active(i,j,k), &
+             & ionDenUsed, grid3D(iG)%elemAbun(abFileIndexUsed,2))
+#endif
 
         do elem = 3, nElements
            do ion = 1, min(elem+1, nstages)
@@ -743,6 +749,9 @@ program MoCaSSiNplot
         if (lgElementOn(26) .and. ion>=2) flinePlotLarge = flinePlotLarge*1.9865e9
 
 
+#ifdef PDR
+        collCellP = 0                                   ! D-363
+#endif
       end subroutine forLines
 
     subroutine RecLinesEmission()

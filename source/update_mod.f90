@@ -2180,57 +2180,17 @@ end subroutine iterateT
                      if (pdrCoolIsMol(iCool)) then
                         ! MOCASSIN has no line data for this carrier at all.
                         pdrCoolMol = pdrCoolMol + pdrCoolAt(grid,cellP,iCool,TeUsed)
-                     else if (pdrCoolElem(iCool) > 0) then
-                        ! D-133: an ATOMIC coolant inside the PDR. MOCASSIN has
-                        ! these lines but excites them with electrons alone,
-                        ! while 3D-PDR carries H, H+, He and H2 as well - and in
-                        ! neutral gas the electron fraction is ~1e-4, so
-                        ! MOCASSIN's version under-cools by orders of magnitude.
-                        ! Measured: leaving MOCASSIN to own [C II] and [O I] put
-                        ! the deep PDR at 157 K where 3D-PDR's own balance, at
-                        ! that same temperature, said cooling exceeded heating
-                        ! 3.2 to 1.
-                        !
-                        ! So REPLACE rather than exclude: take MOCASSIN's
-                        ! contribution for this ion back out of coolColl and use
-                        ! 3D-PDR's in its place. Outside the PDR the electron
-                        ! treatment is the right one and MOCASSIN keeps the term.
-                        !
-                        ! D-167: ONLY if there is something to replace it with.
-                        ! pdr_mod zeroes pdrCoolSp for any coolant whose carrier
-                        ! has fallen below pdrNspecFloor - and in a hot cell the
-                        ! carbon is ionized past C+, so [C I] and [C II] are
-                        ! exactly the coolants that vanish. Subtracting
-                        ! MOCASSIN's term and adding zero deletes the cooling
-                        ! outright, which makes the cell hotter, which ionizes
-                        ! more carbon. A self-reinforcing runaway, and the
-                        ! reason 20261 cells sat on the 30000 K ceiling with a
-                        ! residual that did not respond to temperature.
-                        mocCool = 0.
-                        do iLevJ = 1, 10
-                           do iLevK = 1, 10
-                              mocCool = mocCool + &
-                                   & real(forbiddenLines(pdrCoolElem(iCool), &
-                                   &                     pdrCoolIon(iCool), iLevJ, iLevK))
-                           end do
-                        end do
-                        ! D-215: the guard and the value are both taken at
-                        ! the temperature the solver is trying, not at the
-                        ! chemistry's Tg. Under the D-166 power law the guard
-                        ! tested pdrCoolSp - a fixed number - while the value
-                        ! that entered the budget was that number times an
-                        ! extrapolation, so the two could disagree about
-                        ! whether there was anything to substitute.
-                        if (pdrCoolAt(grid,cellP,iCool,TeUsed) > 0.d0) then
-                           coolInt = coolInt - mocCool
-                           coolSubL = coolSubL + mocCool          ! D-210
-                           pdrCoolMol = pdrCoolMol &
-                                & + real(pdrCoolAt(grid,cellP,iCool,TeUsed))
-                        else if (mocCool > 0.) then
-                           ! Nothing to replace it with: keep MOCASSIN's.
-                           nCoolNull = nCoolNull + 1
-                           nNullL    = nNullL + 1                 ! D-210
-                        end if
+                     ! D-363: the ATOMIC coolants are no longer substituted.
+                     ! D-133 replaced MOCASSIN's C, C+ and O cooling with the
+                     ! chemistry's 5-level atoms because MOCASSIN excited them
+                     ! with electrons alone, which under-cools neutral gas by
+                     ! orders of magnitude. Since D-363 MOCASSIN's own atoms
+                     ! (above, in forLines) carry the chemistry's H, H+, He and
+                     ! H2 rates and escape probabilities, at the trial T - so
+                     ! coolColl already holds that cooling, with CHIANTI's
+                     ! electron data and all of MOCASSIN's levels, and without
+                     ! the table interpolation L-36 measured. Only the
+                     ! molecules, which MOCASSIN has no atom for, are added.
                      end if
                   end do
                   ! D-135 probe: two hypotheses about this discrepancy have now
@@ -2451,6 +2411,12 @@ end subroutine iterateT
 
           ! re-initialize forbiddenLines
           forbiddenLines = 0.
+#ifdef PDR
+          ! D-363: this cell's neutral colliders and escape probabilities, so
+          ! that MOCASSIN's own C, C+ and O atoms cool the gas at every trial T
+          if (lgPDR) call setLineColliders(grid, cellP, ionDenUsed, &
+               & grid%elemAbun(grid%abFileIndex(xP,yP,zP),2))
+#endif
 
           do elem = 3, nElements
              do ion = 1, min(elem+1, nstages)
@@ -2498,6 +2464,9 @@ end subroutine iterateT
           !          the right units are obtained by multiplying by 1.9865e-16
           forbiddenLines = forbiddenLines*1.9865e-16
           if (lgElementOn(26) .and. ion>2) forbiddenLinesLarge = forbiddenLinesLarge*1.9865e-16
+#ifdef PDR
+          collCellP = 0                                 ! D-363
+#endif
 
         end subroutine forLines
 

@@ -638,6 +638,11 @@ module emission_mod
         integer :: elem, ion 
 
         forbiddenLines = 0.
+#ifdef PDR
+        ! D-363: this cell's neutral colliders and escape probabilities
+        if (lgPDR) call setLineColliders(grids(iG), cellPUsed, ionDenUsed, &
+             & grids(iG)%elemAbun(abFileUsed,2))
+#endif
 
         do elem = 3, nElements
            do ion = 1, min(elem+1, nstages)
@@ -675,6 +680,9 @@ module emission_mod
         end do
 
         forbiddenLines = forbiddenLines*1.9865e9
+#ifdef PDR
+        collCellP = 0                                   ! D-363
+#endif
 
     end subroutine forLines
 
@@ -1722,6 +1730,11 @@ module emission_mod
 
     integer  :: nLev             ! number of levels in atomic data file
     integer  :: nTemp            ! number of temperature points in atomic data file
+    ! D-363: collision rates by colliders other than electrons [s^-1],
+    ! cN(from,to), and each transition's escape probability, bA(upper,lower);
+    ! 0 and 1 unless the chemistry's atom for this ion supplies them
+    double precision, allocatable :: cN(:,:), bA(:,:)
+    integer  :: ikN, tN
 
     integer, parameter :: safeLim = 100000 ! loop safety limit
 
@@ -1824,6 +1837,34 @@ module emission_mod
        end do
     end do
 
+    ! D-363: ONE ATOM PER ION. For an ion the chemistry also carries (C I,
+    ! C II, O I), this atom takes the chemistry's rates for collisions with
+    ! H, H+, He and H2 - MOCASSIN has electron data only, and in neutral gas
+    ! the electrons barely excite these levels (D-133) - and the chemistry's
+    ! escape probability for each transition the two atoms share, one MC
+    ! iteration behind as the rest of the coupling is. It then serves the
+    ! thermal balance at every trial T, the diffuse line emission and
+    ! lineFlux.out, where D-133..D-362 substituted the chemistry's own
+    ! 5-level atom (older electron data, 5 of MOCASSIN's levels, a table in T).
+    ! With no cell set (plain MOCASSIN, or a call made for wavelengths only)
+    ! cN = 0 and bA = 1, and the solve is exactly the electron-only one.
+    allocate(cN(nlev,nlev), bA(nlev,nlev))
+    cN = 0.d0
+    bA = 1.d0
+#ifdef PDR
+    if (collCellP > 0 .and. lgPdrAtomMap .and. elem <= 30 .and. ion <= 10) then
+       ikN = pdrAtomOf(elem, ion)
+       if (ikN > 0) then
+          call pdrNeutralRates(ikN, elem, ion, dble(Te), cN)
+          if (allocated(collBeta)) then
+             do tN = pdrLnOff(ikN)+1, pdrLnOff(ikN)+pdrLnN(ikN)
+                bA(pdrLvMap(ikN,pdrLnUp(tN)), pdrLvMap(ikN,pdrLnLo(tN))) = collBeta(tN)
+             end do
+          end if
+       end if
+    end if
+#endif
+
     allocate(x(nlev,nlev))
     allocate(y(nlev))
     allocate(n(nlev))
@@ -1843,14 +1884,14 @@ module emission_mod
 
           if (j /= i) then
 
-             x(i, j) = x(i, j) + Ne*atomic_data_array(elem,ion)%qeff(j, i)
-             x(i, i) = x(i, i) - Ne*atomic_data_array(elem,ion)%qeff(i, j)
+             x(i, j) = x(i, j) + Ne*atomic_data_array(elem,ion)%qeff(j, i) + cN(j, i)
+             x(i, i) = x(i, i) - Ne*atomic_data_array(elem,ion)%qeff(i, j) - cN(i, j)
              if (j > i) then
 
-                x(i, j) = x(i, j) + atomic_data_array(elem,ion)%a(j, i)
+                x(i, j) = x(i, j) + atomic_data_array(elem,ion)%a(j, i)*bA(j, i)
              else
 
-                x(i, i) = x(i, i) - atomic_data_array(elem,ion)%a(i, j)
+                x(i, i) = x(i, i) - atomic_data_array(elem,ion)%a(i, j)*bA(i, j)
              end if
           end if
        end do
@@ -1878,7 +1919,7 @@ module emission_mod
        do j = i+1, nLev
           if (atomic_data_array(elem,ion)%a(j,i) /= 0.d0) then
              Eji = (atomic_data_array(elem,ion)%e(j)-atomic_data_array(elem,ion)%e(i))
-             fLineEm(i,j) = atomic_data_array(elem,ion)%a(j,i) * Eji * n(j)
+             fLineEm(i,j) = atomic_data_array(elem,ion)%a(j,i) * bA(j,i) * Eji * n(j)   ! D-363: escaping
              if (Eji>0.) then
                 if (present(wav)) wav(i,j) = 1.e8/Eji
              else
@@ -1891,6 +1932,7 @@ module emission_mod
     deallocate(x)
     deallocate(y)
     deallocate(n)
+    deallocate(cN, bA)
 
   end subroutine equilibrium
 

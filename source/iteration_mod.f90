@@ -63,6 +63,7 @@ module iteration_mod
            real, allocatable :: H2denTmp(:), H2denSum(:)              ! D-107
            real, allocatable :: pdrCoolSpTmp(:,:), pdrCoolSpSum(:,:)  ! D-096
            real, allocatable :: pdrLnTmp(:,:), pdrLnSum(:,:)          ! D-362
+           real, allocatable :: pdrLbTmp(:,:), pdrLbSum(:,:)          ! D-363
            real, allocatable :: pdrIonRateTmp(:,:), pdrIonRateSum(:,:) ! D-118
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
@@ -1930,6 +1931,8 @@ module iteration_mod
               allocate(pdrCoolSpSum(0:grid(iG)%nCells, 1:max(pdrNcool,1)), stat=err)
               allocate(pdrLnTmp(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)   ! D-362
               allocate(pdrLnSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
+              allocate(pdrLbTmp(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)   ! D-363
+              allocate(pdrLbSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
               allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
               allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
               allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
@@ -1949,6 +1952,7 @@ module iteration_mod
               H2denTmp = 0.
               pdrCoolSpTmp = 0.
               pdrLnTmp = 0.; pdrLnSum = 0.                               ! D-362
+              pdrLbTmp = 0.; pdrLbSum = 0.                               ! D-363
               pdrIonRateTmp = 0.; pdrIonRateSum = 0.
               pdrHeatPESum = 0.
               pdrCoolTmp   = 0.
@@ -1985,6 +1989,8 @@ module iteration_mod
                                   & grid(iG)%pdrCoolSp(grid(iG)%active(i,j,k),:)
                              pdrLnTmp(grid(iG)%active(i,j,k),:) = &          ! D-362
                                   & grid(iG)%pdrLineEm(grid(iG)%active(i,j,k),:)
+                             pdrLbTmp(grid(iG)%active(i,j,k),:) = &          ! D-363
+                                  & grid(iG)%pdrLineBeta(grid(iG)%active(i,j,k),:)
                              pdrIonRateTmp(grid(iG)%active(i,j,k),:) = &
                                   & grid(iG)%pdrIonRate(grid(iG)%active(i,j,k),:)
                              pdrLevTmp(grid(iG)%active(i,j,k),:)  = &
@@ -2030,6 +2036,11 @@ module iteration_mod
               call mpi_allreduce(pdrLnTmp, pdrLnSum, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
               grid(iG)%pdrLineEm(1:grid(iG)%nCells,:) = pdrLnSum(1:grid(iG)%nCells,:)
+              ! D-363: and the escape probabilities MOCASSIN's atoms take in
+              ! the next iteration's thermal balance, on every rank
+              call mpi_allreduce(pdrLbTmp, pdrLbSum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrLineBeta(1:grid(iG)%nCells,:) = pdrLbSum(1:grid(iG)%nCells,:)
               lgPdrLineEm = .true.
               size = (grid(iG)%nCells+1)*2*pdrNlink
               call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
@@ -2075,6 +2086,7 @@ module iteration_mod
               deallocate(H2denTmp, H2denSum)
               deallocate(pdrCoolSpTmp, pdrCoolSpSum)
               deallocate(pdrLnTmp, pdrLnSum)                             ! D-362
+              deallocate(pdrLbTmp, pdrLbSum)                             ! D-363
               deallocate(pdrIonRateTmp, pdrIonRateSum)
 
               call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &

@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-362, 2026-09-26. Reference model throughout: the 150 kK PN,
+Status as of D-363, 2026-09-27. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -442,6 +442,10 @@ solve; the temperature comes from the table. For [C II]-cooled cold gas a
 20% cooling error is ~4% in T *(estimate)*. The fix is a finer table or an
 interpolation in 1/T. Why the C+ sign differs between the fixtures is not
 known.
+**Narrowed to CO (D-363).** C I, C II and O I are now MOCASSIN's own atoms,
+evaluated at every trial T, with no table. For CO the per-cell mean |ln| is
+0.02 (hiipdr) and 0.004 (pn150k). Removing the atoms' table made both PDRs
+1-4% colder.
 
 **L-37. Unresolved ionization-front cells dominate the [O I] lines**
 (D-362). 92% (hiipdr) and 74% (pn150k) of [O I] 63 um comes from cells with
@@ -464,6 +468,12 @@ in CHIANTI. [C I] 9824/9850 falls to x0.66 (toward Cloudy), and [O I]
 CHIANTI levels and electron rates, plus the chemistry's H, H2, He and H+ rates
 for the levels they cover, solved once for the balance and the lines. That is
 a design decision.
+**CLOSED 2026-09-27 (D-363)**, as that design: one atom per ion, with the
+chemistry's escape probabilities carried over. C II] 2325 is back within
+0.1-2.1% of the electron-only CHIANTI values. In neutral gas the chemistry's
+atom and MOCASSIN's agree to 0.4-7% in the transitions they share. The escape
+probabilities keep L-27's flaw (beta <= 2/3 for thin lines), which matters
+only above the critical density.
 
 ### Medium
 

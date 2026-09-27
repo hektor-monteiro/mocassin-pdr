@@ -87,6 +87,7 @@ module pdr_mod
                                ! a 33-element array at 1000. gfortran accepts the
                                ! real subscript as a legacy extension, silently.
                                & pdrRayLW => ray_lw_factor, &       ! D-350
+                               & pdrEscBeta => escape_beta, &       ! D-363
                                & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
                                & NCx, NO, NOx, NMG, NMGx, &
                                ! D-258: H2+ and H3+, for the chain diagnostic
@@ -422,6 +423,32 @@ module pdr_mod
                 & trim(adjustl(pdrCoolant(iS))), ": ", pdrLnN(iS), &
                 & " radiative transitions, emission stored per cell"
         end do
+
+        ! D-363: the atomic coolants' collision tables, for MOCASSIN's own
+        ! atoms to take the colliders it has no data for (H, H+, He, H2).
+        ! Copied as read, in the chemistry's level numbering; the electron
+        ! rates stay behind - MOCASSIN's CHIANTI rates are used for those.
+        do iS = 1, pdrNcool
+           if (pdrCoolIsMol(iS) .or. pdrCoolElem(iS) < 3) cycle
+           nT362 = pdrCoolant2(iS)%cntemp
+           iUp   = pdrCoolant2(iS)%cnlev
+           if (allocated(pdrAtomColl(iS)%tempK)) &
+                & deallocate(pdrAtomColl(iS)%tempK, pdrAtomColl(iS)%kDown)
+           allocate(pdrAtomColl(iS)%tempK(7, nT362), pdrAtomColl(iS)%kDown(7, iUp, iUp, nT362))
+           pdrAtomColl(iS)%nlev  = iUp
+           pdrAtomColl(iS)%ntemp = nT362
+           pdrAtomColl(iS)%tempK = pdrCoolant2(iS)%TEMPERATURES(1:7, 1:nT362)
+           pdrAtomColl(iS)%kDown = 0.d0
+           pdrAtomColl(iS)%kDown(1,:,:,:) = pdrCoolant2(iS)%H2_COL(1:iUp, 1:iUp, 1:nT362)
+           pdrAtomColl(iS)%kDown(2,:,:,:) = pdrCoolant2(iS)%PH2_COL(1:iUp, 1:iUp, 1:nT362)
+           pdrAtomColl(iS)%kDown(3,:,:,:) = pdrCoolant2(iS)%OH2_COL(1:iUp, 1:iUp, 1:nT362)
+           pdrAtomColl(iS)%kDown(5,:,:,:) = pdrCoolant2(iS)%H_COL(1:iUp, 1:iUp, 1:nT362)
+           pdrAtomColl(iS)%kDown(6,:,:,:) = pdrCoolant2(iS)%HE_COL(1:iUp, 1:iUp, 1:nT362)
+           pdrAtomColl(iS)%kDown(7,:,:,:) = pdrCoolant2(iS)%HP_COL(1:iUp, 1:iUp, 1:nT362)
+        end do
+        if (allocated(pdrEscBeta)) deallocate(pdrEscBeta)
+        allocate(pdrEscBeta(pdrMaxLev, pdrMaxLev))
+        pdrEscBeta = 1.d0
 
         ! ---- read the network -------------------------------------------
         call allocations
@@ -3519,6 +3546,14 @@ module pdr_mod
            end if
 
         do ik = 1, pdrNcool
+           ! D-363: the atomic coolants are MOCASSIN's to cool with now, at
+           ! its own trial T, so their table is not built; the chemistry's
+           ! atom is solved once, at the cell's T, for its escape
+           ! probabilities (and its lines, kept for comparison, D-363).
+           if (.not.pdrCoolIsMol(ik) .and. iTpass <= pdrNtab) then
+              grid%pdrCoolTab(cellP, ik, iTpass) = 0.
+              cycle
+           end if
            nlev = pdrCoolant2(ik)%cnlev
            nSpec = abun(pdrCoolant2(ik)%cspec)*nH
            ! D-266: an atomic ION coolant (C+) must be excited at the
@@ -3548,6 +3583,8 @@ module pdr_mod
                  if (iTpass == iTnear) grid%pdrCoolSp(cellP, ik) = 0.
               else if (pdrLnN(ik) > 0) then
                  grid%pdrLineEm(cellP, pdrLnOff(ik)+1:pdrLnOff(ik)+pdrLnN(ik)) = 0.  ! D-362
+                 grid%pdrLineBeta(cellP, pdrLnOff(ik)+1:pdrLnOff(ik)+pdrLnN(ik)) = 1. ! D-363
+                 if (.not.pdrCoolIsMol(ik)) grid%pdrCoolSp(cellP, ik) = 0.
               end if
               cycle
            end if
@@ -3707,7 +3744,20 @@ module pdr_mod
               do iLn362 = pdrLnOff(ik)+1, pdrLnOff(ik)+pdrLnN(ik)
                  grid%pdrLineEm(cellP, iLn362) = &
                       & real(lline(pdrLnUp(iLn362), pdrLnLo(iLn362)))
+                 ! D-363: and each transition's escape probability, from the
+                 ! same (last) evaluation, for MOCASSIN's atom to take
+                 if (allocated(pdrEscBeta)) grid%pdrLineBeta(cellP, iLn362) = &
+                      & real(pdrEscBeta(pdrLnUp(iLn362), pdrLnLo(iLn362)))
               end do
+              ! D-363: for an atom this is its only solve - keep its
+              ! populations for the next iteration's start, and its cooling
+              ! at T for pdrCoolSp.out (a diagnostic; the balance uses
+              ! MOCASSIN's atom)
+              if (.not.pdrCoolIsMol(ik)) then
+                 grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) = lsol(1:nlev)
+                 grid%pdrCoolSp(cellP, ik) = real(coolK)
+                 coolTot = coolTot + coolK
+              end if
               cTab362 = pdrCoolAt(grid, cellP, ik, real(Tg))
               if (coolK > 0.d0 .and. cTab362 > 0.d0) then
                  d362 = abs(log(coolK/cTab362))
@@ -3725,6 +3775,7 @@ module pdr_mod
               grid%pdrLevPop(cellP, pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev) &
                    & = lsol(1:nlev)
               coolTot = coolTot + coolK
+              coolTot3 = coolTot3 + coolK       ! D-363: the tabulated coolants alone
               grid%pdrCoolSp(cellP, ik) = real(coolK)                 ! D-096
            end if
 
@@ -3755,9 +3806,11 @@ module pdr_mod
            coolTot2 = coolTot2 &
                 & + dble(grid%pdrCoolTab(cellP, ik, min(iTnear+1, pdrNtab)))
         end do
-        if (coolTot > 0.d0 .and. coolTot2 > 0.d0 .and. iTnear < pdrNtab) then
+        ! D-363: over the tabulated coolants only (CO); the atoms are solved at
+        ! T alone and are in coolTot but not in the table
+        if (coolTot3 > 0.d0 .and. coolTot2 > 0.d0 .and. iTnear < pdrNtab) then
            grid%pdrCoolSlope(cellP) = real( &
-                & log(coolTot2/coolTot) &
+                & log(coolTot2/coolTot3) &
                 & /log(dble(pdrTabT(iTnear+1))/dble(pdrTabT(iTnear))))
         else
            grid%pdrCoolSlope(cellP) = 0.

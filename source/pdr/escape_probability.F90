@@ -1,3 +1,4 @@
+! Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md.
 #ifdef RAYTHEIA_MO
 subroutine escape_probability(transition, dust_temperature, nrays, nlev, &
                    &A_COEFFS, B_COEFFS, C_COEFFS, &
@@ -23,6 +24,7 @@ use healpix_module
 use maincode_module, only: Tcmb, nside, pdr
 use m_Mesh
 use m_Ray_box
+use global_module, only: escape_beta   ! MOCASSIN-PDR D-363
 
 implicit none
 
@@ -70,6 +72,9 @@ real(kind=dp) :: emissivity, bb_ij_dust, ngrain, rho_grain
 
 line=0.0D0
 cooling_rate = 0.0D0
+! D-363: hand the host each transition's escape probability (1 where no
+! transition is solved)
+if (allocated(escape_beta)) escape_beta = 1.0D0
     allocate(tau_ij(0:nrays-1))
     allocate(field(1:nlev,1:nlev))
     field=0.0D0
@@ -190,6 +195,10 @@ cooling_rate = 0.0D0
 #endif
 
 1 continue
+         if (allocated(escape_beta)) then                       ! D-363
+            if (ilevel <= ubound(escape_beta,1) .and. jlevel <= ubound(escape_beta,2)) &
+                 & escape_beta(ilevel,jlevel) = beta_ij
+         end if
          if (S_ij.ne.0.0D0) then
             line(ilevel,jlevel) = A_COEFFS(ilevel,jlevel)*HP*frequencies(ilevel,jlevel) * &
                                 & s_pop(ilevel)*beta_ij*(S_ij-BB_ij)/S_ij

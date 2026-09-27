@@ -816,13 +816,14 @@ The first two columns give the element and ion number, these are followed by \fB
 
 If a multiChemistry model is being run, then the results will be given for each individual component.
 
-In a PDR run the rows of C I, C II and O I are the chemistry's: every transition its level
-populations carry (collisions with H, H2, He, H+ and electrons, the populations the thermal
-balance cools by) is reported in the row of MOCASSIN's matching transition, in each cell where
-the chemistry has the carrier. Rows from levels its atoms lack (e.g. C II 1335, O I 1304) stay
-MOCASSIN's. The levels are matched by energy at the start of the output and the match is printed
-("[D362]"). mocassinOutput reproduces the substitution from output/pdrLineEm.out; a checkpoint
-written before it existed gives MOCASSIN's own lines, with a warning.
+In a PDR run C I, C II and O I are computed by MOCASSIN's own atoms (CHIANTI levels and electron
+rates) with, added, the chemistry's rates for collisions with H, H+, He and ortho/para-H2 and its
+escape probability for each transition the two atoms share. The same atom cools the gas in the
+thermal balance, at every trial temperature, and emits the diffuse line photons. The chemistry's
+levels are matched to MOCASSIN's by energy once the atomic data are loaded, and the match is
+printed ("[D363]"); an ion that does not match keeps the electron-only atom. The escape
+probabilities come from output/pdrLineEm.out when mocassinOutput or mocassinWarm restores a run;
+a checkpoint without them (before D-363) gives escape probability 1, with a warning.
 
 lineFluxMol.out
 
@@ -833,9 +834,11 @@ writes lineFluxMol-slit.out.
 
 pdrLineEm.out
 
-PDR runs only, a checkpoint: per grid point (the order of grid1.out), the net escaping emission
-[erg/s/cm^3] of every coolant transition, from a level-population solve at the cell's own
-temperature. A header line gives the number of transitions.
+PDR runs only, a checkpoint: per grid point (the order of grid1.out), two lines - the net
+escaping emission [erg/s/cm^3] of every coolant transition from the chemistry's own level
+populations at the cell's temperature, then each transition's escape probability. A header line
+gives the number of transitions. The atomic coolants' emissivities are kept for comparison
+("[D363]" prints the chemistry's atom against MOCASSIN's); the molecular ones are lineFluxMol.out.
 
 temperature.out
 

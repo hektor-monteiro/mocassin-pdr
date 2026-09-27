@@ -461,6 +461,10 @@ module common_mod
         ! MOCASSIN's electron-only C, C+ and O lines, and the molecular ones
         ! in lineFluxMol.out.
         real, allocatable         :: pdrLineEm(:,:)
+        ! D-363: each coolant transition's escape probability from the same
+        ! solve (1 where it is not solved). MOCASSIN's atoms take it for the
+        ! transitions they share with the chemistry's.
+        real, allocatable         :: pdrLineBeta(:,:)
         real, allocatable         :: pdrHeat(:)      ! total PDR heating [erg/s/cm^3]
         real, allocatable         :: pdrHeatPE(:)    ! grain photoelectric term alone
         ! D-131: the PDR heating MOCASSIN does not compute for itself, summed
@@ -769,6 +773,37 @@ module common_mod
     ! resetGrid reading output/pdrLineEm.out. Until then outputGas keeps
     ! MOCASSIN's own C, C+ and O lines, and says so.
     logical             :: lgPdrLineEm = .false.
+    ! ---------------------------------------------------------------- D-363
+    ! ONE ATOM PER ION. C I, C II and O I are solved by MOCASSIN's own atoms
+    ! (CHIANTI levels and electron rates), which also take the chemistry's
+    ! rates for the colliders MOCASSIN has no data for - H, H+, He, H2 - and
+    ! the chemistry's escape probability for each transition the chemistry's
+    ! atom has. One solve serves the thermal balance at every trial T, the
+    ! diffuse line emission and lineFlux.out.
+    !
+    ! pdr_atom_coll: one atomic coolant's collision tables as the chemistry
+    ! read them, in ITS level numbering. Partners are numbered as 3D-PDR does:
+    ! 1 H2, 2 p-H2, 3 o-H2, 4 e- (not used: MOCASSIN's own), 5 H, 6 He, 7 H+.
+    ! kDown(p,u,l,it) is the u -> l rate coefficient [cm^3/s] at tempK(p,it);
+    ! tempK(p,1) = 0 means the file has no such partner.
+    type pdr_atom_coll
+       integer :: nlev = 0, ntemp = 0
+       double precision, allocatable :: tempK(:,:)
+       double precision, allocatable :: kDown(:,:,:,:)
+    end type pdr_atom_coll
+    type(pdr_atom_coll) :: pdrAtomColl(30)
+    ! the map onto MOCASSIN's atoms, built once its atomic data are loaded:
+    ! pdrAtomOf(elem,ion) is the coolant solving that ion (0: none);
+    ! pdrLvMap(ik,lc) is MOCASSIN's level for the chemistry's level lc
+    logical             :: lgPdrAtomMap = .false.
+    integer             :: pdrAtomOf(30,10) = 0
+    integer             :: pdrLvMap(30,17) = 0
+    ! the cell the line solver is working on: set by each caller of forLines,
+    ! cleared after. collCellP = 0 means no neutral colliders and no escape
+    ! probabilities - plain MOCASSIN, or a call with no cell behind it.
+    integer             :: collCellP = 0
+    double precision    :: collDen(7) = 0.d0          ! per partner [cm^-3]; H2 in 1
+    double precision, allocatable :: collBeta(:)      ! per coolant transition
 
     ! --- PDR module controls (DEVLOG D-022) ------------------------------------
     ! Defaults reproduce 3D-PDR's shipped params.dat so an unspecified run is
@@ -1250,6 +1285,155 @@ contains
     end if
 
   end function pdrCoolAt
+
+  !-----------------------------------------------------------------
+  ! D-363: map each atomic coolant's levels onto MOCASSIN's own atom for the
+  ! same ion, by energy (the rule D-362 used): the nearest MOCASSIN level
+  ! within 1e-3 of the energy (1 cm^-1 below 1000 cm^-1) and closer than a
+  ! fifth of the distance to the second nearest, one-to-one. An ion that
+  ! fails to map keeps MOCASSIN's electron-only atom, and says so.
+  ! Called once MOCASSIN's atomic data are loaded.
+  !-----------------------------------------------------------------
+  subroutine buildPdrAtomMap()
+    implicit none
+    integer          :: ik, el, io, lc, lm, m1
+    double precision :: e0, d, d1, d2
+    logical          :: ok
+
+    lgPdrAtomMap = .true.
+    pdrAtomOf = 0
+    pdrLvMap  = 0
+    do ik = 1, pdrNcool
+       if (pdrCoolIsMol(ik) .or. pdrCoolElem(ik) < 3) cycle
+       el = pdrCoolElem(ik); io = pdrCoolIon(ik)
+       if (el > nElements .or. io > 10) cycle
+       if (.not.lgElementOn(el)) cycle
+       if (.not.lgDataAvailable(el, io)) cycle
+       if (pdrAtomColl(ik)%nlev <= 0 .or. pdrAtomColl(ik)%nlev > 17) cycle
+       ok = .true.
+       do lc = 1, pdrAtomColl(ik)%nlev
+          e0 = pdrLvE(pdrLevOff(ik)+lc)
+          d1 = huge(1.d0); d2 = huge(1.d0); m1 = 0
+          do lm = 1, atomic_data_array(el,io)%nlevs
+             d = abs(atomic_data_array(el,io)%e(lm) - e0)
+             if (d < d1) then
+                d2 = d1; d1 = d; m1 = lm
+             else if (d < d2) then
+                d2 = d
+             end if
+          end do
+          if (m1 == 0 .or. d1 > 1.d-3*max(e0, 1000.d0) .or. d1 > 0.2d0*d2) ok = .false.
+          if (ok .and. lc > 1) then
+             if (any(pdrLvMap(ik,1:lc-1) == m1)) ok = .false.
+          end if
+          pdrLvMap(ik,lc) = m1
+          if (taskid == 0) print '(a,i3,a,i3,a,i3,a,f12.3,a,i3,a,f12.3,a)', &
+               & " ! [D363] elem", el, " stage", io, "  chemistry level", lc, &
+               & "  E", e0, " cm-1  -> MOCASSIN's level", m1, " (", &
+               & merge(atomic_data_array(el,io)%e(max(m1,1)), -1.d0, m1 > 0), ")"
+       end do
+       if (ok) then
+          pdrAtomOf(el, io) = ik
+          if (taskid == 0) print '(a,i3,a,i3,a)', " ! [D363] elem", el, " stage", io, &
+               & ": MOCASSIN's atom takes the chemistry's H, H+, He, H2 rates and escape probabilities"
+       else
+          pdrLvMap(ik,:) = 0
+          if (taskid == 0) print '(a,i3,a,i3,a)', " ! [D363] elem", el, " stage", io, &
+               & ": levels do NOT map - MOCASSIN's electron-only atom is kept"
+       end if
+    end do
+  end subroutine buildPdrAtomMap
+
+  !-----------------------------------------------------------------
+  ! D-363: the colliders and escape probabilities of cell cellP, for the
+  ! next forLines. Densities are the ones the chemistry's own atoms use:
+  ! H0 and H+ from MOCASSIN's ionization (which the chemistry imposes), He0
+  ! likewise, H2 from the chemistry. ionDenCell is the caller's ionDenUsed.
+  !-----------------------------------------------------------------
+  subroutine setLineColliders(grid, cellP, ionDenCell, abunHe)
+    implicit none
+    type(grid_type), intent(in) :: grid
+    integer,         intent(in) :: cellP
+    real,            intent(in) :: ionDenCell(:,:)
+    real,            intent(in) :: abunHe
+    double precision :: nH
+
+    collCellP = 0
+    if (.not.lgPDR .or. cellP <= 0) return
+    if (.not.lgPdrAtomMap) call buildPdrAtomMap()
+    nH = dble(grid%Hden(cellP))
+    collDen = 0.d0
+    collDen(5) = nH*dble(ionDenCell(elementXref(1),1))                 ! H0
+    collDen(7) = nH*dble(ionDenCell(elementXref(1),2))                 ! H+
+    if (lgElementOn(2)) collDen(6) = nH*dble(abunHe)*dble(ionDenCell(elementXref(2),1))  ! He0
+    if (allocated(grid%H2den)) collDen(1) = max(dble(grid%H2den(cellP)), 0.d0)       ! H2
+    if (.not.allocated(collBeta)) allocate(collBeta(max(pdrNln,1)))
+    collBeta = 1.d0
+    if (allocated(grid%pdrLineBeta)) collBeta(1:max(pdrNln,1)) = &
+         & dble(grid%pdrLineBeta(cellP, 1:max(pdrNln,1)))
+    collCellP = cellP
+  end subroutine setLineColliders
+
+  !-----------------------------------------------------------------
+  ! D-363: the neutral-collider rates for coolant ik at temperature T, onto
+  ! MOCASSIN's levels: cN(from,to) [s^-1], both directions. The tables are
+  ! interpolated as 3D-PDR's FIND_CCOEFF does - linear in T, held at the end
+  ! values outside - and o/p-H2 split thermally as it does; the upward rate
+  ! is detailed balance on MOCASSIN's own energies and weights.
+  !-----------------------------------------------------------------
+  subroutine pdrNeutralRates(ik, el, io, T, cN)
+    implicit none
+    integer,          intent(in)    :: ik, el, io
+    double precision, intent(in)    :: T
+    double precision, intent(inout) :: cN(:,:)
+    integer          :: p, k, klo, khi, uc, lc, um, lm
+    double precision :: step, fpara, den(7), kd
+
+    fpara = 1.d0/(1.d0 + 9.d0*exp(-170.5d0/T))
+    den = 0.d0
+    den(1) = collDen(1)
+    den(2) = collDen(1)*fpara
+    den(3) = collDen(1)*(1.d0 - fpara)
+    den(5) = collDen(5); den(6) = collDen(6); den(7) = collDen(7)
+    do p = 1, 7
+       if (p == 4) cycle                          ! electrons: MOCASSIN's own
+       if (den(p) <= 0.d0) cycle
+       if (pdrAtomColl(ik)%tempK(p,1) == 0.d0) cycle
+       klo = 0; khi = 0
+       do k = 1, pdrAtomColl(ik)%ntemp
+          if (pdrAtomColl(ik)%tempK(p,k) > T) then
+             klo = k-1; khi = k; exit
+          else if (pdrAtomColl(ik)%tempK(p,k) == 0.d0) then
+             klo = k-1; khi = k-1; exit
+          end if
+       end do
+       if (khi == 0) then
+          klo = pdrAtomColl(ik)%ntemp; khi = klo
+       else if (khi == 1) then
+          klo = 1; khi = 1
+       end if
+       if (klo == khi) then
+          step = 0.d0
+       else
+          step = (T - pdrAtomColl(ik)%tempK(p,klo)) &
+               & /(pdrAtomColl(ik)%tempK(p,khi) - pdrAtomColl(ik)%tempK(p,klo))
+       end if
+       do uc = 2, pdrAtomColl(ik)%nlev
+          um = pdrLvMap(ik,uc)
+          do lc = 1, uc-1
+             lm = pdrLvMap(ik,lc)
+             kd = pdrAtomColl(ik)%kDown(p,uc,lc,klo) + (pdrAtomColl(ik)%kDown(p,uc,lc,khi) &
+                  & - pdrAtomColl(ik)%kDown(p,uc,lc,klo))*step
+             if (kd <= 0.d0) cycle
+             cN(um,lm) = cN(um,lm) + kd*den(p)
+             cN(lm,um) = cN(lm,um) + kd*den(p) &
+                  & *dble(atomic_data_array(el,io)%g(um))/dble(atomic_data_array(el,io)%g(lm)) &
+                  & *exp(-(atomic_data_array(el,io)%e(um) - atomic_data_array(el,io)%e(lm)) &
+                  &      *1.4388463d0/T)
+          end do
+       end do
+    end do
+  end subroutine pdrNeutralRates
 #endif
 
   !-----------------------------------------------------------------

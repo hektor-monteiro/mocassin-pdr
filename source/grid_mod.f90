@@ -1393,7 +1393,8 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrCoolSp memory"; stop
                 end if
-                allocate(grid%pdrLineEm(0:grid%nCells, 1:max(pdrNln,1)), stat = err)   ! D-362
+                allocate(grid%pdrLineEm(0:grid%nCells, 1:max(pdrNln,1)), &
+                     & grid%pdrLineBeta(0:grid%nCells, 1:max(pdrNln,1)), stat = err)   ! D-362/363
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrLineEm memory"; stop
                 end if
@@ -1535,6 +1536,7 @@ module grid_mod
                 grid%H2den = 0.
                 grid%pdrCoolSp = 0.
                 grid%pdrLineEm = 0.                                         ! D-362
+                grid%pdrLineBeta = 1.                                       ! D-363: thin until solved
                 grid%pdrIonRate = 0.
                 grid%pdrPhotRate = -1.
                 grid%pdrAlphaRec = -1.
@@ -2955,8 +2957,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                  print*, "! writeGrid: can't open file for writing - output/pdrLineEm.out"
                  stop
               end if
-              write(58, '(a,i6,a)') "# pdrLineEm v1 (D-362): per grid point (i,j,k order),", &
-                   & max(pdrNln,1), " coolant transition emissivities [erg/s/cm^3]"
+              write(58, '(a,i6,a)') "# pdrLineEm v2 (D-363): per grid point (i,j,k order), two lines of,", &
+                   & max(pdrNln,1), " coolant transition emissivities [erg/s/cm^3] and their escape probabilities"
               close(53)
               open(unit=53, file="output/pdrRad.out", action="write",position="rewind",status="unknown", iostat = ios)
               if (ios /= 0 ) then
@@ -3050,6 +3052,7 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
                        ! .cool.fin no longer needs a rerun to reconstruct.
                        write(52, *) (grid(iG)%pdrCoolSp(cellP,iPdrS), iPdrS = 1, max(pdrNcool,1))
                        write(58, *) (grid(iG)%pdrLineEm(cellP,iPdrS), iPdrS = 1, max(pdrNln,1))   ! D-362
+                       write(58, *) (grid(iG)%pdrLineBeta(cellP,iPdrS), iPdrS = 1, max(pdrNln,1)) ! D-363
                        ! D-104: where a cell's energy is. totalLines is the
                        ! fraction of re-emitted energy that escapes as a line
                        ! photon; the J sums say whether more energy is arriving
@@ -3360,6 +3363,7 @@ end function getVolume
       character(len=20)              :: pdrNetRead    ! network name in the checkpoint
       character(len=200)             :: pdrHdr        ! D-352: pdrGrid.out format line
       integer                        :: iPdrLn        ! D-362: pdrLineEm.out's count
+      logical                        :: lgPdrLineV2 = .false.   ! D-363: with escape probabilities
       integer                        :: iLnkR, jLnkR  ! D-189
       double precision               :: availR        ! D-189
 #endif
@@ -3634,11 +3638,14 @@ end function getVolume
               &          status='old', iostat = err)
          if (err == 0) then
             read(92, '(a)', iostat = err) pdrHdr
-            if (err == 0 .and. index(pdrHdr, '# pdrLineEm v1') == 1) then
+            lgPdrLineV2 = (index(pdrHdr, '# pdrLineEm v2') == 1)
+            if (err == 0 .and. (index(pdrHdr, '# pdrLineEm v1') == 1 .or. lgPdrLineV2)) then
                ! the count follows the header's LAST comma
                read(pdrHdr(index(pdrHdr, ',', back=.true.)+1:), *, iostat = err) iPdrLn
                if (err == 0 .and. iPdrLn == max(pdrNln,1)) then
                   lgPdrLineEm = .true.
+                  if (.not.lgPdrLineV2) print*, "! resetGrid: output/pdrLineEm.out is v1 ", &
+                       & "(before D-363) - no escape probabilities; C, C+ and O take 1"
                else
                   print*, "! resetGrid: output/pdrLineEm.out has ", iPdrLn, &
                        & " transitions, this run's coolants have ", pdrNln, &
@@ -3784,7 +3791,8 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrCoolSp memory"; stop
                end if
-               allocate(grid(iG)%pdrLineEm(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat = err) ! D-362
+               allocate(grid(iG)%pdrLineEm(0:grid(iG)%nCells, 1:max(pdrNln,1)), &
+                    & grid(iG)%pdrLineBeta(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat = err) ! D-362/363
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrLineEm memory"; stop
                end if
@@ -3939,6 +3947,7 @@ end function getVolume
                grid(iG)%H2den = 0.
                grid(iG)%pdrCoolSp = 0.
                grid(iG)%pdrLineEm = 0.                                      ! D-362
+               grid(iG)%pdrLineBeta = 1.                                    ! D-363
                grid(iG)%pdrIonRate = 0.
                grid(iG)%pdrPhotRate = -1.
                grid(iG)%pdrAlphaRec = -1.
@@ -4178,6 +4187,8 @@ end function getVolume
                      read(91, *) (grid(iG)%pdrAbun(cellP,iPdrS), iPdrS = 1, pdrNspec)
                      if (lgPdrLineEm) read(92, *) &
                           & (grid(iG)%pdrLineEm(cellP,iPdrS), iPdrS = 1, max(pdrNln,1))   ! D-362
+                     if (lgPdrLineEm .and. lgPdrLineV2) read(92, *) &
+                          & (grid(iG)%pdrLineBeta(cellP,iPdrS), iPdrS = 1, max(pdrNln,1)) ! D-363
                      ! D-188: a restored cell has already been seeded and has
                      ! real chemistry in it. Without this the first-visit seed
                      ! in pdrStep would overwrite the restored abundances with
@@ -4193,9 +4204,15 @@ end function getVolume
                      ! functions of pdrAbun, so recompute them from the state
                      ! that WAS restored rather than storing them twice or
                      ! letting a default stand in.
+                     ! D-363: rounded as the D-200 damping step writes it at
+                     ! the end of every PDR iteration (iterDamp > 0, the
+                     ! default) - x(H2) to single precision, then times n_H -
+                     ! so a restored grid carries the run's own H2den to the
+                     ! bit. real(x*n_H) differed in the last bit, which moved
+                     ! [C I] 370 um by 7e-8 in mocassinOutput's lineFlux.out.
                      if (allocated(grid(iG)%H2den) .and. pdrIdxH2 > 0) &
                           & grid(iG)%H2den(cellP) = &
-                          & real(grid(iG)%pdrAbun(cellP,pdrIdxH2)*dble(grid(iG)%Hden(cellP)))
+                          & real(grid(iG)%pdrAbun(cellP,pdrIdxH2))*grid(iG)%Hden(cellP)
                      if (allocated(grid(iG)%elemAvail)) then
                         do iLnkR = 1, pdrNlink
                            if (pdrLinkSpec(iLnkR) <= 0) cycle
