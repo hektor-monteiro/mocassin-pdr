@@ -368,6 +368,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-366 | **L-39 found and fixed, on the user's hypothesis that the anisotropic dust scattering was involved: after a mirror reflection MOCASSIN turned the step direction (`vHat`) but not the packet's stored direction, and the next Henyey-Greenstein scattering starts from the stored one - so the first scattering after every bounce was forward-peaked about the pre-bounce direction and sent the packet back to the plane it had left.** Upstream since the initial import (38aca36), at all four reflection sites (two symmetric-grid, the planeIonization walls). A/B at 31^3, 4 iterations, seed 1001, 3 ranks: the defect gives +0.30 (axis) / +0.44 (planes) / -0.15 (diagonal) in ln chi at A_V 2.5-3.5; `isotropicScattering` with the defect gives +0.02 / +0.04 / -0.10 (it cannot see the stale direction); the fix gives -0.02 / +0.02 / +0.01. T_dust's pattern (+3.0/-1.7/+3.7%) goes to <0.3%. The defect also biased the radial mean: fixed/defect shell-median chi is 1.00, 1.01, 1.08, 1.13, 1.18 over A_V 0.5-3.5, T_dust 1.00-1.01, Hbeta +0.15%. Slabs: a lateral flip cannot bias a depth profile in a laterally uniform slab, so their fix is expected to be neutral (not run). pn150k (g = 0.29, A_V < 0.8) carries only ~2% at 41^3; `runs/d365-pn81` continues on the old code. Every hiipdr number published so far carries it | Done | 2026-09-27 |
 | D-367 | **The D-366 mirror-reflection fix ported to this repository's `dev` as da02212 (not pushed).** Same four sites, CRLF endings kept, source only (tracked binaries restored), all four dev targets build; worktree at ~/software/mocassin_dev removed afterwards (the D-281 procedure). Checked on dev with hiipdr as a dust+gas model (PDR keywords removed, 31^3, 3 ranks, converged at iteration 3): ln T_dust off its radial profile goes from +2.7-3.1% near the axes, +3.9-4.2% on the planes and -1.9-2.7% on the diagonals to within 0.2%; Hbeta +0.18%. dust/1D/p0tau10 cannot see it (0.1-0.3% either way). **Misstep, reverted:** I first took "the dev branch" to be the core fork's `dev` (~/software/mocassin_HM_2026) and made a worktree, a branch and an uncommitted edit there; the user said to use this repository and touch no other. All three removed; that repository is as it was (dev at fea0149, the user's 31 uncommitted files, empty stash, no new reflog entries) | Done | 2026-09-27 |
 | D-368 | **pn150k at twice the resolution (81^3, 3 ranks - all the memory allows): the packets reached 1e9 with the D-365 fix, the run converged (94%) and stopped at iteration 8 after 9 h 33 min, and the radial means were already converged at 41^3 - what 81^3/1e9 buys is the per-cell map, 3-4x quieter.** Scatter about the radial profile at A_V 0.35-0.8: FUV field 4-6.5% -> 1.2-1.7%, T_gas 2.2-2.8% -> 0.6-0.7%, CO 7-20% -> 3-5%; the old binary's direction pattern (+2.6/-1.8/+1.9% axis/diagonal/planes) is now as large as the noise. **[O I] 63 is not a resolution artefact on pn150k** (P5 fails): its front-cell part is 0.95x for half the cell size (hiipdr 0.53x) - the 150 kK star's hard photons make a partially ionized zone the 0.015 pc grid already resolves - so 1.35x -> 1.26x Cloudy is a model difference; [C II] 158 0.64 -> 0.65, [C I] unchanged. H+ front 0.1282 -> 0.1279 pc (Cloudy 0.1279), H/H2 crossing A_V 0.402 -> 0.407, PDR T unchanged. **The He2+ front was still moving +0.003 pc per iteration when the 90% criterion stopped the run** (0.0730, 0.0769, 0.0799; Cloudy 0.0880), so He II 4686 -11% is iteration count, not resolution (L-40) | Open | 2026-09-27 |
+| D-369 | **Artifact 'Fine Grids Against Cloudy' (https://claude.ai/artifact/36ngURUNJoJ3eW6q5JjwAr): the D-365..D-368 fine-grid runs against Cloudy.** Roellig figures for hiipdr 61^3 and pn150k 81^3 with a toggle to the published 31^3/41^3 ones; headline and line tables (coarse / fine / Cloudy, and hiipdr's 31^3-fixed column); three new diagnostic figures (per-cell noise, the mirror-reflection pattern for old/isotropic/fixed, front radius per iteration over Cloudy's). States that both fine-grid runs predate the D-366 fix and hiipdr stopped at 5e8. In checking the copy, D-366's 'every line within 1%' was found wrong ([C I] 370 -2.7%) and corrected | Done | 2026-09-27 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -31318,3 +31319,42 @@ itself.
 ### Status
 
 Open (L-40).
+
+---
+
+## D-369 - Artifact: Fine Grids Against Cloudy (2026-09-27)
+
+The user: "create an artifact with these model results and plots comparing
+them to cloudy". Published at https://claude.ai/artifact/36ngURUNJoJ3eW6q5JjwAr
+(private until shared).
+
+Built in the house style of the hiipdr/pn150k Cloudy pages (their two style
+blocks and the zoom lightbox reused verbatim). Contents:
+
+  - headline tiles: noise ~5x (hiipdr), deep carbon (C+ = C 2.26 -> 2.71),
+    [O I] 63 on both models and what the front-cell scaling says, the mirror
+    defect, the unsettled fronts;
+  - the runs and their cost (ranks set by memory), with the two caveats: both
+    fine-grid runs predate the D-366 fix, and hiipdr stopped at 5e8;
+  - hiipdr and pn150k Roellig figures (chemistry, ions, temperatures) with a
+    toggle between the fine run and the published coarse one; headline tables
+    (hiipdr with a `runs/d366-hii` "31^3 fixed" column) and line tables
+    against Cloudy (pn150k's ionized-gas Cloudy values from the v15 page);
+  - three new figures (`scratchpad/d369_figs.py`, every number a measurement
+    from D-365..D-368): hiipdr's per-cell draw against the L-26 four-seed
+    scatter and pn150k's scatter about the profile; the direction pattern for
+    `runs/d365-hg`, `d365-iso`, `d366-fix`; front radius over Cloudy's per
+    iteration from the snapshots.
+
+Rendered headless once at 1200 and 400 px: the toggle's hidden figure set
+showed (`.pubgrid`'s display overrode `hidden` outside the publish skeleton;
+an explicit rule added) and the runs table clipped at 1200 px (cells
+shortened). Tags balance; 1.9 MB.
+
+**Correction found while checking the copy:** D-366 said the fix moved every
+line in the hiipdr table by under 1%; [C I] 370 moved -2.7% and 609 -1.5%.
+Corrected there (03a5a77) and stated as "under 3%" on the page.
+
+### Status
+
+Done.
