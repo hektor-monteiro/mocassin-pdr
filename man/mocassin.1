@@ -890,6 +890,13 @@ grid4.out is written out by \fBmocassinPlot\fR and it just contains the volume o
 
 The  ionising source(s) input parameters are written out to a file named photoSource.out.
 
+frontField.out (MOCASSIN-PDR D-381) is a diagnostic written with the grid files by every gas run
+that carries a radiation field (not by mocassinOutput): the Monte Carlo's bin-integrated field
+Jste, the total opacity the packets were carried through, and its dust absorption part, from the
+Lyman edge up, for every cell with x(H+) > 1e-4, with the H0, He0 and He+ photoionization cross
+sections once in the header. Nothing reads it back. tools/d381_subcell.py uses it to integrate
+the ionization through each cell and estimate the front cells' [O I] lines offline.
+
 plot.out
 
 The \fBmocassinPlot\fR driver produces also an output file, containing the luminosities of each individual grid volume element in the required emission lines. This file, named plot.out, is written in a format which should be easily readable into a data visualisation software, such as IDL or PDL. A grid4.out is also written out, containing the volume of each gridcell in [e45 cm3].

@@ -2887,6 +2887,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            integer                     :: ios                 ! I/O error status
            integer                     :: i,j,k,iG,ai         ! counters
            integer                     :: yTop                ! 2D index
+           integer                     :: iFr, nFrOut         ! D-381 bin counter, cells written
+           real, dimension(nbins)      :: sigFr               ! D-381 cross section row
 #ifdef PDR
            integer                     :: iPdrS               ! PDR species counter
            real                        :: radI, radF, radO, radR  ! D-104 band sums
@@ -3240,6 +3242,86 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
               end do
            end do
            close(41)
+        end if
+
+        ! D-381: the Monte Carlo's field and the opacity it was carried
+        ! through, from the Lyman edge up, in every cell holding ionized
+        ! hydrogen, for the offline sub-cell front profile
+        ! (tools/d381_subcell.py). Jste is this iteration's bin-integrated
+        ! 4 pi J; opacity is the one this iteration's packets saw (set before
+        ! the transfer, not touched by the update); absOpac is its dust
+        ! absorption part. The H0, He0 and He+ cross sections come once, in
+        ! the header, from the same xSecArray slices addOpacity and
+        ! updateCell use. A diagnostic: nothing reads it back. Not written
+        ! where there is no field (mocassinOutput runs no transfer).
+        if (lgGas .and. allocated(grid(1)%Jste) .and. allocated(grid(1)%opacity) &
+             & .and. HlevNuP(1) > 0) then
+           if (maxval(grid(1)%Jste(1:grid(1)%nCells, HlevNuP(1):nbins)) > 0.) then
+              close(43)
+              open(unit=43, file="output/frontField.out", action="write", position="rewind", &
+                   & status="unknown", iostat = ios)
+              if (ios /= 0) then
+                 print*, "! writeGrid: can't open file for writing - output/frontField.out"
+                 stop
+              end if
+              write(43, '(a)') "# frontField v1 (D-381): first bin, nbins; then nu [Ryd] and the"// &
+                   & " H0, He0, He+ cross sections [cm2] over those bins; then per grid its"// &
+                   & " cell count and, per cell with x(H+) > 1e-4, iG i j k cellP, Jste, opacity"// &
+                   & " [1/cm], dust absorption [1/cm]"
+              write(43, *) HlevNuP(1), nbins
+              write(43, *) nuArray(HlevNuP(1):nbins)
+              sigFr = 0.
+              do iFr = HlevNuP(1), nbins
+                 sigFr(iFr) = xSecArray(iFr-HlevNuP(1)+HlevXSecP(1))
+              end do
+              write(43, *) sigFr(HlevNuP(1):nbins)
+              sigFr = 0.
+              do iFr = HeIlevNuP(1), nbins
+                 sigFr(iFr) = xSecArray(iFr-HeIlevNuP(1)+HeISingXSecP(1))
+              end do
+              write(43, *) sigFr(HlevNuP(1):nbins)
+              sigFr = 0.
+              do iFr = HeIIlevNuP(1), nbins
+                 sigFr(iFr) = xSecArray(iFr-HeIIlevNuP(1)+HeIIXSecP(1))
+              end do
+              write(43, *) sigFr(HlevNuP(1):nbins)
+              do iG = 1, size(grid)
+                 if (iG>1 .or. (.not. lg2D)) then
+                    yTop = grid(iG)%ny
+                 else
+                    yTop = 1
+                 end if
+                 nFrOut = 0
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yTop
+                       do k = 1, grid(iG)%nz
+                          cellP = grid(iG)%active(i,j,k)
+                          if (cellP <= 0) cycle
+                          if (grid(iG)%ionDen(cellP,elementXref(1),2) > 1.e-4) nFrOut = nFrOut+1
+                       end do
+                    end do
+                 end do
+                 write(43, *) iG, nFrOut
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yTop
+                       do k = 1, grid(iG)%nz
+                          cellP = grid(iG)%active(i,j,k)
+                          if (cellP <= 0) cycle
+                          if (grid(iG)%ionDen(cellP,elementXref(1),2) <= 1.e-4) cycle
+                          write(43, *) iG, i, j, k, cellP
+                          write(43, *) grid(iG)%Jste(cellP, HlevNuP(1):nbins)
+                          write(43, *) grid(iG)%opacity(cellP, HlevNuP(1):nbins)
+                          if (lgDust .and. allocated(grid(iG)%absOpac)) then
+                             write(43, *) grid(iG)%absOpac(cellP, HlevNuP(1):nbins)
+                          else
+                             write(43, *) (0., iFr = HlevNuP(1), nbins)
+                          end if
+                       end do
+                    end do
+                 end do
+              end do
+              close(43)
+           end if
         end if
 
         print*, 'out writeGrid'

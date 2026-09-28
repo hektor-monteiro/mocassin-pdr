@@ -380,6 +380,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-378 | **Both Cloudy artifacts rebuilt on the current code, from D-377's paired runs: 'hiipdr Against Cloudy' v18 (`runs/d377-hii`) and '150 kK PN Against Cloudy' v16 (`runs/d377-pn`).** New figures, selected-depth, ionized-gas and line tables, headline numbers and 'Reading it' bullets, and on each page a section on the three corrections since the last version (D-371 Hbeta, D-376 resonance lines and Lya, D-377 line escape) with a before/now/Cloudy table. **A published number corrected:** the pn150k page's Cloudy Hbeta, 2.48e34 since D-359, came from the first of two iteration blocks in Cloudy's `150k.lines` save file (19.75 per unit inner area); the final printed intrinsic value is 2.78e34, which Cloudy's own zones reproduce to 2% (D-371) - Hbeta now agrees to 1.9% (was reported 6% apart with both numbers wrong). The historical 'now' columns of the previous versions' sections are relabelled as version 17 / 15. | Done | 2026-09-28 |
 | D-379 | **The user asked whether a correction factor for lines from cells that straddle the ionization front ([O I] 6300) could be estimated from the packet transfer and applied (evaluation only, no code). Not as a factor: the transfer gives the spectrum arriving at the front, not the thickness, which needs a sub-cell solve of ionization and temperature; a factor on the reported line alone breaks D-362's rule (the lines are the ones the balance cools by) and the cell's energy budget, and selecting front cells is a zone gate. A gate-free sub-cell front model is possible and cheap in compute, but it is a design change of the size of the nested sub-grids ruled out at D-081. Measured on Cloudy's zones: the layer that emits 10-90% of [O I] 6300 is 0.18 pc on hiipdr (not L-37's ~0.01 pc; median at x(H+) 0.91, ~9900 K) and 0.014 pc on pn150k, 5.5e19 and 4.3e19 cm^-2 of H - alike, so D-368's "the harder star makes a zone the grid resolves" is not what separates them: it is the column per cell, 2.0e20 against 4.7e19 cm^-2 (0.27 and 0.91 layers per cell).** d377-hii: 90% of [O I] 6300 (0.067 Hbeta, 6.4x Cloudy) from 67 cells with x(H+) 0.01-0.95 at ~8500 K and 912 A optical depth 600-1100 per cell; d377-pn: 97% from 392 such cells (1.38x Cloudy). One layer per cell on hiipdr needs ~110^3 (0.7M active cells, one rank). A per-line resolution diagnostic is cheap and changes no physics | Open | 2026-09-28 |
 | D-380 | **The user's refinement of D-379 - use the cell's n_e, T_e and the arriving field to estimate, per frequency bin, the fraction of the cell that is the front, and correct the emitted lines - evaluated (no code). The inputs are the right ones, but the fraction cannot be read per bin from the cell's own state: with the cell's opacity (tau(912 A) 600-1100) the photon-weighted reach of a 40 kK spectrum is 0.3-0.5% of the cell, against Cloudy's 6300 layer of ~25%, and with ionized-gas x(H0) it is the whole cell. Which x(H0) holds inside the cell is the unknown, so the fractions must come out of one integration of x(z) through the cell, all bins attenuating together. n_e is an output of that profile, not an input: 6300-weighted, the front cells have n_e/n_H 0.50, O0/O 0.53, T 8330 K against the layer's 0.81, 0.23, 9500 K, and their emissivity per volume is 1.47x the layer's.** With the integration, the D-379 conditions (cooling and lines from the same numbers, every line, every cell, cell mean x = profile mean) make it a sub-cell model at one T per cell. Its limit is the neutral part of the cell, which shares the warm T. Proposed first stage: a diagnostic that saves the per-bin field of the front cells and predicts the correction offline, tested by whether it makes 31^3 and 61^3 agree | Open | 2026-09-28 |
+| D-381 | **D-380's first stage, at the user's go-ahead: the sub-cell front profile at the cell's own T, offline, makes hiipdr's [O I] 6300 resolution-independent - 0.971/1.143/1.086e35 erg/s at 21^3/31^3/41^3 against 8.83/6.20/5.13e35 uncorrected (max/min 1.18 against 1.72), i.e. 1.09-1.19x Cloudy against 5.6-9.9x - and takes pn150k's from 1.38x to 1.00x Cloudy. Nothing was fitted.** New diagnostic output `frontField.out` (`writeGrid`: the transport's Jste, opacity and dust absorption from the Lyman edge up for cells with x(H+) > 1e-4, and the H0/He0/He+ cross sections), inert: d381-hii31 and d381-pn41 reproduce d377-hii and d377-pn byte for byte (summary.out timestamps aside). `tools/d381_subcell.py`: J_in = J tau/(1-e^-tau), H and He integrated along r with recombination rates from the cell's own balance, O0 locked to H0, D-284's O I atom as a ratio C times the cell's own emission; photons conserved to 1-1.7%. A straight line in cell size through the uncorrected rungs gives 1.33e35 (0.95-1.91e35) for 6300. On pn150k, D-368's 41->81 step read as an error proportional to cell size implies x0.735 against the profile's x0.729, withdrawing D-368's "model difference" for 6300. [O I] 63 is not fixed: corrected 0.053/0.037/0.029 Hbeta (spread 1.88 -> 1.79x, Cloudy 0.0058), since the cell's neutral part keeps the warm T; its extrapolation to zero cell size gives 0.0066, so it too looks like resolution. Predictions: P1, P4, P5 hold; P2 half; P3 holds for the x(H+) > 0.3 cells carrying the 6300 but fails as worded; P6 half fails (C63 ~0.5, not >= 1); P7 fails (-27% against <= 20%, a bound built on the wrong quantity). The cooling is untouched; stage 2 (T per depth) and feeding the profile into the run are the user's decisions | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32711,3 +32712,197 @@ thermal balance. It needs a re-run, or one resumed iteration, of each grid.
 ### Status
 
 Open, awaiting the user's decision. Nothing implemented.
+
+---
+
+## D-381 - The sub-cell front profile, stage 1: [O I] 6300 made resolution-independent offline (2026-09-28)
+
+The user, on D-380's proposed first stage: "lets give this a try". Stage 1
+is a diagnostic: nothing below changes a run's physics.
+
+### What was built
+
+  - **`output/frontField.out`** (`writeGrid`, grid_mod.f90). Every gas run
+    that carries a field writes it for every cell with x(H+) > 1e-4:
+      - the Monte Carlo's `Jste` from the Lyman edge up;
+      - the total opacity those packets were carried through (set before
+        the transfer, untouched by the update);
+      - its dust absorption part;
+      - in the header, once, the H0, He0 and He+ cross sections, from the
+        `xSecArray` slices `addOpacity` and `updateCell` use.
+    Rank 0 writes it with the grid files, where `Jste` still holds this
+    iteration's field. It is skipped where there is no field
+    (`mocassinOutput`). Documented in `man/mocassin.1`.
+  - **`tools/d381_subcell.py`**. Per cell:
+      1. the entering field J_in = J tau/(1 - e^-tau) per bin, with tau
+         the transport's opacity over the cell's chord along r;
+      2. H and He integrated through the cell (midpoint steps of <= 0.05
+         photon-weighted mean free paths or L/400), at the cell's own T;
+      3. the recombination coefficients as the cell's own balance implies
+         them (alpha = Gamma n_i / (n_i+1 n_e)). Where a helium stage is
+         empty, MOCASSIN's radRecFit He/H ratio (data/radrec.dat, VF96) is
+         applied to the cell's own H value, since the field's
+         normalization cancels only within one unit system;
+      4. O0/O+ locked to H0/H+ at the cell's ratio (charge exchange,
+         D-263), and O++/O+ scaled with the rate above 35.1 eV;
+      5. [O I] 6300 and 63 um at every depth from D-284's 5-level atom
+         (16o.dat, Barklem's 1D/1S electron rates), applied only as the
+         ratio C = profile mean / homogeneous cell, times the cell's own
+         `pdrLineEm` emission.
+  - All four flavours and `mocassinOutput` build. `make -j` fails on module
+    order; the serial build is the one that works.
+
+### Runs
+
+hiipdr at three resolutions, the same binary, equal packets per cell, seed
+1001, 11 iterations:
+
+    run          grid  packets   ranks  time     converged
+    d381-hii21   21^3  1.865e6   2      27:40    73.0%
+    d381-hii31   31^3  6.0e6     4      49:40    = d377-hii
+    d381-hii41   41^3  1.388e7   8      1:09:45  78.5%
+    d381-pn41    41^3  6.0e6     5      41:15     = d377-pn
+
+**P1 holds.** d381-hii31 is d377-hii byte for byte in every output file but
+`summary.out`, which differs only in timestamps. d381-pn41 is d377-pn likewise.
+
+### The test (P4): [O I] 6300, absolute
+
+                           21^3       31^3       41^3      max/min
+    uncorrected [erg/s]    8.83e35    6.20e35    5.13e35   1.72
+    corrected   [erg/s]    0.971e35   1.143e35   1.086e35  1.18
+    uncorrected / Hbeta    0.1028     0.0667     0.0583
+    corrected / Hbeta      0.0113     0.0123     0.0124    (Cloudy 0.0104)
+    Hbeta [E36]            8.584      9.296      8.799     (Cloudy 9.96)
+    6300-weighted C, front cells   0.074  0.092  0.138
+
+**P4 holds.** The corrected totals lie within 9% of their mean (-9.0%,
++7.2%, +1.8%), where the uncorrected ones fall 1.72x from 21^3 to 41^3. The
+corrected values do not move monotonically: the front cells' part is
+6.35/5.11/6.30e34, and the fully ionized cells' own 6300 is 3.36/6.32/4.57e34
+as the layer's ionized side moves in and out of them. The remaining +-9% is
+not separated from the Monte Carlo scatter, and a second seed would decide
+it.
+
+**P5 holds.** The corrected 6300 is 1.09-1.19x Cloudy's.
+
+**P2 half holds.** The front cells' uncorrected 6300 is 1.54x from 21^3 to
+31^3 (predicted 1.3-1.5) and 0.82x from 41^3 to 31^3 (0.70-0.85).
+
+### [O I] 63 um: the single-T limit, as expected, but not for my reason
+
+                           21^3       31^3       41^3      max/min
+    uncorrected / Hbeta    0.0773     0.0517     0.0401    1.88
+    corrected / Hbeta      0.0526     0.0368     0.0287    1.79   (Cloudy 0.00581)
+    6300-weighted C63      0.645      0.657      0.661
+
+**P6 half fails.**
+  - **Holds:** the spread barely shrinks (1.88x -> 1.79x), and 63 um stays
+    5-9x Cloudy.
+  - **Fails:** C_63 is ~0.5 in the brightest cells, not >= 1, and the
+    corrected total is 0.66x the uncorrected, i.e. closer. My reason was
+    wrong. The homogeneous cell's 63 um is dominated by electrons exciting
+    its half-neutral O; the profile separates O0 from the electrons, which
+    halves it.
+  - **What stays:** the neutral part of the cell, at the cell's warm T.
+    Its 63 um scales with the cell's volume, hence the unchanged spread.
+    Only a temperature per depth (stage 2) can remove that.
+
+### Checks on the profile
+
+  - **Photon conservation.** Absorbed by H + He + dust, plus transmitted,
+    equals the entering photons to 1-1.7% (the integration error). The
+    transmission is 1e-22..1e-15 in the front cells.
+  - **H absorption, profile against the homogeneous cell: 0.79-0.93 in the
+    brightest cells.** Two parts:
+      - the saved ionization is one iteration further recombined than the
+        opacity the packets saw. kappa_total(MC) / kappa_H(state) L is
+        0.88-0.98, because the front is still moving inward at iteration
+        11 (L-40);
+      - the profile gives He a few % more of the photons, since its neutral
+        side has He fully neutral.
+  - **P3 holds where the 6300 is, fails as worded.** Among cells with
+    tau(912) > 100:
+      - **x(H+) > 0.3:** <x(z)>/x^2 is 0.88-1.00 (6300-weighted 0.87-0.96).
+        These cells carry 64-80% of the 6300, and the photon-conservation
+        reading (the cell's x(H+) = sqrt of the ionized fraction) holds.
+      - **x(H+) 0.01-0.3:** 1.6-2.0.
+      - **x(H+) <= 0.01:** 50-400x. The hard photons ionize the entrance
+        of a cell that is otherwise neutral.
+  - **Fully ionized cells:** the field varies across them. Above 54 eV the
+    He+ zone is thick (tau ~30 per cell), so the rebuilt entering field
+    restores hard photons the cell average hides, and in the innermost
+    cells they open a small He++ zone at the entrance. C there is
+    0.82-1.24; these cells carry 5-11% of the 6300. Bins with large tau
+    amplify the Monte Carlo's noise by tau; that is where the method is
+    weakest.
+
+### pn150k (P7)
+
+**pn150k: [O I] 6300 0.402 -> 0.293 Hbeta** (x0.729; Cloudy 0.292). [O I] 63
+0.244 -> 0.225 (x0.92; Cloudy 0.187). 1926 cells in frontField.out. In the
+brightest cells C6300 is 0.66-0.77. <x(z)> is 1.4x the cell's x^2, not ~1,
+because a front the grid already holds at ~1 layer per cell is gradual, not
+sharp. H absorbed, profile against the homogeneous cell: median 1.012
+(1.002-1.033). pn150k's front is stationary, unlike hiipdr's, which
+corroborates the L-40 reading of hiipdr's 0.79-0.93.
+
+**P7 fails as worded:** -27%, not <= 20%. My bound came from D-368's -13%
+for halving the cell, but if the error is proportional to the cell size,
+halving it removes only half of it. D-368's step read that way (0.868 = (1 +
+a/2)/(1 + a), so a = 0.360) implies the full correction is 1/(1 + a) = 0.735.
+The profile gives 0.729. That run is on D-365's code, so the agreement is a
+consistency check, not a measurement. The 0.3% agreement with Cloudy's value
+is one seed on stage-1 approximations, with T not fed back; I do not read
+more into it.
+
+### An estimate independent of the profile: extrapolation in cell size
+
+A straight line in cell size through hiipdr's three uncorrected rungs gives,
+at zero cell size:
+  - **6300:** 1.33e35 erg/s (0.95-1.91e35 from the three pairs), i.e. 0.0149
+    Hbeta, against the profile's mean 1.07e35 (0.0120). The two agree within
+    the extrapolation's own spread.
+  - **63 um:** 0.59e35 (-0.3 to 1.16e35 from the pairs), i.e. 0.0066 Hbeta,
+    against Cloudy's 0.0058. The profile-corrected 63 um is 0.039. So 63
+    um's excess also looks entirely like resolution, carried by the front
+    cells' warm neutral volume, which stage 1 leaves at the cell's T.
+    Noisy: the pairs span zero.
+
+The extrapolation holds only while the layer is under one cell (hiipdr: 0.27
+to 0.55 layers per cell here).
+
+### What this means
+
+  - **For [O I] 6300**, the unresolved front is nearly the whole of the
+    excess on both fixtures. A sub-cell profile at the cell's own T, built
+    only from the transport's field and opacity and the cell's own balance,
+    gives:
+      - hiipdr: 1.1-1.2x Cloudy at every resolution tried, against 5.6-9.9x
+        uncorrected;
+      - pn150k: 1.00x, against 1.38x.
+    Nothing was fitted, and the extrapolation in cell size agrees with it.
+  - **This withdraws D-368's "pn150k's 1.26-1.38x is a model difference,
+    not a grid effect"** for 6300. The front is ~1 layer per cell there,
+    which is not resolved.
+  - **For [O I] 63 um**, the correction is not enough. The neutral part of
+    a front cell needs its own temperature, the PDR's. That is stage 2 and
+    the ownership question of D-379.
+  - **Stage 1 has not touched the thermal balance.** The cells' T is still
+    set by the uncorrected cooling. Folding C into the cooling would move T
+    and then C; that is the self-consistency step D-379 requires before any
+    corrected line is reported.
+
+### Not known
+
+  - Whether the +-9% left between resolutions is scatter or bias.
+  - The entering-field reconstruction assumes one face and a plane front
+    normal to r. The diffuse field enters from every side, and how much
+    that matters is not measured.
+  - What folding the profile into the cooling would do to T and to C.
+
+### Status
+
+Open. Stage 1 done and passing its test for 6300. The next decisions are the
+user's: stage 2 (a temperature per depth), and whether and how the profile
+enters the run.

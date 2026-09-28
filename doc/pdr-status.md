@@ -507,6 +507,16 @@ i.e. 0.27 and 0.91 layers per cell. One layer per cell on hiipdr needs ~110^3.
 A correction factor estimated from the transfer was evaluated and not adopted
 (D-379): it needs a sub-cell solve of T and O0, and a factor on the reported
 line alone would contradict the cooling that set the cell's T.
+**Sub-cell profile, stage 1 (D-381), offline only:** H and He are integrated
+through each cell from the transport's own field and opacity
+(`frontField.out`, `tools/d381_subcell.py`) at the cell's T.
+  - hiipdr [O I] 6300: 1.09-1.19x Cloudy at 21^3/31^3/41^3, max/min 1.18,
+    against 5.6-9.9x (1.72) uncorrected.
+  - pn150k [O I] 6300: 1.00x against 1.38x. D-368's "model difference" for
+    6300 is withdrawn: one layer per cell is not resolved.
+  - [O I] 63 is not fixed, because the cell's neutral part keeps the warm T;
+    that needs a temperature per depth (stage 2).
+Nothing enters the run yet. The reported lines and the cooling are unchanged.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
