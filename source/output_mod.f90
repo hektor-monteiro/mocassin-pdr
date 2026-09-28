@@ -10,6 +10,7 @@ module output_mod
 #ifdef PDR
     use continuum_mod, only : inSpectrumProbDen
 #endif
+    use frontLines_mod, only : writeFrontLines   ! D-382
 
     ! D-361: hlinex evaluations taken at an edge of the Storey & Hummer table
     ! rather than extrapolated beyond it - below its lowest temperature, above
@@ -1654,6 +1655,10 @@ endif
         close(10)
 
         if (.not. isSlitPass) then
+
+        ! D-382: the sub-cell front estimate of the [O I] optical lines, in its
+        ! own file; nothing written above depends on it
+        if (lgFrontLines) call writeFrontLines(grid(1:nGrids), HbetaVol(0))
 
         ! write the temperature.out file
         open(unit=20, status='unknown', position='rewind', file='output/temperature.out', action="write",iostat=ios)

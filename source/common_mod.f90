@@ -663,6 +663,7 @@ module common_mod
     logical            :: lgMdMg           ! dust to gas mass ratio used>?
     logical            :: lgMdMh           ! dust to hydrogen mass ratio used>?
     logical            :: lgOutput         ! output line fluxes,temp & ion struct files?
+    logical            :: lgFrontLines = .false. ! D-382: sub-cell front [O I] estimate (lineFluxFront.out)
     logical            :: lg1D             ! 1-D switch
     logical            :: lgMultiDustChemistry ! do we have a inhomogeneous dust species distribution?
     logical            :: lgMultiChemistry ! do we have a chemically inhomogeneous gas?

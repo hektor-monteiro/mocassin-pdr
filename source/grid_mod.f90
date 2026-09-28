@@ -3246,16 +3246,16 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
 
         ! D-381: the Monte Carlo's field and the opacity it was carried
         ! through, from the Lyman edge up, in every cell holding ionized
-        ! hydrogen, for the offline sub-cell front profile
-        ! (tools/d381_subcell.py). Jste is this iteration's bin-integrated
+        ! hydrogen, for the sub-cell front profile (frontLines_mod, D-382;
+        ! tools/d381_subcell.py). Written when the input has frontLines. Jste is this iteration's bin-integrated
         ! 4 pi J; opacity is the one this iteration's packets saw (set before
         ! the transfer, not touched by the update); absOpac is its dust
         ! absorption part. The H0, He0 and He+ cross sections come once, in
         ! the header, from the same xSecArray slices addOpacity and
-        ! updateCell use. A diagnostic: nothing reads it back. Not written
+        ! updateCell use. Read back only by frontLines_mod. Not written
         ! where there is no field (mocassinOutput runs no transfer).
-        if (lgGas .and. allocated(grid(1)%Jste) .and. allocated(grid(1)%opacity) &
-             & .and. HlevNuP(1) > 0) then
+        if (lgFrontLines .and. lgGas .and. allocated(grid(1)%Jste) .and. &
+             & allocated(grid(1)%opacity) .and. HlevNuP(1) > 0) then
            if (maxval(grid(1)%Jste(1:grid(1)%nCells, HlevNuP(1):nbins)) > 0.) then
               close(43)
               open(unit=43, file="output/frontField.out", action="write", position="rewind", &

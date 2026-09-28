@@ -273,6 +273,26 @@ Default value: \fB1.\fR
 
 
 .TP
+.B frontLines
+
+MOCASSIN-PDR D-382. A post-processing estimate of the [O I] 6300, 6363 and 5577 lines with the
+cells an ionization front crosses resolved. Where the front is thinner than a cell, the cell's
+single ionization state mixes ionized and neutral gas, and a line that needs both (electrons and
+neutral O) comes out too bright in proportion to the cell size. With this keyword the run writes
+output/frontField.out with the grid files, and after convergence output/lineFluxFront.out: each
+cell with x(H+) > 1e-4 is integrated along the direction from the ionizing source, from the
+field and opacity its own transfer found, with the recombination rates its own balance implies
+and MOCASSIN's own O I atom at every depth, at the cell's temperature. Nothing is fitted.
+lineFlux.out is not changed: it keeps the lines the thermal balance cooled the cells with, and
+lineFluxFront.out is an estimate beside it. mocassinOutput produces lineFluxFront.out from a run
+made with the keyword. Tested for [O I] 6300 (DEVLOG D-381, D-382); [O I] 63 and 145 um are not
+corrected. Needs one ionizing source and a 3D grid (no planeIonization, 1D, 2D or sub-grids).
+
+Default value: \fB.false.\fR
+
+
+
+.TP
 .B getEquivalentTau
 
 Logical switch to enable equivalent optical depth calculations
@@ -890,12 +910,19 @@ grid4.out is written out by \fBmocassinPlot\fR and it just contains the volume o
 
 The  ionising source(s) input parameters are written out to a file named photoSource.out.
 
-frontField.out (MOCASSIN-PDR D-381) is a diagnostic written with the grid files by every gas run
-that carries a radiation field (not by mocassinOutput): the Monte Carlo's bin-integrated field
+frontField.out (MOCASSIN-PDR D-381) is written with the grid files by runs with the frontLines
+keyword (not by mocassinOutput, which runs no transfer): the Monte Carlo's bin-integrated field
 Jste, the total opacity the packets were carried through, and its dust absorption part, from the
 Lyman edge up, for every cell with x(H+) > 1e-4, with the H0, He0 and He+ photoionization cross
-sections once in the header. Nothing reads it back. tools/d381_subcell.py uses it to integrate
-the ionization through each cell and estimate the front cells' [O I] lines offline.
+sections once in the header. It is read by frontLines (lineFluxFront.out) and by
+tools/d381_subcell.py.
+
+lineFluxFront.out (MOCASSIN-PDR D-382, frontLines keyword): the [O I] 6300, 6363 and 5577 lines,
+relative to Hbeta and in [E36 erg/s], as lineFlux.out has them (uncorrected) and with the cells
+in frontField.out integrated through a sub-cell ionization profile (corrected), with the number
+of cells integrated and the median ratio of the H photoabsorption the profile finds to the one
+the cell's own state implies in the cells thick at 912 A (1 when the front is stationary, below
+1 while it is still moving). An estimate beside the model, not its state.
 
 plot.out
 

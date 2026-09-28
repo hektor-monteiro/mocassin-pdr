@@ -381,6 +381,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-379 | **The user asked whether a correction factor for lines from cells that straddle the ionization front ([O I] 6300) could be estimated from the packet transfer and applied (evaluation only, no code). Not as a factor: the transfer gives the spectrum arriving at the front, not the thickness, which needs a sub-cell solve of ionization and temperature; a factor on the reported line alone breaks D-362's rule (the lines are the ones the balance cools by) and the cell's energy budget, and selecting front cells is a zone gate. A gate-free sub-cell front model is possible and cheap in compute, but it is a design change of the size of the nested sub-grids ruled out at D-081. Measured on Cloudy's zones: the layer that emits 10-90% of [O I] 6300 is 0.18 pc on hiipdr (not L-37's ~0.01 pc; median at x(H+) 0.91, ~9900 K) and 0.014 pc on pn150k, 5.5e19 and 4.3e19 cm^-2 of H - alike, so D-368's "the harder star makes a zone the grid resolves" is not what separates them: it is the column per cell, 2.0e20 against 4.7e19 cm^-2 (0.27 and 0.91 layers per cell).** d377-hii: 90% of [O I] 6300 (0.067 Hbeta, 6.4x Cloudy) from 67 cells with x(H+) 0.01-0.95 at ~8500 K and 912 A optical depth 600-1100 per cell; d377-pn: 97% from 392 such cells (1.38x Cloudy). One layer per cell on hiipdr needs ~110^3 (0.7M active cells, one rank). A per-line resolution diagnostic is cheap and changes no physics | Open | 2026-09-28 |
 | D-380 | **The user's refinement of D-379 - use the cell's n_e, T_e and the arriving field to estimate, per frequency bin, the fraction of the cell that is the front, and correct the emitted lines - evaluated (no code). The inputs are the right ones, but the fraction cannot be read per bin from the cell's own state: with the cell's opacity (tau(912 A) 600-1100) the photon-weighted reach of a 40 kK spectrum is 0.3-0.5% of the cell, against Cloudy's 6300 layer of ~25%, and with ionized-gas x(H0) it is the whole cell. Which x(H0) holds inside the cell is the unknown, so the fractions must come out of one integration of x(z) through the cell, all bins attenuating together. n_e is an output of that profile, not an input: 6300-weighted, the front cells have n_e/n_H 0.50, O0/O 0.53, T 8330 K against the layer's 0.81, 0.23, 9500 K, and their emissivity per volume is 1.47x the layer's.** With the integration, the D-379 conditions (cooling and lines from the same numbers, every line, every cell, cell mean x = profile mean) make it a sub-cell model at one T per cell. Its limit is the neutral part of the cell, which shares the warm T. Proposed first stage: a diagnostic that saves the per-bin field of the front cells and predicts the correction offline, tested by whether it makes 31^3 and 61^3 agree | Open | 2026-09-28 |
 | D-381 | **D-380's first stage, at the user's go-ahead: the sub-cell front profile at the cell's own T, offline, makes hiipdr's [O I] 6300 resolution-independent - 0.971/1.143/1.086e35 erg/s at 21^3/31^3/41^3 against 8.83/6.20/5.13e35 uncorrected (max/min 1.18 against 1.72), i.e. 1.09-1.19x Cloudy against 5.6-9.9x - and takes pn150k's from 1.38x to 1.00x Cloudy. Nothing was fitted.** New diagnostic output `frontField.out` (`writeGrid`: the transport's Jste, opacity and dust absorption from the Lyman edge up for cells with x(H+) > 1e-4, and the H0/He0/He+ cross sections), inert: d381-hii31 and d381-pn41 reproduce d377-hii and d377-pn byte for byte (summary.out timestamps aside). `tools/d381_subcell.py`: J_in = J tau/(1-e^-tau), H and He integrated along r with recombination rates from the cell's own balance, O0 locked to H0, D-284's O I atom as a ratio C times the cell's own emission; photons conserved to 1-1.7%. A straight line in cell size through the uncorrected rungs gives 1.33e35 (0.95-1.91e35) for 6300. On pn150k, D-368's 41->81 step read as an error proportional to cell size implies x0.735 against the profile's x0.729, withdrawing D-368's "model difference" for 6300. [O I] 63 is not fixed: corrected 0.053/0.037/0.029 Hbeta (spread 1.88 -> 1.79x, Cloudy 0.0058), since the cell's neutral part keeps the warm T; its extrapolation to zero cell size gives 0.0066, so it too looks like resolution. Predictions: P1, P4, P5 hold; P2 half; P3 holds for the x(H+) > 0.3 cells carrying the 6300 but fails as worded; P6 half fails (C63 ~0.5, not >= 1); P7 fails (-27% against <= 20%, a bound built on the wrong quantity). The cooling is untouched; stage 2 (T per depth) and feeding the profile into the run are the user's decisions | Open | 2026-09-28 |
+| D-382 | **Keyword `frontLines` (the user's request): D-381's sub-cell front profile as a post-processing module, `frontLines_mod.f90`, called at the end of `outputGas` (end of run, mocassinWarm, mocassinOutput). It writes [O I] 6300/6363/5577 uncorrected and corrected to its own file, lineFluxFront.out, and changes nothing else.** The user chose, when asked, a separate file (lineFlux.out keeps the lines the balance cooled by, D-362) and O I optical lines only. The module evaluates MOCASSIN's own O I atom (`equilibrium`, D-363's neutral colliders) at every depth rather than a ratio; frontField.out is now written only with the keyword. Validation: on copies of the D-381 runs `mocassinOutput` with the keyword leaves lineFlux.out, lineFluxMol.out, ionratio.out and temperature.out byte-identical; the uncorrected column reproduces lineFlux.out's O I rows to single precision; corrected 6300/Hbeta 0.01123/0.01219/0.01219 on hiipdr 21/31/41^3 and 0.2969 on pn150k, against the Python tool's 0.0113/0.0123/0.0124/0.2928 (Cloudy 0.0104/0.292), photon budgets identical; 7 s per model. A 21^3 run with the keyword writes lineFluxFront.out itself, and mocassinOutput reproduces it byte for byte; a run without it writes neither file. All four flavours and both mocassinOutput builds compile | Done | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32906,3 +32907,109 @@ to 0.55 layers per cell here).
 Open. Stage 1 done and passing its test for 6300. The next decisions are the
 user's: stage 2 (a temperature per depth), and whether and how the profile
 enters the run.
+
+---
+
+## D-382 - frontLines: the sub-cell front estimate as a post-processing option (2026-09-28)
+
+The user: "Can we add this as an option afetr model convergence so the user
+can set a keyword and line intensities will be calculated with a
+correction? That way we could avoid touching main simulation code and just
+use a postprocessing module?"
+
+### The decision
+
+Asked, because the answer touches D-362's rule (the reported lines are the
+ones the thermal balance cooled the cells with):
+  - **where:** a separate file, lineFluxFront.out, rather than overwriting
+    rows of lineFlux.out. lineFlux.out stays the model's own lines.
+  - **which lines:** [O I] 6300, 6363 and 5577 only, the lines stage 1 was
+    tested for. [O I] 63/145 are left out, since stage 1 fails for them
+    (D-381). Other lines only after their own resolution test.
+
+The keyword changes no physics: the run, its convergence and every file it
+wrote before are identical with or without it. That is why it is not the
+kind of run-time switch CLAUDE.md rules out.
+
+### What was built
+
+  - **`source/frontLines_mod.f90`** (new). `writeFrontLines(grid, Hbeta)`
+    is called at the end of `outputGas`, after lineFlux.out is closed and
+    outside the slit pass. It therefore runs at the end of a run, in
+    `mocassinWarm` and in `mocassinOutput`. It:
+      - reads frontField.out and checks its bins against the model's;
+      - integrates D-381's profile per cell (the same equations as
+        `tools/d381_subcell.py`, with the quadratic for n_e solved without
+        cancellation);
+      - evaluates **MOCASSIN's own O I atom** (`equilibrium`) at every depth,
+        with D-363's neutral colliders for the depth's H0, H+ and He0 and
+        the cell's escape probabilities. So the corrected emission is the
+        atom's own, not a ratio as in the Python tool.
+    The O+ edge (for the O++ scaling) comes from `getOuterShell`/`elementP`,
+    and the He fallback from `radrec.dat`, read in `radRecFit`'s order. It
+    needs one grid, one ionizing source (the chord direction) and a 3D
+    grid, and says so and skips otherwise.
+  - **Keyword `frontLines`** (`set_input_mod`, `lgFrontLines` in
+    common_mod). `writeGrid` now writes frontField.out only with it (D-381
+    wrote it always). `mocassinOutput` makes lineFluxFront.out from a run
+    that had the keyword.
+  - **lineFluxFront.out.** A header saying it is an estimate beside the
+    model, the count of cells integrated, the He fallback count, and the
+    median photon-budget ratio over the tau(912) > 100 cells (the L-40
+    flag). Then per line: the atom's wavelength, uncorrected and corrected
+    /Hbeta and in E36 erg/s, their ratio, and the front cells' part.
+  - `man/mocassin.1`: the keyword and both files. Makefile: the module
+    between update_mod and output_mod.
+  - All four flavours, and `mocassinOutput` plain and PDR 3D, build with no
+    warnings from the new code.
+
+### Validation
+
+  - **lineFlux.out is not changed.** `mocassinOutput` with the keyword on
+    copies of the four D-381 runs (`runs/d382-post-*`) leaves lineFlux.out,
+    lineFluxMol.out, ionratio.out and temperature.out byte-identical to the
+    runs'.
+  - **The uncorrected column is lineFlux.out's.** [O I] 6300 on hiipdr 31^3
+    is 6.73146322e-2 against lineFlux.out's 6.73146397e-2 (single
+    precision), and 6363 and 5577 likewise.
+  - **The corrected column matches the Python tool** within 1.4%, although
+    here the atom is MOCASSIN's own at each depth:
+
+                              21^3      31^3      41^3      pn150k 41^3
+        uncorrected/Hbeta     0.1034    0.0673    0.0584    0.4072
+        corrected/Hbeta       0.01123   0.01219   0.01219   0.2969
+        Python (D-381)        0.0113    0.0123    0.0124    0.2928
+        Cloudy                0.0104                        0.292
+        photon budget, thick  0.982     0.987     0.985     1.012   (Python identical)
+
+    The corrected absolute 6300 is 0.964/1.133/1.072e35 erg/s (max/min
+    1.18), where the uncorrected falls from 8.87 to 5.14e35 (1.73).
+    7 s per model.
+  - **[O I] 5577** (1S, E/k 48,600 K), corrected/Hbeta 0.96/1.10/1.11e-4
+    against 7.6/4.9/4.6e-4 uncorrected: the same behaviour, spread 1.16
+    against 1.66. It was not tested separately, and its higher excitation
+    makes the single T matter more. The file says it was tested for 6300
+    only. 6363 shares 6300's upper level and has the same correction.
+  - **Runs.** A 21^3 run with the keyword (`runs/d382-run21`, 10 ranks)
+    took 6:39 per processor for 11 iterations. It wrote lineFluxFront.out
+    itself: [O I] 6300 0.1033 -> 0.01126 Hbeta. The 2-rank d381-hii21 gave
+    0.1034 -> 0.01123, another Monte Carlo realization. `mocassinOutput`
+    with the keyword on its outputs reproduces lineFluxFront.out and
+    lineFlux.out byte for byte. A 2-iteration run without it (`runs/d382-nokw`) wrote
+    neither frontField.out nor lineFluxFront.out.
+
+### What it does not do
+
+  - The correction does not enter the cooling. The cells' T is the
+    uncorrected balance's, so lineFluxFront.out and lineFlux.out do not
+    share one energy budget. The file says so.
+  - [O I] 63/145 and every other line are not corrected.
+  - Single source, 3D, no planeIonization. Multiple sources or a diffuse
+    source need a flux-direction tally.
+  - The +-9% left between resolutions (D-381) remains, unseparated from
+    the Monte Carlo scatter.
+
+### Status
+
+Done, at the user's request. The DEVLOG D-381 open items (stage 2, feeding
+the profile into the run, a second seed) are unchanged.

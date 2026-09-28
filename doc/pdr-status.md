@@ -517,6 +517,10 @@ through each cell from the transport's own field and opacity
   - [O I] 63 is not fixed, because the cell's neutral part keeps the warm T;
     that needs a temperature per depth (stage 2).
 Nothing enters the run yet. The reported lines and the cooling are unchanged.
+**Available to users (D-382):** the keyword `frontLines` writes
+lineFluxFront.out after convergence. It holds [O I] 6300/6363/5577,
+uncorrected and through the sub-cell profile, with MOCASSIN's own O I atom
+at each depth. It is an estimate beside lineFlux.out, not in it.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance

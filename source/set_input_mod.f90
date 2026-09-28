@@ -271,6 +271,11 @@ module set_input_mod
                read(unit=10, fmt=*, iostat=ios) keyword
                lgOutput = .true.
                !print*, keyword
+            case ("frontLines")
+               ! D-382: write frontField.out with the grid files and, after
+               ! the line table, lineFluxFront.out - the [O I] optical lines
+               ! with the front cells integrated through a sub-cell profile
+               lgFrontLines = .true.
             case ("multiChemistry")
                backspace 10
                read(unit=10, fmt=*, iostat=ios) keyword, nAbComponents
