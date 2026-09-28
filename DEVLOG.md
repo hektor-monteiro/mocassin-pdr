@@ -383,6 +383,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-381 | **D-380's first stage, at the user's go-ahead: the sub-cell front profile at the cell's own T, offline, makes hiipdr's [O I] 6300 resolution-independent - 0.971/1.143/1.086e35 erg/s at 21^3/31^3/41^3 against 8.83/6.20/5.13e35 uncorrected (max/min 1.18 against 1.72), i.e. 1.09-1.19x Cloudy against 5.6-9.9x - and takes pn150k's from 1.38x to 1.00x Cloudy. Nothing was fitted.** New diagnostic output `frontField.out` (`writeGrid`: the transport's Jste, opacity and dust absorption from the Lyman edge up for cells with x(H+) > 1e-4, and the H0/He0/He+ cross sections), inert: d381-hii31 and d381-pn41 reproduce d377-hii and d377-pn byte for byte (summary.out timestamps aside). `tools/d381_subcell.py`: J_in = J tau/(1-e^-tau), H and He integrated along r with recombination rates from the cell's own balance, O0 locked to H0, D-284's O I atom as a ratio C times the cell's own emission; photons conserved to 1-1.7%. A straight line in cell size through the uncorrected rungs gives 1.33e35 (0.95-1.91e35) for 6300. On pn150k, D-368's 41->81 step read as an error proportional to cell size implies x0.735 against the profile's x0.729, withdrawing D-368's "model difference" for 6300. [O I] 63 is not fixed: corrected 0.053/0.037/0.029 Hbeta (spread 1.88 -> 1.79x, Cloudy 0.0058), since the cell's neutral part keeps the warm T; its extrapolation to zero cell size gives 0.0066, so it too looks like resolution. Predictions: P1, P4, P5 hold; P2 half; P3 holds for the x(H+) > 0.3 cells carrying the 6300 but fails as worded; P6 half fails (C63 ~0.5, not >= 1); P7 fails (-27% against <= 20%, a bound built on the wrong quantity). The cooling is untouched; stage 2 (T per depth) and feeding the profile into the run are the user's decisions | Open | 2026-09-28 |
 | D-382 | **Keyword `frontLines` (the user's request): D-381's sub-cell front profile as a post-processing module, `frontLines_mod.f90`, called at the end of `outputGas` (end of run, mocassinWarm, mocassinOutput). It writes [O I] 6300/6363/5577 uncorrected and corrected to its own file, lineFluxFront.out, and changes nothing else.** The user chose, when asked, a separate file (lineFlux.out keeps the lines the balance cooled by, D-362) and O I optical lines only. The module evaluates MOCASSIN's own O I atom (`equilibrium`, D-363's neutral colliders) at every depth rather than a ratio; frontField.out is now written only with the keyword. Validation: on copies of the D-381 runs `mocassinOutput` with the keyword leaves lineFlux.out, lineFluxMol.out, ionratio.out and temperature.out byte-identical; the uncorrected column reproduces lineFlux.out's O I rows to single precision; corrected 6300/Hbeta 0.01123/0.01219/0.01219 on hiipdr 21/31/41^3 and 0.2969 on pn150k, against the Python tool's 0.0113/0.0123/0.0124/0.2928 (Cloudy 0.0104/0.292), photon budgets identical; 7 s per model. A 21^3 run with the keyword writes lineFluxFront.out itself, and mocassinOutput reproduces it byte for byte; a run without it writes neither file. All four flavours and both mocassinOutput builds compile | Done | 2026-09-28 |
 | D-383 | **Molecular line cubes (the user's request): `mocassinPlot` maps the chemistry's molecular coolant lines with `plot.in` entries `mol <coolant> <upper> <lower>` (e.g. `mol 12co.dat 2 1` = CO 1-0), each cell's value being its net escaping emissivity (`pdrLineEm`, D-377's 3D escape probabilities) times its volume; `tools/d383_maps.py` turns plot.out + grid4.out into emissivity cubes and x/y/z surface-brightness maps (lineMaps.fits, octant unfolded, --png). H2 is not possible yet: no H2 level model exists in the build.** Cube sums reproduce lineFluxMol.out (CO) and lineFlux.out (Hbeta, [O I] 6300) to 1e-5 on pn150k and hiipdr; each cube and map returns the grid's total to 1e-6. mocassinPlot builds plain, PDR=1, PDR=1 PDRGEOM=3D. Maps are optically thin sums of escaping emission, with no velocity axis. For H2, Cloudy's data (cloudy-c25.00/data/h2: X-state levels, A values, collisions with H, H2, He, H+, and the Lyman-Werner states) make a non-LTE model possible: (a) ground-state rovibrational with collisions (pure rotational lines), or (b) with UV fluorescence (vibrational lines). In either case the populations should also cool the gas. Awaiting the user's choice | Open | 2026-09-28 |
+| D-384 | **The user asked whether 3D-PDR cools with H2 lines: it does not, and nothing in the coupling does (D-183, re-read in the source). Its cooling is the four coolant files (CO, C+, C, O) plus gas-grain; H2 enters as a collider, as three heating terms (formation, photodissociation, FUV pumping via Hollenbach & McKee's 1/(1+n_cr/n)), and not as a coolant.** In pn150k it costs nothing measurable: Cloudy's full H2 model gives 0-0 S(0) 28.2 um 1.7e-4 Hbeta and 1-0 S(1) 2.121 um 8.0e-5, against ~0.5 Hbeta in [O I] 63 + [C II] 158, and H2 photodissociation heating at most 1% of the local heating. But 1-0 S(1)'s upper level (6,950 K) cannot be populated collisionally at 40-70 K, so H2 lines in models like these are UV-pumped. D-383's recommendation is revised from (a) collisions only to (b) with fluorescence, if H2 maps are wanted | Done | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33091,3 +33092,57 @@ B, C, B', D states for UV pumping. The options, put to the user:
 
 CO done. H2 awaits the user's choice of scope and of how Cloudy's data are
 used (read from the installation, or vendored with attribution).
+
+---
+
+## D-384 - No H2 line cooling in 3D-PDR (D-183 restated), and what it means for H2 maps (2026-09-28)
+
+The user: "3d-PDR is not cooling using H2 lines?"
+
+**No, and neither is anything else in this coupling.** Re-read in the
+vendored source, unchanged since D-183 (2026-09-08):
+  - **Cooling.** `coolingfunctions.F90` sums only the escape-probability
+    line cooling of the files in `pdrCoolants` (here CO, C+, C, O), plus
+    gas-grain.
+  - **H2 as a collider.** It excites those four coolants (`H2_COL`,
+    `PH2_COL`, `OH2_COL` in `FIND_CCOEFF`).
+  - **H2 as heating**, three of `heatingfunctions.F90`'s terms, which the
+    bridge passes to MOCASSIN as `pdrHeatXtra` (D-131): formation,
+    photodissociation, and FUV pumping (2.2 eV x 9 x the dissociation rate,
+    Hollenbach & McKee 1979).
+  - **The radiative loss of pumped H2 enters only implicitly**, through the
+    pumping heating's 1/(1 + n_cr/n).
+MOCASSIN has no H2 term of its own. Cloudy runs a full H2 level model and
+computes H2 heating and cooling from its populations.
+
+**What it costs here: nothing measurable in pn150k.** The Cloudy reference
+(`runs/d356-cloudy-pn`) ran with its full H2 model (`Database H2 limit
+-10`):
+  - **H2 lines, against Hbeta (log F -9.634):**
+      - 0-0 S(0) 28.21 um, log F -13.406: 1.7e-4 Hbeta;
+      - 1-0 S(1) 2.121 um, -13.732: 8.0e-5;
+      - 2.953 um, -16.48: 7e-7.
+    Beside them, [O I] 63 + [C II] 158 carry ~0.5 Hbeta.
+  - **Heating:** H2 photodissociation reached at most 1.0% of the local
+    heating, and grain photoelectric 96.9%.
+
+As a coolant H2 is ~1e-3 of the fine-structure lines in this model. Its
+lines start at E_u/k >= 510 K, against a PDR at 37-66 K (Cloudy) or 25-45 K
+(MOCASSIN). The omission would matter in warmer or denser gas (dense PDRs
+at hundreds of K, shocks). For hiipdr, whose Cloudy run did not have the H2
+model on, it is not measured.
+
+**What it means for H2 maps.** The upper level of 1-0 S(1) sits at 6,950 K,
+and at 40-70 K essentially none of it is populated collisionally, so
+Cloudy's 2.121 um must be UV-pumped. The pure rotational lines are fed by
+that cascade too. So D-383's option (a), collisions and radiative decay
+only, would predict next to nothing for the H2 lines of these models. The
+H2 lines they do have come from fluorescence, option (b). **The
+recommendation of D-383 is revised: if H2 maps are wanted for models like
+these, only (b) delivers them.** Its populations would also give the H2
+cooling and the pumping heating, replacing 3D-PDR's Hollenbach & McKee
+factor, so that the lines and the balance hold one H2.
+
+### Status
+
+Answered; the H2 scope is still the user's decision.
