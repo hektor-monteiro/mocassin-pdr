@@ -386,6 +386,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-384 | **The user asked whether 3D-PDR cools with H2 lines: it does not, and nothing in the coupling does (D-183, re-read in the source). Its cooling is the four coolant files (CO, C+, C, O) plus gas-grain; H2 enters as a collider, as three heating terms (formation, photodissociation, FUV pumping via Hollenbach & McKee's 1/(1+n_cr/n)), and not as a coolant.** In pn150k it costs nothing measurable: Cloudy's full H2 model gives 0-0 S(0) 28.2 um 1.7e-4 Hbeta and 1-0 S(1) 2.121 um 8.0e-5, against ~0.5 Hbeta in [O I] 63 + [C II] 158, and H2 photodissociation heating at most 1% of the local heating. But 1-0 S(1)'s upper level (6,950 K) cannot be populated collisionally at 40-70 K, so H2 lines in models like these are UV-pumped. D-383's recommendation is revised from (a) collisions only to (b) with fluorescence, if H2 maps are wanted | Done | 2026-09-28 |
 | D-385 | **The user asked whether Cloudy's H2 model has collisions and UV fluorescence, and how hard a port would be. Yes to both: the large model (~7,000 lines of C++, zlib licence) carries ~300 X levels and six excited electronic states, ~4,700 X quadrupole and ~28,500 Lyman-Werner lines each with its own transfer, collisions with H, He, o/p-H2 and H+, pumping and cascade with per-level dissociation, formation pumping, and heating and cooling from the populations.** Its pumping is Cloudy's generic 1D per-line transfer (continuum x the line's own accumulated optical depth, overlap via the fine continuum), bound to Cloudy's globals, so a library extraction is impractical. A port means re-implementing in Fortran: data readers and a ~300-level solve (moderate); per-line self-shielding along D-377's 12 rays from level-resolved columns, on MOCASSIN's coarse FUV (the hard part); and, for one reality, the model's Solomon rate, heating and cooling replacing 3D-PDR's Draine-Bertoldi rate and Hollenbach-McKee term, with every PDR benchmark re-validated. Proposed: (A) post-processing first, validated on pn150k against Cloudy's H2 lines; (B) feedback after. (A) is larger than D-376 and D-377 together. Awaiting the user's decision | Open | 2026-09-28 |
 | D-386 | **The user asked whether Cloudy's simple H2 model would do: it has no level populations and so no individual H2 lines; it is Glover & Abel 2008's total H2 line cooling (analytic fits per collider plus LTE) and an H2/H2* two-state pumping and dissociation heating (TH85, BHT90, BD96 or the default 'Elwert').** It can give (1) the H2 coolant MOCASSIN-PDR lacks (D-384), expected negligible in both fixtures, and (2) maps of total thermal (GA08) and fluorescent H2 emission, the fluorescent part being the complement of the heating the chemistry already uses. A middle path to individual fluorescent lines (1-0 S(1) 2.12 um and the cascade): a pure-fluorescence spectrum computed once from Cloudy's large-model data, times the chemistry's per-cell pumping rate, valid below ~1e4 cm^-3 and validated against Cloudy's pn150k. Awaiting the user's choice | Open | 2026-09-28 |
+| D-387 | **Aleman & Gruenwald 2011 (A&A 528, A74; the user's DOI), whose standard PN is our pn150k at 3x the luminosity: in hot-star PNe H2 lives in the ionized region's warm, partially ionized transition zone (formed by H-, H2+ and grains), its 1-0 S(1) peaks in the same layer as [O I] 6300, [N II] and [S II], and there collisions, not UV pumping, dominate v=1 excitation at 150 kK; H2's thermal effect is negligible at 150 kK. Checked against our model: REDUCED has the H2+ route but no H-, yet our TZ H2 fraction is 100-1000x Cloudy's (x(H+) 0.5-0.8: 2.1e-7 vs 2.1e-10) - a new divergence, causes untested.** Withdrawn: D-384's 'pn150k's H2 lines are UV-pumped' (reasoned from the cold PDR only) and D-386's fluorescent middle path for such models. An H2 line model for PNe needs e-, H+ and H collisions at thousands of K plus pumping (D-385 stage A), and the TZ H2 abundance understood first. Their level model (289 X levels, B/C radiative, colliders H, He, H2, H+, e-) and their line tables and H2/Brgamma curves are the spec and a check | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33302,3 +33303,108 @@ Black & van Dishoeck 1987). Then:
 
 Assessment delivered; nothing built. The user decides which of 1, 2 and the
 middle path to do.
+
+---
+
+## D-387 - Aleman & Gruenwald 2011 (A&A 528, A74): H2 from the ionized region of PNe (2026-09-28)
+
+The user: "can we learn any usefull information from the paper DOI:
+10.1051/0004-6361/201014978 ?" Read from arXiv:1012.4477 (A&A refuses
+automated fetches).
+
+**Why it is directly relevant.** Their "standard PN" is a 150 kK blackbody
+at n_H = 1e3 cm^-3 with dust-to-gas 1e-3: our pn150k, except L* 3000
+against 1000 Lsun. The code is Aangaba, a 1D photoionization code with H2
+level populations.
+
+### What the paper finds
+
+  - **H2 lives and emits inside the ionized region**, in a "transition
+    zone" (TZ). Photons above ~100 eV from hot stars make an extended,
+    warm (thousands of K), partially ionized layer. H2 forms there by
+    associative detachment (H + H- -> H2 + hv), charge exchange (H + H2+
+    -> H+ + H2) and grains, and self-shielding protects it. The maximum
+    H2/H in the ionized region is ~1e-5 for typical PNe, orders of
+    magnitude more for T* >= 250 kK.
+  - **H2 1-0 S(1) peaks in the TZ**, in the same layer as [O I] 6300,
+    [N II] and [S II] (their Fig. 4). So the unresolved-front problem of
+    D-379..D-382 applies to H2 as well.
+  - **Excitation: collisions dominate** the population of (v,J)=(1,3)
+    across the ionized region of the standard PN, with UV pumping
+    significant in the TZ. Collisions dominate outright for T* > 200 kK.
+    UV pumping dominates only v >= 9 (J <= 7) and matters more at low n_H
+    or T*. Formation pumping is secondary (v > 5, J > 6).
+  - **Thermal effect:** insignificant at 150 kK; at 350 kK H2 cools the
+    outer TZ by up to 5000 K.
+  - **Lines:** 1-0 S(1) is ~1% of the total H2 IR emission (within x10 in
+    every model). Their Table 1 lists the lines above 1% of Brgamma. Figs.
+    6-7 give H2/Brgamma against T*, with observed PNe.
+  - **Their level model:**
+      - 289 X levels (15 v), with Wolniewicz 1998 A values;
+      - B (408), C- (143) and C+ (142) levels, radiative only (Abgrall
+        1994, 2000);
+      - colliders H (Martin & Mandy 1995; Le Bourlot 1999 for v <= 3),
+        He, H2 (Le Bourlot 1999), H+ (Gerlich 1990, extrapolated), and
+        e- (Draine et al. 1983 vibrational; rotational taken as H+'s);
+      - level-resolved formation (grains and H2+ with Black & Dalgarno
+        1976's distribution, H- with Launay 1991);
+      - self-shielding after Black & van Dishoeck 1987;
+      - optically thin IR lines.
+    Electrons and H+ are colliders there. Cloudy's large model has no
+    electrons among its five (D-385).
+
+### What checking our model against it shows
+
+  - **Our REDUCED network has no H-.** It has the H2+ route (reactions
+    250/251, H + H+ -> H2+ + hv; 155, H + H2+ -> H2 + H+) but not
+    associative detachment.
+  - **Yet our TZ H2 is 100-1000x Cloudy's.** 2n(H2)/n_H by x(H+) band,
+    pn150k (d381-pn41 against d356-cloudy-pn, which has H- and the big H2
+    model):
+
+        x(H+)        MOCASSIN (median)   Cloudy     T (both)
+        0.95-0.999   7.1e-11             8.6e-13    ~12,000 K
+        0.8-0.95     2.9e-08             6.6e-11    ~11,600
+        0.5-0.8      2.1e-07             2.1e-10    ~10,700
+        0.2-0.5      5.3e-07             9.3e-10    ~9,700
+        0.05-0.2     7.9e-07             3.7e-09    ~8,300
+
+    Aleman & Gruenwald have ~1e-5 at the TZ for their standard PN (3x the
+    luminosity). The three codes span 4-5 orders of magnitude where they
+    say the ionized region's H2 lines come from. Candidates, untested:
+      - the grain formation rate at ~1e4 K (3D-PDR's H2FORM_CT02 against
+        Cloudy's);
+      - destruction channels in ionized gas that REDUCED may lack (H2
+        photoionization by the EUV MOCASSIN carries; electron collisional
+        dissociation);
+      - H- would add formation, so its absence is not the cause.
+    Our front cells are also unresolved there.
+
+### Corrections to D-384 and D-386
+
+D-384 reasoned from the cold PDR (40-70 K) that pn150k's H2 lines "must be
+UV-pumped", and D-386 proposed a pure-fluorescence spectrum as the middle
+path. For hot-star PNe the paper shows the opposite in the TZ: warm gas at
+thousands of K excites v = 1 collisionally, and collisions dominate 1-0
+S(1) at 150 kK. **Withdrawn:** D-384's "pn150k's H2 lines are UV-pumped"
+and D-386's recommendation of the fluorescent middle path for models like
+pn150k. Where Cloudy's pn150k 2.121 um arises (PDR or TZ) is not measured:
+its per-zone H2 emissivity was not saved.
+
+### What it means for H2 maps
+
+For PNe like pn150k an H2 line model needs:
+  - collisions with e-, H+ and H at thousands of K, plus UV pumping,
+    i.e. D-385's stage A with its collisional part complete;
+  - before that, the 100-1000x TZ H2 excess measured above understood,
+    because the TZ lines scale with it.
+
+### Not known
+
+  - Which process sets our TZ H2 and Cloudy's.
+  - Where Cloudy's 2.121 um comes from. A rerun saving the per-zone H2
+    line emissivity would answer it.
+
+### Status
+
+Open: the TZ H2 excess is a new divergence to explain, not tune.
