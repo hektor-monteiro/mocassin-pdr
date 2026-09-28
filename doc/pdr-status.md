@@ -522,6 +522,16 @@ lineFluxFront.out after convergence. It holds [O I] 6300/6363/5577,
 uncorrected and through the sub-cell profile, with MOCASSIN's own O I atom
 at each depth. It is an estimate beside lineFlux.out, not in it.
 
+**L-43. Transition-zone H2 is 100-1000x Cloudy's** (D-387, D-389). In the
+partially ionized layer of pn150k, 2n(H2)/n_H is 2.9e-8 to 7.9e-7 in ours against
+6.6e-11 to 3.7e-9 in Cloudy's, at the same x(H+) and T. REDUCED forms ground H2 from
+H + H2+ directly; Cloudy forms H2* and destroys it with electrons (e- + H2* -> H +
+H-) before it relaxes, so its TZ H2 is grain-made. REDUCED lacks H-, H2*,
+electron-impact dissociation of H2+ and dissociative attachment. Aleman &
+Gruenwald 2011 reach ~1e-5 there. No production output depends on it (no H2 lines,
+no H2 cooling); H2 line predictions would, and the level-resolved H2 model
+(branch h2-model) is where it is to be addressed. Not tuned.
+
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
 does. In H II gas that swaps CHIANTI 10.1's electron-impact data for the

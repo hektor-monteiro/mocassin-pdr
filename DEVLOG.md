@@ -387,7 +387,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-385 | **The user asked whether Cloudy's H2 model has collisions and UV fluorescence, and how hard a port would be. Yes to both: the large model (~7,000 lines of C++, zlib licence) carries ~300 X levels and six excited electronic states, ~4,700 X quadrupole and ~28,500 Lyman-Werner lines each with its own transfer, collisions with H, He, o/p-H2 and H+, pumping and cascade with per-level dissociation, formation pumping, and heating and cooling from the populations.** Its pumping is Cloudy's generic 1D per-line transfer (continuum x the line's own accumulated optical depth, overlap via the fine continuum), bound to Cloudy's globals, so a library extraction is impractical. A port means re-implementing in Fortran: data readers and a ~300-level solve (moderate); per-line self-shielding along D-377's 12 rays from level-resolved columns, on MOCASSIN's coarse FUV (the hard part); and, for one reality, the model's Solomon rate, heating and cooling replacing 3D-PDR's Draine-Bertoldi rate and Hollenbach-McKee term, with every PDR benchmark re-validated. Proposed: (A) post-processing first, validated on pn150k against Cloudy's H2 lines; (B) feedback after. (A) is larger than D-376 and D-377 together. Awaiting the user's decision | Open | 2026-09-28 |
 | D-386 | **The user asked whether Cloudy's simple H2 model would do: it has no level populations and so no individual H2 lines; it is Glover & Abel 2008's total H2 line cooling (analytic fits per collider plus LTE) and an H2/H2* two-state pumping and dissociation heating (TH85, BHT90, BD96 or the default 'Elwert').** It can give (1) the H2 coolant MOCASSIN-PDR lacks (D-384), expected negligible in both fixtures, and (2) maps of total thermal (GA08) and fluorescent H2 emission, the fluorescent part being the complement of the heating the chemistry already uses. A middle path to individual fluorescent lines (1-0 S(1) 2.12 um and the cascade): a pure-fluorescence spectrum computed once from Cloudy's large-model data, times the chemistry's per-cell pumping rate, valid below ~1e4 cm^-3 and validated against Cloudy's pn150k. Awaiting the user's choice | Open | 2026-09-28 |
 | D-387 | **Aleman & Gruenwald 2011 (A&A 528, A74; the user's DOI), whose standard PN is our pn150k at 3x the luminosity: in hot-star PNe H2 lives in the ionized region's warm, partially ionized transition zone (formed by H-, H2+ and grains), its 1-0 S(1) peaks in the same layer as [O I] 6300, [N II] and [S II], and there collisions, not UV pumping, dominate v=1 excitation at 150 kK; H2's thermal effect is negligible at 150 kK. Checked against our model: REDUCED has the H2+ route but no H-, yet our TZ H2 fraction is 100-1000x Cloudy's (x(H+) 0.5-0.8: 2.1e-7 vs 2.1e-10) - a new divergence, causes untested.** Withdrawn: D-384's 'pn150k's H2 lines are UV-pumped' (reasoned from the cold PDR only) and D-386's fluorescent middle path for such models. An H2 line model for PNe needs e-, H+ and H collisions at thousands of K plus pumping (D-385 stage A), and the TZ H2 abundance understood first. Their level model (289 X levels, B/C radiative, colliders H, He, H2, H+, e-) and their line tables and H2/Brgamma curves are the spec and a check | Open | 2026-09-28 |
-| D-388 | **Branch strategy for the H2 model: agreed with the user's plan (H2 work on a new branch, production stays on pdr-photoionization), with refinements proposed:** tag production first; h2-model in its own worktree so production builds and runs are undisturbed; H2 code in new files with thin hooks, stage A (post-processing) mergeable early and stage B kept on the branch until re-validated; merge production into the branch regularly; the branch logs in DEVLOG-H2.md (H-numbers) to avoid DEVLOG conflicts and number collisions; D-387's TZ H2 excess diagnosed on production; pushing (145 commits local only) is the user's call | Open | 2026-09-28 |
+| D-388 | **Branch strategy for the H2 model: agreed with the user's plan (H2 work on a new branch, production stays on pdr-photoionization), with refinements proposed:** tag production first; h2-model in its own worktree so production builds and runs are undisturbed; H2 code in new files with thin hooks, stage A (post-processing) mergeable early and stage B kept on the branch until re-validated; merge production into the branch regularly; the branch logs in DEVLOG-H2.md (H-numbers) to avoid DEVLOG conflicts and number collisions; D-387's TZ H2 excess diagnosed on production; pushing (145 commits local only) is the user's call. **Done at the user's go-ahead:** tag `pdr-coupling-v1.1` at c27e658; branch `h2-model` in worktree ~/software/mocassin_h2 (H-001, e94a1bd), with DEVLOG-H2.md and a CLAUDE.md note, including the hazard found while setting up: both checkouts read the data installed under PREFIX=~/.local, so the branch installs to its own prefix | Done | 2026-09-28 |
+| D-389 | **D-387 diagnosed: our transition-zone H2 is 100-1000x Cloudy's because REDUCED makes ground-state H2 from H + H2+ directly, while Cloudy makes H2* (by H + H- 90%, H + H2+ 5-7%) and destroys it with electrons (e- + H2* -> H + H- 100%) before it relaxes; its ground H2 there is grain-made (98%). Destruction per molecule is similar in both codes (~2-4e-8 s^-1), so the gap is formation.** Also absent from REDUCED: H-, H2*, electron-impact dissociation of H2+ (46-54% of Cloudy's H2+ destruction). A Cloudy rerun with extra saves (runs/d389-cloudy-h2s, 238 s) shows every H2 line of Cloudy's pn150k comes from the PDR (2.121 um at emission-weighted 118 K, pumped; 28/17/12 um at 59-61 K). D-387's withdrawal of D-384 corrected: the TZ contributes only if its H2 nears A&G's ~1e-5. Not tuned; no production output depends on it now (L-43); the cure, level-resolved formation and electron destruction, belongs to the H2 model | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33455,4 +33456,103 @@ Recommended refinements, put to the user:
 
 ### Status
 
-Awaiting the user's confirmation of the refinements. Nothing created yet.
+Done ("proceed"):
+  - tag `pdr-coupling-v1.1` (annotated) at c27e658;
+  - branch `h2-model` from the same commit, in worktree
+    ~/software/mocassin_h2 (its first commit e94a1bd, H-001), with
+    DEVLOG-H2.md and a CLAUDE.md note.
+Found while setting up: both checkouts' binaries have `-DPREFIX=~/.local`
+compiled in, so a plain `make install` on the branch would change the data
+production runs read. The branch installs with
+`make PREFIX=$(HOME)/.local/mocassin_h2`; the Makefile has no `override`, so
+the command line wins. Nothing pushed.
+
+---
+
+## D-389 - Why our transition-zone H2 is 100-1000x Cloudy's, and where Cloudy's H2 lines come from (2026-09-28)
+
+D-387's divergence, diagnosed on production as D-388 planned (the user:
+"proceed"). Read-only on our side:
+  - our budget from `runs/d381-pn41/output/pdrReacRates.out` (14 sampled
+    cells, one per transition-zone band: thin statistics);
+  - Cloudy's from `runs/d356-cloudy-pn` and a rerun, `runs/d389-cloudy-h2s`
+    (the same input plus saves of the H2* budget, H2/H2*/H2+/H-/H3+/HeH+
+    densities and per-zone H2 line emissivity; 238 s). The rerun reproduces
+    D-356's zones (641).
+Scripts: scratchpad `d389_h2budget.py`, `d389_cloudy_h2s.py`.
+
+### The two budgets, in the transition zone (TZ)
+
+**MOCASSIN (x(H+) 0.5-0.8, T 10,700 K):**
+  - H2 formation 3.6e-12 cm^-3 s^-1: 97% H + H2+ -> H2 + H+, 3% grains.
+  - Destruction: 56% H + H2 -> 3H, 24% H+ charge exchange, 12%
+    photodissociation.
+  - x(H2) 8.8e-8; lifetime 1/(4e-8 s^-1).
+
+**Cloudy (same band):**
+  - Ground H2 formation 6.7e-15 per zone: 98% grains.
+  - Destruction: H+ charge exchange 69%, photodissociation 24%, about
+    1.6e-8 s^-1 per molecule. **So the two codes destroy TZ H2 at similar
+    rates per molecule, and the ~500x is formation.**
+  - H2+: created 89% by H + H+ radiative association (our reaction 251,
+    which equals Galli & Palla 1998's fit), and destroyed by electrons:
+    impact dissociation e- + H2+ -> e- + H + H+ (46-54%, **absent from our
+    REDUCED network**) and dissociative recombination (39-46%, present,
+    216). Only 1.3% goes to H + H2+ -> H+ + H2*, against ~7% to ground H2
+    in ours.
+  - **H2* (the D-389 saves):**
+      - created 89-92% by associative detachment H + H- -> e- + H2*,
+        5-7% by H + H2+ -> H+ + H2*, 2-6% on grains;
+      - destroyed 99.9-100% by the reverse, e- + H2* -> H + H-.
+    So in Cloudy's ionized gas the gas-phase routes make excited H2 that
+    electrons dissociate before it relaxes: no net ground H2. Its ground
+    H2 there is grain-made.
+
+Densities / n_H in Cloudy (median):
+
+    x(H+)       T        H2        H2*       H2+       H-
+    0.8-0.95    11,800   3.2e-11   5.6e-13   3.8e-10   5.6e-9
+    0.5-0.8     10,970   9.7e-11   8.6e-12   1.3e-9    1.7e-8
+    0.2-0.5      9,880   3.7e-10   9.7e-11   2.7e-9    3.3e-8
+    0.05-0.2     8,490   1.1e-9    7.2e-10   3.1e-9    3.0e-8
+
+**Cause of the divergence.** REDUCED has no H-, no H2*, no electron-impact
+dissociation of H2+ and no dissociative attachment. Its H + H2+ makes ground
+H2 directly, which only the ground-state channels destroy. Cloudy's makes
+H2* and destroys it with electrons. Physically, H2 from H2+ + H is formed
+vibrationally hot (1.83 eV), so the level-resolved picture is Cloudy's.
+**This is not tuned.**
+  - Aleman & Gruenwald (D-387) reach ~1e-5 with associative detachment as a
+    net source. The three codes differ in how gas-phase H2 survives
+    electrons.
+  - No production output depends on TZ H2 now: there are no H2 lines, and
+    its cooling is absent (D-384). It is registered as L-43.
+  - It becomes decisive in the H2 model. A level-resolved H2 carries
+    formation into excited levels and their destruction by electrons, which
+    is where this physics belongs (h2-model, stage B).
+
+### Where Cloudy's H2 lines come from (per-zone emissivity, r^2 dz)
+
+    line          ionized + TZ (x(H+) > 0.05)   PDR     emission-weighted T
+    1-0 S(1) 2.121 um      0.000                1.000   118 K
+    0-0 S(0) 28.21 um      0.000                1.000    59 K
+    0-0 S(1) 17.03 um      0.000                1.000    60 K
+    0-0 S(2) 12.28 um      0.000                1.000    61 K
+    (Hbeta 0.995 ionized; [O I] 6300 0.987 ionized + TZ, at 10,660 K)
+
+**D-387's withdrawal of D-384 was too strong, and is corrected here.**
+  - **In Cloudy's pn150k every H2 line comes from the PDR.** 2.121 um
+    arises in ~118 K gas, where only pumping can populate v = 1, so
+    D-384's "UV-pumped" holds for this model.
+  - **Aleman & Gruenwald's collisional TZ emission needs TZ H2 near 1e-5.**
+    At Cloudy's 1e-10 the TZ contributes nothing, and at our 1e-7 an
+    estimate puts it ~1/250 of the PDR's.
+  - **So which picture applies turns on the TZ H2 abundance**, the
+    divergence above. D-386's fluorescent middle path is therefore adequate
+    for Cloudy-like chemistry and wrong for A&G-like chemistry. The H2
+    model must carry both mechanisms.
+
+### Status
+
+Open: registered as L-43 (doc/pdr-status.md). The cure (level-resolved
+formation and electron destruction) belongs to the H2 model on h2-model.
