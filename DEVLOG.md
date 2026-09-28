@@ -384,6 +384,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-382 | **Keyword `frontLines` (the user's request): D-381's sub-cell front profile as a post-processing module, `frontLines_mod.f90`, called at the end of `outputGas` (end of run, mocassinWarm, mocassinOutput). It writes [O I] 6300/6363/5577 uncorrected and corrected to its own file, lineFluxFront.out, and changes nothing else.** The user chose, when asked, a separate file (lineFlux.out keeps the lines the balance cooled by, D-362) and O I optical lines only. The module evaluates MOCASSIN's own O I atom (`equilibrium`, D-363's neutral colliders) at every depth rather than a ratio; frontField.out is now written only with the keyword. Validation: on copies of the D-381 runs `mocassinOutput` with the keyword leaves lineFlux.out, lineFluxMol.out, ionratio.out and temperature.out byte-identical; the uncorrected column reproduces lineFlux.out's O I rows to single precision; corrected 6300/Hbeta 0.01123/0.01219/0.01219 on hiipdr 21/31/41^3 and 0.2969 on pn150k, against the Python tool's 0.0113/0.0123/0.0124/0.2928 (Cloudy 0.0104/0.292), photon budgets identical; 7 s per model. A 21^3 run with the keyword writes lineFluxFront.out itself, and mocassinOutput reproduces it byte for byte; a run without it writes neither file. All four flavours and both mocassinOutput builds compile | Done | 2026-09-28 |
 | D-383 | **Molecular line cubes (the user's request): `mocassinPlot` maps the chemistry's molecular coolant lines with `plot.in` entries `mol <coolant> <upper> <lower>` (e.g. `mol 12co.dat 2 1` = CO 1-0), each cell's value being its net escaping emissivity (`pdrLineEm`, D-377's 3D escape probabilities) times its volume; `tools/d383_maps.py` turns plot.out + grid4.out into emissivity cubes and x/y/z surface-brightness maps (lineMaps.fits, octant unfolded, --png). H2 is not possible yet: no H2 level model exists in the build.** Cube sums reproduce lineFluxMol.out (CO) and lineFlux.out (Hbeta, [O I] 6300) to 1e-5 on pn150k and hiipdr; each cube and map returns the grid's total to 1e-6. mocassinPlot builds plain, PDR=1, PDR=1 PDRGEOM=3D. Maps are optically thin sums of escaping emission, with no velocity axis. For H2, Cloudy's data (cloudy-c25.00/data/h2: X-state levels, A values, collisions with H, H2, He, H+, and the Lyman-Werner states) make a non-LTE model possible: (a) ground-state rovibrational with collisions (pure rotational lines), or (b) with UV fluorescence (vibrational lines). In either case the populations should also cool the gas. Awaiting the user's choice | Open | 2026-09-28 |
 | D-384 | **The user asked whether 3D-PDR cools with H2 lines: it does not, and nothing in the coupling does (D-183, re-read in the source). Its cooling is the four coolant files (CO, C+, C, O) plus gas-grain; H2 enters as a collider, as three heating terms (formation, photodissociation, FUV pumping via Hollenbach & McKee's 1/(1+n_cr/n)), and not as a coolant.** In pn150k it costs nothing measurable: Cloudy's full H2 model gives 0-0 S(0) 28.2 um 1.7e-4 Hbeta and 1-0 S(1) 2.121 um 8.0e-5, against ~0.5 Hbeta in [O I] 63 + [C II] 158, and H2 photodissociation heating at most 1% of the local heating. But 1-0 S(1)'s upper level (6,950 K) cannot be populated collisionally at 40-70 K, so H2 lines in models like these are UV-pumped. D-383's recommendation is revised from (a) collisions only to (b) with fluorescence, if H2 maps are wanted | Done | 2026-09-28 |
+| D-385 | **The user asked whether Cloudy's H2 model has collisions and UV fluorescence, and how hard a port would be. Yes to both: the large model (~7,000 lines of C++, zlib licence) carries ~300 X levels and six excited electronic states, ~4,700 X quadrupole and ~28,500 Lyman-Werner lines each with its own transfer, collisions with H, He, o/p-H2 and H+, pumping and cascade with per-level dissociation, formation pumping, and heating and cooling from the populations.** Its pumping is Cloudy's generic 1D per-line transfer (continuum x the line's own accumulated optical depth, overlap via the fine continuum), bound to Cloudy's globals, so a library extraction is impractical. A port means re-implementing in Fortran: data readers and a ~300-level solve (moderate); per-line self-shielding along D-377's 12 rays from level-resolved columns, on MOCASSIN's coarse FUV (the hard part); and, for one reality, the model's Solomon rate, heating and cooling replacing 3D-PDR's Draine-Bertoldi rate and Hollenbach-McKee term, with every PDR benchmark re-validated. Proposed: (A) post-processing first, validated on pn150k against Cloudy's H2 lines; (B) feedback after. (A) is larger than D-376 and D-377 together. Awaiting the user's decision | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33146,3 +33147,93 @@ factor, so that the lines and the balance hold one H2.
 ### Status
 
 Answered; the H2 scope is still the user's decision.
+
+---
+
+## D-385 - Cloudy's H2 model, and what porting it to MOCASSIN would take (2026-09-28)
+
+The user: "does the cloudy model have collisions and ultraviolet
+fluorescence? How hard would it be to port that to Mocassin?"
+
+### What Cloudy's model is (c25.00, read in the source)
+
+Yes, both. The large model (`diatomics`, h2.cpp, h2_priv.h, mole_h2*.cpp,
+~7,000 lines of C++, on with `database H2`) carries:
+  - **Levels:** all ~300 rovibrational levels of X, plus six excited
+    electronic states (B, C+, C-, B', D+, D-; ~900 B levels, ~280 C+).
+  - **Lines:** every line as a transition with its own line transfer.
+    ~4,700 X quadrupole lines, ~19,600 Lyman (B-X), ~8,900 Werner (C-X),
+    and more in B' and D.
+  - **Collisions with H, He, ortho- and para-H2 and H+**, with selectable
+    data sets (H: Wrathmall 2007, Lique 2015, Le Bourlot 1999; H2 and He:
+    Lee 2008 "ORNL" or Le Bourlot).
+  - **UV pumping** into the electronic states, then cascade into X or
+    dissociation (per-level dissociation probabilities and kinetic
+    energies).
+  - **Formation** into excited levels (grain and H- distributions), cosmic
+    ray excitation, and continuum photodissociation.
+  - **Heating and cooling** from the populations.
+The small model, used without `database H2`, is Glover & Abel 2008's
+cooling function.
+
+**The pumping is Cloudy's generic line transfer.** Every transition's
+`Emis().pump()` is the local continuum at its frequency, shielded by that
+line's own optical depth, which `RT_line_one_tauinc` accumulates zone by
+zone from the illuminated face. Line overlap comes from Cloudy's fine
+continuum. That 1D machinery, and Cloudy's globals (rfield, dense, phycon,
+radius), run through the whole model, so extracting the C++ as a library
+is not practical.
+
+Licence: zlib (`license.txt`). Porting and redistribution are allowed,
+with the origin acknowledged and altered versions marked. The data are
+plain text.
+
+### What porting would take (assessment, nothing built)
+
+  1. **Data readers:** energies, A values, dissociation probabilities,
+     collision tables for five colliders, formation distributions.
+     Moderate.
+  2. **X-level statistical equilibrium:** a dense ~300x300 solve per cell
+     with collisions, radiative decay, pumping cascades, formation and
+     destruction. Moderate: ~1e7 flops a cell, minutes per iteration
+     across ranks, and only cells with H2 need it.
+  3. **Pumping with self-shielding in 3D: the hard part.** MOCASSIN's FUV
+     is a few coarse bins with no H2 line opacity. It would take:
+       - the unshielded continuum at each line from MOCASSIN's J_nu (which
+         already carries the dust);
+       - times a per-line shielding factor (Doppler core and damping
+         wings), from the column in the line's lower level along each of
+         the 12 rays of D-377's walk, which already visits every cell's
+         populations;
+       - averaged over the rays.
+     Line overlap would be an approximation. Cloudy resolves it; Draine &
+     Bertoldi's fit folds it in.
+  4. **Coupling, for one reality:**
+       - the model's Solomon dissociation rate would replace 3D-PDR's
+         Draine & Bertoldi rate in the chemistry, which moves the H/H2
+         front;
+       - its de-excitation heating would replace Hollenbach & McKee's
+         pumping term (heat(7)), and its line cooling would add the H2
+         coolant that does not exist now (D-384);
+       - ortho/para and formation pumping would follow.
+     Every PDR benchmark would then need re-validating.
+
+**Proposed staging:**
+  - **(A) Post-processing first, like frontLines (D-382).** H2 populations
+    on the converged model, from the chemistry's n(H2) and MOCASSIN's
+    field, with per-line shielding along the rays. Its outputs would be
+    lineFluxH2.out, per-cell emissivities for mocassinPlot's `mol` entries,
+    and the ratio of the model's Solomon rate to the chemistry's as the
+    consistency flag. Validated on pn150k against Cloudy (1-0 S(1)
+    8.0e-5, 0-0 S(0) 1.7e-4 Hbeta, D-384), remembering that MOCASSIN's PDR
+    is colder, which touches the rotational lines more than the pumped
+    ones.
+  - **(B) The feedback of item 4.**
+(A) is larger than D-376 and D-377 together. The physics would be
+re-implemented in Fortran from Cloudy's equations and data rather than
+translated line by line, since most of the 7,000 lines is Cloudy's zone,
+transfer and I/O glue.
+
+### Status
+
+Assessment delivered; nothing built. The decision is the user's.
