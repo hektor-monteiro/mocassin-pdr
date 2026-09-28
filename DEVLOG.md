@@ -378,6 +378,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-376 | **The six resonance lines of `resLines.dat` (Lya among them) are destroyed by the local dust with their escape probability in every dust+gas run, and Lya has its own `linePDF` slot at 1216 A (closes L-42, D-375's proposal).** A packet drawn on a resonance line is destroyed with probability 1 - f_esc (Harrington, Cohen & Hess 1984, computed every iteration) and leaves as the cell's dust emission; the grains absorb it through `resLineHeating`, now always on; the escaping fraction is traced thin at the line's frequency (D-375 had proposed sending it straight to the SED - corrected: f_esc is escape from resonant trapping). Upstream's extra-packet relaunch (as gas emission, on top of full-strength lines) is removed; `resLinesTransfer` is retired; escape fractions are checkpointed (`resLineEsc.out`) so `mocassinOutput` reproduces a run byte for byte. **Seeded pairs:** the 8.3 um line is gone and its energy is in the 15-1000 um continuum to 1.00 (hiipdr) / 1.03 (pn150k); total luminosity unchanged. Ionized-zone T_dust now matches Cloudy: hiipdr 0.965 -> 0.996 at A_V 0.30, pn150k 0.94/0.81 -> 1.01/0.98 at A_V 0.05/0.10 (L-19's ionized deficit); PDR grains 0.5-2% cooler; pn150k's PDR FUV -7..-9% (C IV 1549 two-thirds destroyed); fronts, Hbeta, H/H2 crossing, C+ = C, PDR T_gas and every line unchanged within 1%. Dust budget: Lya 0.076 / 0.30 of grain heating, matching its share of the dust IR (0.078 / 0.26). L-19 re-measured: the 0.01-0.44 Ryd excess was the 8 um Lya (0.508 -> 0.346, Cloudy 0.362) but the 1.2-1.3x bolometric excess stays, now in the far-IR. Dust-free Lexington: Lya leaves at 1216 A, everything else within seed scatter. | Done | 2026-09-27 |
 | D-377 | **L-27 closed (D-370 step 2): line escape along the real 3D rays.** `traceLineRays` walks the twelve HEALPix directions of D-348's walk (fixed frame, finest-spacing steps, mirror folding) and each ray's evaluation points are the cells it crosses, each with its own level populations (`pdrLevPop`), so `escape_probability` sums 3D-PDR's tau along a ray; the slab closed form (mu = 0 rays infinite, beta <= 2/3; the cell's own populations over the whole column) is gone. The background is MOCASSIN's own J_nu at the line plus the CMB (new hook `escape_bg`), replacing the vendored grain emissivity. **Seeded pairs:** thin lines 0.667 -> 1.000; [C II] escape from the PDR up 14-120%; from the ionized gas down on hiipdr's thick shell (0.66 -> 0.50), up on pn150k's thin one (0.67 -> 0.77). PDR T_gas 3-5% (hiipdr) and 4-6% (pn150k) colder - x/beta is not small at beta 0.1-0.5; hiipdr [C II] x0.91 (1.29 -> 1.17x Cloudy), pn150k [C II] and [O I] within 1%, pn150k [C I] 609 x1.40, high-J CO down to x0.64; fronts, Hbeta, H/H2 crossing (+0.2/+0.8%), C+ = C, T_dust and the ionized lines unchanged; cost none. Five of the predictions miss, recorded. | Done | 2026-09-28 |
 | D-378 | **Both Cloudy artifacts rebuilt on the current code, from D-377's paired runs: 'hiipdr Against Cloudy' v18 (`runs/d377-hii`) and '150 kK PN Against Cloudy' v16 (`runs/d377-pn`).** New figures, selected-depth, ionized-gas and line tables, headline numbers and 'Reading it' bullets, and on each page a section on the three corrections since the last version (D-371 Hbeta, D-376 resonance lines and Lya, D-377 line escape) with a before/now/Cloudy table. **A published number corrected:** the pn150k page's Cloudy Hbeta, 2.48e34 since D-359, came from the first of two iteration blocks in Cloudy's `150k.lines` save file (19.75 per unit inner area); the final printed intrinsic value is 2.78e34, which Cloudy's own zones reproduce to 2% (D-371) - Hbeta now agrees to 1.9% (was reported 6% apart with both numbers wrong). The historical 'now' columns of the previous versions' sections are relabelled as version 17 / 15. | Done | 2026-09-28 |
+| D-379 | **The user asked whether a correction factor for lines from cells that straddle the ionization front ([O I] 6300) could be estimated from the packet transfer and applied (evaluation only, no code). Not as a factor: the transfer gives the spectrum arriving at the front, not the thickness, which needs a sub-cell solve of ionization and temperature; a factor on the reported line alone breaks D-362's rule (the lines are the ones the balance cools by) and the cell's energy budget, and selecting front cells is a zone gate. A gate-free sub-cell front model is possible and cheap in compute, but it is a design change of the size of the nested sub-grids ruled out at D-081. Measured on Cloudy's zones: the layer that emits 10-90% of [O I] 6300 is 0.18 pc on hiipdr (not L-37's ~0.01 pc; median at x(H+) 0.91, ~9900 K) and 0.014 pc on pn150k, 5.5e19 and 4.3e19 cm^-2 of H - alike, so D-368's "the harder star makes a zone the grid resolves" is not what separates them: it is the column per cell, 2.0e20 against 4.7e19 cm^-2 (0.27 and 0.91 layers per cell).** d377-hii: 90% of [O I] 6300 (0.067 Hbeta, 6.4x Cloudy) from 67 cells with x(H+) 0.01-0.95 at ~8500 K and 912 A optical depth 600-1100 per cell; d377-pn: 97% from 392 such cells (1.38x Cloudy). One layer per cell on hiipdr needs ~110^3 (0.7M active cells, one rank). A per-line resolution diagnostic is cheap and changes no physics | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32436,3 +32437,175 @@ matches its previous builder.
 ### Status
 
 Done. Private until shared from each page's Share menu.
+
+---
+
+## D-379 - A correction factor for lines from front cells: evaluated, not adopted (2026-09-28)
+
+The user asked: "would it be possible to obtain a correction factor for
+lines from cells that straddle the ionization front like [O I]6300? Could we
+estimate the thickness from the packet transfer and apply the fraction
+correction accordingly? Do not write any code, just evaluate the
+feasability". Nothing in the source changed. Two read-only measurement
+scripts were written in the session scratchpad, `d379_where.py` (MOCASSIN
+cells) and `d379_cloudy.py` (Cloudy zones).
+
+### What the front cells carry now
+
+Per-cell 6300 emissivity from `pdrLineEm.out` (16o.dat transition 4,
+1D2 -> 3P2, column 59), times cell volume:
+
+    run        cells x(H+) 0.01-0.95   share of 6300   T med    tau(912 A)/cell med
+    d377-hii   67 (of 15204 active)    0.897           8502 K   594 (0.3-0.95), 1140 (0.01-0.3)
+    d377-pn    392 (of 35384)          0.967           10940 K  67, 283
+
+[O I] 6300 is 0.0667 Hbeta on hiipdr (Cloudy 0.0104, 6.4x) and 0.402 on
+pn150k (Cloudy 0.292, 1.38x). hiipdr's fully ionized cells (x(H+) > 0.95)
+give 0.0069 Hbeta, two thirds of Cloudy's total by themselves.
+
+### How thick the emitting layer is (Cloudy, r^2-weighted)
+
+hiipdr's Cloudy run saved no emissivities, so its layer is from the proxy
+n_e x(O0) T^-1/2 exp(-22830/T). On pn150k the proxy's layer width matches
+Cloudy's saved 6300 emissivity (`runs/d356-cloudy-pn/150k.emis`) to 2%
+(4.36e16 against 4.27e16 cm).
+
+                                      hiipdr (d356-cloudy-hii)   pn150k (d356-cloudy-pn)
+    MOCASSIN cell                     2.00e18 cm, 2.0e20 cm^-2   4.68e16 cm, 4.7e19 cm^-2
+    H+ 0.9 -> 0.1                     9.5e16 cm (0.031 pc)       4.3e16 cm
+    H+ 0.99 -> 0.01                   5.1e17 cm                  1.8e17 cm
+    6300, 10-90% of the emission      5.5e17 cm (0.18 pc)        4.3e16 cm (0.014 pc)
+      as H column                     5.5e19 cm^-2               4.3e19 cm^-2
+      layers per cell                 0.27                       0.91
+      x(H+) at 10/50/90%              0.99 / 0.91 / 0.42         0.92 / 0.66 / 0.19
+      T at 10/50/90%                  9840 / 9930 / 8700 K       11900 / 10900 / 9300 K
+
+Three statements in the record do not survive this:
+  - **L-37's "the front is ~0.01 pc".** The H+ transition is 0.031 pc and
+    the 6300 layer 0.18 pc on hiipdr.
+  - **D-080's 1/(n sigma) = 1.6e15 cm** is the threshold mean free path in
+    neutral gas. The layer is ~340 times that, because it lies where x(H0)
+    rises from ~0.01 to ~0.5 and is fed by the hardened spectrum. D-081's
+    "N >= L_PDR/d_IF" was therefore ~340x too pessimistic for [O I] 6300,
+    though its conclusion still stands for hiipdr (below).
+  - **D-368's reading** that the hard 150 kK field makes a partially ionized
+    zone the grid resolves while hiipdr's 40 kK front "does not have one".
+    The H+ transition is indeed 4.5x thicker in column on pn150k (4.3e19
+    against 9.5e18 cm^-2). The 6300 layer is not: 4.3e19 against 5.5e19. On
+    hiipdr it sits on the ionized side (median x(H+) 0.91). What separates
+    the fixtures is the column per cell, and it predicts both of D-365/D-368's
+    resolution tests. At 61^3 hiipdr has 0.55 layers per cell, still
+    unresolved, and the front-cell [O I] 63 fell 0.53x. At 81^3 pn150k has
+    1.8 layers per cell and it fell 0.95x.
+
+### Can the transfer give the thickness?
+
+Not by itself. Inside a cell the opacity is uniform. Where packets are
+absorbed within the cell is then exponential in that opacity, and carries
+nothing the opacity does not. What the transfer does give is the spectrum.
+`Jste` per bin, with the cell's opacity per bin, yields the spectrum
+entering the cell under a plane-front assumption (J_in = J tau/(1 - e^-tau)),
+or the upstream neighbour's spectrum can be taken instead.
+
+From that spectrum the hydrogen profile through the cell is a cheap 1D
+integration: one equation in the H0 column. Photon conservation fixes the
+front's position. The homogeneous cell already balances recombinations
+against the photons it absorbs, which in pure hydrogen in the thick limit
+makes its x(H+) the square root of the ionized volume fraction.
+
+[O I] 6300 also needs T and O0 through the layer. T comes from the thermal
+balance with every coolant, so the thickness alone does not fix the
+correction. Cloudy's layer is at ~9900 K against MOCASSIN's front cells'
+8500 K, a factor 1.5 in exp(-22830/T) alone.
+
+The orientation is not tallied either. MOCASSIN keeps scalar J, not the
+flux vector, so the front's area inside a cell would have to come from the
+neighbours' x(H+) gradient (as volume-of-fluid hydrodynamics reconstructs
+an interface) or from a new flux tally.
+
+### Why a factor on the reported line is not the fix
+
+1. It breaks D-362/D-363: the reported lines are the ones the balance cools
+   by. The front cells' T was set with the uncorrected [O I]. D-284 found O I
+   cooling at the front was 1.4-1.8x Cloudy's total cooling there. A
+   corrected line from a cell whose T it did not set is a second reality,
+   and the cell's lines would no longer add up to its heating.
+2. Every line of a front cell is off, not only 6300: [O I] 63/145, [C I], a
+   third of hiipdr's [C II] 158 (D-365), [N I], [S II], and the ionized-side
+   lines through T. Correcting one line is a line-specific gate, and
+   selecting cells by x(H+) is a zone test.
+3. A factor from the thickness alone leaves an order-unity term (T, n_e and
+   O0 in the layer), and only a comparison with Cloudy could set it. That is
+   tuning.
+
+### What would be physics
+
+A sub-cell front model, applied in every cell:
+  - a 1D integration along the local flux from the entering spectrum;
+  - MOCASSIN's own ionization and thermal balance per sub-zone;
+  - emissivities and cooling taken as sub-zone integrals.
+
+Optically thin cells collapse to one sub-zone, so there is no gate.
+
+The compute cost is small: 67 cells on hiipdr and 392 on pn150k, times
+~20-50 sub-zones, against a gas update of 15-35k cells.
+
+The design cost is large:
+  - sub-zone state in checkpoints and `mocassinOutput`;
+  - ownership of the neutral sub-zones with the chemistry, which has one
+    3D-PDR point per cell;
+  - the dust temperature in a cell whose field varies by orders of
+    magnitude;
+  - where the diffuse field is emitted;
+  - the convergence test.
+
+It is the analytic 1D form of the nested sub-grids ruled out at D-081 (and
+excluded by D-009).
+
+Validation that does not use Cloudy:
+  - resolution independence, hiipdr 31^3 (`runs/d377-hii`) against 61^3
+    (`runs/d365-hii61`);
+  - `benchmarks/pdr/ifront` (graded 1D, ~8 cells across the front, D-081)
+    coarsened, against itself resolved.
+
+Cloudy comes last.
+
+Expected effect:
+  - **hiipdr:** for the total to reach Cloudy's with the ionized cells' 0.0069
+    unchanged, the front cells' 0.060 Hbeta would have to fall ~17x. The
+    layer's volume fraction alone gives 3.7x; the rest would have to come
+    from T and O0 in the layer. That cannot be predicted without the solve.
+  - **pn150k:** little, since the layer is already ~1 cell. Its 1.38x stays
+    a model difference (D-368).
+
+### Resolving it on the grid instead
+
+One cell per layer needs n_H dx <~ 5e19 cm^-2 (~35 cells per magnitude of
+A_V at hiipdr's A_V/N_H):
+  - **pn150k:** its 1.5e21 cm^-2 beyond the front needs ~34 cells and has 32.
+  - **hiipdr:** its 4.8e21 cm^-2 (2.5 mag) needs ~88 and has 25, i.e.
+    ~110^3 overall. That is 0.7M active cells, which fits only on one rank
+    (D-374's 0.47 GB + 38 kB/cell).
+  - Three cells per layer (~330^3) is out of reach.
+
+### Cheap and legitimate now
+
+A resolution diagnostic, not a correction. For each line, report the share
+of its emission from cells whose H column exceeds the layer column the
+cell's own spectrum implies (or, cruder, ~5e19 cm^-2 while thick at 912 A),
+printed with the line table. It changes no physics. L-37 already requires a
+resolution check before a front-sensitive line is published; this would
+make it automatic.
+
+### Not known
+
+  - Whether the ~5e19 cm^-2 layer column is generic: two models, 40 and
+    150 kK.
+  - What the sub-cell model would give on hiipdr.
+  - Whether HII20's [O I] 6300, 6.7x the Lexington median at D-270, is the
+    same effect.
+
+### Status
+
+Open: evaluation delivered, nothing implemented. L-37's text is corrected in
+`doc/pdr-status.md`.

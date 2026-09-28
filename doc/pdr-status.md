@@ -484,8 +484,9 @@ evaluated at every trial T, with no table. For CO the per-cell mean |ln| is
 
 **L-37. Unresolved ionization-front cells dominate the [O I] lines**
 (D-362). 92% (hiipdr) and 74% (pn150k) of [O I] 63 um comes from cells with
-x(H+) 0.01-0.95 at 5,600-11,000 K. A 31^3 hiipdr cell is ~0.5 pc, where the
-front is ~0.01 pc, so each front cell carries half a parsec of warm
+x(H+) 0.01-0.95 at 5,600-11,000 K. A 31^3 hiipdr cell is 0.65 pc, where
+Cloudy's H+ transition is 0.031 pc and its [O I] 6300 layer 0.18 pc (D-379;
+first written here as "~0.01 pc"), so each front cell carries 0.65 pc of warm
 half-neutral gas. [O I] 63 is 9.3x Cloudy on hiipdr and 1.39x on pn150k.
 MOCASSIN's own [O I] 6300 has always been 6.5x and 1.42x, so the same layer
 drives both. The lines are the model's own state, and the balance cooled those
@@ -497,9 +498,15 @@ value for half the cell size, and [O I] 63 falls from 9.5x to 5.5x Cloudy
 falling 0.60x, which takes [C II] from 1.35x to 1.19x Cloudy while its cold-PDR
 part does not move. Neither grid resolves the front, so neither number is
 converged. **pn150k is different (D-368):** at 81^3 its front cells' [O I] 63
-is 0.95x the 41^3 value - the hard 150 kK field makes a partially ionized zone
-0.015 pc cells already resolve - so its 1.26x Cloudy (1.35x at 41^3) is a model
-difference, not a grid effect.
+is 0.95x the 41^3 value, so its 1.26x Cloudy (1.35x at 41^3) is a model
+difference, not a grid effect. D-368 put this down to the hard 150 kK field
+making a thicker zone. **D-379 measured otherwise:** Cloudy's 6300 layer holds
+about the same H column on both fixtures, 5.5e19 cm^-2 (hiipdr) and 4.3e19
+(pn150k). What separates them is the column per cell, 2.0e20 against 4.7e19,
+i.e. 0.27 and 0.91 layers per cell. One layer per cell on hiipdr needs ~110^3.
+A correction factor estimated from the transfer was evaluated and not adopted
+(D-379): it needs a sub-cell solve of T and O0, and a factor on the reported
+line alone would contradict the cooling that set the cell's T.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
