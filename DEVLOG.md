@@ -385,6 +385,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-383 | **Molecular line cubes (the user's request): `mocassinPlot` maps the chemistry's molecular coolant lines with `plot.in` entries `mol <coolant> <upper> <lower>` (e.g. `mol 12co.dat 2 1` = CO 1-0), each cell's value being its net escaping emissivity (`pdrLineEm`, D-377's 3D escape probabilities) times its volume; `tools/d383_maps.py` turns plot.out + grid4.out into emissivity cubes and x/y/z surface-brightness maps (lineMaps.fits, octant unfolded, --png). H2 is not possible yet: no H2 level model exists in the build.** Cube sums reproduce lineFluxMol.out (CO) and lineFlux.out (Hbeta, [O I] 6300) to 1e-5 on pn150k and hiipdr; each cube and map returns the grid's total to 1e-6. mocassinPlot builds plain, PDR=1, PDR=1 PDRGEOM=3D. Maps are optically thin sums of escaping emission, with no velocity axis. For H2, Cloudy's data (cloudy-c25.00/data/h2: X-state levels, A values, collisions with H, H2, He, H+, and the Lyman-Werner states) make a non-LTE model possible: (a) ground-state rovibrational with collisions (pure rotational lines), or (b) with UV fluorescence (vibrational lines). In either case the populations should also cool the gas. Awaiting the user's choice | Open | 2026-09-28 |
 | D-384 | **The user asked whether 3D-PDR cools with H2 lines: it does not, and nothing in the coupling does (D-183, re-read in the source). Its cooling is the four coolant files (CO, C+, C, O) plus gas-grain; H2 enters as a collider, as three heating terms (formation, photodissociation, FUV pumping via Hollenbach & McKee's 1/(1+n_cr/n)), and not as a coolant.** In pn150k it costs nothing measurable: Cloudy's full H2 model gives 0-0 S(0) 28.2 um 1.7e-4 Hbeta and 1-0 S(1) 2.121 um 8.0e-5, against ~0.5 Hbeta in [O I] 63 + [C II] 158, and H2 photodissociation heating at most 1% of the local heating. But 1-0 S(1)'s upper level (6,950 K) cannot be populated collisionally at 40-70 K, so H2 lines in models like these are UV-pumped. D-383's recommendation is revised from (a) collisions only to (b) with fluorescence, if H2 maps are wanted | Done | 2026-09-28 |
 | D-385 | **The user asked whether Cloudy's H2 model has collisions and UV fluorescence, and how hard a port would be. Yes to both: the large model (~7,000 lines of C++, zlib licence) carries ~300 X levels and six excited electronic states, ~4,700 X quadrupole and ~28,500 Lyman-Werner lines each with its own transfer, collisions with H, He, o/p-H2 and H+, pumping and cascade with per-level dissociation, formation pumping, and heating and cooling from the populations.** Its pumping is Cloudy's generic 1D per-line transfer (continuum x the line's own accumulated optical depth, overlap via the fine continuum), bound to Cloudy's globals, so a library extraction is impractical. A port means re-implementing in Fortran: data readers and a ~300-level solve (moderate); per-line self-shielding along D-377's 12 rays from level-resolved columns, on MOCASSIN's coarse FUV (the hard part); and, for one reality, the model's Solomon rate, heating and cooling replacing 3D-PDR's Draine-Bertoldi rate and Hollenbach-McKee term, with every PDR benchmark re-validated. Proposed: (A) post-processing first, validated on pn150k against Cloudy's H2 lines; (B) feedback after. (A) is larger than D-376 and D-377 together. Awaiting the user's decision | Open | 2026-09-28 |
+| D-386 | **The user asked whether Cloudy's simple H2 model would do: it has no level populations and so no individual H2 lines; it is Glover & Abel 2008's total H2 line cooling (analytic fits per collider plus LTE) and an H2/H2* two-state pumping and dissociation heating (TH85, BHT90, BD96 or the default 'Elwert').** It can give (1) the H2 coolant MOCASSIN-PDR lacks (D-384), expected negligible in both fixtures, and (2) maps of total thermal (GA08) and fluorescent H2 emission, the fluorescent part being the complement of the heating the chemistry already uses. A middle path to individual fluorescent lines (1-0 S(1) 2.12 um and the cascade): a pure-fluorescence spectrum computed once from Cloudy's large-model data, times the chemistry's per-cell pumping rate, valid below ~1e4 cm^-3 and validated against Cloudy's pn150k. Awaiting the user's choice | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33237,3 +33238,67 @@ transfer and I/O glue.
 ### Status
 
 Assessment delivered; nothing built. The decision is the user's.
+
+---
+
+## D-386 - Cloudy's simple H2 model: no lines, but two useful pieces (2026-09-28)
+
+The user: "can we do this using the Cloudy simple H2 model?"
+
+### What the simple model is (cool_eval.cpp, c25.00)
+
+Used whenever `database H2` is off. It has no level populations and
+therefore **no individual H2 lines**. It has two parts:
+  - **Cooling.** `CoolHeavy.h2line = CoolH2_GA08(T) * n(H2)` is the total
+    rovibrational line cooling of Glover & Abel 2008: low-density fits for
+    collisions of para- and ortho-H2 with H, He, H2, H+ and e-, combined
+    with the LTE limit (their eqs 27-39). Cloudy lists it only as a
+    cooling agent ("H2ln").
+  - **Heating.** An H2/H2* two-state treatment of pumping and
+    dissociation, from a choice of prescriptions: TH85, Burton, Hollenbach
+    & Tielens 1990, Bertoldi & Draine 1996, and the default ("Elwert").
+    3D-PDR's Hollenbach & McKee term is the same kind of object.
+
+So it cannot make 2.12 um, 17 um or 28 um maps. What it can give:
+
+  1. **The missing H2 coolant (D-384).** GA08 is analytic fits, a few
+     hundred lines, and would join the thermal balance as Cloudy's
+     default does. A physics change: it moves the result away from the
+     3D-PDR reference (which lacks it) toward the physics. It would be
+     negligible in both fixtures (Cloudy's H2 lines are ~1e-3 of the
+     fine-structure cooling in pn150k), and that needs a run to show.
+  2. **Maps of total H2 emission, thermal and fluorescent, not per line.**
+       - Thermal: the GA08 cooling per cell.
+       - Fluorescent: the part of the pumped energy that is radiated
+         rather than thermalized. It is the complement of the heating
+         term the chemistry already uses (Hollenbach & McKee: 2.2 eV x 9
+         x dissociation rate x n(H2), times 1 - 1/(1 + n_cr/n)), so it
+         would agree with the model's own heating by construction.
+     In cold PDRs like ours the fluorescent part dominates.
+
+### A middle path to individual fluorescent lines
+
+At densities well below the critical density of the v >= 1 levels (~1e4
+to 1e5 cm^-3; our fixtures are at 1e2 and 1e3), collisions do not
+redistribute the cascade, and each line's share of the pumped power is
+nearly fixed: the pure-fluorescence spectrum (1-0 S(1)/2-1 S(1) ~ 2 in
+Black & van Dishoeck 1987). Then:
+  - **The spectrum, once:** computed from Cloudy's large-model data (A
+    values, dissociation probabilities, B/C/X cascade), for pumping out of
+    the populated v=0 low-J levels, with ortho/para as a parameter. A
+    one-off offline calculation, much smaller than the port of D-385.
+  - **Per cell:** the chemistry's pumping rate (its self-shielded H2
+    dissociation rate / dissociation probability, the same 9 as the
+    heating) times that spectrum. That gives maps of 1-0 S(1) 2.12 um and
+    the other cascade lines through mocassinPlot.
+  - **Validation:** against Cloudy's large model on pn150k (1-0 S(1)
+    8.0e-5 Hbeta, D-384).
+  - **Limits:** not valid above ~1e4 cm^-3, and not for the thermal
+    rotational lines of warm gas. The spectrum's dependence on
+    self-shielding, which shifts pumping to weaker lines, would be
+    measured, not assumed.
+
+### Status
+
+Assessment delivered; nothing built. The user decides which of 1, 2 and the
+middle path to do.
