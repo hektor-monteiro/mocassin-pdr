@@ -88,6 +88,7 @@ module pdr_mod
                                ! real subscript as a legacy extension, silently.
                                & pdrRayLW => ray_lw_factor, &       ! D-350
                                & pdrEscBeta => escape_beta, &       ! D-363
+                               & pdrEscBg => escape_bg, &           ! D-377
                                & NH2, NC, NCO, pdrNHsp => NH, NPROTON, NHe, NHEx, &
                                & NCx, NO, NOx, NMG, NMGx, &
                                ! D-258: H2+ and H3+, for the chain diagnostic
@@ -125,6 +126,17 @@ module pdr_mod
     ! D-348: the scattering sites of the cell pdrStep is solving, filled by
     ! traceDiffuseSites - weight, and (H2, C, CO) two-leg columns [cm^-2]
     double precision, allocatable :: siteW(:), siteN(:,:)
+
+    ! D-377: the line-escape rays of the cell pdrStep is solving, filled by
+    ! traceLineRays - along each of the twelve HEALPix directions, the cells
+    ! crossed from this one to the edge of the model (lrCell) and the path
+    ! length in each (lrLen, cm), lrN(k) of them on ray k
+    integer                       :: lrN(0:11) = 0
+    integer, allocatable          :: lrCell(:,:)
+    double precision, allocatable :: lrLen(:,:)
+    ! D-377: the MOCASSIN frequency bin of each coolant transition (upper,
+    ! lower, coolant); 0 outside the grid. Built on first use.
+    integer, allocatable          :: pdrTrBin(:,:,:)
 
     ! D-348: per-A_V-bin sums over the cells this rank solved in the current
     ! coupling pass, reduced and printed by reportDiffuseDiag. The bins are
@@ -449,6 +461,12 @@ module pdr_mod
         if (allocated(pdrEscBeta)) deallocate(pdrEscBeta)
         allocate(pdrEscBeta(pdrMaxLev, pdrMaxLev))
         pdrEscBeta = 1.d0
+        ! D-377: the background each transition sees is MOCASSIN's own field
+        ! at the line (plus the CMB, which MOCASSIN does not transport), not
+        ! the vendored diffuse-ISM grain emissivity
+        if (allocated(pdrEscBg)) deallocate(pdrEscBg)
+        allocate(pdrEscBg(pdrMaxLev, pdrMaxLev))
+        pdrEscBg = 0.d0
 
         ! ---- read the network -------------------------------------------
         call allocations
@@ -1965,7 +1983,140 @@ module pdr_mod
            nearestAxB = lo
         end if
       end function nearestAxB
+
+      !-----------------------------------------------------------------
+      ! D-377: the line-escape rays of cell (xP,yP,zP). The same twelve HEALPix
+      ! nside=1 directions, fixed in the grid frame, and the same stepping as
+      ! traceDiffuseSites: the finest axis spacing, the lower faces of a
+      ! symmetricXYZ octant folded back as mirrors, a ray ending at the upper
+      ! faces (inactive cells beyond Rout, or in an inner cavity, add nothing
+      ! and the ray runs on through them). Consecutive steps in one cell are
+      ! merged, so each ray is a list of (cell, path length). The first entry
+      ! is the cell itself, with the half of it the ray crosses.
+      !-----------------------------------------------------------------
+      subroutine traceLineRays(grid, xP, yP, zP)
+        implicit none
+        type(grid_type), intent(in) :: grid
+        integer, intent(in)         :: xP, yP, zP
+
+        integer          :: kray, istep, nstep, ix, iy, iz, cP, m, n, last
+        double precision, save :: vx(0:11), vy(0:11), vz(0:11)
+        logical, save    :: lgDirs = .false.
+        double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
+        double precision :: x0, y0, z0, xlo, xhi, ylo, yhi, zlo, zhi
+
+        if (.not.lgDirs) then
+           do kray = 0, 11
+              if (kray < 4) then
+                 zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
+              else if (kray < 8) then
+                 zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
+              else
+                 zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+              end if
+              sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
+           end do
+           lgDirs = .true.
+        end if
+
+        lrN = 0
+        ds = huge(1.d0)
+        do m = 2, grid%nx
+           if (grid%xAxis(m) > grid%xAxis(m-1)) &
+                & ds = min(ds, dble(grid%xAxis(m)) - dble(grid%xAxis(m-1)))
+        end do
+        do m = 2, grid%ny
+           if (grid%yAxis(m) > grid%yAxis(m-1)) &
+                & ds = min(ds, dble(grid%yAxis(m)) - dble(grid%yAxis(m-1)))
+        end do
+        do m = 2, grid%nz
+           if (grid%zAxis(m) > grid%zAxis(m-1)) &
+                & ds = min(ds, dble(grid%zAxis(m)) - dble(grid%zAxis(m-1)))
+        end do
+        if (ds >= huge(1.d0)) return
+
+        xlo = dble(grid%xAxis(1)); xhi = dble(grid%xAxis(grid%nx))
+        ylo = dble(grid%yAxis(1)); yhi = dble(grid%yAxis(grid%ny))
+        zlo = dble(grid%zAxis(1)); zhi = dble(grid%zAxis(grid%nz))
+        dmax = sqrt((xhi-xlo)**2 + (yhi-ylo)**2 + (zhi-zlo)**2)
+        if (lgSymmetricXYZ) dmax = 2.d0*dmax
+        nstep = max(4, min(4000, int(dmax/ds) + 1))
+
+        if (allocated(lrCell)) then
+           if (size(lrCell,2) < nstep) deallocate(lrCell, lrLen)
+        end if
+        if (.not.allocated(lrCell)) allocate(lrCell(0:11,nstep), lrLen(0:11,nstep))
+
+        x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
+
+        do kray = 0, 11
+           n = 0; last = -1
+           do istep = 1, nstep
+              rr = (dble(istep)-0.5d0)*ds
+              px = x0 + vx(kray)*rr
+              py = y0 + vy(kray)*rr
+              pz = z0 + vz(kray)*rr
+              if (lgSymmetricXYZ) then
+                 if (px < xlo) px = 2.d0*xlo - px
+                 if (py < ylo) py = 2.d0*ylo - py
+                 if (pz < zlo) pz = 2.d0*zlo - pz
+              end if
+              if (px < xlo .or. px > xhi .or. &
+                & py < ylo .or. py > yhi .or. &
+                & pz < zlo .or. pz > zhi) exit
+              ix = nearestAxB(grid%xAxis, grid%nx, px)
+              iy = nearestAxB(grid%yAxis, grid%ny, py)
+              iz = nearestAxB(grid%zAxis, grid%nz, pz)
+              cP = grid%active(ix,iy,iz)
+              if (cP <= 0) then
+                 last = -1
+                 cycle
+              end if
+              if (cP == last) then
+                 lrLen(kray,n) = lrLen(kray,n) + ds
+              else
+                 n = n + 1
+                 lrCell(kray,n) = cP
+                 lrLen(kray,n)  = ds
+                 last = cP
+              end if
+           end do
+           lrN(kray) = n
+        end do
+
+      end subroutine traceLineRays
 #endif
+
+      !-----------------------------------------------------------------
+      ! D-377: the MOCASSIN frequency bin of every radiative transition of
+      ! every coolant, by the rule MOCASSIN places its own line packets with
+      ! (nuArray(ib) <= nu < nuArray(ib+1)); 0 for a line outside the grid.
+      !-----------------------------------------------------------------
+      subroutine buildTrBins()
+        implicit none
+        integer          :: ik, il, jl, ib, nl
+        double precision :: nuR
+
+        allocate(pdrTrBin(pdrMaxLev, pdrMaxLev, max(pdrNcool,1)))
+        pdrTrBin = 0
+        do ik = 1, pdrNcool
+           nl = pdrCoolant2(ik)%cnlev
+           do il = 2, nl
+              do jl = 1, il-1
+                 if (pdrCoolant2(ik)%A_COEFFS(il,jl) <= 0.d0) cycle
+                 nuR = pdrCoolant2(ik)%frequencies(il,jl)/dble(fr1Ryd)
+                 if (nuR <= dble(nuArray(1)) .or. nuR >= dble(nuArray(nbins))) cycle
+                 do ib = 1, nbins-1
+                    if (dble(nuArray(ib)) <= nuR .and. nuR < dble(nuArray(ib+1))) then
+                       pdrTrBin(il, jl, ik) = ib
+                       exit
+                    end if
+                 end do
+              end do
+           end do
+        end do
+      end subroutine buildTrBins
 
 
       subroutine computeAVdust(grid)
@@ -2733,6 +2884,10 @@ module pdr_mod
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
         double precision   :: lline(pdrMaxLev,pdrMaxLev)
         double precision   :: evpop(0:nraysLoc-1,0:1,pdrMaxLev), plen(0:nraysLoc-1,0:1)
+        ! D-377: the 3D flavour's ray points, sized per cell and coolant
+        double precision, allocatable :: evpopR(:,:,:), plenR(:,:)
+        integer            :: maxPt, ipt, ib
+        double precision   :: jBg
         double precision   :: evpt(1:3,0:nraysLoc-1,0:1)
         integer            :: jjr(0:nraysLoc-1)
         integer            :: kray
@@ -3538,6 +3693,10 @@ module pdr_mod
         ! the lines the run REPORTS come from this solve, at the T the cell
         ! has, and they write nothing the physics reads. It starts from the
         ! populations just stored at iTnear.
+#ifdef RAYTHEIA
+        ! D-377: this cell's line-escape rays, once for every coolant and pass
+        call traceLineRays(grid, xP, yP, zP)
+#endif
         do iTpass = 1, pdrNtab + 1
            if (iTpass <= pdrNtab) then
               Tc = dble(pdrTabT(iTpass))
@@ -3644,41 +3803,29 @@ module pdr_mod
            ! switch in the Makefile.
            avBack = dble(grid%AVback(cellP))
 #ifdef RAYTHEIA
-           ! Per-ray slab geometry. HEALPix nside=1 is three rings: 4 rays at
-           ! mu = +2/3, 4 at mu = 0, 4 at mu = -2/3 along the slab normal.
-           ! Rays looking back at the illuminated face see A_V/|mu|; rays
-           ! looking inward see the remaining column A_Vback/mu; rays parallel
-           ! to an infinite slab never escape.
-           !
-           ! NOTE: this is the SLAB closed form. A genuinely 3D model needs
-           ! per-ray columns ray-traced through the grid, as 3D-PDR does in
-           ! columndensity.F90. Until that exists, a 3D run using this is
-           ! approximating every ray's column by the plane-parallel result.
-           ! D-190 read a ray-traced A_V here from computeRayColumns' colRayAV
-           ! when it was allocated. It was allocated only in the D-341 runs
-           ! (and there on the wrong rank for 93% of cells, D-348); D-348
-           ! removed the routine, so the closed form below is what every
-           ! other run has always used. The line-escape column along a 3D
-           ! ray is a separate question from the FUV angular model and is
-           ! not addressed by D-348.
+           ! D-377 (L-27): each of the twelve rays is the list of cells
+           ! traceLineRays found from this one to the edge of the model, and
+           ! each point carries THAT cell's level populations over the path
+           ! it has in that cell - 3D-PDR's own tau along a ray. It replaces
+           ! the slab closed form, which read HEALPix nside=1 as three rings
+           ! about the radial direction, gave the four mu = 0 rays an
+           ! infinite column (so beta <= 2/3 even for a thin line) and
+           ! carried this cell's own populations over the whole column. Other
+           ! cells' populations are last iteration's (pdrLevPop, on every
+           ! rank); this cell's are iterated below. Since D-363 the beta found
+           ! here is what MOCASSIN's own C, C+ and O atoms cool with.
+           maxPt = max(1, maxval(lrN))
+           if (allocated(evpopR)) deallocate(evpopR, plenR)
+           allocate(evpopR(0:nraysLoc-1, 0:maxPt, nlev), plenR(0:nraysLoc-1, 0:maxPt))
+           evpopR = 0.d0
+           plenR  = 0.d0
            do kray = 0, nraysLoc-1
-              if (kray < 4) then
-                 mu =  2.d0/3.d0
-              else if (kray < 8) then
-                 mu =  0.d0
-              else
-                 mu = -2.d0/3.d0
-              end if
-              if (mu > 1.d-6) then
-                 colA = avBack/mu
-              else if (mu < -1.d-6) then
-                 colA = av/abs(mu)
-              else
-                 colA = 1.d30
-              end if
-              jjr(kray)    = 1
-              plen(kray,0) = 0.d0
-              plen(kray,1) = min((colA/AVfacL)/nH/PC, 1.d30)
+              jjr(kray) = lrN(kray)
+              do ipt = 1, lrN(kray)
+                 plenR(kray,ipt) = lrLen(kray,ipt)/PC
+                 if (lrCell(kray,ipt) /= cellP) evpopR(kray,ipt,1:nlev) = &
+                      & grid%pdrLevPop(lrCell(kray,ipt), pdrLevOff(ik)+1 : pdrLevOff(ik)+nlev)
+              end do
            end do
 #else
            colA   = av
@@ -3688,22 +3835,52 @@ module pdr_mod
            evpt(1,6,1) = (colA/AVfacL)/nH/PC
 #endif
 
+           ! ---- D-377: the background at each line ----------------------
+           ! MOCASSIN's own mean intensity in the bin the line falls in (its
+           ! dust emission, and the bin-averaged share of whatever lines it
+           ! transports there), J_nu = Jste/(4 pi dnu); escape_probability
+           ! adds the CMB, which MOCASSIN does not transport. It replaces the
+           ! vendored grain emissivity 2e-12 n_H x metallicity at T_dust.
+           if (allocated(pdrEscBg)) then
+              if (.not.allocated(pdrTrBin)) call buildTrBins()
+              pdrEscBg = 0.d0
+              do il = 2, nlev
+                 do jl = 1, il-1
+                    ib = pdrTrBin(il, jl, ik)
+                    if (ib <= 0) cycle
+                    jBg = dble(grid%Jste(cellP, ib))
+                    if (lgDebug) jBg = jBg + dble(grid%Jdif(cellP, ib))
+                    pdrEscBg(il, jl) = jBg/(4.d0*dble(pi)*dble(widFlx(ib))*dble(fr1Ryd))
+                 end do
+              end do
+           end if
+
            do ilev = 1, max(pdrLevIter,1)
+#ifdef RAYTHEIA
+           ! D-377: this cell's own points take its current iterate
+           do kray = 0, nraysLoc-1
+              evpopR(kray,0,1:nlev) = lpop(1:nlev)
+              do ipt = 1, lrN(kray)
+                 if (lrCell(kray,ipt) == cellP) evpopR(kray,ipt,1:nlev) = lpop(1:nlev)
+              end do
+           end do
+#else
            evpop = 0.d0
            do kray = 0, nraysLoc-1
               evpop(kray,0,1:nlev) = lpop(1:nlev)
               evpop(kray,1,1:nlev) = lpop(1:nlev)
            end do
+#endif
 
            trans(1:nlev,1:nlev) = 0.d0
 #ifdef RAYTHEIA
            call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
                 & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &
                 & Ccoef(1:nlev,1:nlev), pdrCoolant2(ik)%frequencies, &
-                & evpop(0:nraysLoc-1,0:1,1:nlev), 1, Tc, dble(pdrVturb)*1.d5, jjr, &
+                & evpopR, maxPt, Tc, dble(pdrVturb)*1.d5, jjr, &
                 & lpop(1:nlev), pdrCoolant2(ik)%weights, coolK, &
                 & lline(1:nlev,1:nlev), nH, pdrMetalMod, &
-                & pdrCoolant2(ik)%molweight, plen)
+                & pdrCoolant2(ik)%molweight, plenR)
 #else
            call escape_probability(trans(1:nlev,1:nlev), Td, nraysLoc, nlev, &
                 & pdrCoolant2(ik)%A_COEFFS, pdrCoolant2(ik)%B_COEFFS, &

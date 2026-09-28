@@ -25,6 +25,7 @@ use maincode_module, only: Tcmb, nside, pdr
 use m_Mesh
 use m_Ray_box
 use global_module, only: escape_beta   ! MOCASSIN-PDR D-363
+use global_module, only: escape_bg     ! MOCASSIN-PDR D-377
 
 implicit none
 
@@ -92,11 +93,17 @@ if (allocated(escape_beta)) escape_beta = 1.0D0
          TMP2=2.0D0*HP*(FREQUENCIES(ilevel,jlevel)**3)/(C**2)
 
          BB_ij = TMP2*(1.0D0/(EXP(HP*frequencies(ilevel,jlevel)/KB/Tcmb)-1.0D0))
+         if (allocated(escape_bg)) then
+            ! MOCASSIN-PDR D-377: the host's own field at the line, which
+            ! carries its dust emission, in place of the fixed emissivity below
+            BB_ij = BB_ij + escape_bg(ilevel,jlevel)
+         else
          NGRAIN=2.0D-12*density*metallicity!densityofgas depth depented
          rho_grain=2.0D0
          EMISSIVITY=(RHO_GRAIN*NGRAIN)*(0.01*(1.3*FREQUENCIES(ilevel,jlevel)/3.0D11))
          BB_ij_dust = TMP2*(1.0D0/(EXP(HP*frequencies(ilevel,jlevel)/KB/DUST_TEMPERATURE)-1.D0)*EMISSIVITY)
          BB_ij = BB_ij + BB_ij_dust
+         endif
          if (s_pop(ilevel).eq.0) then
             S_ij=0.0D0
             beta_ij=1.0D0

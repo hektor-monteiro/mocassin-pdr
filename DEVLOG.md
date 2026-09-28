@@ -376,6 +376,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-374 | **CLAUDE.md's memory figure corrected at the user's request: ~0.47 GB + 38 kB per active cell per rank (D-370), ~46k active cells at 14 ranks (~44^3 octant sphere), ~104k at 7, ~260k at 3, replacing "~234 MB + 10.5 kB/cell; ~58^3 is the ceiling".** The memory note carries the same table. The D-365/D-368 fine runs peaked at 34.8 and 34.5 GB and survived; the ~31 GB budget stays as the note's, a safety margin rather than a measured limit. | Done | 2026-09-27 |
 | D-375 | **The user asked why Lya is not transferred as the other resonance lines are. MOCASSIN's resonance-line treatment (`resLinesTransfer`, off by default, never run in this project) is not a transfer but an escape-probability destruction scheme, and it is D-372's option (a) - with three defects to fix before it can run on this branch.** For the six lines in `resLines.dat` (H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2800, Si IV 1397), `setResLineEscapeProb` takes the line-centre optical depth from the cell to the grid edge along 125 directions and the dust/line opacity ratio (Harrington, Cohen & Hess 1984, eqns A1/A5); `resLineHeating` gives the absorbed fraction (1 - f_esc) to the cell's grains in the dust temperature solve (Harrington, Monk & Clegg 1988 sect. 3.2); `initResLinePackets` adds that energy as extra packets from the cell. By default the five heavy-element lines are carried like every other line since D-307, optically thin at their own wavelength, and Lya at 8.15 um (D-372). **Defects:** (1) with line transport on, the lines are also in `linePDF` at full strength (Lya through the (15,8) slot), so the absorbed fraction would be emitted twice; (2) the extra packets are launched as `"diffuse"`, which since D-233 samples the gas's emission only, so dust-absorbed line energy would come out as gas lines and recombination continuum, ionizing photons included, instead of as `"dustEmi"`; (3) `resLinesTransfer` is a run-time switch selecting physics, which D-352 removed everywhere else. Proposed: all six lines by this scheme, as the default, with the absorbed fraction taken out of `linePDF` and re-emitted as dust emission, the escaping fraction sent to the emergent spectrum, and Lya out of the (15,8) slot; a seeded pair on each fixture. | Done (D-376) | 2026-09-27 |
 | D-376 | **The six resonance lines of `resLines.dat` (Lya among them) are destroyed by the local dust with their escape probability in every dust+gas run, and Lya has its own `linePDF` slot at 1216 A (closes L-42, D-375's proposal).** A packet drawn on a resonance line is destroyed with probability 1 - f_esc (Harrington, Cohen & Hess 1984, computed every iteration) and leaves as the cell's dust emission; the grains absorb it through `resLineHeating`, now always on; the escaping fraction is traced thin at the line's frequency (D-375 had proposed sending it straight to the SED - corrected: f_esc is escape from resonant trapping). Upstream's extra-packet relaunch (as gas emission, on top of full-strength lines) is removed; `resLinesTransfer` is retired; escape fractions are checkpointed (`resLineEsc.out`) so `mocassinOutput` reproduces a run byte for byte. **Seeded pairs:** the 8.3 um line is gone and its energy is in the 15-1000 um continuum to 1.00 (hiipdr) / 1.03 (pn150k); total luminosity unchanged. Ionized-zone T_dust now matches Cloudy: hiipdr 0.965 -> 0.996 at A_V 0.30, pn150k 0.94/0.81 -> 1.01/0.98 at A_V 0.05/0.10 (L-19's ionized deficit); PDR grains 0.5-2% cooler; pn150k's PDR FUV -7..-9% (C IV 1549 two-thirds destroyed); fronts, Hbeta, H/H2 crossing, C+ = C, PDR T_gas and every line unchanged within 1%. Dust budget: Lya 0.076 / 0.30 of grain heating, matching its share of the dust IR (0.078 / 0.26). L-19 re-measured: the 0.01-0.44 Ryd excess was the 8 um Lya (0.508 -> 0.346, Cloudy 0.362) but the 1.2-1.3x bolometric excess stays, now in the far-IR. Dust-free Lexington: Lya leaves at 1216 A, everything else within seed scatter. | Done | 2026-09-27 |
+| D-377 | **L-27 closed (D-370 step 2): line escape along the real 3D rays.** `traceLineRays` walks the twelve HEALPix directions of D-348's walk (fixed frame, finest-spacing steps, mirror folding) and each ray's evaluation points are the cells it crosses, each with its own level populations (`pdrLevPop`), so `escape_probability` sums 3D-PDR's tau along a ray; the slab closed form (mu = 0 rays infinite, beta <= 2/3; the cell's own populations over the whole column) is gone. The background is MOCASSIN's own J_nu at the line plus the CMB (new hook `escape_bg`), replacing the vendored grain emissivity. **Seeded pairs:** thin lines 0.667 -> 1.000; [C II] escape from the PDR up 14-120%; from the ionized gas down on hiipdr's thick shell (0.66 -> 0.50), up on pn150k's thin one (0.67 -> 0.77). PDR T_gas 3-5% (hiipdr) and 4-6% (pn150k) colder - x/beta is not small at beta 0.1-0.5; hiipdr [C II] x0.91 (1.29 -> 1.17x Cloudy), pn150k [C II] and [O I] within 1%, pn150k [C I] 609 x1.40, high-J CO down to x0.64; fronts, Hbeta, H/H2 crossing (+0.2/+0.8%), C+ = C, T_dust and the ionized lines unchanged; cost none. Five of the predictions miss, recorded. | Done | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32177,3 +32178,179 @@ flavours.
 ### Status
 
 Done. L-42 closed; L-19 re-measured.
+
+---
+
+## D-377 - Line escape along the real 3D rays (L-27; D-370 step 2) (2026-09-28)
+
+The user: "proceed to step 2".
+
+### What changed
+
+  - **The rays.** `traceLineRays` (new, `pdr_mod`) walks the twelve HEALPix
+    nside=1 directions from the cell. It uses the same fixed grid-frame set,
+    the same stepping at the finest axis spacing, and the same mirror
+    folding at the lower faces of a symmetricXYZ octant as D-348's
+    `traceDiffuseSites`. Each ray becomes a run-length list of (cell, path
+    length) to the upper faces. Inactive cells, beyond Rout or in an inner
+    cavity, add nothing, and the ray runs on through them. The walk is done
+    once per cell in pdrStep, before the coolant loop.
+  - **The optical depth.** In the 3D flavour each ray's evaluation points are
+    those cells. Each point carries that cell's level populations
+    (`pdrLevPop`, last iteration's, on every rank) over its path. This cell's
+    own points take its current iterate inside the level iteration.
+    `escape_probability` already accepts several points per ray
+    (`maxpoints`, `s_jjr`, `length`), so it sums tau per ray unchanged: this
+    is 3D-PDR's tau along a ray.
+  - **What goes.** The slab closed form is removed. It read HEALPix nside=1
+    as three rings about the radial direction; it gave the four mu = 0 rays
+    an infinite column, capping beta at 2/3 for a thin line; and it carried
+    this cell's populations over the whole column, to the edge or to the
+    star. Since D-363 that beta is what MOCASSIN's own C, C+ and O atoms
+    cool the gas and report their lines with.
+  - **The background.** `escape_bg` (new vendored hook, `modules.F90` and
+    `escape_probability.F90`, recorded in `UPSTREAM.md`) replaces the
+    vendored grain emissivity (`NGRAIN = 2e-12 n_H x metallicity` at the
+    chemistry's T_dust, a diffuse-ISM constant) with MOCASSIN's own mean
+    intensity in the bin the line falls in, J_nu = Jste/(4 pi dnu).
+    - The CMB is still added analytically, since MOCASSIN does not transport
+      it.
+    - Each transition's bin is tabulated once (`buildTrBins`), by the rule
+      MOCASSIN places its own line packets with.
+    - The bin average includes the bin's share of the thin lines MOCASSIN
+      transports there, a small pumping term at these wavelengths.
+    - It applies in both PDR flavours. The 1D slab fixtures (L-11) have not
+      been re-run.
+
+### The runs
+
+Pairs at the same seed, rank count and iteration count. The base is
+a29d616 (D-376):
+  - hiipdr `runs/d377-hii` against `runs/d376-hii`: 31^3, 4 ranks, 11
+    iterations, 42:10 against 42:50.
+  - pn150k `runs/d377-pn` against `runs/d376-pn-new`: 41^3, 5 ranks, 9
+    iterations, 48:07 against 62:47. The base shared the machine with two
+    other runs.
+
+A 15^3 smoke pair (`runs/d377-smoke`, 6 iterations) came first. The
+predictions (`scratchpad/d377_pred.md`) were written after it and before
+these. Tools: `tools/d377_escape.py` (new: median beta per zone from
+`pdrLineEm.out`), `tools/d285_kpis*.py`.
+
+### Median escape probability
+
+x(H+) > 0.5 ("ion.") and the PDR by A_V band; base -> new:
+
+    hiipdr        ion.          A_V 0.5-1    1-1.5        1.5-2        2-2.5        2.5-3.5
+    [C II] 158    0.659->0.498  0.139->0.159 0.110->0.178 0.109->0.239 0.396->0.439 0.435->0.621
+    [O I] 63      0.666->0.338  0.114->0.106 0.093->0.114 0.095->0.135 0.128->0.184 0.228->0.326
+    [C I] 609     1.000->0.592  0.666->0.229 0.664->0.209 0.635->0.187 0.107->0.154 0.158->0.223
+    CO 1-0        0.667->0.974  0.667->0.933 ...                                    0.540->0.887
+    [O I] 145     1.000->1.000  0.667->1.000 everywhere
+
+    pn150k        ion.          A_V .15-.25  .25-.35      .35-.45      .45-.55      .55-.80
+    [C II] 158    0.666->0.766  0.379->0.369 0.283->0.351 0.270->0.370 0.288->0.422 0.347->0.538
+    [O I] 63      0.666->0.605  0.206->0.234 0.186->0.242 0.191->0.273 0.225->0.333 0.307->0.465
+    [C I] 609     1.000->0.998  0.667->0.993 ... 0.657->0.989
+    CO 1-0, 3-2, [O I] 145: 0.667 -> 1.000
+
+  - **Thin lines lose the 2/3 cap everywhere.**
+  - **Out of the PDR, escape rises.** The four rays that never escaped now
+    leave through a finite chord.
+  - **From the ionized gas it depends on the PDR the rays cross.** On
+    hiipdr the thick shell (A_V 3) lowers it: [C II] 0.66 -> 0.50, [O I]
+    0.67 -> 0.34, [C I] 1.0 -> 0.59. On pn150k's thin shell (A_V < 0.8),
+    [C II] rises, 0.67 -> 0.77.
+  - **[C I] depends on where the carbon is along the rays.** In hiipdr's
+    shallow PDR it falls, 0.66 -> 0.21, because the rays now meet the deep
+    neutral carbon that the cell's own tiny column never had. In pn150k,
+    whose carbon is C+ throughout, it rises to 0.99.
+
+### What moved
+
+**hiipdr:**
+  - Lines, as luminosities new/base:
+    - [C II] 158 x0.907;
+    - [O I] 63 x1.001, 145 x1.011;
+    - [C I] 609 x1.038, 370 x0.922;
+    - C II] 2325 x0.976;
+    - [O I] 6300, [O III], [N II] and Hbeta within 0.1%;
+    - CO 2-1/3-2/5-4/7-6 x0.985/0.928/0.820/0.712.
+  - PDR T_gas 3-5% colder: 48.3 -> 46.8 K at A_V 1.0, 34.7 -> 33.5 at
+    1.5, 12.5 -> 11.9 at 2.5, 10.9 -> 10.5 at 2.9.
+  - H/H2 crossing 1.443 -> 1.446, C+ = C 2.274 -> 2.272; front and T_dust
+    unchanged.
+
+**pn150k:**
+  - Lines, as luminosities new/base:
+    - [C II] 158 x1.005;
+    - [O I] 63 x1.007, 145 x1.007;
+    - [C I] 609 x1.40, 370 x1.15;
+    - C II] 2325 x0.995; the ionized-gas lines within 0.01%;
+    - CO 2-1/3-2/5-4/7-6 x1.162/0.950/0.749/0.642.
+  - PDR T_gas 4-6% colder: 48.4 -> 45.7 K at A_V 0.3, 31.3 -> 29.7 at
+    0.5, 25.5 -> 24.5 at 0.65.
+  - H/H2 crossing 0.399 -> 0.402; the H+ and He2+ fronts, Hbeta and T_dust
+    unchanged.
+
+**Why the PDRs cool although n_H is only 1e2-1e3.**
+  - The atoms' escape probability in the PDR is 0.1-0.5, so x/beta =
+    (n/n_crit)/beta is not small: 0.03/0.11 on hiipdr for [C II].
+  - Raising beta raises the collisionally de-excited lines' emission per
+    cell. The two-level form gives +11% for [C II] at 0.11 -> 0.18.
+  - The heating does not change, so T falls until the cooling matches it
+    again.
+  - hiipdr's total [C II] still falls 9%. Its PDR part is pinned to the
+    heating, and the loss is in the ionized gas and the front, where every
+    ray now crosses the shell and beta fell to 0.50, well above n_crit(e).
+
+**Against Cloudy**, in each code's Hbeta:
+  - hiipdr [C II] 158 is 0.157 against 0.134 (1.29x -> 1.17x).
+  - pn150k [C II] is 0.191 against 0.311 (0.61x, unchanged).
+  - Both PDRs move further below Cloudy's T_gas: hiipdr 33.5 against 43.5
+    at A_V 1.5; pn150k 45.7 against 68.6 at 0.3.
+  - These are divergences to report. L-22's grain charging and L-19's FUV
+    share remain the candidates.
+
+**Round trip:** `mocassinOutput` on `runs/d377-pn` reproduces `lineFlux.out`
+and `lineFluxMol.out` byte for byte.
+
+### Predictions, scored
+
+  - P1 holds: thin transitions 0.667 -> 1.000.
+  - P2 holds for the PDR rise on both fixtures, except pn150k's shallowest
+    band (-3%), and for hiipdr's ionized fall (0.50, inside 0.45-0.6). It
+    fails for pn150k's ionized gas, which rose (thin shell).
+  - P3 fails narrowly on hiipdr (-9.3% against -8..+2%) and holds on pn150k
+    (+0.5%).
+  - P4 holds.
+  - P5 fails on pn150k ([C I] 609 +40% against -20..0%: its carbon is thin,
+    not abundant along the rays) and holds on hiipdr (+3.8%).
+  - P6 fails on hiipdr (-3..-5% against +-2%) and holds on pn150k (-4..-6%).
+  - P7 holds for low-J CO and fails for J >= 6 on pn150k (-30..-36%).
+  - P8 and P9 hold.
+
+### Builds
+
+`PDR=1 PDRGEOM=3D mocassin`, `PDR=1 mocassin`, `mocassin` and `PDR=1
+mocassinWarm` all build. So do `mocassinOutput` in both flavours and
+`mocassinPlot`. The rebuilt default binary is byte-identical to the one the
+runs used.
+
+### Not done, not known
+
+  - The chemistry's first PDR iteration sees other cells' populations as
+    zero, because none has been solved yet. That iteration's rays therefore
+    under-count tau. The effect is gone by the next iteration, and it is not
+    measured.
+  - The rays are the twelve fixed-frame HEALPix directions, as the FUV sites
+    are. How much a 48-ray set would move beta is not measured.
+  - MOCASSIN's own atoms still take beta without a background term (D-363);
+    the chemistry's solve has one.
+  - Line widths are thermal plus pdrVturb at the target cell, with no
+    velocity field (static escape).
+  - Why the PDRs sit further below Cloudy's T_gas now.
+
+### Status
+
+Done. L-27 closed.

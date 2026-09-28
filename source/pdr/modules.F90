@@ -413,6 +413,12 @@ module global_module
 ! it. Filled only if the host allocates it; upstream never reads it.
  REAL(kind=dp), allocatable :: escape_beta(:,:)
 
+! D-377: the host's mean intensity at each transition (upper, lower) of the
+! coolant about to be solved [erg/s/cm^2/Hz/sr], used with the CMB as the
+! background in place of the diffuse-ISM grain emissivity. Read only if the
+! host allocates it.
+ REAL(kind=dp), allocatable :: escape_bg(:,:)
+
  real(kind=dp),allocatable :: allheating(:) 
  
 end module global_module

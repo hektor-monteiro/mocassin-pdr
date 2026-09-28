@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-376, 2026-09-27. Reference model throughout: the 150 kK PN,
+Status as of D-377, 2026-09-28. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -363,6 +363,15 @@ is in the thermal balance and in `lineFlux.out` alike. Taking beta from 2/3 to
 emissivity (`NGRAIN = 2e-12 n_H`), a constant standing in for MOCASSIN's own
 dust field; it reaches CO only. **Next after L-41** (D-370): per-ray columns
 along the twelve D-348 directions, with each traversed cell's populations.
+**CLOSED 2026-09-28 (D-377).** Each of the twelve rays is traced through the
+grid (mirror folding included), and each point carries its own cell's level
+populations. The background is MOCASSIN's own J_nu at the line plus the CMB.
+Thin lines now escape with beta 1, and [C II] escapes the PDR 14-120% more
+easily; from hiipdr's ionized gas, whose rays all cross the A_V 3 shell, it
+escapes less (0.66 -> 0.50). The PDRs are 3-6% colder, because x/beta is not
+small at beta 0.1-0.5. hiipdr's [C II] is x0.91 (1.17x Cloudy, was 1.29x);
+pn150k's [C II] and [O I] move <1%, its [C I] 609 x1.40. Fronts, Hbeta, the
+H/H2 crossing and the ionized-gas lines are unchanged.
 
 **L-28. Two realities for the PDR lines** (D-351). In PDR cells
 `lineFlux.out` reports [C II], [O I] and [C I] from MOCASSIN's electron-only
