@@ -379,6 +379,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-377 | **L-27 closed (D-370 step 2): line escape along the real 3D rays.** `traceLineRays` walks the twelve HEALPix directions of D-348's walk (fixed frame, finest-spacing steps, mirror folding) and each ray's evaluation points are the cells it crosses, each with its own level populations (`pdrLevPop`), so `escape_probability` sums 3D-PDR's tau along a ray; the slab closed form (mu = 0 rays infinite, beta <= 2/3; the cell's own populations over the whole column) is gone. The background is MOCASSIN's own J_nu at the line plus the CMB (new hook `escape_bg`), replacing the vendored grain emissivity. **Seeded pairs:** thin lines 0.667 -> 1.000; [C II] escape from the PDR up 14-120%; from the ionized gas down on hiipdr's thick shell (0.66 -> 0.50), up on pn150k's thin one (0.67 -> 0.77). PDR T_gas 3-5% (hiipdr) and 4-6% (pn150k) colder - x/beta is not small at beta 0.1-0.5; hiipdr [C II] x0.91 (1.29 -> 1.17x Cloudy), pn150k [C II] and [O I] within 1%, pn150k [C I] 609 x1.40, high-J CO down to x0.64; fronts, Hbeta, H/H2 crossing (+0.2/+0.8%), C+ = C, T_dust and the ionized lines unchanged; cost none. Five of the predictions miss, recorded. | Done | 2026-09-28 |
 | D-378 | **Both Cloudy artifacts rebuilt on the current code, from D-377's paired runs: 'hiipdr Against Cloudy' v18 (`runs/d377-hii`) and '150 kK PN Against Cloudy' v16 (`runs/d377-pn`).** New figures, selected-depth, ionized-gas and line tables, headline numbers and 'Reading it' bullets, and on each page a section on the three corrections since the last version (D-371 Hbeta, D-376 resonance lines and Lya, D-377 line escape) with a before/now/Cloudy table. **A published number corrected:** the pn150k page's Cloudy Hbeta, 2.48e34 since D-359, came from the first of two iteration blocks in Cloudy's `150k.lines` save file (19.75 per unit inner area); the final printed intrinsic value is 2.78e34, which Cloudy's own zones reproduce to 2% (D-371) - Hbeta now agrees to 1.9% (was reported 6% apart with both numbers wrong). The historical 'now' columns of the previous versions' sections are relabelled as version 17 / 15. | Done | 2026-09-28 |
 | D-379 | **The user asked whether a correction factor for lines from cells that straddle the ionization front ([O I] 6300) could be estimated from the packet transfer and applied (evaluation only, no code). Not as a factor: the transfer gives the spectrum arriving at the front, not the thickness, which needs a sub-cell solve of ionization and temperature; a factor on the reported line alone breaks D-362's rule (the lines are the ones the balance cools by) and the cell's energy budget, and selecting front cells is a zone gate. A gate-free sub-cell front model is possible and cheap in compute, but it is a design change of the size of the nested sub-grids ruled out at D-081. Measured on Cloudy's zones: the layer that emits 10-90% of [O I] 6300 is 0.18 pc on hiipdr (not L-37's ~0.01 pc; median at x(H+) 0.91, ~9900 K) and 0.014 pc on pn150k, 5.5e19 and 4.3e19 cm^-2 of H - alike, so D-368's "the harder star makes a zone the grid resolves" is not what separates them: it is the column per cell, 2.0e20 against 4.7e19 cm^-2 (0.27 and 0.91 layers per cell).** d377-hii: 90% of [O I] 6300 (0.067 Hbeta, 6.4x Cloudy) from 67 cells with x(H+) 0.01-0.95 at ~8500 K and 912 A optical depth 600-1100 per cell; d377-pn: 97% from 392 such cells (1.38x Cloudy). One layer per cell on hiipdr needs ~110^3 (0.7M active cells, one rank). A per-line resolution diagnostic is cheap and changes no physics | Open | 2026-09-28 |
+| D-380 | **The user's refinement of D-379 - use the cell's n_e, T_e and the arriving field to estimate, per frequency bin, the fraction of the cell that is the front, and correct the emitted lines - evaluated (no code). The inputs are the right ones, but the fraction cannot be read per bin from the cell's own state: with the cell's opacity (tau(912 A) 600-1100) the photon-weighted reach of a 40 kK spectrum is 0.3-0.5% of the cell, against Cloudy's 6300 layer of ~25%, and with ionized-gas x(H0) it is the whole cell. Which x(H0) holds inside the cell is the unknown, so the fractions must come out of one integration of x(z) through the cell, all bins attenuating together. n_e is an output of that profile, not an input: 6300-weighted, the front cells have n_e/n_H 0.50, O0/O 0.53, T 8330 K against the layer's 0.81, 0.23, 9500 K, and their emissivity per volume is 1.47x the layer's.** With the integration, the D-379 conditions (cooling and lines from the same numbers, every line, every cell, cell mean x = profile mean) make it a sub-cell model at one T per cell. Its limit is the neutral part of the cell, which shares the warm T. Proposed first stage: a diagnostic that saves the per-bin field of the front cells and predicts the correction offline, tested by whether it makes 31^3 and 61^3 agree | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32609,3 +32610,104 @@ make it automatic.
 
 Open: evaluation delivered, nothing implemented. L-37's text is corrected in
 `doc/pdr-status.md`.
+
+---
+
+## D-380 - The front fraction per frequency bin from the cell's n_e, T_e and field (2026-09-28)
+
+The user, after D-379: "could we use the cell Ne, Te and the radiation field
+that arrives there to estimate the fraction of the cell which is the front
+in each frequency bin and coorect emited lines?" Evaluation only, as in
+D-379. One more read-only scratchpad script, `d380_cond.py` (hiipdr,
+`runs/d377-hii` against `runs/d356-cloudy-hii`).
+
+### The per-bin fraction from the cell's own state
+
+The fraction of the cell a bin reaches is ~min(1, 1/tau_nu), with tau_nu
+the cell's own optical depth. At the Lyman edge the front cells have tau
+594 (x(H+) 0.3-0.95) and 1140 (0.01-0.3). For a 40 kK blackbody, with H
+only and sigma ~ nu^-3, the photon-weighted reach is:
+
+    tau(912 A)   at 13.6 eV   at 25 eV   photon-weighted
+    594          0.17%        1.0%       0.53%
+    1140         0.09%        0.54%      0.28%
+
+Cloudy's 6300 layer is 0.27 of a cell (D-379). He absorption above 24.6 eV
+would shorten the reach further, and the hardening in the H II region would
+lengthen it; neither changes the order of magnitude. With the x(H0) of the
+ionized gas (~1e-3) instead of the cell's 0.5, the reach is the whole cell.
+
+**So the fraction depends entirely on which x(H0) is assumed inside the
+cell, and that is the unknown.** The layer is where x(H0) rises from ~0.01
+to ~0.5, fed by photons already hardened. Its width is set by the profile
+itself. The per-bin fractions have to be the outcome of one integration of
+x(z) through the cell, with all bins attenuated together by the same x(z).
+They cannot be separate estimates per bin. The integration is cheap: the
+inputs are the arriving spectrum per bin, n_H, and alpha(T_e) at the
+cell's T.
+
+### The cell's n_e and T_e are not the layer's
+
+The 6300-weighted conditions:
+
+                        MOCASSIN front cells   Cloudy's 6300 layer
+    x(H+)               0.497                  0.799
+    n_e / n_H           0.501                  0.814
+    O0 / O              0.532                  0.225
+    T                   8328 K (6640-9320)     9496 K
+    n_e (O0/O) q(T)     1.59e-4                1.08e-4
+
+(q = T^-1/2 exp(-22830/T), per unit n_H^2 and O/H.) At the cell's
+conditions the emissivity per volume is 1.47x the layer's. The factors
+partly cancel for 6300: n_e is 0.62x the layer's and O0/O 2.4x. They do
+not cancel for [O I] 63 (E/k 228 K, so no T factor, and O0 2.4x), nor for
+the ionized-side lines. n_e is therefore an output of the profile, not an
+input. T_e is the cell's balance, and would move once the cooling uses the
+profile.
+
+### What the idea becomes when it is allowed
+
+Under D-379's conditions it is a sub-cell ionization model at one T per
+cell:
+  - the same sub-zone integrals for the lines and the cooling;
+  - every line and coolant;
+  - every cell, reducing to the homogeneous cell when thin;
+  - the cell's x(H+), which the transfer and the chemistry read, equal to
+    the profile mean.
+
+The other elements need their profiles too. O0 follows H0 through charge
+exchange (D-263, local), but the N, S and C stages need MOCASSIN's
+`ionBalance` per sub-zone, with the attenuated field.
+
+**Its limit is the neutral part of the cell.** In a cell with x(H+) ~0.5,
+most of the volume is neutral. At one T, that gas radiates [O I] 63 and
+[C II] 158 by H0 collisions at thousands of K, while its heating is
+deposited in the warm part. That drags the cell's T down, and 6300 with it.
+The real neutral gas is at PDR temperatures. How far the single-T model
+errs is not known. A T per sub-zone removes the limit, but that is D-379's
+full model, with its ownership question.
+
+### A first stage that changes no physics
+
+  - Save the per-bin field (`Jste`) and opacity of the cells that are thick
+    at 912 A. This is a small output addition; the field is not in any
+    output now, and `mocassinOutput` cannot regenerate it.
+  - Integrate the H and O profile offline at the cell's T, and predict each
+    front cell's 6300 and 63 um.
+  - The test that does not use Cloudy: the prediction should make the 31^3
+    and 61^3 hiipdr totals agree, where today they differ by 1.45x (6300)
+    and 1.73x (63). Cloudy comes after.
+
+That tells us whether the sub-cell physics is right before it touches the
+thermal balance. It needs a re-run, or one resumed iteration, of each grid.
+
+### Not known
+
+  - What the single-T profile gives; whether its neutral-part error is
+    small for 6300.
+  - The arriving spectrum's hardness in MOCASSIN's front cells, since the
+    field is not saved.
+
+### Status
+
+Open, awaiting the user's decision. Nothing implemented.
