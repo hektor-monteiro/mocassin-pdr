@@ -377,6 +377,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-375 | **The user asked why Lya is not transferred as the other resonance lines are. MOCASSIN's resonance-line treatment (`resLinesTransfer`, off by default, never run in this project) is not a transfer but an escape-probability destruction scheme, and it is D-372's option (a) - with three defects to fix before it can run on this branch.** For the six lines in `resLines.dat` (H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2800, Si IV 1397), `setResLineEscapeProb` takes the line-centre optical depth from the cell to the grid edge along 125 directions and the dust/line opacity ratio (Harrington, Cohen & Hess 1984, eqns A1/A5); `resLineHeating` gives the absorbed fraction (1 - f_esc) to the cell's grains in the dust temperature solve (Harrington, Monk & Clegg 1988 sect. 3.2); `initResLinePackets` adds that energy as extra packets from the cell. By default the five heavy-element lines are carried like every other line since D-307, optically thin at their own wavelength, and Lya at 8.15 um (D-372). **Defects:** (1) with line transport on, the lines are also in `linePDF` at full strength (Lya through the (15,8) slot), so the absorbed fraction would be emitted twice; (2) the extra packets are launched as `"diffuse"`, which since D-233 samples the gas's emission only, so dust-absorbed line energy would come out as gas lines and recombination continuum, ionizing photons included, instead of as `"dustEmi"`; (3) `resLinesTransfer` is a run-time switch selecting physics, which D-352 removed everywhere else. Proposed: all six lines by this scheme, as the default, with the absorbed fraction taken out of `linePDF` and re-emitted as dust emission, the escaping fraction sent to the emergent spectrum, and Lya out of the (15,8) slot; a seeded pair on each fixture. | Done (D-376) | 2026-09-27 |
 | D-376 | **The six resonance lines of `resLines.dat` (Lya among them) are destroyed by the local dust with their escape probability in every dust+gas run, and Lya has its own `linePDF` slot at 1216 A (closes L-42, D-375's proposal).** A packet drawn on a resonance line is destroyed with probability 1 - f_esc (Harrington, Cohen & Hess 1984, computed every iteration) and leaves as the cell's dust emission; the grains absorb it through `resLineHeating`, now always on; the escaping fraction is traced thin at the line's frequency (D-375 had proposed sending it straight to the SED - corrected: f_esc is escape from resonant trapping). Upstream's extra-packet relaunch (as gas emission, on top of full-strength lines) is removed; `resLinesTransfer` is retired; escape fractions are checkpointed (`resLineEsc.out`) so `mocassinOutput` reproduces a run byte for byte. **Seeded pairs:** the 8.3 um line is gone and its energy is in the 15-1000 um continuum to 1.00 (hiipdr) / 1.03 (pn150k); total luminosity unchanged. Ionized-zone T_dust now matches Cloudy: hiipdr 0.965 -> 0.996 at A_V 0.30, pn150k 0.94/0.81 -> 1.01/0.98 at A_V 0.05/0.10 (L-19's ionized deficit); PDR grains 0.5-2% cooler; pn150k's PDR FUV -7..-9% (C IV 1549 two-thirds destroyed); fronts, Hbeta, H/H2 crossing, C+ = C, PDR T_gas and every line unchanged within 1%. Dust budget: Lya 0.076 / 0.30 of grain heating, matching its share of the dust IR (0.078 / 0.26). L-19 re-measured: the 0.01-0.44 Ryd excess was the 8 um Lya (0.508 -> 0.346, Cloudy 0.362) but the 1.2-1.3x bolometric excess stays, now in the far-IR. Dust-free Lexington: Lya leaves at 1216 A, everything else within seed scatter. | Done | 2026-09-27 |
 | D-377 | **L-27 closed (D-370 step 2): line escape along the real 3D rays.** `traceLineRays` walks the twelve HEALPix directions of D-348's walk (fixed frame, finest-spacing steps, mirror folding) and each ray's evaluation points are the cells it crosses, each with its own level populations (`pdrLevPop`), so `escape_probability` sums 3D-PDR's tau along a ray; the slab closed form (mu = 0 rays infinite, beta <= 2/3; the cell's own populations over the whole column) is gone. The background is MOCASSIN's own J_nu at the line plus the CMB (new hook `escape_bg`), replacing the vendored grain emissivity. **Seeded pairs:** thin lines 0.667 -> 1.000; [C II] escape from the PDR up 14-120%; from the ionized gas down on hiipdr's thick shell (0.66 -> 0.50), up on pn150k's thin one (0.67 -> 0.77). PDR T_gas 3-5% (hiipdr) and 4-6% (pn150k) colder - x/beta is not small at beta 0.1-0.5; hiipdr [C II] x0.91 (1.29 -> 1.17x Cloudy), pn150k [C II] and [O I] within 1%, pn150k [C I] 609 x1.40, high-J CO down to x0.64; fronts, Hbeta, H/H2 crossing (+0.2/+0.8%), C+ = C, T_dust and the ionized lines unchanged; cost none. Five of the predictions miss, recorded. | Done | 2026-09-28 |
+| D-378 | **Both Cloudy artifacts rebuilt on the current code, from D-377's paired runs: 'hiipdr Against Cloudy' v18 (`runs/d377-hii`) and '150 kK PN Against Cloudy' v16 (`runs/d377-pn`).** New figures, selected-depth, ionized-gas and line tables, headline numbers and 'Reading it' bullets, and on each page a section on the three corrections since the last version (D-371 Hbeta, D-376 resonance lines and Lya, D-377 line escape) with a before/now/Cloudy table. **A published number corrected:** the pn150k page's Cloudy Hbeta, 2.48e34 since D-359, came from the first of two iteration blocks in Cloudy's `150k.lines` save file (19.75 per unit inner area); the final printed intrinsic value is 2.78e34, which Cloudy's own zones reproduce to 2% (D-371) - Hbeta now agrees to 1.9% (was reported 6% apart with both numbers wrong). The historical 'now' columns of the previous versions' sections are relabelled as version 17 / 15. | Done | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -32354,3 +32355,84 @@ runs used.
 ### Status
 
 Done. L-27 closed.
+
+---
+
+## D-378 - Both Cloudy artifacts rebuilt on the D-377 code (2026-09-28)
+
+The user: "update the hiipdr and pn150k cloudy comparison artifacts".
+
+### What was rebuilt, from what
+
+  - **hiipdr Against Cloudy v18.**
+    - URL: https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx.
+    - Built from `runs/d377-hii`: 31^3, 11 iterations, seed 1001, 4 ranks,
+      76.0%.
+    - Cloudy: `runs/d277-cloudy` for the figures, `runs/d322-cloudy-hb` for
+      the heating check.
+  - **150 kK PN Against Cloudy v16.**
+    - URL: https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV.
+    - Built from `runs/d377-pn`: 41^3, 9 iterations, seed 1001, 5 ranks,
+      92.2%.
+    - Cloudy: `runs/d302-cloudy-trim-rad`.
+  - These are D-377's seeded pairs. They carry D-371, D-376 and D-377 and
+    were run on the committed binary, so no new run was made.
+  - Figures: `tools/d260_roellig.py --cloudy`, no flags.
+  - Numbers:
+    - `tools/d285_kpis*.py` (`scratchpad/kpi_d377{h,p}.txt`);
+    - `tools/d326_check.py` against the previous version's runs
+      (`scratchpad/check_d377{h,p}.txt`);
+    - `scratchpad/d378_lines.py` for the line tables;
+    - `tools/d376_resonance.py` for the 8 um bin (v17's `runs/d363-hii`
+      5.57% of the SED, v15's `runs/d363-pn` 18.76%; now <0.01% and 0.03%).
+  - Builders: `scratchpad/build_hii18.py` and `build_pn16.py`. They patch the
+    published v17/v15, which match the local files byte for byte, with
+    asserted exact replacements.
+
+### What changed on the pages
+
+  - **The new section on each page** is "Three corrections: Hbeta, Lya, and
+    how the lines escape", with a version 17/15 / now / Cloudy table:
+    Hbeta, the 8 um share, ionized and PDR T_dust, PDR T_gas, the
+    fine-structure and CO lines, and the H/H2 crossing.
+  - **Updated to the current run:**
+    - the lede, run metadata and headline tiles;
+    - the three figures and their cell counts;
+    - the selected-depth and ionized-gas tables;
+    - pn150k's full line table: every MOCASSIN ratio falls by the Hbeta
+      factor, plus physics moves under 1% except [C I];
+    - the "Reading it" bullets that state current values: gas and dust
+      temperature, deep carbon and CO on hiipdr; the ionized-nebula
+      agreement, the PDR temperature and heating, and the dust on pn150k.
+  - **Kept as history:** the previous versions' sections, with their "now"
+    columns relabelled "version 17" / "version 15", and pn150k's cost table
+    (version 15's timings on 14 ranks). The cost text now says this
+    version's run used 5 ranks on a shared machine.
+
+### A published number corrected
+
+The pn150k page has quoted Cloudy's Hbeta as 2.48e34 erg/s since D-359
+("4 pi R_in^2 x intrinsic intensity"). That intensity, 19.75 erg s^-1 cm^-2
+per unit inner area, is from the first of the two iteration blocks of
+Cloudy's `150k.lines` save file. The input has no `last` on that save.
+
+Cloudy's final printed intrinsic Hbeta, given as flux at the model's 1 kpc
+(`print line flux earth`), is 10^-9.634 erg s^-1 cm^-2. That is 2.78e34
+erg/s, the value earlier versions carried and D-359 replaced. D-371 found
+that Cloudy's own zones, integrated with Storey & Hummer's emissivity (which
+Cloudy's per-zone Hbeta matches to 0.1%), give 2.72e34, so 2.78 is right.
+
+The page's "2.62 vs 2.48, 6% apart" was two wrong numbers: MOCASSIN's Hbeta
+ran 5% low (D-371), and Cloudy's was an unconverged block. The comparison is
+now 2.73 against 2.78, 1.9% apart. Both are stated on the page.
+
+### Checked before publishing
+
+One headless render of the two new sections at 1100 px, with the pages' own
+styles. Tables and rail rendered cleanly, and nothing was changed after it.
+The builders assert every replacement, and each page's image count (3 and 5)
+matches its previous builder.
+
+### Status
+
+Done. Private until shared from each page's Share menu.
