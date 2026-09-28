@@ -387,6 +387,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-385 | **The user asked whether Cloudy's H2 model has collisions and UV fluorescence, and how hard a port would be. Yes to both: the large model (~7,000 lines of C++, zlib licence) carries ~300 X levels and six excited electronic states, ~4,700 X quadrupole and ~28,500 Lyman-Werner lines each with its own transfer, collisions with H, He, o/p-H2 and H+, pumping and cascade with per-level dissociation, formation pumping, and heating and cooling from the populations.** Its pumping is Cloudy's generic 1D per-line transfer (continuum x the line's own accumulated optical depth, overlap via the fine continuum), bound to Cloudy's globals, so a library extraction is impractical. A port means re-implementing in Fortran: data readers and a ~300-level solve (moderate); per-line self-shielding along D-377's 12 rays from level-resolved columns, on MOCASSIN's coarse FUV (the hard part); and, for one reality, the model's Solomon rate, heating and cooling replacing 3D-PDR's Draine-Bertoldi rate and Hollenbach-McKee term, with every PDR benchmark re-validated. Proposed: (A) post-processing first, validated on pn150k against Cloudy's H2 lines; (B) feedback after. (A) is larger than D-376 and D-377 together. Awaiting the user's decision | Open | 2026-09-28 |
 | D-386 | **The user asked whether Cloudy's simple H2 model would do: it has no level populations and so no individual H2 lines; it is Glover & Abel 2008's total H2 line cooling (analytic fits per collider plus LTE) and an H2/H2* two-state pumping and dissociation heating (TH85, BHT90, BD96 or the default 'Elwert').** It can give (1) the H2 coolant MOCASSIN-PDR lacks (D-384), expected negligible in both fixtures, and (2) maps of total thermal (GA08) and fluorescent H2 emission, the fluorescent part being the complement of the heating the chemistry already uses. A middle path to individual fluorescent lines (1-0 S(1) 2.12 um and the cascade): a pure-fluorescence spectrum computed once from Cloudy's large-model data, times the chemistry's per-cell pumping rate, valid below ~1e4 cm^-3 and validated against Cloudy's pn150k. Awaiting the user's choice | Open | 2026-09-28 |
 | D-387 | **Aleman & Gruenwald 2011 (A&A 528, A74; the user's DOI), whose standard PN is our pn150k at 3x the luminosity: in hot-star PNe H2 lives in the ionized region's warm, partially ionized transition zone (formed by H-, H2+ and grains), its 1-0 S(1) peaks in the same layer as [O I] 6300, [N II] and [S II], and there collisions, not UV pumping, dominate v=1 excitation at 150 kK; H2's thermal effect is negligible at 150 kK. Checked against our model: REDUCED has the H2+ route but no H-, yet our TZ H2 fraction is 100-1000x Cloudy's (x(H+) 0.5-0.8: 2.1e-7 vs 2.1e-10) - a new divergence, causes untested.** Withdrawn: D-384's 'pn150k's H2 lines are UV-pumped' (reasoned from the cold PDR only) and D-386's fluorescent middle path for such models. An H2 line model for PNe needs e-, H+ and H collisions at thousands of K plus pumping (D-385 stage A), and the TZ H2 abundance understood first. Their level model (289 X levels, B/C radiative, colliders H, He, H2, H+, e-) and their line tables and H2/Brgamma curves are the spec and a check | Open | 2026-09-28 |
+| D-388 | **Branch strategy for the H2 model: agreed with the user's plan (H2 work on a new branch, production stays on pdr-photoionization), with refinements proposed:** tag production first; h2-model in its own worktree so production builds and runs are undisturbed; H2 code in new files with thin hooks, stage A (post-processing) mergeable early and stage B kept on the branch until re-validated; merge production into the branch regularly; the branch logs in DEVLOG-H2.md (H-numbers) to avoid DEVLOG conflicts and number collisions; D-387's TZ H2 excess diagnosed on production; pushing (145 commits local only) is the user's call | Open | 2026-09-28 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33408,3 +33409,50 @@ For PNe like pn150k an H2 line model needs:
 ### Status
 
 Open: the TZ H2 excess is a new divergence to explain, not tune.
+
+---
+
+## D-388 - Branch strategy for the H2 model (2026-09-28)
+
+The user: "lets work on the H2 model implementation from now on but lets
+move this to a new branch in the repository since we already have a science
+production code for general PDR modeling. This way we can merge them in the
+future for a more detailed final version. Do you agree with this strategy or
+recommend something else in the context of code development?"
+
+Agreed. A branch is also what CLAUDE.md implies: a physics variant must not
+be a run-time switch, so it lives in the design, and until it is validated
+the design lives on a branch. State at the time:
+  - pdr-photoionization is 145 commits ahead of origin/main, none pushed;
+  - one earlier tag, pdr-coupling-v1.0;
+  - runs/ is ignored;
+  - no other worktrees.
+
+Recommended refinements, put to the user:
+  1. **Tag the production state before branching**, so science results cite
+     a fixed version.
+  2. **`h2-model` in its own worktree** (e.g. ~/software/mocassin_h2). The
+     main checkout keeps building and running production. Switching
+     branches in one checkout would force the shared object tree to
+     rebuild and could change sources and dataPDR under running jobs.
+  3. **H2 code in new files with thin hooks.**
+       - Stage A (post-processing, D-385) touches no physics, and could
+         merge into production early, as frontLines did.
+       - Stage B (Solomon rate, heating, cooling into the chemistry and
+         balance) stays on the branch until every benchmark is
+         re-validated.
+  4. **Merge production into h2-model regularly** (merge, not rebase), so
+     fixes flow in and the final merge stays small.
+  5. **A separate log on the branch.** Two branches appending to DEVLOG.md
+     would conflict at every merge, and their D-numbers would collide. So:
+     `DEVLOG-H2.md` with H-numbers (index + bodies as here), folded into
+     DEVLOG.md at the final merge, and a note in the branch's CLAUDE.md.
+  6. **D-387's TZ H2 excess is diagnosed on production.** It is the
+     production chemistry and the H2 model's input; a fix merges into the
+     branch.
+  7. **Backup.** 145 commits exist only on this machine. Pushing the
+     branch, the tag and h2-model to a remote is the user's call.
+
+### Status
+
+Awaiting the user's confirmation of the refinements. Nothing created yet.
