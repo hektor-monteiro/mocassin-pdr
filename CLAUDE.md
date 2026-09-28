@@ -1,5 +1,24 @@
 # MOCASSIN-PDR
 
+> **This checkout is the `h2-model` branch** (worktree `~/software/mocassin_h2`,
+> created at D-388 from `pdr-coupling-v1.1`). It develops the H2 level model
+> (DEVLOG D-385, D-387). Production stays on `pdr-photoionization` in
+> `~/software/mocassin_HM_2026_3DPDR`.
+>   - **Log in `DEVLOG-H2.md`** (H-numbers, same rules as DEVLOG.md). Do not
+>     append to DEVLOG.md here: it is production's, and its entries arrive by
+>     merging production in (`git merge pdr-photoionization`), which should be
+>     done regularly.
+>   - **Install to this branch's own prefix**:
+>     `make PREFIX=$(HOME)/.local/mocassin_h2 ...` for builds and `install`.
+>     Production's binaries read `~/.local/share/mocassin/data`, and a plain
+>     `make install` here would change the data under production runs.
+>   - Runs go in this worktree's `runs/`, with `pdrDataDir` pointing at this
+>     worktree's `dataPDR`.
+>   - The post-processing stage may merge into production once validated. The
+>     feedback stage (Solomon rate, H2 heating and cooling) stays here until
+>     every benchmark is re-validated, and when merged it is the physics, not
+>     a keyword.
+
 MOCASSIN (3D Monte Carlo photoionization + dust radiative transfer, Fortran/MPI)
 with 3D-PDR's photodissociation-region chemistry coupled into it. 3D-PDR is
 vendored under `source/pdr/` (44 files) and driven through `source/pdr_mod.f90`.
