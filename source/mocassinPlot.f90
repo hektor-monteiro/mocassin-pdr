@@ -28,6 +28,9 @@ program MoCaSSiNplot
     type(plot_type) :: plot           ! the plot
 
     real(kind=8), allocatable    :: flinePlot(:,:,:,:)
+    ! D-383: for a 'mol' plot, the chemistry's coolant transition it maps
+    ! (the index into pdrLineEm, as lineFluxMol.out lists them); 0 otherwise
+    integer, allocatable         :: molLineP(:)
     real(kind=8), allocatable    :: flinePlotLarge(:,:)
     real, allocatable   :: image(:,:,:,:)
 
@@ -236,6 +239,19 @@ program MoCaSSiNplot
                    do plotNum = 1, plot%nPlots
 
                       if (plot%lgLine(plotNum)) then
+
+#ifdef PDR
+                         ! D-383: a molecular coolant line - the chemistry's
+                         ! net escaping emissivity [erg/s/cm3], the quantity
+                         ! lineFluxMol.out integrates; x1e25 puts it in this
+                         ! loop's units of E20 erg/s (dV is in E45 cm3)
+                         if (molLineP(plotNum) > 0) then
+                            plot%intensity(iG, grid3D(iG)%active(i,j,k), plotNum) = &
+                                 & real(dble(grid3D(iG)%pdrLineEm(grid3D(iG)%active(i,j,k), &
+                                 & molLineP(plotNum)))*dble(dV)*1.d25)
+                            cycle
+                         end if
+#endif
 
                          ! initialise line number counter
                          iLine = 1
@@ -543,6 +559,9 @@ program MoCaSSiNplot
         integer                   :: ios         ! I/O error status
         integer                   :: maxLim      ! loop limit
         integer                   :: code        ! line code number (0 if cont)
+        character(len=300)        :: plotLine    ! D-383: one entry of plot.in
+        character(len=50)         :: molName     ! D-383: coolant data file
+        integer                   :: molUp, molLo, ikM, tLn  ! D-383
 
 
         close(77)
@@ -615,6 +634,8 @@ program MoCaSSiNplot
            stop
         end if
 
+        allocate(molLineP(readPlot%nPlots))
+        molLineP              = 0
         readPlot%lineNumber   = 0
         readPlot%nuP          = 0
         readPlot%lgLine       = .true.
@@ -632,7 +653,52 @@ program MoCaSSiNplot
 
         do i = 1, readPlot%nPlots
 
-           read(77, *) lineORcont, code, freq1, freq2
+           read(77, '(a)') plotLine
+           read(plotLine, *) lineORcont
+
+           ! D-383: 'mol <coolant file> <upper> <lower>' maps one of the
+           ! chemistry's molecular coolant lines, numbered as in
+           ! lineFluxMol.out (e.g. mol 12co.dat 2 1 for CO 1-0)
+           if (lineORcont == 'mol') then
+#ifdef PDR
+              read(plotLine, *, iostat=ios) lineORcont, molName, molUp, molLo
+              if (ios /= 0) then
+                 print*, "! readPlot: a mol entry needs the coolant file and the upper and ", &
+                      & "lower levels: ", trim(plotLine)
+                 stop
+              end if
+              if (.not.lgPDR .or. .not.lgPdrLineEm) then
+                 print*, "! readPlot: mol plots need a PDR run with output/pdrLineEm.out"
+                 stop
+              end if
+              do ikM = 1, pdrNcool
+                 if (.not.pdrCoolIsMol(ikM)) cycle
+                 if (trim(adjustl(pdrCoolant(ikM))) /= trim(adjustl(molName))) cycle
+                 do tLn = pdrLnOff(ikM)+1, pdrLnOff(ikM)+pdrLnN(ikM)
+                    if (pdrLnUp(tLn) == molUp .and. pdrLnLo(tLn) == molLo) molLineP(i) = tLn
+                 end do
+              end do
+              if (molLineP(i) == 0) then
+                 print*, "! readPlot: no molecular coolant line ", trim(molName), molUp, molLo, &
+                      & " - output/lineFluxMol.out lists the coolants and their levels"
+                 stop
+              end if
+              readPlot%lgLine(i)     = .true.
+              readPlot%lineNumber(i) = 0
+              freq1 = 910.998/real(pdrLnWav(molLineP(i)))
+              call locate(nuArray, freq1, readPlot%nuP(i,1))
+              readPlot%nuP(i,1) = max(readPlot%nuP(i,1), 1)
+              readPlot%nuP(i,2) = readPlot%nuP(i,1)
+              print*, 'readPlot: plot ', i, ' is ', trim(molName), molUp, molLo, &
+                   & real(pdrLnWav(molLineP(i))*1.d-4), ' um'
+              cycle
+#else
+              print*, "! readPlot: mol plots need a PDR build (make PDR=1)"
+              stop
+#endif
+           end if
+
+           read(plotLine, *) lineORcont, code, freq1, freq2
 
            ! assume freq1 and freq2 are wavelengths in Angstroms
            freq1 = 910.998/freq1

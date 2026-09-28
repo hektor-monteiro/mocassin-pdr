@@ -811,6 +811,24 @@ For example:
 
 The integer following the keyword line is the line index number as given in the lineFlux.out file. NOTE that the line indices will be different for different simulations as they depend on which elements are included and on the number of ionisation stages accounted for. The 2nd and 3rd indices contain the central wavelength of the line (these are redundant for monochromatic plots, however they must be included).
 
+In a PDR run the chemistry's molecular coolant lines (CO) are mapped with the mol keyword (MOCASSIN-PDR
+D-383), followed by the coolant's data file and the upper and lower levels as output/lineFluxMol.out
+numbers them (for 12co.dat the level is J+1):
+
+  mocassinPlot entry            line
+  mol 12co.dat 2 1              CO J=1-0, 2600.8 um
+  mol 12co.dat 3 2              CO J=2-1, 1300.4 um
+
+The value per cell is the chemistry's net escaping emissivity (its escape probability along the real
+3D rays, D-377) times the cell volume, the quantity lineFluxMol.out integrates, in the same units as
+the line entries. It needs output/pdrLineEm.out.
+
+tools/d383_maps.py turns plot.out and grid4.out into emissivity cubes [erg/s/cm3/sr] and
+surface-brightness maps along x, y and z [erg/s/cm2/sr], in output/lineMaps.fits (a symmetricXYZ
+octant is unfolded to the full cube), with --png for quick-look images. The maps are sums of each
+cell's emission along the line of sight; no absorption beyond the cell is applied and there is no
+velocity axis.
+
 .TP
 .B Output files
 
