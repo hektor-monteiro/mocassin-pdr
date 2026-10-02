@@ -389,6 +389,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-387 | **Aleman & Gruenwald 2011 (A&A 528, A74; the user's DOI), whose standard PN is our pn150k at 3x the luminosity: in hot-star PNe H2 lives in the ionized region's warm, partially ionized transition zone (formed by H-, H2+ and grains), its 1-0 S(1) peaks in the same layer as [O I] 6300, [N II] and [S II], and there collisions, not UV pumping, dominate v=1 excitation at 150 kK; H2's thermal effect is negligible at 150 kK. Checked against our model: REDUCED has the H2+ route but no H-, yet our TZ H2 fraction is 100-1000x Cloudy's (x(H+) 0.5-0.8: 2.1e-7 vs 2.1e-10) - a new divergence, causes untested.** Withdrawn: D-384's 'pn150k's H2 lines are UV-pumped' (reasoned from the cold PDR only) and D-386's fluorescent middle path for such models. An H2 line model for PNe needs e-, H+ and H collisions at thousands of K plus pumping (D-385 stage A), and the TZ H2 abundance understood first. Their level model (289 X levels, B/C radiative, colliders H, He, H2, H+, e-) and their line tables and H2/Brgamma curves are the spec and a check | Open | 2026-09-28 |
 | D-388 | **Branch strategy for the H2 model: agreed with the user's plan (H2 work on a new branch, production stays on pdr-photoionization), with refinements proposed:** tag production first; h2-model in its own worktree so production builds and runs are undisturbed; H2 code in new files with thin hooks, stage A (post-processing) mergeable early and stage B kept on the branch until re-validated; merge production into the branch regularly; the branch logs in DEVLOG-H2.md (H-numbers) to avoid DEVLOG conflicts and number collisions; D-387's TZ H2 excess diagnosed on production; pushing (145 commits local only) is the user's call. **Done at the user's go-ahead:** tag `pdr-coupling-v1.1` at c27e658; branch `h2-model` in worktree ~/software/mocassin_h2 (H-001, e94a1bd), with DEVLOG-H2.md and a CLAUDE.md note, including the hazard found while setting up: both checkouts read the data installed under PREFIX=~/.local, so the branch installs to its own prefix | Done | 2026-09-28 |
 | D-389 | **D-387 diagnosed: our transition-zone H2 is 100-1000x Cloudy's because REDUCED makes ground-state H2 from H + H2+ directly, while Cloudy makes H2* (by H + H- 90%, H + H2+ 5-7%) and destroys it with electrons (e- + H2* -> H + H- 100%) before it relaxes; its ground H2 there is grain-made (98%). Destruction per molecule is similar in both codes (~2-4e-8 s^-1), so the gap is formation.** Also absent from REDUCED: H-, H2*, electron-impact dissociation of H2+ (46-54% of Cloudy's H2+ destruction). A Cloudy rerun with extra saves (runs/d389-cloudy-h2s, 238 s) shows every H2 line of Cloudy's pn150k comes from the PDR (2.121 um at emission-weighted 118 K, pumped; 28/17/12 um at 59-61 K). D-387's withdrawal of D-384 corrected: the TZ contributes only if its H2 nears A&G's ~1e-5. Not tuned; no production output depends on it now (L-43); the cure, level-resolved formation and electron destruction, belongs to the H2 model | Open | 2026-09-28 |
+| D-390 | **Correction to D-384 (and D-389, which quoted it): Cloudy's pn150k 1-0 S(1) 2.121 um is 9.4e-4 Hbeta, not 8.0e-5.** D-384 took the line list's `H2 2.12101m` (log F -13.732) for 1-0 S(1); 1-0 S(1) is `H2 2.12125m`, log F -12.659 against Hbeta -9.634 (runs/d389-cloudy-h2s/150k.out; the same entry is in d356-cloudy-pn). Integrating Cloudy's saved emissivity over its sphere gives the same, 9.45e-4. The 0-0 S(0) and S(1) values were right (1.7e-4, 5.5e-4). D-384's conclusion stands: the four H2 lines sum to ~2.1e-3 Hbeta, ~4e-3 of the [O I] 63 + [C II] 158 lines. Found on h2-model (DEVLOG-H2 H-007) | Done | 2026-10-02 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33556,3 +33557,39 @@ vibrationally hot (1.83 eV), so the level-resolved picture is Cloudy's.
 
 Open: registered as L-43 (doc/pdr-status.md). The cure (level-resolved
 formation and electron destruction) belongs to the H2 model on h2-model.
+
+## D-390 - Correction: Cloudy's pn150k 1-0 S(1) (2026-10-02)
+
+Found while comparing the H2 level model of branch h2-model with Cloudy
+(DEVLOG-H2 H-007).
+
+**D-384 quoted 1-0 S(1) 2.121 um at 8.0e-5 Hbeta. That number belongs to
+another H2 line.** Cloudy's line list has several H2 entries near 2.12 um:
+
+    H2   2.12743m   -14.009
+    H2   2.12232m   -15.049
+    H2   2.12101m   -13.732    <- D-384 read this one
+    H2   2.12256m   -14.530
+
+1-0 S(1) is `H2 2.12125m`. In runs/d389-cloudy-h2s/150k.out (intrinsic
+line list) it is log F = -12.659 against Hbeta -9.634, i.e.
+**9.44e-4 Hbeta** (emergent 2.1e-3, against an emergent Hbeta that dust
+dims). d356-cloudy-pn, the run D-384 read, has the same entry. As an
+independent check, Cloudy's saved 2.121 um emissivity (150k.h2emis)
+integrated over its sphere (Rin = 1e16 cm, 4 pi r^2 dr) gives 9.45e-4
+Hbeta.
+
+The other two values D-384 quoted were read correctly: 0-0 S(0) 28.21 um
+1.69e-4 and 0-0 S(1) 17.03 um 5.47e-4 Hbeta (the second is from the same
+list; D-384 gave the first only).
+
+**What changes.** Only the number. D-384's conclusion - H2 cooling is
+negligible in pn150k - stands: 1-0 S(1) and 0-0 S(0), S(1), S(2) sum to
+~2.1e-3 Hbeta, ~4e-3 of the [O I] 63 + [C II] 158 lines' ~0.5 Hbeta. D-389's table of
+where Cloudy's H2 lines arise is in fractions and is unaffected; its text
+repeated D-384's 8.0e-5. DEVLOG-H2 (H-002, H-005) quoted it too; H-007
+there carries the correction.
+
+### Status
+
+Done.
