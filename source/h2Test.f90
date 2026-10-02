@@ -12,6 +12,12 @@
 !       v J E[cm-1] pop pump[s-1] kdiss[s-1] phi
 !       The field file has two columns, wavenumber [cm-1] ascending and the
 !       photon occupation number there; a line takes the nearest entry's.
+!    h2Test <data dir> lines
+!       prints the pumping line list
+!    h2Test <data dir> shield
+!       prints the line shielding function on a grid: tau0, a, S, W, and
+!       Cloudy's Federman fit (H-005)
+!
 ! With 'dump' the pumping matrix W(l,l') [s-1] and then the matrix of
 ! collisions and radiative decay R(l,l') [s-1] are also written, to
 ! <label>.h2W (raw float64, column-major).
@@ -30,6 +36,28 @@ program h2Test
     call get_command_argument(1, dir)
     call get_command_argument(2, cases)
     call get_command_argument(3, arg3)
+    if (trim(cases) == 'lines') then
+       ! the pumping lines: state vu Ju vl Jl wavenumber A g_u g_l Gamma_u(= sum A + D) D_u
+       call h2ReadX(trim(dir))
+       call h2ReadElec(trim(dir))
+       do i = 1, h2NT
+          print '(5i4,f13.3,es13.5,2f6.0,2es13.5)', h2uS(h2tU(i)), h2uV(h2tU(i)), h2uJ(h2tU(i)), &
+               & h2V(h2tL(i)), h2J(h2tL(i)), h2tWN(i), h2tA(i), h2uG(h2tU(i)), h2G(h2tL(i)), &
+               & h2uAtot(h2tU(i)) + h2uDiss(h2tU(i)), h2uDiss(h2tU(i))
+       end do
+       stop
+    end if
+    if (trim(cases) == 'shield') then
+       ! the shielding function on a grid, for checking: tau0 a S W Federman
+       do k = -6, -1
+          do i = -8, 44
+             T = 10._dp**(0.25_dp*dble(i)); wSurf(1) = 10._dp**dble(k)
+             print '(5es14.6)', T, wSurf(1), h2Shield(T, wSurf(1)), &
+                  & T*h2Shield(0._dp, wSurf(1), T), h2ShieldFederman(T, wSurf(1))
+          end do
+       end do
+       stop
+    end if
     lgDump = (trim(arg3) == 'dump')
     call h2ReadX(trim(dir))
     call h2ReadElec(trim(dir))

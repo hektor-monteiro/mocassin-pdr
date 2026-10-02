@@ -180,7 +180,13 @@ all: mocassin mocassinWarm mocassinOutput mocassinPlot
 
 # H2 level model, standalone test (h2-model branch, DEVLOG-H2 H-003): X-state
 # populations for given T and collider densities, checked against Cloudy.
+# the drivers use h2_mod's interfaces: recompile them when the module changes
+source/h2Test.o source/h2Slab.o: source/h2_mod.o
+
 h2Test: source/h2_mod.o source/h2Test.o
+	$(LD) $(FFLAGS) -o $@ $^
+
+h2Slab: source/h2_mod.o source/h2Slab.o
 	$(LD) $(FFLAGS) -o $@ $^
 
 # Phase 1 chemistry smoke test (DEVLOG D-020). PDR=1 only; needs no MOCASSIN grid.

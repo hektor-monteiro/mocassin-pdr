@@ -13,6 +13,7 @@ DEVLOG.md and arrives here by merge.
 | H-002 | **Production's D-389 merged in, and turned into requirements for the H2 model.** Cloudy's pn150k H2 lines all come from the PDR (2.121 um at emission-weighted 118 K, pumped; rotational lines at ~60 K). Whether the transition zone adds collisional emission (Aleman & Gruenwald) turns on the TZ H2 abundance, 1e-10 (Cloudy) / 1e-7 (ours) / 1e-5 (A&G), which is set by how gas-phase H2 survives electrons. So the model needs: level-resolved formation (H2+ route at 1.83 eV, H- associative detachment, grains); destruction of excited levels by electrons (dissociative attachment) and by collisions; collisions with e-, H+, H at thousands of K; UV pumping; and, in stage B, the chemistry's TZ H2 following from it. First validation target: Cloudy's pn150k PDR H2 lines (d389-cloudy-h2s has the per-zone emissivities) | Open | 2026-09-28 |
 | H-003 | **Stage A, step 1: the X-state level solver (`source/h2_mod.f90`), re-implemented from Cloudy c25.00's data and conventions, matches Cloudy's large H2 model to 0-0.5% on every level that collisions and radiative decay set, across 15 one-zone models (T 50-3000 K, n_H 1e2-1e6).** Data vendored into dataPDR/h2 with provenance and the zlib notice (X energies, Wolniewicz et al. A values, the five default collision sets). Levels: 302 X, energy-ordered; colliders H, He, o-H2, p-H2, H+; linear-in-T interpolation held at the table ends; g-bar for same-spin pairs without data; detailed balance on (2J+1)(2I+1). One defect found by the comparison and fixed: transprob_X lists some transitions twice (E2 + M1, Pachucki & Komasa 2011), which Cloudy adds; overwriting them had doubled v=1 populations at low density. Test: `make h2Test`, `tools/h003_compare.py runs/h003-cloudy-lev`. Not yet included: formation into levels, destruction, cosmic rays, UV pumping (the non-thermal populations, which is where the remaining differences are), electrons. All four flavours build | Done | 2026-09-28 |
 | H-004 | **Stage A, step 2: ultraviolet pumping. The excited electronic states (B, C+, C-, B', D+, D-: 1,592 levels, 32,453 lines to X, Abgrall et al. 2000) are in `h2_mod`, with the cascade back into X, the Solomon dissociation rate per level, and formation on grains in Takahashi & Uehara's (v, J) distribution. Against 16 one-zone Cloudy models (T 100 and 1000 K, n_H 1e2-1e6, FUV 1-1e4 Habing), with Cloudy's own populations put in: pump rate per level 1.000, Solomon rate of H2g 1.000, radiative rate into each level 0.996-1.001.** Solomon rate of H2* 0.94-0.96, and 0.997-0.998 once Cloudy's direct photodissociation of H2* (all H2* taken at 2.5 eV) is added - a process not yet in ours. **Our own populations differ from Cloudy's by 0.07 dex in the median (v >= 1 levels 8-21% lower in each model's median at 1-100 Habing, ground levels up to 24% higher at 1e4), and the cause is Cloudy's bookkeeping, not its rates:** it applies its network's H2g Solomon rate a second time as a uniform sink on the H2g levels, solves the levels without a sum rule, and rescales every population by one factor f (1.06-1.11 at n <= 1e4, read off its own saved rates). Our rates put through that scheme reproduce Cloudy's populations to 0.002-0.018 dex in 15 of 16 models (0.040 in the other) and its f to 0.021 or better. Not adopted: ours replaces each destroyed molecule by a formed one and keeps the sum. Line ratios are unaffected (2-1 S(1)/1-0 S(1) = 0.53-0.55 at low density in both, equal to 0.005 in 15 models). Three hypotheses discarded (formation distribution, H- route, LTE-distributed sources). Two of 18 Cloudy models had too little H2 for its large model to run. Next: line self-shielding | Done | 2026-10-02 |
+| H-005 | **Stage A, step 3: self-shielding of the pumping lines and trapping of the fluorescent photons, marched through a Cloudy PDR slab (100 K, n_H 1e4, 100 Habing, to A_V = 3). The model's shielding - a Voigt line integrated numerically, damping from the upper level's total decay rate, averaged through each zone - follows Draine & Bertoldi's (1996) shielding function without its overlap factor to 0.79-1.00 from N(H2) = 1e18 to 1e21. Cloudy's own H2g Solomon rate is 0.28-0.36 of DB96 at N(H2) = 1e17-1e20, because it takes each line's damping from that line's own A: the upper level's total decay rate is 20x larger in the median (8-157).** Machinery checked first, with Cloudy's choices put in (Federman fit, own-A damping, its optical depths): line-centre tau and damping agree to 0.04% and 0.00% over 1,216 thick lines; pump rate per level in the shielded zones 0.97-1.00 of Cloudy's at N(H2) = 1e15-1e20; with photon trapping the H2g Solomon rate 0.93-0.97; and through Cloudy's closure (H-004) its excited fraction 0.92-0.98. **For the same slab the model's excited-level columns are 2.4x Cloudy's (v >= 1 levels 1.7-3.9x, median 2.45), and all its pumping absorptions 3.2x the Cloudy-like march's.** Not in yet: line overlap (DB96's factor is 0.9 at 1e19, 0.7 at 1e20, 0.3 at 1e21; 30% of the pumping lies above 1e20). Our ortho/para ratio reaches 60 in a thin layer at N(H2) ~ 1e16 (Cloudy 5.4), unchecked. Next: line overlap, then the field and columns from a MOCASSIN run | Done | 2026-10-02 |
 
 ---
 
@@ -365,3 +366,214 @@ T100_n4_G2 and T1000_n6_G4. Published with the two tables as the artifact
 Done. The four MOCASSIN flavours build on the branch (h2_mod is still
 outside them) and so does h2Test. H-003's comparison is unchanged by the
 refactoring.
+
+## H-005 - Self-shielding and photon trapping, checked on a Cloudy slab (2026-10-02)
+
+The user: "proceed" (to H-004's next step, line self-shielding checked
+against a Cloudy slab).
+
+### What was built
+
+  - **`h2Voigt`:** the Voigt function (Humlicek 1982).
+  - **`h2Shield(tau0, a[, dtau])`:** the fraction of a beam left in a
+    Voigt line of central optical depth tau0 and damping parameter a,
+    S = (1/sqrt(pi)) int H(a,x) exp(-tau0 H(a,x)/H(a,0)) dx, integrated
+    numerically and tabulated once with its integral W (the curve of
+    growth) on 161 x 29 points (tau0 1e-4..1e16, a 1e-7..1). With `dtau` it
+    returns the mean through a layer that adds dtau, (W(tau0 + dtau) -
+    W(tau0))/dtau: a cell thick in a line is averaged, not sampled.
+  - **`h2LineShield(Ncol, b, shield[, dNcol])`:** per line,
+    tau0 = N_l (g_u/g_l) A_ul lambda^3/(8 pi^1.5 b) and
+    a = Gamma_u lambda/(4 pi b), Gamma_u = sum A + D_u the upper level's
+    total decay rate.
+  - **`h2LineEscape(Ncol(:,dirs), b, beta)`** and `beta` in `h2PumpRates`
+    and `h2Solve`: a photon emitted in a thick line is absorbed again on
+    the spot, so each decay counts by its escape probability, the mean over
+    directions of the same function S. The excited level's other decays
+    and its dissociation take the share.
+  - **`h2ShieldFederman`:** Cloudy's default fit (Federman, Glassgold & Kwan
+    1979), for the like-for-like check only.
+  - **`source/h2Slab.f90`** (`make h2Slab`): the level model marched through
+    a slab zone by zone, as it will be run on a finished MOCASSIN model -
+    each zone's gas and continuum given, levels solved, their columns
+    shading the next zone; two passes so that the far-side column is known
+    for the escape. Modes `voigt` (the model) and `federman` (Cloudy's
+    choices). The ortho and para H2 that collide are the model's own,
+    iterated in each zone.
+  - **Tools:** `tools/h005_cloudy_slab.py` (writes the Cloudy inputs),
+    `h005_compare.py` (the march and checks T, O, R, D, P, N),
+    `h005_cuts.py` (rate-by-rate checks in the shielded zones),
+    `h005_figures.py`.
+  - **Makefile:** h2Test.o and h2Slab.o now depend on h2_mod.o. Without
+    it a changed interface left a stale driver that crashed.
+
+**S and W were checked** against an independent quadrature (scipy's wofz):
+0.04% and 0.03% at worst over tau0 1e-2..1e11, a 1e-6..1e-1. The Federman
+fit is 0.98-1.18 of S over the same grid.
+
+### The reference
+
+`runs/h005-cloudy-slab/n4_G2_T100`: H-004's field at 100 Habing,
+n_H = 1e4 cm^-3, constant 100 K, `database H2`, two iterations, stopped at
+A_V = 3 (634 zones, N(H2) = 2.7e21). Saved per zone: densities, all 302
+level populations, H2 rates, the continuum every 5 zones; at the end the
+level columns and every line's optical depth.
+`set save resolution 1e-6 absorption` takes the line absorption out of
+the saved continuum, which is then the field the pump rates use
+(checked in six of the 128 saved blocks: smooth to 3% across neighbouring
+cells at 912-1100 A, 8% in the last).
+
+Then the same slab stopped at the zones where N(H2) reaches 1e15, 1e17,
+1e19, 1e20 (`_N15` .. `_N20`), which gives Cloudy's full last-zone output
+in shielded gas: each level's rates in and out, and the network's Solomon
+rates.
+
+### Result 1: the machinery, like for like
+
+With Cloudy's choices put in:
+
+| check | result |
+|---|---|
+| line-centre tau0, ours from Cloudy's level columns / Cloudy's line-specific tau, 1,216 lines with tau0 > 1 | median 1.0004, 1.000-1.004 |
+| damping from the line's own A / Cloudy's | 1.0000, 0.9995-1.0005 |
+| pump rate per level in the last zone at N(H2) = 1e15, 1e17, 1e19, 1e20 (Cloudy's total tau) | median 0.999, 1.000, 0.991, 0.972 |
+| the same with the line-specific tau (no overlap) | 1.005, 1.015, 1.020, 1.028 |
+| H2g Solomon rate there, no trapping | 0.912, 0.892, 0.848, 0.806 |
+| with trapping | 0.949, 0.972, 0.963, 0.925 |
+| excited fraction f*, our rates through Cloudy's closure (H-004) | 0.958, 0.980, 0.964, 0.922 |
+| Cloudy's rescaling factor f, from its rates / from ours | 1.0825 / 1.0703, 1.0722 / 1.0615, 1.0621 / 1.0488, 1.0643 / 1.0430 |
+
+The 1-3% in the pump rate at 1e19 and 1e20 is the continuum: the saved
+field is the zone's far face, and that zone holds 16% and 9% of the column.
+
+**Trapping is needed.** Without it the rate into v = 0, J = 0-5 from the
+excited states was up to 2,200x Cloudy's in the shielded zones, and the
+Solomon rate 10-20% low: Cloudy multiplies each decay by its escape
+probability (two-sided), which closes the thick lines to the ground levels
+and sends those decays to excited levels and to dissociation. With the
+same in ours the Solomon rate comes within 3-8%. The residual is the
+escape function: ours is S along the two normals, Cloudy's is Hummer's K2
+with a wing correction plus destruction by the continuum.
+
+**Line overlap in Cloudy** (its optical depth holds the other lines at each
+line's centre): total over specific tau0 is 1.000 in the median, 1.13 at
+the 84th percentile, 5.5 at the 95th; it changes the pump rate per level by
+1-6% in the median at these four depths (13% for one level).
+
+**The like-for-like march** (`federman`) ends with v = 0, J = 0-2 columns
+at 0.999-1.002 of Cloudy's and N(H2*) at 0.73 (v >= 1 levels 0.60-0.90). The
+missing quarter is Cloudy's closure, not a rate: in the four truncated
+slabs our closed solution has f* = 0.60-0.77 of Cloudy's where our rates
+through Cloudy's scheme give 0.92-0.98.
+
+### Result 2: the model's own shielding against Draine & Bertoldi
+
+The H2g Solomon rate over its surface value, with the continuum's own
+attenuation at 912-1100 A divided out, against DB96's eq. 37 at
+b = 0.908 km/s:
+
+| N(H2) [cm^-2] | 1e14 | 1e15 | 1e16 | 1e17 | 1e18 | 1e19 | 1e20 | 3e20 | 1e21 |
+|---|---|---|---|---|---|---|---|---|---|
+| model / DB96 | 1.19 | 1.57 | 1.42 | 1.27 | 1.03 | 1.03 | 1.30 | 1.67 | 2.63 |
+| model / DB96 without its overlap factor | 1.19 | 1.57 | 1.42 | 1.25 | 0.99 | 0.91 | 0.88 | 0.86 | 0.79 |
+| Cloudy-like march / DB96 | 1.25 | 1.56 | 0.99 | 0.68 | 0.28 | 0.28 | 0.33 | 0.42 | 0.66 |
+| Cloudy itself / DB96 (truncated slabs) | | 2.23 | | 0.35 | | 0.28 | 0.36 | | |
+
+In the damping-wing regime the model follows DB96 without overlap to
+0.79-1.00, and what separates it from the full DB96 is the overlap factor,
+which the model does not have. Cloudy sits 2.8-3.6x below.
+
+**The cause in Cloudy** is in its source and in its output:
+`mole_h2_create.cpp` sets `dampXvel = Aul/EnergyWN/PI4`, the line's own
+A, and the saved damping constants equal A_ul lambda/(4 pi b) to 0.05%.
+The natural width of a line is the upper level's total decay rate. Over
+the 1,216 thick lines that rate is 20x the line's A in the median
+(16-84%: 7.8-157), and the wing shielding goes as sqrt(a). (Cloudy's
+hydrogenic lines use the level lifetime, `iso_create.cpp`.)
+
+**Consequence for the same slab:**
+
+| | model / Cloudy | Cloudy-like march / Cloudy |
+|---|---|---|
+| N(v=0, J=0-2) | 0.994-1.004 | 0.999-1.002 |
+| N(0,4), N(0,5), N(0,7) | 3.01, 2.45, 2.25 | 0.76, 0.67, 0.63 |
+| N(1,3), upper level of 2.12 um | 2.64 | 0.80 |
+| N(H2*), all levels above 4100 cm^-1 | 2.44 | 0.73 |
+| v >= 1 levels | 1.72-3.94, median 2.45 | 0.60-0.90, median 0.74 |
+| pumping absorptions through the slab [cm^-2 s^-1] | 9.73e8 | 3.08e8 |
+
+So for a PDR like this one the model's fluorescent H2 emission is about
+2.4x Cloudy's, and D-389's Cloudy line fluxes for pn150k (2.121 um at
+8.0e-5 Hbeta) are low by a factor of this order if the same holds there.
+Not measured on pn150k.
+
+### Where the pumping happens
+
+Share of all absorptions below N(H2): 4% below 1e16, 14% below 1e18, 33%
+below 1e19, 71% below 1e20, 90% below 3e20. So 30% of the pumping lies
+where DB96's overlap factor is below 0.7. Weighting each bin by that
+factor gives about 0.8 for the whole: **overlap would lower the model's
+total pumping here by roughly 20%.** An estimate, not a calculation.
+
+### Divergences reported, not tuned
+
+  - **The closure** (H-004), now also in shielded gas: Cloudy's excited
+    populations are 1.3-1.7x our closed solution's for the same rates.
+  - **The damping width**: above.
+  - **Ortho/para.** In our march the local ortho/para ratio rises to 12 at
+    N(H2) = 1e15 and peaks at 60 at 1.4e16 (76 in the Cloudy-like march),
+    above 6 from 5e14 to 9e16, and is back to 2.3 by 1e18; Cloudy's peaks
+    at 5.4. The cause in ours, inferred from the closure and not measured
+    separately: the ortho lines are thick first, so para H2 is dissociated
+    faster (20x for a ratio of 60, since what is destroyed is replaced
+    3:1), and conversion by H+ and H is slower than destruction there.
+    Cloudy's second, uniform Solomon sink dilutes the selectivity. The
+    layer holds less than 1e17 cm^-2, so the columns do not see it
+    (v = 0, J = 0-2 agree to 0.6%).
+
+### Hypotheses discarded on the way
+
+  - **The saved continuum still carries line absorption.** No: it is
+    smooth, and the extra attenuation beyond dust at A_V > 1.5 is the C I
+    ionization continuum.
+  - **Cloudy's network Solomon rate does not fall with depth.** My error:
+    the table reader took the first zone's row of a per-zone file.
+  - **Cloudy's small return into v = 0 at depth cannot be trapping, since
+    its escape probability is at least 0.5 at the far face.** Wrong: the
+    last zone is taken at its inner face and its own optical depth lies on
+    the far side.
+  - A crash of h2Test after the interface change was a stale object file
+    (Makefile dependency, fixed), not the code.
+
+### What is not yet known
+
+  - **Line overlap** in the model: the ~20% above is an estimate from
+    DB96's factor. H I Lyman lines are not in it either.
+  - **The ortho/para ratio of 60:** no independent calculation to compare
+    with.
+  - **The escape function.** Two normal directions here; twelve rays in a
+    MOCASSIN run. Its effect on the result is the 10-20% of the trapping
+    itself; the difference between escape functions was not isolated.
+  - **Other conditions.** One slab: 100 K, 1e4, 100 Habing, no turbulence.
+    Thermal balance, warmer gas and higher field/density are untested.
+  - **Coarse cells.** The zone average of S is exact for a uniform cell,
+    but a MOCASSIN cell across the H/H2 transition is not uniform. Not
+    tested.
+  - **The continuum.** At A_V > 1.5 the C I ionization continuum takes a
+    large part of the 912-1100 A field in Cloudy. Whether MOCASSIN's FUV
+    field in PDR cells has that opacity is to be checked at the
+    integration step.
+  - Whether Cloudy's damping width is a known choice or a defect: not
+    looked up.
+
+### Figures
+
+`tools/h005_figures.py`: the shielding of the Solomon rate against N(H2)
+(model, Cloudy-like march, Cloudy at four depths, DB96 with and without
+overlap), and the level columns over Cloudy's against level energy.
+
+### Status
+
+Done. The four MOCASSIN flavours build on the branch (h2_mod is still
+outside them), and h2Test and h2Slab. H-003's and H-004's comparisons are
+unchanged.

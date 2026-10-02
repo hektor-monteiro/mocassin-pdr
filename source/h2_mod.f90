@@ -37,8 +37,27 @@
 ! the distribution over (v, J) of Takahashi & Uehara 2001 for formation on a
 ! grain surface, as Cloudy applies it by default.
 !
+! H-005: self-shielding of the pumping lines. Between the source and the
+! point, the H2 in lower level l has column N_l; line l -> u then has optical
+! depth tau_0 = N_l (g_u/g_l) A_ul lambda^3 / (8 pi^1.5 b) at its centre and
+! the continuum reaching the point in that line is cut by
+!     S(tau_0, a) = (1/sqrt(pi)) int H(a,x) exp(-tau_0 H(a,x)/H(a,0)) dx,
+! the absorption of a beam by a Voigt line, integrated numerically and
+! tabulated once (h2Shield). The damping parameter is a = Gamma_u lambda /
+! (4 pi b) with Gamma_u the upper level's total decay rate, sum A + D_u.
+! Through a cell that itself holds a column dN_l the mean over the cell is
+! (W(tau_0 + dtau) - W(tau_0))/dtau, W the integral of S (the curve of
+! growth), tabulated with it. Lines do not yet shade one another (overlap).
+! The same S is the chance that a photon emitted in a line crosses the column
+! in one direction, so its mean over directions is the line's escape
+! probability (h2LineEscape); a decay through a thick line is undone on the
+! spot and counts only by that probability (beta in h2PumpRates).
+! Cloudy's own choices differ and are kept only as h2ShieldFederman for the
+! like-for-like check: the fit of Federman, Glassgold & Kwan 1979, the
+! damping from the line's own A alone, and no averaging over the zone.
+!
 ! Not yet in: destruction other than the Solomon process, formation by H- and
-! H2+, cosmic rays, self-shielding, and electrons as colliders, which Aleman &
+! H2+, cosmic rays, line overlap, and electrons as colliders, which Aleman &
 ! Gruenwald 2011 include and Cloudy does not.
 !===============================================================================
 module h2_mod
@@ -109,7 +128,18 @@ module h2_mod
     real(dp), parameter :: tuG2(h2NSurf)     = (/0.6_dp, 0.6_dp, 0.4_dp/)
     real(dp), parameter :: tuEoff = 0.273_dp*8065.544_dp   ! well bottom to (0,0) [cm^-1]
 
+    ! --- self-shielding (H-005): S and the curve of growth W on a grid of
+    ! log10 tau_0 and log10 a
+    real(dp), parameter :: pi = 3.14159265358979324_dp
+    real(dp), parameter :: cLight = 2.99792458e10_dp
+    integer, parameter :: nShT = 161, nShA = 29
+    real(dp), parameter :: shT0 = -4._dp, shT1 = 16._dp      ! log10 tau_0
+    real(dp), parameter :: shA0 = -7._dp, shA1 = 0._dp       ! log10 a
+    real(dp) :: shS(nShT, nShA), shW(nShT, nShA)             ! log10 S, log10 W
+    logical :: lgShTab = .false.
+
     public :: h2ReadX, h2ReadElec, h2SolveX, h2Solve, h2Level, h2PumpRates, h2FormDist, h2CollRad
+    public :: h2Shield, h2ShieldFederman, h2LineShield, h2LineEscape, h2LineParams, h2Voigt
 
 contains
 
@@ -468,22 +498,33 @@ contains
     !   kdiss(l)  rate [s^-1] at which it is dissociated instead (Solomon)
     !   pump(l)   total absorption rate out of l = sum_l' W(l,l') + kdiss(l)
     ! Stimulated emission (A eta) is kept in the decay for completeness.
+    !
+    ! beta(1:h2NT), optional (H-005): the probability that a photon emitted in
+    ! each line leaves the cloud rather than being absorbed again in the same
+    ! line by the H2 around it. A decay through a thick line is undone on the
+    ! spot - the photon re-excites the same upper level - so the line's A
+    ! counts only by its escape probability, and the excited level's other
+    ! decays and its dissociation take the share. pump(l) is still the
+    ! absorption of the external field alone.
     !---------------------------------------------------------------------------
-    subroutine h2PumpRates(eta, W, kdiss, pump)
+    subroutine h2PumpRates(eta, W, kdiss, pump, beta)
       real(dp), intent(in) :: eta(:)
       real(dp), intent(out) :: W(:,:), kdiss(:)
       real(dp), intent(out), optional :: pump(:)
+      real(dp), intent(in), optional :: beta(:)
       real(dp) :: gam, P
+      real(dp), allocatable :: Aeff(:)
       integer :: u, t, t2
 
+      ! decay through each line: A (1 + eta), times its escape probability
+      allocate(Aeff(h2NT))
+      Aeff = h2tA*(1._dp + eta(1:h2NT))
+      if (present(beta)) Aeff = Aeff*beta(1:h2NT)
       W = 0._dp; kdiss = 0._dp
       if (present(pump)) pump = 0._dp
       do u = 1, h2NU
          if (uLast(u) < uFirst(u)) cycle
-         gam = h2uDiss(u)
-         do t = uFirst(u), uLast(u)
-            gam = gam + h2tA(t)*(1._dp + eta(t))
-         end do
+         gam = h2uDiss(u) + sum(Aeff(uFirst(u):uLast(u)))
          if (gam <= 0._dp) cycle
          do t = uFirst(u), uLast(u)
             if (eta(t) <= 0._dp) cycle
@@ -491,10 +532,11 @@ contains
             if (present(pump)) pump(h2tL(t)) = pump(h2tL(t)) + P
             kdiss(h2tL(t)) = kdiss(h2tL(t)) + P*h2uDiss(u)/gam
             do t2 = uFirst(u), uLast(u)
-               W(h2tL(t), h2tL(t2)) = W(h2tL(t), h2tL(t2)) + P*h2tA(t2)*(1._dp + eta(t2))/gam
+               W(h2tL(t), h2tL(t2)) = W(h2tL(t), h2tL(t2)) + P*Aeff(t2)/gam
             end do
          end do
       end do
+      deallocate(Aeff)
     end subroutine h2PumpRates
 
     !---------------------------------------------------------------------------
@@ -565,6 +607,220 @@ contains
         end if
       end associate
     end function tabRate
+
+    ! The Voigt function H(a, x), Humlicek 1982 (JQSRT 27, 437), relative
+    ! accuracy 1e-4
+    real(dp) function h2Voigt(a, x)
+      real(dp), intent(in) :: a, x
+      complex(dp) :: t, u, w
+      real(dp) :: sx
+      t = cmplx(a, -x, dp)
+      sx = abs(x) + a
+      if (sx >= 15._dp) then
+         w = t*0.5641896_dp/(0.5_dp + t*t)
+      else if (sx >= 5.5_dp) then
+         u = t*t
+         w = t*(1.410474_dp + u*0.5641896_dp)/(0.75_dp + u*(3._dp + u))
+      else if (a >= 0.195_dp*abs(x) - 0.176_dp) then
+         w = (16.4955_dp + t*(20.20933_dp + t*(11.96482_dp + t*(3.778987_dp + t*0.5642236_dp))))/ &
+              & (16.4955_dp + t*(38.82363_dp + t*(39.27121_dp + t*(21.69274_dp + t*(6.699398_dp + t)))))
+      else
+         u = t*t
+         w = exp(u) - t*(36183.31_dp - u*(3321.9905_dp - u*(1540.787_dp - u*(219.0313_dp - &
+              & u*(35.76683_dp - u*(1.320522_dp - u*0.56419_dp))))))/ &
+              & (32066.6_dp - u*(24322.84_dp - u*(9022.228_dp - u*(2186.181_dp - u*(364.2191_dp - &
+              & u*(61.57037_dp - u*(1.841439_dp - u)))))))
+      end if
+      h2Voigt = real(w, dp)
+    end function h2Voigt
+
+    ! S(tau0, a) and W(tau0, a) = int_0^tau0 S dt by quadrature over the
+    ! profile: x linear to 6 Doppler widths, then logarithmic far past the
+    ! point where the wing turns thin, with the rest of the wing added
+    ! analytically.
+    subroutine shieldQuad(tau0, a, S, W)
+      real(dp), intent(in) :: tau0, a
+      real(dp), intent(out) :: S, W
+      integer, parameter :: nlin = 1200, nlog = 60     ! points to x = 6; per decade beyond
+      real(dp) :: h0, x, xp, f, fp, g, gp, h, t, xmax, r
+      integer :: i, n
+      h0 = h2Voigt(a, 0._dp)
+      xmax = max(60._dp, 300._dp*sqrt(tau0*a))
+      S = 0._dp; W = 0._dp
+      xp = 0._dp; fp = h0*exp(-tau0); gp = -expm1(-tau0)
+      n = nlin + int(nlog*log10(xmax/6._dp)) + 1
+      r = (xmax/6._dp)**(1._dp/dble(n - nlin))
+      do i = 1, n
+         if (i <= nlin) then
+            x = 6._dp*dble(i)/dble(nlin)
+         else
+            x = xp*r
+         end if
+         h = h2Voigt(a, x)
+         t = tau0*h/h0
+         f = h*exp(-t); g = -expm1(-t)
+         S = S + 0.5_dp*(f + fp)*(x - xp)
+         W = W + 0.5_dp*(g + gp)*(x - xp)
+         xp = x; fp = f; gp = g
+      end do
+      S = 2._dp/sqrt(pi)*(S + a/(sqrt(pi)*xmax))
+      W = 2._dp*h0/sqrt(pi)*(W + tau0*a/(sqrt(pi)*h0*xmax))
+    contains
+      real(dp) function expm1(y)
+        real(dp), intent(in) :: y
+        if (abs(y) < 1.e-5_dp) then
+           expm1 = y*(1._dp + 0.5_dp*y)
+        else
+           expm1 = exp(y) - 1._dp
+        end if
+      end function expm1
+    end subroutine shieldQuad
+
+    subroutine shieldTable()
+      integer :: i, j
+      real(dp) :: S, W
+      do j = 1, nShA
+         do i = 1, nShT
+            call shieldQuad(10._dp**(shT0 + (shT1 - shT0)*dble(i - 1)/dble(nShT - 1)), &
+                 & 10._dp**(shA0 + (shA1 - shA0)*dble(j - 1)/dble(nShA - 1)), S, W)
+            shS(i, j) = log10(S); shW(i, j) = log10(W)
+         end do
+      end do
+      lgShTab = .true.
+    end subroutine shieldTable
+
+    !---------------------------------------------------------------------------
+    ! The fraction of a beam left in a Voigt line of central optical depth
+    ! tau0 and damping parameter a, S; with dtau given, its mean through a
+    ! layer that adds dtau to tau0. Bilinear in the logs of the table; below
+    ! the table S = 1, beyond it the square-root wing.
+    !---------------------------------------------------------------------------
+    real(dp) function h2Shield(tau0, a, dtau)
+      real(dp), intent(in) :: tau0, a
+      real(dp), intent(in), optional :: dtau
+      real(dp) :: w1, w2
+      if (.not.lgShTab) call shieldTable()
+      if (present(dtau)) then
+         if (dtau > 1.e-3_dp*max(tau0, 1.e-3_dp)) then
+            w1 = tabShield(shW, tau0, a, .true.)
+            w2 = tabShield(shW, tau0 + dtau, a, .true.)
+            h2Shield = min(1._dp, max(0._dp, (w2 - w1)/dtau))
+            return
+         end if
+         h2Shield = tabShield(shS, tau0 + 0.5_dp*dtau, a, .false.)
+         return
+      end if
+      h2Shield = tabShield(shS, tau0, a, .false.)
+    end function h2Shield
+
+    real(dp) function tabShield(tab, tau0, a, lgW)
+      real(dp), intent(in) :: tab(nShT, nShA), tau0, a
+      logical, intent(in) :: lgW
+      real(dp) :: lt, la, ft, fa, v, dlt
+      integer :: i, j
+      dlt = (shT1 - shT0)/dble(nShT - 1)
+      if (tau0 <= 10._dp**shT0) then
+         tabShield = merge(tau0, 1._dp, lgW); return     ! thin: S = 1, W = tau0
+      end if
+      lt = min(log10(tau0), shT1)
+      la = min(max(log10(max(a, tiny(1._dp))), shA0), shA1)
+      i = min(int((lt - shT0)/dlt) + 1, nShT - 1)
+      j = min(int((la - shA0)/((shA1 - shA0)/dble(nShA - 1))) + 1, nShA - 1)
+      ft = (lt - (shT0 + dlt*dble(i - 1)))/dlt
+      fa = (la - (shA0 + (shA1 - shA0)*dble(j - 1)/dble(nShA - 1)))/((shA1 - shA0)/dble(nShA - 1))
+      v = (1._dp - ft)*(1._dp - fa)*tab(i, j) + ft*(1._dp - fa)*tab(i + 1, j) + &
+           & (1._dp - ft)*fa*tab(i, j + 1) + ft*fa*tab(i + 1, j + 1)
+      tabShield = 10._dp**v
+      ! past the table the wing: S ~ tau0^-1/2, W ~ tau0^1/2
+      if (log10(tau0) > shT1) tabShield = tabShield*(tau0/10._dp**shT1)**merge(0.5_dp, -0.5_dp, lgW)
+    end function tabShield
+
+    !---------------------------------------------------------------------------
+    ! Cloudy's default line shielding, for the like-for-like check only: the
+    ! fit of Federman, Glassgold & Kwan 1979 (ApJ 227, 466, appendix) as
+    ! rt_continuum_shield_fcn.cpp applies it - Doppler core by their eq. A8,
+    ! wings by A6 at sqrt(pi) tau, the sum held at 1.
+    !---------------------------------------------------------------------------
+    real(dp) function h2ShieldFederman(tau, a)
+      real(dp), intent(in) :: tau, a
+      real(dp) :: core, wings, t1, u1
+      if (tau < 2._dp) then
+         core = exp(-tau*0.66666_dp)
+      else if (tau < 10._dp) then
+         core = 0.638_dp*tau**(-1.25_dp)
+      else if (tau < 100._dp) then
+         core = 0.505_dp*tau**(-1.15_dp)
+      else
+         core = 0.344_dp*tau**(-1.0667_dp)
+      end if
+      wings = 0._dp
+      if (a > 0._dp) then
+         t1 = 3.02_dp*(a*1.e3_dp)**(-0.064_dp)
+         u1 = sqrt(max(tau*sqrt(pi), 0._dp)*a)/t1
+         wings = a/t1/sqrt(0.78540_dp + u1*u1)
+      end if
+      h2ShieldFederman = min(1._dp, core + wings)
+    end function h2ShieldFederman
+
+    !---------------------------------------------------------------------------
+    ! Shielding of every pumping line by the H2 between the source and the
+    ! point. Ncol(1:h2NX): column of each X level [cm^-2]; b: Doppler
+    ! parameter [cm s^-1]. dNcol, optional: the column of the cell itself,
+    ! over which the shielding is then averaged. tau0, optional: the central
+    ! optical depths.
+    !---------------------------------------------------------------------------
+    subroutine h2LineShield(Ncol, b, shield, dNcol, tau0)
+      real(dp), intent(in) :: Ncol(:), b
+      real(dp), intent(out) :: shield(:)
+      real(dp), intent(in), optional :: dNcol(:)
+      real(dp), intent(out), optional :: tau0(:)
+      real(dp) :: sig, a, t
+      integer :: i
+      do i = 1, h2NT
+         call h2LineParams(i, b, sig, a)
+         t = Ncol(h2tL(i))*sig
+         if (present(tau0)) tau0(i) = t
+         if (present(dNcol)) then
+            shield(i) = h2Shield(t, a, dNcol(h2tL(i))*sig)
+         else
+            shield(i) = h2Shield(t, a)
+         end if
+      end do
+    end subroutine h2LineShield
+
+    ! line i at Doppler parameter b [cm s^-1]: cross-section at line centre
+    ! [cm^2] and damping parameter
+    subroutine h2LineParams(i, b, sig, a)
+      integer, intent(in) :: i
+      real(dp), intent(in) :: b
+      real(dp), intent(out) :: sig, a
+      real(dp) :: lam
+      lam = 1._dp/h2tWN(i)
+      sig = h2uG(h2tU(i))/h2G(h2tL(i))*h2tA(i)*lam**3/(8._dp*pi**1.5_dp*b)
+      a = (h2uAtot(h2tU(i)) + h2uDiss(h2tU(i)))*lam/(4._dp*pi*b)
+    end subroutine h2LineParams
+
+    !---------------------------------------------------------------------------
+    ! Escape probability of every line: the mean over the directions given of
+    ! the chance that a photon emitted in the line (with the line's own
+    ! profile) crosses the H2 column of the line's lower level in that
+    ! direction, which is the same function S. Ncol(1:h2NX, 1:ndir) [cm^-2].
+    !---------------------------------------------------------------------------
+    subroutine h2LineEscape(Ncol, b, beta)
+      real(dp), intent(in) :: Ncol(:,:), b
+      real(dp), intent(out) :: beta(:)
+      real(dp) :: sig, a
+      integer :: i, k, nd
+      nd = size(Ncol, 2)
+      do i = 1, h2NT
+         call h2LineParams(i, b, sig, a)
+         beta(i) = 0._dp
+         do k = 1, nd
+            beta(i) = beta(i) + h2Shield(Ncol(h2tL(i), k)*sig, a)
+         end do
+         beta(i) = beta(i)/dble(nd)
+      end do
+    end subroutine h2LineEscape
 
     ! Collisions among the X levels and their radiative decay at temperature T
     ! with collider densities dens(1:5) [cm^-3] (H, He, o-H2, p-H2, H+):
@@ -665,17 +921,22 @@ contains
     !   kdiss(i)  Solomon dissociation rate out of level i [s^-1]
     !   pump(i)   absorption rate out of level i [s^-1]
     !   src(i)    further formation into level i, per H2 [s^-1]
+    !   beta(t)   escape probability of each line (see h2PumpRates)
     !---------------------------------------------------------------------------
-    subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src)
+    subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src, beta)
       real(dp), intent(in) :: T, dens(h2NColl), eta(:), phi(:)
       real(dp), intent(out) :: pops(:)
       real(dp), intent(out), optional :: kdiss(:), pump(:)
-      real(dp), intent(in), optional :: sink(:), src(:)
+      real(dp), intent(in), optional :: sink(:), src(:), beta(:)
       real(dp), allocatable :: R(:,:), W(:,:), k(:), pm(:)
 
       allocate(R(h2NX, h2NX), W(h2NX, h2NX), k(h2NX), pm(h2NX))
       call h2CollRad(T, dens, R)
-      call h2PumpRates(eta, W, k, pm)
+      if (present(beta)) then
+         call h2PumpRates(eta, W, k, pm, beta)
+      else
+         call h2PumpRates(eta, W, k, pm)
+      end if
       R = R + W
       if (present(kdiss)) kdiss(1:h2NX) = k
       if (present(pump)) pump(1:h2NX) = pm
