@@ -571,6 +571,8 @@ total pumping here by roughly 20%.** An estimate, not a calculation.
 `tools/h005_figures.py`: the shielding of the Solomon rate against N(H2)
 (model, Cloudy-like march, Cloudy at four depths, DB96 with and without
 overlap), and the level columns over Cloudy's against level energy.
+Published with the tables as the artifact "H2 Shielding Check":
+https://claude.ai/artifact/UGwgcHXfQ72aNyBnEG194Q
 
 ### Status
 
