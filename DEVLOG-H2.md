@@ -691,7 +691,9 @@ about 20 s without. For a MOCASSIN run: one call per cell and path.
   - **Escape.** The trapping (beta) takes each line alone, no overlap.
   - **Why the model is 16-30% below DB96 at 1e19-1e21:** not isolated.
   - The ortho/para peak (58 at 1.1e16) and the other open items of H-005
-    stand.
+    stand, but one: **the C I continuum.** Production's pdrStep records
+    (D-350) that MOCASSIN's opacity carries C I photoionization absorption,
+    so the field handed to the level model will already have it.
 
 ### Figures
 
