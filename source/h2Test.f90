@@ -14,6 +14,9 @@
 !       photon occupation number there; a line takes the nearest entry's.
 !    h2Test <data dir> lines
 !       prints the pumping line list
+!    h2Test <data dir> overlap <columns file> <b [cm/s]>
+!       the shielding of every line, alone and with line overlap, for the
+!       level columns of the file (rows "v J N[cm-2]") (H-006)
 !    h2Test <data dir> shield
 !       prints the line shielding function on a grid: tau0, a, S, W, and
 !       Cloudy's Federman fit (H-005)
@@ -44,6 +47,29 @@ program h2Test
           print '(5i4,f13.3,es13.5,2f6.0,2es13.5)', h2uS(h2tU(i)), h2uV(h2tU(i)), h2uJ(h2tU(i)), &
                & h2V(h2tL(i)), h2J(h2tL(i)), h2tWN(i), h2tA(i), h2uG(h2tU(i)), h2G(h2tL(i)), &
                & h2uAtot(h2tU(i)) + h2uDiss(h2tU(i)), h2uDiss(h2tU(i))
+       end do
+       stop
+    end if
+    if (trim(cases) == 'overlap') then
+       ! the shielding of every line for given level columns: arg 3 is a file of
+       ! "v J N[cm-2]" rows, arg 4 the Doppler parameter [cm/s]; prints
+       ! line index, wavenumber, tau0, own shielding, shielding with overlap
+       call h2ReadX(trim(dir))
+       call h2ReadElec(trim(dir))
+       allocate(pops(h2NX), eta(h2NT), phi(h2NT), phi1(h2NT))
+       pops = 0._dp
+       open(unit=12, file=trim(arg3), status='old', action='read')
+       do
+          read(12, *, iostat=ios) i, k, T
+          if (ios /= 0) exit
+          if (h2Level(i, k) > 0) pops(h2Level(i, k)) = T
+       end do
+       close(12)
+       call get_command_argument(4, line)
+       read(line, *) T
+       call h2LineShield(pops, T, eta, tau0=phi, own=phi1)
+       do i = 1, h2NT
+          print '(i7,f13.3,3es16.6e3)', i, h2tWN(i), phi(i), phi1(i), eta(i)
        end do
        stop
     end if

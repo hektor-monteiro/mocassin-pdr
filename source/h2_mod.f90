@@ -47,7 +47,7 @@
 ! (4 pi b) with Gamma_u the upper level's total decay rate, sum A + D_u.
 ! Through a cell that itself holds a column dN_l the mean over the cell is
 ! (W(tau_0 + dtau) - W(tau_0))/dtau, W the integral of S (the curve of
-! growth), tabulated with it. Lines do not yet shade one another (overlap).
+! growth), tabulated with it.
 ! The same S is the chance that a photon emitted in a line crosses the column
 ! in one direction, so its mean over directions is the line's escape
 ! probability (h2LineEscape); a decay through a thick line is undone on the
@@ -56,9 +56,14 @@
 ! like-for-like check: the fit of Federman, Glassgold & Kwan 1979, the
 ! damping from the line's own A alone, and no averaging over the zone.
 !
+! H-006: line overlap. The H2 lines shade one another: each line's shielding
+! is its own S times the mean transmission of all the other lines over the
+! frequencies where it absorbs (lineOverlap), checked against the integral on
+! a fine frequency grid.
+!
 ! Not yet in: destruction other than the Solomon process, formation by H- and
-! H2+, cosmic rays, line overlap, and electrons as colliders, which Aleman &
-! Gruenwald 2011 include and Cloudy does not.
+! H2+, cosmic rays, shading by the H I Lyman lines, and electrons as
+! colliders, which Aleman & Gruenwald 2011 include and Cloudy does not.
 !===============================================================================
 module h2_mod
     implicit none
@@ -136,10 +141,21 @@ module h2_mod
     real(dp), parameter :: shT0 = -4._dp, shT1 = 16._dp      ! log10 tau_0
     real(dp), parameter :: shA0 = -7._dp, shA1 = 0._dp       ! log10 a
     real(dp) :: shS(nShT, nShA), shW(nShT, nShA)             ! log10 S, log10 W
+    ! where in a line its absorption happens: the offsets x (Doppler widths)
+    ! at which the cumulative of phi exp(-tau) on one side reaches 1/6, 1/2, 5/6
+    integer, parameter :: nShQ = 3
+    real(dp), parameter :: shQ(nShQ) = (/1._dp/6._dp, 0.5_dp, 5._dp/6._dp/)
+    real(dp) :: shX(nShT, nShA, nShQ)                        ! log10 x_q
     logical :: lgShTab = .false.
+    integer, allocatable :: ordWN(:)                         ! the lines in wavenumber order
+    ! line overlap (H-006)
+    real(dp), parameter :: ovTauB = 1.e-2_dp      ! a line shades others from this tau0
+    real(dp), parameter :: ovEps = 1.e-4_dp       ! wing optical depth below which it is dropped
+    real(dp), parameter :: ovNear = 40._dp        ! Doppler widths treated sample by sample
+    real(dp), parameter :: ovLong = 100._dp       ! reach [cm^-1] above which a line shades every line
 
     public :: h2ReadX, h2ReadElec, h2SolveX, h2Solve, h2Level, h2PumpRates, h2FormDist, h2CollRad
-    public :: h2Shield, h2ShieldFederman, h2LineShield, h2LineEscape, h2LineParams, h2Voigt
+    public :: h2Shield, h2ShieldFederman, h2LineShield, h2LineOverlap, h2LineEscape, h2LineParams, h2Voigt
 
 contains
 
@@ -485,6 +501,8 @@ contains
          h2uAtot(h2tU(i)) = h2uAtot(h2tU(i)) + h2tA(i)
       end do
       if (any(h2tWN <= 0._dp)) stop '! h2ReadElec: a line with no energy'
+      allocate(ordWN(nt))
+      call indexSort(nt, h2tWN, ordWN)
       deallocate(idxU, map, cnt, ord, tU, tL, tA)
       h2NSkipped = nSkip
     end subroutine h2ReadElec
@@ -638,17 +656,20 @@ contains
     ! profile: x linear to 6 Doppler widths, then logarithmic far past the
     ! point where the wing turns thin, with the rest of the wing added
     ! analytically.
-    subroutine shieldQuad(tau0, a, S, W)
+    subroutine shieldQuad(tau0, a, S, W, xq)
       real(dp), intent(in) :: tau0, a
-      real(dp), intent(out) :: S, W
+      real(dp), intent(out) :: S, W, xq(nShQ)
       integer, parameter :: nlin = 1200, nlog = 60     ! points to x = 6; per decade beyond
-      real(dp) :: h0, x, xp, f, fp, g, gp, h, t, xmax, r
-      integer :: i, n
+      real(dp) :: h0, x, xp, f, fp, g, gp, h, t, xmax, r, tot, target
+      real(dp), allocatable :: xs(:), cs(:)
+      integer :: i, n, k
       h0 = h2Voigt(a, 0._dp)
       xmax = max(60._dp, 300._dp*sqrt(tau0*a))
       S = 0._dp; W = 0._dp
       xp = 0._dp; fp = h0*exp(-tau0); gp = -expm1(-tau0)
       n = nlin + int(nlog*log10(xmax/6._dp)) + 1
+      allocate(xs(0:n), cs(0:n))
+      xs(0) = 0._dp; cs(0) = 0._dp
       r = (xmax/6._dp)**(1._dp/dble(n - nlin))
       do i = 1, n
          if (i <= nlin) then
@@ -661,8 +682,23 @@ contains
          f = h*exp(-t); g = -expm1(-t)
          S = S + 0.5_dp*(f + fp)*(x - xp)
          W = W + 0.5_dp*(g + gp)*(x - xp)
+         xs(i) = x; cs(i) = S
          xp = x; fp = f; gp = g
       end do
+      ! the quantiles of the absorption on one side, the far wing as a/(sqrt(pi) x^2)
+      tot = S + a/(sqrt(pi)*xmax)
+      do k = 1, nShQ
+         target = shQ(k)*tot
+         if (target >= S) then
+            xq(k) = 1._dp/max(1._dp/xmax - (target - S)*sqrt(pi)/a, 1.e-30_dp)
+         else
+            do i = 1, n
+               if (cs(i) >= target) exit
+            end do
+            xq(k) = xs(i-1) + (xs(i) - xs(i-1))*(target - cs(i-1))/max(cs(i) - cs(i-1), tiny(1._dp))
+         end if
+      end do
+      deallocate(xs, cs)
       S = 2._dp/sqrt(pi)*(S + a/(sqrt(pi)*xmax))
       W = 2._dp*h0/sqrt(pi)*(W + tau0*a/(sqrt(pi)*h0*xmax))
     contains
@@ -678,12 +714,13 @@ contains
 
     subroutine shieldTable()
       integer :: i, j
-      real(dp) :: S, W
+      real(dp) :: S, W, xq(nShQ)
       do j = 1, nShA
          do i = 1, nShT
             call shieldQuad(10._dp**(shT0 + (shT1 - shT0)*dble(i - 1)/dble(nShT - 1)), &
-                 & 10._dp**(shA0 + (shA1 - shA0)*dble(j - 1)/dble(nShA - 1)), S, W)
+                 & 10._dp**(shA0 + (shA1 - shA0)*dble(j - 1)/dble(nShA - 1)), S, W, xq)
             shS(i, j) = log10(S); shW(i, j) = log10(W)
+            shX(i, j, :) = log10(max(xq, 1.e-6_dp))
          end do
       end do
       lgShTab = .true.
@@ -712,6 +749,28 @@ contains
       end if
       h2Shield = tabShield(shS, tau0, a, .false.)
     end function h2Shield
+
+    ! the offsets [Doppler widths] of a line's absorption (see shX)
+    subroutine shieldOffsets(tau0, a, xq)
+      real(dp), intent(in) :: tau0, a
+      real(dp), intent(out) :: xq(nShQ)
+      real(dp) :: lt, la, ft, fa, dlt, dla
+      integer :: i, j, k
+      if (.not.lgShTab) call shieldTable()
+      dlt = (shT1 - shT0)/dble(nShT - 1); dla = (shA1 - shA0)/dble(nShA - 1)
+      lt = min(max(log10(max(tau0, tiny(1._dp))), shT0), shT1)
+      la = min(max(log10(max(a, tiny(1._dp))), shA0), shA1)
+      i = min(int((lt - shT0)/dlt) + 1, nShT - 1)
+      j = min(int((la - shA0)/dla) + 1, nShA - 1)
+      ft = (lt - (shT0 + dlt*dble(i - 1)))/dlt
+      fa = (la - (shA0 + dla*dble(j - 1)))/dla
+      do k = 1, nShQ
+         xq(k) = 10._dp**((1._dp - ft)*(1._dp - fa)*shX(i, j, k) + ft*(1._dp - fa)*shX(i + 1, j, k) + &
+              & (1._dp - ft)*fa*shX(i, j + 1, k) + ft*fa*shX(i + 1, j + 1, k))
+      end do
+      ! past the table the wing: the offsets grow as tau0^1/2
+      if (tau0 > 10._dp**shT1) xq = xq*sqrt(tau0/10._dp**shT1)
+    end subroutine shieldOffsets
 
     real(dp) function tabShield(tab, tau0, a, lgW)
       real(dp), intent(in) :: tab(nShT, nShA), tau0, a
@@ -764,29 +823,242 @@ contains
 
     !---------------------------------------------------------------------------
     ! Shielding of every pumping line by the H2 between the source and the
-    ! point. Ncol(1:h2NX): column of each X level [cm^-2]; b: Doppler
-    ! parameter [cm s^-1]. dNcol, optional: the column of the cell itself,
-    ! over which the shielding is then averaged. tau0, optional: the central
-    ! optical depths.
+    ! point: its own (h2Shield) times the other lines' (lineOverlap).
+    ! Ncol(1:h2NX): column of each X level [cm^-2]; b: Doppler parameter
+    ! [cm s^-1]. Optional:
+    !   dNcol    the column of the cell itself; the line's own shielding is
+    !            then averaged over it and the others' taken at mid-cell
+    !   tau0     the central optical depths at Ncol
+    !   own      the line's own shielding, without overlap
+    !   overlap  overlap factors already in hand (h2LineOverlap), used instead
+    !            of computing them
     !---------------------------------------------------------------------------
-    subroutine h2LineShield(Ncol, b, shield, dNcol, tau0)
+    subroutine h2LineShield(Ncol, b, shield, dNcol, tau0, own, overlap)
       real(dp), intent(in) :: Ncol(:), b
       real(dp), intent(out) :: shield(:)
       real(dp), intent(in), optional :: dNcol(:)
-      real(dp), intent(out), optional :: tau0(:)
-      real(dp) :: sig, a, t
+      real(dp), intent(out), optional :: tau0(:), own(:)
+      real(dp), intent(in), optional :: overlap(:)
+      real(dp) :: sig, a, t, dt
+      real(dp), allocatable :: tm(:), aa(:), ov(:)
       integer :: i
+      allocate(tm(h2NT), aa(h2NT), ov(h2NT))
       do i = 1, h2NT
          call h2LineParams(i, b, sig, a)
          t = Ncol(h2tL(i))*sig
          if (present(tau0)) tau0(i) = t
+         aa(i) = a
          if (present(dNcol)) then
-            shield(i) = h2Shield(t, a, dNcol(h2tL(i))*sig)
+            dt = dNcol(h2tL(i))*sig
+            shield(i) = h2Shield(t, a, dt)
+            tm(i) = t + 0.5_dp*dt
          else
             shield(i) = h2Shield(t, a)
+            tm(i) = t
          end if
       end do
+      if (present(own)) own(1:h2NT) = shield(1:h2NT)
+      if (present(overlap)) then
+         ! the caller's overlap factors, from h2LineOverlap on nearly the same columns
+         shield(1:h2NT) = shield(1:h2NT)*overlap(1:h2NT)
+      else
+         call lineOverlap(tm, aa, b, ov)
+         shield(1:h2NT) = shield(1:h2NT)*ov
+      end if
+      deallocate(tm, aa, ov)
     end subroutine h2LineShield
+
+    ! The overlap factor of every line for the columns Ncol (lineOverlap), for
+    ! a caller that iterates on a cell and need not redo it each time: the
+    ! factor moves little while the cell's own populations settle.
+    subroutine h2LineOverlap(Ncol, b, ov)
+      real(dp), intent(in) :: Ncol(:), b
+      real(dp), intent(out) :: ov(:)
+      real(dp) :: sig
+      real(dp), allocatable :: tm(:), aa(:)
+      integer :: i
+      allocate(tm(h2NT), aa(h2NT))
+      do i = 1, h2NT
+         call h2LineParams(i, b, sig, aa(i))
+         tm(i) = Ncol(h2tL(i))*sig
+      end do
+      call lineOverlap(tm, aa, b, ov)
+      deallocate(tm, aa)
+    end subroutine h2LineOverlap
+
+    !---------------------------------------------------------------------------
+    ! H-006: line overlap. The other lines' optical depth where line i does its
+    ! absorbing cuts its pumping further:
+    !     S_i = int phi_i exp(-tau_i) exp(-tau_others) dnu
+    !         ~ S(tau_i, a_i) x mean of exp(-tau_others) over line i's absorption.
+    ! The mean is a quadrature on six points, three on each side of the line at
+    ! the offsets where a sixth, a half and five sixths of that side's
+    ! absorption has happened (tabulated with S), so that a thin line samples
+    ! its core and a damped line its wings. tau_others at a point is the sum
+    ! of the other lines' Voigt profiles there: the full function within 12 of
+    ! the other line's Doppler widths, its Lorentzian wing beyond, dropped
+    ! below ovEps. tau0(i), a(i): each line's own; ov(i): the factor.
+    !
+    ! Checked against the same integral done on a fine frequency grid
+    ! (tools/h006_exact.py). Not in it: a photon absorbed in another line's
+    ! wing is counted as lost, not as a pump of that line.
+    !---------------------------------------------------------------------------
+    subroutine lineOverlap(tau0, a, b, ov)
+      real(dp), intent(in) :: tau0(:), a(:), b
+      real(dp), intent(out) :: ov(:)
+      real(dp), allocatable :: bWn(:), bDop(:), bT(:), bA(:), bReach(:)
+      integer, allocatable :: bLine(:), iLong(:)
+      logical, allocatable :: bIsLong(:)
+      real(dp) :: xq(nShQ), dop, nu, tl, tc, rNear, d, sgn
+      integer :: nB, nL, i, j, k, m, is, lo, hi
+
+      nB = count(tau0(1:h2NT) >= ovTauB)
+      ov(1:h2NT) = 1._dp
+      if (nB == 0) return
+      allocate(bWn(nB), bDop(nB), bT(nB), bA(nB), bReach(nB), bLine(nB), bIsLong(nB), iLong(nB))
+      ! the lines that shade, in wavenumber order
+      m = 0; nL = 0
+      do k = 1, h2NT
+         j = ordWN(k)
+         if (tau0(j) < ovTauB) cycle
+         m = m + 1
+         bLine(m) = j; bWn(m) = h2tWN(j); bDop(m) = h2tWN(j)*b/cLight; bA(m) = a(j)
+         bT(m) = tau0(j)/h2Voigt(a(j), 0._dp)
+         bReach(m) = bDop(m)*max(12._dp, sqrt(bT(m)*a(j)/(sqrt(pi)*ovEps)))
+         bIsLong(m) = bReach(m) > ovLong
+         if (bIsLong(m)) then
+            nL = nL + 1; iLong(nL) = m
+         end if
+      end do
+
+      do i = 1, h2NT
+         dop = h2tWN(i)*b/cLight
+         rNear = ovNear*dop
+         call shieldOffsets(tau0(i), a(i), xq)
+         ov(i) = 0._dp
+         if (tau0(i) < 1._dp) then
+            ! a thin line absorbs within its core: what lies far from it is the same at all six points
+            tc = farSum(h2tWN(i), h2tWN(i))
+            do k = 1, nShQ
+               do is = -1, 1, 2
+                  nu = h2tWN(i) + dble(is)*xq(k)*dop
+                  ov(i) = ov(i) + exp(-(tc + nearSum(nu, h2tWN(i))))
+               end do
+            end do
+         else
+            do k = 1, nShQ
+               do is = -1, 1, 2
+                  nu = h2tWN(i) + dble(is)*xq(k)*dop
+                  ov(i) = ov(i) + exp(-(farSum(nu, nu) + nearSum(nu, nu)))
+               end do
+            end do
+         end if
+         ov(i) = ov(i)/dble(2*nShQ)
+      end do
+      deallocate(bWn, bDop, bT, bA, bReach, bLine, bIsLong, iLong)
+
+    contains
+
+      ! first shading line at or above wavenumber w
+      integer function lowerB(w)
+        real(dp), intent(in) :: w
+        integer :: l1, l2, lm
+        l1 = 1; l2 = nB + 1
+        do while (l1 < l2)
+           lm = (l1 + l2)/2
+           if (bWn(lm) < w) then
+              l1 = lm + 1
+           else
+              l2 = lm
+           end if
+        end do
+        lowerB = l1
+      end function lowerB
+
+      ! one shading line's optical depth at nu
+      real(dp) function tauAt(mm, w)
+        integer, intent(in) :: mm
+        real(dp), intent(in) :: w
+        real(dp) :: x
+        x = (w - bWn(mm))/bDop(mm)
+        if (abs(x) > 12._dp) then
+           tauAt = bT(mm)*bA(mm)/(sqrt(pi)*x*x)
+        else
+           tauAt = bT(mm)*h2Voigt(bA(mm), x)
+        end if
+      end function tauAt
+
+      ! the shading lines within rNear of wc, evaluated at nu
+      real(dp) function nearSum(w, wc)
+        real(dp), intent(in) :: w, wc
+        integer :: mm
+        nearSum = 0._dp
+        mm = lowerB(wc - rNear)
+        do while (mm <= nB)
+           if (bWn(mm) > wc + rNear) exit
+           if (bLine(mm) /= i) nearSum = nearSum + tauAt(mm, w)
+           mm = mm + 1
+        end do
+      end function nearSum
+
+      ! those farther than rNear from wc, evaluated at nu: every long-reach
+      ! line, and the short-reach ones that reach
+      real(dp) function farSum(w, wc)
+        real(dp), intent(in) :: w, wc
+        integer :: mm, kk
+        farSum = 0._dp
+        do kk = 1, nL
+           mm = iLong(kk)
+           if (abs(bWn(mm) - wc) <= rNear .or. bLine(mm) == i) cycle
+           d = (w - bWn(mm))/bDop(mm)
+           farSum = farSum + bT(mm)*bA(mm)/(sqrt(pi)*d*d)
+        end do
+        mm = lowerB(wc - ovLong)
+        do while (mm <= nB)
+           if (bWn(mm) > wc + ovLong) exit
+           if (.not.bIsLong(mm) .and. abs(bWn(mm) - wc) > rNear .and. bLine(mm) /= i) then
+              if (abs(w - bWn(mm)) < bReach(mm)) farSum = farSum + tauAt(mm, w)
+           end if
+           mm = mm + 1
+        end do
+      end function farSum
+
+    end subroutine lineOverlap
+
+    ! index sort (heapsort): ord such that key(ord) ascends
+    subroutine indexSort(n, key, ord)
+      integer, intent(in) :: n
+      real(dp), intent(in) :: key(n)
+      integer, intent(out) :: ord(n)
+      integer :: i, ir, j, l, it
+      do i = 1, n
+         ord(i) = i
+      end do
+      if (n < 2) return
+      l = n/2 + 1; ir = n
+      do
+         if (l > 1) then
+            l = l - 1; it = ord(l)
+         else
+            it = ord(ir); ord(ir) = ord(1); ir = ir - 1
+            if (ir == 1) then
+               ord(1) = it; exit
+            end if
+         end if
+         i = l; j = l + l
+         do while (j <= ir)
+            if (j < ir) then
+               if (key(ord(j)) < key(ord(j+1))) j = j + 1
+            end if
+            if (key(it) < key(ord(j))) then
+               ord(i) = ord(j); i = j; j = j + j
+            else
+               j = ir + 1
+            end if
+         end do
+         ord(i) = it
+      end do
+    end subroutine indexSort
 
     ! line i at Doppler parameter b [cm s^-1]: cross-section at line centre
     ! [cm^2] and damping parameter

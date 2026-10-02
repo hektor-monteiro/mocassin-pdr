@@ -14,6 +14,7 @@ DEVLOG.md and arrives here by merge.
 | H-003 | **Stage A, step 1: the X-state level solver (`source/h2_mod.f90`), re-implemented from Cloudy c25.00's data and conventions, matches Cloudy's large H2 model to 0-0.5% on every level that collisions and radiative decay set, across 15 one-zone models (T 50-3000 K, n_H 1e2-1e6).** Data vendored into dataPDR/h2 with provenance and the zlib notice (X energies, Wolniewicz et al. A values, the five default collision sets). Levels: 302 X, energy-ordered; colliders H, He, o-H2, p-H2, H+; linear-in-T interpolation held at the table ends; g-bar for same-spin pairs without data; detailed balance on (2J+1)(2I+1). One defect found by the comparison and fixed: transprob_X lists some transitions twice (E2 + M1, Pachucki & Komasa 2011), which Cloudy adds; overwriting them had doubled v=1 populations at low density. Test: `make h2Test`, `tools/h003_compare.py runs/h003-cloudy-lev`. Not yet included: formation into levels, destruction, cosmic rays, UV pumping (the non-thermal populations, which is where the remaining differences are), electrons. All four flavours build | Done | 2026-09-28 |
 | H-004 | **Stage A, step 2: ultraviolet pumping. The excited electronic states (B, C+, C-, B', D+, D-: 1,592 levels, 32,453 lines to X, Abgrall et al. 2000) are in `h2_mod`, with the cascade back into X, the Solomon dissociation rate per level, and formation on grains in Takahashi & Uehara's (v, J) distribution. Against 16 one-zone Cloudy models (T 100 and 1000 K, n_H 1e2-1e6, FUV 1-1e4 Habing), with Cloudy's own populations put in: pump rate per level 1.000, Solomon rate of H2g 1.000, radiative rate into each level 0.996-1.001.** Solomon rate of H2* 0.94-0.96, and 0.997-0.998 once Cloudy's direct photodissociation of H2* (all H2* taken at 2.5 eV) is added - a process not yet in ours. **Our own populations differ from Cloudy's by 0.07 dex in the median (v >= 1 levels 8-21% lower in each model's median at 1-100 Habing, ground levels up to 24% higher at 1e4), and the cause is Cloudy's bookkeeping, not its rates:** it applies its network's H2g Solomon rate a second time as a uniform sink on the H2g levels, solves the levels without a sum rule, and rescales every population by one factor f (1.06-1.11 at n <= 1e4, read off its own saved rates). Our rates put through that scheme reproduce Cloudy's populations to 0.002-0.018 dex in 15 of 16 models (0.040 in the other) and its f to 0.021 or better. Not adopted: ours replaces each destroyed molecule by a formed one and keeps the sum. Line ratios are unaffected (2-1 S(1)/1-0 S(1) = 0.53-0.55 at low density in both, equal to 0.005 in 15 models). Three hypotheses discarded (formation distribution, H- route, LTE-distributed sources). Two of 18 Cloudy models had too little H2 for its large model to run. Next: line self-shielding | Done | 2026-10-02 |
 | H-005 | **Stage A, step 3: self-shielding of the pumping lines and trapping of the fluorescent photons, marched through a Cloudy PDR slab (100 K, n_H 1e4, 100 Habing, to A_V = 3). The model's shielding - a Voigt line integrated numerically, damping from the upper level's total decay rate, averaged through each zone - follows Draine & Bertoldi's (1996) shielding function without its overlap factor to 0.79-1.00 from N(H2) = 1e18 to 1e21. Cloudy's own H2g Solomon rate is 0.28-0.36 of DB96 at N(H2) = 1e17-1e20, because it takes each line's damping from that line's own A: the upper level's total decay rate is 20x larger in the median (8-157).** Machinery checked first, with Cloudy's choices put in (Federman fit, own-A damping, its optical depths): line-centre tau and damping agree to 0.04% and 0.00% over 1,216 thick lines; pump rate per level in the shielded zones 0.97-1.00 of Cloudy's at N(H2) = 1e15-1e20; with photon trapping the H2g Solomon rate 0.93-0.97; and through Cloudy's closure (H-004) its excited fraction 0.92-0.98. **For the same slab the model's excited-level columns are 2.4x Cloudy's (v >= 1 levels 1.7-3.9x, median 2.45), and all its pumping absorptions 3.2x the Cloudy-like march's.** Not in yet: line overlap (DB96's factor is 0.9 at 1e19, 0.7 at 1e20, 0.3 at 1e21; 30% of the pumping lies above 1e20). Our ortho/para ratio reaches 60 in a thin layer at N(H2) ~ 1e16 (Cloudy 5.4), unchecked. Next: line overlap, then the field and columns from a MOCASSIN run | Done | 2026-10-02 |
+| H-006 | **Stage A, step 4: line overlap. Each pumping line's shielding is now its own times the mean transmission of all the other H2 lines over the frequencies where it absorbs, a six-point quadrature placed by the line's own absorption (`lineOverlap`). Against the exact integral on a 0.05 cm^-1 grid across the whole band, the factor overlap puts on the H2g Solomon rate is reproduced to 0.2-1.6% from N(H2) = 1e17 to 3e20 and 4.5% at 1e21 (exact 0.96, 0.93, 0.86, 0.65, 0.49, 0.32), and the exact factor is within 5% of Draine & Bertoldi's overlap term.** In the slab the model's shielding is now 0.70-0.95 of the full DB96 fit at 1e18-1e21. **H-005's numbers are revised: overlap lowers the model's total pumping by 33% (H-005 estimated 20%), and its excited-level columns are 1.63x Cloudy's (v >= 1 levels 1.25-2.77, median 1.66), not 2.44x.** Cost ~55 ms per call, so a cell computes it once and reuses it while iterating. Not in: shading by H I Lyman lines; a photon absorbed in another line's wing is counted as lost, not as a pump of that line. Next: the field and level columns from a MOCASSIN run | Done | 2026-10-02 |
 
 ---
 
@@ -579,3 +580,128 @@ https://claude.ai/artifact/UGwgcHXfQ72aNyBnEG194Q
 Done. The four MOCASSIN flavours build on the branch (h2_mod is still
 outside them), and h2Test and h2Slab. H-003's and H-004's comparisons are
 unchanged.
+
+## H-006 - Line overlap (2026-10-02)
+
+The user: "proceed" (to H-005's next step: line overlap, then the field
+and columns from a MOCASSIN run). This entry is the overlap.
+
+### The exact reference
+
+`tools/h006_exact.py`. For the level columns the slab march has at a
+depth, the optical depth of all H2 lines together is built on a 0.05 cm^-1
+grid from 84,000 to 119,500 cm^-1 (710,000 points; every line with
+tau0 > 1e-3 a Voigt profile, 8,400-13,800 of them), and each line's
+shielding is integrated through it,
+S_i = int phi_i exp(-tau_total) dnu, against the same with the line alone.
+1,158 lines out of the H2g levels, six depths, ~1.5 min each.
+
+| N(H2) [cm^-2] | 1e17 | 1e18 | 1e19 | 1e20 | 3e20 | 1e21 |
+|---|---|---|---|---|---|---|
+| exact factor on the H2g Solomon rate | 0.962 | 0.933 | 0.861 | 0.654 | 0.490 | 0.315 |
+| DB96's overlap term, exp(-8.5e-4 sqrt(1 + N/5e14)) | 0.988 | 0.962 | 0.880 | 0.681 | 0.514 | 0.299 |
+
+The two agree to 5%, which also checks the reference itself.
+
+### What was built
+
+  - **`lineOverlap`** (in `h2LineShield`, and alone as `h2LineOverlap`):
+    S_i = S(tau_i, a_i) x mean of exp(-tau_others) over line i's own
+    absorption. The mean is a quadrature on six points, three on each side
+    at the offsets where 1/6, 1/2 and 5/6 of that side's absorption has
+    happened. Those offsets are tabulated with S (a third table), so a thin
+    line samples its core and a damped line its wings, which lie hundreds
+    of Doppler widths out.
+  - tau_others at a point is the sum of the other lines' profiles: the
+    Voigt function within 12 Doppler widths of the other line, its
+    Lorentzian wing beyond, dropped below 1e-4. Lines with tau0 >= 0.01
+    shade. Those whose wing reaches more than 100 cm^-1 are summed for
+    every line; the rest are found by bisection in wavenumber order. A thin
+    line takes the far part once, at its centre.
+  - `h2LineShield(..., overlap=)` takes factors already in hand, so a cell
+    that iterates on its own populations computes the overlap once.
+    h2Slab does that, at mid-zone.
+  - `h2Test <dir> overlap <columns> <b>` prints every line's shielding
+    with and without overlap; `tools/h006_compare.py` sets it against the
+    exact reference; `tools/h006_figures.py`.
+
+**Three points per side were chosen by test** (a Python prototype against
+the exact reference): the Solomon factor over the exact one is 0.86-1.03
+with one point per side, 0.99-1.02 with two, 0.98-1.04 with three, and
+the line-by-line rms falls from 0.03-0.45 to 0.03-0.21.
+
+### Result: the model's overlap against the exact one
+
+| N(H2) [cm^-2] | 1e17 | 1e18 | 1e19 | 1e20 | 3e20 | 1e21 |
+|---|---|---|---|---|---|---|
+| Solomon factor, model | 0.962 | 0.930 | 0.858 | 0.643 | 0.491 | 0.329 |
+| model / exact | 1.001 | 0.998 | 0.997 | 0.984 | 1.004 | 1.045 |
+| pump rate per level, v = 0, J = 0-7, model / exact | 0.997-1.002 | 0.982-1.005 | 0.990-1.006 | 0.996-1.024 | 0.997-1.032 | 0.997-1.086 |
+| line by line, weighted rms | 0.02 | 0.05 | 0.07 | 0.13 | 0.17 | 0.21 |
+
+The scatter line by line reaches 21% (rms) at 1e21; the sums over a
+level are within 9% and the Solomon rate within 4.5%. The table's own S is within 1.2% of
+the exact single-line integral.
+
+### The slab again, with overlap in the model
+
+`h005_compare.py` on the same Cloudy slab (the Cloudy-like march has no
+overlap of ours and is unchanged):
+
+| | H-005 (no overlap) | now |
+|---|---|---|
+| shielding / DB96 at N(H2) = 1e18, 1e19, 1e20, 3e20, 1e21 | 1.03, 1.03, 1.30, 1.67, 2.63 | 0.95, 0.84, 0.76, 0.70, 0.74 |
+| pumping absorptions through the slab [cm^-2 s^-1] | 9.73e8 | 6.53e8 |
+| N(v=0, J=0-2) / Cloudy | 0.994-1.004 | 0.998-1.001 |
+| N(1,3) / Cloudy | 2.64 | 1.70 |
+| N(H2*) / Cloudy | 2.44 | 1.63 |
+| v >= 1 levels / Cloudy | 1.72-3.94, median 2.45 | 1.25-2.77, median 1.66 |
+
+**H-005's headline is revised.** Overlap lowers the model's total pumping
+in this slab by 33%, not the ~20% H-005 estimated from DB96's factor, and
+the excited-level columns are 1.63x Cloudy's, not 2.44x. One reason the
+estimate was low, not measured separately: the pumped rotational levels
+(v = 0, J >= 4) carry part of the pumping themselves, so less pumping
+means fewer of them and less pumping again.
+
+The model now sits 5-30% below the full DB96 fit in the damped regime and
+20-50% above it at 1e14-1e17. Not chased: the fit is for their conditions
+and populations, and our H2g rate carries the pumped J levels and the
+band's uneven dust attenuation.
+
+Cloudy's own overlap (the other lines at each line's centre, H-005) moves
+its pump rates by 1-6%; the exact effect here is 14-35% at 1e19-1e20.
+With wings 20x too narrow there is little to overlap.
+
+### Cost
+
+One overlap call is ~55 ms at these columns (32,453 lines, up to 13,800
+shading). The march takes 59 s a pass with one call per zone, against
+about 20 s without. For a MOCASSIN run: one call per cell and path.
+
+### What is not yet known
+
+  - **H I Lyman lines** shade the band too (Ly-beta and up, each ~2 A wide
+    at N(H I) = 1e21). Not in.
+  - **Cross-pumping.** A photon absorbed in another line's wing is counted
+    as lost; it is in fact a pump of that line. That is in neither the
+    exact reference nor the model: the reference is exact for the
+    shielding, not for where the absorbed photon goes. Each line's own
+    pumping is unaffected.
+  - **Escape.** The trapping (beta) takes each line alone, no overlap.
+  - **Why the model is 16-30% below DB96 at 1e19-1e21:** not isolated.
+  - The ortho/para peak (58 at 1.1e16) and the other open items of H-005
+    stand.
+
+### Figures
+
+`tools/h006_figures.py`: the overlap factor against N(H2), exact, model
+and DB96. `tools/h005_figures.py` re-run for the slab. The artifact "H2
+Shielding Check" is updated in place:
+https://claude.ai/artifact/UGwgcHXfQ72aNyBnEG194Q
+
+### Status
+
+Done. The four MOCASSIN flavours, h2Test and h2Slab build. H-003's and
+H-004's comparisons are unchanged, and so are H-005's like-for-like
+numbers (the Cloudy-like march and the truncated slabs).

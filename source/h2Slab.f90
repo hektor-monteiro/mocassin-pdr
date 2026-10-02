@@ -13,7 +13,8 @@
 !       nf photon occupation numbers of the continuum in the zone
 !
 ! voigt     the model's shielding (h2LineShield): Voigt line, damping from
-!           the upper level's total decay rate, averaged through the zone
+!           the upper level's total decay rate, averaged through the zone,
+!           and the other lines' shading (overlap)
 ! federman  Cloudy's, for the like-for-like check: the Federman et al. fit,
 !           damping from the line's own A, optical depth at the zone's inner
 !           face with no averaging through the zone
@@ -41,7 +42,7 @@ program h2Slab
     real(dp) :: fo, foNew, depth, lam, sig, a, solG, solS, popG
     real(dp), allocatable :: fw(:), fe(:), etaC(:), eta(:), shield(:), tau0(:)
     real(dp), allocatable :: Ncol(:), dN(:), pops(:), kdiss(:), pump(:), phi(:), phi1(:)
-    real(dp), allocatable :: Ntot(:), N2(:,:), beta(:)
+    real(dp), allocatable :: Ntot(:), N2(:,:), beta(:), ovl(:)
     integer, allocatable :: cell(:)
     logical :: lgFed
 
@@ -61,7 +62,7 @@ program h2Slab
     read(10, *) nz, nf, vturb
     allocate(fw(nf), fe(nf), etaC(h2NT), eta(h2NT), shield(h2NT), tau0(h2NT), cell(h2NT))
     allocate(Ncol(h2NX), dN(h2NX), pops(h2NX), kdiss(h2NX), pump(h2NX), phi(h2NX), phi1(h2NX))
-    allocate(Ntot(h2NX), N2(h2NX, 2), beta(h2NT))
+    allocate(Ntot(h2NX), N2(h2NX, 2), beta(h2NT), ovl(h2NT))
     read(10, *) fw
     ! the field cell of each line: the nearest
     do i = 1, h2NT
@@ -118,10 +119,13 @@ program h2Slab
           dens = (/ nH, nHe, fo*nH2, (1._dp - fo)*nH2, nHp /)
           if (.not.lgFed) then
              dN = pops*nH2*dr
+             ! the other lines' shading once per zone, at mid-zone, with the
+             ! zone's own column guessed from the zone before
+             if (it == 1) call h2LineOverlap(Ncol + 0.5_dp*dN, b, ovl)
              if (it == 1 .and. iz == 1) then
-                call h2LineShield(Ncol, b, shield)
+                call h2LineShield(Ncol, b, shield, overlap=ovl)
              else
-                call h2LineShield(Ncol, b, shield, dN)
+                call h2LineShield(Ncol, b, shield, dN, overlap=ovl)
              end if
           end if
           eta = etaC*shield
@@ -176,7 +180,7 @@ program h2Slab
     do i = 1, h2NT
        if (tau0(i) < 1.e-4_dp) cycle
        u = h2tU(i); l = h2tL(i); lam = 1._dp/h2tWN(i)
-       write(14, '(5i4,f13.3,5es13.5)') h2uS(u), h2uV(u), h2uJ(u), h2V(l), h2J(l), h2tWN(i), h2tA(i), tau0(i), &
+       write(14, '(5i4,f13.3,5es15.5e3)') h2uS(u), h2uV(u), h2uJ(u), h2V(l), h2J(l), h2tWN(i), h2tA(i), tau0(i), &
             & (h2uAtot(u) + h2uDiss(u))*lam/(4._dp*pi*b), h2tA(i)*lam/(4._dp*pi*b), shield(i)
     end do
     close(14)
