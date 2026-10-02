@@ -586,6 +586,14 @@ module common_mod
         ! Level populations for every coolant, packed end to end using
         ! pdrLevOff. Double precision: these span many orders of magnitude.
         double precision, allocatable :: pdrLevPop(:,:)
+        ! H-007 (branch h2-model): the H2 level model's results per cell, filled
+        ! by pdr_mod's h2LevelModel on the finished model and allocated there
+        real, allocatable         :: h2Pop(:,:)      ! X-level populations, fractions of n(H2) (cell, level)
+        real, allocatable         :: h2Sol(:)        ! Solomon dissociation rate per H2 from the levels [s^-1]
+        real, allocatable         :: h2SolChem(:)    ! the chemistry's H2 photodissociation rate on the same field [s^-1]
+        real, allocatable         :: h2Pump(:)       ! pumping absorption rate per H2 [s^-1]
+        real, allocatable         :: h2Diag(:,:)     ! diagnostics: Solomon rate of the direct part (levels, chemistry) [s^-1],
+                                                     ! N(H2) to the cell and through it [cm^-2], diffuse share of the LW field
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type

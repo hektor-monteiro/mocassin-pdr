@@ -3118,6 +3118,11 @@ module iteration_mod
            if ( totPercent >= minConvergence ) then
 #endif
 
+#ifdef PDR
+              ! H-007 (branch h2-model): the H2 level model on the finished
+              ! model, every rank, before rank 0 writes the output
+              if (lgPDR) call h2LevelModel(grid(1:nGrids))
+#endif
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
                       &                           nIterateMC, " iterations. & Finishing up ... "
@@ -3140,6 +3145,9 @@ module iteration_mod
 
            else if (nIterateMC >= maxIterateMC) then
 
+#ifdef PDR
+              if (lgPDR) call h2LevelModel(grid(1:nGrids))       ! H-007
+#endif
               if (taskid==0) then
 
                  print*, " ! iterateMC: maximum number of iterations reached. Finishing up ... ",&

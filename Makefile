@@ -42,7 +42,7 @@ SOURCES = source/constants_mod.o source/vector_mod.o source/common_mod.o source/
 	source/set_input_mod.o source/hydro_mod.o source/ph_mod.o source/composition_mod.o \
 	source/continuum_mod.o source/ionization_mod.o source/pathIntegration_mod.o \
 	source/grid_mod.o source/dust_mod.o source/emission_mod.o source/photon_mod.o  \
-	source/update_mod.o source/frontLines_mod.o source/output_mod.o $(PDR_BRIDGE) source/iteration_mod.o source/readdata_mod.o
+	source/update_mod.o source/frontLines_mod.o $(PDR_PRE) source/output_mod.o $(PDR_BRIDGE) source/iteration_mod.o source/readdata_mod.o
 
 # PDR support (DEVLOG D-009, D-020). Off by default: with PDR unset the build is
 # semantically identical to a plain build (verified by masking the source-line
@@ -122,6 +122,9 @@ ifeq ($(PDR),1)
   # The bridge is MOCASSIN code but uses the vendored modules, so it slots into
   # SOURCES after output_mod and before iteration_mod (which will call it in
   # Phase 4). Empty when PDR is off, so SOURCES is unchanged.
+  # H-007 (branch h2-model): the H2 level model is part of the bridge; its
+  # data module and its output come before output_mod, which writes the lines
+  PDR_PRE = source/h2_mod.o source/h2Lines_mod.o
   PDR_BRIDGE = source/pdr_mod.o
   LDFLAGS += $(PDR_LIB)
 endif
@@ -139,6 +142,10 @@ $(filter-out $(MODBASE),$(SOURCES) $(PDR_BRIDGE) source/mocassin.o \
   source/mocassinWarm.o source/mocassinOutput.o source/mocassinPlot.o): $(MODBASE)
 source/common_mod.o: source/constants_mod.o source/vector_mod.o
 source/vector_mod.o: source/constants_mod.o
+
+source/pdr_mod.o source/h2Lines_mod.o: source/h2_mod.o
+source/h2Lines_mod.o: source/grid_mod.o
+source/output_mod.o: $(PDR_PRE)
 
 # Same for the vendored tree: every 3D-PDR unit uses maincode_module, so a
 # change there must rebuild all of them. Without this, editing modules.F90

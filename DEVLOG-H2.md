@@ -15,6 +15,7 @@ DEVLOG.md and arrives here by merge.
 | H-004 | **Stage A, step 2: ultraviolet pumping. The excited electronic states (B, C+, C-, B', D+, D-: 1,592 levels, 32,453 lines to X, Abgrall et al. 2000) are in `h2_mod`, with the cascade back into X, the Solomon dissociation rate per level, and formation on grains in Takahashi & Uehara's (v, J) distribution. Against 16 one-zone Cloudy models (T 100 and 1000 K, n_H 1e2-1e6, FUV 1-1e4 Habing), with Cloudy's own populations put in: pump rate per level 1.000, Solomon rate of H2g 1.000, radiative rate into each level 0.996-1.001.** Solomon rate of H2* 0.94-0.96, and 0.997-0.998 once Cloudy's direct photodissociation of H2* (all H2* taken at 2.5 eV) is added - a process not yet in ours. **Our own populations differ from Cloudy's by 0.07 dex in the median (v >= 1 levels 8-21% lower in each model's median at 1-100 Habing, ground levels up to 24% higher at 1e4), and the cause is Cloudy's bookkeeping, not its rates:** it applies its network's H2g Solomon rate a second time as a uniform sink on the H2g levels, solves the levels without a sum rule, and rescales every population by one factor f (1.06-1.11 at n <= 1e4, read off its own saved rates). Our rates put through that scheme reproduce Cloudy's populations to 0.002-0.018 dex in 15 of 16 models (0.040 in the other) and its f to 0.021 or better. Not adopted: ours replaces each destroyed molecule by a formed one and keeps the sum. Line ratios are unaffected (2-1 S(1)/1-0 S(1) = 0.53-0.55 at low density in both, equal to 0.005 in 15 models). Three hypotheses discarded (formation distribution, H- route, LTE-distributed sources). Two of 18 Cloudy models had too little H2 for its large model to run. Next: line self-shielding | Done | 2026-10-02 |
 | H-005 | **Stage A, step 3: self-shielding of the pumping lines and trapping of the fluorescent photons, marched through a Cloudy PDR slab (100 K, n_H 1e4, 100 Habing, to A_V = 3). The model's shielding - a Voigt line integrated numerically, damping from the upper level's total decay rate, averaged through each zone - follows Draine & Bertoldi's (1996) shielding function without its overlap factor to 0.79-1.00 from N(H2) = 1e18 to 1e21. Cloudy's own H2g Solomon rate is 0.28-0.36 of DB96 at N(H2) = 1e17-1e20, because it takes each line's damping from that line's own A: the upper level's total decay rate is 20x larger in the median (8-157).** Machinery checked first, with Cloudy's choices put in (Federman fit, own-A damping, its optical depths): line-centre tau and damping agree to 0.04% and 0.00% over 1,216 thick lines; pump rate per level in the shielded zones 0.97-1.00 of Cloudy's at N(H2) = 1e15-1e20; with photon trapping the H2g Solomon rate 0.93-0.97; and through Cloudy's closure (H-004) its excited fraction 0.92-0.98. **For the same slab the model's excited-level columns are 2.4x Cloudy's (v >= 1 levels 1.7-3.9x, median 2.45), and all its pumping absorptions 3.2x the Cloudy-like march's.** Not in yet: line overlap (DB96's factor is 0.9 at 1e19, 0.7 at 1e20, 0.3 at 1e21; 30% of the pumping lies above 1e20). Our ortho/para ratio reaches 60 in a thin layer at N(H2) ~ 1e16 (Cloudy 5.4), unchecked. Next: line overlap, then the field and columns from a MOCASSIN run | Done | 2026-10-02 |
 | H-006 | **Stage A, step 4: line overlap. Each pumping line's shielding is now its own times the mean transmission of all the other H2 lines over the frequencies where it absorbs, a six-point quadrature placed by the line's own absorption (`lineOverlap`). Against the exact integral on a 0.05 cm^-1 grid across the whole band, the factor overlap puts on the H2g Solomon rate is reproduced to 0.2-1.6% from N(H2) = 1e17 to 3e20 and 4.5% at 1e21 (exact 0.96, 0.93, 0.86, 0.65, 0.49, 0.32), and the exact factor is within 5% of Draine & Bertoldi's overlap term.** In the slab the model's shielding is now 0.70-0.95 of the full DB96 fit at 1e18-1e21. **H-005's numbers are revised: overlap lowers the model's total pumping by 33% (H-005 estimated 20%), and its excited-level columns are 1.63x Cloudy's (v >= 1 levels 1.25-2.77, median 1.66), not 2.44x.** Cost ~55 ms per call, so a cell computes it once and reuses it while iterating. Not in: shading by H I Lyman lines; a photon absorbed in another line's wing is counted as lost, not as a pump of that line. Next: the field and level columns from a MOCASSIN run | Done | 2026-10-02 |
+| H-007 | **Stage A, step 5: the level model inside MOCASSIN, on the finished model (`pdr_mod` `h2LevelModel`, called on every rank before the final output; 3D build).** Per cell: MOCASSIN's Te and the chemistry's densities; the MC field in the bin of each pumping line, split as pdrStep splits it (direct part behind the star-ward level columns, diffuse part on traceDiffuseSites' scattering sites behind their two-leg level columns); line shielding and overlap averaged through the cell's own column; photon escape over the twelve line rays; formation on silicate and carbonaceous surfaces in the proportion of the chemistry's own rate on each. Other cells' populations are the previous sweep's; sweeps repeat until four lines move by under 1%. Output: lineFluxH2.out, h2Cells.out (with the chemistry's own H2 photodissociation rate beside the levels'), h2Pop.bin. **First full run (hiipdr 21^3, 4,661 cells): 4 sweeps, 286 s on 14 ranks; 1-0 S(1) = 6.2e33 erg/s = 7.2e-4 Hbeta, 2-1 S(1)/1-0 S(1) = 0.53; the levels' Solomon rate is 2.6x the chemistry's in the ionized gas, 1.5-1.8x in unshielded cold gas, 0.4-0.7x in shielded gas.** The in-code field conversion agrees with an offline one from pdrFUVspec.out to 3-8%. The result is sensitive to how the cell's own column is treated (4.6x in 1-0 S(1) between leaving it out of the diffuse part and averaging through it): the pumping layer is inside one or two cells. pn150k 41^3 and hiipdr 31^3, 41^3 are running | In progress | 2026-10-02 |
 
 ---
 
@@ -707,3 +708,162 @@ https://claude.ai/artifact/UGwgcHXfQ72aNyBnEG194Q
 Done. The four MOCASSIN flavours, h2Test and h2Slab build. H-003's and
 H-004's comparisons are unchanged, and so are H-005's like-for-like
 numbers (the Cloudy-like march and the truncated slabs).
+
+## H-007 - The level model inside MOCASSIN (2026-10-02)
+
+The user: "proceed" (to H-006's next step: feeding the model the field and
+columns from a MOCASSIN run).
+
+### Where it runs, and on what
+
+`h2LevelModel(grid)` in `pdr_mod.f90`, called from `iteration_mod` on
+every rank at the final iteration (both exits: converged, and maximum
+iterations), before rank 0 writes the output. Stage A: nothing feeds back.
+3D build only (the 1D build has neither the site walk nor the line rays;
+a stub says so). One grid, point sources.
+
+Per cell, from the finished model:
+
+| what | from |
+|---|---|
+| T | MOCASSIN's Te |
+| n(H), n(He), n(H+), n(H2) | the chemistry's abundances times Hden |
+| ortho and para H2 that collide | the level model's own, iterated |
+| Doppler width | thermal at Te plus `pdrVturb` |
+| field at each pumping line | Jste and Jdif in the line's bin (MOCASSIN's own rule for line bins), as a photon occupation number |
+| direct part, Jste - Jdif | shielded by the level columns from the star to the cell (computeAVradial's march), averaged through the cell along the star's direction |
+| diffuse part, Jdif | on traceDiffuseSites' scattering sites, each behind its two-leg level column, averaged through the cell's mean chord 4V/A |
+| escape of each line | mean over the twelve line rays of traceLineRays |
+| formation | Takahashi & Uehara on silicate and carbonaceous surfaces, weighted by the chemistry's H2_FORMATION_RATE on each surface alone |
+
+Dust and continuous opacity (C I included, D-350) are already in the MC
+field; the level model adds only the H2 lines' shading.
+
+**Level columns are level by level.** The chemistry's columns are N(H2);
+here each path's column of every one of the 302 levels is built from the
+level populations of the cells on it and the chemistry's n(H2) there.
+traceDiffuseSites now records each site's cell, ray and step and the
+cells it stepped through, so the second leg can be rebuilt per level; its
+results for the chemistry are unchanged.
+
+**The sites are binned, not looped.** A cell has hundreds of sites, and
+32,453 lines each. Per level, the site weights go into a histogram of
+log N_l (0.1 dex), and each line is shielded bin by bin. Overlap is taken
+per group of sites by total N(H2) (below 1e17: none; 1e17-1e19;
+1e19-3e20; above), at the group's weighted mean level columns.
+
+**Sweeps.** Other cells' populations are the previous sweep's (as the
+coolants' are the previous iteration's in pdrStep), from Boltzmann
+populations at Te on the first. Sweeps repeat until 1-0 S(1), 2-1 S(1),
+0-0 S(0) and 0-0 S(1) all move by less than 1%.
+
+**Output** (`h2Lines_mod.f90`, called from outputGas): `lineFluxH2.out`,
+`h2Cells.out`, `h2Pop.bin`; described in the man page.
+`tools/h007_report.py` summarises a run.
+
+### Two defects on the way
+
+  - **A local `nH2` hid the species index `NH2`** (Fortran is
+    case-insensitive; D-075's trap): `pdrAbun(cellP, NH2)` was indexed
+    with a real. One cell "solved", zero luminosity. Renamed; `nC` too.
+  - **The diffuse part first left the cell's own column out** (as the
+    chemistry does, D-088) while the direct part was averaged through it.
+    The diffuse part then carried almost all the pumping in the cells
+    where H2 turns on, and the level model's Solomon rate was 4-12x the
+    chemistry's there. Averaging the sites' shielding through the cell's
+    mean chord as well brought it to ~1 and 1-0 S(1) down 4.6x
+    (3.2e34 -> 6.9e33 erg/s on the test model). The size of that change
+    is the point: see "resolution" below.
+
+### Checks
+
+  - **Field conversion.** The unshielded Solomon rate recomputed offline
+    from the shell-averaged spectrum of pdrFUVspec.out (h2Test, same T) is
+    2.30e-7 and 1.00e-7 s^-1 in shells 2 and 3; the cells' mean from the
+    run is 2.22e-7 and 9.23e-8 (0.97, 0.92). Shell membership was
+    reconstructed, not read.
+  - **In the Draine field** the level model's unshielded Solomon rate is
+    6.36e-11 s^-1 (pumping 5.05e-10, one dissociation per 8.1
+    absorptions); the network's coefficient is 5.18e-11.
+  - Populations sum to 1 by construction; all four MOCASSIN flavours,
+    mocassinOutput and mocassinPlot build.
+
+### First full run: hiipdr 21^3
+
+`runs/h007-full-hii21` (production's d381-hii21 input; 4,661 active
+cells, 11 iterations, 14 ranks). The whole run took 10 min 11 s, of which
+the level model 286 s: 4 sweeps of 59-79 s. Rank-seconds per sweep:
+overlap ~285, solution ~255, shielding ~76, escape ~22, sites ~7.
+
+| line | L [erg/s] | L / Hbeta |
+|---|---|---|
+| 1-0 S(1) 2.12 um | 6.22e33 | 7.2e-4 |
+| 2-1 S(1) 2.25 um | 3.30e33 | 3.8e-4 |
+| 0-0 S(0) 28.2 um | 2.08e33 | 2.4e-4 |
+| 0-0 S(1) 17.0 um | 2.90e33 | 3.4e-4 |
+| 0-0 S(3) 9.66 um | 3.63e33 | 4.2e-4 |
+
+2-1 S(1)/1-0 S(1) = 0.53, the fluorescent value, as it should be at
+n_H = 100.
+
+**The levels' Solomon rate against the chemistry's**, on the same field
+split and the same total columns (median per radial bin):
+
+| where | levels / chemistry |
+|---|---|
+| ionized gas, T ~ 9,000 K | 2.4-2.6 |
+| cold, unshielded (N(H2) < 1e14) | 1.5-1.8 |
+| N(H2) to the cell 1e15-1e17 | 0.6-0.7 |
+| deeper | 0.4-0.6 |
+
+Three things separate them, none of them a bug in either:
+  - the network's coefficient is for the Draine field, and the level
+    model's rate in that field is 1.23x it; the 40 kK star's field rises
+    toward 912 A where Draine's falls;
+  - at 9,000 K the molecules are in excited levels (82% above
+    4100 cm^-1), which dissociate faster;
+  - the chemistry shields with one Federman line of radiative width
+    8e7 s^-1 at the near face of the cell (D-088); the level model
+    averages through the cell and has line overlap.
+Resolving this is stage B.
+
+Ortho/para peaks at 22 (median of a radial bin) where N(H2) to the cell
+is ~1e15, as in the slab (H-005).
+
+### Resolution
+
+A hiipdr cell at 21^3 is 1 pc; its own H2 column where the molecule turns
+on is 1e14-1e18 cm^-2, the whole range over which the pumping lines go
+from thin to damped. The level model's answer there depends on how the
+cell's own column is treated, by the 4.6x above. The shielding average
+through a cell is exact for a uniform cell; these cells are not uniform.
+The 21^3 / 31^3 / 41^3 series below measures how much this matters.
+
+### Observations, not chased
+
+  - **Warm restarts with `pdrStartIter 1` are not a faithful test bed.**
+    The first tests restarted d381-hii21 for one iteration with
+    pdrStartIter set to 1. The outer cloud's n(H2) came out at 0.03-0.5
+    where the full run has 49 cm^-3: the chemistry appears to be re-seeded
+    without molecules at the PDR's first iteration. Likely my change of
+    pdrStartIter rather than a defect of mocassinWarm; not diagnosed.
+    Full runs are used instead.
+  - Production's d381-hii21 was run at np = 2; this one at 14. Hbeta
+    agrees to 0.02% and CO 1-0 to 0.5%; CO 6-5 differs by 46%.
+
+### Not yet known
+
+  - pn150k against Cloudy's four H2 lines; the resolution series. Running.
+  - Formation by routes other than grains (H2+ + H, H-) is not
+    distributed over levels; cells with no grain formation would take a
+    Boltzmann distribution (none in this model).
+  - H2 inside the ionized gas (T ~ 9,000 K): the collision tables are
+    held at their ends, and electrons are not colliders yet.
+  - Dust extinction of the H2 lines on their way out is not applied.
+  - Plane-parallel models, multiple grids, the 1D build.
+  - Cost on a 35k-cell model (estimated ~10 min a sweep at 14 ranks).
+
+### Status
+
+In progress: the code is in and builds; pn150k 41^3 and hiipdr 31^3 and
+41^3 are running.

@@ -116,6 +116,7 @@ module pdr_mod
             & mocassinToPDR, pdrStep, pdrToMocassin
     public :: resetDiffuseDiag, reportDiffuseDiag        ! D-348
     public :: reportPassChange                           ! D-354
+    public :: h2LevelModel                               ! H-007 (branch h2-model)
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
     ! component, split by material. Fixed by the size distribution and the
@@ -126,6 +127,13 @@ module pdr_mod
     ! D-348: the scattering sites of the cell pdrStep is solving, filled by
     ! traceDiffuseSites - weight, and (H2, C, CO) two-leg columns [cm^-2]
     double precision, allocatable :: siteW(:), siteN(:,:)
+    ! H-007: what the walk walked, for the H2 level model, which needs the
+    ! two-leg columns level by level: each site's own cell, ray and step, and
+    ! the active cell of every step of every ray (0 where the step was in no
+    ! active cell), wkN(k) steps of length wkDs on ray k
+    integer, allocatable          :: siteCell(:), siteRay(:), siteIst(:), wkCell(:,:)
+    integer                       :: wkN(0:11) = 0
+    double precision              :: wkDs = 0.d0
 
     ! D-377: the line-escape rays of the cell pdrStep is solving, filled by
     ! traceLineRays - along each of the twelve HEALPix directions, the cells
@@ -1818,9 +1826,11 @@ module pdr_mod
 
         need = 12*nstep
         if (allocated(siteW)) then
-           if (size(siteW) < need) deallocate(siteW, siteN)
+           if (size(siteW) < need) deallocate(siteW, siteN, siteCell, siteRay, siteIst, wkCell)
         end if
-        if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need))
+        if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need), siteCell(need), &
+             & siteRay(need), siteIst(need), wkCell(nstep,0:11))
+        wkDs = ds; wkN = 0
 
         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
 
@@ -1849,6 +1859,8 @@ module pdr_mod
               iy = nearestAxB(grid%yAxis, grid%ny, py)
               iz = nearestAxB(grid%zAxis, grid%nz, pz)
               cP = grid%active(ix,iy,iz)
+              wkN(kray) = istep
+              wkCell(istep,kray) = max(cP, 0)
               if (cP <= 0) cycle
 
               kext = grid%difSrc(cP,4)
@@ -1876,6 +1888,7 @@ module pdr_mod
                     if (any(col1 < 0.d0)) nUnset = nUnset + 1
                     nSite = nSite + 1
                     siteW(nSite)   = w
+                    siteCell(nSite) = cP; siteRay(nSite) = kray; siteIst(nSite) = istep
                     ! the site sits mid-step: half its own cell is between it
                     ! and the cell (when that cell shields at all)
                     siteN(:,nSite) = max(col1, 0.d0) + cN + 0.5d0*dN
@@ -4393,6 +4406,599 @@ module pdr_mod
         grid%elemAvail(cellP, elem) = real(min(max(f0+f1, 0.d0), 1.d0))
 
       end subroutine setElemAvail
+
+      !=================================================================
+      ! H-007 (branch h2-model): the H2 level model on the finished model.
+      !
+      ! Stage A of DEVLOG-H2: nothing here feeds back. For every active cell
+      ! the 302 rovibrational levels of H2 X are solved (h2_mod) with what the
+      ! finished model holds:
+      !
+      !   gas       MOCASSIN's Te; n(H), n(He), n(H+) and n(H2) from the
+      !             chemistry; the ortho and para H2 that collide are the
+      !             level model's own
+      !   field     the MC's field in the bin of each pumping line, split as
+      !             pdrStep splits it (D-350): the direct part Jste - Jdif
+      !             behind the star-ward column, the diffuse part Jdif on the
+      !             scattering sites of traceDiffuseSites, each behind its own
+      !             two-leg column. Dust and continuous opacity are already in
+      !             the MC field; what is added is the H2 lines' shading.
+      !   columns   level by level, from the level populations of the cells on
+      !             the path and the chemistry's n(H2) there. The cell's own
+      !             column is not left out as the chemistry leaves it out
+      !             (D-088): the line shielding is averaged through it, along
+      !             the star's direction for the direct part and over the
+      !             cell's mean chord (4 V / A) for the sites.
+      !   escape    each line's escape probability over the twelve line rays
+      !             of traceLineRays (D-377)
+      !   formation each destroyed molecule replaced by one formed on a grain,
+      !             silicate and carbonaceous surfaces in the proportion of
+      !             the chemistry's own formation rate on each (D-195)
+      !
+      ! Other cells' populations are the previous sweep's, as the coolants'
+      ! are the previous iteration's in pdrStep; the first sweep starts from
+      ! Boltzmann populations at Te. Sweeps repeat until the luminosities of
+      ! 1-0 S(1), 2-1 S(1), 0-0 S(0) and 0-0 S(1) all move by less than 1%
+      ! (at most twelve).
+      !
+      ! Results per cell (grid%h2Pop, h2Sol, h2Pump) and, for comparison, the
+      ! chemistry's own H2 photodissociation rate on the same field and
+      ! columns (h2SolChem); written by h2Lines_mod. Not yet: plane-parallel
+      ! illumination, more than one grid, the 1D build. A part of the field
+      ! that is zero in every pumping line is not shielded at all (its
+      ! columns, overlap and sites are skipped): that changes no result.
+      !=================================================================
+#ifdef RAYTHEIA
+      subroutine h2LevelModel(grid)
+        use h2_mod, only : h2NX, h2NU, h2NT, h2NColl, h2ReadX, h2ReadElec, h2tWN, h2tU, h2tL, h2tA, &
+             & h2uG, h2G, h2E, h2A, h2Ortho, h2Level, h2LineOverlap, h2LineShield, h2LineParams, &
+             & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates
+        use functions_module, only : H2_FORMATION_RATE
+        use grid_mod, only : getVolume
+        implicit none
+        include 'mpif.h'
+
+        type(grid_type), dimension(:), intent(inout) :: grid
+
+        integer, parameter          :: maxSweep = 12, nGrp = 4, nHb = 150, nR1 = 8
+        double precision, parameter :: rydWN = 109737.31568d0
+        double precision, parameter :: mH2g = 2.01588d0*1.66053907d-24
+        double precision, parameter :: hcK = 1.4387769d0
+        double precision, parameter :: hb0 = 9.d0, hbd = 0.1d0   ! histogram: log10 N from 9, 0.1 dex
+        double precision, parameter :: grpEdge(nGrp-1) = (/1.d17, 1.d19, 3.d20/)
+
+        character(len=300) :: h2Dir
+        integer :: nCel, nx, ny, nz, i, j, k, l, ln, ib, iS, cellP, cP, iCell, isweep, it, ierr, err
+        integer :: nSite, nUnset, kray, istep, ipt, g, bin, iSite, iR, nSolved, nNoGrain
+        integer :: last, nseg, nstep, ix, iy, iz
+        integer, allocatable :: tBin(:), bLo(:,:), bHi(:,:), segC(:)
+        double precision :: T, nH, dnH2, b, fo, foNew, chord, dx3(3), rv(3), rr, wTot, aniso, colWalk, avWalk
+        double precision :: jT, jD, sumT, sumD, lwT, lwD, chiDir, chiDif, fDir, fDif, fLWd, sig, aL, w, ntot
+        double precision :: Td, wSil, wGra, xsS, xsG, alphaH2loc, pumpTot, solTot, t0, t1
+        double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, fS, fTot, tot, sH2
+        double precision :: lum(4), lumOld(4), dV, sym, tm(5), tmSum(5), tq, chordIso, dtau, sThin
+        logical          :: lgDif, lgDirF
+        double precision, allocatable :: Wd(:,:), kd2(:)
+        integer          :: iu(4), il(4)
+        double precision, allocatable :: nH2c(:), cDir(:), cDif(:), etaDir(:), etaDif(:), eta(:), shDir(:), shDif(:)
+        double precision, allocatable :: ovDir(:), ovG(:,:), beta(:), sb(:), sigMax(:), pops(:), kdiss(:), pump(:)
+        double precision, allocatable :: phi(:), phi1(:), phiB(:), Ncol(:), dN(:), cLev(:), dLev(:), Ns(:), N12(:,:)
+        double precision, allocatable :: hist(:,:,:), thin(:,:), gW(:), gLev(:,:), acc(:), wLev(:), segL(:)
+        real, allocatable             :: colStar(:,:), popTmp(:,:), popSum(:,:), r1Tmp(:,:), r1Sum(:,:)
+        double precision :: dens(h2NColl)
+
+        if (nGrids /= 1 .or. lgPlaneIonization) then
+           if (taskid == 0) print*, "! h2LevelModel: one grid and point sources only so far - skipped"
+           return
+        end if
+        if (.not.allocated(grid(1)%Jdif) .or. .not.allocated(grid(1)%difSrc)) then
+           if (taskid == 0) print*, "! h2LevelModel: no diffuse field or site snapshot - skipped"
+           return
+        end if
+        t0 = mpi_wtime()
+
+        ! ---- the data, once
+        if (h2NX == 0) then
+           if (len_trim(pdrDataDir) > 0) then
+              h2Dir = trim(pdrDataDir)//"/h2"
+           else
+              h2Dir = PREFIX//"/share/mocassin/dataPDR/h2"
+           end if
+           call h2ReadX(trim(h2Dir))
+           call h2ReadElec(trim(h2Dir))
+           if (taskid == 0) print '(a,i4,a,i5,a,i6,a)', " ! h2LevelModel: ", h2NX, " X levels, ", &
+                & h2NU, " excited levels, ", h2NT, " pumping lines"
+        end if
+
+        nCel = grid(1)%nCells
+        nx = grid(1)%nx; ny = grid(1)%ny; nz = grid(1)%nz
+        allocate(tBin(h2NT), sb(h2NT), sigMax(h2NX), nH2c(0:nCel), cDir(nbins), cDif(nbins), &
+             & etaDir(h2NT), etaDif(h2NT), eta(h2NT), shDir(h2NT), shDif(h2NT), ovDir(h2NT), &
+             & ovG(h2NT,nGrp), beta(h2NT), pops(h2NX), kdiss(h2NX), pump(h2NX), phi(h2NX), &
+             & phi1(h2NX), phiB(h2NX), Ncol(h2NX), dN(h2NX), cLev(h2NX), dLev(h2NX), Ns(h2NX), &
+             & N12(h2NX,12), hist(nHb,h2NX,nGrp), thin(h2NX,nGrp), gW(nGrp), gLev(h2NX,nGrp), &
+             & bLo(h2NX,nGrp), bHi(h2NX,nGrp), acc(h2NX), wLev(h2NX), &
+             & colStar(h2NX,0:nCel), popTmp(0:nCel,h2NX), popSum(0:nCel,h2NX), r1Tmp(0:nCel,nR1), &
+             & r1Sum(0:nCel,nR1), segC(4096), segL(4096), stat=err)
+        if (err /= 0) then
+           print*, "! h2LevelModel: can'ln allocate"; stop
+        end if
+        if (.not.allocated(grid(1)%h2Pop)) then
+           allocate(grid(1)%h2Pop(0:nCel,h2NX), grid(1)%h2Sol(0:nCel), grid(1)%h2SolChem(0:nCel), &
+                & grid(1)%h2Pump(0:nCel), stat=err)
+           if (err /= 0) then
+              print*, "! h2LevelModel: can'ln allocate the grid arrays"; stop
+           end if
+        end if
+        if (.not.allocated(grid(1)%h2Diag)) allocate(grid(1)%h2Diag(0:nCel,nR1-3))
+        grid(1)%h2Sol = 0.; grid(1)%h2SolChem = 0.; grid(1)%h2Pump = 0.; grid(1)%h2Diag = 0.
+
+        ! each line's frequency bin, by the rule MOCASSIN places its own line
+        ! packets with (buildTrBins), and its cross-section times b
+        tBin = 0
+        do ln = 1, h2NT
+           rr = h2tWN(ln)/rydWN
+           if (rr > dble(nuArray(1)) .and. rr < dble(nuArray(nbins))) then
+              do ib = 1, nbins-1
+                 if (dble(nuArray(ib)) <= rr .and. rr < dble(nuArray(ib+1))) then
+                    tBin(ln) = ib; exit
+                 end if
+              end do
+           end if
+           sb(ln) = h2uG(h2tU(ln))/h2G(h2tL(ln))*h2tA(ln)/h2tWN(ln)**3/(8.d0*dble(pi)**1.5d0)
+        end do
+        sigMax = 0.d0
+        do ln = 1, h2NT
+           sigMax(h2tL(ln)) = max(sigMax(h2tL(ln)), sb(ln))
+        end do
+
+        ! the chemistry's H2 photodissociation coefficient, from its rate table
+        alphaH2loc = 0.d0
+        do iR = 1, pdrNreacMod
+           if (trim(adjustl(pdrReactant(iR,1))) == "H2" .and. &
+             & trim(adjustl(pdrReactant(iR,2))) == "PHOTON" .and. &
+             & trim(adjustl(pdrProduct(iR,1)))  == "H" .and. &
+             & trim(adjustl(pdrProduct(iR,2)))  == "H") then
+              alphaH2loc = pdrAlpha(iR); exit
+           end if
+        end do
+        fLWd = draineWindowShare()
+
+        ! n(H2) of every cell, and Boltzmann populations to start from
+        nH2c = 0.d0
+        do cellP = 1, nCel
+           nH2c(cellP) = dble(grid(1)%Hden(cellP))*grid(1)%pdrAbun(cellP,NH2)
+           T = max(dble(grid(1)%Te(cellP)), 1.d0)
+           tot = 0.d0
+           do l = 1, h2NX
+              pops(l) = h2G(l)*exp(-hcK*h2E(l)/T)
+              tot = tot + pops(l)
+           end do
+           grid(1)%h2Pop(cellP,:) = real(pops/tot)
+        end do
+        grid(1)%h2Pop(0,:) = 0.
+
+        iu(1) = h2Level(1,3); il(1) = h2Level(0,1)     ! 1-0 S(1) 2.12 um
+        iu(2) = h2Level(2,3); il(2) = h2Level(1,1)     ! 2-1 S(1) 2.25 um
+        iu(3) = h2Level(0,2); il(3) = h2Level(0,0)     ! 0-0 S(0) 28.2 um
+        iu(4) = h2Level(0,3); il(4) = h2Level(0,1)     ! 0-0 S(1) 17.0 um
+        sym = 1.d0
+        if (lgSymmetricXYZ .and. .not.lg2D) sym = 8.d0
+        if (lgSymmetricXYZ .and. lg2D) sym = 2.d0
+        lumOld = -1.d0
+        allocate(Wd(h2NX,h2NX), kd2(h2NX))
+
+        do isweep = 1, maxSweep
+           t1 = mpi_wtime()
+           call starColumns()
+
+           popTmp = 0.; r1Tmp = 0.; tm = 0.d0
+           nSolved = 0; nNoGrain = 0
+           iCell = 0
+           do i = 1, nx
+              do j = 1, ny
+                 do k = 1, nz
+                    iCell = iCell + 1
+                    if (mod(iCell-(taskid+1), numtasks) /= 0) cycle
+                    cellP = grid(1)%active(i,j,k)
+                    if (cellP <= 0) cycle
+                    dnH2 = nH2c(cellP)
+                    nH  = dble(grid(1)%Hden(cellP))
+                    if (dnH2 <= 0.d0 .or. nH <= 0.d0) then
+                       popTmp(cellP,:) = grid(1)%h2Pop(cellP,:)
+                       cycle
+                    end if
+                    call solveCell()
+                    nSolved = nSolved + 1
+                 end do
+              end do
+           end do
+
+           call mpi_allreduce(popTmp, popSum, (nCel+1)*h2NX, mpi_real, mpi_sum, mpi_comm_world, ierr)
+           call mpi_allreduce(r1Tmp, r1Sum, (nCel+1)*nR1, mpi_real, mpi_sum, mpi_comm_world, ierr)
+           grid(1)%h2Pop = popSum
+           grid(1)%h2Sol = r1Sum(:,1); grid(1)%h2Pump = r1Sum(:,2); grid(1)%h2SolChem = r1Sum(:,3)
+           grid(1)%h2Diag = r1Sum(:,4:nR1)
+           i = nSolved; call mpi_allreduce(i, nSolved, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+           i = nNoGrain; call mpi_allreduce(i, nNoGrain, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+
+           ! line luminosities [erg/s] and the pumping and dissociation totals [s^-1]
+           lum = 0.d0; pumpTot = 0.d0; solTot = 0.d0
+           do i = 1, nx
+              do j = 1, ny
+                 do k = 1, nz
+                    cellP = grid(1)%active(i,j,k)
+                    if (cellP <= 0) cycle
+                    dV = dble(getVolume(grid(1), i, j, k))*1.d45*sym
+                    do l = 1, 4
+                       lum(l) = lum(l) + nH2c(cellP)*dble(grid(1)%h2Pop(cellP,iu(l)))*h2A(iu(l),il(l))* &
+                            & dble(hPlanck)*dble(c)*(h2E(iu(l)) - h2E(il(l)))*dV
+                    end do
+                    pumpTot = pumpTot + nH2c(cellP)*dble(grid(1)%h2Pump(cellP))*dV
+                    solTot  = solTot  + nH2c(cellP)*dble(grid(1)%h2Sol(cellP))*dV
+                 end do
+              end do
+           end do
+           if (taskid == 0) then
+              print '(a,i2,a,i7,a,i6,a,f8.1,a)', " ! h2LevelModel: sweep ", isweep, ": ", nSolved, &
+                   & " cells solved (", nNoGrain, " without grain formation), ", mpi_wtime() - t1, " s"
+              print '(a,4es11.4)', " !    L [erg/s] 1-0 S(1), 2-1 S(1), 0-0 S(0), 0-0 S(1): ", lum
+              print '(a,2es11.4,a,f7.3)', " !    pumping absorptions and Solomon dissociations [s^-1]: ", &
+                   & pumpTot, solTot, "   pump/diss ", pumpTot/max(solTot, 1.d-300)
+           end if
+           call mpi_allreduce(tm, tmSum, 5, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+           if (taskid == 0) print '(a,5f9.1)', " !    rank-seconds: sites, overlap, shield, escape, solve: ", tmSum
+           if (all(lumOld > 0.d0)) then
+              if (maxval(abs(lum/lumOld - 1.d0)) < 0.01d0) exit
+           end if
+           lumOld = lum
+        end do
+        if (taskid == 0) print '(a,f8.1,a)', " ! h2LevelModel: done in ", mpi_wtime() - t0, " s"
+
+        deallocate(tBin, sb, sigMax, nH2c, cDir, cDif, etaDir, etaDif, eta, shDir, shDif, ovDir, ovG, &
+             & beta, pops, kdiss, pump, phi, phi1, phiB, Ncol, dN, cLev, dLev, Ns, N12, hist, thin, &
+             & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, segC, segL)
+
+      contains
+
+        ! width of cell i along an axis
+        double precision function cWid(ax, n, m)
+          real, intent(in)    :: ax(:)
+          integer, intent(in) :: n, m
+          integer :: m1, m2
+          m1 = max(m-1, 1); m2 = min(m+1, n)
+          cWid = dble(ax(m2) - ax(m1))/dble(max(m2 - m1, 1))
+        end function cWid
+
+        !---------------------------------------------------------------
+        ! Level columns from the star(s) to the near face of every cell,
+        ! on computeAVradial's march, flux-weighted over the sources.
+        !---------------------------------------------------------------
+        subroutine starColumns()
+          integer :: ii, jj, kk, cT, m
+          colStar = 0.
+          do ii = 1, nx
+             do jj = 1, ny
+                do kk = 1, nz
+                   cT = grid(1)%active(ii,jj,kk)
+                   if (cT <= 0) cycle
+                   wLev = 0.d0; fTot = 0.d0
+                   do iS = 1, nStars
+                      sx = dble(starPosition(iS)%x); sy = dble(starPosition(iS)%y); sz = dble(starPosition(iS)%z)
+                      dxs = dble(grid(1)%xAxis(ii)) - sx
+                      dys = dble(grid(1)%yAxis(jj)) - sy
+                      dzs = dble(grid(1)%zAxis(kk)) - sz
+                      seg = sqrt(dxs*dxs + dys*dys + dzs*dzs)
+                      if (seg <= 0.d0) cycle
+                      nstep = max(8, min(400, int(seg/max( &
+                           & abs(dble(grid(1)%xAxis(min(2,nx))) - dble(grid(1)%xAxis(1))), 1.d0))))
+                      ds = seg/dble(nstep)
+                      ! the cells crossed, consecutive steps in one cell merged
+                      nseg = 0; last = -1
+                      do istep = 1, nstep
+                         rr = (dble(istep)-0.5d0)*ds
+                         ix = nearestAxB(grid(1)%xAxis, nx, sx + dxs*rr/seg)
+                         iy = nearestAxB(grid(1)%yAxis, ny, sy + dys*rr/seg)
+                         iz = nearestAxB(grid(1)%zAxis, nz, sz + dzs*rr/seg)
+                         cP = grid(1)%active(ix,iy,iz)
+                         if (cP <= 0 .or. cP == cT) then
+                            last = -1; cycle
+                         end if
+                         if (cP == last) then
+                            segL(nseg) = segL(nseg) + ds
+                         else
+                            nseg = nseg + 1; segC(nseg) = cP; segL(nseg) = ds; last = cP
+                         end if
+                      end do
+                      acc = 0.d0
+                      do m = 1, nseg
+                         if (nH2c(segC(m)) <= 0.d0) cycle
+                         acc = acc + nH2c(segC(m))*segL(m)*dble(grid(1)%h2Pop(segC(m),:))
+                      end do
+                      fS = 1.d0/(seg*seg)
+                      fTot = fTot + fS
+                      wLev = wLev + fS*acc
+                   end do
+                   if (fTot > 0.d0) colStar(:,cT) = real(wLev/fTot)
+                end do
+             end do
+          end do
+        end subroutine starColumns
+
+        !---------------------------------------------------------------
+        ! One cell: field, shielding on the direct and the site paths,
+        ! escape, formation, solution. Uses i, j, k, cellP, nH, dnH2.
+        !---------------------------------------------------------------
+        subroutine solveCell()
+          T = max(dble(grid(1)%Te(cellP)), 1.d0)
+          b = sqrt(2.d0*dble(kBoltzmann)*T/mH2g + (dble(pdrVturb)*1.d5)**2)
+
+          ! ---- the field: J_nu of the direct and the diffuse part per bin, and
+          ! the band sums the chemistry's handoff is built from (pdrStep, D-350)
+          sumT = 0.d0; sumD = 0.d0; lwT = 0.d0; lwD = 0.d0
+          do ib = 1, nbins
+             jT = dble(grid(1)%Jste(cellP,ib))
+             if (lgDebug) jT = jT + dble(grid(1)%Jdif(cellP,ib))
+             jD = dble(grid(1)%Jdif(cellP,ib))
+             cDir(ib) = max(jT - jD, 0.d0)/(4.d0*dble(pi)*dble(widFlx(ib))*dble(fr1Ryd))
+             cDif(ib) = max(jD, 0.d0)/(4.d0*dble(pi)*dble(widFlx(ib))*dble(fr1Ryd))
+             if (ib >= FUVlowP .and. ib <= FUVhighP) then
+                sumT = sumT + jT; sumD = sumD + jD
+                if (nuArray(ib) >= nuLWlo .and. nuArray(ib) < nuFUVhi) then
+                   lwT = lwT + jT; lwD = lwD + jD
+                end if
+             end if
+          end do
+          do ln = 1, h2NT
+             if (tBin(ln) > 0) then
+                ! photon occupation number J_nu c^2 / (2 h nu^3) at the line
+                w = dble(c)**2/(2.d0*dble(hPlanck)*(h2tWN(ln)*dble(c))**3)
+                etaDir(ln) = cDir(tBin(ln))*w
+                etaDif(ln) = cDif(tBin(ln))*w
+             else
+                etaDir(ln) = 0.d0; etaDif(ln) = 0.d0
+             end if
+          end do
+
+          ! the cell: its widths, and its mean chord over all directions, 4 V / A
+          dx3(1) = cWid(grid(1)%xAxis, nx, i)
+          dx3(2) = cWid(grid(1)%yAxis, ny, j)
+          dx3(3) = cWid(grid(1)%zAxis, nz, k)
+          chordIso = 2.d0*dx3(1)*dx3(2)*dx3(3)/(dx3(1)*dx3(2) + dx3(2)*dx3(3) + dx3(1)*dx3(3))
+          ! the cell's own column on a site's path, from the populations it
+          ! has so far: a diffuse photon reaches a point of the cell through
+          ! part of the cell, and the line shielding is averaged over that part
+          ! as the direct beam's is
+          dN = dble(grid(1)%h2Pop(cellP,:))*dnH2*chordIso
+
+          ! ---- the diffuse part: the sites, their two-leg level columns
+          ! (a part of the field that is zero in every line needs no shielding:
+          ! its columns, overlap and sites are skipped)
+          tq = mpi_wtime()
+          lgDif = any(etaDif > 0.d0)
+          lgDirF = any(etaDir > 0.d0)
+          nSite = 0; wTot = 0.d0
+          if (lgDif) then
+             call traceDiffuseSites(grid(1), i, j, k, cellP, nSite, wTot, aniso, colWalk, avWalk, nUnset)
+             hist = 0.d0; thin = 0.d0; gW = 0.d0; gLev = 0.d0
+             bLo = nHb + 1; bHi = 0
+          end if
+          if (.not.lgDif) then
+             shDif = 0.d0
+          else if (nSite > 0 .and. wTot > 0.d0) then
+             iSite = 1
+             do kray = 0, 11
+                cLev = 0.d0
+                do istep = 1, wkN(kray)
+                   cP = wkCell(istep,kray)
+                   if (cP <= 0) cycle
+                   dLev = 0.d0
+                   if (cP /= cellP .and. nH2c(cP) > 0.d0) dLev = nH2c(cP)*wkDs*dble(grid(1)%h2Pop(cP,:))
+                   if (iSite <= nSite) then
+                      if (siteRay(iSite) == kray .and. siteIst(iSite) == istep) then
+                         ! star -> site, then site -> cell; the site sits mid-step
+                         Ns = dble(colStar(:,cP)) + cLev + 0.5d0*dLev
+                         w  = siteW(iSite)
+                         ntot = sum(Ns)
+                         g = nGrp
+                         do l = 1, nGrp-1
+                            if (ntot < grpEdge(l)) then
+                               g = l; exit
+                            end if
+                         end do
+                         gW(g) = gW(g) + w
+                         gLev(:,g) = gLev(:,g) + w*Ns
+                         do l = 1, h2NX
+                            if (Ns(l)*sigMax(l) < 1.d-4*b) then
+                               thin(l,g) = thin(l,g) + w
+                            else
+                               bin = min(max(int((log10(Ns(l)) - hb0)/hbd) + 1, 1), nHb)
+                               hist(bin,l,g) = hist(bin,l,g) + w
+                               bLo(l,g) = min(bLo(l,g), bin); bHi(l,g) = max(bHi(l,g), bin)
+                            end if
+                         end do
+                         iSite = iSite + 1
+                      end if
+                   end if
+                   cLev = cLev + dLev
+                end do
+             end do
+             ! the other lines' shading on the sites, group by group of N(H2),
+             ! at the group's weighted mean columns; none below 1e17
+             tm(1) = tm(1) + mpi_wtime() - tq; tq = mpi_wtime()
+             ovG = 1.d0
+             do g = 2, nGrp
+                if (gW(g) > 1.d-4*wTot) call h2LineOverlap(gLev(:,g)/gW(g) + 0.5d0*dN, b, ovG(:,g))
+             end do
+             tm(2) = tm(2) + mpi_wtime() - tq; tq = mpi_wtime()
+             do ln = 1, h2NT
+                if (etaDif(ln) <= 0.d0) then
+                   shDif(ln) = 0.d0; cycle
+                end if
+                l = h2tL(ln)
+                shDif(ln) = 0.d0
+                call h2LineParams(ln, b, sig, aL)
+                dtau = sig*dN(l)
+                sThin = 1.d0
+                if (dtau > 1.d-4) sThin = h2Shield(0.d0, aL, dtau)
+                do g = 1, nGrp
+                   if (gW(g) <= 0.d0) cycle
+                   w = thin(l,g)*sThin
+                   do bin = bLo(l,g), bHi(l,g)
+                      if (hist(bin,l,g) > 0.d0) w = w + hist(bin,l,g)* &
+                           & h2Shield(sig*10.d0**(hb0 + (dble(bin) - 0.5d0)*hbd), aL, dtau)
+                   end do
+                   shDif(ln) = shDif(ln) + ovG(ln,g)*w
+                end do
+                shDif(ln) = shDif(ln)/wTot
+             end do
+             tm(3) = tm(3) + mpi_wtime() - tq
+          else
+             ! no site to place the diffuse field on: it rides the source-ward
+             ! column, as in pdrStep (D-344)
+             shDif = -1.d0
+          end if
+
+          ! ---- the direct part: the star-ward column, averaged through the cell
+          Ncol = dble(colStar(:,cellP))
+          chord = 0.d0; fTot = 0.d0
+          do iS = 1, nStars
+             rv(1) = dble(grid(1)%xAxis(i)) - dble(starPosition(iS)%x)
+             rv(2) = dble(grid(1)%yAxis(j)) - dble(starPosition(iS)%y)
+             rv(3) = dble(grid(1)%zAxis(k)) - dble(starPosition(iS)%z)
+             rr = sqrt(sum(rv*rv))
+             if (rr <= 0.d0) cycle
+             rv = abs(rv)/rr
+             fS = 1.d0/(rr*rr)
+             chord = chord + fS*dx3(1)*dx3(2)*dx3(3)/ &
+                  & max(dx3(2)*dx3(3)*rv(1) + dx3(1)*dx3(3)*rv(2) + dx3(1)*dx3(2)*rv(3), 1.d-300)
+             fTot = fTot + fS
+          end do
+          if (fTot > 0.d0) chord = chord/fTot
+
+          ! ---- escape of each line over the twelve line rays
+          tq = mpi_wtime()
+          beta = 1.d0
+          if (lgDif .or. lgDirF) then
+             call traceLineRays(grid(1), i, j, k)
+             N12 = 0.d0
+             do kray = 0, 11
+                do ipt = 1, lrN(kray)
+                   cP = lrCell(kray,ipt)
+                   if (nH2c(cP) <= 0.d0) cycle
+                   N12(:,kray+1) = N12(:,kray+1) + nH2c(cP)*lrLen(kray,ipt)*dble(grid(1)%h2Pop(cP,:))
+                end do
+             end do
+             call h2LineEscape(N12, b, beta)
+          end if
+          tm(4) = tm(4) + mpi_wtime() - tq
+
+          ! ---- formation: the two surfaces in the proportion of the
+          ! chemistry's own rate on each
+          Td = 0.d0
+          if (allocated(grid(1)%Tdust)) Td = dble(grid(1)%Tdust(0,0,cellP))
+          wSil = 0.d0; wGra = 0.d0
+          xsS = -1.d0
+          if (allocated(grid(1)%dustSigSil)) xsS = min(dble(grid(1)%dustSigSil(cellP)), dble(grid(1)%dustSigGra(cellP)))
+          if (xsS >= 0.d0 .and. Td > 0.d0) then
+             xsS = pdrH2xsecSil; xsG = pdrH2xsecGra
+             pdrH2xsecSil = dble(grid(1)%dustSigSil(cellP)); pdrH2xsecGra = 0.d0
+             wSil = H2_FORMATION_RATE(T, Td)
+             pdrH2xsecSil = 0.d0; pdrH2xsecGra = dble(grid(1)%dustSigGra(cellP))
+             wGra = H2_FORMATION_RATE(T, Td)
+             pdrH2xsecSil = xsS; pdrH2xsecGra = xsG
+          end if
+          if (wSil + wGra > 0.d0) then
+             phi = 0.d0
+             if (wSil > 0.d0) then
+                call h2FormDist(2, phi1); phi = phi + wSil*phi1
+             end if
+             if (wGra > 0.d0) then
+                call h2FormDist(3, phi1); phi = phi + wGra*phi1
+             end if
+             phi = phi/sum(phi)
+          else
+             ! no grain formation here: what replaces a destroyed molecule
+             ! carries no formation pumping (Boltzmann at Te)
+             nNoGrain = nNoGrain + 1
+             do l = 1, h2NX
+                phi(l) = h2G(l)*exp(-hcK*h2E(l)/T)
+             end do
+             phi = phi/sum(phi)
+          end if
+
+          ! ---- solve; the colliding ortho and para H2 and the cell's own
+          ! column are the solution's
+          pops = dble(grid(1)%h2Pop(cellP,:))
+          fo = sum(pops, mask=h2Ortho)
+          do it = 1, 12
+             dens = (/ nH*grid(1)%pdrAbun(cellP,pdrNHsp), nH*grid(1)%pdrAbun(cellP,NHe), &
+                  & fo*dnH2, (1.d0 - fo)*dnH2, nH*grid(1)%pdrAbun(cellP,NPROTON) /)
+             dN = pops*dnH2*chord
+             tq = mpi_wtime()
+             if (lgDirF .or. (lgDif .and. shDif(1) < 0.d0)) then
+                if (it == 1) call h2LineOverlap(Ncol + 0.5d0*dN, b, ovDir)
+                tm(2) = tm(2) + mpi_wtime() - tq; tq = mpi_wtime()
+                call h2LineShield(Ncol, b, shDir, dN, overlap=ovDir)
+             else
+                shDir = 0.d0
+             end if
+             tm(3) = tm(3) + mpi_wtime() - tq; tq = mpi_wtime()
+             if (shDif(1) < 0.d0) then
+                eta = (etaDir + etaDif)*shDir
+             else
+                eta = etaDir*shDir + etaDif*shDif
+             end if
+             call h2Solve(T, dens, eta, phi, pops, kdiss, pump, beta=beta)
+             tm(5) = tm(5) + mpi_wtime() - tq
+             foNew = sum(pops, mask=h2Ortho)
+             if (abs(foNew - fo) < 1.d-4 .and. it > 2) then
+                fo = foNew; exit
+             end if
+             fo = foNew
+          end do
+
+          popTmp(cellP,:) = real(pops)
+          r1Tmp(cellP,1) = real(sum(pops*kdiss))
+          r1Tmp(cellP,2) = real(sum(pops*pump))
+
+          ! ---- the chemistry's own H2 photodissociation rate on the same
+          ! field split and the same total columns (pdrStep's handoff)
+          chiDir = max(sumT - sumD, 0.d0)/(dble(c)*dble(uDraine))
+          chiDif = sumD/(dble(c)*dble(uDraine))
+          fDir = 1.d0; fDif = 1.d0
+          if (sumT - sumD > 0.d0) fDir = max(lwT - lwD, 0.d0)/(sumT - sumD)/fLWd
+          if (sumD > 0.d0)        fDif = lwD/sumD/fLWd
+          sH2 = max(dble(grid(1)%pdrColH2(cellP)), 0.d0)
+          w = pdrH2PDRATE(1.d0, chiDir*fDir, 0.d0, sH2)
+          if (nSite > 0 .and. wTot > 0.d0) then
+             do iSite = 1, nSite
+                w = w + pdrH2PDRATE(1.d0, chiDif*siteW(iSite)/wTot*fDif, 0.d0, siteN(1,iSite))
+             end do
+          else
+             w = w + pdrH2PDRATE(1.d0, chiDif*fDif, 0.d0, sH2)
+          end if
+          r1Tmp(cellP,3) = real(alphaH2loc*w)
+          ! diagnostics: the direct part alone, levels and chemistry; the columns;
+          ! the diffuse share of the Lyman-Werner field
+          call h2PumpRates(etaDir*shDir, Wd, kd2, beta=beta)
+          r1Tmp(cellP,4) = real(sum(pops*kd2))
+          r1Tmp(cellP,5) = real(alphaH2loc*pdrH2PDRATE(1.d0, chiDir*fDir, 0.d0, sH2))
+          r1Tmp(cellP,6) = real(sum(Ncol))
+          r1Tmp(cellP,7) = real(dnH2*chord)
+          r1Tmp(cellP,8) = real(lwD/max(lwT, 1.d-300))
+        end subroutine solveCell
+
+      end subroutine h2LevelModel
+#else
+      ! the 1D build has neither the site walk nor the line rays
+      subroutine h2LevelModel(grid)
+        implicit none
+        type(grid_type), dimension(:), intent(inout) :: grid
+        if (taskid == 0 .and. nGrids > 0 .and. allocated(grid(1)%active)) &
+             & print*, "! h2LevelModel: 3D build (PDRGEOM=3D) only - skipped"
+      end subroutine h2LevelModel
+#endif
 
 #endif
 end module pdr_mod

@@ -148,6 +148,7 @@ module h2_mod
     real(dp) :: shX(nShT, nShA, nShQ)                        ! log10 x_q
     logical :: lgShTab = .false.
     integer, allocatable :: ordWN(:)                         ! the lines in wavenumber order
+    real(dp), allocatable :: wnSort(:)                       ! and their wavenumbers in that order
     ! line overlap (H-006)
     real(dp), parameter :: ovTauB = 1.e-2_dp      ! a line shades others from this tau0
     real(dp), parameter :: ovEps = 1.e-4_dp       ! wing optical depth below which it is dropped
@@ -501,8 +502,9 @@ contains
          h2uAtot(h2tU(i)) = h2uAtot(h2tU(i)) + h2tA(i)
       end do
       if (any(h2tWN <= 0._dp)) stop '! h2ReadElec: a line with no energy'
-      allocate(ordWN(nt))
+      allocate(ordWN(nt), wnSort(nt))
       call indexSort(nt, h2tWN, ordWN)
+      wnSort = h2tWN(ordWN)
       deallocate(idxU, map, cnt, ord, tU, tL, tA)
       h2NSkipped = nSkip
     end subroutine h2ReadElec
@@ -909,8 +911,10 @@ contains
       real(dp), allocatable :: bWn(:), bDop(:), bT(:), bA(:), bReach(:)
       integer, allocatable :: bLine(:), iLong(:)
       logical, allocatable :: bIsLong(:)
-      real(dp) :: xq(nShQ), dop, nu, tl, tc, rNear, d, sgn
+      real(dp) :: xq(nShQ), dop, nu, tl, tc, rNear, d, sgn, rr
       integer :: nB, nL, i, j, k, m, is, lo, hi
+      integer, allocatable :: cnt(:)
+      logical, allocatable :: mark(:)
 
       nB = count(tau0(1:h2NT) >= ovTauB)
       ov(1:h2NT) = 1._dp
@@ -931,7 +935,27 @@ contains
          end if
       end do
 
+      ! which lines any shading line reaches (the rest keep ov = 1): the thick
+      ! lines, whose own absorption lies far out, and every line within a
+      ! shading line's reach plus a thin line's own few Doppler widths
+      allocate(cnt(h2NT + 1), mark(h2NT))
+      cnt = 0
+      do m = 1, nB
+         rr = bReach(m) + 3._dp*bDop(m)
+         lo = lowerL(bWn(m) - rr); hi = lowerL(bWn(m) + rr) - 1
+         if (hi >= lo) then
+            cnt(lo) = cnt(lo) + 1; cnt(hi + 1) = cnt(hi + 1) - 1
+         end if
+      end do
+      k = 0
+      do j = 1, h2NT
+         k = k + cnt(j)
+         mark(ordWN(j)) = (k > 0)
+      end do
+      deallocate(cnt)
+
       do i = 1, h2NT
+         if (.not.mark(i) .and. tau0(i) < 1._dp) cycle
          dop = h2tWN(i)*b/cLight
          rNear = ovNear*dop
          call shieldOffsets(tau0(i), a(i), xq)
@@ -955,9 +979,25 @@ contains
          end if
          ov(i) = ov(i)/dble(2*nShQ)
       end do
-      deallocate(bWn, bDop, bT, bA, bReach, bLine, bIsLong, iLong)
+      deallocate(bWn, bDop, bT, bA, bReach, bLine, bIsLong, iLong, mark)
 
     contains
+
+      ! first line, in wavenumber order, at or above wavenumber w
+      integer function lowerL(w)
+        real(dp), intent(in) :: w
+        integer :: l1, l2, lm
+        l1 = 1; l2 = h2NT + 1
+        do while (l1 < l2)
+           lm = (l1 + l2)/2
+           if (wnSort(lm) < w) then
+              l1 = lm + 1
+           else
+              l2 = lm
+           end if
+        end do
+        lowerL = l1
+      end function lowerL
 
       ! first shading line at or above wavenumber w
       integer function lowerB(w)

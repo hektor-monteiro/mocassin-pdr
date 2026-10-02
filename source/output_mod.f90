@@ -11,6 +11,9 @@ module output_mod
     use continuum_mod, only : inSpectrumProbDen
 #endif
     use frontLines_mod, only : writeFrontLines   ! D-382
+#ifdef PDR
+    use h2Lines_mod, only : writeH2Lines         ! H-007 (branch h2-model)
+#endif
 
     ! D-361: hlinex evaluations taken at an edge of the Storey & Hummer table
     ! rather than extrapolated beyond it - below its lowest temperature, above
@@ -1659,6 +1662,11 @@ endif
         ! D-382: the sub-cell front estimate of the [O I] optical lines, in its
         ! own file; nothing written above depends on it
         if (lgFrontLines) call writeFrontLines(grid(1:nGrids), HbetaVol(0))
+
+#ifdef PDR
+        ! H-007 (branch h2-model): the H2 level model's lines, in their own files
+        if (lgPDR) call writeH2Lines(grid(1:nGrids), HbetaVol(0))
+#endif
 
         ! write the temperature.out file
         open(unit=20, status='unknown', position='rewind', file='output/temperature.out', action="write",iostat=ios)
