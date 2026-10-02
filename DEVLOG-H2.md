@@ -357,7 +357,8 @@ the whole balance.
 
 `tools/h004_figures.py` on the arrays of `h004_compare.py --save`:
 excitation diagram and population ratio against level energy, for
-T100_n4_G2 and T1000_n6_G4.
+T100_n4_G2 and T1000_n6_G4. Published with the two tables as the artifact
+"H2 Pumping Check": https://claude.ai/artifact/NcToc4rA4vGTRygK9EYc1r
 
 ### Status
 
