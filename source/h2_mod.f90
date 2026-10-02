@@ -17,10 +17,29 @@
 !   - statistical weights (2J+1) x 3 for ortho (odd J) and x 1 for para, and
 !     excitation by detailed balance on the levels' own energies.
 ! It is a re-implementation from those equations and data, not a translation
-! of Cloudy's source. Formation into specific levels, destruction, cosmic
-! rays and UV pumping through the electronic states are later steps; so are
-! electrons as colliders, which Aleman & Gruenwald 2011 include and Cloudy
-! does not.
+! of Cloudy's source.
+!
+! H-004: ultraviolet pumping. The electronic states B, C+, C-, B', D+, D-
+! (Abgrall, Roueff & Drira 2000) are read with their lines to X and their
+! dissociation rates. A molecule in X level l absorbs in line l -> u at the
+! rate A_ul (g_u/g_l) eta, eta the photon occupation number of the local
+! field at the line (shielding included by the caller). The excited level u
+! lives ~1e-8 s, so it is never a reservoir: it returns to X level l' with
+! probability A_ul'/Gamma_u or dissociates with probability D_u/Gamma_u,
+! Gamma_u = sum A + D. That gives a rate matrix within X (the fluorescent
+! cascade's first step) and a dissociation rate per level (the Solomon
+! process); the quadrupole cascade that follows is the X solver's.
+!   - ortho/para of the excited levels and the weights follow Cloudy
+!     (mole_h2_create.cpp): B, C+, B', D+ are ortho for even J; C-, D- for odd;
+!   - Cloudy's files end at the first empty line, so D- stops at v = 2 (the
+!     levels after it are above the dissociation limit); the same rule here.
+! Each molecule destroyed is replaced by one newly formed (steady state), in
+! the distribution over (v, J) of Takahashi & Uehara 2001 for formation on a
+! grain surface, as Cloudy applies it by default.
+!
+! Not yet in: destruction other than the Solomon process, formation by H- and
+! H2+, cosmic rays, self-shielding, and electrons as colliders, which Aleman &
+! Gruenwald 2011 include and Cloudy does not.
 !===============================================================================
 module h2_mod
     implicit none
@@ -61,7 +80,36 @@ module h2_mod
          & 'coll_rates_H2ortho_ORNL.dat', 'coll_rates_H2para_ORNL.dat ', &
          & 'coll_rates_Hp.dat          ' /)
 
-    public :: h2ReadX, h2SolveX, h2Level
+    ! --- electronic excited states, all in one list (H-004)
+    integer, parameter, public :: h2NElec = 6
+    character(len=8), parameter, public :: h2ElecName(h2NElec) = (/ &
+         & 'B       ', 'C_plus  ', 'C_minus ', 'B_primed', 'D_plus  ', 'D_minus ' /)
+    integer, parameter :: orthoAdd(h2NElec) = (/1, 1, 0, 1, 1, 0/)   ! ortho if J + this is odd
+    integer, public :: h2NU = 0
+    integer, allocatable, public :: h2uS(:), h2uV(:), h2uJ(:)   ! state, v, J
+    real(dp), allocatable, public :: h2uE(:)            ! [cm^-1] above X(0,0)
+    real(dp), allocatable, public :: h2uG(:)
+    real(dp), allocatable, public :: h2uDiss(:)         ! dissociation rate [s^-1]
+    real(dp), allocatable, public :: h2uKE(:)           ! kinetic energy of the atoms [eV]
+    real(dp), allocatable, public :: h2uAtot(:)         ! sum of A to X [s^-1]
+    integer, public :: h2NT = 0                         ! lines u -> X, sorted by u
+    integer, allocatable, public :: h2tU(:), h2tL(:)
+    real(dp), allocatable, public :: h2tA(:), h2tWN(:)  ! [s^-1], [cm^-1]
+    integer, allocatable :: uFirst(:), uLast(:)         ! a level's lines in the list
+    real(dp), public :: h2DissX = 0._dp                 ! dissociation energy of X [cm^-1]
+    integer, public :: h2NSkipped = 0                 ! lines read whose levels are not in the model
+
+    ! Takahashi & Uehara 2001 surfaces: ice, silicate, carbonaceous
+    integer, parameter, public :: h2NSurf = 3
+    real(dp), parameter :: tuXvib(h2NSurf)   = (/0.70_dp, 0.60_dp, 0.20_dp/)
+    real(dp), parameter :: tuXdust(h2NSurf)  = (/0.04_dp, 0.10_dp, 0.40_dp/)
+    real(dp), parameter :: tuXrot(h2NSurf)   = (/0.14_dp, 0.15_dp, 0.15_dp/)
+    real(dp), parameter :: tuXtrans(h2NSurf) = (/0.12_dp, 0.15_dp, 0.25_dp/)
+    real(dp), parameter :: tuG1(h2NSurf)     = (/0.3_dp, 0.4_dp, 0.9_dp/)
+    real(dp), parameter :: tuG2(h2NSurf)     = (/0.6_dp, 0.6_dp, 0.4_dp/)
+    real(dp), parameter :: tuEoff = 0.273_dp*8065.544_dp   ! well bottom to (0,0) [cm^-1]
+
+    public :: h2ReadX, h2ReadElec, h2SolveX, h2Solve, h2Level, h2PumpRates, h2FormDist, h2CollRad
 
 contains
 
@@ -232,6 +280,271 @@ contains
       end do
     end subroutine h2ReadX
 
+    ! Cloudy's rule for its level, line and dissociation files: '#' starts a
+    ! comment line, and the data end at the first empty line or line starting
+    ! with a blank. 0 comment, 1 data, 2 end of data.
+    integer function lineKind(line)
+      character(len=*), intent(in) :: line
+      if (len_trim(line) == 0 .or. line(1:1) == ' ' .or. line(1:1) == char(13)) then
+         lineKind = 2
+      else if (line(1:1) == '#') then
+         lineKind = 0
+      else
+         lineKind = 1
+      end if
+    end function lineKind
+
+    ! open one of the files and skip its first line (the magic number)
+    subroutine openData(dir, name)
+      character(len=*), intent(in) :: dir, name
+      integer :: ios
+      character(len=8) :: skip
+      open(unit=91, file=trim(dir)//'/'//trim(name), status='old', action='read', iostat=ios)
+      if (ios /= 0) then
+         print*, '! h2_mod: cannot open ', trim(dir)//'/'//trim(name); stop
+      end if
+      read(91, '(a)') skip
+    end subroutine openData
+
+    !---------------------------------------------------------------------------
+    ! H-004: the excited electronic states - levels, dissociation rates and the
+    ! lines to X. h2ReadX first.
+    !---------------------------------------------------------------------------
+    subroutine h2ReadElec(dir)
+      character(len=*), intent(in) :: dir
+      character(len=1024) :: line, s
+      integer :: ios, is, n, v, J, i, k, eh, el, vu, Ju, vl, Jl, iu, il, pass, nt, vmax, jmax
+      integer :: nSkip, nSpin
+      real(dp) :: e, a, b
+      integer, allocatable :: st(:), vt(:), jt(:), idxU(:,:,:), map(:,:), cnt(:), ord(:)
+      integer, allocatable :: tU(:), tL(:)
+      real(dp), allocatable :: et(:), tA(:)
+
+      if (h2NX == 0) stop '! h2ReadElec: h2ReadX first'
+
+      ! --- dissociation energy of X
+      call openData(dir, 'energy_dissoc.dat')
+      do
+         read(91, '(a)', iostat=ios) line
+         if (ios /= 0) exit
+         k = lineKind(line)
+         if (k == 2) exit
+         if (k == 0) cycle
+         s = dataPart(line)
+         read(s, *, iostat=ios) is, e
+         if (ios == 0 .and. is == 0) h2DissX = e
+      end do
+      close(91)
+
+      ! --- levels, two passes: count, then fill
+      do pass = 1, 2
+         n = 0
+         do is = 1, h2NElec
+            call openData(dir, 'energy_'//trim(h2ElecName(is))//'.dat')
+            do
+               read(91, '(a)', iostat=ios) line
+               if (ios /= 0) exit
+               k = lineKind(line)
+               if (k == 2) exit
+               if (k == 0) cycle
+               s = dataPart(line)
+               read(s, *, iostat=ios) v, J, e
+               if (ios /= 0) cycle
+               n = n + 1
+               if (pass == 2) then
+                  st(n) = is; vt(n) = v; jt(n) = J; et(n) = e
+               end if
+            end do
+            close(91)
+         end do
+         if (pass == 1) allocate(st(n), vt(n), jt(n), et(n))
+      end do
+      h2NU = n
+      allocate(h2uS(n), h2uV(n), h2uJ(n), h2uE(n), h2uG(n), h2uDiss(n), h2uKE(n), h2uAtot(n))
+      h2uS = st; h2uV = vt; h2uJ = jt; h2uE = et
+      h2uDiss = 0._dp; h2uKE = 0._dp; h2uAtot = 0._dp
+      vmax = maxval(vt); jmax = maxval(jt)
+      allocate(idxU(h2NElec, 0:vmax, 0:jmax)); idxU = 0
+      do i = 1, n
+         idxU(st(i), vt(i), jt(i)) = i
+         h2uG(i) = dble(2*jt(i) + 1)*merge(3._dp, 1._dp, mod(jt(i) + orthoAdd(st(i)), 2) == 1)
+      end do
+      deallocate(st, vt, jt, et)
+
+      ! --- dissociation rate and the kinetic energy it releases
+      do is = 1, h2NElec
+         call openData(dir, 'dissprob_'//trim(h2ElecName(is))//'.dat')
+         do
+            read(91, '(a)', iostat=ios) line
+            if (ios /= 0) exit
+            k = lineKind(line)
+            if (k == 2) exit
+            if (k == 0) cycle
+            s = dataPart(line)
+            b = 0._dp
+            read(s, *, iostat=ios) v, J, a, b
+            if (ios /= 0) then
+               read(s, *, iostat=ios) v, J, a
+               if (ios /= 0) cycle
+            end if
+            if (v < 0 .or. v > vmax .or. J < 0 .or. J > jmax) cycle
+            i = idxU(is, v, J)
+            if (i == 0) cycle
+            h2uDiss(i) = a; h2uKE(i) = b
+         end do
+         close(91)
+      end do
+
+      ! --- lines to X; a line listed twice adds, as within X
+      allocate(map(h2NU, h2NX))
+      do pass = 1, 2
+         map = 0; nt = 0; nSkip = 0; nSpin = 0
+         do is = 1, h2NElec
+            call openData(dir, 'transprob_'//trim(h2ElecName(is))//'.dat')
+            do
+               read(91, '(a)', iostat=ios) line
+               if (ios /= 0) exit
+               k = lineKind(line)
+               if (k == 2) exit
+               if (k == 0) cycle
+               s = dataPart(line)
+               read(s, *, iostat=ios) eh, vu, Ju, el, vl, Jl, a
+               if (ios /= 0) cycle
+               iu = 0
+               if (eh == is .and. vu >= 0 .and. vu <= vmax .and. Ju >= 0 .and. Ju <= jmax) &
+                    & iu = idxU(is, vu, Ju)
+               il = 0
+               if (el == 0) il = h2Level(vl, Jl)
+               if (iu == 0 .or. il == 0) then
+                  nSkip = nSkip + 1; cycle
+               end if
+               if ((h2uG(iu) > dble(2*Ju + 1)) .neqv. h2Ortho(il)) nSpin = nSpin + 1
+               if (map(iu, il) == 0) then
+                  nt = nt + 1; map(iu, il) = nt
+                  if (pass == 2) then
+                     tU(nt) = iu; tL(nt) = il; tA(nt) = a
+                  end if
+               else if (pass == 2) then
+                  tA(map(iu, il)) = tA(map(iu, il)) + a
+               end if
+            end do
+            close(91)
+         end do
+         if (pass == 1) allocate(tU(nt), tL(nt), tA(nt))
+      end do
+      if (nSpin > 0) print*, '! h2ReadElec: lines that change the nuclear spin: ', nSpin
+      h2NT = nt
+      ! sorted by upper level (counting sort)
+      allocate(cnt(h2NU), uFirst(h2NU), uLast(h2NU), ord(nt))
+      cnt = 0
+      do i = 1, nt
+         cnt(tU(i)) = cnt(tU(i)) + 1
+      end do
+      k = 1
+      do i = 1, h2NU
+         uFirst(i) = k; uLast(i) = k - 1; k = k + cnt(i)
+      end do
+      do i = 1, nt
+         uLast(tU(i)) = uLast(tU(i)) + 1
+         ord(uLast(tU(i))) = i
+      end do
+      allocate(h2tU(nt), h2tL(nt), h2tA(nt), h2tWN(nt))
+      h2tU = tU(ord); h2tL = tL(ord); h2tA = tA(ord)
+      do i = 1, nt
+         h2tWN(i) = h2uE(h2tU(i)) - h2E(h2tL(i))
+         h2uAtot(h2tU(i)) = h2uAtot(h2tU(i)) + h2tA(i)
+      end do
+      if (any(h2tWN <= 0._dp)) stop '! h2ReadElec: a line with no energy'
+      deallocate(idxU, map, cnt, ord, tU, tL, tA)
+      h2NSkipped = nSkip
+    end subroutine h2ReadElec
+
+    !---------------------------------------------------------------------------
+    ! Pumping through the excited states for a given field. eta(1:h2NT) is the
+    ! photon occupation number at each line, J_nu c^2/(2 h nu^3), with whatever
+    ! shielding applies already in it.
+    !   W(l, l')  rate [s^-1] at which a molecule in X level l is moved to X
+    !             level l' by one absorption and the decay that follows
+    !   kdiss(l)  rate [s^-1] at which it is dissociated instead (Solomon)
+    !   pump(l)   total absorption rate out of l = sum_l' W(l,l') + kdiss(l)
+    ! Stimulated emission (A eta) is kept in the decay for completeness.
+    !---------------------------------------------------------------------------
+    subroutine h2PumpRates(eta, W, kdiss, pump)
+      real(dp), intent(in) :: eta(:)
+      real(dp), intent(out) :: W(:,:), kdiss(:)
+      real(dp), intent(out), optional :: pump(:)
+      real(dp) :: gam, P
+      integer :: u, t, t2
+
+      W = 0._dp; kdiss = 0._dp
+      if (present(pump)) pump = 0._dp
+      do u = 1, h2NU
+         if (uLast(u) < uFirst(u)) cycle
+         gam = h2uDiss(u)
+         do t = uFirst(u), uLast(u)
+            gam = gam + h2tA(t)*(1._dp + eta(t))
+         end do
+         if (gam <= 0._dp) cycle
+         do t = uFirst(u), uLast(u)
+            if (eta(t) <= 0._dp) cycle
+            P = h2tA(t)*h2uG(u)/h2G(h2tL(t))*eta(t)
+            if (present(pump)) pump(h2tL(t)) = pump(h2tL(t)) + P
+            kdiss(h2tL(t)) = kdiss(h2tL(t)) + P*h2uDiss(u)/gam
+            do t2 = uFirst(u), uLast(u)
+               W(h2tL(t), h2tL(t2)) = W(h2tL(t), h2tL(t2)) + P*h2tA(t2)*(1._dp + eta(t2))/gam
+            end do
+         end do
+      end do
+    end subroutine h2PumpRates
+
+    !---------------------------------------------------------------------------
+    ! The (v, J) distribution of H2 newly formed on a grain surface, summing to
+    ! 1: Takahashi & Uehara 2001 (ApJ 561, 843), surf = 1 ice, 2 silicate,
+    ! 3 carbonaceous, as Cloudy applies it (mole_h2_create.cpp): the vibrational
+    ! distribution of their eqs 4-5 about E_vm = X_vib D, the rotational one the
+    ! mean of their eqs 6 and 7 about E_rot (eq. 3), and no molecules in a v
+    ! whose E_rot is not positive (J. Takahashi, quoted there).
+    !---------------------------------------------------------------------------
+    subroutine h2FormDist(surf, phi)
+      integer, intent(in) :: surf
+      real(dp), intent(out) :: phi(:)
+      real(dp) :: Evm, Ev, Edust, EH2, Erot, dE, sumvib, x
+      real(dp), allocatable :: Fv(:), EH2v(:)
+      integer :: v, vmax, i, i0
+
+      vmax = maxval(h2V)
+      allocate(Fv(0:vmax), EH2v(0:vmax))
+      Evm = h2DissX*tuXvib(surf) + tuEoff
+      do v = 0, vmax
+         i0 = h2Level(v, 0)
+         if (i0 == 0) stop '! h2FormDist: a vibrational state without J = 0'
+         Ev = h2E(i0) + tuEoff
+         Edust = h2DissX*tuXdust(surf)*(1._dp - (Ev - Evm)/(h2DissX + tuEoff - Evm)* &
+              & (1._dp - tuXdust(surf))/2._dp)
+         EH2v(v) = h2DissX + tuEoff - Edust
+         if (Ev <= Evm) then
+            x = (Ev - Evm)/(tuG1(surf)*Evm)
+         else
+            x = (Ev - Evm)/(tuG2(surf)*(EH2v(v) - Evm))
+         end if
+         Fv(v) = exp(-x*x)
+      end do
+      sumvib = sum(Fv)
+      phi = 0._dp
+      do i = 1, h2NX
+         v = h2V(i); i0 = h2Level(v, 0)
+         Ev = h2E(i0) + tuEoff
+         Erot = (EH2v(v) - Ev)*tuXrot(surf)/(tuXrot(surf) + tuXtrans(surf))
+         if (Erot <= 0._dp) cycle
+         dE = h2E(i) - h2E(i0)
+         x = (dE - Erot)/(0.5_dp*Erot)
+         phi(i) = merge(3._dp, 1._dp, h2Ortho(i))*Fv(v)/sumvib*dble(2*h2J(i) + 1)* &
+              & 0.5_dp*(exp(-x*x) + exp(-dE/Erot))
+      end do
+      phi = phi/sum(phi)
+      deallocate(Fv, EH2v)
+    end subroutine h2FormDist
+
     ! a table's rate at T: linear in T, held at the ends (Cloudy's InterpCollRate)
     real(dp) function tabRate(ic, it, T)
       integer, intent(in) :: ic, it
@@ -253,26 +566,22 @@ contains
       end associate
     end function tabRate
 
-    !---------------------------------------------------------------------------
-    ! Populations of the X levels (fractions, summing to 1) at temperature T
-    ! with collider densities dens(1:5) [cm^-3] (H, He, o-H2, p-H2, H+).
-    ! rateOut(i), optional: the total rate out of level i [s^-1].
-    !---------------------------------------------------------------------------
-    subroutine h2SolveX(T, dens, pops, rateOut)
+    ! Collisions among the X levels and their radiative decay at temperature T
+    ! with collider densities dens(1:5) [cm^-3] (H, He, o-H2, p-H2, H+):
+    ! R(i,j), the rate from level i to level j [s^-1].
+    subroutine h2CollRad(T, dens, R)
       real(dp), intent(in) :: T, dens(h2NColl)
-      real(dp), intent(out) :: pops(:)
-      real(dp), intent(out), optional :: rateOut(:)
-      real(dp), allocatable :: R(:,:), M(:,:), b(:), kd(:,:)
+      real(dp), intent(out) :: R(:,:)
+      real(dp), allocatable :: kd(:,:)
       real(dp) :: dE, kgb
-      integer :: n, ic, it, i, j, iu, il
-      logical, allocatable :: has(:,:)
+      integer :: n, ic, it, iu, il
 
       n = h2NX
-      allocate(R(n, n), M(n, n), b(n), kd(n, n), has(n, n))
-      R = 0._dp                                    ! R(i,j): rate i -> j [s^-1]
+      allocate(kd(n, n))
+      R = 0._dp
       do ic = 1, h2NColl
          if (dens(ic) <= 0._dp) cycle
-         kd = 0._dp; has = .false.
+         kd = 0._dp
          do it = 1, tab(ic)%nTr
             kd(tab(ic)%up(it), tab(ic)%lo(it)) = tabRate(ic, it, T)
          end do
@@ -291,25 +600,89 @@ contains
          end do
       end do
       R = R + h2A                                  ! radiative decay, upper -> lower
+      deallocate(kd)
+    end subroutine h2CollRad
 
-      ! balance: sum_j n_j R(j,i) - n_i sum_j R(i,j) = 0; level 1 replaced by sum n = 1
+    ! Statistical equilibrium for rates R(i,j) [s^-1] between the levels, a
+    ! destruction rate k(i) [s^-1] out of each, and formation: each molecule
+    ! destroyed is replaced by one formed in the distribution phi (sum 1), plus
+    ! src(i) [s^-1 per H2] if given.
+    !   sum_j n_j R(j,i) - n_i (sum_j R(i,j) + k_i) + phi_i sum_j n_j k_j + src_i = 0
+    ! Level 1's equation is replaced by sum n = 1.
+    subroutine balance(R, k, phi, pops, src)
+      real(dp), intent(in) :: R(:,:), k(:), phi(:)
+      real(dp), intent(out) :: pops(:)
+      real(dp), intent(in), optional :: src(:)
+      real(dp), allocatable :: M(:,:), b(:)
+      integer :: n, i, j
+
+      n = h2NX
+      allocate(M(n, n), b(n))
       do i = 1, n
          do j = 1, n
-            M(i, j) = R(j, i)
+            M(i, j) = R(j, i) + phi(i)*k(j)
          end do
-         M(i, i) = -sum(R(i, :)) + R(i, i)
+         M(i, i) = -(sum(R(i, :)) - R(i, i)) - k(i) + phi(i)*k(i)
       end do
+      b = 0._dp
+      if (present(src)) b = -src(1:n)
+      M(1, :) = 1._dp; b(1) = 1._dp
+      call gaussSolve(n, M, b)
+      pops(1:n) = b
+      deallocate(M, b)
+    end subroutine balance
+
+    !---------------------------------------------------------------------------
+    ! H-003: populations of the X levels (fractions, summing to 1) under
+    ! collisions and radiative decay alone. rateOut(i), optional: the total
+    ! rate out of level i [s^-1].
+    !---------------------------------------------------------------------------
+    subroutine h2SolveX(T, dens, pops, rateOut)
+      real(dp), intent(in) :: T, dens(h2NColl)
+      real(dp), intent(out) :: pops(:)
+      real(dp), intent(out), optional :: rateOut(:)
+      real(dp), allocatable :: R(:,:), zero(:)
+      integer :: i
+
+      allocate(R(h2NX, h2NX), zero(h2NX))
+      zero = 0._dp
+      call h2CollRad(T, dens, R)
       if (present(rateOut)) then
-         do i = 1, n
+         do i = 1, h2NX
             rateOut(i) = sum(R(i, :)) - R(i, i)
          end do
       end if
-      M(1, :) = 1._dp
-      b = 0._dp; b(1) = 1._dp
-      call gaussSolve(n, M, b)
-      pops(1:n) = b
-      deallocate(R, M, b, kd, has)
+      call balance(R, zero, zero, pops)
+      deallocate(R, zero)
     end subroutine h2SolveX
+
+    !---------------------------------------------------------------------------
+    ! H-004: populations of the X levels (fractions, summing to 1) under
+    ! collisions, radiative decay, and pumping by a field of occupation number
+    ! eta(1:h2NT) at the lines to the excited states (see h2PumpRates). The
+    ! molecules the pumping dissociates, and those that sink(i) [s^-1] removes
+    ! if given, are replaced by newly formed ones in the distribution phi.
+    !   kdiss(i)  Solomon dissociation rate out of level i [s^-1]
+    !   pump(i)   absorption rate out of level i [s^-1]
+    !   src(i)    further formation into level i, per H2 [s^-1]
+    !---------------------------------------------------------------------------
+    subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src)
+      real(dp), intent(in) :: T, dens(h2NColl), eta(:), phi(:)
+      real(dp), intent(out) :: pops(:)
+      real(dp), intent(out), optional :: kdiss(:), pump(:)
+      real(dp), intent(in), optional :: sink(:), src(:)
+      real(dp), allocatable :: R(:,:), W(:,:), k(:), pm(:)
+
+      allocate(R(h2NX, h2NX), W(h2NX, h2NX), k(h2NX), pm(h2NX))
+      call h2CollRad(T, dens, R)
+      call h2PumpRates(eta, W, k, pm)
+      R = R + W
+      if (present(kdiss)) kdiss(1:h2NX) = k
+      if (present(pump)) pump(1:h2NX) = pm
+      if (present(sink)) k = k + sink(1:h2NX)
+      call balance(R, k, phi, pops, src)
+      deallocate(R, W, k, pm)
+    end subroutine h2Solve
 
     ! Gaussian elimination with partial pivoting, solution returned in b
     subroutine gaussSolve(n, a, b)

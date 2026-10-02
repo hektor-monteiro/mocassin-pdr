@@ -13,6 +13,15 @@ in each file's `#` header lines:
 | coll_rates_H2ortho_ORNL.dat | o-H2 + H2 | Wan et al. 2018, ApJ 862, 132 |
 | coll_rates_H2para_ORNL.dat | p-H2 + H2 | Wan et al. 2018, ApJ 862, 132 |
 | coll_rates_Hp.dat | H+ + H2 | Gerlich 1990, J. Chem. Phys. 92, 2377 |
+| energy_{B,C_plus,C_minus,B_primed,D_plus,D_minus}.dat | rovibrational energies of the excited electronic states B, C+, C-, B', D+, D- | Abgrall, Roueff & Drira 2000, A&AS 141, 297 |
+| transprob_{same six}.dat | A values of their lines to X | Abgrall, Roueff & Drira 2000 |
+| dissprob_{same six}.dat | their dissociation rate [s^-1] and the kinetic energy released [eV] | Abgrall, Roueff & Drira 2000 |
+| energy_dissoc.dat | dissociation energies of the electronic states | as given in the file |
+
+Added at H-004 (UV pumping): the last four rows. The reading rule is
+Cloudy's: a line starting with `#` is a comment, and a file's data end at the
+first empty line. That rule is why only v = 0-2 of D- is used: energy_D_minus.dat
+has an empty line before the levels "above the dissociation limit".
 
 These are Cloudy's defaults for the five colliders (`h2.cpp`). Cloudy's
 licence (zlib) applies to its distribution:
