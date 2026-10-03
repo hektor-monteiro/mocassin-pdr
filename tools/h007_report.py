@@ -18,6 +18,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from h007_figures import load, volumes, H, C      # noqa: E402
+
 PC = 3.0857e18
 MAIN = ['1- 0 S( 1)', '2- 1 S( 1)', '1- 0 S( 0)', '1- 0 Q( 1)', '0- 0 S( 0)', '0- 0 S( 1)', '0- 0 S( 2)',
         '0- 0 S( 3)', '0- 0 S( 5)']
@@ -61,6 +64,11 @@ def main(run, cloudy=None, rin=0., nb=14):
         print('  sweeps:')
         for l in sw:
             print('   ' + l)
+        rs = np.array([l.split(':')[-1].split() for l in open(log, errors='replace') if 'rank-seconds' in l], float)
+        if len(rs):
+            tot = rs.sum(0)
+            print('  rank-seconds over the sweeps:', '  '.join(
+                f'{k} {t:.0f} ({t/tot.sum():.0%})' for k, t in zip(('sites', 'overlap', 'shield', 'escape', 'solve'), tot)))
     a = cells(run)
     r = np.sqrt(a[:, 4]**2 + a[:, 5]**2 + a[:, 6]**2)/PC
     nH2, T, sol, solc, pump, op, fs, sd, cd, Nst, Nown, fd = (a[:, i] for i in range(7, 19))
@@ -81,6 +89,16 @@ def main(run, cloudy=None, rin=0., nb=14):
         print(f'  {0.5*(edges[i] + edges[i+1]):6.3f} {m.sum():5d} {md(nH2):9.2e} {md(T):7.1f}  {md(Nst):9.2e} {md(Nown):9.2e}'
               f'   {md(fd):5.3f}   |              {md(sol):9.2e} {md(solc):9.2e} {q(sol, solc):6.2f} |   {q(sd, cd):6.2f}'
               f'     | {md(op):6.2f} {md(fs):8.1e}')
+    # where 1-0 S(1) comes from: each cell's 4 pi j dV, by Te and by N(H2) to the cell
+    v, J, E, P, _ = load(run)
+    lev = {(x, y): i for i, (x, y) in enumerate(zip(v, J))}
+    iu, il = lev[(1, 3)], lev[(0, 1)]
+    em = nH2*P[a[:, 3].astype(int) - 1, iu]*3.47e-7*H*C*(E[iu] - E[il])*volumes(a)
+    print(f'  1-0 S(1) by Te (sum {em.sum():.4e} erg/s):', '  '.join(
+        f'{lo:g}-{hi:g} K {em[(T >= lo) & (T < hi)].sum()/em.sum():6.1%}'
+        for lo, hi in ((0, 200), (200, 3000), (3000, 1e9))))
+    print('  1-0 S(1) by N(H2) to the cell:', '  '.join(
+        f'<1e{x:d} {em[Nst < 10.**x].sum()/em.sum():6.1%}' for x in (14, 16, 18, 20, 22)))
     if cloudy:
         e = np.loadtxt(cloudy + '.h2emis')
         hd = open(cloudy + '.h2emis').readline().lstrip('#').rstrip('\n').split('\t')
