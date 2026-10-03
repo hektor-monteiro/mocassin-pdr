@@ -18,6 +18,7 @@ DEVLOG.md and arrives here by merge.
 | H-007 | **Stage A, step 5: the level model inside MOCASSIN, on the finished model (`pdr_mod` `h2LevelModel`, called on every rank before the final output; 3D build).** Per cell: MOCASSIN's Te and the chemistry's densities; the MC field in the bin of each pumping line, split as pdrStep splits it (direct part behind the star-ward level columns, diffuse part on traceDiffuseSites' scattering sites behind their two-leg level columns); line shielding and overlap averaged through the cell's own column; photon escape over the twelve line rays; formation on silicate and carbonaceous surfaces in the proportion of the chemistry's own rate on each. Other cells' populations are the previous sweep's; sweeps repeat until four lines move by under 1%. Output: lineFluxH2.out, h2Cells.out (with the chemistry's own H2 photodissociation rate beside the levels'), h2Pop.bin. **First full run (hiipdr 21^3, 4,661 cells): 4 sweeps, 286 s on 14 ranks; 1-0 S(1) = 6.2e33 erg/s = 7.2e-4 Hbeta, 2-1 S(1)/1-0 S(1) = 0.53; the levels' Solomon rate is 2.6x the chemistry's in the ionized gas, 1.5-1.8x in unshielded cold gas, 0.4-0.7x in shielded gas.** The in-code field conversion agrees with an offline one from pdrFUVspec.out to 3-8%. The result is sensitive to how the cell's own column is treated (4.6x in 1-0 S(1) between leaving it out of the diffuse part and averaging through it): the pumping layer is inside one or two cells. **pn150k 41^3 against Cloudy: 2.12 um 1.12x, 17.0 um 1.03x, 28.2 um 0.85x, 12.28 um 2.36x; the totals agree by cancellation (2.12 and 17.0 um 1.5-4.7x Cloudy's where H2 turns on, 0.3-0.8x deep), the column ortho/para is 0.04-0.06 against 0.31 because the shielded gas is 15-20 K colder (both near thermal), and N(0,4) is 2.2-2.5x at every depth (hypothesis: the damping width, as H-005; collisions ruled out). Level model 62 of 98 min, overlap 53% of the timed work. hiipdr 21/31/41^3: 1-0 S(1) 6.22/8.38/8.64e33 erg/s (+35%, +3.0%), totals converge, the transition's H2 profile does not** | Done | 2026-10-02 |
 | H-008 | **The damping width alone, as a diagnostic (one line of h2LineParams, not committed): pn150k rerun with each line damped by its own A, as Cloudy does, against H-007's run with the upper level's total decay rate. The two runs are byte-identical outside the level model (MOCASSIN is reproducible at fixed np), so the comparison is exact. With Cloudy's width the 12.28 um excess goes (2.37x -> 0.62x Cloudy; N(0,4) 0.56-0.91x along the axes), but every pumped line falls 2.1-3.8x: 2.12 um 0.52x Cloudy, 17.0 um 0.31x, 28.2 um 0.23x. Lines behind < 1e14 cm^-2 of H2 are unchanged; behind > 1e16 they fall to 0.18-0.41 (sqrt(1/20) = 0.22, the damping wings). In the H-005 slab the same change takes the excited columns from 1.63x to 0.60x Cloudy's.** So H-007's agreement of three lines was two factors of 2-4 cancelling. The model keeps its width (the natural width; Cloudy itself uses the upper level's lifetime for every other species, its H2 alone the line's A). What remains with equal widths (0.23-0.62) is not isolated: the closure, the colder gas, the H2 at the front | Done | 2026-10-03 |
 | H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone (model's width) raises the lines by the same 1.17-1.21: the two choices are independent to 1-2%. The width's factor is larger for para lines (x3.2) than ortho (x2.2), as para pumping sits deeper in the damping wings. Nothing changes in the code | Done | 2026-10-03 |
+| H-010 | **Cloudy's small H2 model computes no line intensities** (H2_LinesAdd returns when the large model is off): H2g, one H2* pseudo-level, Solomon and pumping rates from fits in G0 and total N(H2) (Elwert et al. 2005), fixed H2* decay 2e-7 s^-1, fitted heating, Glover & Abel rotational cooling. Not usable: no lines, and fitted stand-ins for what MOCASSIN computes. From Cloudy's large model: the lowest 70 levels by matrix and the rest by back-substitution applies to our solve (a median pn150k H2 cell has 10 levels above 1e-8, 80 above 1e-10); its H2/H > 1e-8 limit covers only 0.8% of pn150k's cells; its overlap at line centre is too crude (1-6% vs 14-35%). The overlap (53% of the cost) is best cut by reuse across sweeps | Discussion | 2026-10-03 |
 
 ---
 
@@ -1373,3 +1374,63 @@ ortho/para (ortho lines 0.55-0.6 of para lines, the coupled model's
 colder shielded gas). Once the first two are equal, para-H2 fluorescence
 agrees with Cloudy's to 0-15%. The tree is rebuilt from the committed
 source.
+
+## H-010 - Cloudy's small H2 model: no lines; what Cloudy does for speed (2026-10-03)
+
+The user: "lets look at Cloudy simple H2 model for some clues. Does it
+calculate line intensities? Can we use it instead of the full model to
+make it faster?"
+
+### What the small model is (Cloudy c25.00 source and Hazy)
+
+The default without `database H2`, the "three-level model" of TH85,
+Burton et al. 1990 and Draine & Bertoldi 1996 as extended by Elwert et
+al. (2005, IAU Symp. 235): H2g, one excited pseudo-level H2*, and
+dissociation.
+  - Solomon rates of H2g and H2* from fitting formulas in log G0 and the
+    total N(H2) (`mole_reactions.cpp` 3910-4010); H2g -> H2* at a
+    G0-dependent multiple of the Solomon rate.
+  - H2* decays at a fixed A = 2e-7 s^-1 (`h2s_sp_decay`; the large
+    model's average A when that is on).
+  - De-excitation heating from a fit with factors in n_H and G0
+    (`mole_drive.cpp` 285); rotational cooling from the Glover & Abel
+    2008 function times n(H2) (`cool_eval.cpp` 255).
+  - **No lines.** `H2_LinesAdd` returns at once when the large model is
+    off (`mole_h2_io.cpp` 47); Hazy: H2 lines appear in the output only
+    with the large model.
+
+**Not usable here.** It has no line spectrum, and its rates are fits in
+G0 and n_H with shielding by total N(H2), standing in for what MOCASSIN
+computes (the field in each line's bin, 3D level columns): what
+CLAUDE.md excludes. Our chemistry's Federman-based rate is already such
+an approximation, and replacing it is stage B's point.
+
+### What Cloudy's large model does for speed, and whether it applies
+
+  - **The lowest levels by matrix, the rest by back-substitution** from
+    the top down (`database H2 matrix`; 70 levels in H-004's models). On
+    pn150k a median H2 cell (2n(H2)/n_H > 1e-4) has 10 levels above
+    1e-8, 80 above 1e-10, 239 above 1e-12: most of our 302 x 302 dense
+    solve (25% of the timed work) is on negligible levels. Applicable;
+    to be checked against the full solve.
+  - **The large model only where H2/H > 1e-8** (`database H2 limit`,
+    TH85 expressions below): 0.8% of pn150k's cells (1.7% below 1e-6).
+    No gain, and a gate.
+  - **Overlap from the summed opacity at each line's centre** on its
+    continuum mesh: cheap, but it moves pump rates by 1-6% where the
+    exact effect is 14-35% (H-006). Not adoptable as it is; building the
+    summed line opacity once per path on a grid and reading our six
+    quadrature points from it could replace the per-line sums over
+    neighbours.
+
+The cost on pn150k is overlap 53%, solution 25%, shielding 17% (H-007).
+None of the small model's simplifications touches the overlap; reusing it
+across sweeps (it is recomputed each sweep while the columns barely move
+after the second) is the larger saving.
+
+### Status
+
+Discussion; no code. The speed work, when taken up: warm start, overlap
+reuse, matrix plus back-substitution, load balance by measured cost, each
+checked against H-007 byte for byte where the physics is unchanged and to
+the stated tolerance where it is not.
