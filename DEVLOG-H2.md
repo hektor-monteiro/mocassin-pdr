@@ -17,7 +17,7 @@ DEVLOG.md and arrives here by merge.
 | H-006 | **Stage A, step 4: line overlap. Each pumping line's shielding is now its own times the mean transmission of all the other H2 lines over the frequencies where it absorbs, a six-point quadrature placed by the line's own absorption (`lineOverlap`). Against the exact integral on a 0.05 cm^-1 grid across the whole band, the factor overlap puts on the H2g Solomon rate is reproduced to 0.2-1.6% from N(H2) = 1e17 to 3e20 and 4.5% at 1e21 (exact 0.96, 0.93, 0.86, 0.65, 0.49, 0.32), and the exact factor is within 5% of Draine & Bertoldi's overlap term.** In the slab the model's shielding is now 0.70-0.95 of the full DB96 fit at 1e18-1e21. **H-005's numbers are revised: overlap lowers the model's total pumping by 33% (H-005 estimated 20%), and its excited-level columns are 1.63x Cloudy's (v >= 1 levels 1.25-2.77, median 1.66), not 2.44x.** Cost ~55 ms per call, so a cell computes it once and reuses it while iterating. Not in: shading by H I Lyman lines; a photon absorbed in another line's wing is counted as lost, not as a pump of that line. Next: the field and level columns from a MOCASSIN run | Done | 2026-10-02 |
 | H-007 | **Stage A, step 5: the level model inside MOCASSIN, on the finished model (`pdr_mod` `h2LevelModel`, called on every rank before the final output; 3D build).** Per cell: MOCASSIN's Te and the chemistry's densities; the MC field in the bin of each pumping line, split as pdrStep splits it (direct part behind the star-ward level columns, diffuse part on traceDiffuseSites' scattering sites behind their two-leg level columns); line shielding and overlap averaged through the cell's own column; photon escape over the twelve line rays; formation on silicate and carbonaceous surfaces in the proportion of the chemistry's own rate on each. Other cells' populations are the previous sweep's; sweeps repeat until four lines move by under 1%. Output: lineFluxH2.out, h2Cells.out (with the chemistry's own H2 photodissociation rate beside the levels'), h2Pop.bin. **First full run (hiipdr 21^3, 4,661 cells): 4 sweeps, 286 s on 14 ranks; 1-0 S(1) = 6.2e33 erg/s = 7.2e-4 Hbeta, 2-1 S(1)/1-0 S(1) = 0.53; the levels' Solomon rate is 2.6x the chemistry's in the ionized gas, 1.5-1.8x in unshielded cold gas, 0.4-0.7x in shielded gas.** The in-code field conversion agrees with an offline one from pdrFUVspec.out to 3-8%. The result is sensitive to how the cell's own column is treated (4.6x in 1-0 S(1) between leaving it out of the diffuse part and averaging through it): the pumping layer is inside one or two cells. **pn150k 41^3 against Cloudy: 2.12 um 1.12x, 17.0 um 1.03x, 28.2 um 0.85x, 12.28 um 2.36x; the totals agree by cancellation (2.12 and 17.0 um 1.5-4.7x Cloudy's where H2 turns on, 0.3-0.8x deep), the column ortho/para is 0.04-0.06 against 0.31 because the shielded gas is 15-20 K colder (both near thermal), and N(0,4) is 2.2-2.5x at every depth (hypothesis: the damping width, as H-005; collisions ruled out). Level model 62 of 98 min, overlap 53% of the timed work. hiipdr 21/31/41^3: 1-0 S(1) 6.22/8.38/8.64e33 erg/s (+35%, +3.0%), totals converge, the transition's H2 profile does not** | Done | 2026-10-02 |
 | H-008 | **The damping width alone, as a diagnostic (one line of h2LineParams, not committed): pn150k rerun with each line damped by its own A, as Cloudy does, against H-007's run with the upper level's total decay rate. The two runs are byte-identical outside the level model (MOCASSIN is reproducible at fixed np), so the comparison is exact. With Cloudy's width the 12.28 um excess goes (2.37x -> 0.62x Cloudy; N(0,4) 0.56-0.91x along the axes), but every pumped line falls 2.1-3.8x: 2.12 um 0.52x Cloudy, 17.0 um 0.31x, 28.2 um 0.23x. Lines behind < 1e14 cm^-2 of H2 are unchanged; behind > 1e16 they fall to 0.18-0.41 (sqrt(1/20) = 0.22, the damping wings). In the H-005 slab the same change takes the excited columns from 1.63x to 0.60x Cloudy's.** So H-007's agreement of three lines was two factors of 2-4 cancelling. The model keeps its width (the natural width; Cloudy itself uses the upper level's lifetime for every other species, its H2 alone the line's A). What remains with equal widths (0.23-0.62) is not isolated: the closure, the colder gas, the H2 at the front | Done | 2026-10-03 |
-| H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone, with the model's width, is still running | In progress | 2026-10-03 |
+| H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone (model's width) raises the lines by the same 1.17-1.21: the two choices are independent to 1-2%. The width's factor is larger for para lines (x3.2) than ortho (x2.2), as para pumping sits deeper in the damping wings. Nothing changes in the code | Done | 2026-10-03 |
 
 ---
 
@@ -1323,10 +1323,17 @@ convention); the ortho fraction of the gas, x~0.55-0.6 (the coupled
 model's temperature); and what remains, ~1.0. The para lines, which do
 not have the third factor, were 2.5-2.6x Cloudy's.
 
+**The width's factor depends on the spin.** The model's width over
+Cloudy's (medians of the same 40 lines): v = 1 ortho 2.19, para 3.15;
+v >= 2 ortho 2.27, para 3.22; v = 0 ortho 2.51, para 3.26. Para pumping
+starts mostly from J = 0, behind ~3e20 cm^-2, deep in the damping wings
+where the width counts most; our ortho J = 1 column is 20x smaller
+(19.1 against 20.5 dex). So the clean split above, ortho 0.55-0.6 of
+para relative to Cloudy, is with Cloudy's width; with the model's width
+it is 0.40, the gas's ortho/para and the width together.
+
 ### Not yet known
 
-  - The closure alone with the model's width: `runs/h009-cl-pn41` is
-    running.
   - Whether the ortho deficit is the gas temperature alone, or also the
     ortho-para conversion (H+ and H exchange, grain surfaces): both codes
     are near thermal, which points to the temperature, but this is not a
@@ -1335,6 +1342,34 @@ not have the third factor, were 2.5-2.6x Cloudy's.
     chemistry in the shielded gas: not emulated, and our network has no
     chlorine.
 
+### The closure alone, and the four runs together
+
+`runs/h009-cl-pn41` (Cloudy's closure, the model's width): 3 h 57 min,
+level model 12,303 s in 4 sweeps, no fall-backs. Each line / Hbeta over
+Cloudy's (its emissivities integrated, as H-007):
+
+| | 2.12 um | 28.2 um | 17.0 um | 12.28 um |
+|---|---|---|---|---|
+| the model (H-007) | 1.12 | 0.85 | 1.03 | 2.37 |
+| Cloudy's closure | 1.34 | 0.99 | 1.22 | 2.86 |
+| Cloudy's width (H-008) | 0.52 | 0.23 | 0.31 | 0.62 |
+| Cloudy's width and closure | 0.63 | 0.27 | 0.37 | 0.77 |
+
+The closure's factor is 1.17-1.21 with the model's width and 1.17-1.23
+with Cloudy's; the width's is 0.47, 0.27, 0.30, 0.26 with our closure and
+0.47, 0.27, 0.30, 0.27 with Cloudy's. The two choices act independently
+to 1-2%. By spin (40 lines, medians, v = 1): ortho 1.05 -> 1.24, para
+2.63 -> 3.04 with the closure alone.
+
+`tools/h009_lines.py --fig`: ours/Cloudy per line against the upper
+level's v, ortho and para, one panel per run.
+
 ### Status
 
-In progress: the second run.
+Done (2026-10-03). Nothing in the code changes: the model keeps its width
+and its closure. Between the codes, on pn150k: the width (x2-3.3, ours
+physical), the closure (x1.2, Cloudy's convention) and the gas's
+ortho/para (ortho lines 0.55-0.6 of para lines, the coupled model's
+colder shielded gas). Once the first two are equal, para-H2 fluorescence
+agrees with Cloudy's to 0-15%. The tree is rebuilt from the committed
+source.

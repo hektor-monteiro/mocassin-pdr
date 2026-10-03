@@ -8,7 +8,7 @@ per unit inner area; the first block, intrinsic - the second is emergent,
 with the dust's extinction). Each is divided by its own Hbeta. Lines are matched by
 wavelength after the air-vacuum conversion (Edlen's formula), to 2e-4 relative.
 
-    python tools/h009_lines.py <Cloudy .lines> <run> [<run> ...] [--names A,B,..] [--top N]
+    python tools/h009_lines.py <Cloudy .lines> <run> [<run> ...] [--names A,B,..] [--top N] [--fig PREFIX]
 
 Prints each of Cloudy's N strongest H2 lines that is matched: wavelength,
 upper level, ortho or para, and ours/Cloudy per run; then the median ratio of
@@ -18,6 +18,8 @@ import os
 import sys
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def vac_to_air(lam_um):
@@ -51,7 +53,38 @@ def ours(run):
     return rows
 
 
-def main(clfile, runs, names, top):
+def figure(tab, names, path):
+    """ours/Cloudy per line against the upper level's v, ortho filled and
+    para open, one panel per run"""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from h004_figures import style
+    style()
+    fig, axs = plt.subplots(1, len(names), figsize=(3.0*len(names) + 0.8, 3.6), sharey=True, squeeze=False)
+    rng = np.random.default_rng(1)
+    for i, (ax, n) in enumerate(zip(axs[0], names)):
+        for op, mk, col in (('o', 'o', '#1f4e79'), ('p', 's', '#b3541e')):
+            v = np.array([t[0] for t in tab if t[1] == op], float)
+            q = np.array([t[2][i] for t in tab if t[1] == op])
+            ax.semilogy(v + rng.uniform(-0.15, 0.15, len(v)), q, mk, ms=4.5, mec=col,
+                        mfc=col if op == 'o' else 'none', label='ortho' if op == 'o' else 'para')
+        ax.axhline(1., color='0.5', lw=0.8)
+        ax.set_title(n, fontsize=10)
+        ax.set_xlabel('upper level v')
+        ax.set_ylim(0.2, 5.)
+        ax.set_yticks([0.2, 0.3, 0.5, 0.7, 1., 2., 3., 5.])
+        ax.set_yticklabels(['0.2', '0.3', '0.5', '0.7', '1', '2', '3', '5'])
+        ax.minorticks_off()
+    axs[0, 0].set_ylabel('this work / Cloudy, L/H$\\beta$')
+    axs[0, 0].legend(loc='upper left', fontsize=9)
+    fig.tight_layout()
+    for ext in ('svg', 'png'):
+        fig.savefig(f'{path}.{ext}', dpi=200)
+    plt.close(fig)
+
+
+def main(clfile, runs, names, top, fig=None):
     cl, hbC = cloudy_lines(clfile)
     cl = cl[np.argsort(-cl[:, 1])][:top]
     R = [ours(r) for r in runs]
@@ -71,6 +104,8 @@ def main(clfile, runs, names, top):
         op = 'o' if ju % 2 else 'p'
         tab.append((vu, op, q))
         print(f'  {lam:10.5f}  ({vu:2d},{ju:2d})  ({vl:2d},{jl:2d})   {op}   {I/hbC:9.3e}  ' + '  '.join(f'{x:8.3f}' for x in q))
+    if fig:
+        figure(tab, names, fig)
     print('  median ours/Cloudy by upper v and spin (n):')
     for grp, sel in (('v = 0', lambda v: v == 0), ('v = 1', lambda v: v == 1), ('v >= 2', lambda v: v >= 2)):
         for op in 'op':
@@ -84,5 +119,6 @@ if __name__ == '__main__':
     argv = sys.argv[1:]
     names = argv[argv.index('--names') + 1].split(',') if '--names' in argv else None
     top = int(argv[argv.index('--top') + 1]) if '--top' in argv else 40
+    fig = argv[argv.index('--fig') + 1] if '--fig' in argv else None
     args = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or not argv[i - 1].startswith('--'))]
-    main(args[0], args[1:], names or [os.path.basename(r.rstrip('/')) for r in args[1:]], top)
+    main(args[0], args[1:], names or [os.path.basename(r.rstrip('/')) for r in args[1:]], top, fig)
