@@ -16,6 +16,7 @@ DEVLOG.md and arrives here by merge.
 | H-005 | **Stage A, step 3: self-shielding of the pumping lines and trapping of the fluorescent photons, marched through a Cloudy PDR slab (100 K, n_H 1e4, 100 Habing, to A_V = 3). The model's shielding - a Voigt line integrated numerically, damping from the upper level's total decay rate, averaged through each zone - follows Draine & Bertoldi's (1996) shielding function without its overlap factor to 0.79-1.00 from N(H2) = 1e18 to 1e21. Cloudy's own H2g Solomon rate is 0.28-0.36 of DB96 at N(H2) = 1e17-1e20, because it takes each line's damping from that line's own A: the upper level's total decay rate is 20x larger in the median (8-157).** Machinery checked first, with Cloudy's choices put in (Federman fit, own-A damping, its optical depths): line-centre tau and damping agree to 0.04% and 0.00% over 1,216 thick lines; pump rate per level in the shielded zones 0.97-1.00 of Cloudy's at N(H2) = 1e15-1e20; with photon trapping the H2g Solomon rate 0.93-0.97; and through Cloudy's closure (H-004) its excited fraction 0.92-0.98. **For the same slab the model's excited-level columns are 2.4x Cloudy's (v >= 1 levels 1.7-3.9x, median 2.45), and all its pumping absorptions 3.2x the Cloudy-like march's.** Not in yet: line overlap (DB96's factor is 0.9 at 1e19, 0.7 at 1e20, 0.3 at 1e21; 30% of the pumping lies above 1e20). Our ortho/para ratio reaches 60 in a thin layer at N(H2) ~ 1e16 (Cloudy 5.4), unchecked. Next: line overlap, then the field and columns from a MOCASSIN run | Done | 2026-10-02 |
 | H-006 | **Stage A, step 4: line overlap. Each pumping line's shielding is now its own times the mean transmission of all the other H2 lines over the frequencies where it absorbs, a six-point quadrature placed by the line's own absorption (`lineOverlap`). Against the exact integral on a 0.05 cm^-1 grid across the whole band, the factor overlap puts on the H2g Solomon rate is reproduced to 0.2-1.6% from N(H2) = 1e17 to 3e20 and 4.5% at 1e21 (exact 0.96, 0.93, 0.86, 0.65, 0.49, 0.32), and the exact factor is within 5% of Draine & Bertoldi's overlap term.** In the slab the model's shielding is now 0.70-0.95 of the full DB96 fit at 1e18-1e21. **H-005's numbers are revised: overlap lowers the model's total pumping by 33% (H-005 estimated 20%), and its excited-level columns are 1.63x Cloudy's (v >= 1 levels 1.25-2.77, median 1.66), not 2.44x.** Cost ~55 ms per call, so a cell computes it once and reuses it while iterating. Not in: shading by H I Lyman lines; a photon absorbed in another line's wing is counted as lost, not as a pump of that line. Next: the field and level columns from a MOCASSIN run | Done | 2026-10-02 |
 | H-007 | **Stage A, step 5: the level model inside MOCASSIN, on the finished model (`pdr_mod` `h2LevelModel`, called on every rank before the final output; 3D build).** Per cell: MOCASSIN's Te and the chemistry's densities; the MC field in the bin of each pumping line, split as pdrStep splits it (direct part behind the star-ward level columns, diffuse part on traceDiffuseSites' scattering sites behind their two-leg level columns); line shielding and overlap averaged through the cell's own column; photon escape over the twelve line rays; formation on silicate and carbonaceous surfaces in the proportion of the chemistry's own rate on each. Other cells' populations are the previous sweep's; sweeps repeat until four lines move by under 1%. Output: lineFluxH2.out, h2Cells.out (with the chemistry's own H2 photodissociation rate beside the levels'), h2Pop.bin. **First full run (hiipdr 21^3, 4,661 cells): 4 sweeps, 286 s on 14 ranks; 1-0 S(1) = 6.2e33 erg/s = 7.2e-4 Hbeta, 2-1 S(1)/1-0 S(1) = 0.53; the levels' Solomon rate is 2.6x the chemistry's in the ionized gas, 1.5-1.8x in unshielded cold gas, 0.4-0.7x in shielded gas.** The in-code field conversion agrees with an offline one from pdrFUVspec.out to 3-8%. The result is sensitive to how the cell's own column is treated (4.6x in 1-0 S(1) between leaving it out of the diffuse part and averaging through it): the pumping layer is inside one or two cells. **pn150k 41^3 against Cloudy: 2.12 um 1.12x, 17.0 um 1.03x, 28.2 um 0.85x, 12.28 um 2.36x; the totals agree by cancellation (2.12 and 17.0 um 1.5-4.7x Cloudy's where H2 turns on, 0.3-0.8x deep), the column ortho/para is 0.04-0.06 against 0.31 because the shielded gas is 15-20 K colder (both near thermal), and N(0,4) is 2.2-2.5x at every depth (hypothesis: the damping width, as H-005; collisions ruled out). Level model 62 of 98 min, overlap 53% of the timed work. hiipdr 21/31/41^3: 1-0 S(1) 6.22/8.38/8.64e33 erg/s (+35%, +3.0%), totals converge, the transition's H2 profile does not** | Done | 2026-10-02 |
+| H-008 | **The damping width alone, as a diagnostic (one line of h2LineParams, not committed): pn150k rerun with each line damped by its own A, as Cloudy does, against H-007's run with the upper level's total decay rate. The two runs are byte-identical outside the level model (MOCASSIN is reproducible at fixed np), so the comparison is exact. With Cloudy's width the 12.28 um excess goes (2.37x -> 0.62x Cloudy; N(0,4) 0.56-0.91x along the axes), but every pumped line falls 2.1-3.8x: 2.12 um 0.52x Cloudy, 17.0 um 0.31x, 28.2 um 0.23x. Lines behind < 1e14 cm^-2 of H2 are unchanged; behind > 1e16 they fall to 0.18-0.41 (sqrt(1/20) = 0.22, the damping wings). In the H-005 slab the same change takes the excited columns from 1.63x to 0.60x Cloudy's.** So H-007's agreement of three lines was two factors of 2-4 cancelling. The model keeps its width (the natural width; Cloudy itself uses the upper level's lifetime for every other species, its H2 alone the line's A). What remains with equal widths (0.23-0.62) is not isolated: the closure, the colder gas, the H2 at the front | Done | 2026-10-03 |
 
 ---
 
@@ -918,7 +919,12 @@ columns to 0.001 dex):
     and same Cloudy conventions except the damping width, gave N(0,4)
     3.0x Cloudy's from the damping width alone (Cloudy's lines damped by
     A_ul, the model's by the upper level's whole decay rate). That is the
-    leading hypothesis; it is not tested on pn150k. A second candidate,
+    leading hypothesis; it is not tested on pn150k. *(Corrected
+    2026-10-03, H-008: the 3.0 was H-005's model / Cloudy before overlap,
+    with several choices differing at once, not the damping width alone.
+    Measured alone in H-008, the width moves N(0,4) by 3.3x in the slab
+    and 2.5-3.9x on pn150k, and the hypothesis holds for 12.28 um, but
+    the width moves every pumped line about as much.)* A second candidate,
     discarded: the colliders (95% para-H2 here, 77% in Cloudy). Wan et
     al.'s J = 4 -> 2 rate at 30-50 K is 5.5-5.9e-14 cm^3 s^-1 for both
     (coll_rates_H2{ortho,para}_ORNL.dat), so at n(H2) ~ 400 cm^-3 the
@@ -1035,3 +1041,168 @@ hiipdr's line totals converge with resolution. All four flavours,
 mocassinOutput, mocassinPlot, h2Test and h2Slab build. Not pushed. The findings
 that need work (the 12.28 um excess, the pumping layer, the cost) are
 above; nothing here feeds back into the chemistry (stage B).
+
+## H-008 - The damping width, alone, on pn150k and the slab (2026-10-03)
+
+The user: "proceed" (to H-007's next step: the level model on pn150k with
+Cloudy's damping width, to test the hypothesis for the 12.28 um excess).
+
+### The test
+
+One line of `h2LineParams` changed, as a diagnostic, not committed:
+
+    -      a = (h2uAtot(h2tU(i)) + h2uDiss(h2tU(i)))*lam/(4._dp*pi*b)
+    +      a = h2tA(i)*lam/(4._dp*pi*b)
+
+`h2LineParams` is the only place the width is formed. It feeds each line's
+own shielding (`h2LineShield`), the overlap (`h2LineOverlap`), the escape
+(`h2LineEscape`) and the shielding of the diffuse sites' histograms in
+`pdr_mod`, so the test changes the width everywhere and nothing else.
+Built into `runs/h008-aul-pn41/mocassin.h008` and the slab's
+`h2Slab.aul`; the source was then restored and all four flavours,
+mocassinOutput, mocassinPlot, h2Test and h2Slab rebuilt from it.
+
+With A_ul the cold-gas lines with A below ~6e3 s^-1 have a below the
+shielding table's edge (1e-7) and take the edge. They are thick only up to
+tau0 ~ 300, where a tau0 < 3e-5 and the wings carry less than 1% of the
+equivalent width, so the clamp does not matter.
+
+**The two pn150k runs are identical outside the level model.** At the same
+input and the same number of ranks, every output file of `runs/h008-aul-pn41`
+other than lineFluxH2.out, h2Cells.out and h2Pop.bin is byte-identical to
+H-007's `runs/h007-full-pn41` (summary.out apart from its timestamps).
+MOCASSIN's Monte Carlo is reproducible at fixed np, so this comparison
+carries no Monte Carlo scatter. (CLAUDE.md's "two runs of the same fixture
+differ" holds across np, as d381-hii21 at np = 2 against 14 did, H-007.)
+
+The run took 1 h 07 min; the level model 2,265 s in 4 sweeps (H-007's
+3,736 s): overlap 10,449 rank-seconds (21,108), shielding 4,831 (6,672),
+solution 7,995 (9,793). Narrower wings reach fewer other lines.
+
+### pn150k
+
+`tools/h008_compare.py runs/h007-full-pn41 runs/h008-aul-pn41 --cloudy
+.../d389-cloudy-h2s/150k --rin 1.0e16`:
+
+| line / Hbeta | the model's width (H-007) | Cloudy's width | Cloudy | model's / Cloudy | Cloudy's width / Cloudy | Cloudy's width / model's |
+|---|---|---|---|---|---|---|
+| 1-0 S(1) 2.12 um | 1.062e-3 | 4.95e-4 | 9.45e-4 | 1.12 | 0.52 | 0.47 |
+| 0-0 S(0) 28.2 um | 1.44e-4 | 3.94e-5 | 1.69e-4 | 0.85 | 0.23 | 0.27 |
+| 0-0 S(1) 17.0 um | 5.67e-4 | 1.71e-4 | 5.48e-4 | 1.03 | 0.31 | 0.30 |
+| 0-0 S(2) 12.28 um | 1.087e-3 | 2.86e-4 | 4.59e-4 | 2.37 | 0.62 | 0.26 |
+
+The pumping summed over the H2 falls to 0.38 and the levels' Solomon rate
+to 0.40. 2-1 S(1)/1-0 S(1) stays fluorescent (0.51).
+
+**Where the width matters**, by N(H2) to the cell (the share is of the
+2.12 um line in H-007's run; the rest is Cloudy's width over the model's):
+
+| N(H2) to the cell [cm^-2] | share of 2.12 um | 2.12 | 28.2 | 17.0 | 12.28 |
+|---|---|---|---|---|---|
+| < 1e14 | 10.5% | 1.00 | 1.00 | 1.00 | 1.00 |
+| 1e14-1e16 | 19.5% | 0.85 | 0.78 | 0.76 | 0.84 |
+| 1e16-1e17 | 8.6% | 0.26 | 0.40 | 0.29 | 0.30 |
+| 1e17-1e18 | 12.8% | 0.20 | 0.27 | 0.20 | 0.18 |
+| 1e18-1e19 | 22.6% | 0.25 | 0.25 | 0.23 | 0.21 |
+| 1e19-1e20 | 20.7% | 0.34 | 0.27 | 0.30 | 0.25 |
+| > 1e20 | 5.3% | 0.41 | 0.28 | 0.34 | 0.27 |
+
+Thin lines do not care; behind 1e16 cm^-2 the pumping is in the damping
+wings, where the equivalent width goes as sqrt(a), and the upper levels'
+total decay rate is 20x the line's A in the median (H-005): sqrt(1/20) =
+0.22. Measured, 0.18-0.41.
+
+Per radial shell, luminosity over Cloudy's (the model's width | Cloudy's):
+
+| shell [pc] | 2.12 um | 28.2 um | 17.0 um | 12.28 um |
+|---|---|---|---|---|
+| 0.17-0.19 | 2.54 / 2.49 | 3.08 / 3.04 | 4.58 / 4.45 | 2.39 / 2.36 |
+| 0.19-0.21 | 1.80 / 1.30 | 1.43 / 1.12 | 3.61 / 2.56 | 2.07 / 1.65 |
+| 0.21-0.23 | 1.60 / 0.43 | 0.83 / 0.32 | 2.86 / 0.82 | 2.76 / 0.82 |
+| 0.23-0.26 | 1.45 / 0.30 | 0.95 / 0.25 | 2.02 / 0.40 | 2.57 / 0.47 |
+| 0.26-0.30 | 1.22 / 0.30 | 0.97 / 0.24 | 1.37 / 0.31 | 2.29 / 0.47 |
+| 0.30-0.35 | 0.96 / 0.29 | 0.83 / 0.21 | 1.04 / 0.28 | 2.48 / 0.58 |
+| 0.35-0.40 | 0.72 / 0.25 | 0.65 / 0.17 | 0.81 / 0.25 | 2.56 / 0.65 |
+| 0.40-0.50 | 0.49 / 0.19 | 0.69 / 0.19 | 0.58 / 0.19 | 2.38 / 0.63 |
+| 0.50-0.60 | 0.34 / 0.14 | 1.42 / 0.39 | 0.36 / 0.13 | 1.88 / 0.51 |
+
+Level columns along the three axes (log N, x / y / z), and Cloudy's:
+
+| | the model's width | Cloudy's width | Cloudy |
+|---|---|---|---|
+| ortho / para | 0.037 / 0.057 / 0.044 | 0.034 / 0.054 / 0.041 | 0.306 |
+| v=0 J=2 | 17.10 / 17.46 / 17.16 | 16.47 / 17.35 / 16.59 | 17.20 |
+| v=0 J=3 | 16.37 / 16.87 / 16.47 | 15.83 / 16.77 / 15.98 | 16.30 |
+| v=0 J=4 | 15.66 / 15.67 / 15.73 | 15.07 / 15.28 / 15.18 | 15.32 |
+| v=1 J=3 | 13.05 / 13.17 / 13.13 | 12.80 / 12.95 / 12.90 | 12.97 |
+
+With Cloudy's width, 64% of 2.12 um is from gas below 200 K and 32% from
+200-3,000 K (H-007: 83% and 15%; Cloudy: 92% and 7%): the cold, shielded
+part falls and the thin warm front does not.
+
+### The slab, with the same single change
+
+H-005's slab (100 K, n_H 1e4, 100 Habing), the model as of H-006 (with
+overlap), marched with `h2Slab.aul` in voigt mode: only the width differs
+from the model's own march (`voigt.cols`); the Cloudy-like march
+(`federman.cols`, Federman fit, own-A width, no averaging through the
+zone, no overlap of ours) is unchanged.
+
+| / Cloudy | the model | the model, Cloudy's width | Cloudy-like march |
+|---|---|---|---|
+| N(H2*), E > 4100 cm^-1 | 1.63 | 0.60 | 0.73 |
+| v >= 1 levels, median (range) | 1.66 (1.25-2.77) | 0.62 (0.51-0.75) | 0.74 (0.60-0.90) |
+| N(0,4) | 1.95 | 0.58 | 0.76 |
+| N(0,5), N(0,7) | 1.62, 1.53 | 0.54, 0.53 | 0.67, 0.63 |
+| N(1,3) | 1.70 | 0.64 | 0.80 |
+| N(0,0-2) | 1.00 | 1.00 | 1.00 |
+
+The width alone moves the excited levels by 2.5-3.3x here (N(0,4) 3.3x).
+
+### What it means
+
+  1. **The hypothesis holds for 12.28 um.** With Cloudy's width, N(0,4) is
+     0.56-0.91x Cloudy's along the axes and the line 0.62x; the uniform
+     2.4x excess of H-007 is gone.
+  2. **But the width moves every pumped line about as much** (2.1-3.8x on
+     the totals), so with the same width as Cloudy all four lines are
+     below Cloudy's, by 0.23-0.62. H-007's agreement of three lines was two
+     factors of 2-4 in opposite directions: the wider line raises ours, and
+     something else lowers it. The 12.28 um line stood out only because it
+     has less of the something else.
+  3. **The model keeps its width.** The natural width of a line is the
+     upper level's total decay rate, here sum A + dissociation. Cloudy
+     itself uses the upper level's lifetime for its database species
+     (`cont_createpointers.cpp:481`), its iso-sequences (`iso_create.cpp`
+     485, 1445) and its UTA lines (radiative plus autoionization,
+     `atmdat_readin.cpp:1234`); its H2 alone takes the line's own A
+     (`mole_h2_create.cpp:630`), with no comment on why. The 2-4x is a
+     difference to report between the codes, not one to close.
+  4. **What remains**, with the widths equal: 0.52 (2.12 um), 0.62
+     (12.28), 0.31 (17.0), 0.23 (28.2). Candidates, none isolated:
+       - the closure: for the same rates Cloudy's excited populations are
+         1.3-1.7x our closed solution's (H-004, H-005); in the slab, the
+         model with Cloudy's width sits at 0.60 of Cloudy, close to
+         pn150k's 0.52-0.62 for the two lines fed by pumping alone;
+       - the gas: the rotational lines fall further (0.23-0.31), and they
+         are the ones with a thermal part and an ortho/para dependence;
+         our shielded gas is 15-20 K colder (H-007);
+       - the H2 at the front: our n(H2) is 0.4-0.5x Cloudy's at
+         0.21-0.30 pc (H-007), where the cold-gas pumping starts.
+
+### Not yet known
+
+  - Which of the three remaining candidates sets the 0.23-0.62. The closure
+    can be tested on pn150k the way H-004 tested it in isolation (the
+    model's rates through Cloudy's scheme).
+  - Why the y axis's J = 2 and J = 3 columns sit 0.8-0.9 dex above the x
+    and z axes' with Cloudy's width (0.3-0.5 dex with the model's): one
+    axis is a single line of cells; not looked at.
+  - Whether Cloudy's H2 width is a deliberate choice: the source does not
+    say; not asked.
+
+### Status
+
+Done. The test is in the log, not in the code; the model keeps the upper
+level's total decay rate as each line's width. `tools/h008_compare.py`
+compares two runs of a model with each other and with Cloudy.
