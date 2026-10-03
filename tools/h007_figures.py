@@ -121,7 +121,7 @@ def main(run, outdir, cloudy=None, rin=0., tag='run'):
         for (name, q), col in zip(ratios.items(), [BLUE, GREEN, WARM, '0.35']):
             ax.semilogy(sc, q, color=col, lw=1.6, marker='o', ms=3, label=name)
         ax.axhline(1., color='0.5', lw=0.8)
-        ax.set_ylim(0.1, 10.)
+        ax.set_ylim(0.05, 10.)
         ax.set_xlim(lo, r.max()*1.02)
         ax.set_xlabel('radius  [pc]')
         ax.set_ylabel('luminosity per shell, this work / Cloudy')
