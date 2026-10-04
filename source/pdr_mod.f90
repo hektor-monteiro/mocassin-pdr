@@ -4037,6 +4037,34 @@ module pdr_mod
         call CALC_HEATING(nH, dble(grid%Te(cellP)), Td, chiLoc, dble(pdrVturb)*1.d5, &
              & pdrNspecMod, abun, pdrNreacMod, pdrRate, heat, &
              & NRGR, NR2, NR3, NR4, NR5, NR6, pdrZetaMod)
+        ! H-012: 3D-PDR's three H2 terms, kept beside the level model's (h2Cells.out)
+        if (allocated(grid%pdrHeatH2)) grid%pdrHeatH2(cellP,1:3) = real(heat(5:7))
+#ifdef RAYTHEIA
+        ! ---------------------------------------------------------- H-013
+        ! THE H2 HEATING IS THE LEVEL MODEL'S (DEVLOG-H2 stage B, step 2).
+        !
+        ! 3D-PDR gives each event a fixed energy: 1.5 eV per molecule formed,
+        ! 0.4 eV per dissociation, and 9 x 2.2 eV per dissociation for the
+        ! pumping, damped by a critical density. The levels know what each
+        ! molecule carries (grid%h2Heat, h2LevelModel, at this iteration's
+        ! field and Te): the atoms' kinetic energy out of every dissociating
+        ! level; the net heating by collisions within X, which is the pumped
+        ! and newly formed molecules' energy given to the gas and, where the
+        ! gas is the warmer, H2's own line cooling (nothing else cools by
+        ! H2); and the kinetic energy of a molecule formed on this cell's
+        ! grains, by energy conservation on the formation distribution (the
+        ! rest is the grain's or in the levels). Like the other terms of
+        ! pdrHeatXtra, they are held through MOCASSIN's temperature search
+        ! and follow Te from one iteration to the next.
+        if (allocated(grid%h2Heat)) then
+           heat(5) = pdrRate(NRGR)*nH*abun(pdrNHsp)*nH*dble(grid%h2Heat(cellP,3))
+           heat(6) = abun(NH2)*nH*dble(grid%h2Heat(cellP,1))
+           heat(7) = abun(NH2)*nH*dble(grid%h2Heat(cellP,2))
+           ! TOTAL_HEATING's sum (heatingfunctions.F90): heat(1) and heat(3)
+           ! are not in it
+           heat(12) = heat(2) + heat(4) + sum(heat(5:11))
+        end if
+#endif
         grid%pdrHeat(cellP)   = real(heat(12))
         ! D-095: heat(2) ALONE. TOTAL_HEATING takes only PAHPHOTOELEC_HEATING from
         ! the photoelectric family - heat(1) is hard-set to zero and heat(3),
@@ -4054,8 +4082,6 @@ module pdr_mod
         ! and chemical heating - none of which exist anywhere in MOCASSIN.
         grid%pdrHeatXtra(cellP) = real(heat(5) + heat(6) + heat(7) + &
              & heat(8) + heat(9) + heat(10))
-        ! H-012: the three H2 terms alone, beside the level model's (h2Heat)
-        if (allocated(grid%pdrHeatH2)) grid%pdrHeatH2(cellP,1:3) = real(heat(5:7))
         ! D-150: is the MOCASSIN <-> PDR pair an oscillating fixed point?
         ! MOCASSIN solves T with pdrCool held constant, the PDR then recomputes
         ! pdrCool at the new T, and so on. If that is the instability, Te in a
@@ -4429,7 +4455,8 @@ module pdr_mod
       ! Stage A of DEVLOG-H2 ran this once, on the finished model. Stage B
       ! (H-012) runs it every PDR iteration, before the PDR step and on that
       ! iteration's field, one sweep from the last call's populations; the
-      ! chemistry then takes its H2 photodissociation rate from it (pdrStep).
+      ! chemistry then takes its H2 photodissociation rate from it, and
+      ! (H-013) the thermal balance its H2 heating (pdrStep).
       ! The finished model gets sweeps to convergence (nSweepMax). For every
       ! active cell the 302 rovibrational levels of H2 X are solved (h2_mod)
       ! with what the model holds:
