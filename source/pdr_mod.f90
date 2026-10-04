@@ -4441,6 +4441,14 @@ module pdr_mod
       ! 1-0 S(1), 2-1 S(1), 0-0 S(0) and 0-0 S(1) all move by less than 1%
       ! (at most twelve).
       !
+      ! H-011: the ranks take cells one at a time from a shared counter
+      ! (MPI-3 one-sided, a window MPI allocates on rank 0), the dearest of
+      ! the last sweep first, so that cores of different speed (this
+      ! machine's performance and efficiency cores) end together. A cell's
+      ! result does not depend on the rank that solves it. With Open MPI
+      ! built without a working UCX one-sided component, --mca osc ^ucx keeps
+      ! its warning out of the log.
+      !
       ! Results per cell (grid%h2Pop, h2Sol, h2Pump) and, for comparison, the
       ! chemistry's own H2 photodissociation rate on the same field and
       ! columns (h2SolChem); written by h2Lines_mod. Not yet: plane-parallel
@@ -4452,7 +4460,8 @@ module pdr_mod
       subroutine h2LevelModel(grid)
         use h2_mod, only : h2NX, h2NU, h2NT, h2NColl, h2ReadX, h2ReadElec, h2tWN, h2tU, h2tL, h2tA, &
              & h2uG, h2G, h2E, h2A, h2Ortho, h2Level, h2LineOverlap, h2LineShield, h2LineParams, &
-             & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates
+             & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates, h2ShieldAIndex, h2ShieldJ, &
+             & h2LineShieldPrep, h2LineShieldEval
         use functions_module, only : H2_FORMATION_RATE
         use grid_mod, only : getVolume
         implicit none
@@ -4476,7 +4485,14 @@ module pdr_mod
         double precision :: jT, jD, sumT, sumD, lwT, lwD, chiDir, chiDif, fDir, fDif, fLWd, sig, aL, w, ntot
         double precision :: Td, wSil, wGra, xsS, xsG, alphaH2loc, pumpTot, solTot, t0, t1
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, fS, fTot, tot, sH2
-        double precision :: lum(4), lumOld(4), dV, sym, tm(5), tmSum(5), tq, chordIso, dtau, sThin
+        double precision :: lum(4), lumOld(4), dV, sym, tm(10), tmSum(10), tq, chordIso, dtau, sThin
+        double precision :: tLoop, tLoopMax, tLoopMin, tc0
+        integer, allocatable :: workOrd(:), cI(:), cJ(:), cK(:)
+        double precision, allocatable :: tCel(:), tCelSum(:)
+        integer :: winC, m, nIter, jA
+        double precision :: fA
+        integer(8) :: zero8, one8, nxt8, base8
+        integer(kind=MPI_ADDRESS_KIND) :: disp0, wsz, wbase
         logical          :: lgDif, lgDirF
         double precision, allocatable :: Wd(:,:), kd2(:)
         integer          :: iu(4), il(4)
@@ -4587,40 +4603,84 @@ module pdr_mod
         if (lgSymmetricXYZ .and. lg2D) sym = 2.d0
         lumOld = -1.d0
         allocate(Wd(h2NX,h2NX), kd2(h2NX))
+        ! the cells' grid indices; the first sweep takes them in a fixed
+        ! shuffled order, later sweeps the dearest first (orderCells)
+        allocate(workOrd(nCel), cI(nCel), cJ(nCel), cK(nCel), tCel(0:nCel), tCelSum(0:nCel))
+        do i = 1, nx
+           do j = 1, ny
+              do k = 1, nz
+                 cellP = grid(1)%active(i,j,k)
+                 if (cellP <= 0) cycle
+                 cI(cellP) = i; cJ(cellP) = j; cK(cellP) = k
+              end do
+           end do
+        end do
+        call orderCells(.false.)
+        ! the shared counter, on rank 0 (MPI-3 one-sided). Its memory is the
+        ! MPI library's (win_allocate), so that on one node the fetch is an
+        ! atomic in shared memory and needs nothing of rank 0, which is busy
+        ! with its own cells; a window on the program's memory waits for the
+        ! target to enter MPI. With Open MPI's UCX one-sided component
+        ! missing, run with --mca osc ^ucx to keep its warning out of the log.
+        one8 = 1_8; zero8 = 0_8; base8 = 0_8; disp0 = 0
+        wsz = 0
+        if (taskid == 0) wsz = 8
+        call mpi_win_allocate(wsz, 8, mpi_info_null, mpi_comm_world, wbase, winC, ierr)
+        call mpi_win_lock_all(0, winC, ierr)
+        if (taskid == 0) then
+           call mpi_fetch_and_op(zero8, nxt8, mpi_integer8, 0, disp0, mpi_replace, winC, ierr)
+           call mpi_win_flush(0, winC, ierr)
+        end if
+        call mpi_barrier(mpi_comm_world, ierr)
 
         do isweep = 1, maxSweep
            t1 = mpi_wtime()
+           tm = 0.d0
            call starColumns()
+           tm(9) = mpi_wtime() - t1
 
-           popTmp = 0.; r1Tmp = 0.; tm = 0.d0
-           nSolved = 0; nNoGrain = 0
-           iCell = 0
-           do i = 1, nx
-              do j = 1, ny
-                 do k = 1, nz
-                    iCell = iCell + 1
-                    if (mod(iCell-(taskid+1), numtasks) /= 0) cycle
-                    cellP = grid(1)%active(i,j,k)
-                    if (cellP <= 0) cycle
-                    dnH2 = nH2c(cellP)
-                    nH  = dble(grid(1)%Hden(cellP))
-                    if (dnH2 <= 0.d0 .or. nH <= 0.d0) then
-                       popTmp(cellP,:) = grid(1)%h2Pop(cellP,:)
-                       cycle
-                    end if
-                    call solveCell()
-                    nSolved = nSolved + 1
-                 end do
-              end do
+           popTmp = 0.; r1Tmp = 0.
+           tLoop = mpi_wtime()
+           nSolved = 0; nNoGrain = 0; nIter = 0
+           tCel = 0.d0
+           ! the cells are taken one at a time from a shared counter, in the
+           ! order of workOrd (the dearest first), so that a faster core simply
+           ! takes more; the result of a cell does not depend on its rank.
+           ! The counter only grows: this sweep's cells are base+1..base+nCel.
+           do
+              call mpi_fetch_and_op(one8, nxt8, mpi_integer8, 0, disp0, mpi_sum, winC, ierr)
+              call mpi_win_flush(0, winC, ierr)
+              m = int(nxt8 - base8) + 1
+              if (m > nCel) exit
+              cellP = workOrd(m)
+              i = cI(cellP); j = cJ(cellP); k = cK(cellP)
+              dnH2 = nH2c(cellP)
+              nH  = dble(grid(1)%Hden(cellP))
+              if (dnH2 <= 0.d0 .or. nH <= 0.d0) then
+                 popTmp(cellP,:) = grid(1)%h2Pop(cellP,:)
+                 cycle
+              end if
+              tc0 = mpi_wtime()
+              call solveCell()
+              tCel(cellP) = mpi_wtime() - tc0
+              nSolved = nSolved + 1
            end do
+           base8 = base8 + int(nCel + numtasks, 8)
 
+           tLoop = mpi_wtime() - tLoop
+           ! the next sweep's order: this sweep's cost of each cell, dearest first
+           call mpi_allreduce(tCel, tCelSum, nCel+1, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+           call orderCells(.true.)
+           tq = mpi_wtime()
            call mpi_allreduce(popTmp, popSum, (nCel+1)*h2NX, mpi_real, mpi_sum, mpi_comm_world, ierr)
+           tm(10) = mpi_wtime() - tq
            call mpi_allreduce(r1Tmp, r1Sum, (nCel+1)*nR1, mpi_real, mpi_sum, mpi_comm_world, ierr)
            grid(1)%h2Pop = popSum
            grid(1)%h2Sol = r1Sum(:,1); grid(1)%h2Pump = r1Sum(:,2); grid(1)%h2SolChem = r1Sum(:,3)
            grid(1)%h2Diag = r1Sum(:,4:nR1)
            i = nSolved; call mpi_allreduce(i, nSolved, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
            i = nNoGrain; call mpi_allreduce(i, nNoGrain, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+           i = nIter; call mpi_allreduce(i, nIter, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
 
            ! line luminosities [erg/s] and the pumping and dissociation totals [s^-1]
            lum = 0.d0; pumpTot = 0.d0; solTot = 0.d0
@@ -4640,26 +4700,99 @@ module pdr_mod
               end do
            end do
            if (taskid == 0) then
-              print '(a,i2,a,i7,a,i6,a,f8.1,a)', " ! h2LevelModel: sweep ", isweep, ": ", nSolved, &
-                   & " cells solved (", nNoGrain, " without grain formation), ", mpi_wtime() - t1, " s"
+              print '(a,i2,a,i7,a,i6,a,f8.1,a,f5.2,a)', " ! h2LevelModel: sweep ", isweep, ": ", nSolved, &
+                   & " cells solved (", nNoGrain, " without grain formation), ", mpi_wtime() - t1, " s, ", &
+                   & dble(nIter)/dble(max(nSolved, 1)), " solutions per cell"
               print '(a,4es11.4)', " !    L [erg/s] 1-0 S(1), 2-1 S(1), 0-0 S(0), 0-0 S(1): ", lum
               print '(a,2es11.4,a,f7.3)', " !    pumping absorptions and Solomon dissociations [s^-1]: ", &
                    & pumpTot, solTot, "   pump/diss ", pumpTot/max(solTot, 1.d-300)
            end if
-           call mpi_allreduce(tm, tmSum, 5, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-           if (taskid == 0) print '(a,5f9.1)', " !    rank-seconds: sites, overlap, shield, escape, solve: ", tmSum
+           call mpi_allreduce(tm, tmSum, 10, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+           call mpi_allreduce(tLoop, tLoopMax, 1, mpi_double_precision, mpi_max, mpi_comm_world, ierr)
+           call mpi_allreduce(tLoop, tLoopMin, 1, mpi_double_precision, mpi_min, mpi_comm_world, ierr)
+           if (taskid == 0) then
+              print '(a,5f9.1)', " !    rank-seconds: sites, overlap, shield, escape, solve: ", tmSum(1:5)
+              print '(a,5f9.1)', " !    rank-seconds: field, formation, after the solve, star columns, reduction: ", tmSum(6:10)
+              print '(a,3f9.1)', " !    cell loop per rank [s]: min, max, timed parts / ranks: ", tLoopMin, tLoopMax, &
+                   & sum(tmSum(1:8))/dble(numtasks)
+           end if
            if (all(lumOld > 0.d0)) then
               if (maxval(abs(lum/lumOld - 1.d0)) < 0.01d0) exit
            end if
            lumOld = lum
         end do
+        call mpi_win_unlock_all(winC, ierr)
+        call mpi_win_free(winC, ierr)
         if (taskid == 0) print '(a,f8.1,a)', " ! h2LevelModel: done in ", mpi_wtime() - t0, " s"
 
         deallocate(tBin, sb, sigMax, nH2c, cDir, cDif, etaDir, etaDif, eta, shDir, shDif, ovDir, ovG, &
              & beta, pops, kdiss, pump, phi, phi1, phiB, Ncol, dN, cLev, dLev, Ns, N12, hist, thin, &
-             & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, segC, segL)
+             & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, segC, segL, &
+             & workOrd, cI, cJ, cK, tCel, tCelSum)
 
       contains
+
+        !---------------------------------------------------------------
+        ! The order the cells are taken in (workOrd). Without costs: a fixed
+        ! pseudo-random order, so that the dear part of the cloud is spread
+        ! over the sweep. With the last sweep's cost of each (tCelSum): the
+        ! dearest first, so that the last cells taken are cheap.
+        ! The same on every rank.
+        !---------------------------------------------------------------
+        subroutine orderCells(lgCost)
+          logical, intent(in) :: lgCost
+          double precision, allocatable :: key(:)
+          integer :: mm, n, tmp
+          integer(8) :: lcg
+          allocate(key(nCel))
+          do mm = 1, nCel
+             workOrd(mm) = mm
+          end do
+          if (.not.lgCost) then
+             lcg = 12345_8
+             do mm = nCel, 2, -1
+                lcg = mod(lcg*1103515245_8 + 12345_8, 2147483648_8)
+                n = 1 + int(mod(lcg, int(mm, 8)))
+                tmp = workOrd(mm); workOrd(mm) = workOrd(n); workOrd(n) = tmp
+             end do
+          else
+             key = -tCelSum(1:nCel)
+             call heapSortIdx(nCel, key, workOrd)
+          end if
+          deallocate(key)
+        end subroutine orderCells
+
+        ! idx(1:n) such that key(idx) ascends (heap sort; ties in a fixed order)
+        subroutine heapSortIdx(n, key, idx)
+          integer, intent(in) :: n
+          double precision, intent(in) :: key(:)
+          integer, intent(inout) :: idx(:)
+          integer :: l, ir, ii, jj, it
+          if (n < 2) return
+          l = n/2 + 1; ir = n
+          do
+             if (l > 1) then
+                l = l - 1; it = idx(l)
+             else
+                it = idx(ir); idx(ir) = idx(1); ir = ir - 1
+                if (ir == 1) then
+                   idx(1) = it; return
+                end if
+             end if
+             ii = l; jj = l + l
+             do while (jj <= ir)
+                if (jj < ir) then
+                   if (key(idx(jj)) < key(idx(jj+1))) jj = jj + 1
+                end if
+                if (key(it) < key(idx(jj))) then
+                   idx(ii) = idx(jj); ii = jj; jj = jj + jj
+                else
+                   jj = ir + 1
+                end if
+             end do
+             idx(ii) = it
+          end do
+        end subroutine heapSortIdx
 
         ! width of cell i along an axis
         double precision function cWid(ax, n, m)
@@ -4730,6 +4863,7 @@ module pdr_mod
         ! escape, formation, solution. Uses i, j, k, cellP, nH, dnH2.
         !---------------------------------------------------------------
         subroutine solveCell()
+          tq = mpi_wtime()
           T = max(dble(grid(1)%Te(cellP)), 1.d0)
           b = sqrt(2.d0*dble(kBoltzmann)*T/mH2g + (dble(pdrVturb)*1.d5)**2)
 
@@ -4770,6 +4904,7 @@ module pdr_mod
           ! part of the cell, and the line shielding is averaged over that part
           ! as the direct beam's is
           dN = dble(grid(1)%h2Pop(cellP,:))*dnH2*chordIso
+          tm(6) = tm(6) + mpi_wtime() - tq
 
           ! ---- the diffuse part: the sites, their two-leg level columns
           ! (a part of the field that is zero in every line needs no shielding:
@@ -4838,15 +4973,16 @@ module pdr_mod
                 l = h2tL(ln)
                 shDif(ln) = 0.d0
                 call h2LineParams(ln, b, sig, aL)
+                call h2ShieldAIndex(aL, jA, fA)
                 dtau = sig*dN(l)
                 sThin = 1.d0
-                if (dtau > 1.d-4) sThin = h2Shield(0.d0, aL, dtau)
+                if (dtau > 1.d-4) sThin = h2ShieldJ(0.d0, jA, fA, dtau)
                 do g = 1, nGrp
                    if (gW(g) <= 0.d0) cycle
                    w = thin(l,g)*sThin
                    do bin = bLo(l,g), bHi(l,g)
                       if (hist(bin,l,g) > 0.d0) w = w + hist(bin,l,g)* &
-                           & h2Shield(sig*10.d0**(hb0 + (dble(bin) - 0.5d0)*hbd), aL, dtau)
+                           & h2ShieldJ(sig*10.d0**(hb0 + (dble(bin) - 0.5d0)*hbd), jA, fA, dtau)
                    end do
                    shDif(ln) = shDif(ln) + ovG(ln,g)*w
                 end do
@@ -4892,6 +5028,7 @@ module pdr_mod
              call h2LineEscape(N12, b, beta)
           end if
           tm(4) = tm(4) + mpi_wtime() - tq
+          tq = mpi_wtime()
 
           ! ---- formation: the two surfaces in the proportion of the
           ! chemistry's own rate on each
@@ -4927,10 +5064,14 @@ module pdr_mod
              phi = phi/sum(phi)
           end if
 
+          tm(7) = tm(7) + mpi_wtime() - tq
           ! ---- solve; the colliding ortho and para H2 and the cell's own
           ! column are the solution's
           pops = dble(grid(1)%h2Pop(cellP,:))
           fo = sum(pops, mask=h2Ortho)
+          ! the direct path's shielding, prepared for its column; each pass
+          ! below adds the cell's own column as the populations settle
+          if (lgDirF .or. (lgDif .and. shDif(1) < 0.d0)) call h2LineShieldPrep(Ncol, b)
           do it = 1, 12
              dens = (/ nH*grid(1)%pdrAbun(cellP,pdrNHsp), nH*grid(1)%pdrAbun(cellP,NHe), &
                   & fo*dnH2, (1.d0 - fo)*dnH2, nH*grid(1)%pdrAbun(cellP,NPROTON) /)
@@ -4939,7 +5080,7 @@ module pdr_mod
              if (lgDirF .or. (lgDif .and. shDif(1) < 0.d0)) then
                 if (it == 1) call h2LineOverlap(Ncol + 0.5d0*dN, b, ovDir)
                 tm(2) = tm(2) + mpi_wtime() - tq; tq = mpi_wtime()
-                call h2LineShield(Ncol, b, shDir, dN, overlap=ovDir)
+                call h2LineShieldEval(dN, shDir, ovDir)
              else
                 shDir = 0.d0
              end if
@@ -4952,12 +5093,16 @@ module pdr_mod
              call h2Solve(T, dens, eta, phi, pops, kdiss, pump, beta=beta)
              tm(5) = tm(5) + mpi_wtime() - tq
              foNew = sum(pops, mask=h2Ortho)
-             if (abs(foNew - fo) < 1.d-4 .and. it > 2) then
+             nIter = nIter + 1
+             ! settled when the colliding ortho fraction no longer moves: a
+             ! cell that had settled in the last sweep needs one solution
+             if (abs(foNew - fo) < 1.d-4) then
                 fo = foNew; exit
              end if
              fo = foNew
           end do
 
+          tq = mpi_wtime()
           popTmp(cellP,:) = real(pops)
           r1Tmp(cellP,1) = real(sum(pops*kdiss))
           r1Tmp(cellP,2) = real(sum(pops*pump))
@@ -4987,6 +5132,7 @@ module pdr_mod
           r1Tmp(cellP,6) = real(sum(Ncol))
           r1Tmp(cellP,7) = real(dnH2*chord)
           r1Tmp(cellP,8) = real(lwD/max(lwT, 1.d-300))
+          tm(8) = tm(8) + mpi_wtime() - tq
         end subroutine solveCell
 
       end subroutine h2LevelModel

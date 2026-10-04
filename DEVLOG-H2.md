@@ -19,6 +19,7 @@ DEVLOG.md and arrives here by merge.
 | H-008 | **The damping width alone, as a diagnostic (one line of h2LineParams, not committed): pn150k rerun with each line damped by its own A, as Cloudy does, against H-007's run with the upper level's total decay rate. The two runs are byte-identical outside the level model (MOCASSIN is reproducible at fixed np), so the comparison is exact. With Cloudy's width the 12.28 um excess goes (2.37x -> 0.62x Cloudy; N(0,4) 0.56-0.91x along the axes), but every pumped line falls 2.1-3.8x: 2.12 um 0.52x Cloudy, 17.0 um 0.31x, 28.2 um 0.23x. Lines behind < 1e14 cm^-2 of H2 are unchanged; behind > 1e16 they fall to 0.18-0.41 (sqrt(1/20) = 0.22, the damping wings). In the H-005 slab the same change takes the excited columns from 1.63x to 0.60x Cloudy's.** So H-007's agreement of three lines was two factors of 2-4 cancelling. The model keeps its width (the natural width; Cloudy itself uses the upper level's lifetime for every other species, its H2 alone the line's A). What remains with equal widths (0.23-0.62) is not isolated: the closure, the colder gas, the H2 at the front | Done | 2026-10-03 |
 | H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone (model's width) raises the lines by the same 1.17-1.21: the two choices are independent to 1-2%. The width's factor is larger for para lines (x3.2) than ortho (x2.2), as para pumping sits deeper in the damping wings. Nothing changes in the code | Done | 2026-10-03 |
 | H-010 | **Cloudy's small H2 model computes no line intensities** (H2_LinesAdd returns when the large model is off): H2g, one H2* pseudo-level, Solomon and pumping rates from fits in G0 and total N(H2) (Elwert et al. 2005), fixed H2* decay 2e-7 s^-1, fitted heating, Glover & Abel rotational cooling. Not usable: no lines, and fitted stand-ins for what MOCASSIN computes. From Cloudy's large model: the lowest 70 levels by matrix and the rest by back-substitution applies to our solve (a median pn150k H2 cell has 10 levels above 1e-8, 80 above 1e-10); its H2/H > 1e-8 limit covers only 0.8% of pn150k's cells; its overlap at line centre is too crude (1-6% vs 14-35%). The overlap (53% of the cost) is best cut by reuse across sweeps | Discussion | 2026-10-03 |
+| H-011 | **The level model 2.5x faster on pn150k (3,736 -> 1,474 s; the run 98 -> 60 min) and 4x on hiipdr 21^3 (283 -> 71 s), lines within 2.5e-4 of H-007 and the rest of the outputs byte-identical.** A third of the wall time was ranks waiting: the i7-14700's 8 performance and 12 efficiency cores run 14 ranks at speeds 2x apart, which no static deal sees; the ranks now take cells from a shared MPI-3 counter (a window MPI allocates: one on the program's memory stalls on its target and was slower than the static deal). lineOverlap reorganised exactly (separate long and short lists, windows as index ranges, branch-free wing sums, thin lines in wavenumber order with pointers): 2.3-2.5x. The solution: collision rates cached by T, Gauss column by column, byte-identical, 3.2x. Shielding prepared once per cell and per line. A cell's passes no longer floored at three (1.0-1.6 instead of 3.0; lines move by at most 6.6e-5). Dropped: a grid for the far wings (4e-4 error, no gain), -O3 -march=native (not established) | Done | 2026-10-03 |
 
 ---
 
@@ -1434,3 +1435,148 @@ Discussion; no code. The speed work, when taken up: warm start, overlap
 reuse, matrix plus back-substitution, load balance by measured cost, each
 checked against H-007 byte for byte where the physics is unchanged and to
 the stated tolerance where it is not.
+
+## H-011 - The level model made faster (2026-10-03)
+
+The user: "proceed" (to H-010's next step: the speed work, warm start
+excepted, which belongs to stage B).
+
+### Where the time went
+
+Timers added to every part of `solveCell`, to the star columns and to the
+reduction, with each rank's time in the cell loop (they stay: the log now
+prints three timing lines a sweep). hiipdr 21^3, H-007's code
+(`runs/h011-prof-hii21`), per sweep in rank-seconds:
+
+| | sweep 1 | sweep 2 | sweep 3 | sweep 4 |
+|---|---|---|---|---|
+| overlap | 196 | 309 | 284 | 278 |
+| solution | 299 | 263 | 254 | 253 |
+| shielding | 56 | 85 | 77 | 75 |
+| escape, sites | 15 | 32 | 29 | 29 |
+| field, formation, after the solution, star columns | 3.5 | 4.0 | 3.1 | 3.0 |
+| waiting at the reduction | 249 | 404 | 388 | 379 |
+| cell loop per rank, min / max [s] | 25 / 58 | 28 / 78 | 26 / 74 | 25 / 73 |
+
+A third of the wall time was ranks waiting. **The cause is the machine:**
+the i7-14700 has 8 performance cores (5.3-5.4 GHz) and 12 efficiency
+cores (4.2 GHz); 14 ranks run on both, and a rank on an efficiency core
+takes about twice as long over the same cells. The round-robin cell
+assignment cannot see that, nor can any static one: a cell's cost
+depends on the core.
+
+### What changed
+
+  1. **Dynamic scheduling.** The ranks take cells one at a time from a
+     shared counter (MPI-3 `MPI_Fetch_and_op` on a window on rank 0),
+     the dearest of the last sweep first and the first sweep in a fixed
+     shuffled order; a faster core simply takes more. A cell's result
+     does not depend on its rank (no random numbers, no rank state that
+     changes a result), so the outputs do not change. Two traps, measured
+     on a synthetic test (2,000 items of ~4 ms, 14 ranks): a window on
+     the program's memory (`MPI_Win_create`) waits for rank 0 to enter
+     MPI, 2.03 s, worse than the static deal's 1.73 s; a window MPI
+     allocates (`MPI_Win_allocate`) is an atomic in shared memory, 1.10 s.
+     The first version used the former and was slower than the static
+     deal it replaced (238 s against 184 s). Open MPI 5.0.10 here warns
+     that its UCX one-sided component failed and falls back; `--mca osc
+     ^ucx` keeps the warning out of the log (`runs/h011-*.sh`).
+  2. **lineOverlap, the same sums reorganised** (overlap factors within
+     1.2e-15 of the old ones at every column tested): the shading lines
+     also in two lists of their own, long and short, so that each
+     exclusion window is a contiguous range instead of a test per term;
+     the long lines' wings, now one coefficient over the distance
+     squared, summed without branches in four partial sums; the thin
+     lines taken in wavenumber order, so that their windows (all centred
+     on the line, all widening with it) are followed by pointers instead
+     of six binary searches each, and neighbouring lines touch
+     neighbouring memory. Bench (`h011` scratch, columns cumulated along
+     pn150k's x axis):
+
+     | N(H2) [cm^-2] | 4.7e14 | 7e16 | 1e18 | 1e19 | 1e20 | 3e20 | 9e20 | 3e21 |
+     |---|---|---|---|---|---|---|---|---|
+     | ms per call, H-007 | 5.2 | 9.5 | 14.8 | 20.3 | 23.6 | 25.6 | 38.1 | 55.1 |
+     | ms per call, now | 2.7 | 5.1 | 6.7 | 8.5 | 9.6 | 10.3 | 15.8 | 23.9 |
+
+  3. **The solution** (populations byte-identical): `h2CollRad` keeps the
+     rate coefficients and Boltzmann factors of its last temperature, as
+     a cell iterates at one T (3.6 -> 0.37 ms); `gaussSolve` eliminates a
+     column at a time, in memory order, each element getting the same
+     operations as row by row (6.2 -> 2.0 ms). One solution 10.8 -> 3.4
+     ms.
+  4. **Shielding lookups** (bit-identical): the direct path's shielding
+     prepared once per cell (`h2LineShieldPrep`: tau0, W(tau0) and the
+     damping's place in the table) and evaluated per pass for the cell's
+     own column (`h2LineShieldEval`); the damping's place computed once
+     per line for the sites' histogram and the twelve escape directions.
+  5. **No floor on a cell's passes.** The ortho/para loop stopped only
+     after three solutions; now when the colliding ortho fraction moves
+     less than 1e-4, so a cell settled in the last sweep takes one
+     (1.2-1.7 solutions a cell instead of 3.0). This one changes numbers:
+     over hiipdr 21^3's 4,104 lines, median 1.2e-5, at most 6.6e-5.
+
+### Tried and dropped
+
+  - **The long lines' far wings from a grid** (10 cm^-1, tapered in from
+    100 to 200 cm^-1, cubic convolution, the near ones summed one by
+    one): an approximation, with errors up to 4e-4 in the overlap factor
+    (more than the 1e-5 estimated), and no faster once item 2 had made
+    the direct sum cheap. Removed.
+  - **h2_mod at -O3 -march=native**: up to 15-20% on the solution and 4%
+    on the overlap, measured under contention, so not established; the
+    portable -O2 build is kept.
+  - perf was not available (kernel setting); the profile is timers.
+
+### Results
+
+**hiipdr 21^3**, each step a full run (`runs/h011-v*-hii21`):
+
+| | level model [s] | outputs against H-007 |
+|---|---|---|
+| H-007's code, with timers | 283 | byte-identical |
+| + overlap reorganised, solution cached, static deal by cost | 184 | lines equal to all printed digits |
+| + shared counter on a program-memory window | 238 | the same |
+| + shared counter on an MPI-allocated window | 113 | the same |
+| + prepared shielding | 118 (a benchmark ran alongside) | the same |
+| + thin lines in wavenumber order | 99 | lineFluxH2.out and h2Pop.bin byte-identical |
+| + no floor on a cell's passes | 71 | 4,104 lines: median 1.2e-5, max 6.6e-5 |
+
+**pn150k 41^3** (`runs/h011-pn41`, against H-007's `runs/h007-full-pn41`):
+
+| | H-007 | now |
+|---|---|---|
+| sweeps [s] | 763, 1170, 1005, 798 | 274, 412, 416, 372 |
+| level model [s] | 3,736 | 1,474 |
+| whole run | 1 h 37 min 34 s | 1 h 00 min 22 s |
+| sweep 2, rank-seconds: overlap / shielding / solution / escape / sites | 6960 / 1986 / 2697 / 473 / 158 | 3026 / 1396 / 655 / 365 / 146 |
+| solutions per cell, sweeps 1-4 | 3+ | 2.15, 1.57, 1.09, 1.04 |
+| cell loop per rank, sweep 4, min / max [s] | - | 368 / 370 |
+
+All 4,027 lines of lineFluxH2.out are within 2.5e-4 of H-007's (median
+1e-5); grid0.out, lineFlux.out and temperature.out are byte-identical (the
+Monte Carlo is untouched). The standalone drivers still reproduce their
+references: h2Test's one-zone populations against Cloudy (H-004 check C,
+median |dex| 0.003-0.104) and h2Slab's voigt march (level columns within
+1e-6 of H-006's).
+
+On pn150k the overlap is now 55% of the work, the sites' shielding
+histogram 26%, the solution 12%, the escape 7%.
+
+### Not yet known
+
+  - **Enough for stage B?** Stage B calls the level model every Monte
+    Carlo iteration from the last one's populations, so one or two
+    sweeps, not four: ~7-14 min an iteration on pn150k, 1.3-2.5 h over
+    eleven. The next costs: the overlap (one direct and up to three site
+    groups a cell, each 10-25 ms at these columns) and the sites'
+    shielding histogram (37 ms a cell on pn150k against 13 on hiipdr).
+  - Whether lines with no field in their bin can skip the overlap (exact,
+    as their shielding multiplies zero): not measured how many there are.
+  - 14 ranks on 8 performance and 12 efficiency cores: whether more ranks
+    would pay, now that a slow core no longer holds the others back, is
+    a memory question (CLAUDE.md's 46k-cell limit at 14).
+
+### Status
+
+Done (2026-10-03). All four flavours, mocassinOutput, mocassinPlot,
+h2Test and h2Slab build. Not pushed.

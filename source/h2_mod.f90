@@ -120,6 +120,10 @@ module h2_mod
     integer, allocatable, public :: h2tU(:), h2tL(:)
     real(dp), allocatable, public :: h2tA(:), h2tWN(:)  ! [s^-1], [cm^-1]
     integer, allocatable :: uFirst(:), uLast(:)         ! a level's lines in the list
+    real(dp), allocatable :: crKd(:,:,:), crBf(:,:)     ! h2CollRad's rate coefficients and Boltzmann factors at crT
+    real(dp) :: crT = -1._dp
+    real(dp), allocatable :: psSig(:), psT(:), psW0(:), psFa(:)   ! h2LineShieldPrep's path
+    integer, allocatable :: psJ(:)
     real(dp), public :: h2DissX = 0._dp                 ! dissociation energy of X [cm^-1]
     integer, public :: h2NSkipped = 0                 ! lines read whose levels are not in the model
 
@@ -157,6 +161,7 @@ module h2_mod
 
     public :: h2ReadX, h2ReadElec, h2SolveX, h2Solve, h2Level, h2PumpRates, h2FormDist, h2CollRad
     public :: h2Shield, h2ShieldFederman, h2LineShield, h2LineOverlap, h2LineEscape, h2LineParams, h2Voigt
+    public :: h2ShieldAIndex, h2ShieldJ, h2LineShieldPrep, h2LineShieldEval
 
 contains
 
@@ -777,24 +782,103 @@ contains
     real(dp) function tabShield(tab, tau0, a, lgW)
       real(dp), intent(in) :: tab(nShT, nShA), tau0, a
       logical, intent(in) :: lgW
-      real(dp) :: lt, la, ft, fa, v, dlt
-      integer :: i, j
-      dlt = (shT1 - shT0)/dble(nShT - 1)
+      real(dp) :: fa
+      integer :: j
       if (tau0 <= 10._dp**shT0) then
          tabShield = merge(tau0, 1._dp, lgW); return     ! thin: S = 1, W = tau0
       end if
-      lt = min(log10(tau0), shT1)
+      call h2ShieldAIndex(a, j, fa)
+      tabShield = tabShieldJ(tab, tau0, j, fa, lgW)
+    end function tabShield
+
+    ! the damping parameter's place in the shielding table (column j and
+    ! fraction fa), for callers that look up many tau0 at one a
+    subroutine h2ShieldAIndex(a, j, fa)
+      real(dp), intent(in) :: a
+      integer, intent(out) :: j
+      real(dp), intent(out) :: fa
+      real(dp) :: la
       la = min(max(log10(max(a, tiny(1._dp))), shA0), shA1)
-      i = min(int((lt - shT0)/dlt) + 1, nShT - 1)
       j = min(int((la - shA0)/((shA1 - shA0)/dble(nShA - 1))) + 1, nShA - 1)
-      ft = (lt - (shT0 + dlt*dble(i - 1)))/dlt
       fa = (la - (shA0 + (shA1 - shA0)*dble(j - 1)/dble(nShA - 1)))/((shA1 - shA0)/dble(nShA - 1))
+    end subroutine h2ShieldAIndex
+
+    ! tabShield with the damping's place given
+    real(dp) function tabShieldJ(tab, tau0, j, fa, lgW)
+      real(dp), intent(in) :: tab(nShT, nShA), tau0, fa
+      integer, intent(in) :: j
+      logical, intent(in) :: lgW
+      real(dp) :: lt, ft, v, dlt
+      integer :: i
+      dlt = (shT1 - shT0)/dble(nShT - 1)
+      if (tau0 <= 10._dp**shT0) then
+         tabShieldJ = merge(tau0, 1._dp, lgW); return    ! thin: S = 1, W = tau0
+      end if
+      lt = min(log10(tau0), shT1)
+      i = min(int((lt - shT0)/dlt) + 1, nShT - 1)
+      ft = (lt - (shT0 + dlt*dble(i - 1)))/dlt
       v = (1._dp - ft)*(1._dp - fa)*tab(i, j) + ft*(1._dp - fa)*tab(i + 1, j) + &
            & (1._dp - ft)*fa*tab(i, j + 1) + ft*fa*tab(i + 1, j + 1)
-      tabShield = 10._dp**v
+      tabShieldJ = 10._dp**v
       ! past the table the wing: S ~ tau0^-1/2, W ~ tau0^1/2
-      if (log10(tau0) > shT1) tabShield = tabShield*(tau0/10._dp**shT1)**merge(0.5_dp, -0.5_dp, lgW)
-    end function tabShield
+      if (log10(tau0) > shT1) tabShieldJ = tabShieldJ*(tau0/10._dp**shT1)**merge(0.5_dp, -0.5_dp, lgW)
+    end function tabShieldJ
+
+    ! h2Shield with the damping's place in the table given (h2ShieldAIndex)
+    real(dp) function h2ShieldJ(tau0, j, fa, dtau)
+      real(dp), intent(in) :: tau0, fa, dtau
+      integer, intent(in) :: j
+      real(dp) :: w1, w2
+      if (.not.lgShTab) call shieldTable()
+      if (dtau > 1.e-3_dp*max(tau0, 1.e-3_dp)) then
+         w1 = tabShieldJ(shW, tau0, j, fa, .true.)
+         w2 = tabShieldJ(shW, tau0 + dtau, j, fa, .true.)
+         h2ShieldJ = min(1._dp, max(0._dp, (w2 - w1)/dtau))
+         return
+      end if
+      h2ShieldJ = tabShieldJ(shS, tau0 + 0.5_dp*dtau, j, fa, .false.)
+    end function h2ShieldJ
+
+    !---------------------------------------------------------------------------
+    ! H-011: h2LineShield for a caller that iterates on the column of its own
+    ! cell. h2LineShieldPrep takes the path's column Ncol and the Doppler
+    ! parameter b and keeps what depends on them alone (each line's tau0,
+    ! W(tau0) and the damping's place in the table); h2LineShieldEval then
+    ! gives, for the cell's own column dNcol, what h2LineShield(Ncol, b,
+    ! shield, dNcol, overlap=overlap) would.
+    !---------------------------------------------------------------------------
+    subroutine h2LineShieldPrep(Ncol, b)
+      real(dp), intent(in) :: Ncol(:), b
+      real(dp) :: sig, a
+      integer :: i
+      if (.not.lgShTab) call shieldTable()
+      if (.not.allocated(psSig)) allocate(psSig(h2NT), psT(h2NT), psW0(h2NT), psFa(h2NT), psJ(h2NT))
+      do i = 1, h2NT
+         call h2LineParams(i, b, sig, a)
+         psSig(i) = sig
+         psT(i) = Ncol(h2tL(i))*sig
+         call h2ShieldAIndex(a, psJ(i), psFa(i))
+         psW0(i) = tabShieldJ(shW, psT(i), psJ(i), psFa(i), .true.)
+      end do
+    end subroutine h2LineShieldPrep
+
+    subroutine h2LineShieldEval(dNcol, shield, overlap)
+      real(dp), intent(in) :: dNcol(:), overlap(:)
+      real(dp), intent(out) :: shield(:)
+      real(dp) :: t, dt, w2
+      integer :: i
+      do i = 1, h2NT
+         t = psT(i)
+         dt = dNcol(h2tL(i))*psSig(i)
+         if (dt > 1.e-3_dp*max(t, 1.e-3_dp)) then
+            w2 = tabShieldJ(shW, t + dt, psJ(i), psFa(i), .true.)
+            shield(i) = min(1._dp, max(0._dp, (w2 - psW0(i))/dt))
+         else
+            shield(i) = tabShieldJ(shS, t + 0.5_dp*dt, psJ(i), psFa(i), .false.)
+         end if
+         shield(i) = shield(i)*overlap(i)
+      end do
+    end subroutine h2LineShieldEval
 
     !---------------------------------------------------------------------------
     ! Cloudy's default line shielding, for the like-for-like check only: the
@@ -909,19 +993,24 @@ contains
       real(dp), intent(in) :: tau0(:), a(:), b
       real(dp), intent(out) :: ov(:)
       real(dp), allocatable :: bWn(:), bDop(:), bT(:), bA(:), bReach(:)
-      integer, allocatable :: bLine(:), iLong(:)
-      logical, allocatable :: bIsLong(:)
-      real(dp) :: xq(nShQ), dop, nu, tl, tc, rNear, d, sgn, rr
-      integer :: nB, nL, i, j, k, m, is, lo, hi
+      real(dp), allocatable :: lWn(:), lC(:), sWn(:), sDop(:), sT(:), sA(:), sReach(:)
+      integer, allocatable :: bLine(:), sLine(:), lPos(:)
+      real(dp) :: xq(nShQ), dop, nu, tc, rNear, rr, wc
+      integer :: nB, nL, nS, i, j, k, m, is, lo, hi, m1, li, kord, pL1, pL2, pS1, pS2, pS3, pS4
       integer, allocatable :: cnt(:)
       logical, allocatable :: mark(:)
 
       nB = count(tau0(1:h2NT) >= ovTauB)
       ov(1:h2NT) = 1._dp
       if (nB == 0) return
-      allocate(bWn(nB), bDop(nB), bT(nB), bA(nB), bReach(nB), bLine(nB), bIsLong(nB), iLong(nB))
-      ! the lines that shade, in wavenumber order
-      m = 0; nL = 0
+      allocate(bWn(nB), bDop(nB), bT(nB), bA(nB), bReach(nB), bLine(nB))
+      allocate(lWn(nB), lC(nB), sWn(nB), sDop(nB), sT(nB), sA(nB), sReach(nB), sLine(nB), lPos(h2NT))
+      ! the lines that shade, in wavenumber order; then those of them that
+      ! reach beyond ovLong (long: only their Lorentzian wing is used far
+      ! out, as a coefficient over the distance squared) and the rest
+      ! (short), each in a list of its own, also in wavenumber order
+      m = 0; nL = 0; nS = 0
+      lPos = 0
       do k = 1, h2NT
          j = ordWN(k)
          if (tau0(j) < ovTauB) cycle
@@ -929,9 +1018,13 @@ contains
          bLine(m) = j; bWn(m) = h2tWN(j); bDop(m) = h2tWN(j)*b/cLight; bA(m) = a(j)
          bT(m) = tau0(j)/h2Voigt(a(j), 0._dp)
          bReach(m) = bDop(m)*max(12._dp, sqrt(bT(m)*a(j)/(sqrt(pi)*ovEps)))
-         bIsLong(m) = bReach(m) > ovLong
-         if (bIsLong(m)) then
-            nL = nL + 1; iLong(nL) = m
+         if (bReach(m) > ovLong) then
+            nL = nL + 1
+            lWn(nL) = bWn(m); lC(nL) = bT(m)*bA(m)*bDop(m)**2/sqrt(pi); lPos(j) = nL
+         else
+            nS = nS + 1
+            sWn(nS) = bWn(m); sDop(nS) = bDop(m); sT(nS) = bT(m); sA(nS) = bA(m)
+            sReach(nS) = bReach(m); sLine(nS) = j
          end if
       end do
 
@@ -954,32 +1047,68 @@ contains
       end do
       deallocate(cnt)
 
-      do i = 1, h2NT
+      ! the lines in wavenumber order: a thin line's windows (all centred on
+      ! it, all widening with it) then only move forward, and are followed
+      ! by pointers instead of searched for
+      pL1 = 1; pL2 = 1; pS1 = 1; pS2 = 1; pS3 = 1; pS4 = 1; m1 = 1
+      do kord = 1, h2NT
+         i = ordWN(kord)
          if (.not.mark(i) .and. tau0(i) < 1._dp) cycle
          dop = h2tWN(i)*b/cLight
          rNear = ovNear*dop
+         li = lPos(i)
          call shieldOffsets(tau0(i), a(i), xq)
          ov(i) = 0._dp
          if (tau0(i) < 1._dp) then
-            ! a thin line absorbs within its core: what lies far from it is the same at all six points
-            tc = farSum(h2tWN(i), h2tWN(i))
+            ! a thin line absorbs within its core: what lies far from it is the
+            ! same at all six points, and so is the near window
+            wc = h2tWN(i)
+            do while (pL1 <= nL)
+               if (lWn(pL1) >= wc - rNear) exit
+               pL1 = pL1 + 1
+            end do
+            do while (pL2 <= nL)
+               if (lWn(pL2) > wc + rNear) exit
+               pL2 = pL2 + 1
+            end do
+            do while (pS1 <= nS)
+               if (sWn(pS1) >= wc - ovLong) exit
+               pS1 = pS1 + 1
+            end do
+            do while (pS2 <= nS)
+               if (sWn(pS2) >= wc - rNear) exit
+               pS2 = pS2 + 1
+            end do
+            do while (pS3 <= nS)
+               if (sWn(pS3) > wc + rNear) exit
+               pS3 = pS3 + 1
+            end do
+            do while (pS4 <= nS)
+               if (sWn(pS4) > wc + ovLong) exit
+               pS4 = pS4 + 1
+            end do
+            do while (m1 <= nB)
+               if (bWn(m1) >= wc - rNear) exit
+               m1 = m1 + 1
+            end do
+            tc = farSumAt(wc, pL1, pL2, pS1, pS2, pS3, pS4)
             do k = 1, nShQ
                do is = -1, 1, 2
                   nu = h2tWN(i) + dble(is)*xq(k)*dop
-                  ov(i) = ov(i) + exp(-(tc + nearSum(nu, h2tWN(i))))
+                  ov(i) = ov(i) + exp(-(tc + nearSum(m1, nu, wc)))
                end do
             end do
          else
             do k = 1, nShQ
                do is = -1, 1, 2
                   nu = h2tWN(i) + dble(is)*xq(k)*dop
-                  ov(i) = ov(i) + exp(-(farSum(nu, nu) + nearSum(nu, nu)))
+                  ov(i) = ov(i) + exp(-(farSum(nu, nu) + nearSum(firstGE(bWn, nB, nu - rNear), nu, nu)))
                end do
             end do
          end if
          ov(i) = ov(i)/dble(2*nShQ)
       end do
-      deallocate(bWn, bDop, bT, bA, bReach, bLine, bIsLong, iLong, mark)
+      deallocate(bWn, bDop, bT, bA, bReach, bLine, lWn, lC, sWn, sDop, sT, sA, sReach, sLine, lPos, mark)
 
     contains
 
@@ -999,23 +1128,41 @@ contains
         lowerL = l1
       end function lowerL
 
-      ! first shading line at or above wavenumber w
-      integer function lowerB(w)
-        real(dp), intent(in) :: w
+      ! first entry of the ascending list v(1:n) at or above w (n + 1 if none)
+      integer function firstGE(v, n, w)
+        real(dp), intent(in) :: v(:), w
+        integer, intent(in) :: n
         integer :: l1, l2, lm
-        l1 = 1; l2 = nB + 1
+        l1 = 1; l2 = n + 1
         do while (l1 < l2)
            lm = (l1 + l2)/2
-           if (bWn(lm) < w) then
+           if (v(lm) < w) then
               l1 = lm + 1
            else
               l2 = lm
            end if
         end do
-        lowerB = l1
-      end function lowerB
+        firstGE = l1
+      end function firstGE
 
-      ! one shading line's optical depth at nu
+      ! first entry of the ascending list v(1:n) above w (n + 1 if none)
+      integer function firstGT(v, n, w)
+        real(dp), intent(in) :: v(:), w
+        integer, intent(in) :: n
+        integer :: l1, l2, lm
+        l1 = 1; l2 = n + 1
+        do while (l1 < l2)
+           lm = (l1 + l2)/2
+           if (v(lm) <= w) then
+              l1 = lm + 1
+           else
+              l2 = lm
+           end if
+        end do
+        firstGT = l1
+      end function firstGT
+
+      ! a shading line's optical depth at w: blocker mm of the full list
       real(dp) function tauAt(mm, w)
         integer, intent(in) :: mm
         real(dp), intent(in) :: w
@@ -1028,12 +1175,13 @@ contains
         end if
       end function tauAt
 
-      ! the shading lines within rNear of wc, evaluated at nu
-      real(dp) function nearSum(w, wc)
+      ! the shading lines within rNear of wc, from the first of them, m1, evaluated at w
+      real(dp) function nearSum(m1, w, wc)
+        integer, intent(in) :: m1
         real(dp), intent(in) :: w, wc
         integer :: mm
         nearSum = 0._dp
-        mm = lowerB(wc - rNear)
+        mm = m1
         do while (mm <= nB)
            if (bWn(mm) > wc + rNear) exit
            if (bLine(mm) /= i) nearSum = nearSum + tauAt(mm, w)
@@ -1041,27 +1189,76 @@ contains
         end do
       end function nearSum
 
-      ! those farther than rNear from wc, evaluated at nu: every long-reach
-      ! line, and the short-reach ones that reach
+      ! the long lines' wings over lC(lo:hi), at w; four partial sums
+      real(dp) function longWing(lo, hi, w)
+        integer, intent(in) :: lo, hi
+        real(dp), intent(in) :: w
+        real(dp) :: s1, s2, s3, s4, d1, d2, d3, d4
+        integer :: kk
+        s1 = 0._dp; s2 = 0._dp; s3 = 0._dp; s4 = 0._dp
+        kk = lo
+        do while (kk + 3 <= hi)
+           d1 = w - lWn(kk); d2 = w - lWn(kk+1); d3 = w - lWn(kk+2); d4 = w - lWn(kk+3)
+           s1 = s1 + lC(kk)/(d1*d1); s2 = s2 + lC(kk+1)/(d2*d2)
+           s3 = s3 + lC(kk+2)/(d3*d3); s4 = s4 + lC(kk+3)/(d4*d4)
+           kk = kk + 4
+        end do
+        do while (kk <= hi)
+           d1 = w - lWn(kk)
+           s1 = s1 + lC(kk)/(d1*d1)
+           kk = kk + 1
+        end do
+        longWing = (s1 + s2) + (s3 + s4)
+      end function longWing
+
+      ! the shading lines farther than rNear from wc, evaluated at w: every
+      ! long line (its Lorentzian wing), and the short ones within ovLong of
+      ! wc that reach w; line i itself left out
       real(dp) function farSum(w, wc)
         real(dp), intent(in) :: w, wc
-        integer :: mm, kk
-        farSum = 0._dp
-        do kk = 1, nL
-           mm = iLong(kk)
-           if (abs(bWn(mm) - wc) <= rNear .or. bLine(mm) == i) cycle
-           d = (w - bWn(mm))/bDop(mm)
-           farSum = farSum + bT(mm)*bA(mm)/(sqrt(pi)*d*d)
-        end do
-        mm = lowerB(wc - ovLong)
-        do while (mm <= nB)
-           if (bWn(mm) > wc + ovLong) exit
-           if (.not.bIsLong(mm) .and. abs(bWn(mm) - wc) > rNear .and. bLine(mm) /= i) then
-              if (abs(w - bWn(mm)) < bReach(mm)) farSum = farSum + tauAt(mm, w)
-           end if
-           mm = mm + 1
-        end do
+        farSum = farSumAt(w, firstGE(lWn, nL, wc - rNear), firstGT(lWn, nL, wc + rNear), &
+             & firstGE(sWn, nS, wc - ovLong), firstGE(sWn, nS, wc - rNear), &
+             & firstGT(sWn, nS, wc + rNear), firstGT(sWn, nS, wc + ovLong))
       end function farSum
+
+      ! farSum with its windows given: long lines k1..k2-1 within rNear of
+      ! wc; short lines s1..s2-1 below it and s3..s4-1 above it within ovLong
+      real(dp) function farSumAt(w, k1, k2, s1, s2, s3, s4)
+        real(dp), intent(in) :: w
+        integer, intent(in) :: k1, k2, s1, s2, s3, s4
+        integer :: mm
+        ! long lines outside the window, two ranges, line i cut out
+        if (li > 0 .and. li < k1) then
+           farSumAt = longWing(1, li - 1, w) + longWing(li + 1, k1 - 1, w)
+        else
+           farSumAt = longWing(1, k1 - 1, w)
+        end if
+        if (li >= k2) then
+           farSumAt = farSumAt + longWing(k2, li - 1, w) + longWing(li + 1, nL, w)
+        else
+           farSumAt = farSumAt + longWing(k2, nL, w)
+        end if
+        ! short lines with rNear < |nu - wc| <= ovLong that reach w
+        do mm = s1, s2 - 1
+           if (sLine(mm) /= i .and. abs(w - sWn(mm)) < sReach(mm)) farSumAt = farSumAt + tauS(mm, w)
+        end do
+        do mm = s3, s4 - 1
+           if (sLine(mm) /= i .and. abs(w - sWn(mm)) < sReach(mm)) farSumAt = farSumAt + tauS(mm, w)
+        end do
+      end function farSumAt
+
+      ! a short shading line's optical depth at w
+      real(dp) function tauS(mm, w)
+        integer, intent(in) :: mm
+        real(dp), intent(in) :: w
+        real(dp) :: x
+        x = (w - sWn(mm))/sDop(mm)
+        if (abs(x) > 12._dp) then
+           tauS = sT(mm)*sA(mm)/(sqrt(pi)*x*x)
+        else
+           tauS = sT(mm)*h2Voigt(sA(mm), x)
+        end if
+      end function tauS
 
     end subroutine lineOverlap
 
@@ -1121,14 +1318,17 @@ contains
     subroutine h2LineEscape(Ncol, b, beta)
       real(dp), intent(in) :: Ncol(:,:), b
       real(dp), intent(out) :: beta(:)
-      real(dp) :: sig, a
-      integer :: i, k, nd
+      real(dp) :: sig, a, fa
+      integer :: i, k, nd, j
+      if (.not.lgShTab) call shieldTable()
       nd = size(Ncol, 2)
       do i = 1, h2NT
          call h2LineParams(i, b, sig, a)
+         ! the damping's place in the table, once for the line's directions
+         call h2ShieldAIndex(a, j, fa)
          beta(i) = 0._dp
          do k = 1, nd
-            beta(i) = beta(i) + h2Shield(Ncol(h2tL(i), k)*sig, a)
+            beta(i) = beta(i) + tabShieldJ(shS, Ncol(h2tL(i), k)*sig, j, fa, .false.)
          end do
          beta(i) = beta(i)/dble(nd)
       end do
@@ -1137,38 +1337,55 @@ contains
     ! Collisions among the X levels and their radiative decay at temperature T
     ! with collider densities dens(1:5) [cm^-3] (H, He, o-H2, p-H2, H+):
     ! R(i,j), the rate from level i to level j [s^-1].
+    ! The rate coefficients and Boltzmann factors depend on T alone and are
+    ! kept from the last call (crKd, crBf at crT): a caller that iterates on
+    ! the colliders' densities at one temperature builds them once.
     subroutine h2CollRad(T, dens, R)
       real(dp), intent(in) :: T, dens(h2NColl)
       real(dp), intent(out) :: R(:,:)
-      real(dp), allocatable :: kd(:,:)
       real(dp) :: dE, kgb
       integer :: n, ic, it, iu, il
 
       n = h2NX
-      allocate(kd(n, n))
-      R = 0._dp
-      do ic = 1, h2NColl
-         if (dens(ic) <= 0._dp) cycle
-         kd = 0._dp
-         do it = 1, tab(ic)%nTr
-            kd(tab(ic)%up(it), tab(ic)%lo(it)) = tabRate(ic, it, T)
+      if (.not.allocated(crKd)) then
+         allocate(crKd(n, n, h2NColl), crBf(n, n))
+         crT = -1._dp
+      end if
+      if (T /= crT) then
+         do ic = 1, h2NColl
+            crKd(:, :, ic) = 0._dp
+            do it = 1, tab(ic)%nTr
+               crKd(tab(ic)%up(it), tab(ic)%lo(it), ic) = tabRate(ic, it, T)
+            end do
+            do iu = 2, n
+               do il = 1, iu - 1
+                  if (crKd(iu, il, ic) == 0._dp .and. (h2Ortho(iu) .eqv. h2Ortho(il))) then
+                     dE = max(100._dp, h2E(iu) - h2E(il))
+                     kgb = 10._dp**(gbar(1,ic) + gbar(2,ic)*dE**gbar(3,ic))
+                     crKd(iu, il, ic) = kgb
+                  end if
+               end do
+            end do
          end do
          do iu = 2, n
             do il = 1, iu - 1
-               if (kd(iu, il) == 0._dp .and. (h2Ortho(iu) .eqv. h2Ortho(il))) then
-                  dE = max(100._dp, h2E(iu) - h2E(il))
-                  kgb = 10._dp**(gbar(1,ic) + gbar(2,ic)*dE**gbar(3,ic))
-                  kd(iu, il) = kgb
-               end if
-               if (kd(iu, il) <= 0._dp) cycle
-               R(iu, il) = R(iu, il) + dens(ic)*kd(iu, il)
-               R(il, iu) = R(il, iu) + dens(ic)*kd(iu, il)*h2G(iu)/h2G(il)* &
-                    & exp(-hcK*(h2E(iu) - h2E(il))/T)
+               crBf(iu, il) = exp(-hcK*(h2E(iu) - h2E(il))/T)
+            end do
+         end do
+         crT = T
+      end if
+      R = 0._dp
+      do ic = 1, h2NColl
+         if (dens(ic) <= 0._dp) cycle
+         do iu = 2, n
+            do il = 1, iu - 1
+               if (crKd(iu, il, ic) <= 0._dp) cycle
+               R(iu, il) = R(iu, il) + dens(ic)*crKd(iu, il, ic)
+               R(il, iu) = R(il, iu) + dens(ic)*crKd(iu, il, ic)*h2G(iu)/h2G(il)*crBf(iu, il)
             end do
          end do
       end do
       R = R + h2A                                  ! radiative decay, upper -> lower
-      deallocate(kd)
     end subroutine h2CollRad
 
     ! Statistical equilibrium for rates R(i,j) [s^-1] between the levels, a
@@ -1261,9 +1478,9 @@ contains
     subroutine gaussSolve(n, a, b)
       integer, intent(in) :: n
       real(dp), intent(inout) :: a(n, n), b(n)
-      integer :: i, k, p
+      integer :: i, j, k, p
       real(dp) :: f, t
-      real(dp) :: rowt(n)
+      real(dp) :: rowt(n), fm(n)
       do k = 1, n - 1
          p = k - 1 + maxloc(abs(a(k:n, k)), 1)
          if (p /= k) then
@@ -1271,11 +1488,20 @@ contains
             t = b(k); b(k) = b(p); b(p) = t
          end if
          if (a(k, k) == 0._dp) cycle
+         ! the multipliers, then the rows below updated a column at a time
+         ! (memory order); each element gets the same operations as row by
+         ! row, a zero multiplier changing nothing
          do i = k + 1, n
-            f = a(i, k)/a(k, k)
-            if (f == 0._dp) cycle
-            a(i, k:n) = a(i, k:n) - f*a(k, k:n)
-            b(i) = b(i) - f*b(k)
+            fm(i) = a(i, k)/a(k, k)
+         end do
+         do j = k, n
+            f = a(k, j)
+            do i = k + 1, n
+               a(i, j) = a(i, j) - fm(i)*f
+            end do
+         end do
+         do i = k + 1, n
+            if (fm(i) /= 0._dp) b(i) = b(i) - fm(i)*b(k)
          end do
       end do
       do i = n, 1, -1
