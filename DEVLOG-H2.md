@@ -22,6 +22,7 @@ DEVLOG.md and arrives here by merge.
 | H-011 | **The level model 2.5x faster on pn150k (3,736 -> 1,474 s; the run 98 -> 60 min) and 4x on hiipdr 21^3 (283 -> 71 s), lines within 2.5e-4 of H-007 and the rest of the outputs byte-identical.** A third of the wall time was ranks waiting: the i7-14700's 8 performance and 12 efficiency cores run 14 ranks at speeds 2x apart, which no static deal sees; the ranks now take cells from a shared MPI-3 counter (a window MPI allocates: one on the program's memory stalls on its target and was slower than the static deal). lineOverlap reorganised exactly (separate long and short lists, windows as index ranges, branch-free wing sums, thin lines in wavenumber order with pointers): 2.3-2.5x. The solution: collision rates cached by T, Gauss column by column, byte-identical, 3.2x. Shielding prepared once per cell and per line. A cell's passes no longer floored at three (1.0-1.6 instead of 3.0; lines move by at most 6.6e-5). Dropped: a grid for the far wings (4e-4 error, no gain), -O3 -march=native (not established) | Done | 2026-10-03 |
 | H-012 | **Stage B, step 1: the chemistry's H2 photodissociation rate is the level model's. `iterateMC` calls `h2LevelModel(grid, 1)` every PDR iteration before the PDR step (one sweep from the last call's populations, on this iteration's field and the last chemistry), and pdrStep hands the reaction the cell's Solomon rate in place of the network's single-line rate; CALC_HEATING reads the same rate. Every cell with gas is solved; no switch; the 1D build keeps the network's rate and says so.** hiipdr 21^3, B against A: sum rule unchanged (-1.9e-7 .. +3e-8); x(H2) 1.3-2.5x higher at 7-10.5 pc (shielded gas, where the levels' rate is the lower), half at the 5.7 pc edge; the front one cell (0.97 pc) toward the star; Te unchanged to 0.5 K; Hbeta unchanged to 1e-4; vibrational lines 1.07x, rotational 1.24-1.26x. **Convergence, 11 against 16 iterations: B's lines move 0.1-1.6%, A's 0.2-2.7%, Hbeta 2.5% in both (the ionized gas's own convergence, D-365's L-40); B/A 1.09x and 1.27-1.29x at 16.** Per call the Solomon rate moves 50-60% (median per cell) between iterations but 3.4% on a fixed field: the Monte Carlo field's noise in each line's bin, ~1.5x the band-integrated rate's; in the transition x(H2) per cell scatters ~2x more than in A, the cloud's total destruction by 1.4%. Cost +2.4 min (11 iterations). Groundwork for step 2 in h2_mod, not called: dissociation heating per level, net collisional heating within X. **pn150k (2026-10-04): the opposite sign, for the same reason - at the transition's lit edge the levels' rate is 1.3-2.5x the chemistry's, so 0.195-0.325 pc loses 59-95% of its H2 and the front moves one cell (0.015 pc) out; 1-0 S(1) 0.73x, rotational 0.80-0.95x; against Cloudy's 40 strongest lines ortho 0.86-1.05 -> 0.69-0.77, para 1.63-2.63 -> 1.47-2.40. Not converged in 9 iterations: the per-call rate change falls 0.86 -> 0.33 and is 9% on a fixed field; 1-0 S(1) still rising 15-17% a step. +8 min (1 h 08 min)** The converged comparison is H-013's | Done | 2026-10-03 |
 | H-013 | **Stage B, step 2a: the H2 heating from the levels, beside 3D-PDR's, nothing handed over. h2LevelModel gives per cell the atoms' kinetic energy from dissociation and the net heating by collisions within X (Cloudy's HeatDiss, HeatDexc; the latter is also H2's line cooling, which nothing in either code has), and the kinetic energy of a molecule formed on a grain by energy conservation on Takahashi & Uehara's distribution (silicate 0.834 eV, carbonaceous 1.142; 3D-PDR 1.5; Cloudy gives the gas nothing for it). pdrStep keeps 3D-PDR's three H2 terms; h2Cells.out has both, per H, with MOCASSIN's budget (tools/h012_heat.py).** Outputs byte-identical otherwise. hiipdr 21^3: levels/3D-PDR = formation 0.55, dissociation 1.08 (0.438 eV), collisions 32x pumping but never above 0.6% of the heating; the three 0.67, i.e. 3-7% off the PDR's heating if handed over. pn150k at 14 iterations: H-012's transition settles (1-0 S(1) steps halving, ~2% left; rate change on a fixed field 1.9%), front one cell inside stage A's at 9, lines 0.90-1.06 of A's; heating ratios 0.76 / 1.07 / 5.5, the three 0.87, collisions never above 1.2%. **Step 2b: the three handed over in pdrStep, held through MOCASSIN's temperature search like the rest of pdrHeatXtra; on hiipdr every PDR shell 0.3-1.0 K (1-3%) colder, lines within 2%; on pn150k 0.1-4 K, lines within 1%.** **Stage B against stage A on pn150k, both at 14 iterations (A was not converged at 9 either: lines +6-10%): the warm lit edge thins (x(H2) 0.06-0.74 of A's at 0.195-0.325 pc), the shielded gas gains 5-8%, the front stays within a cell; 1-0 S(1) and 2-1 S(1) 0.82-0.83x, rotational 0.91-1.00x; against Cloudy's 40 strongest lines ortho 0.92-1.15 -> 0.81-0.95, para 1.75-2.81 -> 1.71-2.73 (the width, H-008)** | Done | 2026-10-04 |
+| H-014 | **Artifacts: stage B on the three comparison pages.** `tools/h013_figures.py`: stage A against stage B against Cloudy in the Cloudy pages' style, six panels per fixture (transition, the photodissociation rate each chemistry used, T_gas, the H2 heating terms, the H2 line emissivities, carbon); pn150k both at 14 iterations, hiipdr 21^3 at 11. H2 Lines in MOCASSIN v4 gains a Stage B section with both fixtures; hiipdr Against Cloudy v19 and 150 kK PN Against Cloudy v17 gain a section marked as the h2-model branch, everything else on them unchanged. Read off: pn150k's edge n(H2) at A_V 0.20 is 1.6x Cloudy's in stage B against 26x in stage A, crossing unchanged (0.395/0.396 vs 0.368); hiipdr's crossing 1.505 -> 1.409 vs 1.090 | Done | 2026-10-04 |
 
 ---
 
@@ -2124,3 +2125,75 @@ x2.2 on ortho) and not changed here.
   - The remaining H-002 requirements: formation into levels by the H-
     and H2+ routes, and destruction of excited H2 by electrons, which
     matter in the transition zone (D-387, D-389).
+
+---
+
+## H-014 - Artifacts: stage B on the three comparison pages (2026-10-04)
+
+The user: "update the comparison artifacts including the hiipdr and 150kpn
+so I can look at the plots".
+
+### Figures
+
+`tools/h013_figures.py` (new): stage A against stage B on one fixture, with
+Cloudy where it has the quantity, in the Cloudy pages' style (d260_roellig's
+readers, bins, A_V axis from the star and radius on the upper axis). Six
+panels: the transition (x(H+), x(H), 2x(H2)); the H2 photodissociation
+rate each chemistry used (stage A the network's, stage B the levels';
+Cloudy's PHOTON + H2 -> 2H for H2 and H2*, over n(H2), from its saved
+destruction rates); the gas temperature; stage B's three H2 heating terms
+against 3D-PDR's and Cloudy's photodissociation heating; the emissivity of
+2.12, 17.0 and 28.2 um (Cloudy's zones from .h2emis); C+, C and CO.
+
+  - pn150k: `runs/h013-A-pn41-it14` against `runs/h013-b2b-pn41-it14`;
+    Cloudy `d389-cloudy-h2s/150k`, which is the page's own d302 model
+    (both `Database H2 limit -10`) with more saves.
+  - hiipdr: `runs/h011-v7-hii21` against `runs/h013-b2b-hii21` (21^3, 11
+    iterations); Cloudy `d277-cloudy/hiipdr`, the page's, which has only
+    Cloudy's small H2 model: no Cloudy lines, rate or heating there.
+  - The numbers in the pages' tables are the pages' own tools on these
+    runs: `d285_kpis.py` / `d285_kpis_hiipdr.py` (crossing, selected
+    depths, front, C+ = C), `h012_heat.py`, `h009_lines.py`.
+
+Read off the figures and tools, in addition to H-012/H-013:
+
+  - pn150k: H/H2 crossing A_V 0.395 (A) and 0.396 (B) against Cloudy's
+    0.368; n(H2) at A_V 0.20 / 0.30 / 0.50 = 0.42 / 81 / 381 (A), 0.025 / 39
+    / 412 (B), 0.016 / 110 / 394 (Cloudy): at the edge stage B is 1.6x
+    Cloudy's where stage A was 26x, at 0.30 it is further (0.36 against
+    0.73). Cloudy's rate per molecule tracks stage A's network rate in the
+    ionized gas and stage B's levels at the edge, and is below both deep.
+    Both stages make some 2.12 um in the ionized transition zone, where
+    Cloudy has none (D-387, D-389).
+  - hiipdr 21^3: crossing 1.505 (A) and 1.409 (B) against 1.090; n(H2) at
+    A_V 1.00 / 1.50 = 0.021 / 24.3 (A), 0.035 / 34.9 (B), 14.1 / 46.2
+    (Cloudy); the front 3.770 pc in both against 3.765 (in A_V 0.521 against
+    0.446: the 21^3 cell); C+ = C 2.164 / 2.165 against 2.950.
+
+### Pages
+
+  - **H2 Lines in MOCASSIN v4** (https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8):
+    a "Stage B" section after the summary, with both fixtures' six figures
+    in a two-column grid (a click widens one to the row), pn150k's line and
+    40-line tables at A 9, A 14 and B 14 iterations, hiipdr's table, and
+    the noise and cost; kicker, lead, a "Stage B" finding and the footer
+    updated. The stage-A sections are unchanged.
+  - **hiipdr Against Cloudy v19** (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx)
+    and **150 kK PN Against Cloudy v17** (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV):
+    a section "The H2 level model as the physics", marked as the h2-model
+    branch, after the headline numbers: what stage B hands over, the runs,
+    the six figures (in the pages' zoom viewer), a table and a reading;
+    the eyebrow and the lede note the update. Nothing else on either page
+    changed (asserted replacements on the published versions, which were
+    read in full before republishing). The production figures and numbers
+    stay production's (d377 runs); the new sections say where the branch's
+    runs differ (hiipdr 21^3 against the page's 31^3; pn150k 14
+    iterations against 9).
+  - Builders in the scratchpad (`h007page/gen.py` with `stageb.html`,
+    `h013pages/build.py`). Rendered headless at 1100 and 400 px before
+    publishing; one wording slip found that way and fixed (the hiipdr
+    section said "the figures above" of figures that come below it).
+
+### Status
+
+Done. The pages are private until shared from each page's Share menu.
