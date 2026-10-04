@@ -23,6 +23,7 @@ DEVLOG.md and arrives here by merge.
 | H-012 | **Stage B, step 1: the chemistry's H2 photodissociation rate is the level model's. `iterateMC` calls `h2LevelModel(grid, 1)` every PDR iteration before the PDR step (one sweep from the last call's populations, on this iteration's field and the last chemistry), and pdrStep hands the reaction the cell's Solomon rate in place of the network's single-line rate; CALC_HEATING reads the same rate. Every cell with gas is solved; no switch; the 1D build keeps the network's rate and says so.** hiipdr 21^3, B against A: sum rule unchanged (-1.9e-7 .. +3e-8); x(H2) 1.3-2.5x higher at 7-10.5 pc (shielded gas, where the levels' rate is the lower), half at the 5.7 pc edge; the front one cell (0.97 pc) toward the star; Te unchanged to 0.5 K; Hbeta unchanged to 1e-4; vibrational lines 1.07x, rotational 1.24-1.26x (*corrected 2026-10-04, H-014: the 21^3 grid's; at 31^3, with step 2 too, 0.82-0.83x and 0.92-1.03x, the edge thinning as on pn150k*). **Convergence, 11 against 16 iterations: B's lines move 0.1-1.6%, A's 0.2-2.7%, Hbeta 2.5% in both (the ionized gas's own convergence, D-365's L-40); B/A 1.09x and 1.27-1.29x at 16.** Per call the Solomon rate moves 50-60% (median per cell) between iterations but 3.4% on a fixed field: the Monte Carlo field's noise in each line's bin, ~1.5x the band-integrated rate's; in the transition x(H2) per cell scatters ~2x more than in A, the cloud's total destruction by 1.4%. Cost +2.4 min (11 iterations). Groundwork for step 2 in h2_mod, not called: dissociation heating per level, net collisional heating within X. **pn150k (2026-10-04): the opposite sign, for the same reason - at the transition's lit edge the levels' rate is 1.3-2.5x the chemistry's, so 0.195-0.325 pc loses 59-95% of its H2 and the front moves one cell (0.015 pc) out; 1-0 S(1) 0.73x, rotational 0.80-0.95x; against Cloudy's 40 strongest lines ortho 0.86-1.05 -> 0.69-0.77, para 1.63-2.63 -> 1.47-2.40. Not converged in 9 iterations: the per-call rate change falls 0.86 -> 0.33 and is 9% on a fixed field; 1-0 S(1) still rising 15-17% a step. +8 min (1 h 08 min)** The converged comparison is H-013's | Done | 2026-10-03 |
 | H-013 | **Stage B, step 2a: the H2 heating from the levels, beside 3D-PDR's, nothing handed over. h2LevelModel gives per cell the atoms' kinetic energy from dissociation and the net heating by collisions within X (Cloudy's HeatDiss, HeatDexc; the latter is also H2's line cooling, which nothing in either code has), and the kinetic energy of a molecule formed on a grain by energy conservation on Takahashi & Uehara's distribution (silicate 0.834 eV, carbonaceous 1.142; 3D-PDR 1.5; Cloudy gives the gas nothing for it). pdrStep keeps 3D-PDR's three H2 terms; h2Cells.out has both, per H, with MOCASSIN's budget (tools/h012_heat.py).** Outputs byte-identical otherwise. hiipdr 21^3: levels/3D-PDR = formation 0.55, dissociation 1.08 (0.438 eV), collisions 32x pumping but never above 0.6% of the heating; the three 0.67, i.e. 3-7% off the PDR's heating if handed over. pn150k at 14 iterations: H-012's transition settles (1-0 S(1) steps halving, ~2% left; rate change on a fixed field 1.9%), front one cell inside stage A's at 9, lines 0.90-1.06 of A's; heating ratios 0.76 / 1.07 / 5.5, the three 0.87, collisions never above 1.2%. **Step 2b: the three handed over in pdrStep, held through MOCASSIN's temperature search like the rest of pdrHeatXtra; on hiipdr every PDR shell 0.3-1.0 K (1-3%) colder, lines within 2%; on pn150k 0.1-4 K, lines within 1%.** **Stage B against stage A on pn150k, both at 14 iterations (A was not converged at 9 either: lines +6-10%): the warm lit edge thins (x(H2) 0.06-0.74 of A's at 0.195-0.325 pc), the shielded gas gains 5-8%, the front stays within a cell; 1-0 S(1) and 2-1 S(1) 0.82-0.83x, rotational 0.91-1.00x; against Cloudy's 40 strongest lines ortho 0.92-1.15 -> 0.81-0.95, para 1.75-2.81 -> 1.71-2.73 (the width, H-008)** | Done | 2026-10-04 |
 | H-014 | **Artifacts: stage B on the three comparison pages.** `tools/h013_figures.py`: stage A against stage B against Cloudy in the Cloudy pages' style, six panels per fixture (transition, the photodissociation rate each chemistry used, T_gas, the H2 heating terms, the H2 line emissivities, carbon); pn150k both at 14 iterations, hiipdr 21^3 at 11. H2 Lines in MOCASSIN v4 gains a Stage B section with both fixtures; hiipdr Against Cloudy v19 and 150 kK PN Against Cloudy v17 gain a section marked as the h2-model branch, everything else on them unchanged. Read off: pn150k's edge n(H2) at A_V 0.20 is 1.6x Cloudy's in stage B against 26x in stage A, crossing unchanged (0.395/0.396 vs 0.368); hiipdr's crossing 1.505 -> 1.409 vs 1.090. **Then, at the user's question, the pages' whole-model figures too: pn150k from the stage-B run, hiipdr from a new 31^3 stage-B run (the page's resolution; stage A at 31^3 is H-007's run, which reproduces the page's numbers). At 31^3 hiipdr behaves like pn150k: the edge thins (x(H2) 0.12-0.46 of A's), the crossing moves 0.04 mag (1.447 -> 1.407), vibrational lines 0.82-0.83x, rotational 0.92-1.03x - the 21^3 ratios (1.05x, 1.23-1.27x) were the grid's.** Pages: H2 Lines v5, hiipdr v20, pn150k v18 | Done | 2026-10-04 |
+| H-015 | **The pages rebuilt on stage B, every number from the pages' own tools: hiipdr Against Cloudy v21 (31^3), 150 kK PN Against Cloudy v19/v20 (14 iterations), hiipdr Against 3D-PDR v2 with the reference re-run on stage B's face field (G0 119.73, from x(H+) < 0.3; `d275_3dpdr_reference.py` now reads pdrGrid v2; new `h014_3dpdr_kpis.py` reproduces the D-275 page), H2 Lines v6 (cost past H-011, stage B's calls).** **pn150k is not converged at 9 iterations: from 9 to 14, He II 4686 +16%, [O III] 4363 +13%, the He2+ front 0.083 -> 0.087 pc (Cloudy 0.088), Hbeta -1.5%, in stage A and B alike, while the convergence percentage stays at 92%; production's 9-iteration runs are affected.** Against 3D-PDR now: crossing 1.407 vs 1.548 (1.192 vs 1.558 at D-275), PDR gas 0.25-0.34 of the slab's (0.11-0.34), deep C+ 0.2 of it (1e-7). Corrected: D-275's field slope 3.34/mag and H2O claim, v16's CO 0.09x, v18's stage B cost. Stage B's level-model time on pn150k 62.5 min per 14-iteration run against stage A's 24.4 | Done | 2026-10-04 |
 
 ---
 
@@ -2257,3 +2258,168 @@ reading named as superseded); 150 kK PN Against Cloudy is v18.
 ### Status
 
 Done. The pages are private until shared from each page's Share menu.
+
+## H-015 - The pages rebuilt on stage B; the 3D-PDR reference re-run; pn150k's iteration count (2026-10-04)
+
+The user: "update all relevant artifacts to reflect new model results".
+
+H-014 put stage B into the pages as a section and as the whole-model
+figures; every other number on the two Cloudy pages was still production's
+(the d377 runs), and the 3D-PDR page was still D-275's. Each page is now
+rebuilt on the stage B runs, every number from the page's own tools.
+
+### hiipdr Against Cloudy v21
+
+`runs/h013-b2b-hii31` (31^3, 11 iterations, 74.6%) throughout: header,
+headline numbers, selected depths, the ionized gas matched in radius, the line
+table and the reading, from `d285_kpis_hiipdr.py`, `d326_check.py` and the
+pages' line script. The stage B section becomes "Since version 18" with a
+table against version 18 (`runs/d377-hii`); the matched-models table names the
+level model; the history sections' "now" columns are relabelled. Crossing
+1.407 (Cloudy 1.090), C+ = C 2.266 (2.950), PDR T 22-49 K (29-50), front
+3.842 pc (3.765). Builder `h013pages/build_hii21.py` after `build.py` and
+`build_whole.py`.
+
+### 150 kK PN Against Cloudy v19, v20
+
+`runs/h013-b2b-pn41-it14` (41^3, 14 iterations, 91.7%, 2 h 20 min) throughout,
+with a table of version 16 (`runs/d377-pn`, 9 iterations) | stage A at 14 |
+stage B at 14 | Cloudy. Builder `h013pages/build_pn19.py`.
+
+**pn150k is not converged at 9 iterations, in the ionized gas.** Stage A at
+14 iterations (`runs/h013-A-pn41-it14`) against stage A at 9
+(`runs/h011-pn41`), same input, seed and 14 ranks:
+
+| | stage A, 9 it. | stage A, 14 it. | stage B, 14 it. | Cloudy |
+|---|---|---|---|---|
+| Hbeta [1e34 erg/s] | 2.725 | 2.685 | 2.684 | 2.78 |
+| He II 4686 / Hbeta | 0.2898 | 0.3368 | 0.3368 | 0.279 |
+| [O III] 4363 | 0.1567 | 0.1774 | 0.1775 | 0.155 |
+| [O III] 5007 | 13.01 | 13.79 | 13.79 | 13.19 |
+| [O IV] 25.9 um | 4.12 | 4.49 | 4.49 | 4.75 |
+| He I 5876 | 0.0915 | 0.0861 | 0.0861 | 0.077 |
+| He2+ front [pc] | 0.0831 | 0.0870 | 0.0870 | 0.0880 |
+| converged | 92.1% | 92.0% | 91.7% | |
+
+Stage B agrees with stage A at 14 to 0.1% in the ionized gas, and stage A at
+9 reproduces production's version 16 run (5 ranks) to 0.1% there (Hbeta 2.725
+against 2.726, He II 0.2898 against 0.2896). So the change is the iteration
+count, and production's 9-iteration pn150k runs are not converged in the He2+
+zone: five more iterations move the He2+ front onto Cloudy's (6% short ->
+1%) and [O IV] to 5% low, while He II 4686 goes from 4% to 21% above Cloudy
+and [O III] 4363 from 1% to 15%. **The convergence percentage did not see
+it** (92.1% at 9, 92.0% at 14 in stage A): the quantity it tests does not
+include the He2+ zone's lines. Whether 14 iterations are enough has not been
+tested; production's fixture is unchanged (nothing in the production
+worktree is touched from this branch).
+
+Corrections on the page:
+
+  - Version 16's "CO ... 0.09x at A_V 0.30" was version 15's number
+    (`runs/d363-pn`: 2.32e-7 / 2.69e-6 = 0.086) carried over; version 16's
+    own run had 0.072. Now 0.033 (stage A at 14: 0.085, with twice the H2).
+  - Version 18's "Stage B costs 4-5.5 min per PDR iteration": measured, the
+    call takes 4.6-5.5 min on a quiet machine (B2a's run: 278-332 s after a
+    first call of 170 s as the PDR switches on) and adds 3.7-4.7 min to each
+    PDR iteration after the first (B2a - A14 at iterations 5-14, B14 - A14 at
+    12-14; the first adds 1.1 min). v19 said 4.6-5.4 and "to each"; v20
+    corrects both.
+  - Stage B's run took 2 h 20 min (01:52-04:12). Its iterations 2-11 ran
+    1.2-1.9x slower than B2a's, which does the same work, and the
+    fixed-work parts of its level-model calls (the site search) 1.4x
+    slower, so the machine was slower then; why is not known (the hiipdr
+    21^3 test overlapped only its first nine minutes). Iterations 12-14 took
+    6.8-7.1 min, as B2a's.
+  - The stage B section said "the 9 iterations of the run above" when the
+    run above became the 14-iteration one; the rail rounded stage A's
+    n(H2) at A_V 0.20 to 26x Cloudy's (0.419 / 0.01577 = 26.6, now 27x);
+    two history sentences claimed the present tense ("Hbeta now agrees to
+    1.9%", "since this version (D-371)").
+
+### hiipdr Against 3D-PDR v2
+
+The page was D-275's (2026-09-14): `runs/d266-cfull` against
+`runs/d275-3dpdr-hiipdr` at G0 123.79.
+
+  - **`tools/d275_3dpdr_reference.py` could not read today's runs.** It read
+    `pdrGrid.out` v1 (45 columns, the zone flag first), which D-352 replaced.
+    It now reads either layout through `d260_roellig.read_pdrgrid` and takes
+    the PDR as the figures' own label, x(H+) < 0.3 (`read_run`), asserting
+    that the face A_V is the figures' A_front; the parameter template can be
+    passed (this worktree has no `runs/d257-3dpdr-standalone`). On
+    `runs/d266-cfull` it reproduces D-275's depth grid byte for byte and its
+    parameter file except G0: 127.04 against the flag's 123.79, because the
+    two definitions differ in 2 cells at A_V 0.472 (14 face cells instead of
+    12). Reading the flag reproduces 123.79 from 12 cells exactly.
+  - **Stage B's face field is 119.73 Draine** (12 cells at A_V 0.4659,
+    16-84% 118.6-129.7), 6% below d266's on the same definition. A_V / N_H
+    is unchanged (PDR fit 5.1714e-22 on B31, 5.1709e-22 on d266; the
+    reference keeps D-264's 5.177e-22), the composition file is identical,
+    and the slab's grid is byte-identical. The reference was re-run in
+    `runs/h014-3dpdr-hii31` with D-257's binary and D-275's chemistry files:
+    rc 0, under a minute, x(H) + 2x(H2) + x(H+) closes to 3.0e-8, carbon at
+    2.2e-4. The lower G0 cools the reference by 0.9% (median; at most 1.9%)
+    and moves its crossing 1.558 -> 1.548.
+  - **`tools/h014_3dpdr_kpis.py`** (new) computes the page's numbers with
+    `d285_kpis_hiipdr.py`'s conventions, so the MOCASSIN side of both hiipdr
+    pages is one computation. On the D-275 pair it reproduces the page:
+    crossing 1.192 / 1.558 (the page: 1.20 / 1.56), C+ = C 2.128 / never,
+    PDR T 21-26 / 83-181 K (22-26), every selected-depth entry, 108-1035
+    cells per bin, and the ratio ranges (e- 0.74-1.01, C+ 0.94-1.00, H+
+    0.25-0.56, field 0.81 then 0.37-0.49, dust 0.97-1.19).
+  - **Two D-275 statements do not reproduce.** (1) "MOCASSIN's field falls
+    at 3.34 per magnitude": no method gives it (all PDR cells 2.98, the
+    median profile 3.27, the selected-depth medians 3.16, A_V 0.55-2.5
+    3.31), because the field is not one exponential (on d266 3.84 e-folds
+    per magnitude at 0.55-1.5, 2.82 at 1.5-2.9); the page now gives the two
+    segments. (2) "CH and H2O sit above it past A_V 1": on d266 H2O was 3-21x
+    *below* the reference at A_V 1.0-2.0 (CH 14-49x above); the page says
+    so. Neither was a conclusion anything rested on.
+
+| MOCASSIN / reference | D-275 (d266) | now (B31) |
+|---|---|---|
+| crossing A_V | 1.192 / 1.558 | 1.407 / 1.548 |
+| C+ = C, A_V | 2.128 / never | 2.266 / never |
+| PDR T_gas, A_V 0.7-2.0 [K] | 21-26 / 83-181 | 22-49 / 82-180 |
+| T_gas ratio, selected depths | 0.11-0.34 | 0.25-0.34 |
+| T_dust ratio | 0.97-1.19 | 1.03-1.29 |
+| field ratio at 0.55 / 0.7-2.0 / 2.5-2.9 | 0.81 / 0.37-0.55 / 0.47-0.49 | 0.79 / 0.46-0.58 / 0.77-1.01 |
+| field e-folds per mag, 0.55-1.5 / 1.5-2.9 (reference 3.02) | 3.84 / 2.82 | 3.60 / 2.45 |
+| n(H2) ratio at 0.70 / 1.00 | 1/30 / 3.4 | 1/1350 / 1/24 |
+| H2 MOCASSIN = reference at A_V | 0.84 | 1.24 |
+| C+ ratio at 2.5-2.9 | 1e-7 | 0.19-0.21 |
+| e- ratio at 2.5-2.9 | 0.14-0.16 | 0.27-0.28 |
+| O+ ratio at 0.7-1.5 / 2.5-2.9 | 5e-5-3e-3 / 0.004-0.04 | 0.012-0.040 / 6-51 |
+| He+ ratio at 2.5-2.9 | 12-14 | 6-7 |
+| CO ratio to 1.5 / at 2.5-2.9 | 4-9 / 11-23 | 0.6-2.9 / 14-24 |
+
+Read: the PDR gas is a quarter to a third of the reference's temperature
+where it was a ninth to a third; deep carbon no longer collapses (O-01); at
+depth MOCASSIN's field now equals the slab's, where it was half; the lit edge
+has far less H2 than the slab's (1/1350 at A_V 0.70; stage A had 4x more
+than stage B there). Not known: which of D-276 .. D-390 and H-012/H-013
+made each change (the Cloudy pages' history takes them one at a time against
+Cloudy; not here), and why deep O+ runs 6-51x above the slab's, with He+
+6-7x (not investigated).
+
+### H2 Lines in MOCASSIN v6
+
+Its cost had never been brought past H-007: the summary still said the level
+model took 62 of a 98-minute run. Now: once on the finished model 25 of 60
+minutes since H-011 (1,474 s); in stage B a call per PDR iteration, 4.6-5.5
+min on a quiet machine, 62.5 min over a 14-iteration run (B2a's 12 calls)
+against stage A's single 24.4-min call (`runs/h013-A-pn41-it14`, 4 sweeps,
+1,462 s). Stage B's final call starts from the last iteration's populations
+and converges in 2 sweeps (541 s on pn150k, 128 s on hiipdr 31^3); hiipdr
+31^3's calls take 66-105 s, 12.9 min in all, and its 11 iterations 31 min.
+"Not yet known": the colder shielded gas no longer says the thermal balance
+is untouched (stage B's H2 heating moves it 0.1-4 K); two items added, how
+many iterations pn150k needs and whether the field's per-line noise biases
+the rate.
+
+### Status
+
+Done: hiipdr Against Cloudy v21, 150 kK PN Against Cloudy v20, hiipdr Against
+3D-PDR v2, H2 Lines in MOCASSIN v6. Not rebuilt: Fine Grids Against Cloudy,
+which would need stage B runs on the fine grids (hours each at fewer ranks);
+it stays production's.

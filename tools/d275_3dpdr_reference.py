@@ -20,13 +20,19 @@ geometric spacing with ratio 1.02533, first step scaled with the length.
 Composition is not written here: 3D-PDR takes it from chemfiles/species_reduced.d,
 so the target directory's chemfiles must carry the run's C, O, Mg and He.
 
-    python tools/d275_3dpdr_reference.py <run-dir> <target-dir> [AV_fac]
+    python tools/d275_3dpdr_reference.py <run-dir> <target-dir> [AV_fac] [template]
+
+template defaults to runs/d257-3dpdr-standalone/params_sec54_G166c.dat beside
+the tool; a worktree without that run passes the path.
 """
 import os
 import re
 import sys
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import d260_roellig as R  # noqa: E402
 
 PC = 3.0857e18
 NPTS, RATIO = 250, 1.0253353
@@ -50,11 +56,18 @@ def main():
     n = int(t[1]) * int(t[2]) * int(t[3])
     off = 7 + int(t[1]) + int(t[2]) + int(t[3])
     act = np.array(t[off:off + n * 3:3], float).astype(int) > 0
-    p = np.array(open(os.path.join(out, 'pdrGrid.out')).read().split(),
-                 float)[:n * 45].reshape(n, 45)
-    zone, chi, av = p[:, 0].astype(int), p[:, 1], p[:, 2]
-    pdr = act & (zone == 1)
+    # H-014: the PDR is the figures' own analysis label, x(H+) < 0.3
+    # (d260_roellig.read_run), so the slab starts at the A_front the
+    # figures align it on. The zone flag this read until D-352 is gone from
+    # pdrGrid.out v2; on runs/d266-cfull, where both exist, they differ in 2
+    # cells at A_V 0.472 and the face field is 127.04 against the flag's 123.79.
+    pg = R.read_pdrgrid(out, n)
+    chi, av = pg['chi'], pg['AV']
+    d = R.read_run(run)
+    pdr = np.zeros(n, bool)
+    pdr[np.where(act)[0]] = d['zone'] == 1
     a_face = av[pdr].min()
+    assert abs(a_face - d['A_front']) < 1e-6, (a_face, d['A_front'])
     face = pdr & (av < a_face + 0.02)
     g0 = np.median(chi[face])
     a_edge = av[act].max()
@@ -70,7 +83,8 @@ def main():
         for xi in x:
             fh.write(f'{xi:.7E} {0.0:.7E} {0.0:.7E} {nh:.7E}\n')
 
-    tmpl = open(os.path.join(os.path.dirname(__file__), '..', 'runs',
+    tmpl = open(sys.argv[4] if len(sys.argv) > 4 else
+                os.path.join(os.path.dirname(__file__), '..', 'runs',
                              'd257-3dpdr-standalone',
                              'params_sec54_G166c.dat')).read()
     subs = [('sec54.dat', 'hiipdr.dat'), ('sec54g166c', 'hiipdr'),
