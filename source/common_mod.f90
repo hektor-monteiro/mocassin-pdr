@@ -761,7 +761,7 @@ module common_mod
     real               :: meanField        ! mean ionizing field to be used with plane parallel
                                            ! geometry [erg/sec/cm^2]
     real               :: meanFieldin
-    real               :: minConvergence   ! stop when this level of convergence has been reached
+    real               :: minConvergence   ! % of cells passing; reported, no longer stops a run (D-392)
     real               :: minConvQHeat     ! min convergence level for Qheat routines to run
     real               :: NeStart          ! initial guess at Ne
     real               :: MdMgValue        ! dust-to-gas ratio by mass
@@ -798,7 +798,8 @@ module common_mod
     !   - the H0 content, and in PDR flavours the H2 and CO contents, n dV;
     !   - the gas temperature weighted by n_e n(H+), by n(H0) and by n(H2).
     ! Converged when the largest |q_n / q_(n-cvTotK) - 1| is at most
-    ! convTotals. The run stops on that AND on minConvergence of the cells.
+    ! convTotals. D-392: that alone stops the run (the user: "I want the new
+    ! test to decide when to stop"); minConvergence is reported against.
     real               :: convTotals = 0.02
     real, parameter    :: cvTotSig   = 0.01
     integer, parameter :: cvTotK     = 3
