@@ -2107,9 +2107,9 @@ Against Cloudy's 40 strongest H2 lines (median ours/Cloudy):
 What stage B does on pn150k, converged: where the levels' rate is above
 the chemistry's (the lit edge, 0.15-0.3 pc) the warm molecular layer
 thins - x(H2) down to 0.06-0.74 of A's - and the shielded gas behind it
-gains 5-8%. The pumped lines lose 17-18% and the ortho lines generally
-12-18%, because the edge is the warm, ortho-rich part of the cloud; the
-para lines move by 2-3%. The front stays within a cell of stage A's.
+gains 5-8%. The ortho lines lose 12-18% (the vibrational ones, 1-0 S(1)
+and 2-1 S(1), 17-18%), because the edge is the warm, ortho-rich part of
+the cloud; the para lines, vibrational or rotational, 0-3%. The front stays within a cell of stage A's.
 Against Cloudy the ortho lines go from 0.92-1.15 to 0.81-0.95 and the para
 lines stay 1.7-2.7x, which is the damping width (H-008: x3.2 on para,
 x2.2 on ortho) and not changed here.
