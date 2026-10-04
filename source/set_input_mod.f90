@@ -123,6 +123,7 @@ module set_input_mod
         R_out         = 0.
         TeStart       = 10000.
         XHILimit      = 0.05
+        convTotals    = 0.02    ! D-391
 
         ! ask the user to input file name and check for errors
         in_file = 'input/input.in'
@@ -457,6 +458,11 @@ module set_input_mod
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword,  XHILimit
                 !print*, keyword, XHILimit
+            ! D-391: the tolerance on the model-integrated quantities, the
+            ! largest change allowed over the last cvTotK iterations (common_mod).
+            case ("convTotals")
+                backspace 10
+                read(unit=10, fmt=*, iostat=ios) keyword,  convTotals
             case ("H0Start")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, H0Start
@@ -972,6 +978,10 @@ module set_input_mod
         else if (XHILimit < 0.) then
             print*, "! readInput: invalid XHILimit in model parameter input &
                  & file", in_file, XHILimit
+            stop
+        else if (convTotals <= 0.) then
+            print*, "! readInput: invalid convTotals in model parameter input &
+                 & file (must be > 0)", in_file, convTotals
             stop
         else if (LPhot < 0.) then
             print*, "! readInput: invalid LPhot  in model parameter input &
