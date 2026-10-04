@@ -26,6 +26,7 @@ DEVLOG.md and arrives here by merge.
 | H-015 | **The pages rebuilt on stage B, every number from the pages' own tools: hiipdr Against Cloudy v21 (31^3), 150 kK PN Against Cloudy v19/v20 (14 iterations), hiipdr Against 3D-PDR v2 with the reference re-run on stage B's face field (G0 119.73, from x(H+) < 0.3; `d275_3dpdr_reference.py` now reads pdrGrid v2; new `h014_3dpdr_kpis.py` reproduces the D-275 page), H2 Lines v6 (cost past H-011, stage B's calls).** **pn150k is not converged at 9 iterations: from 9 to 14, He II 4686 +16%, [O III] 4363 +13%, the He2+ front 0.083 -> 0.087 pc (Cloudy 0.088), Hbeta -1.5%, in stage A and B alike, while the convergence percentage stays at 92%; production's 9-iteration runs are affected.** Against 3D-PDR now: crossing 1.407 vs 1.548 (1.192 vs 1.558 at D-275), PDR gas 0.25-0.34 of the slab's (0.11-0.34), deep C+ 0.2 of it (1e-7). Corrected: D-275's field slope 3.34/mag and H2O claim, v16's CO 0.09x, v18's stage B cost. Stage B's level-model time on pn150k 62.5 min per 14-iteration run against stage A's 24.4 | Done | 2026-10-04 |
 | H-016 | **Stage A first, the level model only at the end? From the logs: on pn150k 41^3 stage B's calls take 62.5 min per 14-iteration run, 29 of them during the PDR's build-up (iterations 4-9), against stage A's single 24.4-min call; a cold start on a converged model needs 2-3 sweeps (the first overshoots dissociations by 38%); the coupling's tail halves per iteration (pumping +7%, +4%, +2%, +1%, +0.5% over iterations 10-14).** Estimate: switching at iteration 10 saves ~20 min (15-20%) at 41^3; fine grids need threads in the level model more than a schedule. An iteration keyword would be the run-time ownership switch CLAUDE.md warns about; if adopted, the network rate becomes only the starting guess, with stage B's own convergence test before the run may finish. Proposed test: stage A to 9, mocassinWarm with stage B 10-14, against the all-stage-B run. **Decided: not adopted - the user keeps the full level solution every iteration, as the more self-consistent; the test is not run** | Done | 2026-10-04 |
 | H-017 | **What is pending, at the user's question: the merge of stage B (D-388: after every benchmark; not yet the 1D flavour, the warm start, the fine grids), iteration counts and a convergence test that sees helium and slow drifts (L-40, H-015; *corrected: x(H2) is tested, at 10% per iteration*), and the physics divergences O-02, L-43, L-33, L-37, pn150k's neon and low ions, deep O+/He+ against 3D-PDR.** New: `h2Pop.bin` is written and never read, so a warm start restarts the level model cold | Discussion | 2026-10-04 |
+| H-018 | **Production's D-391 merged in (e60a836, no conflicts): the per-cell x(H2) test had passed every cell since D-216 and now runs after the chemistry; a model-integrated test (emission measures, H0/H2/CO contents, weighted temperatures; convTotals, default 2% over 3 iterations) gates the stop and every run reports whether it converged.** By it, the pages' runs were not converged: pn150k at 14 (He2+ 5.8% over the window, lines up to 5% from iteration 20), hiipdr 31^3 at 11 (O+ 5.9%, lines up to 8%); 2% is reached at 17 and 15. Merged branch: four flavours and h2Test/h2Slab rc 0; a stage B run reports the new test and exits cleanly | Done | 2026-10-04 |
 
 ---
 
@@ -2559,3 +2560,40 @@ limitations register in `doc/pdr-status.md`; one item is new (marked).
       cells would make the fine grids feasible (H-016).
   12. Low priority at the user's direction: V1/V2 slabs and `ifront` (L-11);
       `mocassinPlot` unrun (L-20).
+
+## H-018 - Production's D-391 merged in: the convergence test (2026-10-04)
+
+The user: "proceed as suggested" (H-017's first item: fix the convergence
+test). A production fix (DEVLOG D-391, dc302f2), merged as D-388 asks (merge
+e60a836, no conflicts).
+
+What D-391 found and changed, in short: the per-cell x(H2) test had passed
+every cell since D-216 (it ran before the chemistry and compared H2den with
+the copy just taken of it); it now runs after the chemistry. A
+model-integrated test - the emission measure of every ion stage holding 1% of
+its element's, the H0/H2/CO contents, the gas temperature weighted by
+n_e n(H+), n(H0) and n(H2) - must change by at most `convTotals` (default 2%)
+over 3 iterations before a run may stop, and every run now ends saying
+whether it converged.
+
+For this branch:
+  - **H-017's correction holds and goes further**: x(H2) was tested (D-179)
+    but the test could not fail, so stage B's slow H2 tail (H-016) was
+    invisible to it as well as to the 10% tolerance.
+  - **The pages' runs were not converged** by D-391's measure: pn150k at 14
+    iterations (H-015) has the He2+ emission measure moving 5.8% over the
+    last 3 iterations and lines up to 5% from iteration 20 (production
+    physics, `runs/d391-cv-pn41b`); hiipdr 31^3 at 11, 5.9% (O+) and lines
+    up to 8%. The rule passes 2% at 17 (pn150k) and 15 (hiipdr). Stage B's
+    own tail (pumping +1, +0.5% at iterations 13-14, H-016) is within that.
+    Re-running the pages at converged counts waits on the user's choice of
+    counts (production's fixtures are unchanged).
+  - Checks on the merged branch: all four flavours and h2Test/h2Slab rc 0
+    (own PREFIX); `runs/h018-merge-hii21` (stage B, 21^3, 6 iterations, 14
+    ranks): the level model each PDR iteration as before, the integrated
+    test reported each iteration, "NOT CONVERGED after 6 iterations: n(H0)
+    changed 79.6%", clean exit.
+
+### Status
+
+Done.
