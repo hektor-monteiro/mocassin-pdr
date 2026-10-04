@@ -24,6 +24,7 @@ DEVLOG.md and arrives here by merge.
 | H-013 | **Stage B, step 2a: the H2 heating from the levels, beside 3D-PDR's, nothing handed over. h2LevelModel gives per cell the atoms' kinetic energy from dissociation and the net heating by collisions within X (Cloudy's HeatDiss, HeatDexc; the latter is also H2's line cooling, which nothing in either code has), and the kinetic energy of a molecule formed on a grain by energy conservation on Takahashi & Uehara's distribution (silicate 0.834 eV, carbonaceous 1.142; 3D-PDR 1.5; Cloudy gives the gas nothing for it). pdrStep keeps 3D-PDR's three H2 terms; h2Cells.out has both, per H, with MOCASSIN's budget (tools/h012_heat.py).** Outputs byte-identical otherwise. hiipdr 21^3: levels/3D-PDR = formation 0.55, dissociation 1.08 (0.438 eV), collisions 32x pumping but never above 0.6% of the heating; the three 0.67, i.e. 3-7% off the PDR's heating if handed over. pn150k at 14 iterations: H-012's transition settles (1-0 S(1) steps halving, ~2% left; rate change on a fixed field 1.9%), front one cell inside stage A's at 9, lines 0.90-1.06 of A's; heating ratios 0.76 / 1.07 / 5.5, the three 0.87, collisions never above 1.2%. **Step 2b: the three handed over in pdrStep, held through MOCASSIN's temperature search like the rest of pdrHeatXtra; on hiipdr every PDR shell 0.3-1.0 K (1-3%) colder, lines within 2%; on pn150k 0.1-4 K, lines within 1%.** **Stage B against stage A on pn150k, both at 14 iterations (A was not converged at 9 either: lines +6-10%): the warm lit edge thins (x(H2) 0.06-0.74 of A's at 0.195-0.325 pc), the shielded gas gains 5-8%, the front stays within a cell; 1-0 S(1) and 2-1 S(1) 0.82-0.83x, rotational 0.91-1.00x; against Cloudy's 40 strongest lines ortho 0.92-1.15 -> 0.81-0.95, para 1.75-2.81 -> 1.71-2.73 (the width, H-008)** | Done | 2026-10-04 |
 | H-014 | **Artifacts: stage B on the three comparison pages.** `tools/h013_figures.py`: stage A against stage B against Cloudy in the Cloudy pages' style, six panels per fixture (transition, the photodissociation rate each chemistry used, T_gas, the H2 heating terms, the H2 line emissivities, carbon); pn150k both at 14 iterations, hiipdr 21^3 at 11. H2 Lines in MOCASSIN v4 gains a Stage B section with both fixtures; hiipdr Against Cloudy v19 and 150 kK PN Against Cloudy v17 gain a section marked as the h2-model branch, everything else on them unchanged. Read off: pn150k's edge n(H2) at A_V 0.20 is 1.6x Cloudy's in stage B against 26x in stage A, crossing unchanged (0.395/0.396 vs 0.368); hiipdr's crossing 1.505 -> 1.409 vs 1.090. **Then, at the user's question, the pages' whole-model figures too: pn150k from the stage-B run, hiipdr from a new 31^3 stage-B run (the page's resolution; stage A at 31^3 is H-007's run, which reproduces the page's numbers). At 31^3 hiipdr behaves like pn150k: the edge thins (x(H2) 0.12-0.46 of A's), the crossing moves 0.04 mag (1.447 -> 1.407), vibrational lines 0.82-0.83x, rotational 0.92-1.03x - the 21^3 ratios (1.05x, 1.23-1.27x) were the grid's.** Pages: H2 Lines v5, hiipdr v20, pn150k v18 | Done | 2026-10-04 |
 | H-015 | **The pages rebuilt on stage B, every number from the pages' own tools: hiipdr Against Cloudy v21 (31^3), 150 kK PN Against Cloudy v19/v20 (14 iterations), hiipdr Against 3D-PDR v2 with the reference re-run on stage B's face field (G0 119.73, from x(H+) < 0.3; `d275_3dpdr_reference.py` now reads pdrGrid v2; new `h014_3dpdr_kpis.py` reproduces the D-275 page), H2 Lines v6 (cost past H-011, stage B's calls).** **pn150k is not converged at 9 iterations: from 9 to 14, He II 4686 +16%, [O III] 4363 +13%, the He2+ front 0.083 -> 0.087 pc (Cloudy 0.088), Hbeta -1.5%, in stage A and B alike, while the convergence percentage stays at 92%; production's 9-iteration runs are affected.** Against 3D-PDR now: crossing 1.407 vs 1.548 (1.192 vs 1.558 at D-275), PDR gas 0.25-0.34 of the slab's (0.11-0.34), deep C+ 0.2 of it (1e-7). Corrected: D-275's field slope 3.34/mag and H2O claim, v16's CO 0.09x, v18's stage B cost. Stage B's level-model time on pn150k 62.5 min per 14-iteration run against stage A's 24.4 | Done | 2026-10-04 |
+| H-016 | **Stage A first, the level model only at the end? From the logs: on pn150k 41^3 stage B's calls take 62.5 min per 14-iteration run, 29 of them during the PDR's build-up (iterations 4-9), against stage A's single 24.4-min call; a cold start on a converged model needs 2-3 sweeps (the first overshoots dissociations by 38%); the coupling's tail halves per iteration (pumping +7%, +4%, +2%, +1%, +0.5% over iterations 10-14).** Estimate: switching at iteration 10 saves ~20 min (15-20%) at 41^3; fine grids need threads in the level model more than a schedule. An iteration keyword would be the run-time ownership switch CLAUDE.md warns about; if adopted, the network rate becomes only the starting guess, with stage B's own convergence test before the run may finish. Proposed test: stage A to 9, mocassinWarm with stage B 10-14, against the all-stage-B run | Open | 2026-10-04 |
 
 ---
 
@@ -2423,3 +2424,76 @@ Done: hiipdr Against Cloudy v21, 150 kK PN Against Cloudy v20, hiipdr Against
 3D-PDR v2, H2 Lines in MOCASSIN v6. Not rebuilt: Fine Grids Against Cloudy,
 which would need stage B runs on the fine grids (hours each at fewer ranks);
 it stays production's.
+
+## H-016 - Stage A first, the level model only at the end? (2026-10-04)
+
+The user: "Could we use the H2 chemistry from before the level calculations
+to get close to convergence and include full level calculation just at the
+end to get more time efficiency?"
+
+### What the existing runs say (logs only, no new runs)
+
+  - **Cost**, pn150k 41^3, 14 ranks, quiet machine (`runs/h013-b2a-pn41-it14`,
+    which does stage B's work): the level model's 12 calls take 62.5 min:
+    170 s at iteration 4, 278-332 s at 5-14, 541 s for the finished model (2
+    sweeps). The calls at iterations 4-9, while the PDR builds up
+    (convergence 0.3% -> 92%), take 29 min. Stage A's single call on its
+    converged model takes 24.4 min (`runs/h013-A-pn41-it14`, 4 sweeps).
+  - **A cold start needs 2-3 sweeps.** On stage A's converged model, sweeps
+    1-4 give Solomon dissociations 2.05, 1.51, 1.49, 1.49e44 s^-1 and 1-0
+    S(1) 4.97, 3.16, 3.12, 3.12e31 erg/s: the first sweep overshoots by 38%
+    and 59%, because the pumping lines' self-shielding starts from the
+    initial populations.
+  - **The coupling has a slow tail of its own.** In the all-stage-B run,
+    after the PDR has built up, the pumping absorptions per call are 7.06,
+    7.53, 7.82, 7.97, 8.04, 8.09e44 s^-1 at iterations 9-14 (increments
+    halving) and 1-0 S(1) rises 2.07 -> 2.59e31 (+25%); the median per-cell
+    rate change per call falls 0.86, 0.66, 0.64, 0.43, 0.33, 0.28, 0.25,
+    0.24, 0.23 (iterations 5-13) to the Monte Carlo floor. Stage A's lines
+    rose 6-10% over 9 -> 14 iterations, so part of the tail is common to
+    both stages (the ionized gas still converging, H-015) and part is the
+    coupling's.
+  - **The two fixed points are close where the shielding is set:** crossing
+    0.395 / 0.396, shielded gas within 5-8%, T within 1 K past A_V 0.3. They
+    differ at the warm edge (n(H2) at A_V 0.20 17x lower in stage B) and in
+    the lines (1-0 S(1) 0.83x).
+
+### Estimate, not measured
+
+Stage A for iterations 4-9 and stage B for 10-14 (the first call with 3
+sweeps) would save the build-up calls (29 min) less the cold start's extra
+sweeps (~10 min): ~20 min of B2a's 108, 15-20%; hiipdr 31^3 about 5 of 31 min.
+The tail above suggests stage B needs 4-5 iterations after the switch;
+that is the number to measure.
+
+Fine grids: a cold call costs more per cell on larger grids (0.86, 0.99, 1.40
+rank-seconds per cell at hiipdr 21^3 / 31^3 / 41^3, H-007's runs: the paths
+are longer). Extrapolated, one sweep on pn150k 81^3 at the 3 ranks memory
+allows would take hours, so the schedule alone would not make stage B
+affordable there; letting each rank's level model use several cores
+(threads over cells) would be the larger lever. Not measured either.
+
+### The rule
+
+CLAUDE.md lists "switches that select ownership at run time" among the
+largest sources of defects. A keyword "levels from iteration N" is one: set
+too late, a run finishes on stage A physics and looks converged, and
+MOCASSIN's convergence percentage would not notice (H-015: 92% in both
+stages, blind to a 16% change in He II). If adopted, the design would make
+the network rate only the starting guess: no keyword; the run cannot finish
+until stage B has had its iterations and passed its own test (median
+per-cell rate change at the noise floor; pumping total and H2 lines steady
+to ~1% between calls), followed by the finished model's call. That is the
+user's decision.
+
+### Proposed test, no code change
+
+Stage A stopped at iteration 9, then `mocassinWarm` with stage B for
+iterations 10-14, against `runs/h013-b2b-pn41-it14` at the same total
+iteration count; the same on hiipdr 31^3 (stage A to 7, stage B 8-11, against
+`runs/h013-b2b-hii31`). First check that the warm start resumes the PDR state
+on this branch.
+
+### Status
+
+Open: the user's decision on the design question, and on running the test.
