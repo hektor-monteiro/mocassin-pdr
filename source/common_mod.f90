@@ -593,7 +593,19 @@ module common_mod
         real, allocatable         :: h2SolChem(:)    ! the chemistry's H2 photodissociation rate on the same field [s^-1]
         real, allocatable         :: h2Pump(:)       ! pumping absorption rate per H2 [s^-1]
         real, allocatable         :: h2Diag(:,:)     ! diagnostics: Solomon rate of the direct part (levels, chemistry) [s^-1],
-                                                     ! N(H2) to the cell and through it [cm^-2], diffuse share of the LW field
+                                                     ! N(H2) to the cell and through it [cm^-2], diffuse share of the LW field,
+                                                     ! energy left on the grain per H2 formed [erg], grain formation rate [cm^3 s^-1]
+        ! H-012: the H2 heating from the levels, per cell: (1) the atoms'
+        ! kinetic energy from dissociation, per H2 [erg s^-1]; (2) the net
+        ! heating by collisions within X at Te, per H2 [erg s^-1], negative
+        ! where H2 cools the gas; (3) the kinetic energy of an H2 formed on a
+        ! grain [erg]
+        real, allocatable         :: h2Heat(:,:)
+        ! H-012: 3D-PDR's own H2 terms as CALC_HEATING evaluates them in
+        ! pdrStep - formation (1.5 eV each), photodissociation (0.4 eV each),
+        ! FUV pumping (9 x 2.2 eV per dissociation, critical density) -
+        ! [erg s^-1 cm^-3], for comparison with h2Heat
+        real, allocatable         :: pdrHeatH2(:,:)
         double precision, allocatable :: pdrAbun(:,:)! (cell, species) fractional abundance
 #endif
     end type grid_type

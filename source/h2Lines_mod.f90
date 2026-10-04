@@ -9,7 +9,9 @@
 !   output/h2Cells.out      per active cell: n(H2), Te, the Solomon rate from
 !                           the levels and the chemistry's own on the same
 !                           field, the pumping rate, ortho/para, the fraction
-!                           above 4100 cm^-1
+!                           above 4100 cm^-1; (H-012) the H2 heating from the
+!                           levels beside 3D-PDR's three H2 terms and
+!                           MOCASSIN's own heating and cooling, per H
 !   output/h2Pop.bin        the level populations of every cell (raw): int32
 !                           nCells, nLev; int32 v(nLev), J(nLev); real64
 !                           E(nLev) [cm^-1]; then real32 pop(nLev) per cell in
@@ -33,9 +35,11 @@ contains
       real, intent(in) :: HbVol                         ! Hbeta [E36 erg/s]
 
       double precision, parameter :: eStar = 4100.d0
+      double precision, parameter :: eVerg = 1.602176634d-12   ! [erg]
       double precision, allocatable :: molLev(:), lineL(:), wl(:)
       integer, allocatable :: lnUp(:), lnLo(:), ord(:)
       double precision :: dV, sym, nH2, Lmax, fo, fs, hb
+      double precision :: xH, xH2, hLev(3), hPdr(3), hMoc(2), ePer(3)
       integer :: i, j, k, l, m, n, cellP, ios, nl, dj
       character(len=1) :: br
       character(len=12) :: lab
@@ -54,7 +58,11 @@ contains
       write(64, '(a)') "# h2Cells.out (H-007): the H2 level model per active cell"
       write(64, '(a)') "#  i  j  k   cell    x[cm]       y[cm]       z[cm]       n(H2)[cm-3] Te[K]    "// &
            & "Sol(levels)[s-1] Sol(chem)[s-1] pump[s-1]  o/p     f(E>4100) | direct part: Sol(levels) Sol(chem) | "// &
-           & "N(H2) to cell, through cell [cm-2] | diffuse share of LW field"
+           & "N(H2) to cell, through cell [cm-2] | diffuse share of LW field | per H2 formed on grains: "// &
+           & "energy left on the grain [erg], formation rate [cm3 s-1] | (H-012) H2 heating per H [erg s-1], "// &
+           & "levels: formation, dissociation, collisions within X | 3D-PDR: formation, photodissociation, "// &
+           & "FUV pumping | MOCASSIN's heating, cooling (thermBudget) | eV per event: kinetic per H2 formed, "// &
+           & "left on the grain per H2 formed, kinetic per dissociation"
       do i = 1, grid(1)%nx
          do j = 1, grid(1)%ny
             do k = 1, grid(1)%nz
@@ -68,10 +76,27 @@ contains
                   if (h2Ortho(l)) fo = fo + dble(grid(1)%h2Pop(cellP,l))
                   if (h2E(l) > eStar) fs = fs + dble(grid(1)%h2Pop(cellP,l))
                end do
-               write(64, '(3i4,i7,3es12.4,es12.4,f9.1,3es13.4,f8.3,es11.3,5es12.4)') i, j, k, cellP, &
+               ! H-012: the H2 heating, per H nucleus as MOCASSIN's budget
+               hLev = 0.d0; hPdr = 0.d0; hMoc = 0.d0; ePer = 0.d0
+               if (allocated(grid(1)%h2Heat) .and. grid(1)%Hden(cellP) > 0.) then
+                  xH  = grid(1)%pdrAbun(cellP, pdrIdxH)
+                  xH2 = grid(1)%pdrAbun(cellP, pdrIdxH2)
+                  hLev(1) = dble(grid(1)%h2Diag(cellP,7))*xH*dble(grid(1)%Hden(cellP))*dble(grid(1)%h2Heat(cellP,3))
+                  hLev(2) = xH2*dble(grid(1)%h2Heat(cellP,1))
+                  hLev(3) = xH2*dble(grid(1)%h2Heat(cellP,2))
+                  if (allocated(grid(1)%pdrHeatH2)) hPdr = dble(grid(1)%pdrHeatH2(cellP,:))/dble(grid(1)%Hden(cellP))
+                  if (allocated(grid(1)%mocBud)) then
+                     hMoc(1) = sum(dble(grid(1)%mocBud(cellP,2,1:3)))
+                     hMoc(2) = sum(dble(grid(1)%mocBud(cellP,2,4:8)))
+                  end if
+                  ePer(1) = dble(grid(1)%h2Heat(cellP,3))/eVerg
+                  ePer(2) = dble(grid(1)%h2Diag(cellP,6))/eVerg
+                  if (grid(1)%h2Sol(cellP) > 0.) ePer(3) = dble(grid(1)%h2Heat(cellP,1))/dble(grid(1)%h2Sol(cellP))/eVerg
+               end if
+               write(64, '(3i4,i7,3es12.4,es12.4,f9.1,3es13.4,f8.3,es11.3,7es12.4,8es12.4,3f8.4)') i, j, k, cellP, &
                     & grid(1)%xAxis(i), grid(1)%yAxis(j), grid(1)%zAxis(k), nH2, grid(1)%Te(cellP), &
                     & grid(1)%h2Sol(cellP), grid(1)%h2SolChem(cellP), grid(1)%h2Pump(cellP), &
-                    & fo/max(1.d0 - fo, 1.d-30), fs, grid(1)%h2Diag(cellP,:)
+                    & fo/max(1.d0 - fo, 1.d-30), fs, grid(1)%h2Diag(cellP,:), hLev, hPdr, hMoc, ePer
             end do
          end do
       end do

@@ -4054,6 +4054,8 @@ module pdr_mod
         ! and chemical heating - none of which exist anywhere in MOCASSIN.
         grid%pdrHeatXtra(cellP) = real(heat(5) + heat(6) + heat(7) + &
              & heat(8) + heat(9) + heat(10))
+        ! H-012: the three H2 terms alone, beside the level model's (h2Heat)
+        if (allocated(grid%pdrHeatH2)) grid%pdrHeatH2(cellP,1:3) = real(heat(5:7))
         ! D-150: is the MOCASSIN <-> PDR pair an oscillating fixed point?
         ! MOCASSIN solves T with pdrCool held constant, the PDR then recomputes
         ! pdrCool at the new T, and so on. If that is the instability, Te in a
@@ -4479,7 +4481,7 @@ module pdr_mod
         use h2_mod, only : h2NX, h2NU, h2NT, h2NColl, h2ReadX, h2ReadElec, h2tWN, h2tU, h2tL, h2tA, &
              & h2uG, h2G, h2E, h2A, h2Ortho, h2Level, h2LineOverlap, h2LineShield, h2LineParams, &
              & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates, h2ShieldAIndex, h2ShieldJ, &
-             & h2LineShieldPrep, h2LineShieldEval
+             & h2LineShieldPrep, h2LineShieldEval, h2CollHeat
         use functions_module, only : H2_FORMATION_RATE
         use grid_mod, only : getVolume
         implicit none
@@ -4488,7 +4490,10 @@ module pdr_mod
         type(grid_type), dimension(:), intent(inout) :: grid
         integer, intent(in)                          :: nSweepMax   ! sweeps at most (H-012)
 
-        integer, parameter          :: nGrp = 4, nHb = 150, nR1 = 8
+        ! per-cell results: 1-3 the rates (h2Sol, h2Pump, h2SolChem), then
+        ! nDg diagnostics (h2Diag), then the three heating terms (h2Heat)
+        integer, parameter          :: nGrp = 4, nHb = 150, nDg = 7, nR1 = 3 + nDg + 3
+        double precision, parameter :: eVerg = 1.602176634d-12   ! [erg]
         double precision, parameter :: rydWN = 109737.31568d0
         double precision, parameter :: mH2g = 2.01588d0*1.66053907d-24
         double precision, parameter :: hcK = 1.4387769d0
@@ -4503,6 +4508,7 @@ module pdr_mod
         double precision :: T, nH, dnH2, b, fo, foNew, chord, dx3(3), rv(3), rr, wTot, aniso, colWalk, avWalk
         double precision :: jT, jD, sumT, sumD, lwT, lwD, chiDir, chiDif, fDir, fDif, fLWd, sig, aL, w, ntot
         double precision :: Td, wSil, wGra, xsS, xsG, alphaH2loc, pumpTot, solTot, t0, t1
+        double precision :: eKs, eGs, eKg, eGg, eKin, eGr
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, fS, fTot, tot, sH2
         double precision :: lum(4), lumOld(4), dV, sym, tm(10), tmSum(10), tq, chordIso, dtau, sThin
         double precision :: tLoop, tLoopMax, tLoopMin, tc0
@@ -4520,6 +4526,7 @@ module pdr_mod
         integer          :: iu(4), il(4)
         double precision, allocatable :: nH2c(:), cDir(:), cDif(:), etaDir(:), etaDif(:), eta(:), shDir(:), shDif(:)
         double precision, allocatable :: ovDir(:), ovG(:,:), beta(:), sb(:), sigMax(:), pops(:), kdiss(:), pump(:)
+        double precision, allocatable :: hDis(:)
         double precision, allocatable :: phi(:), phi1(:), phiB(:), Ncol(:), dN(:), cLev(:), dLev(:), Ns(:), N12(:,:)
         double precision, allocatable :: hist(:,:,:), thin(:,:), gW(:), gLev(:,:), acc(:), wLev(:), segL(:)
         real, allocatable             :: colStar(:,:), popTmp(:,:), popSum(:,:), r1Tmp(:,:), r1Sum(:,:)
@@ -4552,7 +4559,7 @@ module pdr_mod
         nx = grid(1)%nx; ny = grid(1)%ny; nz = grid(1)%nz
         allocate(tBin(h2NT), sb(h2NT), sigMax(h2NX), nH2c(0:nCel), cDir(nbins), cDif(nbins), &
              & etaDir(h2NT), etaDif(h2NT), eta(h2NT), shDir(h2NT), shDif(h2NT), ovDir(h2NT), &
-             & ovG(h2NT,nGrp), beta(h2NT), pops(h2NX), kdiss(h2NX), pump(h2NX), phi(h2NX), &
+             & ovG(h2NT,nGrp), beta(h2NT), pops(h2NX), kdiss(h2NX), pump(h2NX), hDis(h2NX), phi(h2NX), &
              & phi1(h2NX), phiB(h2NX), Ncol(h2NX), dN(h2NX), cLev(h2NX), dLev(h2NX), Ns(h2NX), &
              & N12(h2NX,12), hist(nHb,h2NX,nGrp), thin(h2NX,nGrp), gW(nGrp), gLev(h2NX,nGrp), &
              & bLo(h2NX,nGrp), bHi(h2NX,nGrp), acc(h2NX), wLev(h2NX), &
@@ -4566,12 +4573,13 @@ module pdr_mod
         lgFirstCall = .not.allocated(grid(1)%h2Pop)
         if (lgFirstCall) then
            allocate(grid(1)%h2Pop(0:nCel,h2NX), grid(1)%h2Sol(0:nCel), grid(1)%h2SolChem(0:nCel), &
-                & grid(1)%h2Pump(0:nCel), stat=err)
+                & grid(1)%h2Pump(0:nCel), grid(1)%h2Heat(0:nCel,3), stat=err)
            if (err /= 0) then
               print*, "! h2LevelModel: can'ln allocate the grid arrays"; stop
            end if
+           grid(1)%h2Heat = 0.
         end if
-        if (.not.allocated(grid(1)%h2Diag)) allocate(grid(1)%h2Diag(0:nCel,nR1-3))
+        if (.not.allocated(grid(1)%h2Diag)) allocate(grid(1)%h2Diag(0:nCel,nDg))
         ! the last call's Solomon rates, which the chemistry has used since
         ! (stage B): kept to say how far this call moves them
         allocate(solPrev(0:nCel))
@@ -4711,7 +4719,8 @@ module pdr_mod
            call mpi_allreduce(r1Tmp, r1Sum, (nCel+1)*nR1, mpi_real, mpi_sum, mpi_comm_world, ierr)
            grid(1)%h2Pop = popSum
            grid(1)%h2Sol = r1Sum(:,1); grid(1)%h2Pump = r1Sum(:,2); grid(1)%h2SolChem = r1Sum(:,3)
-           grid(1)%h2Diag = r1Sum(:,4:nR1)
+           grid(1)%h2Diag = r1Sum(:,4:3+nDg)
+           grid(1)%h2Heat = r1Sum(:,4+nDg:nR1)
            i = nSolved; call mpi_allreduce(i, nSolved, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
            i = nNoGrain; call mpi_allreduce(i, nNoGrain, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
            i = nIter; call mpi_allreduce(i, nIter, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
@@ -4783,7 +4792,7 @@ module pdr_mod
         if (taskid == 0) print '(a,f8.1,a)', " ! h2LevelModel: done in ", mpi_wtime() - t0, " s"
 
         deallocate(tBin, sb, sigMax, nH2c, cDir, cDif, etaDir, etaDif, eta, shDir, shDif, ovDir, ovG, &
-             & beta, pops, kdiss, pump, phi, phi1, phiB, Ncol, dN, cLev, dLev, Ns, N12, hist, thin, &
+             & beta, pops, kdiss, pump, hDis, phi, phi1, phiB, Ncol, dN, cLev, dLev, Ns, N12, hist, thin, &
              & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, segC, segL, &
              & workOrd, cI, cJ, cK, tCel, tCelSum)
 
@@ -5117,15 +5126,20 @@ module pdr_mod
              wGra = H2_FORMATION_RATE(T, Td)
              pdrH2xsecSil = xsS; pdrH2xsecGra = xsG
           end if
+          eKs = 0.d0; eGs = 0.d0; eKg = 0.d0; eGg = 0.d0; eKin = 0.d0; eGr = 0.d0
           if (wSil + wGra > 0.d0) then
              phi = 0.d0
              if (wSil > 0.d0) then
-                call h2FormDist(2, phi1); phi = phi + wSil*phi1
+                call h2FormDist(2, phi1, eKs, eGs); phi = phi + wSil*phi1
              end if
              if (wGra > 0.d0) then
-                call h2FormDist(3, phi1); phi = phi + wGra*phi1
+                call h2FormDist(3, phi1, eKg, eGg); phi = phi + wGra*phi1
              end if
              phi = phi/sum(phi)
+             ! where the binding energy of a molecule formed here goes, in
+             ! the same proportion [cm^-1]
+             eKin = (wSil*eKs + wGra*eKg)/(wSil + wGra)
+             eGr  = (wSil*eGs + wGra*eGg)/(wSil + wGra)
           else
              ! no grain formation here: what replaces a destroyed molecule
              ! carries no formation pumping (Boltzmann at Te)
@@ -5162,7 +5176,7 @@ module pdr_mod
              else
                 eta = etaDir*shDir + etaDif*shDif
              end if
-             call h2Solve(T, dens, eta, phi, pops, kdiss, pump, beta=beta)
+             call h2Solve(T, dens, eta, phi, pops, kdiss, pump, beta=beta, heatDis=hDis)
              tm(5) = tm(5) + mpi_wtime() - tq
              foNew = sum(pops, mask=h2Ortho)
              nIter = nIter + 1
@@ -5204,6 +5218,13 @@ module pdr_mod
           r1Tmp(cellP,6) = real(sum(Ncol))
           r1Tmp(cellP,7) = real(dnH2*chord)
           r1Tmp(cellP,8) = real(lwD/max(lwT, 1.d-300))
+          ! H-012: where the binding energy of a molecule formed here goes
+          ! (diagnostics), and the H2 heating from the levels (h2Heat)
+          r1Tmp(cellP,9)  = real(eGr*dble(hPlanck)*dble(c))         ! left on the grain, per H2 formed [erg]
+          r1Tmp(cellP,10) = real(wSil + wGra)                       ! grain formation rate [cm^3 s^-1]
+          r1Tmp(cellP,11) = real(sum(pops*hDis)*eVerg)              ! dissociation, per H2 [erg s^-1]
+          r1Tmp(cellP,12) = real(h2CollHeat(T, dens, pops))         ! collisions within X, per H2 [erg s^-1]
+          r1Tmp(cellP,13) = real(eKin*dble(hPlanck)*dble(c))        ! kinetic, per H2 formed [erg]
           tm(8) = tm(8) + mpi_wtime() - tq
         end subroutine solveCell
 

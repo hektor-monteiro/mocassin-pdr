@@ -64,6 +64,7 @@ module iteration_mod
            real, allocatable :: pdrLnTmp(:,:), pdrLnSum(:,:)          ! D-362
            real, allocatable :: pdrLbTmp(:,:), pdrLbSum(:,:)          ! D-363
            real, allocatable :: pdrIonRateTmp(:,:), pdrIonRateSum(:,:) ! D-118
+           real, allocatable :: pdrHeatH2Tmp(:,:), pdrHeatH2Sum(:,:)   ! H-012
            double precision, allocatable :: pdrAbunTemp(:,:) ! this rank's owned cells
            double precision, allocatable :: pdrAbunSum(:,:)  ! reassembled grid
            ! D-200: iteration-start snapshots for the damping below. Local
@@ -1914,6 +1915,8 @@ module iteration_mod
               allocate(pdrLbSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
               allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
               allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
+              allocate(pdrHeatH2Tmp(0:grid(iG)%nCells, 1:3), stat=err)      ! H-012
+              allocate(pdrHeatH2Sum(0:grid(iG)%nCells, 1:3), stat=err)
               allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
               allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
               allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
@@ -1933,6 +1936,7 @@ module iteration_mod
               pdrLnTmp = 0.; pdrLnSum = 0.                               ! D-362
               pdrLbTmp = 0.; pdrLbSum = 0.                               ! D-363
               pdrIonRateTmp = 0.; pdrIonRateSum = 0.
+              pdrHeatH2Tmp = 0.; pdrHeatH2Sum = 0.                       ! H-012
               pdrHeatPESum = 0.
               pdrCoolTmp   = 0.
               pdrCoolSum   = 0.
@@ -1956,6 +1960,8 @@ module iteration_mod
                                   & grid(iG)%pdrHeat(grid(iG)%active(i,j,k))
                              pdrHeatPETmp(grid(iG)%active(i,j,k)) = &
                                   & grid(iG)%pdrHeatPE(grid(iG)%active(i,j,k))
+                             pdrHeatH2Tmp(grid(iG)%active(i,j,k),:) = &      ! H-012
+                                  & grid(iG)%pdrHeatH2(grid(iG)%active(i,j,k),:)
                              pdrCoolTmp(grid(iG)%active(i,j,k))   = &
                                   & grid(iG)%pdrCool(grid(iG)%active(i,j,k))
                              pdrCoolSlTmp(grid(iG)%active(i,j,k)) = &
@@ -2025,6 +2031,11 @@ module iteration_mod
               call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
               grid(iG)%pdrIonRate(1:grid(iG)%nCells,:) = pdrIonRateSum(1:grid(iG)%nCells,:)
+              ! H-012: 3D-PDR's H2 heating terms, for h2Cells.out (rank 0)
+              size = (grid(iG)%nCells+1)*3
+              call mpi_allreduce(pdrHeatH2Tmp, pdrHeatH2Sum, size, &
+                   & mpi_real, mpi_sum, mpi_comm_world, ierr)
+              grid(iG)%pdrHeatH2(1:grid(iG)%nCells,:) = pdrHeatH2Sum(1:grid(iG)%nCells,:)
               size = (grid(iG)%nCells+1)*max(pdrNlevTot,1)
               call mpi_allreduce(pdrLevTmp, pdrLevSum, size, &
                    & mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
@@ -2067,6 +2078,7 @@ module iteration_mod
               deallocate(pdrLnTmp, pdrLnSum)                             ! D-362
               deallocate(pdrLbTmp, pdrLbSum)                             ! D-363
               deallocate(pdrIonRateTmp, pdrIonRateSum)
+              deallocate(pdrHeatH2Tmp, pdrHeatH2Sum)                     ! H-012
 
               call mpi_allreduce(pdrNstuck, i1PdrStuck, 1, mpi_integer, &
                    & mpi_sum, mpi_comm_world, ierr)

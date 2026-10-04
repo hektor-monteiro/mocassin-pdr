@@ -578,10 +578,18 @@ contains
     ! distribution of their eqs 4-5 about E_vm = X_vib D, the rotational one the
     ! mean of their eqs 6 and 7 about E_rot (eq. 3), and no molecules in a v
     ! whose E_rot is not positive (J. Takahashi, quoted there).
+    !
+    ! H-012, optional: where the binding energy D goes, per molecule formed
+    ! [cm^-1]. eGrain is their energy left on the grain, E_dust(v) (their
+    ! eq. 1-2 as Cloudy evaluates it), averaged over phi; eKin the kinetic
+    ! energy the molecule leaves with, by energy conservation:
+    ! D - E_dust(v) - E(v,J) averaged over phi. The internal energy E(v,J)
+    ! is the populations' own business (formation pumping).
     !---------------------------------------------------------------------------
-    subroutine h2FormDist(surf, phi)
+    subroutine h2FormDist(surf, phi, eKin, eGrain)
       integer, intent(in) :: surf
       real(dp), intent(out) :: phi(:)
+      real(dp), intent(out), optional :: eKin, eGrain
       real(dp) :: Evm, Ev, Edust, EH2, Erot, dE, sumvib, x
       real(dp), allocatable :: Fv(:), EH2v(:)
       integer :: v, vmax, i, i0
@@ -616,6 +624,17 @@ contains
               & 0.5_dp*(exp(-x*x) + exp(-dE/Erot))
       end do
       phi = phi/sum(phi)
+      ! E_dust(v) = D + E_off - EH2v(v)
+      if (present(eGrain) .or. present(eKin)) then
+         x = 0._dp; dE = 0._dp
+         do i = 1, h2NX
+            if (phi(i) <= 0._dp) cycle
+            x  = x  + phi(i)*(h2DissX + tuEoff - EH2v(h2V(i)))
+            dE = dE + phi(i)*h2E(i)
+         end do
+         if (present(eGrain)) eGrain = x
+         if (present(eKin)) eKin = h2DissX - x - dE
+      end if
       deallocate(Fv, EH2v)
     end subroutine h2FormDist
 
@@ -1491,21 +1510,20 @@ contains
     !   pump(i)   absorption rate out of level i [s^-1]
     !   src(i)    further formation into level i, per H2 [s^-1]
     !   beta(t)   escape probability of each line (see h2PumpRates)
+    !   heatDis(i) kinetic energy the dissociations out of level i leave in
+    !             the gas, per molecule in i [eV s^-1] (see h2PumpRates)
     !---------------------------------------------------------------------------
-    subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src, beta)
+    subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src, beta, heatDis)
       real(dp), intent(in) :: T, dens(h2NColl), eta(:), phi(:)
       real(dp), intent(out) :: pops(:)
-      real(dp), intent(out), optional :: kdiss(:), pump(:)
+      real(dp), intent(out), optional :: kdiss(:), pump(:), heatDis(:)
       real(dp), intent(in), optional :: sink(:), src(:), beta(:)
       real(dp), allocatable :: R(:,:), W(:,:), k(:), pm(:)
 
       allocate(R(h2NX, h2NX), W(h2NX, h2NX), k(h2NX), pm(h2NX))
       call h2CollRad(T, dens, R)
-      if (present(beta)) then
-         call h2PumpRates(eta, W, k, pm, beta)
-      else
-         call h2PumpRates(eta, W, k, pm)
-      end if
+      ! an absent optional passes on as absent
+      call h2PumpRates(eta, W, k, pm, beta, heatDis)
       R = R + W
       if (present(kdiss)) kdiss(1:h2NX) = k
       if (present(pump)) pump(1:h2NX) = pm
