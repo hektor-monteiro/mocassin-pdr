@@ -390,6 +390,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-388 | **Branch strategy for the H2 model: agreed with the user's plan (H2 work on a new branch, production stays on pdr-photoionization), with refinements proposed:** tag production first; h2-model in its own worktree so production builds and runs are undisturbed; H2 code in new files with thin hooks, stage A (post-processing) mergeable early and stage B kept on the branch until re-validated; merge production into the branch regularly; the branch logs in DEVLOG-H2.md (H-numbers) to avoid DEVLOG conflicts and number collisions; D-387's TZ H2 excess diagnosed on production; pushing (145 commits local only) is the user's call. **Done at the user's go-ahead:** tag `pdr-coupling-v1.1` at c27e658; branch `h2-model` in worktree ~/software/mocassin_h2 (H-001, e94a1bd), with DEVLOG-H2.md and a CLAUDE.md note, including the hazard found while setting up: both checkouts read the data installed under PREFIX=~/.local, so the branch installs to its own prefix | Done | 2026-09-28 |
 | D-389 | **D-387 diagnosed: our transition-zone H2 is 100-1000x Cloudy's because REDUCED makes ground-state H2 from H + H2+ directly, while Cloudy makes H2* (by H + H- 90%, H + H2+ 5-7%) and destroys it with electrons (e- + H2* -> H + H- 100%) before it relaxes; its ground H2 there is grain-made (98%). Destruction per molecule is similar in both codes (~2-4e-8 s^-1), so the gap is formation.** Also absent from REDUCED: H-, H2*, electron-impact dissociation of H2+ (46-54% of Cloudy's H2+ destruction). A Cloudy rerun with extra saves (runs/d389-cloudy-h2s, 238 s) shows every H2 line of Cloudy's pn150k comes from the PDR (2.121 um at emission-weighted 118 K, pumped; 28/17/12 um at 59-61 K). D-387's withdrawal of D-384 corrected: the TZ contributes only if its H2 nears A&G's ~1e-5. Not tuned; no production output depends on it now (L-43); the cure, level-resolved formation and electron destruction, belongs to the H2 model | Open | 2026-09-28 |
 | D-390 | **Correction to D-384 (and D-389, which quoted it): Cloudy's pn150k 1-0 S(1) 2.121 um is 9.4e-4 Hbeta, not 8.0e-5.** D-384 took the line list's `H2 2.12101m` (log F -13.732) for 1-0 S(1); 1-0 S(1) is `H2 2.12125m`, log F -12.659 against Hbeta -9.634 (runs/d389-cloudy-h2s/150k.out; the same entry is in d356-cloudy-pn). Integrating Cloudy's saved emissivity over its sphere gives the same, 9.45e-4. The 0-0 S(0) and S(1) values were right (1.7e-4, 5.5e-4). D-384's conclusion stands: the four H2 lines sum to ~2.1e-3 Hbeta, ~4e-3 of the [O I] 63 + [C II] 158 lines. Found on h2-model (DEVLOG-H2 H-007) | Done | 2026-10-02 |
+| D-391 | **The convergence test: its x(H2) half has passed every cell since D-216 (updateCell runs before the chemistry, so it compared H2den with the copy taken from it), it counts cells (pn150k's ionized gas is 1.3% of them, the He2+ zone ~90 cells) and it lets a 3%-per-iteration drift pass at the fixtures' 10%. Fixed: the x(H2) test after the chemistry; a model-integrated test - emission measure of every ion stage with >= 1% of its element's, H0/H2/CO contents, T weighted by n_e n(H+), n(H0), n(H2) - must change by <= convTotals (default 2%) over 3 iterations before the run may stop, and every run says whether it converged.** Measured over 20 snapshotted iterations: hiipdr at 11 has lines 8% ([O II] 7320) and Hbeta 2.1% from iteration 20 (printed 76% throughout); pn150k at 9 has He II 4686 15% low and its He2+ front moving (printed 92% throughout); the rule passes 2% at 15 (hiipdr) and 17 (pn150k). Physics byte-identical; the code reproduces the replay to every digit; four flavours rc 0. Also: the installed dustData had lost grph-avg.cat (a 2026-09-30 install from another tree); restored | Done | 2026-10-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33589,6 +33590,166 @@ negligible in pn150k - stands: 1-0 S(1) and 0-0 S(0), S(1), S(2) sum to
 where Cloudy's H2 lines arise is in fractions and is unaffected; its text
 repeated D-384's 8.0e-5. DEVLOG-H2 (H-002, H-005) quoted it too; H-007
 there carries the correction.
+
+### Status
+
+Done.
+
+## D-391 - The convergence test: what it could see, a half that passed for free, and a model-integrated test (2026-10-04)
+
+The user: "proceed as suggested" (DEVLOG-H2 H-017 on h2-model: fix the
+convergence test first, since every comparison depends on runs being
+converged). Production code, so fixed here and merged into the branch (D-388).
+
+### The test as it was
+
+Per cell, against the start of the MC iteration (D-155): x(H0), x(H2) where
+either end is above cvH2floor = 1e-5 (D-179), and T_e (D-229), each
+|change|/old <= XHILimit, which the fixtures set with `convLimit 0.10`: 10%
+per iteration. The run stops when minConvergence of the cells pass (90 in the
+fixtures) or at maxIterateMC. D-178's model totals were printed behind
+`teProbe` and decided nothing.
+
+### Measured: both fixtures for 20 iterations, the grid snapshotted after each
+
+`runs/d391-cv-hii31` and `runs/d391-cv-pn41b`: production code (3e96a5c), the
+published runs' inputs (d377-hii, d377-pn: seed 1001, pn150k's 11-element
+trim) with `maxIterateMC 20 100.` and `teProbe 1`, 14 ranks; grid0-3, pdrGrid,
+pdrLineEm, dustGrid and photoSource copied after every iteration (the D-365
+method, `snap.sh`); the line spectrum of every snapshot by `mocassinOutput`
+(`runs/d391-snaplines.sh`), which reproduces each run's own lineFlux.out except
+the resonance lines' escaping fractions (resLineEsc.out is not in a snapshot).
+`tools/d391_convtrail.py` reads them. (The first pn150k attempt, d391-cv-pn41,
+stopped at once: see "Also found".)
+
+**hiipdr.** The printed percentage is 76.1% at iteration 9 and 75.2-77.2%
+through 20: it never reaches 90, so these runs always end at maxIterateMC. The
+ionized cells (147, 1% of the grid) pass the code's own test at 76% (9), 85%
+(11), 95% (14), 99-100% (15+). Against iteration 20 the spectrum is still
+moving at iteration 11: Hbeta 2.1%, the worst line above 1% of Hbeta 8.0%
+([O II] 7320/7330, temperature-sensitive, from the front), 4.8% at 13, 2.8% at
+15, 1.9% at 17, 1.1% at 18. The H+ content falls every iteration, -0.9% at 11
+to -0.1% at 20; the H+ front 3.857 pc (11) -> 3.840 (15+).
+
+**pn150k.** The printed percentage is 92.1% at 9 and 91.3-92.5% through 20:
+it stopped version 15 of the page at 9. The ionized cells pass the code's own
+test at 100% from 9, but add helium to it and they pass at 22% (9), 44% (11),
+80% (13), 90% (14), 93-99% (15+). The He2+ content grows 7.0% at 9, then 3.7,
+2.6, 1.9, 1.3, 0.9, 0.7% per iteration (x~0.72 each); its front 0.0832 pc
+(9) -> 0.0858 (11) -> 0.0877 (14) -> 0.0884 (20), Cloudy 0.0880. Against
+iteration 20: He II 4686 -14.9% at 9, -7.6% at 11, -2.5% at 14, -0.7% at 17;
+the worst line (C III, then O III's UV lines) 23.5% at 9, 13.4% at 11, 5.0% at
+14, 1.6% at 17, 0.9% at 18; Hbeta 1.9% at 9, 0.4% at 14.
+
+### Three things wrong with the test
+
+  1. **Its x(H2) half has passed every cell since D-216.** iterateMC copies
+     H2den into xH2iterStart at the start of the iteration (line ~1157), then
+     runs updateCell, whose iterateT tests H2den against that copy - and only
+     afterwards runs pdrStep and the hand-back that change H2den. D-179 wrote
+     the test when updateCell still ran inside the coupling loop; D-216 moved
+     it ahead of the chemistry and the test became a comparison of each cell
+     with itself (CLAUDE.md, D-176..D-181, D-191: a tested quantity that
+     cannot move passes for free). Nothing else reads lgConverged: it feeds
+     the percentage, writeGrid, the D-151 probe and autoPackets.
+  2. **It counts cells.** pn150k's ionized gas is 449 of 35,384 cells and its
+     He2+ zone ~90; were every one of them failing, the percentage would still
+     read over 98%. And helium is not tested at all (L-40).
+  3. **It compares one iteration with the next at 10%.** A drift of ~3% per
+     iteration (He II above) passes for ever. At the same time the
+     percentage's plateau is noise: in hiipdr's last iterations ~3,700 cells
+     (24%) fail on T_e and ~600 on x(H2) alone (CVPROBE, new code), so
+     minConvergence 90 is unreachable there and measures nothing in pn150k.
+
+### The fix
+
+  - **The x(H2) test runs after the chemistry** (iteration_mod, after the
+    damping and rescaleIonToAvail, D-391 block): the same test as D-179 on
+    pdrAbun, the chemistry's reduced and damped answer, against a start value
+    now also taken from pdrAbun, on the reduced lgConverged that every rank
+    holds. iterateT no longer tests x(H2) and says why.
+  - **A model-integrated test** (`cvTotalsUpdate`, called by every rank after
+    the reductions, so all reach the same verdict without communicating):
+    the emission measure n_e n_i dV of every ion stage holding at least 1%
+    (cvTotSig) of its element's; the H0, H2 and CO contents holding at least
+    1% of the hydrogen or carbon; the gas temperature weighted by
+    n_e n(H+), n(H0) and n(H2). The largest |q_n/q_(n-3) - 1| over a window of
+    three iterations (cvTotK) must be at most `convTotals` (new keyword,
+    default 0.02). The run stops on that AND minConvergence; at maxIterateMC
+    it says whether it converged and on what ("NOT CONVERGED after 11
+    iterations: O+ changed 5.9% over the last window"). Every iteration prints
+    the worst quantity and a census of converged cells, ionized and neutral by
+    MOCASSIN's own x(H+) (report only), and `output/convergence.out` holds
+    every quantity per iteration.
+  - Why these quantities (measured, not argued; `d391_convtrail.py`
+    candidates): the content of every stage is useless - the deep PDR's trace
+    ions (Mg0, S0, C0/C+) swing 2-6% between iterations with the deep carbon
+    state (O-01) - while n_e moves the weight to where the lines are made;
+    neutral stages are left to n(H0), n(H2) and their temperatures for the
+    same reason (Ne0 and C0 weighted by n_e still carried the deep PDR); a
+    1e-3 significance cut admitted noise-dominated trace ions (S4+, N3+) at
+    2-5%, 1e-2 leaves only real drifts. Aitken's estimate of the change still
+    to come was tried and is useless here: the series are rarely monotonic.
+  - Not changed: XHILimit, the meaning of minConvergence, any fixture.
+
+### What it says about the two fixtures (the rule replayed on the snapshots)
+
+| | hiipdr 31^3 | pn150k 41^3 |
+|---|---|---|
+| largest change over 3 iterations, at the published count | 5.9% (O+) at 11 | 31.7% (He2+) at 9; 5.8% at 14 |
+| first within 2% (the default) | iteration 15 | 17 |
+| first within 1% | 18 | 19 |
+| spectrum at that 2% stop, worst line against iteration 20 | 2.8% | 1.6% |
+
+The rule's window change and the spectrum's distance from iteration 20 agree
+within a factor 1.5 either way (hiipdr at 15: 1.95% against 2.8% in the lines;
+pn150k at 17: 1.99% against 1.6%). The published pages ran hiipdr at 11 and pn150k at
+9 (production) and 14 (h2-model, DEVLOG-H2 H-015).
+
+### Validation
+
+  - **The physics is unchanged.** `runs/d391-new-hii31`, the new binary on
+    d391-cv-hii31's input: grid1, grid2, grid3, pdrGrid, pdrLineEm, dustGrid,
+    lineFlux, SED and photoSource byte-identical; grid0.out differs only in
+    the lgConverged column (613 cells; 75.61% -> 71.57% converged).
+  - **The code computes what the replay does.** Its printed worst change
+    equals `d391_convtrail.py --code-rule` on d391-cv-hii31's snapshots at
+    every iteration 4-20, quantity and value (5.935% O+ at 11, 1.954% Ne+ at
+    15, ...); its verdict at 20: converged, 1.384% (O+).
+  - A 2-rank hiipdr 21^3 test (`runs/d391-test-hii21`, 8 iterations): the
+    report lines, the H2 failures counted (163 x(H2)-only at iteration 8,
+    where the old test always gave 0), and "NOT CONVERGED after 8 iterations:
+    T(H2) changed 62.5%".
+  - All four flavours: rc 0, no errors (`make PDR=1 mocassinWarm`, `make
+    mocassin`, `make PDR=1 mocassin`, `make PDR=1 PDRGEOM=3D mocassin
+    mocassinWarm mocassinOutput mocassinPlot`).
+
+### Also found
+
+  - **The installed dust data had lost `grph-avg.cat`.** ~/.local/share/mocassin
+    was replaced on 2026-09-30 13:57 by an install from another tree - a
+    non-PDR build (715 kB binaries in ~/.local/bin, no dataPDR) - whose
+    dustData lacked D-313's pre-averaged graphite. pn150k could not start
+    (`makeDustXsec: can't open file .../grph-avg.cat`). data/ and the rest of
+    dustData are identical to this tree's, and the PDR runs read dataPDR from
+    the repository by absolute path, so hiipdr and every other run were
+    unaffected. Restored by copying the tracked file (md5 ab654ec9...); the
+    install's dustData now equals the repository's. What made that install is
+    not known. D-388's warning stands: any `make install` with the default
+    PREFIX changes what production runs read.
+
+### Not known
+
+  - Whether 20 iterations are converged: pn150k's He2+ front still moves
+    ~0.0001 pc per iteration at 20, and hiipdr's T(H0) sits at ~1.3-1.5% over
+    the window from its own noise.
+  - Whether 2% or 1% is the right default; 2% stops the two fixtures where
+    their spectra are within 3% of iteration 20.
+  - What iteration counts the fixtures and pages should use (hiipdr runs 11
+    by the user's direction): the user's decision.
+  - Per-cell helium in the cell test: not added. The integrated test sees
+    helium through the He+ and He2+ emission measures, and a per-cell test
+    could not hold a run open anyway (point 2).
 
 ### Status
 

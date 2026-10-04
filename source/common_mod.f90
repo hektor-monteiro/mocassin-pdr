@@ -762,6 +762,34 @@ module common_mod
     real, allocatable      :: tStep(:)         ! time step for sb99 inputs [yrs]
     real               :: XHILimit         ! convergence limit on X(HI)
 
+    ! ---------------------------------------------------------------- D-391
+    ! Iteration-level convergence on quantities integrated over the model.
+    ! The per-cell test (XHILimit, iterateT) counts CELLS, so a zone that is
+    ! 1% of the grid cannot hold a run open - pn150k's ionized gas is 449 of
+    ! 35,384 cells, its He2+ zone ~90 - and it compares each iteration with
+    ! the one before, so a drift under XHILimit per iteration passes for ever:
+    ! He II 4686 rose 16% over pn150k's iterations 9-14 at ~3% each, with 92%
+    ! of the cells passing throughout (DEVLOG-H2 H-015). These quantities sum
+    ! over the whole model and are tested over cvTotK iterations:
+    !   - the emission measure, n_e n_i dV, of every ION stage carrying at
+    !     least cvTotSig of its element's. n_e puts the weight where the lines
+    !     are made; it leaves out the deep PDR's trace ions, whose totals swing
+    !     2-6% with the deep carbon state (measured, runs/d391-cv-hii31);
+    !   - the H0 content, and in PDR flavours the H2 and CO contents, n dV;
+    !   - the gas temperature weighted by n_e n(H+), by n(H0) and by n(H2).
+    ! Converged when the largest |q_n / q_(n-cvTotK) - 1| is at most
+    ! convTotals. The run stops on that AND on minConvergence of the cells.
+    real               :: convTotals = 0.02
+    real, parameter    :: cvTotSig   = 0.01
+    integer, parameter :: cvTotK     = 3
+    integer            :: cvTotNq    = 0          ! quantities defined
+    integer            :: cvTotNit   = 0          ! iterations stored, up to cvTotK+1
+    real(kind=8), allocatable :: cvTotHist(:,:)   ! (quantity, 0:cvTotK), 0 = this iteration
+    character(len=8), allocatable :: cvTotName(:)
+    logical            :: lgCvTotals = .false.
+    real               :: cvTotWorst = -1.        ! largest change over the window
+    character(len=8)   :: cvTotWorstName = ''
+
     integer             :: lymanP                  ! frequency pointer to Lyman limit
 #ifdef PDR
     integer             :: FUVlowP                 ! first nuArray bin inside the FUV band

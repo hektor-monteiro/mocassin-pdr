@@ -154,6 +154,7 @@ module iteration_mod
            integer(kind=8)        :: cvS2(4)                             ! D-172
            integer(kind=8)        :: cvS3(4)                             ! D-173
            real(kind=8)           :: wDum                                ! D-178
+           logical                :: lgH2fail                            ! D-391
            integer(kind=8)        :: cvS5(4)                             ! D-179, (4) D-229
            integer(kind=8)        :: cvTS(12), cvTAS(7), cvS6(3)         ! D-248
            character(len=80)      :: chNotConv                           ! D-172
@@ -1150,14 +1151,18 @@ module iteration_mod
 #endif
 #ifdef PDR
               ! D-179: and x(H2), the quantity that is actually moving when the
-              ! PDR first engages.
+              ! PDR first engages. D-391: from pdrAbun, the chemistry's own
+              ! reduced and damped answer, which every rank holds for every
+              ! cell - the end of the iteration is tested against the same array.
               if (allocated(grid(iG)%xH2iterStart) .and. allocated(grid(iG)%H2den)) then
                  do iDum = 0, grid(iG)%nCells
-                    if (grid(iG)%Hden(iDum) > 0.) then
+                    if (grid(iG)%Hden(iDum) <= 0.) then
+                       grid(iG)%xH2iterStart(iDum) = 0.
+                    else if (allocated(grid(iG)%pdrAbun) .and. pdrIdxH2 > 0) then
+                       grid(iG)%xH2iterStart(iDum) = real(grid(iG)%pdrAbun(iDum,pdrIdxH2))
+                    else
                        grid(iG)%xH2iterStart(iDum) = &
                             & grid(iG)%H2den(iDum)/grid(iG)%Hden(iDum)
-                    else
-                       grid(iG)%xH2iterStart(iDum) = 0.
                     end if
                  end do
               end if
@@ -2403,6 +2408,47 @@ module iteration_mod
                 & call rescaleIonToAvail(grid(1:nGrids))
            if (allocated(pdrAbunIter)) deallocate(pdrAbunIter)
            if (allocated(ionDenIter))  deallocate(ionDenIter)
+
+           ! ------------------------------------------------------- D-391
+           ! The x(H2) half of the per-cell convergence test, moved here from
+           ! iterateT. There it ran before pdrStep (D-216) and compared each
+           ! cell's x(H2) with the copy xH2iterStart had just taken of it, so it
+           ! passed every cell. Here the chemistry, its hand-back and the damping
+           ! have all run, and pdrAbun is this iteration's answer. Same test as
+           ! D-179: XHILimit on the relative change, applied where either end is
+           ! above cvH2floor, failed outright where H2 appeared from nothing.
+           ! lgConverged is already the reduced global array and every rank
+           ! holds pdrAbun for every cell, so every rank does the same thing and
+           ! nothing needs communicating; rank 0 alone counts for the probe.
+           if (lgPDR .and. cvUseH2 /= 0 .and. nIterateMC >= pdrStartIter .and. &
+                & pdrIdxH2 > 0) then
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%pdrAbun) .or. &
+                      & .not.allocated(grid(iG)%xH2iterStart)) cycle
+                 do iDum = 1, grid(iG)%nCells
+                    if (grid(iG)%Hden(iDum) <= 0.) cycle
+                    wDum = grid(iG)%pdrAbun(iDum,pdrIdxH2)
+                    if (max(wDum, dble(grid(iG)%xH2iterStart(iDum))) <= dble(cvH2floor)) cycle
+                    lgH2fail = .false.
+                    if (grid(iG)%xH2iterStart(iDum) <= 0.) then
+                       lgH2fail = .true.
+                    else if (abs(wDum - dble(grid(iG)%xH2iterStart(iDum))) &
+                         & / dble(grid(iG)%xH2iterStart(iDum)) > dble(XHILimit)) then
+                       lgH2fail = .true.
+                    end if
+                    if (lgH2fail) then
+                       if (teProbe /= 0 .and. taskid == 0) then
+                          if (grid(iG)%lgConverged(iDum) == 1) then
+                             cvFailH2 = cvFailH2 + 1
+                          else
+                             cvFailBoth = cvFailBoth + 1
+                          end if
+                       end if
+                       grid(iG)%lgConverged(iDum) = 0
+                    end if
+                 end do
+              end do
+           end if
 #endif
 
 !******************************************************************************
@@ -2863,6 +2909,10 @@ module iteration_mod
 
            totPercent      = 100.*totPercent / totCells
 
+           ! D-391: the model-integrated test, on every rank (same grid, same
+           ! verdict). It reports every iteration and gates the stop below.
+           call cvTotalsUpdate()
+
            ! -------------------------------------------------------- D-165
            ! Report what the temperature solver did this iteration, summed over
            ! ranks. The bracket-width histogram is the point: Cloudy declares Te
@@ -3111,16 +3161,22 @@ module iteration_mod
            ! before the chemistry has run once - measured: 100% converged at
            ! iteration 3, zero pdrStep calls, every cell still zone 0. Hold the
            ! run open until the PDR has been enabled and has had one pass.
+           ! D-391: and until the model-integrated quantities have settled
+           ! (lgCvTotals, cvTotalsUpdate): the cell percentage alone stopped
+           ! pn150k at 91.2% with its He2+ zone still moving.
 #ifdef PDR
-           if ( totPercent >= minConvergence .and. &
+           if ( totPercent >= minConvergence .and. lgCvTotals .and. &
               & (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
 #else
-           if ( totPercent >= minConvergence ) then
+           if ( totPercent >= minConvergence .and. lgCvTotals ) then
 #endif
 
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
                       &                           nIterateMC, " iterations. & Finishing up ... "
+                 print '(a,f8.3,a,a,a,f6.2,a)', " ! iterateMC: [talk] integrated quantities"// &
+                      & " converged: largest change over the last window", 100.*cvTotWorst, &
+                      & "% (", trim(cvTotWorstName), "), limit", 100.*convTotals, "%"
 
                  ! output results at this itearation stage (every 3 iterations)
 
@@ -3144,6 +3200,23 @@ module iteration_mod
 
                  print*, " ! iterateMC: maximum number of iterations reached. Finishing up ... ",&
                       & maxIterateMC
+                 ! D-391: say plainly whether the run converged, and on what.
+                 if (lgGas) then
+                    if (lgCvTotals) then
+                       print '(a,f8.3,a,a,a,f6.2,a)', " ! iterateMC: [talk] integrated quantities"// &
+                            & " converged: largest change over the last window", 100.*cvTotWorst, &
+                            & "% (", trim(cvTotWorstName), "), limit", 100.*convTotals, "%"
+                    else if (cvTotWorst >= 0.) then
+                       print '(a,i4,a,a,a,f8.3,a,f6.2,a)', " ! iterateMC: [talk] NOT CONVERGED after", &
+                            & nIterateMC, " iterations: ", trim(cvTotWorstName), " changed", &
+                            & 100.*cvTotWorst, "% over the last window (limit", 100.*convTotals, "%)"
+                    else
+                       print '(a,i4,a)', " ! iterateMC: [talk] NOT CONVERGED after", nIterateMC, &
+                            & " iterations: too few for the integrated test"
+                    end if
+                    print '(a,f7.2,a,f7.2,a)', " ! iterateMC: [talk] converged cells", totPercent, &
+                         & "% (minConvergence", minConvergence, "%)"
+                 end if
 
 #ifdef PDR
                  ! NOT re-running mocassinToPDR here. It already ran this
@@ -3228,6 +3301,220 @@ module iteration_mod
               a(i) = v
            end do
          end subroutine cvSortD
+
+         ! ---------------------------------------------------------- D-391
+         ! The iteration-level convergence test on model-integrated
+         ! quantities (common_mod: convTotals, cvTotK, cvTotSig). Called once
+         ! per MC iteration by EVERY rank, after the reductions, so all ranks
+         ! hold the same grid and reach the same verdict without communicating.
+         ! Fixed slots, so the history lines up across iterations whatever is
+         ! significant: one per (element, ion stage), then n(H0), n(H2), n(CO),
+         ! T(em), T(H0), T(H2). A slot holds -1 where the quantity is not
+         ! significant this iteration, and a window is tested only where both
+         ! ends are positive. Volumes are getVolume's, in every geometry; only
+         ! ratios between iterations are used, so they cancel.
+         subroutine cvTotalsUpdate()
+           implicit none
+           integer      :: iG, i, j, k, cP, el, st, iq, nq, yT, ios
+           integer      :: nIonC, nNeuC, nIonCv, nNeuCv
+           real(kind=8) :: dV, nH, ne, te, xs, ab, ch
+           real(kind=8) :: emSt(nElements, nstages), emEl(nElements), abEl(nElements)
+           real(kind=8) :: tSum(3), wSum(3), cH0, cH2, cCO, cHtot, cCtot
+           real(kind=8), allocatable :: q(:)
+           character(len=4) :: chg
+
+           nq = nElements*nstages + 6
+           if (cvTotNq /= nq) then
+              if (allocated(cvTotHist)) deallocate(cvTotHist)
+              if (allocated(cvTotName)) deallocate(cvTotName)
+              allocate(cvTotHist(nq, 0:cvTotK), cvTotName(nq))
+              cvTotHist = -1.d0
+              cvTotNq   = nq
+              cvTotNit  = 0
+              cvTotName = ''
+              do el = 1, nElements
+                 do st = 2, nstages
+                    chg = ''
+                    if (st > 2) write(chg, '(i0)') st-1
+                    cvTotName((el-1)*nstages+st) = &
+                         & trim(adjustl(elemLabel(el)(merge(2,1,elemLabel(el)(1:1)=='*'):)))// &
+                         & trim(chg)//'+'
+                 end do
+              end do
+              cvTotName(nq-5) = 'n(H0)'
+              cvTotName(nq-4) = 'n(H2)'
+              cvTotName(nq-3) = 'n(CO)'
+              cvTotName(nq-2) = 'T(em)'
+              cvTotName(nq-1) = 'T(H0)'
+              cvTotName(nq)   = 'T(H2)'
+           end if
+           allocate(q(nq))
+           q = -1.d0
+           emSt = 0.d0; emEl = 0.d0; abEl = 0.d0
+           tSum = 0.d0; wSum = 0.d0
+           cH0 = 0.d0; cH2 = 0.d0; cCO = 0.d0; cHtot = 0.d0; cCtot = 0.d0
+           nIonC = 0; nNeuC = 0; nIonCv = 0; nNeuCv = 0
+
+           if (lgGas) then
+              do iG = 1, nGrids
+                 yT = grid(iG)%ny
+                 if (iG == 1 .and. lg2D) yT = 1
+                 do i = 1, grid(iG)%nx
+                    do j = 1, yT
+                       do k = 1, grid(iG)%nz
+                          cP = grid(iG)%active(i,j,k)
+                          if (cP <= 0) cycle
+                          nH = dble(grid(iG)%Hden(cP))
+                          if (nH <= 0.d0) cycle
+                          dV = dble(getVolume(grid(iG), i, j, k))
+                          ne = dble(grid(iG)%Ne(cP))
+                          te = dble(grid(iG)%Te(cP))
+                          do el = 1, nElements
+                             if (.not.lgElementOn(el)) cycle
+                             ab = dble(grid(iG)%elemAbun(grid(iG)%abFileIndex(i,j,k), el))
+                             abEl(el) = abEl(el) + ab*nH*dV
+                             ! ion stages only: neutrals are carried by n(H0),
+                             ! n(H2) and their temperatures
+                             do st = 2, min(nstages, el+1)
+                                xs = dble(grid(iG)%ionDen(cP, elementXref(el), st))
+                                emSt(el,st) = emSt(el,st) + ne*xs*ab*nH*dV
+                                emEl(el)    = emEl(el)    + ne*xs*ab*nH*dV
+                             end do
+                          end do
+                          xs = dble(grid(iG)%ionDen(cP, elementXref(1), 1))
+                          cH0   = cH0 + xs*nH*dV
+                          cHtot = cHtot + nH*dV
+                          ch = ne*dble(grid(iG)%ionDen(cP, elementXref(1), 2))*nH*dV
+                          tSum(1) = tSum(1) + ch*te;    wSum(1) = wSum(1) + ch
+                          tSum(2) = tSum(2) + xs*nH*dV*te; wSum(2) = wSum(2) + xs*nH*dV
+#ifdef PDR
+                          if (lgPDR .and. allocated(grid(iG)%pdrAbun)) then
+                             if (pdrIdxH2 > 0) then
+                                xs = grid(iG)%pdrAbun(cP, pdrIdxH2)
+                                cH2   = cH2 + xs*nH*dV
+                                tSum(3) = tSum(3) + xs*nH*dV*te; wSum(3) = wSum(3) + xs*nH*dV
+                             end if
+                             if (pdrIdxCO > 0) &
+                                  & cCO = cCO + grid(iG)%pdrAbun(cP, pdrIdxCO)*nH*dV
+                          end if
+#endif
+                          ! the cell census by MOCASSIN's own x(H+), for the
+                          ! report only - it decides nothing
+                          if (grid(iG)%ionDen(cP, elementXref(1), 2) >= 0.5) then
+                             nIonC = nIonC + 1
+                             nIonCv = nIonCv + grid(iG)%lgConverged(cP)
+                          else
+                             nNeuC = nNeuC + 1
+                             nNeuCv = nNeuCv + grid(iG)%lgConverged(cP)
+                          end if
+                       end do
+                    end do
+                 end do
+              end do
+              if (lgElementOn(6)) cCtot = abEl(6)
+
+              do el = 1, nElements
+                 if (emEl(el) <= 0.d0) cycle
+                 do st = 2, min(nstages, el+1)
+                    if (emSt(el,st) >= dble(cvTotSig)*emEl(el)) &
+                         & q((el-1)*nstages+st) = emSt(el,st)
+                 end do
+              end do
+              if (cH0 >= dble(cvTotSig)*cHtot) q(nq-5) = cH0
+              if (cH2 >= dble(cvTotSig)*cHtot) q(nq-4) = cH2
+              if (cCtot > 0.d0 .and. cCO >= dble(cvTotSig)*cCtot) q(nq-3) = cCO
+              if (wSum(1) > 0.d0) q(nq-2) = tSum(1)/wSum(1)
+              if (q(nq-5) > 0.d0 .and. wSum(2) > 0.d0) q(nq-1) = tSum(2)/wSum(2)
+              if (q(nq-4) > 0.d0 .and. wSum(3) > 0.d0) q(nq)   = tSum(3)/wSum(3)
+           end if
+
+           ! shift the history, newest in slot 0
+           do iq = cvTotK, 1, -1
+              cvTotHist(:, iq) = cvTotHist(:, iq-1)
+           end do
+           cvTotHist(:, 0) = q
+           cvTotNit = min(cvTotNit + 1, cvTotK + 1)
+
+           cvTotWorst = -1.
+           cvTotWorstName = ''
+           if (.not.lgGas) then
+              lgCvTotals = .true.      ! nothing integrated to test (dust only)
+           else if (cvTotNit <= cvTotK) then
+              lgCvTotals = .false.     ! not testable yet
+           else
+              do iq = 1, nq
+                 if (cvTotHist(iq,0) <= 0.d0 .or. cvTotHist(iq,cvTotK) <= 0.d0) cycle
+                 xs = abs(cvTotHist(iq,0)/cvTotHist(iq,cvTotK) - 1.d0)
+                 if (real(xs) > cvTotWorst) then
+                    cvTotWorst = real(xs)
+                    cvTotWorstName = cvTotName(iq)
+                 end if
+              end do
+              lgCvTotals = cvTotWorst >= 0. .and. cvTotWorst <= convTotals
+           end if
+
+           if (taskid == 0) then
+              if (cvTotNit <= cvTotK .and. lgGas) then
+                 print '(a,i4,a,i2,a)', " ! iterateMC: [Summary] Iteration", nIterateMC, &
+                      & " ; integrated quantities: not yet testable (needs", cvTotK+1, " iterations)"
+              else if (lgGas) then
+                 print '(a,i4,a,i2,a,f8.3,a,a,a,f6.2,a,a)', " ! iterateMC: [Summary] Iteration", &
+                      & nIterateMC, " ; integrated quantities: largest change over the last", &
+                      & cvTotK, " iterations", 100.*cvTotWorst, "% (", trim(cvTotWorstName), &
+                      & "), limit", 100.*convTotals, "%: ", &
+                      & trim(merge('converged    ', 'NOT converged', lgCvTotals))
+              end if
+              if (nIonC + nNeuC > 0) &
+                   & print '(a,i4,a,f7.2,a,i7,a,f7.2,a,i7,a)', " ! iterateMC: [Summary] Iteration", &
+                   & nIterateMC, " ; converged cells, ionized (x(H+) >= 0.5):", &
+                   & 100.*real(nIonCv)/real(max(nIonC,1)), "% of", nIonC, &
+                   & "; neutral:", 100.*real(nNeuCv)/real(max(nNeuC,1)), "% of", nNeuC, " (report only)"
+              ! the trail, one row per iteration: every slot, -1 = not significant
+              if (lgGas) then
+                 if (nIterateMC == 1 .or. cvTotNit == 1) then
+                    open(unit=75, file='output/convergence.out', status='replace', &
+                         & action='write', iostat=ios)
+                    if (ios == 0) then
+                       write(75, '(a)') '# D-391: model-integrated quantities per MC iteration'// &
+                            & ' (EM = n_e n_i dV [cm^-6 e45 cm^3], contents n dV, T in K; -1 = not significant)'
+                       write(75, '(a)', advance='no') '#  it  cells%  worst%'
+                       do iq = 1, nq
+                          if (cvTotSlot(iq)) write(75, '(1x,a12)', advance='no') adjustr(cvTotName(iq))
+                       end do
+                       write(75, '(a)') ''
+                    end if
+                 else
+                    open(unit=75, file='output/convergence.out', status='old', &
+                         & position='append', action='write', iostat=ios)
+                 end if
+                 if (ios == 0) then
+                    write(75, '(i5,1x,f7.2,1x,f8.3)', advance='no') nIterateMC, totPercent, &
+                         & merge(100.*cvTotWorst, -1., cvTotWorst >= 0.)
+                    do iq = 1, nq
+                       if (cvTotSlot(iq)) write(75, '(1x,es12.5)', advance='no') cvTotHist(iq,0)
+                    end do
+                    write(75, '(a)') ''
+                    close(75)
+                 end if
+              end if
+           end if
+           deallocate(q)
+         end subroutine cvTotalsUpdate
+
+         ! D-391: a cvTotHist slot that can hold a value - an element in the
+         ! model and an ion stage it has, or one of the six model-wide ones.
+         logical function cvTotSlot(iq)
+           implicit none
+           integer, intent(in) :: iq
+           integer :: e, s
+           if (iq > nElements*nstages) then
+              cvTotSlot = .true.
+              return
+           end if
+           e = (iq-1)/nstages + 1
+           s = iq - (e-1)*nstages
+           cvTotSlot = lgElementOn(e) .and. s >= 2 .and. s <= min(nstages, e+1)
+         end function cvTotSlot
 
        end subroutine MCIterationDriver
 

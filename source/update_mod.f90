@@ -963,23 +963,14 @@ subroutine iterateT()
     ! gate: below it the cell holds no molecules worth converging, and a change
     ! from 1e-30 to 1e-28 must not be allowed to block the model.
     lgCvH0 = abs(deltaXHI) <= XHILimit
+    ! D-391: the x(H2) half of this test now runs in iterateMC, after the
+    ! chemistry. Since D-216 updateCell runs BEFORE pdrStep, so here H2den
+    ! still held the value xH2iterStart had been copied from at the start of
+    ! the iteration, and the test compared each cell's x(H2) with itself: it
+    ! passed every cell, in every PDR run since D-216. (A replay of the test
+    ! on runs/d391-cv-hii31's per-iteration snapshots, with the iteration's
+    ! real x(H2) change, passes 61% of the cells where the run printed 76%.)
     lgCvH2 = .true.
-#ifdef PDR
-    if (lgPDR .and. cvUseH2 /= 0 .and. allocated(grid%xH2iterStart)) then
-       xH2now = 0.
-       if (grid%Hden(cellP) > 0.) xH2now = grid%H2den(cellP)/grid%Hden(cellP)
-       ! Gate on either end being significant, so a cell that has just formed
-       ! its molecules - the interesting case - is tested rather than skipped.
-       if (max(xH2now, grid%xH2iterStart(cellP)) > cvH2floor) then
-          if (grid%xH2iterStart(cellP) > 0.) then
-             lgCvH2 = abs(xH2now - grid%xH2iterStart(cellP)) &
-                  & / grid%xH2iterStart(cellP) <= XHILimit
-          else
-             lgCvH2 = .false.   ! appeared from nothing this iteration
-          end if
-       end if
-    end if
-#endif
     ! ---------------------------------------------------------------- D-229
     ! And the temperature. In an H II region Te follows the ionization, so a
     ! settled x(H0) implies a settled Te and testing it bought nothing. In a
