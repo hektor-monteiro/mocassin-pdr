@@ -27,6 +27,7 @@ DEVLOG.md and arrives here by merge.
 | H-016 | **Stage A first, the level model only at the end? From the logs: on pn150k 41^3 stage B's calls take 62.5 min per 14-iteration run, 29 of them during the PDR's build-up (iterations 4-9), against stage A's single 24.4-min call; a cold start on a converged model needs 2-3 sweeps (the first overshoots dissociations by 38%); the coupling's tail halves per iteration (pumping +7%, +4%, +2%, +1%, +0.5% over iterations 10-14).** Estimate: switching at iteration 10 saves ~20 min (15-20%) at 41^3; fine grids need threads in the level model more than a schedule. An iteration keyword would be the run-time ownership switch CLAUDE.md warns about; if adopted, the network rate becomes only the starting guess, with stage B's own convergence test before the run may finish. Proposed test: stage A to 9, mocassinWarm with stage B 10-14, against the all-stage-B run. **Decided: not adopted - the user keeps the full level solution every iteration, as the more self-consistent; the test is not run** | Done | 2026-10-04 |
 | H-017 | **What is pending, at the user's question: the merge of stage B (D-388: after every benchmark; not yet the 1D flavour, the warm start, the fine grids), iteration counts and a convergence test that sees helium and slow drifts (L-40, H-015; *corrected: x(H2) is tested, at 10% per iteration*), and the physics divergences O-02, L-43, L-33, L-37, pn150k's neon and low ions, deep O+/He+ against 3D-PDR.** New: `h2Pop.bin` is written and never read, so a warm start restarts the level model cold | Discussion | 2026-10-04 |
 | H-018 | **Production's D-391 merged in (e60a836, no conflicts): the per-cell x(H2) test had passed every cell since D-216 and now runs after the chemistry; a model-integrated test (emission measures, H0/H2/CO contents, weighted temperatures; convTotals, default 2% over 3 iterations) gates the stop and every run reports whether it converged.** By it, the pages' runs were not converged: pn150k at 14 (He2+ 5.8% over the window, lines up to 5% from iteration 20), hiipdr 31^3 at 11 (O+ 5.9%, lines up to 8%); 2% is reached at 17 and 15. Merged branch: four flavours and h2Test/h2Slab rc 0; a stage B run reports the new test and exits cleanly | Done | 2026-10-04 |
+| H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages** | In progress | 2026-10-04 |
 
 ---
 
@@ -2597,3 +2598,30 @@ For this branch:
 ### Status
 
 Done.
+
+## H-019 - The stop decided by the integrated test; the pages' runs at convergence (2026-10-04)
+
+The user, on D-391: "I want the new test to decide when to stop. I think a
+tolerance of 2% to 5% is quite good given observational uncertainties. Then
+proceed as recommended."
+
+  - Production's D-392 merged in (2abfebe, no conflicts): a run stops when its
+    model-integrated quantities moved by at most convTotals (default 2%, the
+    strict end of the user's range) over 3 iterations; the cell percentage is
+    reported only. All four flavours and h2Test/h2Slab rc 0 on the merge.
+  - **The recommended next step, under way: the comparison pages' runs at
+    convergence** (`runs/h019-chain.sh`), each at 14 ranks, seed 1001, the
+    pages' inputs with only the iteration line changed:
+      - stage B, hiipdr 31^3 and pn150k 41^3 (`h019-B-*`, this branch's
+        binary): `maxIterateMC 30 90.`, stopped by the integrated test;
+      - stage A at the same counts (`h019-A-*`, H-011's binary, mocassin.h011,
+        which has a fixed count only) so each A/B pair compares equal
+        iterations; production's D-391 snapshots show stage A physics (=
+        production's, the convergence % equal to every digit at 9 and 14)
+        passes 2% at 15 (hiipdr) and 17 (pn150k);
+      - then the 3D-PDR reference on the new stage B hiipdr, and the four
+        pages rebuilt on them.
+
+### Status
+
+In progress.
