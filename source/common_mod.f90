@@ -878,6 +878,10 @@ module common_mod
     integer             :: pdrNspec   = 0          ! species in the network
     integer             :: pdrNreac   = 0          ! reactions in the network
     integer             :: pdrStartIter=1          ! let MOCASSIN converge this many MC iterations first (D-062)
+    ! D-393: a warm start whose checkpoint carries PDR state continues it: the
+    ! chemistry runs from the first resumed iteration and the molecules are not
+    ! seeded again (resetGrid sets both from the checkpoint's lgPDRrestart).
+    logical             :: lgPDRresumed = .false.
     integer             :: pdrLevIter=25           ! D-060: fixed-T level-population passes
     real                :: pdrLevTol=1.e-3         ! D-060: relative convergence on level populations
     integer             :: pdrDiagCool=0           ! D-060: dump per-coolant budget at the face

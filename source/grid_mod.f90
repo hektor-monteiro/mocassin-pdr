@@ -3639,6 +3639,17 @@ end function getVolume
             stop
          end if
       end if
+      ! D-393: the PDR was running when the checkpoint was written, so it
+      ! continues from the first resumed iteration (the iteration count
+      ! restarts at 1, and pdrStartIter 4 would have skipped the chemistry for
+      ! three iterations and then seeded the molecules over the resumed ones).
+      if (lgPDR .and. lgPDRrestart) then
+         lgPDRresumed = .true.
+         if (pdrStartIter /= 1 .and. taskid == 0) print '(a,i3,a)', &
+              & " ! resetGrid: [D-393] PDR state resumed - the chemistry runs from the first"// &
+              & " iteration (pdrStartIter", pdrStartIter, " not applied) and is not re-seeded"
+         pdrStartIter = 1
+      end if
 #endif
 
       if (taskid == 0) then
