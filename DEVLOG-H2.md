@@ -20,8 +20,8 @@ DEVLOG.md and arrives here by merge.
 | H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone (model's width) raises the lines by the same 1.17-1.21: the two choices are independent to 1-2%. The width's factor is larger for para lines (x3.2) than ortho (x2.2), as para pumping sits deeper in the damping wings. Nothing changes in the code | Done | 2026-10-03 |
 | H-010 | **Cloudy's small H2 model computes no line intensities** (H2_LinesAdd returns when the large model is off): H2g, one H2* pseudo-level, Solomon and pumping rates from fits in G0 and total N(H2) (Elwert et al. 2005), fixed H2* decay 2e-7 s^-1, fitted heating, Glover & Abel rotational cooling. Not usable: no lines, and fitted stand-ins for what MOCASSIN computes. From Cloudy's large model: the lowest 70 levels by matrix and the rest by back-substitution applies to our solve (a median pn150k H2 cell has 10 levels above 1e-8, 80 above 1e-10); its H2/H > 1e-8 limit covers only 0.8% of pn150k's cells; its overlap at line centre is too crude (1-6% vs 14-35%). The overlap (53% of the cost) is best cut by reuse across sweeps | Discussion | 2026-10-03 |
 | H-011 | **The level model 2.5x faster on pn150k (3,736 -> 1,474 s; the run 98 -> 60 min) and 4x on hiipdr 21^3 (283 -> 71 s), lines within 2.5e-4 of H-007 and the rest of the outputs byte-identical.** A third of the wall time was ranks waiting: the i7-14700's 8 performance and 12 efficiency cores run 14 ranks at speeds 2x apart, which no static deal sees; the ranks now take cells from a shared MPI-3 counter (a window MPI allocates: one on the program's memory stalls on its target and was slower than the static deal). lineOverlap reorganised exactly (separate long and short lists, windows as index ranges, branch-free wing sums, thin lines in wavenumber order with pointers): 2.3-2.5x. The solution: collision rates cached by T, Gauss column by column, byte-identical, 3.2x. Shielding prepared once per cell and per line. A cell's passes no longer floored at three (1.0-1.6 instead of 3.0; lines move by at most 6.6e-5). Dropped: a grid for the far wings (4e-4 error, no gain), -O3 -march=native (not established) | Done | 2026-10-03 |
-| H-012 | **Stage B, step 1: the chemistry's H2 photodissociation rate is the level model's. `iterateMC` calls `h2LevelModel(grid, 1)` every PDR iteration before the PDR step (one sweep from the last call's populations, on this iteration's field and the last chemistry), and pdrStep hands the reaction the cell's Solomon rate in place of the network's single-line rate; CALC_HEATING reads the same rate. Every cell with gas is solved; no switch; the 1D build keeps the network's rate and says so.** hiipdr 21^3, B against A: sum rule unchanged (-1.9e-7 .. +3e-8); x(H2) 1.3-2.5x higher at 7-10.5 pc (shielded gas, where the levels' rate is the lower), half at the 5.7 pc edge; the front one cell (0.97 pc) toward the star; Te unchanged to 0.5 K; Hbeta unchanged to 1e-4; vibrational lines 1.07x, rotational 1.24-1.26x. **Convergence, 11 against 16 iterations: B's lines move 0.1-1.6%, A's 0.2-2.7%, Hbeta 2.5% in both (the ionized gas's own convergence, D-365's L-40); B/A 1.09x and 1.27-1.29x at 16.** Per call the Solomon rate moves 50-60% (median per cell) between iterations but 3.4% on a fixed field: the Monte Carlo field's noise in each line's bin, ~1.5x the band-integrated rate's; in the transition x(H2) per cell scatters ~2x more than in A, the cloud's total destruction by 1.4%. Cost +2.4 min (11 iterations). Groundwork for step 2 in h2_mod, not called: dissociation heating per level, net collisional heating within X. **pn150k (2026-10-04): the opposite sign, for the same reason - at the transition's lit edge the levels' rate is 1.3-2.5x the chemistry's, so 0.195-0.325 pc loses 59-95% of its H2 and the front moves one cell (0.015 pc) out; 1-0 S(1) 0.73x, rotational 0.80-0.95x; against Cloudy's 40 strongest lines ortho 0.86-1.05 -> 0.69-0.77, para 1.63-2.63 -> 1.47-2.40. Not converged in 9 iterations: the per-call rate change falls 0.86 -> 0.33 and is 9% on a fixed field; 1-0 S(1) still rising 15-17% a step. +8 min (1 h 08 min)** | Open | 2026-10-03 |
-| H-013 | **Stage B, step 2a: the H2 heating from the levels, beside 3D-PDR's, nothing handed over. h2LevelModel gives per cell the atoms' kinetic energy from dissociation and the net heating by collisions within X (Cloudy's HeatDiss, HeatDexc; the latter is also H2's line cooling, which nothing in either code has), and the kinetic energy of a molecule formed on a grain by energy conservation on Takahashi & Uehara's distribution (silicate 0.834 eV, carbonaceous 1.142; 3D-PDR 1.5; Cloudy gives the gas nothing for it). pdrStep keeps 3D-PDR's three H2 terms; h2Cells.out has both, per H, with MOCASSIN's budget (tools/h012_heat.py).** Outputs byte-identical otherwise. hiipdr 21^3: levels/3D-PDR = formation 0.55, dissociation 1.08 (0.438 eV), collisions 32x pumping but never above 0.6% of the heating; the three 0.67, i.e. 3-7% off the PDR's heating if handed over. pn150k at 14 iterations: H-012's transition settles (1-0 S(1) steps halving, ~2% left; rate change on a fixed field 1.9%), front one cell inside stage A's at 9, lines 0.90-1.06 of A's; heating ratios 0.76 / 1.07 / 5.5, the three 0.87, collisions never above 1.2%. **Step 2b: the three handed over in pdrStep, held through MOCASSIN's temperature search like the rest of pdrHeatXtra; on hiipdr every PDR shell 0.3-1.0 K (1-3%) colder, lines within 2%.** pn150k under 2b and stage A at 14 iterations queued | Open | 2026-10-04 |
+| H-012 | **Stage B, step 1: the chemistry's H2 photodissociation rate is the level model's. `iterateMC` calls `h2LevelModel(grid, 1)` every PDR iteration before the PDR step (one sweep from the last call's populations, on this iteration's field and the last chemistry), and pdrStep hands the reaction the cell's Solomon rate in place of the network's single-line rate; CALC_HEATING reads the same rate. Every cell with gas is solved; no switch; the 1D build keeps the network's rate and says so.** hiipdr 21^3, B against A: sum rule unchanged (-1.9e-7 .. +3e-8); x(H2) 1.3-2.5x higher at 7-10.5 pc (shielded gas, where the levels' rate is the lower), half at the 5.7 pc edge; the front one cell (0.97 pc) toward the star; Te unchanged to 0.5 K; Hbeta unchanged to 1e-4; vibrational lines 1.07x, rotational 1.24-1.26x. **Convergence, 11 against 16 iterations: B's lines move 0.1-1.6%, A's 0.2-2.7%, Hbeta 2.5% in both (the ionized gas's own convergence, D-365's L-40); B/A 1.09x and 1.27-1.29x at 16.** Per call the Solomon rate moves 50-60% (median per cell) between iterations but 3.4% on a fixed field: the Monte Carlo field's noise in each line's bin, ~1.5x the band-integrated rate's; in the transition x(H2) per cell scatters ~2x more than in A, the cloud's total destruction by 1.4%. Cost +2.4 min (11 iterations). Groundwork for step 2 in h2_mod, not called: dissociation heating per level, net collisional heating within X. **pn150k (2026-10-04): the opposite sign, for the same reason - at the transition's lit edge the levels' rate is 1.3-2.5x the chemistry's, so 0.195-0.325 pc loses 59-95% of its H2 and the front moves one cell (0.015 pc) out; 1-0 S(1) 0.73x, rotational 0.80-0.95x; against Cloudy's 40 strongest lines ortho 0.86-1.05 -> 0.69-0.77, para 1.63-2.63 -> 1.47-2.40. Not converged in 9 iterations: the per-call rate change falls 0.86 -> 0.33 and is 9% on a fixed field; 1-0 S(1) still rising 15-17% a step. +8 min (1 h 08 min)** The converged comparison is H-013's | Done | 2026-10-03 |
+| H-013 | **Stage B, step 2a: the H2 heating from the levels, beside 3D-PDR's, nothing handed over. h2LevelModel gives per cell the atoms' kinetic energy from dissociation and the net heating by collisions within X (Cloudy's HeatDiss, HeatDexc; the latter is also H2's line cooling, which nothing in either code has), and the kinetic energy of a molecule formed on a grain by energy conservation on Takahashi & Uehara's distribution (silicate 0.834 eV, carbonaceous 1.142; 3D-PDR 1.5; Cloudy gives the gas nothing for it). pdrStep keeps 3D-PDR's three H2 terms; h2Cells.out has both, per H, with MOCASSIN's budget (tools/h012_heat.py).** Outputs byte-identical otherwise. hiipdr 21^3: levels/3D-PDR = formation 0.55, dissociation 1.08 (0.438 eV), collisions 32x pumping but never above 0.6% of the heating; the three 0.67, i.e. 3-7% off the PDR's heating if handed over. pn150k at 14 iterations: H-012's transition settles (1-0 S(1) steps halving, ~2% left; rate change on a fixed field 1.9%), front one cell inside stage A's at 9, lines 0.90-1.06 of A's; heating ratios 0.76 / 1.07 / 5.5, the three 0.87, collisions never above 1.2%. **Step 2b: the three handed over in pdrStep, held through MOCASSIN's temperature search like the rest of pdrHeatXtra; on hiipdr every PDR shell 0.3-1.0 K (1-3%) colder, lines within 2%; on pn150k 0.1-4 K, lines within 1%.** **Stage B against stage A on pn150k, both at 14 iterations (A was not converged at 9 either: lines +6-10%): the warm lit edge thins (x(H2) 0.06-0.74 of A's at 0.195-0.325 pc), the shielded gas gains 5-8%, the front stays within a cell; 1-0 S(1) and 2-1 S(1) 0.82-0.83x, rotational 0.91-1.00x; against Cloudy's 40 strongest lines ortho 0.92-1.15 -> 0.81-0.95, para 1.75-2.81 -> 1.71-2.73 (the width, H-008)** | Done | 2026-10-04 |
 
 ---
 
@@ -2048,3 +2048,79 @@ same sign in all of them; the chemistry and the lines move by no more
 than the iteration-to-iteration scatter (H-012). The binary that ran
 and a clean build of this commit have the same code and data; only
 the embedded `git describe` string differs (5ce1ee0 against 2975daa).
+
+### Step 2b on pn150k 41^3, 14 iterations (2026-10-04)
+
+`runs/h013-b2b-pn41-it14` against `runs/h013-b2a-pn41-it14` (the same input):
+
+| | 2a | 2b |
+|---|---|---|
+| Te at 0.152 (the front) / 0.195 / 0.238 / 0.325 pc [K] | 4239 / 142.9 / 60.5 / 40.8 | 4143 / 138.5 / 60.2 / 40.5 |
+| Te at 0.368-0.585 pc | | within 0.1-0.3 K |
+| x(H2) by shell | | within 1-2% (+10% at the front) |
+| 2x(H2) = 0.5 first at, x/y/z [pc] | 0.364, 0.394, 0.349 | 0.364, 0.394, 0.349 |
+| sum rule | -1.0e-7 .. +3.0e-8 | -1.0e-7 .. +3.0e-8 |
+| 1-0 S(1), 2-1 S(1), 0-0 S(0), S(1), S(2), 2b over 2a | | 0.99, 0.99, 1.00, 1.00, 1.00 |
+| Hbeta [1e36 erg/s] | 0.02685 | 0.02684 |
+| heating: the three H2 terms, levels / 3D-PDR | 0.87 | 0.87 |
+
+On pn150k the handover takes 0.5-1.7% off the PDR's heating (above), and
+the gas answers by 0.1-4 K, most of it in the warm layer where H2 turns
+on (0.195 pc, 143 -> 139 K); the lines move by under 1%. The run took 2 h
+10 min against 2a's 1 h 40 min: its iterations 2-11 ran 1.3-1.9x slower,
+level-model calls included (the same work in both), and 12-14 at 2a's
+speed (calls of 280, 277, 278 s against 278, 278 s), so that was the
+machine, not the change.
+
+### Stage B against stage A on pn150k, both at 14 iterations (2026-10-04)
+
+`runs/h013-A-pn41-it14` (H-011's binary, the 14-iteration input) against
+`runs/h013-b2b-pn41-it14` (stage B with both steps):
+
+**Stage A was not converged at 9 either**: from 9 to 14 iterations its
+lines rise 6-10% (1-0 S(1) 1.09x, 2-1 S(1) 1.10x, 0-0 S(0)-S(2) 1.06-1.08x),
+its front moves one cell in (0.379, 0.409, 0.379 -> 0.364, 0.379, 0.364 pc)
+and Hbeta falls the same 1.5% as stage B's. Run time 1 h 14 min, the level
+model 1,463 s (4 sweeps).
+
+| | A, 14 it. | B, 14 it. | B/A |
+|---|---|---|---|
+| 2x(H2) = 0.5 first at, x/y/z [pc] | 0.364, 0.379, 0.364 | 0.364, 0.394, 0.349 | within a cell |
+| x(H2) at 0.195 / 0.238 / 0.282 / 0.325 pc | 4.3e-4 / 2.0e-2 / 7.3e-2 / 0.156 | 2.6e-5 / 3.2e-3 / 3.3e-2 / 0.116 | 0.06 / 0.16 / 0.46 / 0.74 |
+| x(H2) at 0.368 / 0.455 / 0.585 pc | 0.245 / 0.368 / 0.443 | 0.239 / 0.399 / 0.463 | 0.98 / 1.08 / 1.05 |
+| Te by shell | | | within 0.1-3 K (the heating, above) |
+| 1-0 S(1) / Hbeta | 1.162e-3 | 9.63e-4 | 0.83 |
+| 2-1 S(1), 0-0 S(0), S(1), S(2) | | | 0.82, 1.00, 0.91, 0.99 |
+| Hbeta [1e36 erg/s] | 0.02685 | 0.02684 | 1.000 |
+
+Against Cloudy's 40 strongest H2 lines (median ours/Cloudy):
+
+| upper level | lines | A, 9 it. | A, 14 it. | B, 14 it. | B/A at 14 |
+|---|---|---|---|---|---|
+| v = 0, ortho | 6 | 0.86 | 0.92 | 0.81 | 0.88 |
+| v = 0, para | 3 | 1.63 | 1.75 | 1.71 | 0.98 |
+| v = 1, ortho | 8 | 1.05 | 1.15 | 0.95 | 0.83 |
+| v = 1, para | 5 | 2.63 | 2.81 | 2.73 | 0.97 |
+| v >= 2, ortho | 12 | 1.00 | 1.10 | 0.90 | 0.82 |
+| v >= 2, para | 6 | 2.54 | 2.71 | 2.63 | 0.97 |
+
+What stage B does on pn150k, converged: where the levels' rate is above
+the chemistry's (the lit edge, 0.15-0.3 pc) the warm molecular layer
+thins - x(H2) down to 0.06-0.74 of A's - and the shielded gas behind it
+gains 5-8%. The pumped lines lose 17-18% and the ortho lines generally
+12-18%, because the edge is the warm, ortho-rich part of the cloud; the
+para lines move by 2-3%. The front stays within a cell of stage A's.
+Against Cloudy the ortho lines go from 0.92-1.15 to 0.81-0.95 and the para
+lines stay 1.7-2.7x, which is the damping width (H-008: x3.2 on para,
+x2.2 on ortho) and not changed here.
+
+### Not yet known
+
+  - Whether 14 iterations are enough for either stage on pn150k: B's
+    1-0 S(1) steps were halving with ~2% to go; A's 9-to-14 change says
+    the ionized gas itself (Hbeta, the front's Te) was still settling.
+    The fixture's input says 9.
+  - The field's per-line noise (H-012) under more packets.
+  - The remaining H-002 requirements: formation into levels by the H-
+    and H2+ routes, and destruction of excited H2 by electrons, which
+    matter in the transition zone (D-387, D-389).
