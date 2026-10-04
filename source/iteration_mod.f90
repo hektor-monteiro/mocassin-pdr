@@ -1020,6 +1020,11 @@ module iteration_mod
                  ! molecular - a hydrogen budget of 1.85 (D-219).
                  call pdrToMocassin(grid(1:nGrids))
               end if
+              ! H-012 (DEVLOG-H2 stage B): the H2 level model on this
+              ! iteration's field, from the last call's populations (one
+              ! sweep), before the PDR step takes its H2 photodissociation
+              ! rate from it. The 1D build keeps the network's rate.
+              call h2LevelModel(grid(1:nGrids), 1)
            end if
 #endif
 
@@ -3120,8 +3125,9 @@ module iteration_mod
 
 #ifdef PDR
               ! H-007 (branch h2-model): the H2 level model on the finished
-              ! model, every rank, before rank 0 writes the output
-              if (lgPDR) call h2LevelModel(grid(1:nGrids))
+              ! model, every rank, before rank 0 writes the output; sweeps to
+              ! convergence (H-012)
+              if (lgPDR) call h2LevelModel(grid(1:nGrids), 12)
 #endif
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
@@ -3146,7 +3152,7 @@ module iteration_mod
            else if (nIterateMC >= maxIterateMC) then
 
 #ifdef PDR
-              if (lgPDR) call h2LevelModel(grid(1:nGrids))       ! H-007
+              if (lgPDR) call h2LevelModel(grid(1:nGrids), 12)   ! H-007, H-012
 #endif
               if (taskid==0) then
 

@@ -20,6 +20,7 @@ DEVLOG.md and arrives here by merge.
 | H-009 | **Cloudy's closure on pn150k (diagnostic patch kept in tools/patches/, validated on H-004's 16 one-zone models: populations within 0.003-0.032 dex of Cloudy's, f 1.002-1.082). With Cloudy's width and closure together the four H-007 lines are 0.63 (2.12 um), 0.27 (28.2), 0.37 (17.0) and 0.77 (12.28) of Cloudy's; the closure raises all by ~1.2. Over Cloudy's 40 strongest H2 lines (tools/h009_lines.py) the 11 vibrational para lines are then 0.85-1.03 of Cloudy's and the 20 ortho lines 0.49-0.68: what is left in the pumped lines is the ortho/para ratio of the gas, which follows our colder shielded gas.** H-007's 1-0 S(1) agreement = width x2.1 x closure /1.2 x ortho fraction ~0.55-0.6. Our chemistry destroys H2 almost only by photodissociation (93-100% to 0.43 pc); Cloudy's, deep, 25-69%, the rest by Cl+, HCl+, O+ and cosmic rays (no chlorine in our network). The closure alone (model's width) raises the lines by the same 1.17-1.21: the two choices are independent to 1-2%. The width's factor is larger for para lines (x3.2) than ortho (x2.2), as para pumping sits deeper in the damping wings. Nothing changes in the code | Done | 2026-10-03 |
 | H-010 | **Cloudy's small H2 model computes no line intensities** (H2_LinesAdd returns when the large model is off): H2g, one H2* pseudo-level, Solomon and pumping rates from fits in G0 and total N(H2) (Elwert et al. 2005), fixed H2* decay 2e-7 s^-1, fitted heating, Glover & Abel rotational cooling. Not usable: no lines, and fitted stand-ins for what MOCASSIN computes. From Cloudy's large model: the lowest 70 levels by matrix and the rest by back-substitution applies to our solve (a median pn150k H2 cell has 10 levels above 1e-8, 80 above 1e-10); its H2/H > 1e-8 limit covers only 0.8% of pn150k's cells; its overlap at line centre is too crude (1-6% vs 14-35%). The overlap (53% of the cost) is best cut by reuse across sweeps | Discussion | 2026-10-03 |
 | H-011 | **The level model 2.5x faster on pn150k (3,736 -> 1,474 s; the run 98 -> 60 min) and 4x on hiipdr 21^3 (283 -> 71 s), lines within 2.5e-4 of H-007 and the rest of the outputs byte-identical.** A third of the wall time was ranks waiting: the i7-14700's 8 performance and 12 efficiency cores run 14 ranks at speeds 2x apart, which no static deal sees; the ranks now take cells from a shared MPI-3 counter (a window MPI allocates: one on the program's memory stalls on its target and was slower than the static deal). lineOverlap reorganised exactly (separate long and short lists, windows as index ranges, branch-free wing sums, thin lines in wavenumber order with pointers): 2.3-2.5x. The solution: collision rates cached by T, Gauss column by column, byte-identical, 3.2x. Shielding prepared once per cell and per line. A cell's passes no longer floored at three (1.0-1.6 instead of 3.0; lines move by at most 6.6e-5). Dropped: a grid for the far wings (4e-4 error, no gain), -O3 -march=native (not established) | Done | 2026-10-03 |
+| H-012 | **Stage B, step 1: the chemistry's H2 photodissociation rate is the level model's. `iterateMC` calls `h2LevelModel(grid, 1)` every PDR iteration before the PDR step (one sweep from the last call's populations, on this iteration's field and the last chemistry), and pdrStep hands the reaction the cell's Solomon rate in place of the network's single-line rate; CALC_HEATING reads the same rate. Every cell with gas is solved; no switch; the 1D build keeps the network's rate and says so.** hiipdr 21^3, B against A: sum rule unchanged (-1.9e-7 .. +3e-8); x(H2) 1.3-2.5x higher at 7-10.5 pc (shielded gas, where the levels' rate is the lower), half at the 5.7 pc edge; the front one cell (0.97 pc) toward the star; Te unchanged to 0.5 K; Hbeta unchanged to 1e-4; vibrational lines 1.07x, rotational 1.24-1.26x. **Convergence, 11 against 16 iterations: B's lines move 0.1-1.6%, A's 0.2-2.7%, Hbeta 2.5% in both (the ionized gas's own convergence, D-365's L-40); B/A 1.09x and 1.27-1.29x at 16.** Per call the Solomon rate moves 50-60% (median per cell) between iterations but 3.4% on a fixed field: the Monte Carlo field's noise in each line's bin, ~1.5x the band-integrated rate's; in the transition x(H2) per cell scatters ~2x more than in A, the cloud's total destruction by 1.4%. Cost +2.4 min (11 iterations). Groundwork for step 2 in h2_mod, not called: dissociation heating per level, net collisional heating within X. Next: pn150k under B; then step 2, the heating (nothing cools by H2 anywhere yet) | Open | 2026-10-03 |
 
 ---
 
@@ -1580,3 +1581,195 @@ histogram 26%, the solution 12%, the escape 7%.
 
 Done (2026-10-03). All four flavours, mocassinOutput, mocassinPlot,
 h2Test and h2Slab build. Not pushed.
+
+## H-012 - Stage B, step 1: the chemistry takes its H2 photodissociation rate from the level model (2026-10-03)
+
+The user: "proceed" (to H-011's recommendation: stage B next).
+
+### Design
+
+Stage B is the level model becoming the physics, not a keyword (D-388's
+rule for the branch): there is no switch between the two rates.
+
+  - **Where it runs.** `iterateMC` calls `h2LevelModel(grid, 1)` every PDR
+    iteration, after computeAVdust, mocassinToPDR and (on the first PDR
+    iteration) seedMolecules, and before the PDR step: on this
+    iteration's Monte Carlo field, the chemistry's n(H2) of the last
+    iteration (or the seed) and the last Te. One sweep a call, from the
+    last call's populations (Boltzmann only on the first call); the
+    finished model gets sweeps to convergence (`h2LevelModel(grid, 12)`,
+    as before). The coupled iteration is the Monte Carlo's own.
+  - **What it hands over.** In pdrStep, after CALCULATE_REACTION_RATES and
+    D-358's photoionization rates, the H2 photodissociation reaction
+    (NRH2) takes the level model's Solomon rate per molecule for the cell
+    (`grid%h2Sol`): the 302 levels, every pumping line shielded and
+    overlapped on the cell's own direct and diffuse paths, instead of the
+    network's single-line rate. CALC_HEATING reads the same RATE(NRH2),
+    so the photodissociation and pumping heating use it too - with their
+    fixed energies (0.4 eV, 9 x 2.2 eV) still 3D-PDR's: step 2.
+  - **Every cell with gas is solved**, also one without H2: its rate per
+    molecule is what the chemistry needs there (stage A skipped n(H2) = 0).
+  - **The 1D build** has no site walk or line rays: its chemistry keeps the
+    network's rate, and says so once. A model the level model does not
+    handle (more than one grid, plane-parallel illumination) keeps it too,
+    as h2LevelModel returns before allocating h2Sol.
+  - What stays the chemistry's: n(H2) itself, and the H2 columns that
+    shield CO and C (pdrColH2).
+
+### hiipdr 21^3, stage B against stage A (11 iterations, PDR from 4)
+
+`runs/h012-b1-hii21` against `runs/h011-v7-hii21` (`tools/h012_compare.py`):
+
+| | stage A | stage B |
+|---|---|---|
+| x(H) + 2x(H2) + x(H+) - 1, all cells | -1.5e-7 .. +3.0e-8 | -1.5e-7 .. +3.0e-8 |
+| 2x(H2) = 0.5 first at (each axis) | 10.69 pc | 9.72 pc |
+| Hbeta [1e36 erg/s] | 8.58200 | 8.58324 |
+| 1-0 S(1), 2-1 S(1) / Hbeta | 7.25e-4, 3.85e-4 | 7.77e-4, 4.11e-4 (1.07x) |
+| 0-0 S(0), S(1), S(2) / Hbeta | 2.42, 3.38, 4.41e-4 | 3.04, 4.25, 5.47e-4 (1.24-1.26x) |
+| run time | 6 min 34 s | 8 min 59 s |
+
+Per shell (medians): where the levels' rate is below the chemistry's
+(shielded gas, 0.5-0.6x, H-007) x(H2) is 1.3-2.5x higher at 7-10.5 pc;
+at the unshielded edge (5.7 pc), where it is above, x(H2) is half. Te is
+unchanged to 0.5 K in every shell. The front moves one cell (0.97 pc)
+toward the star.
+
+The first call starts from Boltzmann populations on the seeded molecules
+and gives 0-0 S(0) and S(1) of 7e36 and 8e37 erg/s (the seed's H2 at the
+ionized gas's temperature); the second 1e36 and 3e35, the third 6e33 and
+4e33, and from the fourth on 2-4e33.
+
+### Does the coupled iteration converge? 11 against 16 iterations
+
+The 11-iteration run's lines were still rising 3% an iteration at its end
+(below), so both stages were rerun to 16 iterations, same input otherwise
+(`runs/h012-it16-A`, `-B`; A with H-011's binary, B with this one). Each
+run is byte-identical to its 11-iteration twin through iteration 11's
+level-model call (MOCASSIN at fixed np), so the difference is the five
+iterations alone.
+
+| L [1e33 erg/s] | A, 11 it. | A, 16 it. | B, 11 it. | B, 16 it. |
+|---|---|---|---|---|
+| 1-0 S(1) | 6.219 | 6.167 (-0.8%) | 6.667 | 6.746 (+1.2%) |
+| 2-1 S(1) | 3.302 | 3.277 (-0.8%) | 3.529 | 3.573 (+1.2%) |
+| 0-0 S(0) | 2.078 | 2.074 (-0.2%) | 2.613 | 2.654 (+1.6%) |
+| 0-0 S(1) | 2.903 | 2.824 (-2.7%) | 3.646 | 3.650 (+0.1%) |
+| Hbeta [1e36 erg/s] | 8.58200 | 8.36656 (-2.5%) | 8.58324 | 8.36568 (-2.5%) |
+| 2x(H2) = 0.5 first at, x/y/z [pc] | 10.69 (all) | 10.69, 10.69, 9.72 | 9.72 (all) | 10.69, 9.72, 8.75 |
+| run time | 6 min 34 s | 8 min 08 s | 8 min 59 s | 12 min 05 s |
+
+B over A at 16 iterations: 1-0 S(1) and 2-1 S(1) 1.09x, 0-0 S(0), S(1),
+S(2) 1.27-1.29x (1.07x and 1.24-1.26x at 11). The sum rule is the same in
+all four (-1.9e-7 .. +3.0e-8).
+
+Stage B's 1-0 S(1), the call at the start of each iteration, iterations
+4-16 [1e33 erg/s]: 10.72, 8.57, 7.34, 5.85, 5.67, 6.19, 6.37, 6.59 | 6.57,
+6.67, 6.80, 6.88, 6.75; the finished model 6.75. 0-0 S(1) from iteration 9:
+3.31, 3.41, 3.62 | 3.57, 3.62, 3.72, 3.82, 3.66; finished 3.65. After the
+seed transient (iterations 4-8) the line climbs 2-4% an iteration to
+iteration 11 and then moves by -0.3 to +1.9% and back by 2.0%: no
+oscillation and no runaway; whether a slow climb remains under the
+iteration-to-iteration scatter one run cannot say.
+
+What this establishes:
+
+  - **The coupling does not slow the convergence.** Five more iterations
+    move B's lines by 0.1-1.6%, A's by 0.2-2.7%, and Hbeta by 2.5% in both.
+    The 11-iteration hiipdr model (D-349's setting; the fixture keeps 22)
+    is not converged to better than ~3% in its own ionized gas, as D-365
+    found (L-40): the 3.47 pc shell (the H+/H front) goes from x(H) 0.39
+    to 0.44 and Te 8690 to 8570 K in both stages alike. The H2 lines
+    follow it.
+  - **Stage B's effect is stable** to 0.02 in the ratio across the five
+    iterations.
+  - The front moves by one cell (0.97 pc) between the 11- and 16-iteration
+    runs along one axis in A and along two in B (one out, one in): the
+    transition is resolved by one or two cells (H-007's 21/31/41 series)
+    and its position on this grid is a cell-quantised quantity.
+  - Costs: B adds 2 min 25 s at 11 iterations and 3 min 57 s at 16: 18-20 s
+    per call at 1.5 solutions per cell after the transient (30 s at the
+    first), and the finished model needs 2 sweeps instead of A's 4.
+
+### The rate handed over: the field's noise against the coupling's residual
+
+h2LevelModel now says how far each call moves the Solomon rate the
+chemistry has been using (median and 90th percentile of |new/old - 1| over
+the cells with x(H2) >= 1e-6 and a rate before). The binary with it and
+with step 2's groundwork (below) was rerun on h012-b1's input
+(`runs/h012-b1c-hii21`): **every output byte-identical to h012-b1's**
+except summary.out's clock times.
+
+| call (iteration) | 5 | 6 | 7 | 8 | 9 | 10 | 11 | finished model |
+|---|---|---|---|---|---|---|---|---|
+| cells | 2859 | 2234 | 2021 | 1958 | 1957 | 1972 | 1971 | 2008 |
+| median \|new/old - 1\| | 0.97 | 0.71 | 0.60 | 0.57 | 0.53 | 0.60 | 0.62 | **0.034** |
+| 90th percentile | 25 | 8.5 | 2.7 | 2.2 | 6.0 | 2.9 | 4.4 | **0.11** |
+
+The finished model's call reads the same Monte Carlo field as iteration
+11's (both after iteration 11's transport), with the chemistry of iteration
+11's PDR step in between: on a fixed field, the coupled rate moves by 3.4%
+(median). Between iterations it moves by 50-60%: **the field's own noise,
+not the coupling.** Each pumping line reads the field in its own frequency
+bin, and from one iteration's photons to the next that differs per cell by
+much more than the band integral the chemistry's own rate uses.
+
+Measured per cell, between the 11- and 16-iteration runs (median / 90th
+percentile of |new/old - 1|, cells with x(H2) >= 1e-6; scratch script
+`h012_noise.py`):
+
+| r [pc] | cells | Sol(levels), A | Sol(chem), A | x(H2), A | Sol(levels), B | x(H2), B |
+|---|---|---|---|---|---|---|
+| 4.5-6.0 | 40-63 | 0.07 / 0.18 | 0.04 / 0.13 | 0.04 / 0.13 | 0.09 / 0.18 | 0.06 / 0.14 |
+| 6.0-7.5 | 139 | 0.13 / 0.36 | 0.09 / 0.21 | 0.07 / 0.18 | 0.15 / 0.39 | 0.12 / 0.34 |
+| 7.5-9.0 | 205 | 0.23 / 0.51 | 0.12 / 0.30 | 0.09 / 0.25 | 0.23 / 0.55 | 0.21 / 0.54 |
+| 9.0-10.5 | 280 | 0.37 / 0.88 | 0.22 / 0.55 | 0.13 / 0.31 | 0.40 / 0.90 | 0.14 / 0.40 |
+| 10.5-12.0 | 371 | 0.54 / 2.1 | 0.33 / 0.95 | 0.06 / 0.16 | 0.54 / 2.6 | 0.04 / 0.11 |
+| 12.0-13.5 | 390 | 0.81 / 15 | 0.58 / 3.0 | 0.03 / 0.08 | 0.81 / 14 | 0.02 / 0.06 |
+| 13.5-15.0 | 222 | 1.0 / 500 | 0.73 / 6.1 | 0.02 / 0.38 | 1.0 / 380 | 0.01 / 0.38 |
+
+  - Both rates scatter more with depth, in both stages: the field's noise
+    per cell grows as the photons reaching a cell thin out (L-26). The
+    levels' rate scatters ~1.5x more than the chemistry's on the same
+    field (12.0-13.5 pc: 0.81 against 0.58).
+  - Weighted by the destruction, sum n(H2) |dSol| / sum n(H2) Sol: the
+    levels' rate 0.30 (A) and 0.33 (B), the chemistry's 0.22 and 0.19. The
+    destruction each chemistry used, n(H2) times its own rate: 0.14 in A,
+    0.23 in B, cell by cell; **its cloud total moves 1.6% (A) and 1.4% (B).**
+  - What it does to the chemistry: in the transition, 6-9 pc, x(H2) per
+    cell moves 1.7-2.3x more in B than in A (7.5-9 pc: 0.21 against 0.09);
+    deeper, where x(H2) is saturated, it does not (0.01-0.04). The lines,
+    sums over many cells, move by under 2% (above).
+
+So stage B hands the chemistry a rate as noisy as the field in each line's
+bin. That is the physics read on this Monte Carlo field, not a defect; it
+falls with more packets, which only a run can price. Averaging the field
+over iterations would also cut it, and would be a change of MOCASSIN's
+iteration, not of the level model: not made.
+
+### Built for step 2, not yet called
+
+In h2_mod, tested on a scratch driver and called by nothing yet (the rerun
+above is byte-identical with them in):
+
+  - `h2PumpRates(..., heatDis)`: per level, the kinetic energy the
+    dissociations out of it leave in the gas [eV s^-1], each excited
+    level's dissociation rate times the energy of its atoms (h2uKE).
+  - `h2CollHeat(T, dens, pops)`: the net heating by collisions within X
+    per molecule [erg s^-1], every downward collision giving its level
+    difference to the gas and every upward one taking it (Cloudy's
+    HeatDexc). On Boltzmann populations it is -6e-42 erg s^-1 (zero to
+    rounding: detailed balance); on pumped ones, positive.
+  - On the scratch driver's pumped cell the mean kinetic energy per
+    dissociation is 0.505 eV (3D-PDR fixes 0.4).
+
+### Not yet known
+
+  - Whether the noisier rate moves the converged transition, or only
+    scatters it: one 21^3 run per stage cannot separate the two.
+  - pn150k under stage B, against Cloudy: next.
+  - The heating (step 2): 3D-PDR's H2 terms are fixed energies on the
+    level model's rate - 1.5 eV per formation, 0.4 eV per dissociation,
+    9 x 2.2 eV per dissociation for the pumping, damped by a critical
+    density - and nothing anywhere cools by H2 lines: neither 3D-PDR's
+    coolants (C+, C, O, CO) nor MOCASSIN's include H2.

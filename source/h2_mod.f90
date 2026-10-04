@@ -74,6 +74,7 @@ module h2_mod
     character(len=4), parameter, public :: h2CollName(h2NColl) = &
          & (/'H   ', 'He  ', 'oH2 ', 'pH2 ', 'H+  '/)
     real(dp), parameter :: hcK = 1.4387769_dp           ! hc/k [cm K]
+    real(dp), parameter :: hPl = 6.62607015e-27_dp      ! Planck's constant [erg s]
 
     integer, public :: h2NX = 0                         ! X levels, in energy order
     integer, allocatable, public :: h2V(:), h2J(:)
@@ -161,7 +162,7 @@ module h2_mod
 
     public :: h2ReadX, h2ReadElec, h2SolveX, h2Solve, h2Level, h2PumpRates, h2FormDist, h2CollRad
     public :: h2Shield, h2ShieldFederman, h2LineShield, h2LineOverlap, h2LineEscape, h2LineParams, h2Voigt
-    public :: h2ShieldAIndex, h2ShieldJ, h2LineShieldPrep, h2LineShieldEval
+    public :: h2ShieldAIndex, h2ShieldJ, h2LineShieldPrep, h2LineShieldEval, h2CollHeat
 
 contains
 
@@ -531,11 +532,15 @@ contains
     ! counts only by its escape probability, and the excited level's other
     ! decays and its dissociation take the share. pump(l) is still the
     ! absorption of the external field alone.
+    !
+    ! heatDis(l), optional (H-012): the kinetic energy the dissociations out
+    ! of l leave in the gas, per molecule in l [eV s^-1] - each excited
+    ! level's dissociation rate times the energy of its atoms (h2uKE).
     !---------------------------------------------------------------------------
-    subroutine h2PumpRates(eta, W, kdiss, pump, beta)
+    subroutine h2PumpRates(eta, W, kdiss, pump, beta, heatDis)
       real(dp), intent(in) :: eta(:)
       real(dp), intent(out) :: W(:,:), kdiss(:)
-      real(dp), intent(out), optional :: pump(:)
+      real(dp), intent(out), optional :: pump(:), heatDis(:)
       real(dp), intent(in), optional :: beta(:)
       real(dp) :: gam, P
       real(dp), allocatable :: Aeff(:)
@@ -547,6 +552,7 @@ contains
       if (present(beta)) Aeff = Aeff*beta(1:h2NT)
       W = 0._dp; kdiss = 0._dp
       if (present(pump)) pump = 0._dp
+      if (present(heatDis)) heatDis = 0._dp
       do u = 1, h2NU
          if (uLast(u) < uFirst(u)) cycle
          gam = h2uDiss(u) + sum(Aeff(uFirst(u):uLast(u)))
@@ -556,6 +562,7 @@ contains
             P = h2tA(t)*h2uG(u)/h2G(h2tL(t))*eta(t)
             if (present(pump)) pump(h2tL(t)) = pump(h2tL(t)) + P
             kdiss(h2tL(t)) = kdiss(h2tL(t)) + P*h2uDiss(u)/gam
+            if (present(heatDis)) heatDis(h2tL(t)) = heatDis(h2tL(t)) + P*h2uDiss(u)/gam*h2uKE(u)
             do t2 = uFirst(u), uLast(u)
                W(h2tL(t), h2tL(t2)) = W(h2tL(t), h2tL(t2)) + P*Aeff(t2)/gam
             end do
@@ -1387,6 +1394,39 @@ contains
       end do
       R = R + h2A                                  ! radiative decay, upper -> lower
     end subroutine h2CollRad
+
+    !---------------------------------------------------------------------------
+    ! H-012: the net heating of the gas by collisions within X, per molecule
+    ! [erg s^-1], for populations pops (fractions) at temperature T with
+    ! collider densities dens: every downward collision gives its level
+    ! difference to the gas, every upward one takes it (detailed balance), as
+    ! Cloudy's HeatDexc. Positive where pumping keeps the levels above their
+    ! Boltzmann ratio, negative (cooling) where the gas is hotter than they are.
+    !---------------------------------------------------------------------------
+    real(dp) function h2CollHeat(T, dens, pops)
+      real(dp), intent(in) :: T, dens(h2NColl), pops(:)
+      real(dp), allocatable :: R(:,:)
+      real(dp) :: s, kdn
+      integer :: ic, iu, il
+      ! the coefficients and Boltzmann factors of h2CollRad at T
+      if (.not.allocated(crKd) .or. T /= crT) then
+         allocate(R(h2NX, h2NX))
+         call h2CollRad(T, dens, R)
+         deallocate(R)
+      end if
+      s = 0._dp
+      do ic = 1, h2NColl
+         if (dens(ic) <= 0._dp) cycle
+         do iu = 2, h2NX
+            do il = 1, iu - 1
+               if (crKd(iu, il, ic) <= 0._dp) cycle
+               kdn = dens(ic)*crKd(iu, il, ic)
+               s = s + kdn*(pops(iu) - pops(il)*h2G(iu)/h2G(il)*crBf(iu, il))*(h2E(iu) - h2E(il))
+            end do
+         end do
+      end do
+      h2CollHeat = s*hPl*cLight
+    end function h2CollHeat
 
     ! Statistical equilibrium for rates R(i,j) [s^-1] between the levels, a
     ! destruction rate k(i) [s^-1] out of each, and formation: each molecule

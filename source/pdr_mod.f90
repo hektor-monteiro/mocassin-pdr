@@ -3382,6 +3382,20 @@ module pdr_mod
            end if
         end if
 
+#ifdef RAYTHEIA
+        ! ---------------------------------------------------------- H-012
+        ! H2 PHOTODISSOCIATION IS THE LEVEL MODEL'S (DEVLOG-H2 stage B).
+        !
+        ! h2LevelModel has run on this iteration's field before the PDR step
+        ! (iterateMC): its Solomon rate per molecule, from the 302 levels with
+        ! every pumping line shielded and overlapped on this cell's own direct
+        ! and diffuse paths, replaces the network's single-line Federman-type
+        ! rate (D-088) on the same field. One H2 photodissociation rate, used
+        ! by the chemistry and, through RATE(NRH2), by CALC_HEATING's
+        ! photodissociation and pumping heating below.
+        if (allocated(grid%h2Sol) .and. NR2 > 0) pdrRate(NR2) = dble(max(grid%h2Sol(cellP), 0.))
+#endif
+
         call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
              & pdrNspecMod, pdrNreacMod)
         abunPre = abun   ! D-258c: the chemistry's own state, before D-162/D-231 re-impose
@@ -4410,9 +4424,13 @@ module pdr_mod
       !=================================================================
       ! H-007 (branch h2-model): the H2 level model on the finished model.
       !
-      ! Stage A of DEVLOG-H2: nothing here feeds back. For every active cell
-      ! the 302 rovibrational levels of H2 X are solved (h2_mod) with what the
-      ! finished model holds:
+      ! Stage A of DEVLOG-H2 ran this once, on the finished model. Stage B
+      ! (H-012) runs it every PDR iteration, before the PDR step and on that
+      ! iteration's field, one sweep from the last call's populations; the
+      ! chemistry then takes its H2 photodissociation rate from it (pdrStep).
+      ! The finished model gets sweeps to convergence (nSweepMax). For every
+      ! active cell the 302 rovibrational levels of H2 X are solved (h2_mod)
+      ! with what the model holds:
       !
       !   gas       MOCASSIN's Te; n(H), n(He), n(H+) and n(H2) from the
       !             chemistry; the ortho and para H2 that collide are the
@@ -4457,7 +4475,7 @@ module pdr_mod
       ! columns, overlap and sites are skipped): that changes no result.
       !=================================================================
 #ifdef RAYTHEIA
-      subroutine h2LevelModel(grid)
+      subroutine h2LevelModel(grid, nSweepMax)
         use h2_mod, only : h2NX, h2NU, h2NT, h2NColl, h2ReadX, h2ReadElec, h2tWN, h2tU, h2tL, h2tA, &
              & h2uG, h2G, h2E, h2A, h2Ortho, h2Level, h2LineOverlap, h2LineShield, h2LineParams, &
              & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates, h2ShieldAIndex, h2ShieldJ, &
@@ -4468,8 +4486,9 @@ module pdr_mod
         include 'mpif.h'
 
         type(grid_type), dimension(:), intent(inout) :: grid
+        integer, intent(in)                          :: nSweepMax   ! sweeps at most (H-012)
 
-        integer, parameter          :: maxSweep = 12, nGrp = 4, nHb = 150, nR1 = 8
+        integer, parameter          :: nGrp = 4, nHb = 150, nR1 = 8
         double precision, parameter :: rydWN = 109737.31568d0
         double precision, parameter :: mH2g = 2.01588d0*1.66053907d-24
         double precision, parameter :: hcK = 1.4387769d0
@@ -4490,6 +4509,9 @@ module pdr_mod
         integer, allocatable :: workOrd(:), cI(:), cJ(:), cK(:)
         double precision, allocatable :: tCel(:), tCelSum(:)
         integer :: winC, m, nIter, jA
+        logical :: lgFirstCall
+        real, allocatable :: solPrev(:)
+        double precision, allocatable :: solRat(:)
         double precision :: fA
         integer(8) :: zero8, one8, nxt8, base8
         integer(kind=MPI_ADDRESS_KIND) :: disp0, wsz, wbase
@@ -4539,7 +4561,10 @@ module pdr_mod
         if (err /= 0) then
            print*, "! h2LevelModel: can'ln allocate"; stop
         end if
-        if (.not.allocated(grid(1)%h2Pop)) then
+        ! H-012: the populations are kept from one call to the next; only the
+        ! first call starts them (below, Boltzmann at Te)
+        lgFirstCall = .not.allocated(grid(1)%h2Pop)
+        if (lgFirstCall) then
            allocate(grid(1)%h2Pop(0:nCel,h2NX), grid(1)%h2Sol(0:nCel), grid(1)%h2SolChem(0:nCel), &
                 & grid(1)%h2Pump(0:nCel), stat=err)
            if (err /= 0) then
@@ -4547,6 +4572,11 @@ module pdr_mod
            end if
         end if
         if (.not.allocated(grid(1)%h2Diag)) allocate(grid(1)%h2Diag(0:nCel,nR1-3))
+        ! the last call's Solomon rates, which the chemistry has used since
+        ! (stage B): kept to say how far this call moves them
+        allocate(solPrev(0:nCel))
+        solPrev = grid(1)%h2Sol
+        if (lgFirstCall) solPrev = 0.
         grid(1)%h2Sol = 0.; grid(1)%h2SolChem = 0.; grid(1)%h2Pump = 0.; grid(1)%h2Diag = 0.
 
         ! each line's frequency bin, by the rule MOCASSIN places its own line
@@ -4580,10 +4610,12 @@ module pdr_mod
         end do
         fLWd = draineWindowShare()
 
-        ! n(H2) of every cell, and Boltzmann populations to start from
+        ! n(H2) of every cell; on the first call, Boltzmann populations to
+        ! start from (later calls start from the last call's)
         nH2c = 0.d0
         do cellP = 1, nCel
-           nH2c(cellP) = dble(grid(1)%Hden(cellP))*grid(1)%pdrAbun(cellP,NH2)
+           nH2c(cellP) = max(dble(grid(1)%Hden(cellP))*grid(1)%pdrAbun(cellP,NH2), 0.d0)
+           if (.not.lgFirstCall) cycle
            T = max(dble(grid(1)%Te(cellP)), 1.d0)
            tot = 0.d0
            do l = 1, h2NX
@@ -4633,7 +4665,7 @@ module pdr_mod
         end if
         call mpi_barrier(mpi_comm_world, ierr)
 
-        do isweep = 1, maxSweep
+        do isweep = 1, nSweepMax
            t1 = mpi_wtime()
            tm = 0.d0
            call starColumns()
@@ -4656,7 +4688,9 @@ module pdr_mod
               i = cI(cellP); j = cJ(cellP); k = cK(cellP)
               dnH2 = nH2c(cellP)
               nH  = dble(grid(1)%Hden(cellP))
-              if (dnH2 <= 0.d0 .or. nH <= 0.d0) then
+              ! a cell without H2 is solved as well: its rates per molecule
+              ! are what the chemistry needs there (H-012)
+              if (nH <= 0.d0) then
                  popTmp(cellP,:) = grid(1)%h2Pop(cellP,:)
                  cycle
               end if
@@ -4723,6 +4757,29 @@ module pdr_mod
         end do
         call mpi_win_unlock_all(winC, ierr)
         call mpi_win_free(winC, ierr)
+        ! how far this call moved the Solomon rate the chemistry has been using
+        ! (cells holding H2 at 1e-6 of the hydrogen or more, with a rate before)
+        if (taskid == 0 .and. .not.lgFirstCall) then
+           m = 0
+           do cellP = 1, nCel
+              if (solPrev(cellP) > 0. .and. nH2c(cellP) >= 1.d-6*dble(grid(1)%Hden(cellP))) m = m + 1
+           end do
+           if (m > 0) then
+              allocate(solRat(m))
+              m = 0
+              do cellP = 1, nCel
+                 if (solPrev(cellP) > 0. .and. nH2c(cellP) >= 1.d-6*dble(grid(1)%Hden(cellP))) then
+                    m = m + 1
+                    solRat(m) = abs(dble(grid(1)%h2Sol(cellP))/dble(solPrev(cellP)) - 1.d0)
+                 end if
+              end do
+              call heapSortIdx1(m, solRat)
+              print '(a,i7,a,2es10.2)', " ! h2LevelModel: Solomon rate against the last call's, ", m, &
+                   & " cells: median and 90% |new/old - 1| ", solRat((m+1)/2), solRat(max(1, (9*m)/10))
+              deallocate(solRat)
+           end if
+        end if
+        deallocate(solPrev)
         if (taskid == 0) print '(a,f8.1,a)', " ! h2LevelModel: done in ", mpi_wtime() - t0, " s"
 
         deallocate(tBin, sb, sigMax, nH2c, cDir, cDif, etaDir, etaDif, eta, shDir, shDif, ovDir, ovG, &
@@ -4761,6 +4818,21 @@ module pdr_mod
           end if
           deallocate(key)
         end subroutine orderCells
+
+        ! v(1:n) sorted ascending in place (through heapSortIdx)
+        subroutine heapSortIdx1(n, v)
+          integer, intent(in) :: n
+          double precision, intent(inout) :: v(:)
+          integer, allocatable :: ix(:)
+          integer :: q
+          allocate(ix(n))
+          do q = 1, n
+             ix(q) = q
+          end do
+          call heapSortIdx(n, v, ix)
+          v(1:n) = v(ix(1:n))
+          deallocate(ix)
+        end subroutine heapSortIdx1
 
         ! idx(1:n) such that key(idx) ascends (heap sort; ties in a fixed order)
         subroutine heapSortIdx(n, key, idx)
@@ -5137,12 +5209,17 @@ module pdr_mod
 
       end subroutine h2LevelModel
 #else
-      ! the 1D build has neither the site walk nor the line rays
-      subroutine h2LevelModel(grid)
+      ! the 1D build has neither the site walk nor the line rays: its
+      ! chemistry keeps the network's own H2 photodissociation rate
+      subroutine h2LevelModel(grid, nSweepMax)
         implicit none
         type(grid_type), dimension(:), intent(inout) :: grid
-        if (taskid == 0 .and. nGrids > 0 .and. allocated(grid(1)%active)) &
-             & print*, "! h2LevelModel: 3D build (PDRGEOM=3D) only - skipped"
+        integer, intent(in)                          :: nSweepMax
+        logical, save :: lgSaid = .false.
+        if (taskid == 0 .and. .not.lgSaid .and. nGrids > 0 .and. allocated(grid(1)%active) &
+             & .and. nSweepMax > 0) print*, "! h2LevelModel: 3D build (PDRGEOM=3D) only - skipped; &
+             &the chemistry keeps the network's H2 photodissociation rate"
+        lgSaid = .true.
       end subroutine h2LevelModel
 #endif
 
