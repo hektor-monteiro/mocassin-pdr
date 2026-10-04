@@ -3161,14 +3161,16 @@ module iteration_mod
            ! before the chemistry has run once - measured: 100% converged at
            ! iteration 3, zero pdrStep calls, every cell still zone 0. Hold the
            ! run open until the PDR has been enabled and has had one pass.
-           ! D-391: and until the model-integrated quantities have settled
-           ! (lgCvTotals, cvTotalsUpdate): the cell percentage alone stopped
-           ! pn150k at 91.2% with its He2+ zone still moving.
+           ! D-391/D-392: the model-integrated test decides (lgCvTotals,
+           ! cvTotalsUpdate), at the user's direction. The cell percentage is
+           ! reported, not tested: alone it stopped pn150k at 91.2% with its
+           ! He2+ zone still moving (D-391), and once its x(H2) half could fail
+           ! it plateaus at ~72% in the PDR fixtures from T_e and x(H2) noise,
+           ! where minConvergence 90 could never be met.
 #ifdef PDR
-           if ( totPercent >= minConvergence .and. lgCvTotals .and. &
-              & (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
+           if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
 #else
-           if ( totPercent >= minConvergence .and. lgCvTotals ) then
+           if ( lgCvTotals ) then
 #endif
 
               if (taskid==0) then
@@ -3215,7 +3217,7 @@ module iteration_mod
                             & " iterations: too few for the integrated test"
                     end if
                     print '(a,f7.2,a,f7.2,a)', " ! iterateMC: [talk] converged cells", totPercent, &
-                         & "% (minConvergence", minConvergence, "%)"
+                         & "% (minConvergence", minConvergence, "%, reported only - D-392)"
                  end if
 
 #ifdef PDR

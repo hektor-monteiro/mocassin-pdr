@@ -391,6 +391,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-389 | **D-387 diagnosed: our transition-zone H2 is 100-1000x Cloudy's because REDUCED makes ground-state H2 from H + H2+ directly, while Cloudy makes H2* (by H + H- 90%, H + H2+ 5-7%) and destroys it with electrons (e- + H2* -> H + H- 100%) before it relaxes; its ground H2 there is grain-made (98%). Destruction per molecule is similar in both codes (~2-4e-8 s^-1), so the gap is formation.** Also absent from REDUCED: H-, H2*, electron-impact dissociation of H2+ (46-54% of Cloudy's H2+ destruction). A Cloudy rerun with extra saves (runs/d389-cloudy-h2s, 238 s) shows every H2 line of Cloudy's pn150k comes from the PDR (2.121 um at emission-weighted 118 K, pumped; 28/17/12 um at 59-61 K). D-387's withdrawal of D-384 corrected: the TZ contributes only if its H2 nears A&G's ~1e-5. Not tuned; no production output depends on it now (L-43); the cure, level-resolved formation and electron destruction, belongs to the H2 model | Open | 2026-09-28 |
 | D-390 | **Correction to D-384 (and D-389, which quoted it): Cloudy's pn150k 1-0 S(1) 2.121 um is 9.4e-4 Hbeta, not 8.0e-5.** D-384 took the line list's `H2 2.12101m` (log F -13.732) for 1-0 S(1); 1-0 S(1) is `H2 2.12125m`, log F -12.659 against Hbeta -9.634 (runs/d389-cloudy-h2s/150k.out; the same entry is in d356-cloudy-pn). Integrating Cloudy's saved emissivity over its sphere gives the same, 9.45e-4. The 0-0 S(0) and S(1) values were right (1.7e-4, 5.5e-4). D-384's conclusion stands: the four H2 lines sum to ~2.1e-3 Hbeta, ~4e-3 of the [O I] 63 + [C II] 158 lines. Found on h2-model (DEVLOG-H2 H-007) | Done | 2026-10-02 |
 | D-391 | **The convergence test: its x(H2) half has passed every cell since D-216 (updateCell runs before the chemistry, so it compared H2den with the copy taken from it), it counts cells (pn150k's ionized gas is 1.3% of them, the He2+ zone ~90 cells) and it lets a 3%-per-iteration drift pass at the fixtures' 10%. Fixed: the x(H2) test after the chemistry; a model-integrated test - emission measure of every ion stage with >= 1% of its element's, H0/H2/CO contents, T weighted by n_e n(H+), n(H0), n(H2) - must change by <= convTotals (default 2%) over 3 iterations before the run may stop, and every run says whether it converged.** Measured over 20 snapshotted iterations: hiipdr at 11 has lines 8% ([O II] 7320) and Hbeta 2.1% from iteration 20 (printed 76% throughout); pn150k at 9 has He II 4686 15% low and its He2+ front moving (printed 92% throughout); the rule passes 2% at 15 (hiipdr) and 17 (pn150k). Physics byte-identical; the code reproduces the replay to every digit; four flavours rc 0. Also: the installed dustData had lost grph-avg.cat (a 2026-09-30 install from another tree); restored | Done | 2026-10-04 |
+| D-392 | **At the user's direction the model-integrated test alone stops a run (convTotals, default 0.02 - the strict end of the user's 2-5%); the cell percentage and minConvergence are reported, not tested, and a run setting minConvergence says so at start-up.** pn150k's fixture cap 11 -> 30 (it converges at 17). autoPackets still reads the cell percentage (affects only runs that set it). Checked: a run stops on the integrated test with 0.7% of cells passing; four flavours rc 0 | Done | 2026-10-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33750,6 +33751,46 @@ pn150k at 17: 1.99% against 1.6%). The published pages ran hiipdr at 11 and pn15
   - Per-cell helium in the cell test: not added. The integrated test sees
     helium through the He+ and He2+ emission measures, and a per-cell test
     could not hold a run open anyway (point 2).
+
+### Status
+
+Done.
+
+## D-392 - The model-integrated test decides when a run stops (2026-10-04)
+
+The user, on D-391: "I want the new test to decide when to stop. I think a
+tolerance of 2% to 5% is quite good given observational uncertainties. Then
+proceed as recommended."
+
+  - **The stop is the integrated test alone**: a run ends at the first
+    iteration whose model-integrated quantities moved by at most convTotals
+    over the last 3 iterations (and, for PDR runs, after the chemistry has
+    had its first pass, D-062), or at maxIterateMC. The cell percentage is
+    printed every iteration and at the end, and the second number of
+    `maxIterateMC` is read and reported against but no longer stops a run;
+    a run that sets it says so at start-up ("[D-392] minConvergence 90.0% is
+    reported against, not used to stop: convTotals decides"). Why it cannot
+    stay a condition: once its x(H2) half could fail (D-391) the percentage
+    plateaus at ~72% (hiipdr) from T_e and x(H2) noise, so a 90% target would
+    hold every PDR run to its cap, and in pn150k it read 92% while the He2+
+    zone moved.
+  - **convTotals stays 0.02 by default**, the strict end of the user's 2-5%
+    range; 0.05 is the loose end. On the fixtures (D-391's replay) 2% stops
+    hiipdr at 15 and pn150k at 17, where their spectra are within 2.8% and
+    1.6% of iteration 20.
+  - **The pn150k fixture's cap goes from 11 to 30** (`maxIterateMC 30 90.`):
+    at 11 it would end before converging. The others' cap of 22 covers
+    hiipdr's 15.
+  - Unchanged: what the integrated test measures (D-391); autoPackets still
+    reads the cell percentage to decide when to add packets, and now that the
+    percentage plateaus lower it will keep doubling to maxPhotons in a PDR
+    run - only runs that set autoPackets (the fine grids, D-365/D-368) are
+    affected; not addressed here.
+
+Checks: `runs/d392-stop-hii21` (hiipdr 21^3, 14 ranks, convTotals 0.90 to
+reach the stop quickly) stopped at iteration 6 on the integrated test (80.7%
+against 90%) with 0.73% of its cells passing; the start-up note printed. All
+four flavours rc 0.
 
 ### Status
 

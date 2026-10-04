@@ -414,6 +414,11 @@ module set_input_mod
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, maxIterateMC, minConvergence
                 !print*, keyword, maxIterateMC, minConvergence
+                ! D-392: the second number is now reported against, not used
+                ! to stop; the model-integrated test (convTotals) stops the run.
+                if (taskid == 0 .and. minConvergence > 0.) print '(a,f6.1,a)', &
+                     & " ! readInput: [D-392] minConvergence", minConvergence, &
+                     & "% is reported against, not used to stop: convTotals decides"
             case ("nPhotons")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, nphotonsin

@@ -5,7 +5,7 @@ symmetricXYZ
 Hdensity 1000.
 nebComposition "input/abunGASS_pn150k.in"
 TeStart 15000.
-maxIterateMC 11 90.
+maxIterateMC 30 90.
 nPhotons 6000000
 nx 41
 ny 41
