@@ -1011,14 +1011,18 @@ module iteration_mod
               ! the first attempt: mean f_mol 1.0000 in 100.00% of cells.
               call mocassinToPDR(grid(1:nGrids))
               if (lgPDR .and. nIterateMC == pdrStartIter) then
-                 call seedMolecules(grid(1:nGrids))
-                 call computeAVdust(grid(1:nGrids))
-                 call mocassinToPDR(grid(1:nGrids))
+                 ! D-393: not over a warm start's resumed molecules
+                 if (.not.lgPDRresumed) then
+                    call seedMolecules(grid(1:nGrids))
+                    call computeAVdust(grid(1:nGrids))
+                    call mocassinToPDR(grid(1:nGrids))
+                 end if
                  ! D-220: the seed moved the molecular content, so republish
                  ! elemAvail before updateCell normalises the ion stages to it.
                  ! Without this the first PDR iteration ran with the stages
                  ! summing to 1 beside a seed that had made half the hydrogen
-                 ! molecular - a hydrogen budget of 1.85 (D-219).
+                 ! molecular - a hydrogen budget of 1.85 (D-219). D-393: a warm
+                 ! start needs the same, from the resumed abundances.
                  call pdrToMocassin(grid(1:nGrids))
               end if
            end if

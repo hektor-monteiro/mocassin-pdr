@@ -392,6 +392,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-390 | **Correction to D-384 (and D-389, which quoted it): Cloudy's pn150k 1-0 S(1) 2.121 um is 9.4e-4 Hbeta, not 8.0e-5.** D-384 took the line list's `H2 2.12101m` (log F -13.732) for 1-0 S(1); 1-0 S(1) is `H2 2.12125m`, log F -12.659 against Hbeta -9.634 (runs/d389-cloudy-h2s/150k.out; the same entry is in d356-cloudy-pn). Integrating Cloudy's saved emissivity over its sphere gives the same, 9.45e-4. The 0-0 S(0) and S(1) values were right (1.7e-4, 5.5e-4). D-384's conclusion stands: the four H2 lines sum to ~2.1e-3 Hbeta, ~4e-3 of the [O I] 63 + [C II] 158 lines. Found on h2-model (DEVLOG-H2 H-007) | Done | 2026-10-02 |
 | D-391 | **The convergence test: its x(H2) half has passed every cell since D-216 (updateCell runs before the chemistry, so it compared H2den with the copy taken from it), it counts cells (pn150k's ionized gas is 1.3% of them, the He2+ zone ~90 cells) and it lets a 3%-per-iteration drift pass at the fixtures' 10%. Fixed: the x(H2) test after the chemistry; a model-integrated test - emission measure of every ion stage with >= 1% of its element's, H0/H2/CO contents, T weighted by n_e n(H+), n(H0), n(H2) - must change by <= convTotals (default 2%) over 3 iterations before the run may stop, and every run says whether it converged.** Measured over 20 snapshotted iterations: hiipdr at 11 has lines 8% ([O II] 7320) and Hbeta 2.1% from iteration 20 (printed 76% throughout); pn150k at 9 has He II 4686 15% low and its He2+ front moving (printed 92% throughout); the rule passes 2% at 15 (hiipdr) and 17 (pn150k). Physics byte-identical; the code reproduces the replay to every digit; four flavours rc 0. Also: the installed dustData had lost grph-avg.cat (a 2026-09-30 install from another tree); restored | Done | 2026-10-04 |
 | D-392 | **At the user's direction the model-integrated test alone stops a run (convTotals, default 0.02 - the strict end of the user's 2-5%); the cell percentage and minConvergence are reported, not tested, and a run setting minConvergence says so at start-up.** pn150k's fixture cap 11 -> 30 (it converges at 17). autoPackets still reads the cell percentage (affects only runs that set it). Checked: a run stops on the integrated test with 0.7% of cells passing; four flavours rc 0 | Done | 2026-10-04 |
+| D-393 | **The warm start threw its PDR away: it counts iterations from 1 again, so pdrStartIter 4 skipped the chemistry for three iterations and then seeded the molecules over the resumed ones. Fixed: a checkpoint with PDR state resumes it from the first iteration, unseeded, with elemAvail published from the resumed abundances.** L-14's test passes: 8 cold + 8 warm against 16 cold, hiipdr 21^3 - integrated quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line 0.55% (0.71%), crossing 1.501 against 1.498. The PDR's per-coolant split and extra heating are still not checkpointed; one iteration without them leaves no trace after eight | Done | 2026-10-04 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33791,6 +33792,51 @@ Checks: `runs/d392-stop-hii21` (hiipdr 21^3, 14 ranks, convTotals 0.90 to
 reach the stop quickly) stopped at iteration 6 on the integrated test (80.7%
 against 90%) with 0.73% of its cells passing; the start-up note printed. All
 four flavours rc 0.
+
+### Status
+
+Done.
+
+## D-393 - The warm start continues the PDR, and matches a cold run (2026-10-04)
+
+Part of the recommendation the user accepted ("proceed as recommended"): the
+warm start is fixed before the merge decision for the H2 model (DEVLOG-H2
+H-017). Found while adding the H2 populations to the warm start on h2-model.
+
+**Defect.** A warm start counts its iterations from 1 again, and every PDR
+fixture sets `pdrStartIter 4`. So a resumed run skipped the chemistry for its
+first three iterations and then, at iteration 4, ran `seedMolecules` over the
+resumed abundances - the resumed PDR was thrown away and restarted. L-14 had
+recorded the warm start as never validated against a cold run.
+
+**Fix.** resetGrid, on a checkpoint that carries PDR state (`lgPDRrestart`),
+sets `lgPDRresumed` and `pdrStartIter = 1` and says so ("[D-393] PDR state
+resumed - the chemistry runs from the first iteration ... and is not
+re-seeded"); iterateMC skips the seed when `lgPDRresumed` but still runs
+pdrToMocassin at the first PDR iteration, so updateCell sees elemAvail from the
+resumed abundances (without it the ion stages would sum to 1 in molecular gas,
+D-219's 1.85 budget).
+
+**Test (L-14's licensing test).** hiipdr 21^3, 4 ranks, `convTotals 1.e-6` so
+every run goes to its cap: `runs/d393-cold16` (16 iterations, seed 1001),
+`runs/d393-cold16s2` (16, seed 1002, the Monte Carlo scatter), and
+`runs/d393-cold8` continued by `runs/d393-warm8` (mocassinWarm, 8 more).
+`tools/d393_warmcheck.py`:
+
+| | warm / cold - 1 | seed 1002 / seed 1001 - 1 |
+|---|---|---|
+| D-391's integrated quantities, largest | 0.33% (Mg+) | 1.15% (T(H0)) |
+| Hbeta | 0.04% | 0.07% |
+| worst line above 1% of Hbeta (44 lines) | 0.55% | 0.71% |
+| H/H2 crossing A_V | 1.501 against 1.498 | 1.498 |
+
+The warm start's largest excess over the scatter is 0.09% (Mg+). **A warm start
+is now a continuation, to within the Monte Carlo.** What stays as L-14 says:
+pdrCoolSp, pdrHeatXtra, pdrPhotRate and pdrLevPop are not in the checkpoint, so
+the first resumed thermal balance runs without the PDR's per-coolant split and
+extra heating; measured here, that one iteration leaves no trace after eight.
+The random sequence restarts with the seed, so a warm start is equivalent, not
+identical. Four flavours rc 0.
 
 ### Status
 
