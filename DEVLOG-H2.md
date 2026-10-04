@@ -28,6 +28,7 @@ DEVLOG.md and arrives here by merge.
 | H-017 | **What is pending, at the user's question: the merge of stage B (D-388: after every benchmark; not yet the 1D flavour, the warm start, the fine grids), iteration counts and a convergence test that sees helium and slow drifts (L-40, H-015; *corrected: x(H2) is tested, at 10% per iteration*), and the physics divergences O-02, L-43, L-33, L-37, pn150k's neon and low ions, deep O+/He+ against 3D-PDR.** New: `h2Pop.bin` is written and never read, so a warm start restarts the level model cold | Discussion | 2026-10-04 |
 | H-018 | **Production's D-391 merged in (e60a836, no conflicts): the per-cell x(H2) test had passed every cell since D-216 and now runs after the chemistry; a model-integrated test (emission measures, H0/H2/CO contents, weighted temperatures; convTotals, default 2% over 3 iterations) gates the stop and every run reports whether it converged.** By it, the pages' runs were not converged: pn150k at 14 (He2+ 5.8% over the window, lines up to 5% from iteration 20), hiipdr 31^3 at 11 (O+ 5.9%, lines up to 8%); 2% is reached at 17 and 15. Merged branch: four flavours and h2Test/h2Slab rc 0; a stage B run reports the new test and exits cleanly | Done | 2026-10-04 |
 | H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages** | In progress | 2026-10-04 |
+| H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
 
 ---
 
@@ -2625,3 +2626,42 @@ proceed as recommended."
 ### Status
 
 In progress.
+
+## H-020 - The warm start resumes the level populations (2026-10-04)
+
+The warm-start fix recommended before the merge decision (H-017), with
+production's D-393 (the warm start continues the PDR, merged as b145dfb).
+
+**Defect.** `output/h2Pop.bin` was written (h2Lines_mod) and read by nothing,
+so a resumed run's first level-model call started from Boltzmann
+populations. **Fix.** At the first call of a warm start, h2LevelModel reads
+the file back (`h2PopResume`) when it describes this grid and level set: the
+cell count, h2NX, every level's v and J and energy are checked, and on any
+mismatch, a truncated file or none the call starts from Boltzmann as before
+and says which.
+
+**Test.** `runs/h018-merge-hii21` (stage B, 21^3, 6 iterations) resumed twice
+with mocassinWarm on 4 ranks, the first call compared with the checkpointed
+run's last:
+
+| first resumed call | 1-0 S(1) | pumping | Solomon dissociations |
+|---|---|---|---|
+| h018's last call | 5.389e33 erg/s | 1.225e47 s^-1 | 2.212e46 s^-1 |
+| populations resumed (`h020-warm-pop`) | +0.2% | -0.4% | -0.6% |
+| file withheld (`h020-warm-nopop`) | +127% | +105% | +93% |
+
+Resumed, the first call lands within 0.6% of where the run left off, on a new
+Monte Carlo field (1.45 solutions per cell against 1.67 from Boltzmann);
+without it, the first resumed chemistry would have been handed twice the H2
+photodissociation rate. Both test runs were stopped after their first call
+(only that was being tested; D-393 tested the continuation over 8 iterations).
+All four flavours and h2Test/h2Slab rc 0.
+
+Still not in the checkpoint: the last call's Solomon rates and H2 heating
+(h2Sol, h2Heat), which the first call recomputes before the chemistry reads
+them, so nothing stale is used; and production's per-coolant split and extra
+heating (L-14, D-393).
+
+### Status
+
+Done.

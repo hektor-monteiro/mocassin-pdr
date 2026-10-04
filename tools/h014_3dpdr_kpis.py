@@ -97,7 +97,7 @@ def main(run, ref_path):
         print('%-6s ' % k + ' '.join('%7.3g' % v for v in rat[k]))
 
     print('\n== the rest of what the page states ==')
-    pdr = d['zone'] == 1
+    pdr = (d['zone'] == 1) & (d['chi'] > 0)    # an edge cell can get no FUV packet
     k_m = -np.polyfit(d['AV'][pdr], np.log(d['chi'][pdr]), 1)[0]
     k_r = -np.polyfit(ref['AV'], np.log(ref['chi']), 1)[0]
     print('field e-folding per magnitude: MOCASSIN %.2f (all PDR cells), reference %.2f'

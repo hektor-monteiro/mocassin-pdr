@@ -4508,7 +4508,7 @@ module pdr_mod
         use h2_mod, only : h2NX, h2NU, h2NT, h2NColl, h2ReadX, h2ReadElec, h2tWN, h2tU, h2tL, h2tA, &
              & h2uG, h2G, h2E, h2A, h2Ortho, h2Level, h2LineOverlap, h2LineShield, h2LineParams, &
              & h2Shield, h2LineEscape, h2FormDist, h2Solve, h2PumpRates, h2ShieldAIndex, h2ShieldJ, &
-             & h2LineShieldPrep, h2LineShieldEval, h2CollHeat
+             & h2LineShieldPrep, h2LineShieldEval, h2CollHeat, h2V, h2J
         use functions_module, only : H2_FORMATION_RATE
         use grid_mod, only : getVolume
         implicit none
@@ -4543,6 +4543,7 @@ module pdr_mod
         double precision, allocatable :: tCel(:), tCelSum(:)
         integer :: winC, m, nIter, jA
         logical :: lgFirstCall
+        logical :: lgPopRead                                  ! H-020
         real, allocatable :: solPrev(:)
         double precision, allocatable :: solRat(:)
         double precision :: fA
@@ -4645,12 +4646,21 @@ module pdr_mod
         end do
         fLWd = draineWindowShare()
 
+        ! H-020: a warm start resumes the populations the run it continues
+        ! wrote (output/h2Pop.bin, h2Lines_mod) when the file describes this
+        ! grid and level set; otherwise it starts from Boltzmann like a cold
+        ! run and says so. Before this the resumed run's first call started
+        ! cold, and a cold call's first sweep overshoots the dissociations by
+        ! 38% on a converged model (H-016).
+        lgPopRead = .false.
+        if (lgFirstCall .and. lgWarm) call h2PopResume(lgPopRead)
+
         ! n(H2) of every cell; on the first call, Boltzmann populations to
         ! start from (later calls start from the last call's)
         nH2c = 0.d0
         do cellP = 1, nCel
            nH2c(cellP) = max(dble(grid(1)%Hden(cellP))*grid(1)%pdrAbun(cellP,NH2), 0.d0)
-           if (.not.lgFirstCall) cycle
+           if (.not.lgFirstCall .or. lgPopRead) cycle
            T = max(dble(grid(1)%Te(cellP)), 1.d0)
            tot = 0.d0
            do l = 1, h2NX
@@ -5254,6 +5264,64 @@ module pdr_mod
           r1Tmp(cellP,13) = real(eKin*dble(hPlanck)*dble(c))        ! kinetic, per H2 formed [erg]
           tm(8) = tm(8) + mpi_wtime() - tq
         end subroutine solveCell
+
+        ! H-020: read output/h2Pop.bin (h2Lines_mod's layout: int32 nCells and
+        ! h2NX, int32 v and J of every level, real(dp) energies, then each
+        ! cell's populations) into grid(1)%h2Pop, if it describes this grid
+        ! and this level set. Every rank reads it: the populations of every
+        ! cell are needed on every rank, as after a call's reduction.
+        subroutine h2PopResume(lgOk)
+          logical, intent(out) :: lgOk
+          integer(4) :: nc4, nx4
+          integer(4), allocatable :: v4(:), j4(:)
+          real(kind=8), allocatable :: e8(:)
+          integer :: iosR, cP
+          character(len=60) :: why
+          lgOk = .false.
+          why = ''
+          open(unit=67, file='output/h2Pop.bin', status='old', access='stream', &
+               & action='read', iostat=iosR)
+          if (iosR /= 0) then
+             why = 'no output/h2Pop.bin'
+          else
+             read(67, iostat=iosR) nc4, nx4
+             if (iosR /= 0) then
+                why = 'unreadable header'
+             else if (nc4 /= nCel .or. nx4 /= h2NX) then
+                why = 'another grid or level count'
+             else
+                allocate(v4(h2NX), j4(h2NX), e8(h2NX))
+                read(67, iostat=iosR) v4, j4
+                if (iosR == 0) read(67, iostat=iosR) e8
+                if (iosR /= 0) then
+                   why = 'unreadable level list'
+                else if (any(v4 /= h2V) .or. any(j4 /= h2J) .or. &
+                     & maxval(abs(e8 - h2E)) > 1.d-6*maxval(abs(h2E))) then
+                   why = 'another level set'
+                else
+                   do cP = 1, nCel
+                      read(67, iostat=iosR) grid(1)%h2Pop(cP,:)
+                      if (iosR /= 0) exit
+                   end do
+                   if (iosR /= 0) then
+                      why = 'truncated populations'
+                   else
+                      lgOk = .true.
+                   end if
+                end if
+                deallocate(v4, j4, e8)
+             end if
+             close(67)
+          end if
+          if (taskid == 0) then
+             if (lgOk) then
+                print*, "! h2LevelModel: warm start - populations resumed from output/h2Pop.bin"
+             else
+                print*, "! h2LevelModel: warm start - ", trim(why), &
+                     & "; populations start from Boltzmann, as in a cold run"
+             end if
+          end if
+        end subroutine h2PopResume
 
       end subroutine h2LevelModel
 #else
