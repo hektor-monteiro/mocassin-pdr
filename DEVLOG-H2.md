@@ -31,6 +31,8 @@ DEVLOG.md and arrives here by merge.
 | H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
 | H-021 | **The user: "lets work on the gaps in H2 formation and destruction" (H-017 items 4-5). L-33 is withdrawn (production D-394, merged): Cloudy forms 94-95% of its grain H2 as H2*, a channel the comparison never read; with it, our grain coefficient is 0.86-1.00 of Cloudy's (pn150k) and 0.50-0.91 (hiipdr, silicate surface energies). L-43 stands: transition-zone H2 24-665x Cloudy's at A_V 0.05-0.13 on pn150k, where Cloudy's H2* is 0.5-1.3% of its H2 and its H- outnumbers its H2 10^2-10^4 times. The plan: the level model takes the level-resolved channels (H2+ + H and H- + H into levels, dissociative attachment and the H2+ charge transfer back out by detailed balance, H- in local balance), measured first** | In progress | 2026-10-05 |
 | H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
+| H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production).** hiipdr (`runs/h023-eh2p-hii31` against `runs/h019-B-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's; front, crossing, Hbeta, every PDR shell unchanged; the H2 lines -0.1 to -0.2%. pn150k (18 iterations) running | In progress | 2026-10-05 |
+| H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: 0.37 (ortho) and 0.50 (para) | Done | 2026-10-05 |
 
 ---
 
@@ -3011,3 +3013,219 @@ Cloudy's zones.
 
 Done (diagnostic). The destruction measurement points at the H2 column at the
 lit edge, which our model builds far more slowly than Cloudy's (next).
+
+## H-023 - D-395's seeded pairs: reaction 332 on the converged stage B runs (2026-10-05)
+
+Production D-395 added reaction 332, e- + H2+ -> e- + H + H+ (Janev et al.
+1987, 2e-7 exp(-30720/T)). It is the network's missing H2+ sink in ionized
+gas, behind L-43's transition-zone H2 excess. The change was merged here per
+D-388; the four flavours, h2Test and h2Slab build with rc 0, and it is
+installed into this branch's PREFIX.
+
+The pairs are this branch's converged stage B runs, rerun with the new
+binary at the same input, seed (1001), 14 ranks and iteration count, with
+`convTotals 1e-6` so the test does not stop them early:
+
+  - hiipdr: `runs/h023-eh2p-hii31` against `runs/h019-B-hii31` (15);
+  - pn150k: `runs/h023-eh2p-pn41` against `runs/h019-B-pn41` (18).
+
+The tool is `scratchpad/h023_compare.py`. It bins cells by their own x(H+),
+and Cloudy's H2 is H2 + H2*.
+
+### hiipdr (40:55)
+
+| x(H+) | cells | n(H2+) new/old | 2n(H2)/n_H new/old | ours/Cloudy, new |
+|---|---|---|---|---|
+| 0.99-1.00 | 107 | 0.51 | 0.97 | 25 |
+| 0.95-0.99 | 19 | 0.36 | 0.51 | 56 |
+| 0.80-0.95 | 4 | 0.37 | 0.46 | 14 |
+| 0.50-0.80 | 12 | 0.47 | 0.49 | 62 |
+| 0.20-0.50 | 20 | 0.64 | 0.65 | 43 |
+| 0.05-0.20 | 19 | 0.93 | 0.95 | 4.8 |
+| 0.01-0.05 | 12 | 0.89 | 1.06 | 0.9 |
+
+  - front 3.8312 -> 3.8310 pc;
+  - H/H2 crossing 1.4004 -> 1.3996;
+  - Hbeta 9.16568 -> 9.16518;
+  - H2 lines x0.998-0.999;
+  - every PDR shell's x(H2) and T_e to 1.000.
+
+The H2+ drop is the rate table's x2.1 at hiipdr's 8-9 kK. D-395's 4-10x
+was predicted for pn150k's 1-2e4 K.
+
+### pn150k
+
+Running (ETA ~12:15).
+
+### Status
+
+In progress.
+
+## H-024 - hiipdr's lit edge, cell by cell: a column definition and the references (2026-10-05)
+
+H-022 ended on "where the lag at A_V 0.5 comes from": our star-ward H2 column
+4000x below Cloudy's at the lit edge, though our ionized-gas H2 is 3-18x
+Cloudy's per cm^3. Its first question was whether the chemistry's column
+counts the ionized cells at all. Tool: `scratchpad/h024_edge.py <run> <Cloudy
+prefix>`, our cells binned in A_V (+-0.02 mag, medians) against Cloudy's zone
+at that A_V.
+
+### The column counts the ionized cells
+
+`computeAVradial`'s star-ward march adds n(H2) ds over every active cell but
+the target (D-350 removed the zone test); so does the level model's
+`starColumns`. Not the cause.
+
+### The lag was a definition
+
+h2Cells.out's "N(H2) to cell" (column 17, 1-based) is the level column to the
+cell's near face. The cell's own H2 is left out of it and enters the
+shielding averaged through the cell. Our cells are 0.65 pc, about 0.08 mag of
+A_V each. The cells H-022 binned at A_V 0.50 are the front cells themselves
+(median x(H+) 0.015), so their column to the face is the ionized gas's,
+3.4e9.
+
+Cloudy's own ionized column is 4e8. Both codes build their H2 column only past
+the front. Measured to the cell centre (to the face plus half the cell's
+own):
+
+  - A_V 0.50: 6.2e12 against Cloudy's 1.85e13 (3x);
+  - A_V 0.55: 2.2e13 against Cloudy's 4.25e13 (1.9x).
+
+**Two more corrections to H-022:**
+
+  - Its Cloudy photodissociation per molecule divided every channel (H2 and
+    H2*) by ground H2 alone. Per H2 + H2*, Cloudy's rates are lower by 1.33,
+    1.23, 1.16, 1.08 and 1.01 at A_V 0.45, 0.50, 0.55, 0.60 and 0.70.
+  - A trap found on the way: `save pdr` writes 2n(H2)/n_H and 2n(H2*)/n_H
+    (`save_do.cpp`), not n/n_H. The first pass of this tool doubled Cloudy's
+    H2 by taking it at face value.
+
+### Against the old reference, ingredient by ingredient
+
+At A_V 0.55-0.60, `runs/h021-cloudy-hii`:
+
+  - 2n(H2)/n_H is 1.95-2.4x below Cloudy's;
+  - grain formation per cm^3 is 0.49-0.55 (H-021: the silicate surface
+    energies);
+  - photodissociation per molecule is 0.97-1.28.
+
+The product reproduces the abundance ratio. From A_V 0.65 the gap grows (7x
+at 0.70, 98x at 0.75) as Cloudy's column passes 1e14-1e15 and shields
+itself, and ours does not.
+
+### The shielding each code uses
+
+Shielding factor against N(H2), from the formulas. Cloudy's small model is
+Elwert et al. (2005), checked against its saved ground-state rate below.
+
+| N(H2) | Elwert, b 0.64 (Cloudy as run) | Elwert, b 1.19 | DB96, b 1.19 | 3D-PDR `H2SHIELD1`, 1 km/s |
+|---|---|---|---|---|
+| 1e14 | 0.50 | 0.67 | 0.74 | 0.61 |
+| 1e15 | 0.043 | 0.10 | 0.15 | 0.053 |
+| 4e15 | 0.0060 | 0.014 | 0.028 | 0.012 |
+| 1e16 | 2.2e-3 | 4.2e-3 | 1.1e-2 | 5.3e-3 |
+| 1e17 | 4.4e-4 | 6.5e-4 | 2.5e-3 | 1.8e-3 |
+| 1e18 | 1.1e-4 | 1.6e-4 | 7.5e-4 | 7.4e-4 |
+
+  - b = 0.64 km/s is H2's thermal width at 50 K. 1.19 is that with
+    MOCASSIN's 1 km/s added, the level model's b.
+  - H-005's slab puts the level model at 1.19, 1.57, 1.42 and 1.27 of DB96 at
+    1e14-1e17, and Cloudy's large model at 2.23 and 0.35 of DB96 at 1e15 and
+    1e17.
+  - **Cloudy's saved rate follows Elwert's form:**
+      - k_g / (a 4.6e-11 f_E G0) is 0.67 -> 0.22 over A_V 0.45-1.5, with G0 the
+        TH85 field Cloudy saves times the face's DB96/TH85;
+      - through the transition, A_V 0.50 -> 0.80, f_E falls 2460x and the rate
+        11660x;
+      - the slow drift is the DB96 band fading faster than the TH85 G0.
+
+Two things in Cloudy's hiipdr reference, then:
+
+  - no microturbulence, which is a factor 1.7-2.5 at 3e14-1e16;
+  - the small model's fit, which shields 1.4-3.3x more than Cloudy's own
+    line-by-line model at 1e15-1e17.
+
+Both are corrected in production D-396 (merged): `turbulence 1 km/s no
+pressure`, and `Database H2`.
+
+### Against the corrected reference
+
+`runs/d396-cloudy-hii` in production: its H/H2 crossing moves 1.090 -> 1.172
+(turbulence) -> 1.280 (and the large model), against our 1.400. Ours over
+Cloudy's at the lit edge, stage B:
+
+| A_V | 0.55 | 0.60 | 0.65 | 0.70 | 0.75 | 0.80 | 0.85 | 0.90 | 1.00 |
+|---|---|---|---|---|---|---|---|---|---|
+| 2n(H2)/n_H | 0.65 | 0.72 | 0.97 | 0.98 | 1.18 | 1.34 | 1.92 | 2.64 | 0.54 |
+| photodissociation per H2 | 0.77 | 0.74 | 0.60 | 0.63 | 0.55 | 0.51 | 0.37 | 0.26 | |
+
+  - **Up to A_V 0.9, ours holds about as much H2 as Cloudy's or more.** Our
+    formation is half (the surface energies), and our destruction is
+    0.5-0.77x. Our FUV field is 0.8-0.86 of Cloudy's there (the next check),
+    and our shielding is no stronger.
+  - **Then Cloudy runs away.** Its H2 rises 70x from A_V 0.9 to 1.0, ours 14x.
+    Cloudy's column is passing 1e15-1e17 there, where its damping is each
+    line's own A (H-005, H-008: about 3x more shielding at N > 1e17 than the
+    natural width). That is the candidate for the 0.12 mag left; it is not
+    measured.
+
+### The field is not the cause
+
+Our chi (Draine) times 1.71 against Cloudy's saved G0 (Habing, TH85), cells
+binned in A_V:
+
+| A_V | 0.30 | 0.50 | 0.70 | 1.00 | 1.60 | 2.50 |
+|---|---|---|---|---|---|---|
+| ratio | 1.09 | 1.04 | 0.81 | 0.80 | 0.61 | 0.43 |
+
+The two bands are not defined the same way, so the absolute ratio is not
+exact. The trend is: our FUV falls faster with depth than Cloudy's. Less
+field would put our transition shallower, not deeper.
+
+### hiipdr's H2 lines, against Cloudy for the first time
+
+`tools/h009_lines.py runs/h024-cloudy-turbh2-hii/hiipdr.lines
+runs/h019-B-hii31 runs/h023-eh2p-hii31`. Ours over Cloudy's large model, the
+25 strongest lines:
+
+  - ortho v = 1: 0.373;
+  - para v = 1: 0.505;
+  - v >= 2: 0.360 ortho, 0.499 para;
+  - the rotational ortho lines 6.9 and 5.5 um: 0.33.
+
+D-395 changes none by more than 0.3%. On pn150k, H-008 and H-009 traced the
+same pattern to two causes: Cloudy's own-A damping and closure, which
+inflate its pumped lines by 2.1-3.8x and 1.2x; and our colder gas's
+ortho/para. It is not decomposed here.
+
+### Found, not fixed
+
+The level model's `starColumns` steps a ray in cell widths and samples each
+step at its middle. On a ray along a grid axis the samples fall on the cell
+boundaries, so the nearest-point lookup can give a step to the wrong
+neighbour. The ray to cell (1,1,9) counts cell 8 for 2e18 cm and cell 7 not at
+all: 3.33e13 against 3.95e13 summed exactly, 16% on that ray. The
+chemistry's own column is the separate march above.
+
+### What it means
+
+  - H-022's "every later difference is that lag fed back through
+    self-shielding" is withdrawn.
+  - Like for like, hiipdr's lit edge agrees with Cloudy's to 0.65-2.6x
+    through A_V 0.9, with half the formation rate. What remains is Cloudy's
+    later, sharper run-away, 0.12 mag on the crossing:
+      - the silicate surface energies are 0.04 of it (H-022);
+      - the damping width is the leading candidate for the rest.
+
+### Not yet known
+
+  - The damping width's share, measured. H-008's one-line patch on hiipdr
+    would give it.
+  - Whether `starColumns`' sampling moves anything that matters (an exact
+    segment march is the fix).
+  - hiipdr's H2 lines at 0.37-0.50, by cause.
+
+### Status
+
+Done.
