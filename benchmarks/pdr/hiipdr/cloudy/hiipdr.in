@@ -58,7 +58,10 @@ save chemistry rates creation last "hiipdr.OHcr" "OH"
 save chemistry rates destruction last "hiipdr.OHde" "OH"
 save last physical conditions "hiipdr.phy"
 # ---- D-396: H2 lines and the hydrogen molecules (as runs/d389-cloudy-h2s)
+# emergent intensities (dust between each line and the edge taken out), though the file's header says intrinsic
 Save lines, intensity, column, emergent, last "hiipdr.lines"
+# the intrinsic list
+save last lines, intensity, column "hiipdr.linesint"
 save last species densities "hiipdr.dens389"
 H2
 H2*
