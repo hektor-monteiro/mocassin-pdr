@@ -2953,6 +2953,44 @@ The H2 lines are sensitive to the parameter set (+14-33%): more H2 at the
 lit edge means more pumping. That sensitivity is worth stating wherever our
 H2 lines are compared with Cloudy's on silicate.
 
+### The destruction side, measured
+
+Photodissociation per H2 molecule, hiipdr, medians in +-5% A_V bins. Ours is
+h2Cells.out of `runs/h019-B-hii31` (stage B, the levels') and of
+`runs/h019-A-hii31` (stage A, the network's). Cloudy's is `PHOTON,H2=>H,H`
+plus both `PHOTON,H2*=>` dissociation channels over n(H2), from
+`runs/h021-cloudy-hii`. N(H2) is ours to the cell along the star-ward ray,
+and Cloudy's from its face.
+
+| A_V | ours (B) | Cloudy | B/Cloudy | A/Cloudy | diffuse share of our LW field | N(H2) ours | N(H2) Cloudy |
+|---|---|---|---|---|---|---|---|
+| 0.50 | 1.3e-8 | 1.5e-8 | 0.91 | 0.47 | 0.59 | 3.4e9 | 1.4e13 |
+| 0.60 | 5.3e-9 | 4.6e-9 | 1.14 | 0.52 | 0.66 | 1.6e13 | 8.4e13 |
+| 0.70 | 2.2e-9 | 5.4e-10 | 4.1 | 1.0 | 0.71 | 5.8e13 | 4.7e14 |
+| 0.80 | 7.0e-10 | 8.8e-13 | 794 | 98 | 0.75 | 1.7e14 | 1.4e17 |
+| 0.90 | 1.3e-10 | 7.9e-14 | 1656 | 207 | 0.77 | 3.9e14 | 3.3e18 |
+| 1.00 | 4.8e-12 | 1.6e-14 | 296 | 73 | 0.80 | 2.0e15 | 2.0e19 |
+| 1.20 | 7.3e-14 | 2.4e-15 | 30 | 29 | 0.85 | 8.2e17 | 1.2e20 |
+| 1.50 | 2.0e-15 | 3.4e-16 | 5.8 | 9.9 | 0.90 | 6.2e19 | 3.6e20 |
+
+Across A_V 0.70-0.80 Cloudy's rate falls 600x, as its H2 column passes
+1e15-1e17 and shields itself, while ours falls 3x. At A_V 0.5-0.6 the two
+agree to 10-15%, where neither is self-shielded. The divergence is a feedback
+that starts at A_V 0.6-0.7: there our formation is 0.5-0.6 of Cloudy's (H-021)
+and our destruction 1.1-4x, so n(H2) is 7x lower at 0.70 and the column that
+shields grows that much more slowly. Formation alone moves the crossing
+0.04 mag (above), so most of the shift is the destruction. In the
+transition, 59-90% of our Lyman-Werner field is scattered light, and its part
+of the rate is 2-5x the direct part. The scattered field is shielded by the
+two-leg columns of its scattering sites (D-348), not by the star-ward column.
+
+**Next, and not done:** whether the scattered field's shielding columns are
+right. In a closed shell a scattered photon reaching a transition cell should
+cross a column comparable to the star-ward one. A test with a known answer
+(a slab, or Cloudy's own geometry) would show whether the sites' two-leg
+columns under-shield. This is the largest single lever on hiipdr's crossing.
+
 ### Status
 
-Done (diagnostic).
+Done (diagnostic); the destruction measurement points at the scattered
+field's shielding.
