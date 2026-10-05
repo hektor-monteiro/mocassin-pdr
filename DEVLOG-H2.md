@@ -3249,9 +3249,10 @@ The split by spin is the one pn150k shows, much smaller: there the para lines
 are 1.95-2.72 and the ortho lines 0.96-1.17 of Cloudy's (stage B, against the
 intrinsic list of D-396's reference; the published 0.83-0.98 and 1.74-2.77
 were against the first block of the old one). H-008 and H-009 traced
-pn150k's to Cloudy's own-A damping, which multiplies its para lines by 3.2
-and its ortho lines by 2.2, to its closure (1.2), and to our colder gas's
-ortho/para. It is not decomposed on hiipdr.
+pn150k's to three things: the damping width (ours, the natural width, gives
+3.2x the para lines and 2.2x the ortho lines that Cloudy's own-A width
+gives), Cloudy's closure (which raises every line by 1.2), and our colder
+gas's ortho/para. It is not decomposed on hiipdr.
 
 ### Found, not fixed
 
