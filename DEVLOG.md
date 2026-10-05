@@ -394,6 +394,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-392 | **At the user's direction the model-integrated test alone stops a run (convTotals, default 0.02 - the strict end of the user's 2-5%); the cell percentage and minConvergence are reported, not tested, and a run setting minConvergence says so at start-up.** pn150k's fixture cap 11 -> 30 (it converges at 17). autoPackets still reads the cell percentage (affects only runs that set it). Checked: a run stops on the integrated test with 0.7% of cells passing; four flavours rc 0 | Done | 2026-10-04 |
 | D-393 | **The warm start threw its PDR away: it counts iterations from 1 again, so pdrStartIter 4 skipped the chemistry for three iterations and then seeded the molecules over the resumed ones. Fixed: a checkpoint with PDR state resumes it from the first iteration, unseeded, with elemAvail published from the resumed abundances.** L-14's test passes: 8 cold + 8 warm against 16 cold, hiipdr 21^3 - integrated quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line 0.55% (0.71%), crossing 1.501 against 1.498. The PDR's per-coolant split and extra heating are still not checkpointed; one iteration without them leaves no trace after eight | Done | 2026-10-04 |
 | D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
+| D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33926,3 +33927,83 @@ on the h2-model branch.
 ### Status
 
 Done.
+
+## D-395 - Electron-impact dissociation of H2+: the reaction the network lacked (2026-10-05)
+
+The user, continuing D-394: "lets work on the the gaps in H2 formation and
+destruction". After D-394 the real gap is L-43, H2 in the partially ionized
+transition zone 24-665x Cloudy's on pn150k. This entry finds where it comes
+from.
+
+### What makes the zone's H2, in both codes
+
+On the h2-model branch's converged pn150k run (`runs/h019-B-pn41`, stage B, 18
+iterations), with `tools/d356_channels.py`:
+
+  - **H2** at A_V 0.075-0.15 is formed 52-85% by H2+ + H -> H2 + H+ (the rest
+    on grains), and destroyed by photoionization, photodissociation and
+    H+ + H2 -> H2+ + H.
+  - **H2+** is formed 99% by H+ + H -> H2+ + hv and destroyed 79-96% by
+    dissociative recombination, H2+ + e- -> H + H. n(H2+) is 2.2e-6 cm^-3 at
+    A_V 0.10.
+
+In Cloudy (`runs/d389-cloudy-h2s`, its H2+ channel files) at the same A_V,
+n(H2+) is 2.5e-8, about 90x lower. It forms H2+ by radiative association
+(89-91%) and H+ + H- (9-11%), and destroys it by:
+
+  - **e- + H2+ -> e- + H + H+**: 53-67%;
+  - **e- + H2+ -> H + H**: 28-39%;
+  - photodissociation: 5-8%.
+
+Per H2+, Cloudy destroys it 9x faster.
+
+### Why
+
+The rate coefficients, H2+ with electrons:
+
+| T [K] | e-impact diss. (Janev 1987) | DR, network (fit valid 10-300 K) | DR, Cloudy | network total, now/before |
+|-------|------|------|------|------|
+|  8000 | 4.3e-9 | 3.9e-9 | 1.30e-8 | x2.1 |
+| 12000 | 1.55e-8 | 3.3e-9 | 1.12e-8 | x5.7 |
+| 15000 | 2.6e-8 | 3.0e-9 | 1.03e-8 | x9.7 |
+| 20000 | 4.3e-8 | 2.6e-9 | 9.2e-9 | x17 |
+
+  - **The network has no electron-impact dissociation of H2+ at all.** It is
+    the largest H2+ sink in ionized gas, and it is a missing reaction, not a
+    rate choice.
+  - Its dissociative recombination is a 10-300 K fit (UMIST's own range) used
+    at 1e4 K, where it sits 3x below Cloudy's.
+  - H+ + H2 -> H2+ + H is 1e-10 exp(-21200/T) here and 2.45e-10
+    exp(-21237/T) in Cloudy (Savin et al. 2004), 2.45x.
+
+### The change
+
+**Reaction 332, e- + H2+ -> e- + H + H+**, alpha 2.0e-7, beta 0, gamma
+30720 K. This is Janev, Langer, Evans & Post (1987), the form Cloudy carries in
+`data/mole_co_umisthack.dat`, with validity 1000-41000 K. It is appended to
+`dataPDR/rates_reduced.d`, and its three terms go into the generated
+right-hand side `odes_reduced.c` (marked D-395): H2+ loss, H gain and H+ gain.
+Charge is conserved, existing indices do not move, and the reaction count is
+read from the file. Below ~3000 K it is nil, so the PDR does not see it.
+Recorded in `source/pdr/UPSTREAM.md`.
+
+Not changed, and open: the DR fit's range and the CT rate. Both are data
+choices, and replacing them needs a primary source for 1e3-1e5 K.
+
+### Prediction, before the tests
+
+  - Where the zone's gas is 1-2e4 K, H2+ falls 4-10x, and the H2 it makes
+    falls with it where that route leads (pn150k A_V 0.075-0.15).
+  - The zone's H2 excess shrinks but does not close. Our H2+ + H still makes
+    ground H2 where Cloudy makes H2* that electrons destroy, and DR and CT stay
+    as they are.
+  - Nothing moves in the PDR. The H2 lines move by less than the zone's 1.1%
+    share of 1-0 S(1) (0% of the rotational lines), and the ionized gas,
+    Hbeta and the fronts do not move.
+
+Four flavours rc 0. The tests are seeded pairs on the h2-model branch's
+converged runs (hiipdr 15 iterations, pn150k 18), merged there per D-388.
+
+### Status
+
+In progress.
