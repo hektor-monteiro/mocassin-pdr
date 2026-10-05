@@ -5091,6 +5091,11 @@ module pdr_mod
                          ! star -> site, then site -> cell; the site sits in the
                          ! middle of its cell's part of the ray
                          Ns = dble(colStar(:,cP)) + cLev + 0.5d0*dLev
+                         ! H-025 (D-398): the first leg runs to the site - through
+                         ! the site's cell's own gas from its near face to its
+                         ! centre, on the star-ward ray (difSrc(:,6))
+                         if (cP /= cellP .and. nH2c(cP) > 0.d0) Ns = Ns + &
+                              & nH2c(cP)*grid(1)%difSrc(cP,6)*dble(grid(1)%h2Pop(cP,:))
                          w  = siteW(iSite)
                          ntot = sum(Ns)
                          g = nGrp

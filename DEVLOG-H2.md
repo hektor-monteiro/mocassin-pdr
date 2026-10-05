@@ -33,6 +33,7 @@ DEVLOG.md and arrives here by merge.
 | H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
 | H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: 0.37 (ortho) and 0.50 (para) | Done | 2026-10-05 |
+| H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. Seeded pairs running | In progress | 2026-10-05 |
 
 ---
 
@@ -3259,3 +3260,97 @@ chemistry's own column is the separate march above.
 ### Status
 
 Done.
+
+## H-025 - The shielding columns, integrated: exact ray paths and the site's first leg (2026-10-05)
+
+H-024 ended on a found-not-fixed: `starColumns` samples a ray once per step
+of a cell width, and on a grid axis the samples fall on cell faces. Measured
+over every cell (`tools/h025_columns.py`), the defect is general and
+one-sided. It is in production's `computeAVradial` too, so the fix is
+production's (D-397, D-398, merged here per D-388). This entry is the
+measurement, the level model's side, and the checks.
+
+### The measurement
+
+The tool rebuilds the sampled march and the exact path length through each
+cell on the same ray, both with the run's own n(H2). The rebuilt march
+reproduces h2Cells.out's "N(H2) to cell" to 1% in every cell (15,191 on
+`runs/h019-B-hii31`, 35,377 on `runs/h019-B-pn41`). The code's column over
+the exact one:
+
+| exact N(H2) [cm^-2] | hiipdr median | 5% of cells below | pn150k median | 5% below |
+|---|---|---|---|---|
+| 1e14-1e15 | 0.73 | 0.57 | 0.73 | 0.41 |
+| 1e15-1e16 | 0.53 | 0.20 | 0.67 | 0.23 |
+| 1e16-1e17 | 0.46 | 0.03 | 0.64 | 0.40 |
+| 1e17-1e18 | 0.52 | 0.04 | 0.73 | 0.53 |
+| 1e18-1e19 | 0.64 | 0.35 | 0.82 | 0.65 |
+| 1e19-1e20 | 0.75 | 0.27 | 0.92 | 0.84 |
+| 1e20-1e21 | 0.95 | 0.84 | 0.97 | 0.93 |
+
+**Why.** The steps are placed from the target cell's centre, at 0.5, 1.5,
+2.5 ... steps. The cell reaches 0.5-0.87 of a cell width from its centre
+along a ray, so the first sample is inside the target, whose column is left
+out. The path from the target's face to the end of that step is in the
+neighbour and is counted for nothing. n(H2) rises 5-10x per cell through the
+transition, so that neighbour is most of the column.
+
+The production log had been showing it. Its scale check (`Nwalk/N`,
+`AVwalk/AV`, D-348) compares two sampled marches of the same path with
+different step phases, and read 1.61, 0.88, 0.59, 1.05 and 0.72 in the first
+A_V bins of `runs/h023-eh2p-hii31`.
+
+### The change, on this branch
+
+  - `starColumns` takes `rayCells` (the exact length of the ray in each
+    cell), traced from the cell's centre to the star as `computeAVradial`
+    traces it. Its own stepping and `nearestAxB` are gone.
+  - The walk the level model reads from `traceDiffuseSites` is now the cells
+    each ray crosses with the length in each (`wkLen`); it was steps of one
+    length (`wkDs`).
+  - D-398: a site's first leg adds the site's cell's own column from its
+    near face to its centre (`difSrc(:,6)`), as production's does.
+
+All flavours, h2Test and h2Slab rc 0.
+
+### Checked
+
+A 5-iteration run (`runs/h025-smoke-hii31`, D-397 only) and a debug build
+that dumped three cells' rays (`runs/h025-raydump`; the dump code is not
+committed):
+
+  - **Star-ward columns**: h2Cells.out's column over the tool's exact
+    integral is 1.000 in all 15,191 cells (min 1, max 1). The tool finds the
+    crossings by sorting, the code face by face.
+  - **A_V**: 0.159737 mag/pc times the exact path through active cells, in
+    every cell, to 3e-8.
+  - **The old A_V was not exact either.** It was off by -0.058 to +0.057 mag
+    (median -0.028, rms 1.8%). The dust is uniform, but the inner cavity
+    (Rin 0.97 pc, 1.5 cells) is not, and the sampled march misjudged its
+    edge. A_V = 0.1594 (r - 1.148 pc) before, 0.1598 (r - 1.052 pc) now,
+    and the scatter about that line falls from 0.044 to 0.028 mag (what is
+    left is the cavity's staircase). Production predicted "A_V does not
+    move"; that failed for this reason.
+  - **Mirrored rays**: for cells (2,3,4), (1,1,5) and (10,7,3), all 36
+    HEALPix rays against a brute-force walk in 2e14 cm steps with the
+    coordinates folded at the lower faces. Every cell's length and the total
+    path agree to 3e14 cm, the order of cells on all 36, and each segment's
+    start to 1e14 cm. The on-axis cell (1,1,5) reflects on two axes.
+  - The scale check now reads 1.0000 in every bin, as it must: both sides
+    are the same routine.
+
+### Cost
+
+One site per cell crossed, not one per step: 531 sites per cell at the lit
+edge where there were 356. The site walk's share of a sweep doubles (29 to
+55 rank-seconds of about 1,500). The sweeps of these runs take 1.3x longer
+than `runs/h023-eh2p-hii31`'s, but so does the solve step, whose code did not
+change; the machine's speed varies by that much (D-393).
+
+### Not yet known
+
+  - What the two changes do to the models: the pairs are running.
+
+### Status
+
+In progress.
