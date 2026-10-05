@@ -27,7 +27,7 @@ DEVLOG.md and arrives here by merge.
 | H-016 | **Stage A first, the level model only at the end? From the logs: on pn150k 41^3 stage B's calls take 62.5 min per 14-iteration run, 29 of them during the PDR's build-up (iterations 4-9), against stage A's single 24.4-min call; a cold start on a converged model needs 2-3 sweeps (the first overshoots dissociations by 38%); the coupling's tail halves per iteration (pumping +7%, +4%, +2%, +1%, +0.5% over iterations 10-14).** Estimate: switching at iteration 10 saves ~20 min (15-20%) at 41^3; fine grids need threads in the level model more than a schedule. An iteration keyword would be the run-time ownership switch CLAUDE.md warns about; if adopted, the network rate becomes only the starting guess, with stage B's own convergence test before the run may finish. Proposed test: stage A to 9, mocassinWarm with stage B 10-14, against the all-stage-B run. **Decided: not adopted - the user keeps the full level solution every iteration, as the more self-consistent; the test is not run** | Done | 2026-10-04 |
 | H-017 | **What is pending, at the user's question: the merge of stage B (D-388: after every benchmark; not yet the 1D flavour, the warm start, the fine grids), iteration counts and a convergence test that sees helium and slow drifts (L-40, H-015; *corrected: x(H2) is tested, at 10% per iteration*), and the physics divergences O-02, L-43, L-33, L-37, pn150k's neon and low ions, deep O+/He+ against 3D-PDR.** New: `h2Pop.bin` is written and never read, so a warm start restarts the level model cold | Discussion | 2026-10-04 |
 | H-018 | **Production's D-391 merged in (e60a836, no conflicts): the per-cell x(H2) test had passed every cell since D-216 and now runs after the chemistry; a model-integrated test (emission measures, H0/H2/CO contents, weighted temperatures; convTotals, default 2% over 3 iterations) gates the stop and every run reports whether it converged.** By it, the pages' runs were not converged: pn150k at 14 (He2+ 5.8% over the window, lines up to 5% from iteration 20), hiipdr 31^3 at 11 (O+ 5.9%, lines up to 8%); 2% is reached at 17 and 15. Merged branch: four flavours and h2Test/h2Slab rc 0; a stage B run reports the new test and exits cleanly | Done | 2026-10-04 |
-| H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages** | In progress | 2026-10-04 |
+| H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages.** hiipdr stops at 15, pn150k at 18; all four pages republished | Done | 2026-10-05 |
 | H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
 
 ---
@@ -2702,10 +2702,43 @@ had rounded the printed 3.765 up to 3.77.
     work; its one statement about stage A ("4x more H2 at A_V 0.70") checked
     on the A15/B15 pair: 4.14.
 
+### pn150k 41^3: stage B stops at 18 (2026-10-05)
+
+`runs/h019-B-pn41` passed at 18: 1.503% (He2+), after 7.40, 5.37 and 4.15% at
+14-16 (the n(H0)-weighted temperature) and 2.01% (He2+) at 17; cell count
+85.4% (91.7% at 14 in H-013's run, its x(H2) half vacuous). Run 2:51:46;
+stage A at 18 (`runs/h019-A-pn41`) 1:28:38. B18 repeats H-013's B14 through
+iteration 14 ([D376] counts and every in-run Solomon line identical). 14 -> 18:
+He II 4686 +2.6%, H2 lines +1.3 to +2.9%, He2+ front 0.0870 -> 0.0877 pc
+(Cloudy 0.0880). A18 against B18: crossing 0.395 / 0.393 (does not move);
+ionized gas within 0.03%; n(H2) at A_V 0.20 24x -> 1.5x Cloudy's, at 0.30 0.72
+-> 0.40; ortho lines -10 to -16%, para -1 to -2%; 1-0 S(1) 0.85x, 1.05x
+Cloudy's; T within 1 K; CO 2-1 +16%; levels/3D-PDR heating 0.76, 1.10, 0.88.
+Per cell the Solomon rate moves a median 23% per call.
+
+**Cost, and the machine.** Stage B's calls took 350-448 s (first 188 s, final
+two sweeps 751 s), its settled iterations 9.6-10.2 min against stage A's 3.1:
+the level model adds 6.5-7.1 min. H-013's run did the same work at 277-281 s
+over its last three calls and 397-458 s before them; the first two
+iterations, identical work, took 3.5-3.8 min in B18 and 4.9-5.1 in A18 three
+hours later. The machine's speed varies by up to 1.4x; the ranks are not
+pinned to the i7-14700's P/E cores; untested. **Correction:** the pn150k page
+v20 gave H-013's run as 2 h 20 min; the code's own count is 2:10:23 (ten
+minutes were queued time).
+
+### Pages (2026-10-05)
+
+  - 150 kK PN Against Cloudy v21 (DofNhQwr6apCKo2BR8y1JV, 1791174359-8475): the
+    A18/B18 pair throughout, a "run stops when converged" section with the
+    B14 -> B18 table, the cost and the correction above.
+  - H2 Lines in MOCASSIN v7 (B98zztmSp6yCK9NAy83PE8, 1791174425-e5e0): stage B
+    on both converged pairs; the iteration item of "Not yet known" replaced
+    by the machine's speed; energies per dissociation 0.43-0.44 eV.
+  - With hiipdr v22 and 3D-PDR v3 above, all four pages are on converged runs.
+
 ### Status
 
-In progress: pn150k's stage A at 18 iterations is running; its page and the
-H2 Lines page follow.
+Done.
 
 ## H-020 - The warm start resumes the level populations (2026-10-04)
 
