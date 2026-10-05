@@ -396,6 +396,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
 | D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0. **Measured on seeded pairs of the h2-model branch's converged runs: the zone's H2+ falls 2-2.8x on hiipdr (8-9 kK) and 2.6-7x on pn150k (1-2e4 K), to 3-4x Cloudy's on pn150k (was 9-22x); its H2 falls 2x and 1.6-4.1x and is still 14-62x and 30-230x Cloudy's.** Fronts, crossings, Hbeta, the PDR and the H2 lines (within 0.2%) do not move. What is left is ground-state H2 where Cloudy has H2* that electrons destroy (the level model's part), and two rate choices (DR above 300 K, H+ + H2). Also: `tools/d260_roellig.py`'s slot labels had H2+ and CH5+ crossed (nothing published read either) | Done | 2026-10-05 |
 | D-396 | **The Cloudy references had no microturbulence, where MOCASSIN and 3D-PDR run with 1 km/s; and hiipdr's used Cloudy's small H2 model, whose shielding is the Elwert et al. (2005) fit. Both corrected: `turbulence 1 km/s no pressure` in both references, and the large H2 model for hiipdr, as pn150k has had since D-302.** hiipdr's H/H2 crossing moves A_V 1.090 -> 1.172 (turbulence) -> 1.280 (and the large model), against our 1.400: the published gap of 0.31 mag is 0.12 like for like. hiipdr's n(H2) at A_V 0.70 / 1.00 becomes 8.4e-5 / 0.092 against our 8.5e-5 / 0.050 (was 5.8e-4 / 14.1). Cloudy's PDR is 2-15% colder with turbulence (its coolant lines are 4.5x wider), so on pn150k our PDR is 0.66-0.75 of its temperature at A_V 0.3-0.65 (0.57-0.66 before), 28.2 um falls to 0.46 and CO 1-0..3-2 to 0.56-0.63 of the old reference. Also found: the hiipdr page's Cloudy [C II] 158 and [O I] 63 were read from Cloudy's first, unconverged iteration (0.134, 0.00581; converged 0.1086, 0.00597). Fixtures `benchmarks/pdr/*/cloudy` updated; runs/d396-cloudy-hii (857 s) and runs/d396-cloudy-pn (499 s) | Accepted | 2026-10-05 |
+| D-397 | **The shielding columns were sampled, not integrated: every ray march took the nearest cell once per step of a cell width, the first sample half a step from the target cell's centre - inside the cell the columns leave out - so the path between the target's face and the end of the first step, in the neighbour that shields it most, was never counted.** Against the exact path lengths on the same rays and the same n(H2), the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's H2 transition (N = 1e15-1e20; one cell in twenty below 0.03-0.35) and 0.64-0.82 through pn150k's; 3-5% low in molecular gas. New `rayCells` (exact length of a ray in each cell, mirrors at a symmetric octant's lower faces) now carries `computeAVradial` (A_V and the H2, C, CO columns), `traceDiffuseSites` and `traceLineRays`; the stepping helpers are gone. Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34245,3 +34246,140 @@ and 370 um, were from a converged block.
 ### Status
 
 Accepted.
+
+## D-397 - The shielding columns were sampled, not integrated (2026-10-05)
+
+Found on the h2-model branch (H-024, H-025), still on the user's request to
+"work on the the gaps in H2 formation and destruction". H-024 noticed that the
+level model's star-ward column to an on-axis cell left a whole neighbour out.
+Measured over every cell, it is not an on-axis curiosity.
+
+### The march
+
+`computeAVradial` (D-087, D-088) walked from each source to each cell in
+steps of about one cell width (the finest axis spacing), took the cell
+nearest to the middle of each step, and added that cell's density times the
+whole step. `traceDiffuseSites` (D-348) and `traceLineRays` (D-377) walked
+outwards from the cell the same way, and so does the level model's
+`starColumns` on h2-model.
+
+The steps are placed from the target cell's centre, at 0.5, 1.5, 2.5 ...
+steps from it. The target cell reaches 0.5-0.87 of a cell width from its
+centre along a ray (0.5 along an axis, 0.87 along a body diagonal). So:
+
+  - the first sample is inside the target cell, whose own column the
+    shielding leaves out (D-088);
+  - the path from the target's face to the end of that first step lies in
+    the neighbouring cell, and is counted for nothing;
+  - on a ray along a grid axis the samples fall on the cell faces
+    themselves, and rounding decides which cell each one is given to. The
+    ray to hiipdr's cell (1,1,13) leaves cell 12 out altogether: 1.9e15
+    cm^-2 where the cells on the ray hold 7.1e16.
+
+In smooth gas that is a fraction of a cell in twenty. Through the H2
+transition n(H2) rises 5-10x from one cell to the next, and the neighbour
+is most of the column.
+
+### Measured
+
+`tools/h025_columns.py` (h2-model) rebuilds the sampled march and the exact
+path length through each cell on the same ray, both with the run's own
+n(H2). The rebuilt march reproduces the code's column (h2Cells.out) to 1%
+in every cell with H2 in front of it, 15,191 on hiipdr and 35,377 on pn150k. The code's
+column over the exact one, on the converged stage B runs (`runs/h019-B-hii31`,
+`runs/h019-B-pn41`):
+
+| exact N(H2) to the cell [cm^-2] | hiipdr: cells | median | 5% of cells below | pn150k: cells | median | 5% below |
+|---|---|---|---|---|---|---|
+| 1e13-1e14 | 185 | 0.68 | 0.21 | 424 | 0.73 | 0.28 |
+| 1e14-1e15 | 360 | 0.73 | 0.57 | 520 | 0.73 | 0.41 |
+| 1e15-1e16 | 189 | 0.53 | 0.20 | 583 | 0.67 | 0.23 |
+| 1e16-1e17 | 186 | 0.46 | 0.03 | 568 | 0.64 | 0.40 |
+| 1e17-1e18 | 284 | 0.52 | 0.04 | 931 | 0.73 | 0.53 |
+| 1e18-1e19 | 437 | 0.64 | 0.35 | 2,301 | 0.82 | 0.65 |
+| 1e19-1e20 | 922 | 0.75 | 0.27 | 8,143 | 0.92 | 0.84 |
+| 1e20-1e21 | 7,802 | 0.95 | 0.84 | 21,309 | 0.97 | 0.93 |
+| 1e21-1e22 | 4,558 | 0.97 | 0.94 | | | |
+
+  - Over all cells the median is 0.95 (hiipdr) and 0.96 (pn150k).
+  - 615 of hiipdr's 15,191 cells and 652 of pn150k's 35,377 have less than
+    half their column.
+  - Nothing is high by more than 1.4x.
+
+The error is one-sided and largest exactly where H2 begins to shield itself.
+It is also a function of the grid: 0.65 pc cells on hiipdr, and 31^3 against
+41^3.
+
+The chemistry's own column (`pdrColH2`, with `pdrColC` and `pdrColCO`) is
+integrated by the same march, and the two-leg columns of the scattering
+sites take it as their first leg.
+
+### The change
+
+**`rayCells`** (`pdr_mod.f90`): the cells a straight ray crosses, in order,
+each with the exact length of the ray inside it.
+
+  - A cell owns the points nearer to its axis value than to its neighbours',
+    which is MOCASSIN's cell and the rule the sampled march applied. Its
+    faces are the midpoints of the axes, and the grid ends at the first and
+    last axis values.
+  - The ray is followed face by face (the next face on each axis, the
+    nearest first), so nothing is sampled and no step length is chosen.
+  - With the mirror flag, the lower faces of a `symmetricXYZ` octant reflect
+    the ray (D-340); the upper faces end it.
+
+It now carries:
+
+  - `computeAVradial`: A_V and the H2, C and CO columns to each cell's near
+    face, traced from the cell's centre to the source. The outward column
+    (`AVback`) ends at the edge of the grid; the sampled march ran a fixed
+    length past it, giving every step beyond the grid to the edge cell.
+    `AVback` is read into a variable in `pdrStep` and used by nothing since
+    D-377.
+  - `traceDiffuseSites`: one scattering site per cell a ray crosses, with
+    that cell's exact length in the weight and in the second leg. The
+    formal solution for a source function constant in each cell is exactly
+    that sum.
+  - `traceLineRays`: the escape rays' (cell, length) lists.
+
+The two bisection helpers (`nearestAx`, `nearestAxB`) and every "finest axis
+spacing" step are removed. The quantities are the ones the code had: the
+near-face column still leaves the target cell out (D-088), and a site's
+first leg is still its own cell's near-face column (D-348).
+
+Four flavours rc 0.
+
+### Prediction, before the tests
+
+  - **The H/H2 crossing moves shallower on both fixtures.** The column
+    that shields a transition cell rises 1.3-2.2x in the median, so its
+    photodissociation falls and its H2 rises, and that feeds the next cell.
+      - hiipdr: by a fraction of a cell, where a cell is 0.08 mag, from
+        1.400 towards Cloudy's 1.280.
+      - pn150k: by less, from 0.393 towards Cloudy's 0.368.
+  - **The H2 lines fall by a few percent.** In steady state they follow the
+    molecules formed in the atomic layer, and that layer thins.
+  - **A_V, the ionized gas, Hbeta and the fronts do not move.** The dust is
+    uniform on both fixtures, so the sampled A_V was already the path length
+    times the opacity.
+  - **The C+/C transition may move the same way**, through the C and CO
+    columns. On hiipdr ours is already shallower than Cloudy's (2.275 against
+    2.93), so that would be away from it.
+
+The tests are seeded pairs on the h2-model branch's converged runs with
+D-395 (`runs/h023-eh2p-hii31`, 15 iterations; `runs/h023-eh2p-pn41`, 18),
+merged there per D-388. On that branch the level model's `starColumns` and
+its site columns get the same routine (H-025).
+
+### Not yet known
+
+  - Whether a site's first leg should run to the site, not to the near face
+    of the site's cell. The scattered photon has also crossed part of that
+    cell; D-348 left it out. That is a definition, not a sampling error, and
+    is not changed here.
+  - The 1D-slab path (`computeAVdust` with `planeIonization`) integrates
+    along the grid's own columns and was not sampled this way.
+
+### Status
+
+In progress.

@@ -128,12 +128,18 @@ module pdr_mod
     ! traceDiffuseSites - weight, and (H2, C, CO) two-leg columns [cm^-2]
     double precision, allocatable :: siteW(:), siteN(:,:)
     ! H-007: what the walk walked, for the H2 level model, which needs the
-    ! two-leg columns level by level: each site's own cell, ray and step, and
-    ! the active cell of every step of every ray (0 where the step was in no
-    ! active cell), wkN(k) steps of length wkDs on ray k
+    ! two-leg columns level by level: each site's own cell, ray and place on
+    ! the ray, and for every ray k the wkN(k) cells it crosses in order (0
+    ! where the cell is not active) with the ray's length in each (H-025:
+    ! exact, rayCells; they were steps of one length before)
     integer, allocatable          :: siteCell(:), siteRay(:), siteIst(:), wkCell(:,:)
     integer                       :: wkN(0:11) = 0
-    double precision              :: wkDs = 0.d0
+    double precision, allocatable :: wkLen(:,:)
+
+    ! D-397: the cells the ray last traced by rayCells crosses, in order, and
+    ! its exact length in each [cm] (rayCell 0 where the cell is not active)
+    integer, allocatable          :: rayCell(:)
+    double precision, allocatable :: rayLen(:)
 
     ! D-377: the line-escape rays of the cell pdrStep is solving, filled by
     ! traceLineRays - along each of the twelve HEALPix directions, the cells
@@ -1451,6 +1457,158 @@ module pdr_mod
       ! inversion remains in use.
       !-----------------------------------------------------------------
       !-----------------------------------------------------------------
+      ! D-397: the cells a straight ray crosses, each with the exact length
+      ! of the ray inside it.
+      !
+      ! A cell owns the points nearer to its axis value than to its
+      ! neighbours' (MOCASSIN's cells), so its faces are the midpoints of the
+      ! axes, and the grid ends at the first and last axis values. The ray
+      ! starts at (x0,y0,z0) inside the grid, runs along the unit vector
+      ! (ux,uy,uz), and ends after the length sMax or where it leaves the
+      ! grid. With lgMirror the lower faces are planes of symmetry (a
+      ! symmetricXYZ octant, D-340): the ray is reflected there and runs on.
+      ! On return rayCell(1:nSeg) holds the active-cell index of each cell in
+      ! the order crossed (0 where the cell is not active) and rayLen(1:nSeg)
+      ! the length in it [cm]. The first is the cell the ray starts in.
+      !
+      ! It replaces the marches that took the nearest cell once per step of
+      ! the finest axis spacing, the first sample half a step from the
+      ! target cell's centre. Those gave each cell a whole number of steps.
+      ! The first sample fell inside the target cell, which the shielding
+      ! columns leave out (D-088), so the path between the target's face and
+      ! the end of the first step - in the neighbour that shields it most -
+      ! was never counted. Through hiipdr's H2 transition, where n(H2) rises
+      ! 5-10x from one cell to the next, the star-ward N(H2) came out at a
+      ! median 0.46-0.75 of the exact one, and below 0.35 of it in one cell
+      ! in twenty; on a ray along a grid axis the samples fell on the faces
+      ! themselves and a whole cell could go missing.
+      !-----------------------------------------------------------------
+      subroutine rayCells(grid, x0, y0, z0, ux, uy, uz, sMax, lgMirror, nSeg)
+        implicit none
+        type(grid_type), intent(in)  :: grid
+        double precision, intent(in) :: x0, y0, z0, ux, uy, uz, sMax
+        logical, intent(in)          :: lgMirror
+        integer, intent(out)         :: nSeg
+
+        integer          :: n(3), idx(3), q, cP, need, it
+        double precision :: u(3), pos(3), sNext(3), s, sN, face
+
+        n = (/ grid%nx, grid%ny, grid%nz /)
+        ! each axis is crossed at most once downwards and once upwards
+        need = 2*(n(1) + n(2) + n(3)) + 8
+        if (allocated(rayCell)) then
+           if (size(rayCell) < need) deallocate(rayCell, rayLen)
+        end if
+        if (.not.allocated(rayCell)) allocate(rayCell(need), rayLen(need))
+
+        nSeg = 0
+        u    = (/ ux, uy, uz /)
+        pos  = (/ x0, y0, z0 /)
+        idx(1) = nearIdx(grid%xAxis, n(1), x0)
+        idx(2) = nearIdx(grid%yAxis, n(2), y0)
+        idx(3) = nearIdx(grid%zAxis, n(3), z0)
+        do q = 1, 3
+           sNext(q) = huge(1.d0)
+           if (u(q) /= 0.d0) sNext(q) = abs(nextFace(q) - pos(q))/abs(u(q))
+        end do
+
+        s = 0.d0
+        do it = 1, 2*need
+           q  = minloc(sNext, 1)
+           sN = min(sNext(q), sMax)
+           if (sN > s) then
+              cP = max(grid%active(idx(1), idx(2), idx(3)), 0)
+              if (nSeg > 0 .and. cP > 0 .and. rayCell(max(nSeg,1)) == cP) then
+                 ! back in the cell it was just in (a reflection)
+                 rayLen(nSeg) = rayLen(nSeg) + (sN - s)
+              else
+                 if (nSeg >= size(rayCell)) exit
+                 nSeg = nSeg + 1
+                 rayCell(nSeg) = cP
+                 rayLen(nSeg)  = sN - s
+              end if
+              s = sN
+           end if
+           if (sNext(q) >= sMax) exit
+
+           ! through the face on axis q
+           face = nextFace(q)
+           if (u(q) > 0.d0) then
+              if (idx(q) >= n(q)) exit                 ! the edge of the grid
+              idx(q) = idx(q) + 1
+           else if (idx(q) <= 1) then
+              if (.not.lgMirror) exit                  ! the edge of the grid
+              u(q) = -u(q)                             ! a plane of symmetry
+           else
+              idx(q) = idx(q) - 1
+           end if
+           pos(q)   = face
+           sNext(q) = sNext(q) + abs(nextFace(q) - pos(q))/abs(u(q))
+        end do
+
+      contains
+
+        ! the next face on axis q in the ray's direction: the midpoint to the
+        ! neighbouring axis value, or the end of the axis
+        double precision function nextFace(q)
+          implicit none
+          integer, intent(in) :: q
+          select case (q)
+          case (1)
+             nextFace = faceOf(grid%xAxis, n(1), idx(1), u(1))
+          case (2)
+             nextFace = faceOf(grid%yAxis, n(2), idx(2), u(2))
+          case default
+             nextFace = faceOf(grid%zAxis, n(3), idx(3), u(3))
+          end select
+        end function nextFace
+
+        double precision function faceOf(ax, na, ia, ua)
+          implicit none
+          real, intent(in)             :: ax(:)
+          integer, intent(in)          :: na, ia
+          double precision, intent(in) :: ua
+          if (ua > 0.d0) then
+             if (ia < na) then
+                faceOf = 0.5d0*(dble(ax(ia)) + dble(ax(ia+1)))
+             else
+                faceOf = dble(ax(na))
+             end if
+          else
+             if (ia > 1) then
+                faceOf = 0.5d0*(dble(ax(ia-1)) + dble(ax(ia)))
+             else
+                faceOf = dble(ax(1))
+             end if
+          end if
+        end function faceOf
+
+        ! the axis value nearest to a coordinate
+        integer function nearIdx(ax, na, v)
+          implicit none
+          real, intent(in)             :: ax(:)
+          integer, intent(in)          :: na
+          double precision, intent(in) :: v
+          integer :: lo, hi, mid
+          lo = 1; hi = na
+          do while (hi - lo > 1)
+             mid = (lo + hi)/2
+             if (v >= dble(ax(mid))) then
+                lo = mid
+             else
+                hi = mid
+             end if
+          end do
+          if (abs(v-dble(ax(hi))) < abs(v-dble(ax(lo)))) then
+             nearIdx = hi
+          else
+             nearIdx = lo
+          end if
+        end function nearIdx
+
+      end subroutine rayCells
+
+      !-----------------------------------------------------------------
       ! D-087: geometric A_V for a NON plane-parallel geometry.
       !
       ! The spherical path used to define A_V by inverting the Monte Carlo
@@ -1479,11 +1637,12 @@ module pdr_mod
 
         type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer          :: iG, i, j, k, cellP, iS, istep, nstep, ix, iy, iz
-        integer          :: cP, nback
+        integer          :: iG, i, j, k, cellP, iS, m, nSeg
+        integer          :: cP
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS
-        double precision :: fSum, fTot, kap, rr, avS
-        double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, span, nd
+        double precision :: fSum, fTot, kap, avS
+        double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, nd
+        double precision :: cx, cy, cz
         double precision :: RfuvL                          ! D-109
 
         if (pdrRfuv <= 0.) return
@@ -1518,26 +1677,23 @@ module pdr_mod
                        seg = sqrt(dxs*dxs + dys*dys + dzs*dzs)
                        if (seg <= 0.d0) cycle
 
-                       ! march from the source to the cell centre; the step is
-                       ! set by the finest axis spacing so no cell is skipped
-                       nstep = max(8, min(400, int(seg/max( &
-                            & abs(dble(grid(iG)%xAxis(min(2,grid(iG)%nx))) &
-                            &    -dble(grid(iG)%xAxis(1))), 1.d0))))
-                       ds   = seg/dble(nstep)
+                       ! D-397: the ray between the source and the cell's
+                       ! centre, cell by cell with its exact length in each
+                       ! (rayCells). It is traced from the centre, which is
+                       ! always inside the grid, towards the source.
+                       cx = dble(grid(iG)%xAxis(i))
+                       cy = dble(grid(iG)%yAxis(j))
+                       cz = dble(grid(iG)%zAxis(k))
+                       call rayCells(grid(iG), cx, cy, cz, -dxs/seg, -dys/seg, &
+                            & -dzs/seg, seg, .false., nSeg)
                        tauS = 0.d0
                        cH2S = 0.d0
                        cCS  = 0.d0
                        cCOS = 0.d0
-                       do istep = 1, nstep
-                          rr = (dble(istep)-0.5d0)*ds
-                          ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
-                               & real(sx + dxs*rr/seg))
-                          iy = nearestAx(grid(iG)%yAxis, grid(iG)%ny, &
-                               & real(sy + dys*rr/seg))
-                          iz = nearestAx(grid(iG)%zAxis, grid(iG)%nz, &
-                               & real(sz + dzs*rr/seg))
-                          if (grid(iG)%active(ix,iy,iz) <= 0) cycle
-                          cP  = grid(iG)%active(ix,iy,iz)
+                       do m = 1, nSeg
+                          cP = rayCell(m)
+                          if (cP <= 0) cycle
+                          ds = rayLen(m)
                           kap = dble(grid(iG)%absOpac(cP,VbandP)) &
                               & + dble(grid(iG)%scaOpac(cP,VbandP))
                           tauS = tauS + kap*ds
@@ -1568,7 +1724,11 @@ module pdr_mod
                           ! near-face column removes the self-term; it lags the
                           ! true centre column by half a cell, which is an
                           ! error that shrinks with resolution instead of
-                          ! amplifying.
+                          ! amplifying. (D-397: with the exact path lengths the
+                          ! column is the one to the cell's near face on this
+                          ! ray. The sampled march it replaces also dropped
+                          ! the part of the neighbouring cell between that
+                          ! face and the end of its first step.)
                           if (cP /= cellP) then
                              nd   = dble(grid(iG)%Hden(cP))
                              cH2S = cH2S + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
@@ -1579,22 +1739,17 @@ module pdr_mod
 
                        ! remaining column outwards, along the same direction,
                        ! to the grid boundary: what the outward escape rays see
-                       span  = dble(grid(iG)%xAxis(grid(iG)%nx)) &
-                             & - dble(grid(iG)%xAxis(1))
-                       nback = max(4, min(200, int(span/ds)))
-                       tauB  = 0.d0
-                       do istep = 1, nback
-                          rr = seg + (dble(istep)-0.5d0)*ds
-                          ix = nearestAx(grid(iG)%xAxis, grid(iG)%nx, &
-                               & real(sx + dxs*rr/seg))
-                          iy = nearestAx(grid(iG)%yAxis, grid(iG)%ny, &
-                               & real(sy + dys*rr/seg))
-                          iz = nearestAx(grid(iG)%zAxis, grid(iG)%nz, &
-                               & real(sz + dzs*rr/seg))
-                          if (grid(iG)%active(ix,iy,iz) <= 0) cycle
-                          tauB = tauB &
-                               & + (dble(grid(iG)%absOpac(grid(iG)%active(ix,iy,iz),VbandP)) &
-                               &  + dble(grid(iG)%scaOpac(grid(iG)%active(ix,iy,iz),VbandP)))*ds
+                       ! (D-397: exact lengths, ending at the edge of the grid;
+                       ! the sampled march ran a fixed length on, taking the
+                       ! edge cell for every step beyond the grid)
+                       call rayCells(grid(iG), cx, cy, cz, dxs/seg, dys/seg, &
+                            & dzs/seg, huge(1.d0), lgSymmetricXYZ, nSeg)
+                       tauB = 0.d0
+                       do m = 1, nSeg
+                          cP = rayCell(m)
+                          if (cP <= 0) cycle
+                          tauB = tauB + (dble(grid(iG)%absOpac(cP,VbandP)) &
+                               &       + dble(grid(iG)%scaOpac(cP,VbandP)))*rayLen(m)
                        end do
 
                        avS  = dble(magPerTau)*tauS
@@ -1620,32 +1775,6 @@ module pdr_mod
               end do
            end do
         end do
-
-      contains
-
-        ! nearest axis index to a coordinate; a contained helper so this
-        ! routine does not depend on MOCASSIN's `locate` (D-087)
-        integer function nearestAx(ax, n, v)
-          implicit none
-          real, intent(in) :: ax(:)
-          integer, intent(in) :: n
-          real, intent(in) :: v
-          integer :: lo, hi, mid
-          lo = 1; hi = n
-          do while (hi - lo > 1)
-             mid = (lo + hi)/2
-             if (v >= ax(mid)) then
-                lo = mid
-             else
-                hi = mid
-             end if
-          end do
-          if (abs(v-ax(hi)) < abs(v-ax(lo))) then
-             nearestAx = hi
-          else
-             nearestAx = lo
-          end if
-        end function nearestAx
 
       end subroutine computeAVradial
 
@@ -1772,11 +1901,11 @@ module pdr_mod
         integer, intent(out)          :: nSite, nUnset
         double precision, intent(out) :: wTot, aniso, colWalk, avWalk
 
-        integer          :: kray, istep, nstep, ix, iy, iz, cP, m, nw, need
+        integer          :: kray, istep, cP, need, nSeg
         double precision, save :: vx(0:11), vy(0:11), vz(0:11)
         logical, save    :: lgDirs = .false.
-        double precision :: zz, ph, sr, ds, dsw, rr, px, py, pz, dmax, seg
-        double precision :: x0, y0, z0, xlo, xhi, ylo, yhi, zlo, zhi
+        double precision :: zz, ph, sr, ds, px, py, pz, seg
+        double precision :: x0, y0, z0
         double precision :: tau, dtau, kext, emis, esc, w, tauV, cH2w
         double precision :: cN(3), dN(3), col1(3), wRay(0:11)
 
@@ -1799,69 +1928,33 @@ module pdr_mod
         wTot = 0.d0; aniso = 0.d0; colWalk = -1.d0; avWalk = -1.d0
         wRay = 0.d0
 
-        ! the finest axis spacing, so no cell is stepped over
-        ds = huge(1.d0)
-        do m = 2, grid%nx
-           if (grid%xAxis(m) > grid%xAxis(m-1)) &
-                & ds = min(ds, dble(grid%xAxis(m)) - dble(grid%xAxis(m-1)))
-        end do
-        do m = 2, grid%ny
-           if (grid%yAxis(m) > grid%yAxis(m-1)) &
-                & ds = min(ds, dble(grid%yAxis(m)) - dble(grid%yAxis(m-1)))
-        end do
-        do m = 2, grid%nz
-           if (grid%zAxis(m) > grid%zAxis(m-1)) &
-                & ds = min(ds, dble(grid%zAxis(m)) - dble(grid%zAxis(m-1)))
-        end do
-        if (ds >= huge(1.d0)) return
-
-        xlo = dble(grid%xAxis(1)); xhi = dble(grid%xAxis(grid%nx))
-        ylo = dble(grid%yAxis(1)); yhi = dble(grid%yAxis(grid%ny))
-        zlo = dble(grid%zAxis(1)); zhi = dble(grid%zAxis(grid%nz))
-        dmax = sqrt((xhi-xlo)**2 + (yhi-ylo)**2 + (zhi-zlo)**2)
-        ! D-339: a reflected ray runs on through the mirrored octants, so in
-        ! the unfolded picture it can cross a box twice this one's size
-        if (lgSymmetricXYZ) dmax = 2.d0*dmax
-        nstep = max(4, min(4000, int(dmax/ds) + 1))
-
-        need = 12*nstep
+        ! D-397: one site per cell a ray crosses (rayCells), at most this many
+        need = 12*(2*(grid%nx + grid%ny + grid%nz) + 8)
         if (allocated(siteW)) then
-           if (size(siteW) < need) deallocate(siteW, siteN, siteCell, siteRay, siteIst, wkCell)
+           if (size(siteW) < need) deallocate(siteW, siteN, siteCell, siteRay, siteIst, wkCell, wkLen)
         end if
         if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need), siteCell(need), &
-             & siteRay(need), siteIst(need), wkCell(nstep,0:11))
-        wkDs = ds; wkN = 0
+             & siteRay(need), siteIst(need), wkCell(need/12,0:11), wkLen(need/12,0:11))
+        wkN = 0
 
         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
 
         do kray = 0, 11
            tau = 0.d0
            cN  = 0.d0
-           do istep = 1, nstep
-              rr = (dble(istep)-0.5d0)*ds
-              px = x0 + vx(kray)*rr
-              py = y0 + vy(kray)*rr
-              pz = z0 + vz(kray)*rr
-              ! D-340: the lower faces of a symmetricXYZ octant are planes of
-              ! symmetry, not edges - fold the sample point back into the
-              ! octant. Each coordinate is monotonic along a straight ray, so
-              ! one fold per axis is exact. The upper faces are the edge of the
-              ! model, and a ray reaching one has left the cloud.
-              if (lgSymmetricXYZ) then
-                 if (px < xlo) px = 2.d0*xlo - px
-                 if (py < ylo) py = 2.d0*ylo - py
-                 if (pz < zlo) pz = 2.d0*zlo - pz
-              end if
-              if (px < xlo .or. px > xhi .or. &
-                & py < ylo .or. py > yhi .or. &
-                & pz < zlo .or. pz > zhi) exit
-              ix = nearestAxB(grid%xAxis, grid%nx, px)
-              iy = nearestAxB(grid%yAxis, grid%ny, py)
-              iz = nearestAxB(grid%zAxis, grid%nz, pz)
-              cP = grid%active(ix,iy,iz)
-              wkN(kray) = istep
-              wkCell(istep,kray) = max(cP, 0)
+           ! D-397: the cells the ray crosses, each with its exact length.
+           ! The lower faces of a symmetricXYZ octant are planes of symmetry,
+           ! not edges (D-340): the ray is reflected there. The upper faces are
+           ! the edge of the model, and a ray reaching one has left the cloud.
+           call rayCells(grid, x0, y0, z0, vx(kray), vy(kray), vz(kray), &
+                & huge(1.d0), lgSymmetricXYZ, nSeg)
+           wkN(kray) = nSeg
+           do istep = 1, nSeg
+              cP = rayCell(istep)
+              wkCell(istep,kray) = cP
+              wkLen(istep,kray)  = rayLen(istep)
               if (cP <= 0) cycle
+              ds = rayLen(istep)
 
               kext = grid%difSrc(cP,4)
               dtau = kext*ds
@@ -1873,8 +1966,9 @@ module pdr_mod
 
               emis = grid%difSrc(cP,5)
               if (emis > 0.d0 .and. kext > 0.d0) then
-                 ! emission from within the step, escaping through the rest
-                 ! of it: (1 - e^-dtau)/kext, which is ds for a thin step
+                 ! emission from within the cell's part of the ray, escaping
+                 ! through the rest of it: (1 - e^-dtau)/kext, which is its
+                 ! length for a thin one
                  if (dtau > 1.d-4) then
                     esc = (1.d0 - exp(-dtau))/kext
                  else
@@ -1889,8 +1983,9 @@ module pdr_mod
                     nSite = nSite + 1
                     siteW(nSite)   = w
                     siteCell(nSite) = cP; siteRay(nSite) = kray; siteIst(nSite) = istep
-                    ! the site sits mid-step: half its own cell is between it
-                    ! and the cell (when that cell shields at all)
+                    ! the site sits in the middle of its cell's part of the
+                    ! ray: half of that is between it and the cell (when that
+                    ! cell shields at all)
                     siteN(:,nSite) = max(col1, 0.d0) + cN + 0.5d0*dN
                     wRay(kray)     = wRay(kray) + w
                  end if
@@ -1903,29 +1998,25 @@ module pdr_mod
         wTot = sum(wRay)
         if (wTot > 0.d0) aniso = maxval(wRay)/(wTot/12.d0)
 
-        ! The scale check: the same stepping and the same snapshot, walked from
-        ! this cell to the star, against the columns computeAVradial traced
-        ! from the star to the cell with its own step. Agreement to within a
-        ! cell's worth says the site columns carry no unit or step error.
+        ! The scale check: the same snapshot, walked from this cell to the
+        ! star, against the columns computeAVradial traced. Since D-397 both
+        ! are the same exact path (rayCells), so this only says that the
+        ! snapshot and the stored columns are of the same abundances.
         if (nStars == 1) then
            px = dble(starPosition(1)%x) - x0
            py = dble(starPosition(1)%y) - y0
            pz = dble(starPosition(1)%z) - z0
            seg = sqrt(px*px + py*py + pz*pz)
            if (seg > 0.d0) then
-              nw  = max(1, int(seg/ds))
-              dsw = seg/dble(nw)
+              call rayCells(grid, x0, y0, z0, px/seg, py/seg, pz/seg, seg, &
+                   & .false., nSeg)
               tauV = 0.d0; cH2w = 0.d0
-              do istep = 1, nw
-                 rr = (dble(istep)-0.5d0)*dsw
-                 ix = nearestAxB(grid%xAxis, grid%nx, x0 + px*rr/seg)
-                 iy = nearestAxB(grid%yAxis, grid%ny, y0 + py*rr/seg)
-                 iz = nearestAxB(grid%zAxis, grid%nz, z0 + pz*rr/seg)
-                 cP = grid%active(ix,iy,iz)
+              do istep = 1, nSeg
+                 cP = rayCell(istep)
                  if (cP <= 0) cycle
                  tauV = tauV + (dble(grid%absOpac(cP,VbandP)) &
-                      &       + dble(grid%scaOpac(cP,VbandP)))*dsw
-                 if (cP /= cellP) cH2w = cH2w + grid%difSrc(cP,1)*dsw
+                      &       + dble(grid%scaOpac(cP,VbandP)))*rayLen(istep)
+                 if (cP /= cellP) cH2w = cH2w + grid%difSrc(cP,1)*rayLen(istep)
               end do
               colWalk = cH2w
               avWalk  = dble(magPerTau)*tauV
@@ -1973,50 +2064,26 @@ module pdr_mod
       end function draineWindowShare
 
 
-      ! nearest axis index by bisection. computeRayColumns used a linear scan,
-      ! O(n) per step, which at 58^3 and ~2000 steps per cell is not free.
-      integer function nearestAxB(ax, n, v)
-        implicit none
-        real, intent(in)             :: ax(:)
-        integer, intent(in)          :: n
-        double precision, intent(in) :: v
-        integer :: lo, hi, mid
-        lo = 1; hi = n
-        do while (hi - lo > 1)
-           mid = (lo + hi)/2
-           if (v >= dble(ax(mid))) then
-              lo = mid
-           else
-              hi = mid
-           end if
-        end do
-        if (abs(v-dble(ax(hi))) < abs(v-dble(ax(lo)))) then
-           nearestAxB = hi
-        else
-           nearestAxB = lo
-        end if
-      end function nearestAxB
-
       !-----------------------------------------------------------------
       ! D-377: the line-escape rays of cell (xP,yP,zP). The same twelve HEALPix
-      ! nside=1 directions, fixed in the grid frame, and the same stepping as
-      ! traceDiffuseSites: the finest axis spacing, the lower faces of a
-      ! symmetricXYZ octant folded back as mirrors, a ray ending at the upper
-      ! faces (inactive cells beyond Rout, or in an inner cavity, add nothing
-      ! and the ray runs on through them). Consecutive steps in one cell are
-      ! merged, so each ray is a list of (cell, path length). The first entry
-      ! is the cell itself, with the half of it the ray crosses.
+      ! nside=1 directions, fixed in the grid frame, and the same rays as
+      ! traceDiffuseSites: the lower faces of a symmetricXYZ octant are
+      ! mirrors, a ray ends at the upper faces (inactive cells beyond Rout,
+      ! or in an inner cavity, add nothing and the ray runs on through
+      ! them). Each ray is a list of (cell, path length), the exact length of
+      ! the ray in that cell (D-397, rayCells). The first entry is the cell
+      ! itself, with the half of it the ray crosses.
       !-----------------------------------------------------------------
       subroutine traceLineRays(grid, xP, yP, zP)
         implicit none
         type(grid_type), intent(in) :: grid
         integer, intent(in)         :: xP, yP, zP
 
-        integer          :: kray, istep, nstep, ix, iy, iz, cP, m, n, last
+        integer          :: kray, istep, nstep, n, nSeg
         double precision, save :: vx(0:11), vy(0:11), vz(0:11)
         logical, save    :: lgDirs = .false.
-        double precision :: zz, ph, sr, ds, rr, px, py, pz, dmax
-        double precision :: x0, y0, z0, xlo, xhi, ylo, yhi, zlo, zhi
+        double precision :: zz, ph, sr
+        double precision :: x0, y0, z0
 
         if (.not.lgDirs) then
            do kray = 0, 11
@@ -2034,27 +2101,7 @@ module pdr_mod
         end if
 
         lrN = 0
-        ds = huge(1.d0)
-        do m = 2, grid%nx
-           if (grid%xAxis(m) > grid%xAxis(m-1)) &
-                & ds = min(ds, dble(grid%xAxis(m)) - dble(grid%xAxis(m-1)))
-        end do
-        do m = 2, grid%ny
-           if (grid%yAxis(m) > grid%yAxis(m-1)) &
-                & ds = min(ds, dble(grid%yAxis(m)) - dble(grid%yAxis(m-1)))
-        end do
-        do m = 2, grid%nz
-           if (grid%zAxis(m) > grid%zAxis(m-1)) &
-                & ds = min(ds, dble(grid%zAxis(m)) - dble(grid%zAxis(m-1)))
-        end do
-        if (ds >= huge(1.d0)) return
-
-        xlo = dble(grid%xAxis(1)); xhi = dble(grid%xAxis(grid%nx))
-        ylo = dble(grid%yAxis(1)); yhi = dble(grid%yAxis(grid%ny))
-        zlo = dble(grid%zAxis(1)); zhi = dble(grid%zAxis(grid%nz))
-        dmax = sqrt((xhi-xlo)**2 + (yhi-ylo)**2 + (zhi-zlo)**2)
-        if (lgSymmetricXYZ) dmax = 2.d0*dmax
-        nstep = max(4, min(4000, int(dmax/ds) + 1))
+        nstep = 2*(grid%nx + grid%ny + grid%nz) + 8
 
         if (allocated(lrCell)) then
            if (size(lrCell,2) < nstep) deallocate(lrCell, lrLen)
@@ -2064,36 +2111,14 @@ module pdr_mod
         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
 
         do kray = 0, 11
-           n = 0; last = -1
-           do istep = 1, nstep
-              rr = (dble(istep)-0.5d0)*ds
-              px = x0 + vx(kray)*rr
-              py = y0 + vy(kray)*rr
-              pz = z0 + vz(kray)*rr
-              if (lgSymmetricXYZ) then
-                 if (px < xlo) px = 2.d0*xlo - px
-                 if (py < ylo) py = 2.d0*ylo - py
-                 if (pz < zlo) pz = 2.d0*zlo - pz
-              end if
-              if (px < xlo .or. px > xhi .or. &
-                & py < ylo .or. py > yhi .or. &
-                & pz < zlo .or. pz > zhi) exit
-              ix = nearestAxB(grid%xAxis, grid%nx, px)
-              iy = nearestAxB(grid%yAxis, grid%ny, py)
-              iz = nearestAxB(grid%zAxis, grid%nz, pz)
-              cP = grid%active(ix,iy,iz)
-              if (cP <= 0) then
-                 last = -1
-                 cycle
-              end if
-              if (cP == last) then
-                 lrLen(kray,n) = lrLen(kray,n) + ds
-              else
-                 n = n + 1
-                 lrCell(kray,n) = cP
-                 lrLen(kray,n)  = ds
-                 last = cP
-              end if
+           call rayCells(grid, x0, y0, z0, vx(kray), vy(kray), vz(kray), &
+                & huge(1.d0), lgSymmetricXYZ, nSeg)
+           n = 0
+           do istep = 1, nSeg
+              if (rayCell(istep) <= 0) cycle
+              n = n + 1
+              lrCell(kray,n) = rayCell(istep)
+              lrLen(kray,n)  = rayLen(istep)
            end do
            lrN(kray) = n
         end do
@@ -4530,8 +4555,7 @@ module pdr_mod
         character(len=300) :: h2Dir
         integer :: nCel, nx, ny, nz, i, j, k, l, ln, ib, iS, cellP, cP, iCell, isweep, it, ierr, err
         integer :: nSite, nUnset, kray, istep, ipt, g, bin, iSite, iR, nSolved, nNoGrain
-        integer :: last, nseg, nstep, ix, iy, iz
-        integer, allocatable :: tBin(:), bLo(:,:), bHi(:,:), segC(:)
+        integer, allocatable :: tBin(:), bLo(:,:), bHi(:,:)
         double precision :: T, nH, dnH2, b, fo, foNew, chord, dx3(3), rv(3), rr, wTot, aniso, colWalk, avWalk
         double precision :: jT, jD, sumT, sumD, lwT, lwD, chiDir, chiDif, fDir, fDif, fLWd, sig, aL, w, ntot
         double precision :: Td, wSil, wGra, xsS, xsG, alphaH2loc, pumpTot, solTot, t0, t1
@@ -4556,7 +4580,7 @@ module pdr_mod
         double precision, allocatable :: ovDir(:), ovG(:,:), beta(:), sb(:), sigMax(:), pops(:), kdiss(:), pump(:)
         double precision, allocatable :: hDis(:)
         double precision, allocatable :: phi(:), phi1(:), phiB(:), Ncol(:), dN(:), cLev(:), dLev(:), Ns(:), N12(:,:)
-        double precision, allocatable :: hist(:,:,:), thin(:,:), gW(:), gLev(:,:), acc(:), wLev(:), segL(:)
+        double precision, allocatable :: hist(:,:,:), thin(:,:), gW(:), gLev(:,:), acc(:), wLev(:)
         real, allocatable             :: colStar(:,:), popTmp(:,:), popSum(:,:), r1Tmp(:,:), r1Sum(:,:)
         double precision :: dens(h2NColl)
 
@@ -4592,7 +4616,7 @@ module pdr_mod
              & N12(h2NX,12), hist(nHb,h2NX,nGrp), thin(h2NX,nGrp), gW(nGrp), gLev(h2NX,nGrp), &
              & bLo(h2NX,nGrp), bHi(h2NX,nGrp), acc(h2NX), wLev(h2NX), &
              & colStar(h2NX,0:nCel), popTmp(0:nCel,h2NX), popSum(0:nCel,h2NX), r1Tmp(0:nCel,nR1), &
-             & r1Sum(0:nCel,nR1), segC(4096), segL(4096), stat=err)
+             & r1Sum(0:nCel,nR1), stat=err)
         if (err /= 0) then
            print*, "! h2LevelModel: can'ln allocate"; stop
         end if
@@ -4830,7 +4854,7 @@ module pdr_mod
 
         deallocate(tBin, sb, sigMax, nH2c, cDir, cDif, etaDir, etaDif, eta, shDir, shDif, ovDir, ovG, &
              & beta, pops, kdiss, pump, hDis, phi, phi1, phiB, Ncol, dN, cLev, dLev, Ns, N12, hist, thin, &
-             & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, segC, segL, &
+             & gW, gLev, bLo, bHi, acc, wLev, colStar, popTmp, popSum, r1Tmp, r1Sum, &
              & workOrd, cI, cJ, cK, tCel, tCelSum)
 
       contains
@@ -4926,7 +4950,7 @@ module pdr_mod
         ! on computeAVradial's march, flux-weighted over the sources.
         !---------------------------------------------------------------
         subroutine starColumns()
-          integer :: ii, jj, kk, cT, m
+          integer :: ii, jj, kk, cT, m, nSg
           colStar = 0.
           do ii = 1, nx
              do jj = 1, ny
@@ -4941,30 +4965,19 @@ module pdr_mod
                       dzs = dble(grid(1)%zAxis(kk)) - sz
                       seg = sqrt(dxs*dxs + dys*dys + dzs*dzs)
                       if (seg <= 0.d0) cycle
-                      nstep = max(8, min(400, int(seg/max( &
-                           & abs(dble(grid(1)%xAxis(min(2,nx))) - dble(grid(1)%xAxis(1))), 1.d0))))
-                      ds = seg/dble(nstep)
-                      ! the cells crossed, consecutive steps in one cell merged
-                      nseg = 0; last = -1
-                      do istep = 1, nstep
-                         rr = (dble(istep)-0.5d0)*ds
-                         ix = nearestAxB(grid(1)%xAxis, nx, sx + dxs*rr/seg)
-                         iy = nearestAxB(grid(1)%yAxis, ny, sy + dys*rr/seg)
-                         iz = nearestAxB(grid(1)%zAxis, nz, sz + dzs*rr/seg)
-                         cP = grid(1)%active(ix,iy,iz)
-                         if (cP <= 0 .or. cP == cT) then
-                            last = -1; cycle
-                         end if
-                         if (cP == last) then
-                            segL(nseg) = segL(nseg) + ds
-                         else
-                            nseg = nseg + 1; segC(nseg) = cP; segL(nseg) = ds; last = cP
-                         end if
-                      end do
+                      ! H-025 (D-397): the cells between the star and this one,
+                      ! each with the exact length of the ray in it, traced
+                      ! from this cell's centre as computeAVradial traces it.
+                      ! The cell itself is left out here: the shielding is
+                      ! averaged through its own column (solveCell).
+                      call rayCells(grid(1), dble(grid(1)%xAxis(ii)), dble(grid(1)%yAxis(jj)), &
+                           & dble(grid(1)%zAxis(kk)), -dxs/seg, -dys/seg, -dzs/seg, seg, .false., nSg)
                       acc = 0.d0
-                      do m = 1, nseg
-                         if (nH2c(segC(m)) <= 0.d0) cycle
-                         acc = acc + nH2c(segC(m))*segL(m)*dble(grid(1)%h2Pop(segC(m),:))
+                      do m = 1, nSg
+                         cP = rayCell(m)
+                         if (cP <= 0 .or. cP == cT) cycle
+                         if (nH2c(cP) <= 0.d0) cycle
+                         acc = acc + nH2c(cP)*rayLen(m)*dble(grid(1)%h2Pop(cP,:))
                       end do
                       fS = 1.d0/(seg*seg)
                       fTot = fTot + fS
@@ -5046,10 +5059,11 @@ module pdr_mod
                    cP = wkCell(istep,kray)
                    if (cP <= 0) cycle
                    dLev = 0.d0
-                   if (cP /= cellP .and. nH2c(cP) > 0.d0) dLev = nH2c(cP)*wkDs*dble(grid(1)%h2Pop(cP,:))
+                   if (cP /= cellP .and. nH2c(cP) > 0.d0) dLev = nH2c(cP)*wkLen(istep,kray)*dble(grid(1)%h2Pop(cP,:))
                    if (iSite <= nSite) then
                       if (siteRay(iSite) == kray .and. siteIst(iSite) == istep) then
-                         ! star -> site, then site -> cell; the site sits mid-step
+                         ! star -> site, then site -> cell; the site sits in the
+                         ! middle of its cell's part of the ray
                          Ns = dble(colStar(:,cP)) + cLev + 0.5d0*dLev
                          w  = siteW(iSite)
                          ntot = sum(Ns)
