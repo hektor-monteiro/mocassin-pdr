@@ -2984,13 +2984,30 @@ transition, 59-90% of our Lyman-Werner field is scattered light, and its part
 of the rate is 2-5x the direct part. The scattered field is shielded by the
 two-leg columns of its scattering sites (D-348), not by the star-ward column.
 
-**Next, and not done:** whether the scattered field's shielding columns are
-right. In a closed shell a scattered photon reaching a transition cell should
-cross a column comparable to the star-ward one. A test with a known answer
-(a slab, or Cloudy's own geometry) would show whether the sites' two-leg
-columns under-shield. This is the largest single lever on hiipdr's crossing.
+**The scattered field is not under-shielded; the column is low from the
+start.** The scattered part of our rate is 3.1x the direct part at A_V 1.0
+while it carries 4x the direct field (diffuse share 0.80). Its mean shielding
+factor is therefore about 0.8 of the direct beam's, as two-leg columns in a
+closed shell should give: an inward site's two legs sum to the star-ward
+column, and a sideways or outward one's exceed it. What differs is the H2
+column itself, ours to Cloudy's at the same A_V:
+
+  - A_V 0.50: 3.4e9 against 1.4e13, 4000x lower, where the rates still agree;
+  - A_V 0.60: 5x;
+  - A_V 0.70: 8x;
+  - A_V 0.80: 830x;
+  - A_V 1.0: 1e4x.
+
+Every later difference is that lag fed back through self-shielding.
+
+**Next, and not done:** where the lag at A_V 0.5 comes from. Our star-ward
+column (pdrColH2) up to the lit edge is 4000x below Cloudy's, although our
+ionized-gas H2 is 3-18x Cloudy's per cm^3. Whether pdrColH2 counts the H2 of
+the ionized cells at all is the first thing to check. Then the edge's H2 at
+A_V 0.50-0.65 cell by cell, with its formation and destruction, against
+Cloudy's zones.
 
 ### Status
 
-Done (diagnostic); the destruction measurement points at the scattered
-field's shielding.
+Done (diagnostic). The destruction measurement points at the H2 column at the
+lit edge, which our model builds far more slowly than Cloudy's (next).
