@@ -1633,7 +1633,7 @@ module pdr_mod
         double precision :: sx, sy, sz, dxs, dys, dzs, seg, ds, tauS, fS
         double precision :: fSum, fTot, kap, avS
         double precision :: cH2S, cCS, cCOS, wH2, wC, wCO, tauB, wB, nd
-        double precision :: cx, cy, cz
+        double precision :: cx, cy, cz, ownS, wOwn
         double precision :: RfuvL                          ! D-109
 
         if (pdrRfuv <= 0.) return
@@ -1658,6 +1658,7 @@ module pdr_mod
                     wC   = 0.d0
                     wCO  = 0.d0
                     wB   = 0.d0
+                    wOwn = 0.d0
                     do iS = 1, nStars
                        sx = dble(starPosition(iS)%x)
                        sy = dble(starPosition(iS)%y)
@@ -1681,6 +1682,7 @@ module pdr_mod
                        cH2S = 0.d0
                        cCS  = 0.d0
                        cCOS = 0.d0
+                       ownS = 0.d0
                        do m = 1, nSeg
                           cP = rayCell(m)
                           if (cP <= 0) cycle
@@ -1725,6 +1727,10 @@ module pdr_mod
                              cH2S = cH2S + nd*dble(grid(iG)%pdrAbun(cP,NH2))*ds
                              cCS  = cCS  + nd*dble(grid(iG)%pdrAbun(cP,NC ))*ds
                              cCOS = cCOS + nd*dble(grid(iG)%pdrAbun(cP,NCO))*ds
+                          else
+                             ! D-398: the ray's length in the cell itself,
+                             ! from its near face to its centre
+                             ownS = ownS + ds
                           end if
                        end do
 
@@ -1751,6 +1757,7 @@ module pdr_mod
                        wC   = wC  + fS*cCS
                        wCO  = wCO + fS*cCOS
                        wB   = wB  + fS*dble(magPerTau)*tauB
+                       wOwn = wOwn + fS*ownS
                     end do
 
                     if (fTot > 0.d0 .and. fSum > 0.d0) then
@@ -1761,6 +1768,11 @@ module pdr_mod
                        grid(iG)%pdrColC (cellP) = real(wC /fTot)
                        grid(iG)%pdrColCO(cellP) = real(wCO/fTot)
                        grid(iG)%AVback  (cellP) = real(wB /fTot)
+                       ! D-398: for the scattering sites in this cell
+                       ! (traceDiffuseSites); the snapshot exists in the
+                       ! ray-traced flavour only
+                       if (allocated(grid(iG)%difSrc)) &
+                            & grid(iG)%difSrc(cellP,6) = wOwn/fTot
                     end if
                  end do
               end do
@@ -1792,8 +1804,9 @@ module pdr_mod
       !
       !     N_eff = N(star -> P) + N(P -> C)
       !
-      ! The first leg is pdrColH2/C/CO(P) (D-078/D-088), already stored per
-      ! cell; the second is accumulated along the walk. The walk is done HERE,
+      ! The first leg is pdrColH2/C/CO(P) (D-078/D-088), stored per cell, to
+      ! that cell's near face, plus the cell's own gas from there to its
+      ! centre (D-398); the second is accumulated along the walk. The walk is done HERE,
       ! per cell, on the rank that consumes it, so there is no ownership to get
       ! wrong and no per-(cell,ray) storage.
       !
@@ -1827,6 +1840,9 @@ module pdr_mod
       !                  this cell's own grains (D-109)
       !   difSrc(:,5)    FUV scattering emissivity sum_nu kSca(nu)*J(nu)
       !                  [Jste units / cm], the MC's full local field
+      !   difSrc(:,6)    the length of the source-ward ray inside this cell,
+      !                  from its centre to its near face [cm] (D-398; filled
+      !                  by computeAVradial right after this snapshot)
       ! Allocated here, not in grid_mod, for the reason D-341 gives: this is
       ! the file the RAYTHEIA flag actually reaches.
       !-----------------------------------------------------------------
@@ -1839,7 +1855,7 @@ module pdr_mod
 
         do iG = 1, nGrids
            if (.not.allocated(grid(iG)%difSrc)) then
-              allocate(grid(iG)%difSrc(0:grid(iG)%nCells, 1:5), stat=errAlloc)
+              allocate(grid(iG)%difSrc(0:grid(iG)%nCells, 1:6), stat=errAlloc)
               if (errAlloc /= 0) then
                  print*, "! snapDiffuseSources: can't allocate difSrc"
                  stop
@@ -1966,12 +1982,22 @@ module pdr_mod
                     col1(2) = dble(grid%pdrColC (cP))
                     col1(3) = dble(grid%pdrColCO(cP))
                     if (any(col1 < 0.d0)) nUnset = nUnset + 1
+                    col1 = max(col1, 0.d0)
+                    ! D-398: the first leg runs to the site, not to the near
+                    ! face of the site's cell. The light scattered in a cell
+                    ! has crossed, on its way from the source, that cell's
+                    ! own gas as far as the scattering point - to the cell's
+                    ! centre, for the cell's mean field. D-347 took the
+                    ! stored near-face column because it was at hand. The
+                    ! target cell's own column stays out, as in the direct
+                    ! beam (D-088).
+                    if (cP /= cellP) col1 = col1 + grid%difSrc(cP,1:3)*grid%difSrc(cP,6)
                     nSite = nSite + 1
                     siteW(nSite)   = w
                     ! the site sits in the middle of its cell's part of the
                     ! ray: half of that is between it and the cell (when that
                     ! cell shields at all)
-                    siteN(:,nSite) = max(col1, 0.d0) + cN + 0.5d0*dN
+                    siteN(:,nSite) = col1 + cN + 0.5d0*dN
                     wRay(kray)     = wRay(kray) + w
                  end if
               end if

@@ -397,6 +397,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0. **Measured on seeded pairs of the h2-model branch's converged runs: the zone's H2+ falls 2-2.8x on hiipdr (8-9 kK) and 2.6-7x on pn150k (1-2e4 K), to 3-4x Cloudy's on pn150k (was 9-22x); its H2 falls 2x and 1.6-4.1x and is still 14-62x and 30-230x Cloudy's.** Fronts, crossings, Hbeta, the PDR and the H2 lines (within 0.2%) do not move. What is left is ground-state H2 where Cloudy has H2* that electrons destroy (the level model's part), and two rate choices (DR above 300 K, H+ + H2). Also: `tools/d260_roellig.py`'s slot labels had H2+ and CH5+ crossed (nothing published read either) | Done | 2026-10-05 |
 | D-396 | **The Cloudy references had no microturbulence, where MOCASSIN and 3D-PDR run with 1 km/s; and hiipdr's used Cloudy's small H2 model, whose shielding is the Elwert et al. (2005) fit. Both corrected: `turbulence 1 km/s no pressure` in both references, and the large H2 model for hiipdr, as pn150k has had since D-302.** hiipdr's H/H2 crossing moves A_V 1.090 -> 1.172 (turbulence) -> 1.280 (and the large model), against our 1.400: the published gap of 0.31 mag is 0.12 like for like. hiipdr's n(H2) at A_V 0.70 / 1.00 becomes 8.4e-5 / 0.092 against our 8.5e-5 / 0.050 (was 5.8e-4 / 14.1). Cloudy's PDR is 2-15% colder with turbulence (its coolant lines are 4.5x wider), so on pn150k our PDR is 0.66-0.75 of its temperature at A_V 0.3-0.65 (0.57-0.66 before), 28.2 um falls to 0.46 and CO 1-0..3-2 to 0.56-0.63 of the old reference. Also found: the hiipdr page's Cloudy [C II] 158 and [O I] 63 were read from Cloudy's first, unconverged iteration (0.134, 0.00581; converged 0.1086, 0.00597). Fixtures `benchmarks/pdr/*/cloudy` updated; runs/d396-cloudy-hii (857 s) and runs/d396-cloudy-pn (499 s) | Accepted | 2026-10-05 |
 | D-397 | **The shielding columns were sampled, not integrated: every ray march took the nearest cell once per step of a cell width, the first sample half a step from the target cell's centre - inside the cell the columns leave out - so the path between the target's face and the end of the first step, in the neighbour that shields it most, was never counted.** Against the exact path lengths on the same rays and the same n(H2), the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's H2 transition (N = 1e15-1e20; one cell in twenty below 0.03-0.35) and 0.64-0.82 through pn150k's; 3-5% low in molecular gas. New `rayCells` (exact length of a ray in each cell, mirrors at a symmetric octant's lower faces) now carries `computeAVradial` (A_V and the H2, C, CO columns), `traceDiffuseSites` and `traceLineRays`; the stepping helpers are gone. Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
+| D-398 | **A scattering site's first leg runs to the site, not to the near face of the site's cell.** D-347 took the stored near-face column `pdrColX(P)` for N(star -> P) because it was at hand; the light scattered in a cell has also crossed that cell's own gas as far as the scattering point. The first leg now adds the site's cell's own column from its near face to its centre (the length is `rayCells`' first segment, kept per cell beside the snapshot); the target cell's own column stays out (D-088). Four flavours rc 0; seeded tests on the h2-model branch to follow | In progress | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34379,6 +34380,73 @@ its site columns get the same routine (H-025).
     is not changed here.
   - The 1D-slab path (`computeAVdust` with `planeIonization`) integrates
     along the grid's own columns and was not sampled this way.
+
+### Status
+
+In progress.
+
+## D-398 - A scattering site's first leg runs to the site (2026-10-05)
+
+D-397 left this open: "whether a site's first leg should run to the site, not
+to the near face of the site's cell". It should, and with `rayCells` the
+length is at hand.
+
+### What the code had
+
+D-347 defined the column of scattered light as two legs, `N(star -> P) +
+N(P -> C)`, and took the first from what was stored: "`N(star->P)` is stored
+per cell as `grid%pdrColH2/C/CO`, so it is a lookup at whichever cell the ray
+step is in". That stored column is D-088's, to the cell's **near face**: it
+leaves the cell's own gas out so that a cell does not shield itself in the
+direct beam.
+
+For a scattering site that is the wrong end point. The site is inside its
+cell (the walk puts it in the middle of the ray's part of that cell, and adds
+half of that part to the second leg). The light scattered there came from the
+star through the cell's own gas as far as the site. The MC field the site's
+emissivity is built from is the cell's mean, so on average it has crossed
+the cell to its centre. That part of the path was in neither leg.
+
+Where the site's cell is the most molecular on its path, which is every site
+at the target's depth or deeper, its own gas is most of the two-leg column.
+The first leg then lacked about as much as the second leg's half-cell
+holds, and the column was up to 2x low.
+
+### The change
+
+  - `computeAVradial` keeps the length of the source-ward ray inside each
+    cell, from its near face to its centre (`rayCells`' own-cell segment,
+    flux-weighted over the sources), beside the snapshot: `difSrc(:,6)`.
+  - `traceDiffuseSites` adds to a site's first leg its cell's n(H2), n(C)
+    and n(CO) times that length, when the site is not in the target cell.
+
+Not changed: the target cell's own column stays out of both legs, as it does
+in the direct beam (D-088); the level model on h2-model averages its shielding
+through the cell's own column and takes the same first leg (H-025).
+
+Four flavours rc 0.
+
+### Prediction, before the tests
+
+Through hiipdr's transition the scattered light is 59-90% of the
+Lyman-Werner field and 2-5x the direct beam's part of the rate (H-022).
+
+  - **Photodissociation by scattered light falls where the sites are
+    molecular**: from the middle of the transition inwards. At the lit edge,
+    where no site holds much H2, nothing changes.
+  - **The H/H2 crossing moves shallower again**, on both fixtures, by an
+    amount of the order of D-397's. The site columns rise by between 1x
+    and 2x; how that feeds through the self-shielding is not predicted more
+    closely than that.
+  - **CO rises behind the transition**, through the C and CO columns of the
+    same sites.
+  - **A_V, the fronts, the ionized gas and Hbeta do not move.**
+
+The test is a seeded pair on h2-model against D-397's run (hiipdr, 15
+iterations). pn150k is run once with D-397 and D-398 together against
+`runs/h023-eh2p-pn41`, to save a three-hour run: D-397's own share there is
+bounded by the measured column error (0.64-0.82 through the transition,
+against hiipdr's 0.46-0.75).
 
 ### Status
 
