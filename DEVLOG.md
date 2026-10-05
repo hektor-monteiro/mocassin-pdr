@@ -394,7 +394,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-392 | **At the user's direction the model-integrated test alone stops a run (convTotals, default 0.02 - the strict end of the user's 2-5%); the cell percentage and minConvergence are reported, not tested, and a run setting minConvergence says so at start-up.** pn150k's fixture cap 11 -> 30 (it converges at 17). autoPackets still reads the cell percentage (affects only runs that set it). Checked: a run stops on the integrated test with 0.7% of cells passing; four flavours rc 0 | Done | 2026-10-04 |
 | D-393 | **The warm start threw its PDR away: it counts iterations from 1 again, so pdrStartIter 4 skipped the chemistry for three iterations and then seeded the molecules over the resumed ones. Fixed: a checkpoint with PDR state resumes it from the first iteration, unseeded, with elemAvail published from the resumed abundances.** L-14's test passes: 8 cold + 8 warm against 16 cold, hiipdr 21^3 - integrated quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line 0.55% (0.71%), crossing 1.501 against 1.498. The PDR's per-coolant split and extra heating are still not checkpointed; one iteration without them leaves no trace after eight | Done | 2026-10-04 |
 | D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
-| D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
+| D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0. **Measured on seeded pairs of the h2-model branch's converged runs: the zone's H2+ falls 2-2.8x on hiipdr (8-9 kK) and 2.6-7x on pn150k (1-2e4 K), to 3-4x Cloudy's on pn150k (was 9-22x); its H2 falls 2x and 1.6-4.1x and is still 14-62x and 30-230x Cloudy's.** Fronts, crossings, Hbeta, the PDR and the H2 lines (within 0.2%) do not move. What is left is ground-state H2 where Cloudy has H2* that electrons destroy (the level model's part), and two rate choices (DR above 300 K, H+ + H2). Also: `tools/d260_roellig.py`'s slot labels had H2+ and CH5+ crossed (nothing published read either) | Done | 2026-10-05 |
 | D-396 | **The Cloudy references had no microturbulence, where MOCASSIN and 3D-PDR run with 1 km/s; and hiipdr's used Cloudy's small H2 model, whose shielding is the Elwert et al. (2005) fit. Both corrected: `turbulence 1 km/s no pressure` in both references, and the large H2 model for hiipdr, as pn150k has had since D-302.** hiipdr's H/H2 crossing moves A_V 1.090 -> 1.172 (turbulence) -> 1.280 (and the large model), against our 1.400: the published gap of 0.31 mag is 0.12 like for like. hiipdr's n(H2) at A_V 0.70 / 1.00 becomes 8.4e-5 / 0.092 against our 8.5e-5 / 0.050 (was 5.8e-4 / 14.1). Cloudy's PDR is 2-15% colder with turbulence (its coolant lines are 4.5x wider), so on pn150k our PDR is 0.66-0.75 of its temperature at A_V 0.3-0.65 (0.57-0.66 before), 28.2 um falls to 0.46 and CO 1-0..3-2 to 0.56-0.63 of the old reference. Also found: the hiipdr page's Cloudy [C II] 158 and [O I] 63 were read from Cloudy's first, unconverged iteration (0.134, 0.00581; converged 0.1086, 0.00597). Fixtures `benchmarks/pdr/*/cloudy` updated; runs/d396-cloudy-hii (857 s) and runs/d396-cloudy-pn (499 s) | Accepted | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -34035,7 +34035,53 @@ x(H+), with medians; Cloudy's H2 is H2 + H2*, from `runs/h021-cloudy-hii`.
       - H2 lines -0.1 to -0.2%;
       - every PDR shell's x(H2) and T_e to 1.000 (one front shell 0.987).
 
-pn150k, where the zone is 1-2e4 K, is running.
+### pn150k: measured
+
+`runs/h023-eh2p-pn41` against `runs/h019-B-pn41`: same input, seed and 14
+ranks, 18 iterations, 2:29:55. Cloudy's H2 is H2 + H2* and its H2+ is saved
+(`runs/d389-cloudy-h2s`; with D-396's turbulence the zone's values move by
+2-4%).
+
+| x(H+) | cells | n(H2+) new/old | n(H2+) ours/Cloudy, old -> new | 2n(H2)/n_H new/old | H2 ours/Cloudy, new |
+|---|---|---|---|---|---|
+| 0.99-1.00 | 167 | 0.14 | 530 -> 75 | 0.59 | 2500 |
+| 0.95-0.99 | 122 | 0.19 | 22 -> 4.2 | 0.37 | 32 |
+| 0.80-0.95 | 72 | 0.20 | 20 -> 3.9 | 0.24 | 75 |
+| 0.50-0.80 | 50 | 0.26 | 15 -> 4.0 | 0.28 | 230 |
+| 0.20-0.50 | 60 | 0.38 | 9.4 -> 3.6 | 0.41 | 190 |
+| 0.05-0.20 | 68 | 0.64 | 5.1 -> 3.2 | 0.64 | 100 |
+| 0.01-0.05 | 154 | 1.08 | 2.4 -> 2.6 | 0.92 | 0.1 |
+
+At fixed A_V (medians within 8%), ours over Cloudy's H2 + H2*: 24 -> 16 at
+A_V 0.05, 670 -> 205 at 0.10, 74 -> 71 at 0.15. The front sits between 0.13
+and 0.15 in both codes, and there the ratio follows where each code's front
+falls, not the chemistry.
+
+  - **H2+ falls 2.6-7x in the zone, as predicted (4-10x), and is now 3-4x
+    Cloudy's where it was 9-22x.** What is left of the H2+ gap is the size of
+    the two open rate choices: the DR fit 3x below Cloudy's at 1e4 K, and
+    Cloudy's H- route.
+  - **The zone's H2 falls 1.6-4.1x and is still 30-230x Cloudy's.** With H2+
+    within 4x, the rest is not H2+. It is what D-389 found: our H2+ + H makes
+    ground-state H2 that lives 1e7-1e8 s, where Cloudy's makes H2* that
+    electrons destroy. That part belongs to the level model (H-021's plan).
+  - **Nothing else moves.**
+      - front 0.12814 -> 0.12814 pc;
+      - He++ front 0.08773 -> 0.08769 pc;
+      - H/H2 crossing A_V 0.3930 -> 0.3933;
+      - Hbeta unchanged to four figures;
+      - H2 lines within 0.2%;
+      - PDR shells' x(H2) 0.97-1.006 and T_e within 0.4%.
+
+### What is not yet known
+
+  - The dissociative recombination of H2+ above 300 K. The network's fit is
+    UMIST's, valid 10-300 K; a replacement needs a primary source.
+  - H+ + H2 -> H2+ + H: 1e-10 exp(-21200/T) here, 2.45e-10 exp(-21237/T) in
+    Cloudy (Savin et al. 2004).
+  - The fully ionized gas (x(H+) > 0.99), where our H2 is 25x (hiipdr) and
+    2500x (pn150k) Cloudy's and reaction 332 moves it least. On pn150k that
+    is the hot inner zone of L-32 (one ion carrier per element).
 
 ### A reader's labels, found while writing the comparison
 
@@ -34057,7 +34103,7 @@ read slot 3, which is CH5+.
 
 ### Status
 
-In progress.
+Done.
 
 ## D-396 - The Cloudy references had no microturbulence, and hiipdr's shielded H2 with a fit (2026-10-05)
 

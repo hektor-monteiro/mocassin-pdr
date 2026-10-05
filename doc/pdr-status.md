@@ -540,12 +540,13 @@ no H2 cooling); H2 line predictions would, and the level-resolved H2 model
 (branch h2-model) is where it is to be addressed. Not tuned.
 **Partly addressed 2026-10-05 (D-395):** the network had no electron-impact
 dissociation of H2+ (e- + H2+ -> e- + H + H+), Cloudy's main H2+ sink in
-ionized gas; added as reaction 332 (Janev et al. 1987). On hiipdr the zone's
-H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x
-Cloudy's; nothing past the front moves. pn150k (1-2e4 K, where the rate is
-4-17x the old total) is being measured. What remains is the level-resolved
-part: gas-phase H2 made into excited levels and destroyed there by electrons
-(H-021's plan, h2-model).
+ionized gas; added as reaction 332 (Janev et al. 1987). The zone's H2+ falls
+2-2.8x on hiipdr and 2.6-7x on pn150k, to 3-4x Cloudy's on pn150k (was
+9-22x). Its H2 falls 2x and 1.6-4.1x and is still 14-62x (hiipdr) and
+30-230x (pn150k) Cloudy's at the same x(H+); nothing past the front moves.
+What remains is the level-resolved part: gas-phase H2 made into excited
+levels and destroyed there by electrons (H-021's plan, h2-model), and two
+rate choices (H2+ dissociative recombination above 300 K; H+ + H2).
 
 **L-44. The Cloudy references had no microturbulence** (D-396). MOCASSIN and
 3D-PDR run with 1 km/s (`pdrVturb`, `v_turb`); Cloudy's lines were thermal
