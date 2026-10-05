@@ -1,0 +1,33 @@
+diff --git a/source/pdr/h2_form.F90 b/source/pdr/h2_form.F90
+index cbe0635..db50b20 100644
+--- a/source/pdr/h2_form.F90
++++ b/source/pdr/h2_form.F90
+@@ -60,10 +60,10 @@ FUNCTION H2_FORMATION_RATE(GAS_TEMPERATURE,GRAIN_TEMPERATURE) RESULT(RATE)
+ 
+ !  Silicate grain properties
+    SILICATE_MU=0.005D0   ! Fraction of newly formed H2 that stays on the grain surface
+-   SILICATE_E_S=110.0D0  ! Energy of the saddle point between a physisorbed and a chemisorbed site (K)
++   SILICATE_E_S=200.0D0  ! H-022 DIAGNOSTIC, Cloudy's CT02 set (was 110) ! Energy of the saddle point between a physisorbed and a chemisorbed site (K)
+    SILICATE_E_H2=320.0D0 ! Desorption energy of H2 molecules (K)
+-   SILICATE_E_HP=450.0D0 ! Desorption energy of physisorbed H atoms (K)
+-   SILICATE_E_HC=3.0D4   ! Desorption energy of chemisorbed H atoms (K)
++   SILICATE_E_HP=600.0D0 ! H-022 DIAGNOSTIC (was 450) ! Desorption energy of physisorbed H atoms (K)
++   SILICATE_E_HC=1.0D4   ! H-022 DIAGNOSTIC (was 3e4) ! Desorption energy of chemisorbed H atoms (K)
+    SILICATE_NU_H2=3.0D12 ! Vibrational frequency of H2 molecules in surface sites (s^-1)
+    SILICATE_NU_HC=1.3D13 ! Vibrational frequency of H atoms in their surface sites (s^-1)
+ 
+@@ -79,10 +79,10 @@ FUNCTION H2_FORMATION_RATE(GAS_TEMPERATURE,GRAIN_TEMPERATURE) RESULT(RATE)
+ 
+ !  Graphite grain properties
+    GRAPHITE_MU=0.005D0   ! Fraction of newly formed H2 that stays on the grain surface
+-   GRAPHITE_E_S=260.0D0  ! Energy of the saddle point between a physisorbed and a chemisorbed site (K)
+-   GRAPHITE_E_H2=520.0D0 ! Desorption energy of H2 molecules (K)
+-   GRAPHITE_E_HP=800.0D0 ! Desorption energy of physisorbed H atoms (K)
+-   GRAPHITE_E_HC=3.0D4   ! Desorption energy of chemisorbed H atoms (K)
++   GRAPHITE_E_S=200.0D0  ! H-022 DIAGNOSTIC (was 260) ! Energy of the saddle point between a physisorbed and a chemisorbed site (K)
++   GRAPHITE_E_H2=320.0D0 ! H-022 DIAGNOSTIC (was 520) ! Desorption energy of H2 molecules (K)
++   GRAPHITE_E_HP=600.0D0 ! H-022 DIAGNOSTIC (was 800) ! Desorption energy of physisorbed H atoms (K)
++   GRAPHITE_E_HC=1.0D4   ! H-022 DIAGNOSTIC (was 3e4) ! Desorption energy of chemisorbed H atoms (K)
+    GRAPHITE_NU_H2=3.0D12 ! Vibrational frequency of H2 molecules in surface sites (s^-1)
+    GRAPHITE_NU_HC=1.3D13 ! Vibrational frequency of H atoms in their surface sites (s^-1)
+ 

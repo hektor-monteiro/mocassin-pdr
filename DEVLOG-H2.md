@@ -30,6 +30,7 @@ DEVLOG.md and arrives here by merge.
 | H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages.** hiipdr stops at 15, pn150k at 18; all four pages republished | Done | 2026-10-05 |
 | H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
 | H-021 | **The user: "lets work on the gaps in H2 formation and destruction" (H-017 items 4-5). L-33 is withdrawn (production D-394, merged): Cloudy forms 94-95% of its grain H2 as H2*, a channel the comparison never read; with it, our grain coefficient is 0.86-1.00 of Cloudy's (pn150k) and 0.50-0.91 (hiipdr, silicate surface energies). L-43 stands: transition-zone H2 24-665x Cloudy's at A_V 0.05-0.13 on pn150k, where Cloudy's H2* is 0.5-1.3% of its H2 and its H- outnumbers its H2 10^2-10^4 times. The plan: the level model takes the level-resolved channels (H2+ + H and H- + H into levels, dissociative attachment and the H2+ charge transfer back out by detailed balance, H- in local balance), measured first** | In progress | 2026-10-05 |
+| H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
 
 ---
 
@@ -2908,3 +2909,50 @@ after.
 ### Status
 
 In progress (L-33 done; L-43 step 1 next).
+
+## H-022 - How much of hiipdr's crossing is the silicate surface energies (2026-10-05)
+
+H-021 found that MOCASSIN forms H2 on hiipdr's silicate at 0.45-0.70 of
+Cloudy's rate at T_d 26-37 K. The cause is 3D-PDR's per-material Cazaux &
+Tielens surface energies against Cloudy's single set. Is that hiipdr's deeper
+crossing? This is a diagnostic, so nothing is adopted. Both parameter sets are
+from the literature, and one is not to be chosen because it closes a gap.
+
+**The run:** `runs/h022-ct02-hii31`, built with
+`tools/patches/h022_ct02_cloudy_set.patch` (h2_form.F90 given Cloudy's
+E_S 200, E_HP 600, E_HC 1e4, E_H2 320 K for both materials). The source was
+restored after the build. Input, seed (1001), 14 ranks and 15 iterations are
+those of `runs/h019-B-hii31`: `convTotals 1e-6` keeps the test from stopping
+it early. Run time 40:29.
+
+| quantity | 3D-PDR set (B15) | Cloudy's set | Cloudy |
+|---|---|---|---|
+| H/H2 crossing, A_V | 1.400 | 1.363 | 1.090 |
+| front, radial shells [pc] | 3.831 | 3.831 | 3.765 |
+| C+ = C, A_V | 2.275 | 2.275 | 2.950 |
+| n(H2) at A_V 0.70 / 1.00 / 1.50 | 8.5e-5 / 0.050 / 35.5 | 2.5e-4 / 0.223 / 38.0 | 5.8e-4 / 14.1 / 46.2 |
+| T_gas at A_V 0.70 / 1.00 / 1.50 [K] | 50.6 / 46.0 / 33.3 | 51.9 / 46.8 / 33.8 | 48.0 / 49.3 / 43.5 |
+| 1-0 S(1), 2-1 S(1) / Hbeta | 7.67, 4.06e-4 | 10.18, 5.42e-4 (x1.33) | - |
+| 0-0 S(0), S(1), S(2) | | x1.14, 1.26, 1.16 | |
+| [C II], [O I] 63, [C I], CO 1-0..3-2 | | within 1% | |
+| Hbeta | 9.1657 | 9.1655 | |
+
+**What it means.** The silicate surface energies are worth 0.04 mag of
+hiipdr's 0.31 mag crossing gap, about an eighth. With Cloudy's set, the
+lit-edge H2 still falls short of Cloudy's by 2.3x at A_V 0.70 and 63x at 1.0.
+The deeper transition is therefore mostly not grain formation. The
+destruction is what remains: the levels' photodissociation rate on MOCASSIN's
+own field. That field is 2.5-4.6x the old prescription's through this
+transition (D-350), and the levels' rate is 1.2-2.0x the network's on it
+(H-019). Comparing the destruction rate per H2 molecule with Cloudy's,
+depth by depth, is the measurement this points to. Cloudy's
+`PHOTON,H2=>H,H` over its n(H2) is in
+`runs/d356-cloudy-hii` and `runs/h021-cloudy-hii` (.H2de).
+
+The H2 lines are sensitive to the parameter set (+14-33%): more H2 at the
+lit edge means more pumping. That sensitivity is worth stating wherever our
+H2 lines are compared with Cloudy's on silicate.
+
+### Status
+
+Done (diagnostic).
