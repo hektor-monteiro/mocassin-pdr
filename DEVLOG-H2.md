@@ -31,7 +31,7 @@ DEVLOG.md and arrives here by merge.
 | H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
 | H-021 | **The user: "lets work on the gaps in H2 formation and destruction" (H-017 items 4-5). L-33 is withdrawn (production D-394, merged): Cloudy forms 94-95% of its grain H2 as H2*, a channel the comparison never read; with it, our grain coefficient is 0.86-1.00 of Cloudy's (pn150k) and 0.50-0.91 (hiipdr, silicate surface energies). L-43 stands: transition-zone H2 24-665x Cloudy's at A_V 0.05-0.13 on pn150k, where Cloudy's H2* is 0.5-1.3% of its H2 and its H- outnumbers its H2 10^2-10^4 times. The plan: the level model takes the level-resolved channels (H2+ + H and H- + H into levels, dissociative attachment and the H2+ charge transfer back out by detailed balance, H- in local balance), measured first** | In progress | 2026-10-05 |
 | H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
-| H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production).** hiipdr (`runs/h023-eh2p-hii31` against `runs/h019-B-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's; front, crossing, Hbeta, every PDR shell unchanged; the H2 lines -0.1 to -0.2%. pn150k (18 iterations) running | In progress | 2026-10-05 |
+| H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: 0.37 (ortho) and 0.50 (para) | Done | 2026-10-05 |
 
 ---
@@ -3053,13 +3053,43 @@ and Cloudy's H2 is H2 + H2*.
 The H2+ drop is the rate table's x2.1 at hiipdr's 8-9 kK. D-395's 4-10x
 was predicted for pn150k's 1-2e4 K.
 
-### pn150k
+### pn150k (2:29:55)
 
-Running (ETA ~12:15).
+Cloudy's H2+ is saved for this model (`runs/d389-cloudy-h2s`, .dens389).
+
+| x(H+) | cells | n(H2+) new/old | n(H2+) ours/Cloudy, old -> new | 2n(H2)/n_H new/old | H2 ours/Cloudy, new |
+|---|---|---|---|---|---|
+| 0.99-1.00 | 167 | 0.14 | 530 -> 75 | 0.59 | 2500 |
+| 0.95-0.99 | 122 | 0.19 | 22 -> 4.2 | 0.37 | 32 |
+| 0.80-0.95 | 72 | 0.20 | 20 -> 3.9 | 0.24 | 75 |
+| 0.50-0.80 | 50 | 0.26 | 15 -> 4.0 | 0.28 | 230 |
+| 0.20-0.50 | 60 | 0.38 | 9.4 -> 3.6 | 0.41 | 190 |
+| 0.05-0.20 | 68 | 0.64 | 5.1 -> 3.2 | 0.64 | 100 |
+| 0.01-0.05 | 154 | 1.08 | 2.4 -> 2.6 | 0.92 | 0.1 |
+
+  - front 0.12814 -> 0.12814 pc; He++ front 0.08773 -> 0.08769 pc;
+  - H/H2 crossing 0.3930 -> 0.3933;
+  - Hbeta unchanged to four figures;
+  - H2 lines: 1-0 S(1) x0.998, 2-1 S(1) x0.999, 0-0 S(0), S(1), S(2) x1.002,
+    1.001, 1.002;
+  - PDR shells' x(H2) 0.97-1.006, T_e within 0.4%.
+
+At fixed A_V, ours over Cloudy's H2 + H2* goes 24 -> 16 at A_V 0.05,
+670 -> 205 at 0.10 and 74 -> 71 at 0.15 (H-021's table: 24, 665, 77).
+
+### What it means for the plan (H-021)
+
+  - The H2+ supply is now within 3-4x of Cloudy's, so step 1's first half
+    (H2+ + H at the network's rate) has the right input.
+  - The H2 that is left, 30-230x Cloudy's on pn150k, is the level-resolved
+    part: formation into excited levels and their destruction by electrons.
+    It is unchanged as the next step.
+  - Its weight in the lines is unchanged too: the zone carries 1.1% of
+    1-0 S(1) on pn150k, and the lines moved by 0.2% here.
 
 ### Status
 
-In progress.
+Done.
 
 ## H-024 - hiipdr's lit edge, cell by cell: a column definition and the references (2026-10-05)
 
