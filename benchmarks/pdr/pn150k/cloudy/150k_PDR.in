@@ -36,6 +36,9 @@ print line faint -8
 print last
 iterate to converge
 Save lines, intensity, column, emergent, ".lines"
+# D-396: the line above saves EMERGENT intensities (dust between each line and the edge taken out), every iteration,
+# under a header that says intrinsic. This is the intrinsic list of the last iteration.
+save last lines, intensity, column ".linesint"
 print line flux earth
 print line precision 6
 grains ISM graphite 1 linear

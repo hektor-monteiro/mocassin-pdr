@@ -34220,6 +34220,31 @@ depths. D-362's hiipdr [C II] 158 against Cloudy (0.194 against 0.134) and
 the pages since read the same block. The far-IR values D-362 corrected, 145
 and 370 um, were from a converged block.
 
+### Also found: `save lines ... emergent` is not the intrinsic list
+
+The pn150k input came with `Save lines, intensity, column, emergent`, and
+hiipdr's new input copied it. That file's header reads "Emission line
+intrinsic intensities per unit inner area", but with the `emergent` keyword
+the intensities are the emergent ones, with the dust between each line and
+the edge taken out:
+
+  - Hbeta in it is 0.357 of the intrinsic Hbeta on hiipdr, and 0.36 on
+    pn150k's last iteration;
+  - an infrared H2 line over that Hbeta is then 2.2x its intrinsic ratio on
+    hiipdr (1-0 S(1): 2.05e-3 against 9.24e-4);
+  - pn150k's file is written every iteration, and its first block, which
+    `tools/h009_lines.py` (h2-model) reads, is the first iteration's: Hbeta
+    0.89 of the converged intrinsic, 1-0 S(1)/Hbeta 6% high.
+
+Cloudy's saved emissivities summed over its sphere (D-390's method) give the
+intrinsic ratios, and both inputs now also save the intrinsic list of the last
+iteration (`save last lines, intensity, column`, `.linesint`). The reruns
+that wrote it reproduce the adopted models' `.ovr` byte for byte. The
+per-line H2 comparisons published for pn150k (H-009's 40 lines) used the
+first block; against the intrinsic list of the new reference they become,
+for stage B, ortho 0.96-1.17 and para 1.95-2.72, where the page has 0.83-0.98
+and 1.74-2.77.
+
 ### Done
 
   - `benchmarks/pdr/hiipdr/cloudy/hiipdr.in` gets the turbulence, the large
@@ -34239,8 +34264,12 @@ and 370 um, were from a converged block.
         its own A, which shields 3x more at N > 1e17 than the natural width
         (H-005, H-008), and that pushes its transition shallower.
   - **hiipdr's H2 lines.** For the first time there is a Cloudy reference
-    for them: ours are 0.37 (ortho) and 0.50 (para) of Cloudy's large model.
-    Not yet decomposed.
+    for them. **Corrected the same day:** this entry first gave ours as 0.37
+    (ortho) and 0.50 (para) of Cloudy's large model. Those ratios were taken
+    against a Cloudy line list that is not intrinsic (below). Against the
+    intrinsic list ours are 0.82-0.84 (ortho) and 1.13-1.19 (para) over
+    Cloudy's 40 strongest H2 lines; 1-0 S(1) is 0.83, 0-0 S(0), S(1), S(2)
+    1.31, 0.86, 1.19.
   - **Whether 1 km/s is right for either nebula.** It is the benchmark's
     choice, not a measurement. The two codes now agree on it.
 
