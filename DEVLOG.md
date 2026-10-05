@@ -34401,6 +34401,75 @@ D-395 (`runs/h023-eh2p-hii31`, 15 iterations; `runs/h023-eh2p-pn41`, 18),
 merged there per D-388. On that branch the level model's `starColumns` and
 its site columns get the same routine (H-025).
 
+### Checked
+
+On h2-model (H-025), where h2Cells.out writes the level model's star-ward
+column, which takes the same routine:
+
+  - the code's column over the tool's independent exact integral is 1.000
+    in all 15,191 cells of `runs/h025-rays-hii31` (min 1, max 1);
+  - A_V is 0.159737 mag/pc times the exact path through active cells in
+    every cell, to 3e-8;
+  - 36 mirrored rays of three cells agree with a brute-force walk in 2e14 cm
+    steps to 3e14 cm in every cell's length, and in the order of cells;
+  - the D-348 scale check (`Nwalk/N`, `AVwalk/AV`) reads 1.0000 in every
+    bin. It compared two sampled marches of one path, and had been reading
+    1.61, 0.88, 0.59, 1.05 for the column in the first four A_V bins and
+    0.72 for A_V in the first.
+
+### hiipdr: measured
+
+`runs/h025-rays-hii31` on h2-model against `runs/h023-eh2p-hii31` (D-395):
+same input, seed and 14 ranks, 15 iterations.
+
+**A prediction failed: A_V moved.** The dust is uniform, but the model has
+an inner cavity (Rin 0.97 pc, 1.5 cells), and the sampled march misjudged
+its edge.
+
+  - The sampled A_V was off from the exact dust column by -0.058 to
+    +0.057 mag, median -0.028. D-277 had measured this ("-0.03 mag median,
+    +-0.05 per cell") and left it as the march's sampling.
+  - A_V = 0.1594 (r - 1.148 pc) before and 0.1598 (r - 1.052 pc) now. The
+    scatter about that line falls from 0.044 to 0.028 mag; what is left is
+    the cavity's staircase.
+
+So every cell beyond the cavity reads 0.03 mag deeper than it did, and
+positions quoted in A_V shift by that much for no change in the model. In
+radius, which neither run's A_V enters:
+
+| | D-395 | + exact paths | |
+|---|---|---|---|
+| ionization front [pc] | 3.8045 | 3.8045 | |
+| 2n(H2) = n(H) [pc] | 10.028 | 9.847 | -0.18 pc, 0.029 mag |
+| n(C+) = n(C) [pc] | 15.248 | 15.253 | |
+
+At fixed radius through the transition (6.5-9.7 pc, shell medians) the
+photodissociation rate the chemistry used falls to 0.51-0.72 of what it was
+and n(H2) rises 1.2-2.0x; at the lit edge (4.5-5.2 pc) both move by under 3%.
+
+In each run's own A_V:
+
+| | D-395 | + exact paths | Cloudy (D-396) |
+|---|---|---|---|
+| H/H2 crossing | 1.400 | 1.406 | 1.280 |
+| front | 0.457 | 0.433 | 0.446 |
+| C+ = C | 2.274 | 2.277 | 2.933 |
+| n(H2) at A_V 1.00 / 1.50 [cm^-3] | 0.050 / 35.5 | 0.065 / 36.1 | 0.092 / 39.1 |
+| 1-0 S(1), 0-0 S(1) / Hbeta | 7.65e-4, 4.18e-4 | 7.20e-4, 4.02e-4 | 9.24e-4, 4.84e-4 |
+
+  - **The crossing moved 0.029 mag towards the star, as predicted, and the
+    A_V axis moved 0.036 mag the other way.** Read in A_V the crossing is
+    where it was, 0.13 mag past Cloudy's.
+  - **The H2 lines fell 3.8-5.9%**, as predicted.
+  - **Hbeta, the front's radius and the fine-structure lines did not
+    move** (Hbeta 9.165 in both; [C II] 158 0.1543 -> 0.1539).
+  - **C+ = C did not move in radius**: the prediction allowed that it might.
+
+The run took 49:12 against 40:55, with two Cloudy models sharing the machine
+for half of it; the level model's calls add up to 1,251 s against 1,095 s.
+
+pn150k is measured with D-398 (see there).
+
 ### Not yet known
 
   - Whether a site's first leg should run to the site, not to the near face
