@@ -586,6 +586,17 @@ front still moving outward 0.003 pc per iteration (0.0799 pc against 0.0833 at
 x(H0), x(H2) and T_e but no helium stage (D-370; this line said "x(H0) only"
 until then).
 
+**Update 2026-10-04 (D-391, D-392): the convergence test now sees this.** Its
+x(H2) half had passed every cell since D-216 (it ran before the chemistry and
+compared each cell with a copy of itself), and it counts cells, of which the
+ionized gas is ~1%. A model-integrated test - the emission measure of every
+ion stage, the H0/H2/CO contents, the gas temperature weighted three ways -
+now decides the stop, at `convTotals` (default 2%) over 3 iterations, and every
+run says whether it converged. Measured over 20 snapshotted iterations:
+hiipdr's spectrum is up to 8% from its iteration-20 value at 11 and the test
+passes at 15; pn150k's He II 4686 is 15% low at 9 and the test passes at 17,
+its He2+ front then within 0.5% of Cloudy's.
+
 **L-41. The reported Hbeta is 5% low, so every line ratio is 5% high**
 (D-370). `outputGas` reports Hbeta from 2530/T^0.833 (`output_mod.f90:2485`,
 copied at `mocassinPlot.f90:784`) and takes every other H I line as a ratio
@@ -764,6 +775,17 @@ running cold to convergence. **Also (D-351):** `pdrLevPop`, `pdrCoolTab`,
 before pdrStep, so the first resumed thermal balance has neither the PDR
 coolants nor the PDR heating.
 
+**Update 2026-10-04 (D-393): the licensing test is done and passes, after a
+defect it found.** A warm start counts its iterations from 1, so with the
+fixtures' `pdrStartIter 4` it skipped the chemistry for three iterations and
+then seeded the molecules over the resumed ones (the resume above ran fewer
+iterations than that). A checkpoint with PDR state now resumes from the first
+iteration, unseeded. 8 cold + 8 warm against 16 cold, hiipdr 21^3: integrated
+quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line
+0.55% (0.71%). The four arrays above are still not in the checkpoint; the one
+iteration without them leaves no trace after eight. On h2-model the level
+populations are resumed too (DEVLOG-H2 H-020).
+
 **L-20. `mocassinPlot` is fixed but unrun; `mocassinOutput` has now run
 (D-361).** Run on both D-358 grids, `mocassinOutput` reproduced the run's own
 `lineFlux.out` byte for byte except every He II line, which it gave as zero:
@@ -820,7 +842,8 @@ Stated explicitly, because absence of a reported problem is not evidence.
     the per-cell heating/cooling budget that D-304 read on the 150 kK model,
     which is now the open question: the disagreement is a profile *shape*,
     too much energy deposited inside A_V 1 and too little beyond 1.5.
-  - **The warm start**, beyond compiling (L-14).
+  - ~~**The warm start**, beyond compiling (L-14)~~ - **done** (D-393): a warm
+    continuation matches a cold run to within the Monte Carlo scatter.
   - **pn150k on the current code.** Its last run is D-336, before D-348 and
     D-350. The two Cloudy artifacts (2026-09-24) and `hiipdr Against 3D-PDR`
     (2026-09-14) all show pre-D-348 physics (D-351).
