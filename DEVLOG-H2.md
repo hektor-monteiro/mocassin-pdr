@@ -2623,9 +2623,89 @@ proceed as recommended."
       - then the 3D-PDR reference on the new stage B hiipdr, and the four
         pages rebuilt on them.
 
+### hiipdr 31^3: stage B stops at 15
+
+`runs/h019-B-hii31` (binary at 2abfebe, `maxIterateMC 30 90.`) passed the
+integrated test at iteration 15: largest change over the window 1.958% (Ne+).
+The trail, from the run's own report: 19.6% (n(H0)) at 9, 8.70% (n(H0)) at 10,
+5.94% (O+) 11, 4.12% (N+) 12, 3.22% (O+) 13, 2.33% (O+) 14, 1.96% (Ne+) 15 -
+the slowest quantities are the front's low ions, as D-391 found on production.
+The cell count read 69.5% at 15 (68.6-69.7% from iteration 10 on); H-013's
+11-iteration run read 74.6%, its x(H2) half passing every cell (D-391). Run time
+41:46 (the code's own "total run time per processor"); stage A at the same 15,
+`runs/h019-A-hii31` (mocassin.h011), 33:38.
+
+**B15 repeats H-013's B11 through iteration 11.** The resonance-line packet
+counts ([D376] lines) are identical at every iteration and the level model's
+per-call Solomon statistics identical for every in-run call, so H-013's
+`runs/h013-b2b-hii31` against this run is the four extra iterations alone:
+
+| quantity                         | B11 (H-013) | B15     | Cloudy |
+|----------------------------------|-------------|---------|--------|
+| Hbeta [1e36 erg/s]               | 9.297       | 9.166   | 9.96   |
+| front, radial shells [pc]        | 3.842       | 3.831   | 3.765  |
+| H/H2 crossing, C+ = C [A_V]      | 1.407, 2.266| 1.400, 2.275 | 1.090, 2.950 |
+| [C II] 158 / Hbeta               | 0.1528      | 0.1544  | 0.134  |
+| C II] 2326 / Hbeta               | 0.2458      | 0.2385  | 0.174  |
+| [O I] 6300 / Hbeta               | 0.06728     | 0.06888 | 0.0104 |
+| H2 lines (1-0 S(1) ... 0-0 S(2)) | -           | +2.6 to +3.5% | - |
+
+T_gas at A_V 0.70 / 1.00 did not move (50.6 / 46.0 K).
+
+**Stage A against stage B at 15** (the pair differs in stage B alone):
+crossing 1.443 -> 1.400 (0.04 mag toward Cloudy's 1.090, still 0.31 past it);
+front 3.831 both; C+ = C 2.274 / 2.275; Hbeta 9.1655 / 9.1657. On stage A's
+own field and H2 the levels' rate is 2.3-2.6x the network's in the ionized gas
+(the 0.7-3.5 pc shells), 1.2-2.0x at the lit edge (4.9-7.6 pc) and 0.1-0.8x in
+the shielded gas; H2 at the lit edge falls to 0.12-0.46 of stage A's and is
+1.07-1.20x behind it. The vibrational lines are 0.83 of stage A's, the
+rotational -7 to +4%; [C II] 158 -2.6%, [C I] 609/370 -4/-9%, the CO ladder -4
+to -9% (less H2 at the edge, less CO). Taking 3-7% off the PDR's heating
+cools every PDR shell by 0.1-1.0 K. H2 heating, levels / 3D-PDR over the grid:
+formation 0.56, dissociation 1.09, all three 0.67. Per H2 formed on this
+silicate the gas gets 0.834 eV; per dissociation 0.433 eV (dissociation-
+weighted) - **the hiipdr page said 0.44, a value carried over from pn150k's
+0.438; v22 says 0.43.**
+
+Per cell the levels' Solomon rate moves by a median 50-58% from call to call
+over the last eight calls (0.96 at the second call), the field noise of each
+pumping line's own frequency bin (H-012), while the integrated test settles to
+2%.
+
+**Checks on the page numbers.** nums.py (the page tools' logic returning
+values) rebuilds version 21's selected-depth and ionized-gas rows from version
+21's run exactly (12 of 12), and the "version 18" column of the page's history
+table from runs/d377-hii digit for digit. H2 in the ionized gas over Cloudy's
+at 1.55 / 3.07 pc is the median of the cells within 0.35 pc over Cloudy
+interpolated at the radius (validated: d377-hii 3.91 / 27.7, h013-b2b-hii31
+2.81 / 18.1, the published 3.9 / 28 and 2.8 / 18); now 3.9 / 28 (A15) and
+2.8 / 18 (B15). Cloudy's front, 3.7645 pc, is 3.76 to two figures: the page
+had rounded the printed 3.765 up to 3.77.
+
+### The hiipdr pages (2026-10-05)
+
+  - **hiipdr Against Cloudy v22** (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx,
+    version 1791169091-5c00): every number and both sets of figures on the
+    A15/B15 pair; a new first section, "The run stops when the model has
+    converged", with the B11 -> B15 table above; the "Since version 18" table
+    now has stage A at 15 as its own column, so version 18 -> stage A is the
+    iteration count and stage A -> now is stage B. Built by asserted
+    replacements on version 21 as published (byte-identical to the local
+    build), every number from nums.py, table rows rebuilt in the old cells'
+    formats (the same code rebuilds version 21's rows from version 21's run).
+    Two wording corrections besides the numbers: "the first section below"
+    now points at the right section, and links take the theme's blue (they
+    were the browser's dark blue on the dark theme).
+  - **hiipdr Against 3D-PDR v3** (https://claude.ai/artifact/Wyx5Xzwb2QYCL8mCpcVzQk,
+    version 1791169150-812e): built on B15 and the reference re-run on its
+    face field (G0 119.10, runs/h019-3dpdr-hii31) earlier in this entry's
+    work; its one statement about stage A ("4x more H2 at A_V 0.70") checked
+    on the A15/B15 pair: 4.14.
+
 ### Status
 
-In progress.
+In progress: pn150k's stage A at 18 iterations is running; its page and the
+H2 Lines page follow.
 
 ## H-020 - The warm start resumes the level populations (2026-10-04)
 
