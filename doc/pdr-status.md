@@ -439,6 +439,13 @@ carrier is the true stage (hiipdr) it does not show.
 compared on both fixtures (D-356, D-358). MOCASSIN's coefficient is near the
 classic 3e-17 cm^3 s^-1; Cloudy's is not. Not decomposed: sticking, grain
 temperature, per-size efficiency.
+**CLOSED 2026-10-05 (D-394): a measurement error.** Cloudy forms 94-95% of its
+grain H2 as H2* (`grn,H,H=>grn,H2*`), and the comparison read only the ground
+channel. With both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k
+(graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. The silicate
+residual is the Cazaux & Tielens surface energies (3D-PDR's per-material set
+against Cloudy's single one: 0.45-0.70 at T_d 26-37 K), with MOCASSIN's colder
+gas (0.79-1.03); reported, not tuned.
 
 **L-34. The PDR's H+ has channels MOCASSIN's ion balance lacks** (O-05; D-358).
 These are H2 + CRP -> H+ + e + H and He+ + H2 -> He + H+ + H. The solver's

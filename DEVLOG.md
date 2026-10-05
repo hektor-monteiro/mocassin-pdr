@@ -393,6 +393,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-391 | **The convergence test: its x(H2) half has passed every cell since D-216 (updateCell runs before the chemistry, so it compared H2den with the copy taken from it), it counts cells (pn150k's ionized gas is 1.3% of them, the He2+ zone ~90 cells) and it lets a 3%-per-iteration drift pass at the fixtures' 10%. Fixed: the x(H2) test after the chemistry; a model-integrated test - emission measure of every ion stage with >= 1% of its element's, H0/H2/CO contents, T weighted by n_e n(H+), n(H0), n(H2) - must change by <= convTotals (default 2%) over 3 iterations before the run may stop, and every run says whether it converged.** Measured over 20 snapshotted iterations: hiipdr at 11 has lines 8% ([O II] 7320) and Hbeta 2.1% from iteration 20 (printed 76% throughout); pn150k at 9 has He II 4686 15% low and its He2+ front moving (printed 92% throughout); the rule passes 2% at 15 (hiipdr) and 17 (pn150k). Physics byte-identical; the code reproduces the replay to every digit; four flavours rc 0. Also: the installed dustData had lost grph-avg.cat (a 2026-09-30 install from another tree); restored | Done | 2026-10-04 |
 | D-392 | **At the user's direction the model-integrated test alone stops a run (convTotals, default 0.02 - the strict end of the user's 2-5%); the cell percentage and minConvergence are reported, not tested, and a run setting minConvergence says so at start-up.** pn150k's fixture cap 11 -> 30 (it converges at 17). autoPackets still reads the cell percentage (affects only runs that set it). Checked: a run stops on the integrated test with 0.7% of cells passing; four flavours rc 0 | Done | 2026-10-04 |
 | D-393 | **The warm start threw its PDR away: it counts iterations from 1 again, so pdrStartIter 4 skipped the chemistry for three iterations and then seeded the molecules over the resumed ones. Fixed: a checkpoint with PDR state resumes it from the first iteration, unseeded, with elemAvail published from the resumed abundances.** L-14's test passes: 8 cold + 8 warm against 16 cold, hiipdr 21^3 - integrated quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line 0.55% (0.71%), crossing 1.501 against 1.498. The PDR's per-coolant split and extra heating are still not checkpointed; one iteration without them leaves no trace after eight | Done | 2026-10-04 |
+| D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -33837,6 +33838,90 @@ the first resumed thermal balance runs without the PDR's per-coolant split and
 extra heating; measured here, that one iteration leaves no trace after eight.
 The random sequence restarts with the seed, so a warm start is equivalent, not
 identical. Four flavours rc 0.
+
+### Status
+
+Done.
+
+## D-394 - L-33 withdrawn: the grain H2 formation excess was a channel left out (2026-10-05)
+
+The user, on the h2-model branch's list of open physics (DEVLOG-H2 H-017,
+items 4 and 5): "lets work on the the gaps in H2 formation and destruction".
+L-33 ("Grain H2 formation 5-25x Cloudy's", D-356, D-358) was the first of the
+two to take apart. Measured with the h2-model branch's `tools/h021_h2form.py`
+on its converged stage B runs (DEVLOG-H2 H-019; the formation coefficient is
+the chemistry's own, written to h2Cells.out, and is the same function here).
+
+### What the comparison had missed
+
+Cloudy's chemistry (mole_reactions.cpp) splits grain formation between H2 and
+its excited pseudo-species H2*: `grnh2` = total x (1 - frac_H2star_grains) and
+`grnh2s` = total x frac_H2star_grains. D-356 saved and compared only
+`grn,H,H=>grn,H2`. The share that goes to H2* is most of it:
+
+  - pn150k, `runs/d389-cloudy-h2s` (which saved both): 95.1% (median zone);
+  - hiipdr, a rerun of `runs/d356-cloudy-hii` saving the H2* and H- channels
+    (h2-model `runs/h021-cloudy-hii`, the input otherwise identical): 94.2%.
+
+Cloudy's own formula (CT02, `0.5 v_H IntArea/4 cnv_H S eps` per bin, each bin
+at its own T_d), evaluated on its saved inputs, reproduces the SUM of the two
+channels to 0.92-1.00 through pn150k's PDR and 1.00-1.08 on hiipdr; against
+the ground channel alone it is 17-20x too high, which is the share.
+
+### The coefficient, with both channels
+
+| A_V | pn150k R_MOC/R_Cloudy | | A_V | hiipdr R_MOC/R_Cloudy |
+|-----|------|-|-----|------|
+| 0.20 | 1.00 | | 0.55 | 0.50 |
+| 0.30 | 0.92 | | 0.70 | 0.60 |
+| 0.50 | 0.86 | | 1.00 | 0.74 |
+| 0.65 | 0.89 | | 1.50 | 0.86 |
+|      |      | | 2.00 | 0.91 |
+|      |      | | 2.90 | 0.90 |
+
+Against the ground channel alone the same runs give 18-20x (pn150k, d356's
+run) and 8.5-15.6x (hiipdr): L-33's numbers. There is no excess.
+
+### What is left, ingredient by ingredient
+
+Changing one ingredient at a time from MOCASSIN's to Cloudy's (each ratio
+exact for its step; the order is a choice):
+
+  - grain area per H: MOCASSIN 5.45e-22 / Cloudy 5.21e-22 (pn150k), 1.017e-21
+    / 9.79e-22 (hiipdr): x1.04-1.05;
+  - grain temperatures, bin by bin over Cloudy's area distribution, against
+    MOCASSIN's one number-weighted mean: 0.95-1.04 in the PDR;
+  - **the efficiency parameters**: graphite 1.00-1.05; **silicate 0.45-0.70
+    at A_V 0.55-1.0 (T_d 26-37 K)**, 0.88-0.99 deeper (T_d 13-20 K);
+  - the gas temperature (v_H and the sticking): 0.79-1.03, MOCASSIN's PDR
+    being the colder (O-02).
+
+The silicate factor is the Cazaux & Tielens surface energies. 3D-PDR's
+`h2_form.F90` has one set per material (silicate E_S 110, E_HP 450,
+E_H2 320 K; carbon E_S 260, E_HP 800, E_H2 520 K; both E_HC 3e4 K). Cloudy uses
+one set for every grain (E_S 200, E_HP 600, E_HC 1e4, E_H2 320 K). At 30 K the
+silicate efficiency is 0.59 against 0.99; the carbon one is 1.00 against 0.99.
+Both are literature parameter sets, and neither is a constant standing in for
+something MOCASSIN knows (the material is MOCASSIN's, the surface physics is
+not). Not tuned; reported.
+
+### What it means
+
+  - L-33 closes as a measurement error. The pages' statements built on it
+    (hiipdr "Since version 15": "at 5x Cloudy's rate ... 5-25x Cloudy's at
+    every depth on both models"; pn150k "Since version 13": "12x Cloudy's
+    rate"; O-03's "Next") are corrected on the next publish of each page.
+  - On silicate MOCASSIN forms H2 at 0.5-0.7 of Cloudy's rate through
+    hiipdr's transition (A_V 0.55-1.0). That pushes H2 deeper, in the
+    direction of hiipdr's crossing (A_V 1.40 against 1.09). pn150k's graphite
+    efficiencies agree, and its crossing is within 0.03 mag. **How much of
+    hiipdr's 0.31 mag is the parameter set is not measured**; a seeded run
+    with Cloudy's set would measure it, as a diagnostic only.
+  - Both codes carry a fixed H flux of 1e-10 monolayers/s in the efficiency;
+    at these grain temperatures it enters only negligible terms.
+
+L-43 (the transition-zone H2) is the gap that is real; it is the next entry
+on the h2-model branch.
 
 ### Status
 
