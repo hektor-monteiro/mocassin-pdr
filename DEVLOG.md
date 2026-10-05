@@ -34546,6 +34546,41 @@ iterations). pn150k is run once with D-397 and D-398 together against
 bounded by the measured column error (0.64-0.82 through the transition,
 against hiipdr's 0.46-0.75).
 
+### hiipdr: measured
+
+`runs/h026-site-hii31` on h2-model against `runs/h025-rays-hii31` (D-397):
+same input, seed and 14 ranks, 15 iterations, 44:38. Both runs have the exact
+A_V, so their A_V axes are the same.
+
+| | D-397 | + the site's first leg | Cloudy (D-396) |
+|---|---|---|---|
+| H/H2 crossing [A_V] | 1.406 | 1.396 | 1.280 |
+| H/H2 crossing, radius [pc] | 9.847 | 9.781 | 8.946 |
+| n(H2) at A_V 0.70 / 1.00 / 1.50 [cm^-3] | 5.9e-5 / 0.065 / 36.1 | 6.1e-5 / 0.072 / 37.0 | 8.4e-5 / 0.092 / 39.1 |
+| n(CO) at A_V 1.50 / 2.00 | 1.59e-8 / 5.83e-7 | 1.67e-8 / 5.97e-7 | 1.73e-8 / 2.64e-8 |
+| 1-0 S(1), 0-0 S(1) / Hbeta | 7.20e-4, 4.02e-4 | 7.03e-4, 3.94e-4 | 9.24e-4, 4.84e-4 |
+| front [pc], C+ = C [A_V], Hbeta | 3.8311, 2.2771, 9.165 | 3.8312, 2.2770, 9.166 | |
+
+  - **The crossing moved 0.010 mag (0.065 pc) shallower.** That is a third
+    of D-397's 0.029; "of the order of D-397's" was too much.
+  - **At fixed radius through the transition (6.5-10.4 pc) the rate the
+    chemistry used falls to 0.85-0.91 and n(H2) rises 1.06-1.17x.** At the
+    lit edge (4.5-5.2 pc) both move by under 3%, as predicted: no site there
+    holds much H2.
+  - **CO rises 2-5% at A_V 1.5-2.0**, as predicted, and by little.
+  - **The H2 lines fall 1.9-2.4%.**
+  - **A_V, the front, Hbeta and C+ = C do not move.**
+
+With D-395, D-397 and D-398 together hiipdr's crossing is at A_V 1.396
+against Cloudy's 1.280, 0.12 mag apart. Version 22 of the page had 1.400
+against 1.090.
+
+The largest change over this run's last three iterations is 2.02% (Ne+),
+where D-397's run has 1.95% and the test's limit is 2%: held to 15
+iterations to pair, it sits on the limit.
+
+pn150k, with D-397 and D-398 together, is running.
+
 ### Status
 
 In progress.
