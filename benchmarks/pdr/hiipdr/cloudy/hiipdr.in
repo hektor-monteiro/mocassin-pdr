@@ -1,5 +1,9 @@
-title hiipdr (Bisbas et al. 2015 sec 5.4): Cloudy equivalent of MOCASSIN runs/d263-chex
+title hiipdr (Bisbas et al. 2015 sec 5.4): Cloudy equivalent of MOCASSIN runs/d263-chex (D-264, D-277; D-396)
 init "common.inc"
+# D-396: MOCASSIN's pdrVturb, 1.0 km/s (3D-PDR params.dat v_turb 1 km/s); constant density, so no pressure term
+turbulence 1 km/s no pressure
+# D-396: Cloudy's large H2 model, line by line, as the pn150k reference has had since D-302
+Database H2 limit -10
 # ---- dust: MOCASSIN astroSilD2003, MRN 0.01-0.30 um slope -3.5 (compiled into
 # sdraine03_hiipdr_10.opc). Abundance scaled so A_V(point)/N_H = 5.177e-22,
 # MOCASSIN's measured mean (D-109 log line of runs/d263-chex): 3.048e-22 at
@@ -36,3 +40,39 @@ CH
 HCO+
 H3+
 end
+# ---- D-356: per-reaction creation and destruction rates, last iteration
+save chemistry rates creation last "hiipdr.H2cr" "H2"
+save chemistry rates destruction last "hiipdr.H2de" "H2"
+# ---- H-021: the H2* channels (grain formation into H2* is most of it) and H-
+save chemistry rates creation last "hiipdr.H2scr" "H2*"
+save chemistry rates destruction last "hiipdr.H2sde" "H2*"
+save chemistry rates creation last "hiipdr.Hmcr" "H-"
+save chemistry rates destruction last "hiipdr.Hmde" "H-"
+save chemistry rates creation last "hiipdr.H2pcr" "H2+"
+save chemistry rates destruction last "hiipdr.H2pde" "H2+"
+save chemistry rates creation last "hiipdr.H3pcr" "H3+"
+save chemistry rates destruction last "hiipdr.H3pde" "H3+"
+save chemistry rates creation last "hiipdr.COcr" "CO"
+save chemistry rates destruction last "hiipdr.COde" "CO"
+save chemistry rates creation last "hiipdr.OHcr" "OH"
+save chemistry rates destruction last "hiipdr.OHde" "OH"
+save last physical conditions "hiipdr.phy"
+# ---- D-396: H2 lines and the hydrogen molecules (as runs/d389-cloudy-h2s)
+Save lines, intensity, column, emergent, last "hiipdr.lines"
+save last species densities "hiipdr.dens389"
+H2
+H2*
+H2+
+H-
+H3+
+HeH+
+end
+save last lines emissivity "hiipdr.h2emis"
+H2  2.12125m
+H2  2.24710m
+H2  28.2111m
+H2  17.0302m
+H2  12.2785m
+H  1  4861.32A
+O  1  6300.30A
+end of lines

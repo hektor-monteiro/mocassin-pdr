@@ -538,6 +538,23 @@ electron-impact dissociation of H2+ and dissociative attachment. Aleman &
 Gruenwald 2011 reach ~1e-5 there. No production output depends on it (no H2 lines,
 no H2 cooling); H2 line predictions would, and the level-resolved H2 model
 (branch h2-model) is where it is to be addressed. Not tuned.
+**Partly addressed 2026-10-05 (D-395):** the network had no electron-impact
+dissociation of H2+ (e- + H2+ -> e- + H + H+), Cloudy's main H2+ sink in
+ionized gas; added as reaction 332 (Janev et al. 1987). On hiipdr the zone's
+H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x
+Cloudy's; nothing past the front moves. pn150k (1-2e4 K, where the rate is
+4-17x the old total) is being measured. What remains is the level-resolved
+part: gas-phase H2 made into excited levels and destroyed there by electrons
+(H-021's plan, h2-model).
+
+**L-44. The Cloudy references had no microturbulence** (D-396). MOCASSIN and
+3D-PDR run with 1 km/s (`pdrVturb`, `v_turb`); Cloudy's lines were thermal
+only, so it shielded H2 and trapped its coolant lines with widths 2-4.5x
+narrower, and hiipdr's reference used the small H2 model's fitted shielding.
+**CLOSED 2026-10-05 (D-396):** both references carry `turbulence 1 km/s` and
+hiipdr's the large H2 model. hiipdr's crossing gap falls from 0.31 to 0.12
+mag; Cloudy's PDR is 2-15% colder. The pages are to be rebuilt on the new
+references.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance

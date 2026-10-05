@@ -5,11 +5,33 @@ radius = 16.000
 sphere
 hden = 3.000 log
 filling factor = 1.0
+# D-396: MOCASSIN's pdrVturb, 1.0 km/s (3D-PDR params.dat v_turb 1 km/s); constant density, so no pressure term
+turbulence 1 km/s no pressure
 abundances GASS no grains
+element calcium off
+element iron off
+element lithium off
+element beryllium off
+element boron off
+element fluorine off
+element sodium off
+element aluminium off
+element phosphorus off
+element potassium off
+element scandium off
+element titanium off
+element vanadium off
+element chromium off
+element manganese off
+element cobalt off
+element nickel off
+element copper off
+element zinc off
 distance = 1000.0 parsecs linear
 Cosmic rays background
 Database H2 limit -10
-stop temperature linear 40K
+stop temperature linear 3K
+stop radius 1.8718e18 linear
 print line faint -8
 print last
 iterate to converge
@@ -40,6 +62,28 @@ save last element neon ".ele_Ne"
 save last element sulphur ".ele_S"
 save last element chlorin ".ele_Cl"
 save last element silicon ".ele_Si"
+save last species densities ".dens"
+e-
+H+
+H
+H2
+He+
+He+2
+C+
+C+2
+C
+O+
+O+2
+O
+Mg+
+CO
+OH
+H2O
+CH
+HCO+
+H3+
+end
+save last grain temperature ".gtemp"
 save last lines emissivity ".emis"
 H  1  4861.32A
 H  1  6562.80A
@@ -170,4 +214,39 @@ CO    113.427m
 CO    108.733m
 CO    104.416m
 CO    100.433m
+end of lines
+save last grain potential ".gpot"
+save last grain charge ".gchrg"
+save last grain heating ".gheat"
+save last grain physical conditions ".gphys"
+save last grain extinction ".gext"
+# ---- D-356: per-reaction creation and destruction rates, last iteration
+save chemistry rates creation last ".H2cr" "H2"
+save chemistry rates destruction last ".H2de" "H2"
+save chemistry rates creation last ".H2pcr" "H2+"
+save chemistry rates destruction last ".H2pde" "H2+"
+save chemistry rates creation last ".H3pcr" "H3+"
+save chemistry rates destruction last ".H3pde" "H3+"
+save chemistry rates creation last ".COcr" "CO"
+save chemistry rates destruction last ".COde" "CO"
+save chemistry rates creation last ".OHcr" "OH"
+save chemistry rates destruction last ".OHde" "OH"
+# ---- D-389: the H2* budget and the TZ hydrogen molecules, which D-356 did not save
+save chemistry rates creation last ".H2scr" "H2*"
+save chemistry rates destruction last ".H2sde" "H2*"
+save last species densities ".dens389"
+H2
+H2*
+H2+
+H-
+H3+
+HeH+
+end
+save last lines emissivity ".h2emis"
+H2  2.12125m
+H2  28.2111m
+H2  17.0302m
+H2  12.2785m
+H  1  4861.32A
+O  1  6300.30A
 end of lines

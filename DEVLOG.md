@@ -395,6 +395,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-393 | **The warm start threw its PDR away: it counts iterations from 1 again, so pdrStartIter 4 skipped the chemistry for three iterations and then seeded the molecules over the resumed ones. Fixed: a checkpoint with PDR state resumes it from the first iteration, unseeded, with elemAvail published from the resumed abundances.** L-14's test passes: 8 cold + 8 warm against 16 cold, hiipdr 21^3 - integrated quantities within 0.33% (seed-to-seed 1.15%), Hbeta 0.04% (0.07%), worst line 0.55% (0.71%), crossing 1.501 against 1.498. The PDR's per-coolant split and extra heating are still not checkpointed; one iteration without them leaves no trace after eight | Done | 2026-10-04 |
 | D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
 | D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
+| D-396 | **The Cloudy references had no microturbulence, where MOCASSIN and 3D-PDR run with 1 km/s; and hiipdr's used Cloudy's small H2 model, whose shielding is the Elwert et al. (2005) fit. Both corrected: `turbulence 1 km/s no pressure` in both references, and the large H2 model for hiipdr, as pn150k has had since D-302.** hiipdr's H/H2 crossing moves A_V 1.090 -> 1.172 (turbulence) -> 1.280 (and the large model), against our 1.400: the published gap of 0.31 mag is 0.12 like for like. hiipdr's n(H2) at A_V 0.70 / 1.00 becomes 8.4e-5 / 0.092 against our 8.5e-5 / 0.050 (was 5.8e-4 / 14.1). Cloudy's PDR is 2-15% colder with turbulence (its coolant lines are 4.5x wider), so on pn150k our PDR is 0.66-0.75 of its temperature at A_V 0.3-0.65 (0.57-0.66 before), 28.2 um falls to 0.46 and CO 1-0..3-2 to 0.56-0.63 of the old reference. Also found: the hiipdr page's Cloudy [C II] 158 and [O I] 63 were read from Cloudy's first, unconverged iteration (0.134, 0.00581; converged 0.1086, 0.00597). Fixtures `benchmarks/pdr/*/cloudy` updated; runs/d396-cloudy-hii (857 s) and runs/d396-cloudy-pn (499 s) | Accepted | 2026-10-05 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34004,6 +34005,38 @@ choices, and replacing them needs a primary source for 1e3-1e5 K.
 Four flavours rc 0. The tests are seeded pairs on the h2-model branch's
 converged runs (hiipdr 15 iterations, pn150k 18), merged there per D-388.
 
+### hiipdr: measured
+
+`runs/h023-eh2p-hii31` on h2-model against `runs/h019-B-hii31`: same input,
+seed and 14 ranks, 15 iterations, 40:55. The cells are binned by their own
+x(H+), with medians; Cloudy's H2 is H2 + H2*, from `runs/h021-cloudy-hii`.
+
+| x(H+) | cells | n(H2+) new/old | 2n(H2)/n_H new/old | ours/Cloudy, new |
+|---|---|---|---|---|
+| 0.99-1.00 | 107 | 0.51 | 0.97 | 25 |
+| 0.95-0.99 | 19 | 0.36 | 0.51 | 56 |
+| 0.80-0.95 | 4 | 0.37 | 0.46 | 14 |
+| 0.50-0.80 | 12 | 0.47 | 0.49 | 62 |
+| 0.20-0.50 | 20 | 0.64 | 0.65 | 43 |
+| 0.05-0.20 | 19 | 0.93 | 0.95 | 4.8 |
+| 0.01-0.05 | 12 | 0.89 | 1.06 | 0.9 |
+
+  - **H2+ falls 2-2.8x in the ionized gas.** That is the rate table's x2.1
+    at hiipdr's 8-9 kK; the prediction's 4-10x was for 1-2e4 K, which is
+    pn150k's zone, not this one.
+  - **The zone's H2 halves where x(H+) is 0.5-0.99**, and it is still
+    14-62x Cloudy's. It shrinks and does not close, as predicted.
+  - **In fully ionized gas (x(H+) > 0.99) H2 does not move (0.97).** There
+    the H2+ route is not what makes it.
+  - **Nothing else moves.**
+      - front 3.8312 -> 3.8310 pc;
+      - H/H2 crossing A_V 1.4004 -> 1.3996;
+      - Hbeta 9.16568 -> 9.16518;
+      - H2 lines -0.1 to -0.2%;
+      - every PDR shell's x(H2) and T_e to 1.000 (one front shell 0.987).
+
+pn150k, where the zone is 1-2e4 K, is running.
+
 ### A reader's labels, found while writing the comparison
 
 `tools/d260_roellig.py`'s `SPEC`, the slot labels every current analysis
@@ -34025,3 +34058,144 @@ read slot 3, which is CH5+.
 ### Status
 
 In progress.
+
+## D-396 - The Cloudy references had no microturbulence, and hiipdr's shielded H2 with a fit (2026-10-05)
+
+Found on the h2-model branch (H-024) while measuring why hiipdr's H/H2
+crossing sits 0.31 mag deeper than Cloudy's. The user's request was the one
+D-394/D-395 answer: "lets work on the the gaps in H2 formation and
+destruction".
+
+### Turbulence
+
+MOCASSIN-PDR runs with `pdrVturb` = 1.0 km/s, the default, which no fixture
+overrides. It is 3D-PDR's `v_turb` in `params.dat`, and D-074 and D-250
+checked that the two agree. It enters four places:
+
+  - the chemistry's H2 shielding (`H2PDRATE`);
+  - the coolants' escape probabilities;
+  - 3D-PDR's turbulent heating;
+  - the level model's Doppler width (h2-model).
+
+No Cloudy reference ever had a `turbulence` command, so Cloudy's line widths
+were thermal only: b = 0.64 km/s for H2 at 50 K and 0.23 km/s for O, against
+1.19 and 1.03 km/s with 1 km/s added. In the Doppler core of the H2 lines
+(N(H2) = 1e14-1e17) the shielding goes as N/b. Cloudy's own fit shields
+1.7-2.5x more at N = 3e14-1e16 with the narrower width; the fine-structure
+lines trap more and cool less.
+
+### The small H2 model
+
+hiipdr's reference had always used Cloudy's small H2 model. Its Solomon
+rate is the Elwert et al. (2005) fit:
+
+    k = a 4.6e-11 f_E(N(H2g)/4e14, b5) G0_DB96,    f_E = 0.965/(1 + x/b5)^e1 + b/(1 + x/b5)^e2
+
+  - e1 = 2.05, e2 = 0.61 and b = 0.016 for hiipdr's face field, G0_DB96 = 9.3e3;
+  - checked: Cloudy's saved ground-state rate follows this in shape over A_V 0.45-1.5;
+  - the ratio drifts 0.67 -> 0.22 as the DB96-band field falls faster than the TH85 G0 Cloudy saves.
+
+At the same b, f_E is 0.67, 0.39 and 0.26 of Draine & Bertoldi's (1996) at
+N = 1e15, 1e16 and 1e17. On H-005's slab Cloudy's own large model sits at
+2.23 and 0.35 of DB96 at 1e15 and 1e17, and MOCASSIN's level model at 1.57,
+1.42 and 1.27. So the fit shields 1.4-3.3x more than Cloudy's own
+line-by-line model, and more again than the level model, in exactly the
+range where hiipdr's transition builds. pn150k's reference has used the large
+model (`Database H2 limit -10`) since D-302.
+
+### Measured
+
+Three hiipdr references:
+  - as published: `runs/d277-cloudy`, identical to d356 and h021;
+  - with turbulence: `runs/h024-cloudy-turb-hii` on h2-model, 503 s;
+  - with turbulence and the large model: `runs/d396-cloudy-hii`, 857 s, 697 zones, 3 iterations.
+
+Our stage B (`runs/h019-B-hii31`, h2-model) is for comparison. Lines are from
+the last iteration's block of Cloudy's listing; far-IR lines Cloudy omits
+there are taken as D-362 took them.
+
+| hiipdr | as published | + turbulence | + turbulence + large H2 (adopted) | ours, stage B |
+|---|---|---|---|---|
+| front, A_V | 0.446 | 0.446 | 0.446 | 0.457 |
+| H/H2 crossing, A_V | 1.090 | 1.172 | **1.280** | 1.400 |
+| C+ = C, A_V | 2.950 | 2.942 | 2.933 | 2.275 |
+| n(H2) [cm^-3] at A_V 0.70 | 5.8e-4 | 1.7e-4 | 8.4e-5 | 8.5e-5 |
+| n(H2) at A_V 1.00 | 14.1 | 5.0 | 0.092 | 0.050 |
+| n(H2) at A_V 1.50 | 46.2 | 44.0 | 39.1 | 35.5 |
+| T_gas [K] at A_V 0.70 / 1.00 / 1.50 / 2.90 | 48.0 / 49.3 / 43.5 / 14.3 | 45.3 / 43.7 / 40.3 / 13.7 | 45.6 / 43.5 / 40.2 / 11.8 | 50.6 / 46.0 / 33.3 / 10.3 |
+| [C II] 158 / Hbeta | 0.1086 | 0.1146 | 0.1151 | 0.154 |
+| [O I] 63 / 145 | 0.00597 / 0.00044 | 0.00650 / 0.00042 | 0.00658 / 0.00042 | 0.0518 / 0.0048 |
+| [C I] 609 / 370 | 0.0022 / 0.00076 | 0.0025 / 0.00065 | 0.0025 / 0.00072 | 0.0047 / 0.0013 |
+| Hbeta, [O I] 6300, C II] 2326 | | within 0.2% | within 0.2% | |
+
+pn150k, as published (`runs/d302-cloudy-trim-rad`, the same physics as
+`runs/d389-cloudy-h2s`) and with turbulence (`runs/d396-cloudy-pn`, 499 s):
+
+| pn150k | as published | + turbulence (adopted) | ours, stage B |
+|---|---|---|---|
+| front, crossing | 0.128 pc, A_V 0.368 | 0.128 pc, A_V 0.368 | 0.128 pc, A_V 0.393 |
+| T_gas [K] at A_V 0.20 / 0.30 / 0.50 / 0.65 | 183 / 68.6 / 52.8 / 37.7 | 172 / 60.8 / 45.4 / 36.1 | 137 / 45.6 / 30.1 / 24.6 |
+| [C II] 158 / Hbeta | 0.311 | 0.337 | 0.198 |
+| [O I] 63 / 145 | 0.187 / 0.0145 | 0.175 / 0.0137 | 0.261 / 0.0219 |
+| CO 2-1 | 4.7e-7 | 2.8e-7 | 1.8e-7 |
+| H2 2.12 / 17.0 / 28.2 / 12.3 um | 9.4e-4 / 5.5e-4 / 1.7e-4 / 4.6e-4 | 8.5e-4 / 4.8e-4 / 7.8e-5 / 4.5e-4 | 9.9e-4 / 5.7e-4 / 1.5e-4 / 1.2e-3 |
+
+### What it means
+
+  - **hiipdr's crossing gap is 0.12 mag, not 0.31.** Of the 0.31, the
+    missing turbulence was 0.08 and the small model's fit 0.11. Like for
+    like, the lit-edge H2 is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0. H-022
+    had it at 7x and 280x short of the old reference.
+  - **Cloudy's PDR was warm by its narrow coolant lines.** With turbulence it
+    is 2-15% colder: ours over Cloudy's at pn150k's A_V 0.3/0.5/0.65 goes
+    0.66/0.57/0.65 -> 0.75/0.66/0.68.
+  - **Lines move.** pn150k's 28.2 um falls to 0.46 of the old reference (it
+    comes from J = 2, 510 K above ground, in the colder gas): ours over
+    Cloudy's goes 0.91 -> 1.99. CO 2-1 falls to 0.60 (ours/Cloudy 0.38 ->
+    0.64), [C II] 158 rises 8% (0.64 -> 0.59), [O I] 63 falls 6% (1.39 ->
+    1.49). On hiipdr [C II] rises 6% and [O I] 63 10%.
+  - **The ionized gas is untouched.** Hbeta, the fronts, [O I] 6300 and
+    C II] 2326 move by 0.2% or less.
+
+### Also found: hiipdr's Cloudy lines were read from the first iteration
+
+Cloudy prints the line list after every iteration unless `print last` is
+given. pn150k's input has it; hiipdr's does not. The hiipdr page's Cloudy
+column was read from the first block:
+
+  - [C II] 158 / Hbeta 0.134, converged 0.1086;
+  - [O I] 63 0.00581, converged 0.00597;
+  - [C I] 609 0.0023, converged 0.0022.
+
+On the first iteration Cloudy does not yet know the outward line optical
+depths. D-362's hiipdr [C II] 158 against Cloudy (0.194 against 0.134) and
+the pages since read the same block. The far-IR values D-362 corrected, 145
+and 370 um, were from a converged block.
+
+### Done
+
+  - `benchmarks/pdr/hiipdr/cloudy/hiipdr.in` gets the turbulence, the large
+    model, and saves for the H2 channels and lines (the README says why).
+  - `benchmarks/pdr/pn150k/cloudy/150k_PDR.in` becomes the input the pages
+    have used since D-302, plus the turbulence and D-389's saves. Until now
+    it was still the pre-D-302 input.
+  - The runs: `runs/d396-cloudy-hii` and `runs/d396-cloudy-pn`.
+  - The published pages compare against the old references. They are to be
+    rebuilt on these, together with D-395's effect.
+
+### Not yet known
+
+  - **What is left of hiipdr's 0.12 mag.**
+      - The silicate surface energies are 0.04 (H-022).
+      - The rest is not attributed. Cloudy's large model damps each line by
+        its own A, which shields 3x more at N > 1e17 than the natural width
+        (H-005, H-008), and that pushes its transition shallower.
+  - **hiipdr's H2 lines.** For the first time there is a Cloudy reference
+    for them: ours are 0.37 (ortho) and 0.50 (para) of Cloudy's large model.
+    Not yet decomposed.
+  - **Whether 1 km/s is right for either nebula.** It is the benchmark's
+    choice, not a measurement. The two codes now agree on it.
+
+### Status
+
+Accepted.
