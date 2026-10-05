@@ -32,7 +32,7 @@ DEVLOG.md and arrives here by merge.
 | H-021 | **The user: "lets work on the gaps in H2 formation and destruction" (H-017 items 4-5). L-33 is withdrawn (production D-394, merged): Cloudy forms 94-95% of its grain H2 as H2*, a channel the comparison never read; with it, our grain coefficient is 0.86-1.00 of Cloudy's (pn150k) and 0.50-0.91 (hiipdr, silicate surface energies). L-43 stands: transition-zone H2 24-665x Cloudy's at A_V 0.05-0.13 on pn150k, where Cloudy's H2* is 0.5-1.3% of its H2 and its H- outnumbers its H2 10^2-10^4 times. The plan: the level model takes the level-resolved channels (H2+ + H and H- + H into levels, dissociative attachment and the H2+ charge transfer back out by detailed balance, H- in local balance), measured first** | In progress | 2026-10-05 |
 | H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
 | H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
-| H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: 0.37 (ortho) and 0.50 (para) | Done | 2026-10-05 |
+| H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: ortho 0.82-0.84, para 1.13-1.19 (corrected the same day: 0.37 and 0.50 were against an emergent line list, D-396) | Done | 2026-10-05 |
 | H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. Seeded pairs running | In progress | 2026-10-05 |
 
 ---
@@ -3216,19 +3216,42 @@ field would put our transition shallower, not deeper.
 
 ### hiipdr's H2 lines, against Cloudy for the first time
 
-`tools/h009_lines.py runs/h024-cloudy-turbh2-hii/hiipdr.lines
-runs/h019-B-hii31 runs/h023-eh2p-hii31`. Ours over Cloudy's large model, the
-25 strongest lines:
+**Corrected the same day.** This section first gave ours as 0.373 (ortho,
+v = 1), 0.505 (para), 0.33 (rotational ortho) of Cloudy's. Those were against
+`hiipdr.lines`, saved with `save lines ... emergent`. That file holds emergent
+intensities under a header that says intrinsic: its Hbeta is 0.357 of the
+intrinsic one, so an infrared H2 line over it is 2.2x its intrinsic ratio
+(D-396, corrected). The same holds for pn150k's `150k.lines`, whose first
+block `tools/h009_lines.py` has always read: it is the first iteration's,
+with Hbeta 0.89 of the converged intrinsic and 1-0 S(1)/Hbeta 6% high.
 
-  - ortho v = 1: 0.373;
-  - para v = 1: 0.505;
-  - v >= 2: 0.360 ortho, 0.499 para;
-  - the rotational ortho lines 6.9 and 5.5 um: 0.33.
+Against the intrinsic list of the last iteration (`.linesint`, now saved by
+both Cloudy inputs; 1-0 S(1)/Hbeta in it equals Cloudy's emissivity summed
+over its sphere, 9.24e-4):
 
-D-395 changes none by more than 0.3%. On pn150k, H-008 and H-009 traced the
-same pattern to two causes: Cloudy's own-A damping and closure, which
-inflate its pumped lines by 2.1-3.8x and 1.2x; and our colder gas's
-ortho/para. It is not decomposed here.
+`tools/h009_lines.py runs/d396-cloudy-hii/hiipdr.linesint runs/h019-B-hii31
+runs/h023-eh2p-hii31`, ours over Cloudy's large model, its 40 strongest
+lines:
+
+| upper level | lines | ours / Cloudy |
+|---|---|---|
+| v = 0, ortho | 4 | 0.84 |
+| v = 0, para | 1 | 1.19 |
+| v = 1, ortho | 6 | 0.83 |
+| v = 1, para | 6 | 1.17 |
+| v >= 2, ortho | 9 | 0.82 |
+| v >= 2, para | 14 | 1.13 |
+
+1-0 S(1) is 0.83 of Cloudy's, 2-1 S(1) 0.82, 0-0 S(0), S(1), S(2) 1.31,
+0.86, 1.19. D-395 changes none by more than 0.2%.
+
+The split by spin is the one pn150k shows, much smaller: there the para lines
+are 1.95-2.72 and the ortho lines 0.96-1.17 of Cloudy's (stage B, against the
+intrinsic list of D-396's reference; the published 0.83-0.98 and 1.74-2.77
+were against the first block of the old one). H-008 and H-009 traced
+pn150k's to Cloudy's own-A damping, which multiplies its para lines by 3.2
+and its ortho lines by 2.2, to its closure (1.2), and to our colder gas's
+ortho/para. It is not decomposed on hiipdr.
 
 ### Found, not fixed
 
