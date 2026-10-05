@@ -53,7 +53,11 @@ from matplotlib.ticker import (LogLocator, NullFormatter, FixedLocator,
                                FixedFormatter, FuncFormatter)
 
 PC = 3.0857e18
-SPEC = ['H3+', 'He+', 'Mg', 'H2+', 'O2', 'CH5+', 'CH4+', 'O+', 'OH+', 'Mg+',
+# the abundance slots in the order odes_reduced.c integrates them, which is
+# dataPDR/species_reduced.d's since D-357 (slot 3 CH5+, slot 5 H2+; the
+# upstream file had the two labels crossed, D-258). Until D-395 this list kept
+# the upstream labels, so 'H2+' read CH5+: nothing published plotted either.
+SPEC = ['H3+', 'He+', 'Mg', 'CH5+', 'O2', 'H2+', 'CH4+', 'O+', 'OH+', 'Mg+',
         'C+', 'CH4', 'H2O+', 'H3O+', 'CO+', 'O2+', 'CH2', 'H2O', 'H+', 'CH3+',
         'CH', 'CH3', 'HCO+', 'CH2+', 'C', 'He', 'CH+', 'CO', 'OH', 'O', 'H2',
         'H', 'e-']

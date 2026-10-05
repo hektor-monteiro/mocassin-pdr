@@ -34004,6 +34004,24 @@ choices, and replacing them needs a primary source for 1e3-1e5 K.
 Four flavours rc 0. The tests are seeded pairs on the h2-model branch's
 converged runs (hiipdr 15 iterations, pn150k 18), merged there per D-388.
 
+### A reader's labels, found while writing the comparison
+
+`tools/d260_roellig.py`'s `SPEC`, the slot labels every current analysis
+script reads `pdrGrid.out` through, still had the upstream species file's
+labels. That file crosses H2+ and CH5+ (D-258), which D-357 corrected in
+`dataPDR/species_reduced.d` but not in the reader. Until now, `R.SPEC.index('H2+')`
+read slot 3, which is CH5+.
+
+  - **Corrected:** the list now matches `species_reduced.d` slot for slot,
+    checked against the file.
+  - **Nothing published changes.** The Roellig chemistry panels plot H, H2,
+    C, O, CO, OH, H2O, CH, HCO+ and H3+, none of them either species.
+  - **The H2+ numbers above stand.** They come from `tools/d356_channels.py`,
+    which reads the labels from `pdrReacRates.out` and handles both orders.
+  - **What it did touch:** the first draft of this entry's comparison script,
+    before it was run, and `tools/h014_3dpdr_kpis.py`'s carbon sum. That sum
+    swapped CH5+ for H2+, a change of order 1e-10 per H.
+
 ### Status
 
 In progress.
