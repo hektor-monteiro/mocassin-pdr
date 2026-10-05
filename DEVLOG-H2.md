@@ -29,6 +29,7 @@ DEVLOG.md and arrives here by merge.
 | H-018 | **Production's D-391 merged in (e60a836, no conflicts): the per-cell x(H2) test had passed every cell since D-216 and now runs after the chemistry; a model-integrated test (emission measures, H0/H2/CO contents, weighted temperatures; convTotals, default 2% over 3 iterations) gates the stop and every run reports whether it converged.** By it, the pages' runs were not converged: pn150k at 14 (He2+ 5.8% over the window, lines up to 5% from iteration 20), hiipdr 31^3 at 11 (O+ 5.9%, lines up to 8%); 2% is reached at 17 and 15. Merged branch: four flavours and h2Test/h2Slab rc 0; a stage B run reports the new test and exits cleanly | Done | 2026-10-04 |
 | H-019 | **The integrated test decides the stop (production D-392 merged, 2abfebe; default 2%, the strict end of the user's 2-5%), and the pages' runs are re-made at convergence: stage B for hiipdr 31^3 and pn150k 41^3 stopped by the test, stage A at the same counts, then the 3D-PDR reference and the four pages.** hiipdr stops at 15, pn150k at 18; all four pages republished | Done | 2026-10-05 |
 | H-020 | **The warm start resumes the level populations: h2Pop.bin was written and read by nothing, so a resumed run's first call started from Boltzmann; it is now read back when it describes this grid and level set (checked), else Boltzmann as before, said.** Resumed, the first call is within 0.6% of the checkpointed run's last (Solomon dissociations); withheld, +93%. With production's D-393 (the PDR continues instead of being re-seeded) merged in | Done | 2026-10-04 |
+| H-021 | **The user: "lets work on the gaps in H2 formation and destruction" (H-017 items 4-5). L-33 is withdrawn (production D-394, merged): Cloudy forms 94-95% of its grain H2 as H2*, a channel the comparison never read; with it, our grain coefficient is 0.86-1.00 of Cloudy's (pn150k) and 0.50-0.91 (hiipdr, silicate surface energies). L-43 stands: transition-zone H2 24-665x Cloudy's at A_V 0.05-0.13 on pn150k, where Cloudy's H2* is 0.5-1.3% of its H2 and its H- outnumbers its H2 10^2-10^4 times. The plan: the level model takes the level-resolved channels (H2+ + H and H- + H into levels, dissociative attachment and the H2+ charge transfer back out by detailed balance, H- in local balance), measured first** | In progress | 2026-10-05 |
 
 ---
 
@@ -2778,3 +2779,132 @@ heating (L-14, D-393).
 ### Status
 
 Done.
+
+## H-021 - The gaps in H2 formation and destruction: one was a measurement (2026-10-05)
+
+The user: "lets work on the the gaps in H2 formation and destruction", the
+two physics items H-017 listed: 4 (L-43, transition-zone H2 100-1000x
+Cloudy's) and 5 (L-33, grain formation 5-25x Cloudy's).
+
+### L-33: withdrawn (production D-394, merged in)
+
+`tools/h021_h2form.py` takes the grain formation coefficient apart one
+ingredient at a time, on the converged stage B runs (H-019) against Cloudy.
+MOCASSIN's coefficient is h2Cells.out's (the chemistry's own;
+rebuilding it from T, T_d and the [D195] areas agrees to 3e-5).
+
+Cloudy forms most of its grain H2 as H2* (`grn,H,H=>grn,H2*`): 95.1% on
+pn150k (`runs/d389-cloudy-h2s`) and 94.2% on hiipdr. The hiipdr number comes from
+`runs/h021-cloudy-hii`, a rerun of production's `runs/d356-cloudy-hii` that
+saves the H2* and H- channels, its input otherwise identical; it took 306 s. D-356 and
+D-358 compared only the ground channel. With both channels the coefficient is:
+
+  - **pn150k**: 0.86-1.00 of Cloudy's at A_V 0.20-0.65 (graphite);
+  - **hiipdr**: 0.50, 0.60, 0.74, 0.86, 0.91, 0.90 at A_V 0.55, 0.70, 1.0,
+    1.5, 2.0, 2.9 (silicate).
+
+Against the ground channel alone it is 18-20x (pn150k) and 8.5-15.6x
+(hiipdr), which are L-33's numbers. Ingredient by ingredient:
+
+  - area: x1.04-1.05;
+  - grain temperatures bin by bin: 0.95-1.04;
+  - gas temperature: 0.79-1.03;
+  - **the Cazaux & Tielens surface energies on silicate: 0.45-0.70 at
+    T_d 26-37 K.** 3D-PDR's per-material set gives silicate 0.59 at 30 K,
+    where Cloudy's single set gives 0.99.
+
+Cloudy's own formula on its own inputs reproduces its saved total to
+0.92-1.08. On silicate, then, MOCASSIN forms H2 at about half Cloudy's rate
+through hiipdr's transition. That is a candidate share of hiipdr's deeper
+crossing (1.40 against 1.09), and is not measured. pn150k's graphite
+efficiencies agree, and so does its crossing.
+
+### L-43: real, and what it needs
+
+**Does Cloudy's H2* change the transition zone?** It might have, as it did for
+L-33, but it does not. In pn150k's zone (`runs/d389-cloudy-h2s`, .dens389)
+Cloudy's H2* is 0.5-1.3% of its H2 at A_V 0.03-0.13, and 40% only at 0.15,
+just past the front. The excess is therefore real: our n(H2) (stage B, 18
+iterations) over Cloudy's H2 + H2* is:
+
+| A_V  | ours/Cloudy |
+|------|-------------|
+| 0.05 | 24          |
+| 0.10 | 665         |
+| 0.15 | 77          |
+
+**Cloudy holds 2e-8 to 4e-6 cm^-3 of H- there, 10^2-10^4 times its H2.**
+
+**Our channels** (`tools/d356_channels.py` on `runs/h019-B-pn41`), at
+A_V 0.02-0.15:
+
+  - formation: grains 28-78%, and H + H2+ -> H2 + H+ 22-85%. The H2+ route
+    leads from A_V 0.075 outward.
+  - destruction: photoionization (the network's H2 + CRP slot carries
+    MOCASSIN's own, D-358) 33-83%, photodissociation 13-66%, H+ + H2 ->
+    H2+ + H up to 23%. Electron-impact dissociation is 2-3%.
+
+The H2+ route puts H2 straight into the network's ground state, where it
+lives 10^7-10^8 s.
+
+**Cloudy** (D-389, `mole_h2.cpp`, `mole_h2_form.cpp`, `mole_reactions.cpp`):
+
+  - gas-phase formation goes into excited levels. H- + H -> H2(v,J) + e follows
+    Launay, Le Dourneuf & Zeippen 1991 (state-specific rates,
+    data/h2/hminus_deposit.dat). H2+ + H -> H2* + H+ goes into the levels above
+    H2*'s energy, LTE-weighted in the large model and v = 4 in the small one;
+  - the per-level sinks in the large model are:
+      - dissociative attachment e + H2(v,J) -> H- + H (`H2_X_Hmin_back`: the
+        total reverse rate times Launay's distribution);
+      - collisional dissociation from each level ("rates are just guesses");
+      - continuum photodissociation;
+      - the network's other sinks, spread evenly.
+  - in the zone, H2* is formed by H- + H (~90%) and destroyed by e + H2* ->
+    H + H- (~100%) before it relaxes. What is left in ground H2 is grain-made.
+
+### The plan
+
+The level-resolved channels belong to the level model. It owns the levels;
+the 33-species network has no H-, and only `rates_full.d` (215 species) does.
+
+  1. **Formation into levels**:
+      - H2+ + H at the network's own rate. Cloudy puts it at v = 4; a
+        state-resolved set (Krstic 2002) is to be looked for first;
+      - H- + H at Launay's state-specific rates, read from Cloudy's file
+        into dataPDR/h2 as the other H2 data were (H-003).
+  2. **H- in local steady state, per cell**:
+      - formation: radiative attachment (Milne-related to photodetachment,
+        so no extra constant) and dissociative attachment;
+      - destruction: photodetachment on MOCASSIN's own field in the cell,
+        associative detachment, mutual neutralization with H+, and electron
+        detachment.
+  3. **Destruction out of levels**:
+      - dissociative attachment by detailed balance from Launay's rates, level
+        by level, not Cloudy's distribution-weighted shortcut;
+      - H+ + H2(v,J) -> H2+ + H by detailed balance from the H2+ route's
+        distribution;
+      - collisional dissociation from high levels, if data better than
+        Cloudy's guesses exist.
+  4. **Stage A first**, as at H-013: on the finished pn150k model, measure:
+      - n(H-) against Cloudy's;
+      - the destruction per H2 molecule by channel;
+      - the net formation the network would get.
+
+     Predict the zone's H2 before handing anything over.
+  5. **Then stage B**: hand the chemistry, as rate coefficients like the
+     Solomon rate:
+      - the level-averaged H+ + H2 charge transfer;
+      - the net H- route (2H -> H2, electron-catalysed, the stoichiometry of
+        the grain slot);
+      - the dissociative attachment destruction (H2 -> 2H once H- is
+        neutralized or detached).
+
+     How H- itself enters the network is the design decision H-002 left open:
+     carried in the level model (recommended, above) or added as a species.
+
+Electron collisions within X (H-002 requirement 3) are separate, and come
+after.
+
+### Status
+
+In progress (L-33 done; L-43 step 1 next).
