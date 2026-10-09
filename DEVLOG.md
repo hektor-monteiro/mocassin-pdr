@@ -34679,6 +34679,28 @@ ahead of the crossing and the axis it is read on.
     hiipdr).
   - The production branch's own runs (see D-397).
 
+### Pages (2026-10-09)
+
+Rebuilt on the D-396 references and the runs above, and published:
+
+  - hiipdr Against Cloudy, version 23 (`runs/h026-site-hii31` against
+    `runs/d396-cloudy-hii`): https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx
+  - 150 kK PN Against Cloudy, version 22 (`runs/h026-site-pn41` against
+    `runs/d396-cloudy-pn`): https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV
+  - H2 Lines in MOCASSIN, version 8:
+    https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8
+
+Each has a first section on D-394 to D-398 (the reference one change at a
+time, the model one change at a time, the sampled column against the exact
+one). Sections of record below it keep the numbers and the reference their
+versions had, and say so. Both comparison pages say that A_V is now the
+exact dust column and that positions in A_V shifted by 0.03 mag (hiipdr)
+and 0.007 mag (pn150k) for that reason alone.
+
+Not rebuilt: Fine Grids Against Cloudy
+(https://claude.ai/artifact/36ngURUNJoJ3eW6q5JjwAr), production runs
+against the references without turbulence.
+
 ### Status
 
 Done.

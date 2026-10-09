@@ -554,8 +554,9 @@ only, so it shielded H2 and trapped its coolant lines with widths 2-4.5x
 narrower, and hiipdr's reference used the small H2 model's fitted shielding.
 **CLOSED 2026-10-05 (D-396):** both references carry `turbulence 1 km/s` and
 hiipdr's the large H2 model. hiipdr's crossing gap falls from 0.31 to 0.12
-mag; Cloudy's PDR is 2-15% colder. The pages are to be rebuilt on the new
-references.
+mag; Cloudy's PDR is 2-15% colder. The hiipdr, pn150k and H2 pages were
+rebuilt on the new references on 2026-10-09 (D-398); the fine-grid page was
+not.
 
 **L-45. The shielding columns were sampled, not integrated** (D-397, D-398).
 Every ray march took the nearest cell once per step of a cell width, starting
