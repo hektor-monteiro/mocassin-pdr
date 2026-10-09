@@ -3440,6 +3440,15 @@ with turbulence (H-024):
   - Whether hiipdr's ortho lines at 0.75-0.78 are the crossing (ours is
     still 0.84 pc further out) or the excitation.
 
+### Pages (2026-10-09)
+
+Published from this branch's runs (production D-398 has the links): hiipdr
+Against Cloudy version 23, 150 kK PN Against Cloudy version 22, H2 Lines in
+MOCASSIN version 8. The H2 page has a new first section, "Like for like",
+with both fixtures' lines against Cloudy's intrinsic lists; its stage B and
+stage A sections stay as measured at H-019 and say which reference and line
+list they used.
+
 ### Status
 
 Done.
