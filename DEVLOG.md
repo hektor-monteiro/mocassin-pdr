@@ -396,8 +396,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-394 | **L-33 withdrawn: the grain H2 formation "5-25x Cloudy's" was Cloudy's ground-state channel alone.** Cloudy forms 94-95% of its grain H2 as H2* (`grn,H,H=>grn,H2*`), which D-356/D-358 did not read. Counting both, MOCASSIN's coefficient is 0.86-1.00 of Cloudy's on pn150k (graphite) and 0.50-0.91 on hiipdr (silicate) through the PDR. What is left on silicate is the Cazaux & Tielens surface energies: 3D-PDR's per-material set gives 0.45-0.70 of Cloudy's single set at T_d 26-37 K, a candidate share of hiipdr's deeper H/H2 crossing; not tuned | Done | 2026-10-05 |
 | D-395 | **L-43's root: the network destroys H2+ 4-17x too slowly by electrons in ionized gas, because it has no electron-impact dissociation e- + H2+ -> e- + H + H+.** That channel is Cloudy's main H2+ sink there (53-67%), and our zone's H2 is made through H2+ (H+ + H -> H2+ + hv, then H2+ + H -> H2), so our zone's H2+ is ~90x Cloudy's. Added as reaction 332 (Janev et al. 1987, 2e-7 exp(-30720/T), Cloudy's rate). Four flavours rc 0. **Measured on seeded pairs of the h2-model branch's converged runs: the zone's H2+ falls 2-2.8x on hiipdr (8-9 kK) and 2.6-7x on pn150k (1-2e4 K), to 3-4x Cloudy's on pn150k (was 9-22x); its H2 falls 2x and 1.6-4.1x and is still 14-62x and 30-230x Cloudy's.** Fronts, crossings, Hbeta, the PDR and the H2 lines (within 0.2%) do not move. What is left is ground-state H2 where Cloudy has H2* that electrons destroy (the level model's part), and two rate choices (DR above 300 K, H+ + H2). Also: `tools/d260_roellig.py`'s slot labels had H2+ and CH5+ crossed (nothing published read either) | Done | 2026-10-05 |
 | D-396 | **The Cloudy references had no microturbulence, where MOCASSIN and 3D-PDR run with 1 km/s; and hiipdr's used Cloudy's small H2 model, whose shielding is the Elwert et al. (2005) fit. Both corrected: `turbulence 1 km/s no pressure` in both references, and the large H2 model for hiipdr, as pn150k has had since D-302.** hiipdr's H/H2 crossing moves A_V 1.090 -> 1.172 (turbulence) -> 1.280 (and the large model), against our 1.400: the published gap of 0.31 mag is 0.12 like for like. hiipdr's n(H2) at A_V 0.70 / 1.00 becomes 8.4e-5 / 0.092 against our 8.5e-5 / 0.050 (was 5.8e-4 / 14.1). Cloudy's PDR is 2-15% colder with turbulence (its coolant lines are 4.5x wider), so on pn150k our PDR is 0.66-0.75 of its temperature at A_V 0.3-0.65 (0.57-0.66 before), 28.2 um falls to 0.46 and CO 1-0..3-2 to 0.56-0.63 of the old reference. Also found: the hiipdr page's Cloudy [C II] 158 and [O I] 63 were read from Cloudy's first, unconverged iteration (0.134, 0.00581; converged 0.1086, 0.00597). Fixtures `benchmarks/pdr/*/cloudy` updated; runs/d396-cloudy-hii (857 s) and runs/d396-cloudy-pn (499 s) | Accepted | 2026-10-05 |
-| D-397 | **The shielding columns were sampled, not integrated: every ray march took the nearest cell once per step of a cell width, the first sample half a step from the target cell's centre - inside the cell the columns leave out - so the path between the target's face and the end of the first step, in the neighbour that shields it most, was never counted.** Against the exact path lengths on the same rays and the same n(H2), the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's H2 transition (N = 1e15-1e20; one cell in twenty below 0.03-0.35) and 0.64-0.82 through pn150k's; 3-5% low in molecular gas. New `rayCells` (exact length of a ray in each cell, mirrors at a symmetric octant's lower faces) now carries `computeAVradial` (A_V and the H2, C, CO columns), `traceDiffuseSites` and `traceLineRays`; the stepping helpers are gone. Four flavours rc 0; seeded tests on the h2-model branch's converged runs to follow | In progress | 2026-10-05 |
-| D-398 | **A scattering site's first leg runs to the site, not to the near face of the site's cell.** D-347 took the stored near-face column `pdrColX(P)` for N(star -> P) because it was at hand; the light scattered in a cell has also crossed that cell's own gas as far as the scattering point. The first leg now adds the site's cell's own column from its near face to its centre (the length is `rayCells`' first segment, kept per cell beside the snapshot); the target cell's own column stays out (D-088). Four flavours rc 0; seeded tests on the h2-model branch to follow | In progress | 2026-10-05 |
+| D-397 | **The shielding columns were sampled, not integrated: every ray march took the nearest cell once per step of a cell width, the first sample half a step from the target cell's centre - inside the cell the columns leave out - so the path between the target's face and the end of the first step, in the neighbour that shields it most, was never counted.** Against the exact path lengths on the same rays and the same n(H2), the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's H2 transition (N = 1e15-1e20; one cell in twenty below 0.03-0.35) and 0.64-0.82 through pn150k's; 3-5% low in molecular gas. New `rayCells` (exact length of a ray in each cell, mirrors at a symmetric octant's lower faces) now carries `computeAVradial` (A_V and the H2, C, CO columns), `traceDiffuseSites` and `traceLineRays`; the stepping helpers are gone. Four flavours rc 0. **Measured on h2-model, seeded pairs: hiipdr's H/H2 crossing moves 0.18 pc (0.029 mag) towards the star, the rate through the transition falls to 0.51-0.72 and n(H2) rises 1.2-2.0x; the H2 lines fall 3.8-5.9%.** A_V was sampled too: hiipdr's axis reads 0.03 mag deeper (the inner cavity's edge, D-277's known offset) and pn150k's 0.007 mag, so in A_V the crossings read as before (1.406, 0.393). pn150k measured with D-398 | Done | 2026-10-09 |
+| D-398 | **A scattering site's first leg runs to the site, not to the near face of the site's cell.** D-347 took the stored near-face column `pdrColX(P)` for N(star -> P) because it was at hand; the light scattered in a cell has also crossed that cell's own gas as far as the scattering point. The first leg now adds the site's cell's own column from its near face to its centre (the length is `rayCells`' first segment, kept per cell beside the snapshot); the target cell's own column stays out (D-088). Four flavours rc 0. **Measured on h2-model: hiipdr's crossing moves another 0.065 pc (0.010 mag) to A_V 1.396 against Cloudy's 1.280 (0.12 mag apart; of the published 0.31, 0.19 was the reference's, D-396); the rate falls to 0.85-0.91, the H2 lines 1.9-2.4%, CO rises 2-5%.** pn150k with D-397 and D-398 together: crossing 0.007 pc nearer the star (0.393 in A_V, as before, against Cloudy's 0.368), rate 0.33-0.87 and n(H2) 1.07-3.0x through the transition, H2 lines -3.2 to -4.4%, CO 2-1 +4.2%; fronts, Hbeta and T at fixed radius unchanged | Done | 2026-10-09 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34468,20 +34468,26 @@ In each run's own A_V:
 The run took 49:12 against 40:55, with two Cloudy models sharing the machine
 for half of it; the level model's calls add up to 1,251 s against 1,095 s.
 
-pn150k is measured with D-398 (see there).
+pn150k is measured with D-398 (see there): one run with both changes. Its
+columns are exact in all 35,377 cells, its A_V axis moved +0.007 mag (the
+cell at the origin), and its crossing moved 0.007 pc towards the star.
 
 ### Not yet known
 
   - Whether a site's first leg should run to the site, not to the near face
     of the site's cell. The scattered photon has also crossed part of that
     cell; D-348 left it out. That is a definition, not a sampling error, and
-    is not changed here.
+    is not changed here. *(Answered the same day: D-398.)*
   - The 1D-slab path (`computeAVdust` with `planeIonization`) integrates
     along the grid's own columns and was not sampled this way.
+  - The production branch's own runs. Every test here is on h2-model, where
+    the chemistry's rate comes from the levels. Production's rate comes from
+    the network's shielding function of the same `pdrColH2`, so the same
+    correction applies; its size there is not measured.
 
 ### Status
 
-In progress.
+Done (2026-10-09, with pn150k measured under D-398).
 
 ## D-398 - A scattering site's first leg runs to the site (2026-10-05)
 
@@ -34579,8 +34585,100 @@ The largest change over this run's last three iterations is 2.02% (Ne+),
 where D-397's run has 1.95% and the test's limit is 2%: held to 15
 iterations to pair, it sits on the limit.
 
-pn150k, with D-397 and D-398 together, is running.
+### pn150k: measured, D-397 and D-398 together (2026-10-09)
+
+`runs/h026-site-pn41` on h2-model against `runs/h023-eh2p-pn41` (D-395):
+same input, seed and 14 ranks, 18 iterations. The run finished on 2026-10-05
+(2:24:17; the D-395 run took 2:29:55 on another day) and was read on
+2026-10-09. One run carries both changes, so their shares are not separated
+on this fixture.
+
+The level model's star-ward column over the tool's exact integral
+(`tools/h025_columns.py`) is 1.000 in all 35,377 cells (min 1, max 1).
+
+**The A_V axis moved here too, by +0.007 mag** (5-95% of cells +0.004 to
++0.009), as hiipdr's did (D-397):
+
+  - A_V = 1.1051 (r - 0.0152 pc) before and 1.1054 (r - 0.0092 pc) now. The
+    sampled march misjudged the cell at the origin.
+  - Positions in A_V shift by that much for no change in the model. Behind
+    the front T_gas falls from 12,000 to 170 K in 0.1 mag, so there the
+    shift is most of what a table at fixed A_V shows.
+
+In radius, which neither run's A_V enters:
+
+| | D-395 | + D-397 + D-398 | Cloudy (D-396) |
+|---|---|---|---|
+| ionization front [pc] | 0.12814 | 0.12816 | 0.12795 |
+| He++ front [pc] | 0.08769 | 0.08770 | 0.08800 |
+| 2n(H2) = n(H) [pc] | 0.3706 | 0.3637 | 0.3278 |
+
+At fixed radius (shell medians, now over before):
+
+| r [pc] | A_V now | rate the chemistry used | n(H2) | n(CO) | T_gas |
+|---|---|---|---|---|---|
+| 0.13-0.17 | 0.13-0.18 | 0.99 | 0.97-1.04 | 0.97-1.03 | 0.96-1.04 |
+| 0.19 | 0.200 | 0.84 | 1.24 | 1.00 | 0.99 |
+| 0.21 | 0.222 | 0.53 | 1.94 | 1.02 | 1.01 |
+| 0.23 | 0.245 | 0.33 | 2.97 | 1.24 | 0.99 |
+| 0.25 | 0.265 | 0.62 | 1.60 | 1.38 | 1.00 |
+| 0.29 | 0.311 | 0.76 | 1.28 | 1.40 | 1.00 |
+| 0.33 | 0.354 | 0.82 | 1.15 | 1.17 | 1.00 |
+| 0.37 | 0.399 | 0.87 | 1.07 | 1.07 | 1.00 |
+| 0.45 | 0.487 | 0.92 | 1.02 | 1.05 | 1.00 |
+| 0.55 | 0.598 | 0.97 | 1.00 | 1.04 | 1.00 |
+
+In each run's own A_V:
+
+| | D-395 | + D-397 + D-398 | Cloudy (D-396) |
+|---|---|---|---|
+| H/H2 crossing | 0.3933 | 0.3931 | 0.3675 |
+| n(H2) at A_V 0.20 / 0.30 / 0.50 [cm^-3] | 0.0237 / 43.5 / 413 | 0.0186 / 45.3 / 413 | 0.0140 / 110 / 395 |
+| T_gas at A_V 0.15 / 0.20 / 0.30 / 0.50 [K] | 5173 / 137.6 / 45.6 / 30.1 | 7321 / 167.9 / 46.7 / 30.5 | 7581 / 172.0 / 60.8 / 45.4 |
+| 1-0 S(1), 0-0 S(1), 0-0 S(0) / Hbeta | 9.87e-4, 5.74e-4, 1.549e-4 | 9.45e-4, 5.56e-4, 1.493e-4 | 8.47e-4, 4.81e-4, 7.76e-5 |
+| CO 2-1 / Hbeta | 1.793e-7 | 1.868e-7 | 2.786e-7 |
+| Hbeta [1e34 erg/s], [O III] 5007 / Hbeta | 2.6775, 13.92 | 2.6780, 13.91 | |
+
+  - **The crossing moved 0.007 pc (0.008 mag) towards the star**: less than
+    hiipdr's 0.25 pc (0.039 mag, the two changes together), as D-397
+    predicted. The A_V axis moved 0.007 mag the other way, so read in A_V
+    the crossing is where it was, 0.026 mag past Cloudy's.
+  - **Through the transition (0.19-0.37 pc) the rate the chemistry used falls
+    to 0.33-0.87 and n(H2) rises 1.07-3.0x.** At the lit edge (0.13-0.17 pc)
+    the rate moves by 1% and n(H2) by under 4%.
+  - **CO rises 1.2-1.4x at 0.23-0.29 pc and 4-17% beyond**, and CO 2-1 by
+    4.2%, as D-398 predicted.
+  - **The H2 lines fall 3.2-4.4%**, as D-397 predicted. 1-0 S(1) is 1.12 of
+    Cloudy's (1.17 before); over the 40 strongest lines the medians are
+    ortho 0.91-1.11 and para 1.88-2.62 (0.95-1.16 and 1.95-2.73).
+  - **T_gas at fixed radius does not move** (within 4% behind the front,
+    within 1% beyond 0.19 pc). At fixed A_V 0.15 and 0.20 it reads 0.97 and
+    0.98 of Cloudy's where it read 0.68 and 0.80: that is the A_V axis, not
+    the gas.
+  - **The fronts, Hbeta and the ionized lines do not move.**
+
+The largest change over the run's last three iterations is 1.49% (He2+),
+against 1.48% in the D-395 run; 86.2% of cells are converged against 85.2%.
+
+Cost. The site walk's rank-seconds rise 1.36x (2,138 -> 2,918 over the run):
+one site per cell crossed, where the sampled walk had one per step. The
+level model's calls add up to 5,144 s against 5,632 s, on different days
+(the machine's speed varies by more than that).
+
+With D-395, D-397 and D-398 together pn150k's crossing is at A_V 0.393
+against Cloudy's 0.368, as it was; what moved on this fixture is the gas
+ahead of the crossing and the axis it is read on.
+
+### Not yet known
+
+  - D-397's and D-398's separate shares on pn150k: one run carries both.
+  - What holds the remaining 0.12 mag (hiipdr) and 0.026 mag (pn150k). The
+    h2-model log has two candidates for hiipdr: the silicate surface's
+    formation energies (0.04 mag, measured: H-022) and the damping width
+    Cloudy gives each line (H-008 measured it on pn150k and a slab; not on
+    hiipdr).
+  - The production branch's own runs (see D-397).
 
 ### Status
 
-In progress.
+Done.
