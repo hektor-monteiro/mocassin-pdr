@@ -557,6 +557,22 @@ hiipdr's the large H2 model. hiipdr's crossing gap falls from 0.31 to 0.12
 mag; Cloudy's PDR is 2-15% colder. The pages are to be rebuilt on the new
 references.
 
+**L-45. The shielding columns were sampled, not integrated** (D-397, D-398).
+Every ray march took the nearest cell once per step of a cell width, starting
+half a step from the target's centre, so the part of the neighbouring cell
+between the target's face and the end of the first step was never counted:
+the star-ward N(H2) was a median 0.46-0.75 of the exact one through hiipdr's
+H2 transition and 0.64-0.82 through pn150k's. A scattering site's first leg
+also stopped at the near face of the site's cell. A_V was sampled the same
+way (hiipdr's axis read 0.03 mag shallow, pn150k's 0.007).
+**CLOSED 2026-10-09 (D-397, D-398):** `rayCells` gives the exact length of a
+ray in each cell and carries A_V, the H2/C/CO columns, the scattering sites
+and the line escape rays; a site's first leg runs to the site. Measured on
+the h2-model branch (seeded pairs): hiipdr's H/H2 crossing moves 0.25 pc
+towards the star and reads A_V 1.396 against Cloudy's 1.280 on the corrected
+axis; pn150k's moves 0.007 pc and reads 0.393 against 0.368. The H2 lines
+fall 3-8%. Not measured on the production branch's own runs.
+
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
 does. In H II gas that swaps CHIANTI 10.1's electron-impact data for the
