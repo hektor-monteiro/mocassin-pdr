@@ -33,7 +33,7 @@ DEVLOG.md and arrives here by merge.
 | H-022 | **Diagnostic: hiipdr stage B with Cloudy's Cazaux & Tielens surface energies (tools/patches/h022_ct02_cloudy_set.patch, not adopted), seeded against runs/h019-B-hii31 at 15 iterations. The crossing moves 1.400 -> 1.363 (Cloudy 1.090): the parameter set is 0.04 of the 0.31 mag, the rest is not formation. Lit-edge H2 x2.9-4.5 (still 63x short of Cloudy's at A_V 1.0), T +0.5-1.3 K, H2 lines +14-33%, everything else <1%** | Done | 2026-10-05 |
 | H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: ortho 0.82-0.84, para 1.13-1.19 (corrected the same day: 0.37 and 0.50 were against an emergent line list, D-396) | Done | 2026-10-05 |
-| H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. Seeded pairs running | In progress | 2026-10-05 |
+| H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. **Measured (seeded pairs): hiipdr's crossing 10.028 -> 9.847 (D-397) -> 9.781 pc (D-398), A_V 1.396 against Cloudy's 1.280; pn150k's 0.3706 -> 0.3637 pc, A_V 0.393 against 0.368. Every H2 line falls, 6-8% on hiipdr and 3-4% on pn150k; the ortho/para split against Cloudy does not move (hiipdr ortho 0.75-0.78, para 1.05-1.10; pn150k 0.91-1.11, 1.88-2.62).** The site walk costs 1.4-1.6x, 4-5% of the level model | Done | 2026-10-09 |
 
 ---
 
@@ -3321,8 +3321,8 @@ transition, so that neighbour is most of the column.
 
 The production log had been showing it. Its scale check (`Nwalk/N`,
 `AVwalk/AV`, D-348) compares two sampled marches of the same path with
-different step phases, and read 1.61, 0.88, 0.59, 1.05 and 0.72 in the first
-A_V bins of `runs/h023-eh2p-hii31`.
+different step phases. In `runs/h023-eh2p-hii31` `Nwalk/N` read 1.61, 0.88,
+0.59 and 1.05 in the first four A_V bins, and `AVwalk/AV` 0.72 in the first.
 
 ### The change, on this branch
 
@@ -3369,12 +3369,77 @@ One site per cell crossed, not one per step: 531 sites per cell at the lit
 edge where there were 356. The site walk's share of a sweep doubles (29 to
 55 rank-seconds of about 1,500). The sweeps of these runs take 1.3x longer
 than `runs/h023-eh2p-hii31`'s, but so does the solve step, whose code did not
-change; the machine's speed varies by that much (D-393).
+change; the machine's speed varies by that much (H-019).
+
+Over whole runs (the level model's calls summed; rank-seconds of the site
+walk summed):
+
+| run | calls | level model [s] | site walk [rank-s] | run time |
+|---|---|---|---|---|
+| hiipdr, D-395 (`h023-eh2p-hii31`) | 13 | 1,095 | 502 | 40:55 |
+| hiipdr, + D-397 (`h025-rays-hii31`) | 13 | 1,251 | 795 | 49:12 |
+| hiipdr, + D-398 (`h026-site-hii31`) | 13 | 1,200 | 826 | 44:38 |
+| pn150k, D-395 (`h023-eh2p-pn41`) | 16 | 5,632 | 2,138 | 2:29:55 |
+| pn150k, + D-397 + D-398 (`h026-site-pn41`) | 16 | 5,144 | 2,918 | 2:24:17 |
+
+The site walk costs 1.4-1.6x what it did: 4-5% of the level model's
+rank-seconds where it was 3% (the overlap step is 45-48%). The pn150k runs
+were made on different days and the later one is the faster.
+
+### The models: measured (2026-10-09)
+
+Seeded pairs at the converged counts, 14 ranks: hiipdr 15 iterations,
+pn150k 18. The pn150k run finished on 2026-10-05 and was read on 2026-10-09.
+Production's D-397 and D-398 hold the tables; what belongs to this branch:
+
+**hiipdr** (D-397 alone, then D-398 added), against Cloudy's large model
+with turbulence (H-024):
+
+| | D-395 | + D-397 | + D-398 | Cloudy |
+|---|---|---|---|---|
+| H/H2 crossing, radius [pc] | 10.028 | 9.847 | 9.781 | 8.946 |
+| H/H2 crossing, each run's A_V | 1.400 | 1.406 | 1.396 | 1.280 |
+| 1-0 S(1) / Hbeta | 7.65e-4 | 7.20e-4 | 7.03e-4 | 9.24e-4 |
+| 0-0 S(0), S(1), S(2) / Hbeta [1e-4] | 3.04, 4.18, 5.46 | 2.93, 4.02, 5.19 | 2.86, 3.94, 5.08 | 2.32, 4.84, 4.61 |
+| 40 strongest lines, median ours / Cloudy: ortho v = 0, 1, >= 2 | 0.84, 0.83, 0.81 | 0.79, 0.78, 0.77 | 0.78, 0.76, 0.75 | |
+| the same, para | 1.19, 1.17, 1.13 | 1.13, 1.11, 1.07 | 1.10, 1.09, 1.05 | |
+
+**pn150k** (both together):
+
+| | D-395 | + D-397 + D-398 | Cloudy |
+|---|---|---|---|
+| H/H2 crossing, radius [pc] | 0.3706 | 0.3637 | 0.3278 |
+| H/H2 crossing, each run's A_V | 0.3933 | 0.3931 | 0.3675 |
+| 1-0 S(1) / Hbeta | 9.87e-4 | 9.45e-4 | 8.47e-4 |
+| 0-0 S(0), S(1), S(2) / Hbeta [1e-4] | 1.55, 5.74, 11.7 | 1.49, 5.56, 11.3 | 0.78, 4.81, 4.49 |
+| 40 strongest lines, median ours / Cloudy: ortho v = 0, 1, >= 2 | 0.95, 1.16, 1.11 | 0.91, 1.11, 1.07 | |
+| the same, para | 1.95, 2.73, 2.69 | 1.88, 2.62, 2.58 | |
+
+  - **The transitions moved towards the star, by 0.25 pc (0.039 mag) on
+    hiipdr and 0.007 pc (0.008 mag) on pn150k.** The A_V axes moved the other
+    way (+0.03 and +0.007 mag: they were sampled too), so in A_V the
+    crossings read as they did.
+  - **Every H2 line falls: 6-8% on hiipdr, 3-4% on pn150k**, ortho and para
+    alike. The atomic layer that feeds them is thinner.
+  - **The ortho/para split against Cloudy does not move** (para over ortho
+    1.38-1.41 on hiipdr before and 1.40-1.43 after; 2.0-2.4 on pn150k in
+    both). The columns were not its cause. H-008's damping width stays the measured part of it
+    on pn150k.
+  - On hiipdr the ortho lines are now 0.75-0.78 of Cloudy's, further than
+    they were (0.81-0.84); the para lines 1.05-1.10, nearer (1.13-1.19).
+  - The level model's star-ward column equals the independent exact
+    integral in all 35,377 cells of the pn150k run too.
 
 ### Not yet known
 
-  - What the two changes do to the models: the pairs are running.
+  - D-397's and D-398's separate shares on pn150k: one run carries both.
+  - What holds the rest of the crossing gap, 0.12 mag on hiipdr and 0.026 on
+    pn150k. The silicate surface energies are 0.04 of hiipdr's (H-022); the
+    damping width's share there is not measured (H-008's patch on hiipdr
+    would).
+  - Whether hiipdr's ortho lines at 0.75-0.78 are the crossing (ours is
+    still 0.84 pc further out) or the excitation.
 
 ### Status
 
-In progress.
+Done.

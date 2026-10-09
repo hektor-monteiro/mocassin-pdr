@@ -254,13 +254,15 @@ def main():
     # ---- the H2 photodissociation rate each chemistry used
     fig, ax = plt.subplots(figsize=(4.6, 4.4))
     col = '#7A5195'
-    A['solc'] = np.where(A['cells'][:, 10] > 0, A['cells'][:, 10], np.nan)
+    # --a-levels: run A is a stage B run too, so its chemistry used the levels' rate (H-025)
+    alev = '--a-levels' in sys.argv
+    A['solc'] = np.where(A['cells'][:, 9 if alev else 10] > 0, A['cells'][:, 9 if alev else 10], np.nan)
     B['soll'] = np.where(B['cells'][:, 9] > 0, B['cells'][:, 9], np.nan)
     xc, ya = prof(A, 'solc')
     ax.plot(xc, ya, color=col, **STY['A'])
     xc, yb = prof(B, 'soll')
     ax.plot(xc, yb, color=col, **STY['B'])
-    keys = {'A': labs['A'] + ': the network\'s', 'B': labs['B'] + ': the levels\''}
+    keys = {'A': labs['A'] + ('' if alev else ': the network\'s'), 'B': labs['B'] + ('' if alev else ': the levels\'')}
     vals = [np.nanmax(ya), np.nanmax(yb)]
     if 'sol' in C:
         ax.plot(C['AV'], np.where(C['sol'] > 0, C['sol'], np.nan), color=col, **STY['C'])
