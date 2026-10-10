@@ -15,6 +15,58 @@ module update_mod
 
     contains
 
+    !-----------------------------------------------------------------
+    ! D-402: the network's coefficients for X + H+ -> X+ + H (ctUp) and
+    ! X+ + H -> X + H+ (ctDn) [cm^3 s^-1] at temperature T, per linked
+    ! element, evaluated as calc_reac_rates.F90 evaluates a thermal
+    ! reaction: alpha (T/300)^beta exp(-gamma/T); where the network gives
+    ! several temperature ranges, the first whose upper limit holds T, else
+    ! the last; a negative gamma held at the range's lower limit below it.
+    !-----------------------------------------------------------------
+    subroutine pdrCtRates(T, ctUp, ctDn)
+      implicit none
+      double precision, intent(in)  :: T
+      double precision, intent(out) :: ctUp(pdrNlinkEl), ctDn(pdrNlinkEl)
+      integer          :: i, j
+      double precision :: tl, k
+
+      ctUp = 0.d0; ctDn = 0.d0
+      i = 1
+      do while (i <= pdrNct)
+         j = i
+         if (pdrCtDup(i) >= 1) then
+            do
+               if (T <= pdrCtTmax(j)) exit
+               if (j == pdrNct) exit
+               if (pdrCtDup(j+1) <= pdrCtDup(j)) exit
+               j = j + 1
+            end do
+         end if
+         k = 0.d0
+         if (.not.(pdrCtGamma(j) < -200.d0 .and. T < pdrCtTmin(j))) then
+            tl = T
+            if (pdrCtGamma(j) < 0.d0 .and. T < pdrCtTmin(j)) tl = pdrCtTmin(j)
+            if (tl > 0.d0) k = pdrCtAlpha(j)*(tl/300.d0)**pdrCtBeta(j)*exp(-pdrCtGamma(j)/tl)
+         end if
+         if (pdrCtEl(j) >= 1 .and. pdrCtEl(j) <= pdrNlinkEl) then
+            if (pdrCtDir(j) > 0) then
+               ctUp(pdrCtEl(j)) = ctUp(pdrCtEl(j)) + k
+            else
+               ctDn(pdrCtEl(j)) = ctDn(pdrCtEl(j)) + k
+            end if
+         end if
+         ! on to the next reaction: past the rest of this one's ranges
+         if (pdrCtDup(i) >= 1) then
+            do while (i < pdrNct)
+               if (pdrCtDup(i+1) <= pdrCtDup(i)) exit
+               i = i + 1
+            end do
+         end if
+         i = i + 1
+      end do
+    end subroutine pdrCtRates
+
+
       subroutine updateCell(grid, xP, yP, zP)
         implicit none
 
@@ -2499,6 +2551,14 @@ end subroutine iterateT
             integer                :: iSl358, j358  ! D-358: linked slot, bin
             double precision       :: gH2358        ! D-358: H2 photoionization rate
             real                   :: omega280      ! D-280: cell Lyman-Werner albedo
+            ! D-402: the network's X-H charge transfer coefficients at the
+            ! trial temperature, per linked element; the linked-element index
+            ! of the element in hand; H0 and H+ densities; the chain's down
+            ! rate; and whether an element has molecular terms in its matrix
+            double precision       :: ctUp402(pdrNlinkEl), ctDn402(pdrNlinkEl)
+            integer                :: ie402, je402
+            double precision       :: nH0402, nHp402, dnChain402
+            logical                :: lgChem402(nElements)
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -2639,6 +2699,13 @@ end subroutine iterateT
 
             t4 = TeUsed/10000.
 
+#ifdef PDR
+            ctUp402 = 0.d0; ctDn402 = 0.d0
+            if (lgPDR) call pdrCtRates(dble(TeUsed), ctUp402, ctDn402)
+            nH0402 = dble(grid%ionDen(cellP,elementXref(1),1))*dble(grid%Hden(cellP))
+            nHp402 = dble(grid%ionDen(cellP,elementXref(1),2))*dble(grid%Hden(cellP))
+#endif
+            lgChem402 = .false.
 
             ! calculate the X(i+1)/X(i) ratio
             do elem = 1, nElements
@@ -2694,7 +2761,52 @@ end subroutine iterateT
                     ionDn(elem,ion) = dble(NeUsed)*dble(alphaTot(elem,ion)) &
                          & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
                          & * dble(grid%ionDen(cellP,elementXref(1),1))
+                    ie402 = 0
 #ifdef PDR
+                    ! ------------------------------------------------ D-402
+                    ! One x(X+). For a linked element the neutral/first-ion
+                    ! balance is the same one in both solvers, channel by
+                    ! channel, each computed once:
+                    !   photoionization, collisional ionization, recombination
+                    !     - here, and handed to the solve (D-358);
+                    !   cosmic rays - the network's coefficients, here (D-280);
+                    !   charge transfer with H - the network's coefficients,
+                    !     here, in place of chex and its reverse. The solve
+                    !     ran on them already while this used Kingdon &
+                    !     Ferland's, whose He fit is not valid below 6000 K
+                    !     and whose reverse O rate has no fine structure;
+                    !   everything else the network does to X and X+ (charge
+                    !     transfer with other species, reactions with
+                    !     molecules) - from the last solve, below.
+                    ! Hydrogen takes the other side of the metals' charge
+                    ! transfer, with this call's own stage densities, so the
+                    ! O+ + H <-> O + H+ exchange is closed inside updateCell
+                    ! and not across two Monte Carlo iterations.
+                    if (lgPDR .and. ion == 1 .and. elem <= 30) ie402 = pdrElOfZ(elem)
+                    if (ie402 > 0) then
+                       if (elem > 1) then
+                          ionUp(elem,1) = ionUp(elem,1) - dble(revRate) + ctUp402(ie402)*nHp402
+                          ionDn(elem,1) = dble(NeUsed)*dble(alphaTot(elem,1)) &
+                               & + ctDn402(ie402)*nH0402
+                       else
+                          do je402 = 1, pdrNlinkEl
+                             if (pdrElZ(je402) <= 1) cycle
+                             if (.not.lgElementOn(pdrElZ(je402))) cycle
+                             ionUp(1,1) = ionUp(1,1) + ctDn402(je402)*dble(grid%Hden(cellP)) &
+                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(je402))) &
+                                  & *dble(grid%ionDen(cellP, elementXref(pdrElZ(je402)), 2))
+                             ionDn(1,1) = ionDn(1,1) + ctUp402(je402)*dble(grid%Hden(cellP)) &
+                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(je402))) &
+                                  & *dble(grid%ionDen(cellP, elementXref(pdrElZ(je402)), 1))
+                          end do
+                       end if
+                       if (allocated(grid%pdrIonRate)) then
+                          ionUp(elem,1) = ionUp(elem,1) &
+                               & + dble(grid%pdrIonRate(cellP, pdrNchan*(ie402-1)+1))
+                          ionDn(elem,1) = ionDn(elem,1) &
+                               & + dble(grid%pdrIonRate(cellP, pdrNchan*(ie402-1)+2))
+                       end if
+                    end if
                     ! D-358: the rates the chemistry solve runs on for a linked
                     ! neutral - its photoionization from this cell's field (and,
                     ! for H, collisional ionization) and the total recombination
@@ -2919,8 +3031,19 @@ end subroutine iterateT
                     ! stage above - nothing physical bounds the ratio, so cap it
                     ! rather than inventing an infinity. The cap is far above
                     ! any ratio that survives normalisation.
-                    if (ionDn(elem,ion) > 0.d0) then
-                       ionRatio(elem,ion) = ionUp(elem,ion)/ionDn(elem,ion)
+                    ! D-402: the chain estimate scales and trims the matrix
+                    ! and stands for the stages trimmed out of it, so a first
+                    ! ion that molecules consume (O+ + H2) has that sink in
+                    ! its ratio here; the matrix carries it separately.
+                    dnChain402 = ionDn(elem,ion)
+#ifdef PDR
+                    if (ie402 > 0) then
+                       if (allocated(grid%pdrIonRate)) dnChain402 = dnChain402 &
+                            & + dble(grid%pdrIonRate(cellP, pdrNchan*(ie402-1)+5))
+                    end if
+#endif
+                    if (dnChain402 > 0.d0) then
+                       ionRatio(elem,ion) = ionUp(elem,ion)/dnChain402
                        if (ionRatio(elem,ion) > 1.d30) ionRatio(elem,ion) = 1.d30
                     else if (ionUp(elem,ion) > 0.d0) then
                        ionRatio(elem,ion) = 1.d30
@@ -3103,6 +3226,25 @@ end subroutine iterateT
                   ! A stage the network does not carry keeps zero for both and
                   ! is left entirely to the ion solver.
                   chemSrc = 0.d0; chemSnk = 0.d0
+#ifdef PDR
+                  ! D-402: what the network does to X and X+ that is neither
+                  ! ionization nor recombination of one into the other: lost
+                  ! to, or made from, a molecule. Sinks on the diagonal,
+                  ! sources on the right-hand side, the sum still elemAvail -
+                  ! the ratio is theirs to set, the total is not. D-118
+                  ! injected the species' whole right-hand side, ionization
+                  ! and recombination included, and D-193 removed it.
+                  if (lgPDR .and. elem <= 30) then
+                     if (pdrElOfZ(elem) > 0 .and. allocated(grid%pdrIonRate)) then
+                        ik = pdrNchan*(pdrElOfZ(elem)-1)
+                        chemSnk(1) = dble(grid%pdrIonRate(cellP, ik+3))
+                        chemSrc(1) = dble(grid%pdrIonRate(cellP, ik+4))
+                        chemSnk(2) = dble(grid%pdrIonRate(cellP, ik+5))
+                        chemSrc(2) = dble(grid%pdrIonRate(cellP, ik+6))
+                        lgChem402(elem) = any(chemSnk(1:2) /= 0.d0) .or. any(chemSrc(1:2) /= 0.d0)
+                     end if
+                  end if
+#endif
                   ! D-193: the chemistry's per-stage source/sink rates are NO
                   ! LONGER injected here. MOCASSIN owns the ionization; the one
                   ! thing 3D-PDR reports about an element is how much of it is
@@ -3285,7 +3427,10 @@ end subroutine iterateT
                     ! this same cell, this same call. With no molecular terms
                     ! the two must agree to round-off; anything larger is the
                     ! solver, not the model.
-                    if (lgIonMatrix .and. ionSolve(elem,ion) >= 0.d0) then
+                    ! D-402: not where the matrix holds molecular terms the
+                    ! chain cannot (the two then differ by design)
+                    if (lgIonMatrix .and. ionSolve(elem,ion) >= 0.d0 &
+                         & .and. .not.lgChem402(elem)) then
                        if (ion == 1) then
                           chainVal = availFrac(elem)/denominator(elem)
                        else

@@ -186,6 +186,20 @@ module pdr_mod
     ! the largest |log10| of the ratio. nUnset358: cells whose MOCASSIN rates
     ! were not yet set
     double precision :: ion402(pdrNlinkEl,2,3) = 0.d0, ionMax402(pdrNlinkEl,2) = 0.d0
+    ! D-402: every reaction as the generated right-hand side evaluates it,
+    ! and what it does to each linked element's two carriers. rxSp: the
+    ! species index of each reactant (0: not a species); rxGrain: a grain
+    ! among the reactants; rxIn: the reaction is in the right-hand side;
+    ! rxNr, rxNp: how many of X (1) and X+ (2) it consumes and makes;
+    ! rxMoc: ionBalance computes this channel itself for this element
+    ! (ionization by photons or cosmic rays, radiative recombination, charge
+    ! transfer with H), so it is not handed over.
+    integer, allocatable :: rxSp402(:,:), rxNr402(:,:,:), rxNp402(:,:,:)
+    logical, allocatable :: rxGrain402(:), rxIn402(:), rxMoc402(:,:)
+    ! the largest |sum of the classified channels / the right-hand side's own
+    ! total - 1| per element: loss of X, formation of X, loss of X+,
+    ! formation of X+ (the right-hand side's totals are D-113's capture)
+    double precision :: clos402(pdrNlinkEl,4) = 0.d0
     integer          :: nUnset358 = 0
     ! D-362: each coolant's cooling from a level-population solve at the
     ! cell's own temperature against the log-log interpolation of the D-215
@@ -213,6 +227,7 @@ module pdr_mod
         logical            :: lgDupPhot, lgDupRec
         integer            :: iTyp280          ! D-280: 1 CRP, 2 CRPHOT
         integer            :: nAt402(30)       ! D-402: atoms per element in a species
+        integer            :: iCt402(pdrMaxCt) ! D-402: the charge-transfer reactions
         logical            :: lgOk402
         integer            :: ios, iS, iC
         integer            :: iLv, iUp, nT362  ! D-362: transition list
@@ -758,6 +773,113 @@ module pdr_mod
                    & iPh358(iLnk), "  recombination", iRec358(iLnk,1:4)
            end do
            print '(a,i4)', " !   H2 -> H2+ slot", iH2cr358
+        end if
+
+        ! D-402: the network's charge transfer of each linked element with
+        ! hydrogen, X + H+ -> X+ + H and X+ + H -> X + H+, found by structure.
+        ! ionBalance evaluates these coefficients itself (pdrCtRates), so both
+        ! solvers use the one set.
+        pdrElOfZ = 0
+        do iLnk = 1, pdrNlinkEl
+           if (pdrElZ(iLnk) >= 1 .and. pdrElZ(iLnk) <= 30) pdrElOfZ(pdrElZ(iLnk)) = iLnk
+        end do
+        pdrNct = 0
+        do iR = 1, pdrNreacMod
+           if (len_trim(adjustl(pdrReactant(iR,3))) > 0) cycle
+           if (len_trim(adjustl(pdrProduct(iR,3))) > 0) cycle
+           do iLnk = 1, pdrNlinkEl
+              if (pdrElZ(iLnk) <= 1) cycle
+              sNeut = adjustl(pdrSpecies(pdrElNeut(iLnk)))
+              sIon  = adjustl(pdrSpecies(pdrElIon(iLnk)))
+              iTyp280 = 0
+              if (any(adjustl(pdrReactant(iR,1:2)) == sNeut) .and. &
+                   & any(adjustl(pdrReactant(iR,1:2)) == 'H+') .and. &
+                   & any(adjustl(pdrProduct(iR,1:2)) == sIon) .and. &
+                   & any(adjustl(pdrProduct(iR,1:2)) == 'H')) iTyp280 = 1
+              if (any(adjustl(pdrReactant(iR,1:2)) == sIon) .and. &
+                   & any(adjustl(pdrReactant(iR,1:2)) == 'H') .and. &
+                   & any(adjustl(pdrProduct(iR,1:2)) == sNeut) .and. &
+                   & any(adjustl(pdrProduct(iR,1:2)) == 'H+')) iTyp280 = -1
+              if (iTyp280 == 0) cycle
+              if (pdrNct >= pdrMaxCt) then
+                 print*, "! initPDRnetwork: more charge-transfer reactions than pdrMaxCt", pdrMaxCt
+                 stop
+              end if
+              pdrNct = pdrNct + 1
+              pdrCtEl(pdrNct)    = iLnk
+              pdrCtDir(pdrNct)   = iTyp280
+              pdrCtDup(pdrNct)   = pdrDuplicate(iR)
+              pdrCtAlpha(pdrNct) = pdrAlpha(iR)
+              pdrCtBeta(pdrNct)  = pdrBeta(iR)
+              pdrCtGamma(pdrNct) = pdrGamma(iR)
+              pdrCtTmin(pdrNct)  = pdrRtmin(iR)
+              pdrCtTmax(pdrNct)  = pdrRtmax(iR)
+              iCt402(pdrNct)     = iR
+              if (taskid == 0) print '(a,i4,a,a,a,a,a,a,a,a,es10.3,a,f6.2,a,f8.1,a,2f8.0)', &
+                   & " ! [D402] charge transfer with H: reaction", iR, "  ", &
+                   & trim(adjustl(pdrReactant(iR,1))), " + ", trim(adjustl(pdrReactant(iR,2))), &
+                   & " -> ", trim(adjustl(pdrProduct(iR,1))), " + ", &
+                   & trim(adjustl(pdrProduct(iR,2))), pdrAlpha(iR), " beta", pdrBeta(iR), &
+                   & " gamma", pdrGamma(iR), "  T", pdrRtmin(iR), pdrRtmax(iR)
+           end do
+        end do
+
+        ! D-402: each reaction as the right-hand side has it, and what it
+        ! does to every linked element's X and X+.
+        if (allocated(rxSp402)) deallocate(rxSp402, rxNr402, rxNp402, rxGrain402, &
+             & rxIn402, rxMoc402)
+        allocate(rxSp402(pdrNreacMod,3), rxNr402(pdrNreacMod,pdrNlinkEl,2), &
+             & rxNp402(pdrNreacMod,pdrNlinkEl,2), rxGrain402(pdrNreacMod), &
+             & rxIn402(pdrNreacMod), rxMoc402(pdrNreacMod,pdrNlinkEl))
+        rxSp402 = 0; rxNr402 = 0; rxNp402 = 0
+        rxGrain402 = .false.; rxIn402 = .true.; rxMoc402 = .false.
+        do iR = 1, pdrNreacMod
+           do iC = 1, 3
+              do iS = 1, pdrNspecMod
+                 if (trim(adjustl(pdrReactant(iR,iC))) == trim(adjustl(pdrSpecies(iS)))) &
+                      & rxSp402(iR,iC) = iS
+              end do
+           end do
+           rxGrain402(iR) = any(adjustl(pdrReactant(iR,:)) == '#')
+           ! an ion recombining on a grain (X+ + e- + # -> X + #) is in the
+           ! rate file and not in the generated right-hand side
+           if (rxGrain402(iR) .and. any(adjustl(pdrReactant(iR,:)) == 'e-')) rxIn402(iR) = .false.
+           do iLnk = 1, pdrNlinkEl
+              if (pdrElZ(iLnk) <= 0) cycle
+              sNeut = adjustl(pdrSpecies(pdrElNeut(iLnk)))
+              sIon  = adjustl(pdrSpecies(pdrElIon(iLnk)))
+              rxNr402(iR,iLnk,1) = count(adjustl(pdrReactant(iR,:)) == sNeut)
+              rxNr402(iR,iLnk,2) = count(adjustl(pdrReactant(iR,:)) == sIon)
+              rxNp402(iR,iLnk,1) = count(adjustl(pdrProduct(iR,:)) == sNeut)
+              rxNp402(iR,iLnk,2) = count(adjustl(pdrProduct(iR,:)) == sIon)
+              ! the channels ionBalance has of its own for this element
+              if (rxNr402(iR,iLnk,1) == 1 .and. rxNp402(iR,iLnk,2) == 1 .and. &
+                   & any(adjustl(pdrProduct(iR,:)) == 'e-') .and. &
+                   & (any(adjustl(pdrReactant(iR,:)) == 'CRP') .or. &
+                   &  any(adjustl(pdrReactant(iR,:)) == 'CRPHOT') .or. &
+                   &  any(adjustl(pdrReactant(iR,:)) == 'PHOTON'))) rxMoc402(iR,iLnk) = .true.
+              if (rxNr402(iR,iLnk,2) == 1 .and. rxNp402(iR,iLnk,1) == 1 .and. &
+                   & any(adjustl(pdrReactant(iR,:)) == 'e-') .and. &
+                   & any(adjustl(pdrProduct(iR,:)) == 'PHOTON') .and. &
+                   & .not.rxGrain402(iR)) rxMoc402(iR,iLnk) = .true.
+           end do
+        end do
+        do iC = 1, pdrNct
+           ! charge transfer with H: the metal's own, and hydrogen's side of it
+           rxMoc402(iCt402(iC), pdrCtEl(iC)) = .true.
+           if (pdrElOfZ(1) > 0) rxMoc402(iCt402(iC), pdrElOfZ(1)) = .true.
+        end do
+        if (taskid == 0) then
+           do iLnk = 1, pdrNlinkEl
+              if (pdrElZ(iLnk) <= 0) cycle
+              print '(a,a,a,i4,a,i4,a)', " ! [D402] ", trim(adjustl(pdrSpecies(pdrElNeut(iLnk)))), &
+                   & ": of the", count(rxIn402 .and. (rxNr402(:,iLnk,1)+rxNr402(:,iLnk,2) &
+                   & +rxNp402(:,iLnk,1)+rxNp402(:,iLnk,2) > 0)), &
+                   & " reactions holding it or its ion,", count(rxMoc402(:,iLnk)), &
+                   & " are channels MOCASSIN's ion balance computes itself"
+           end do
+           print '(a,i4,a)', " ! [D402]", count(.not.rxIn402), &
+                & " reactions of the rate file are not in the right-hand side (ions recombining on grains)"
         end if
 
         ! Identify the exothermic chemical-heating reactions in this network.
@@ -3053,6 +3175,10 @@ module pdr_mod
         double precision   :: availTot, mocNeut, mocIon   ! D-153
         integer            :: iE402, iAb402, ist402, iz402   ! D-402
         double precision   :: abEl402, molEl402, stSum402, xeIon402
+        integer            :: iR402, js402, dN402, dI402
+        integer            :: carr402(2, pdrNlinkEl)
+        logical            :: lgSkip402(2)
+        double precision   :: xe402, xf402, rAll402, rNo402(2), ch402(pdrNchan), gr402(4)
         integer            :: iTpass                     ! D-166
         integer            :: iEl                        ! D-188
         integer            :: iRay                       ! D-190
@@ -3324,6 +3450,7 @@ module pdr_mod
         ! own proportions; the network is handed the first two shares. So a
         ! cell whose carbon is C++ holds little C+ here, where D-266 called
         ! all of it C+ and let it recombine and react as C+ (L-32).
+        carr402(1,:) = pdrElNeut; carr402(2,:) = pdrElIon
         if (.true.) then
            iAb402 = grid%abFileIndex(xP,yP,zP)
            do iE402 = 1, pdrNlinkEl
@@ -3729,17 +3856,95 @@ module pdr_mod
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
 
-        ! D-118: publish the chemistry's per-stage formation and destruction
-        ! rates for the ions MOCASSIN also tracks. form is an additive
-        ! production rate; loss is a specific destruction rate multiplying the
-        ! species' own abundance - the same decomposition ionBalance's matrix
-        ! wants for its RHS and diagonal, and the one Cloudy consumes as
-        ! mole.source / mole.sink. loss is stored positive; the sign convention
-        ! lives with the consumer.
-        do ik = 1, pdrNlink
-           if (pdrLinkSpec(ik) <= 0) cycle
-           grid%pdrIonRate(cellP, ik)          = real(pdrFormSp(pdrLinkSpec(ik)))
-           grid%pdrIonRate(cellP, pdrNlink+ik) = real(-pdrLossSp(pdrLinkSpec(ik)))
+        ! D-402: what the network does to each linked element's X and X+
+        ! beyond the channels ionBalance computes itself, from the solver's
+        ! own state, for ionBalance to carry in its next solve of this cell.
+        ! Every reaction is evaluated as the right-hand side evaluates it -
+        ! k n1 n2, k n(X) for a photon or a cosmic ray, k n_H n(H) on grains,
+        ! the electrons as the cations' sum plus the ones the network does
+        ! not carry - and its NET effect on the two carriers is split into
+        !   X -> X+ and X+ -> X (conversions),
+        !   X or X+ lost to anything else, and made from anything else.
+        ! The gross sums over ALL reactions are checked against the
+        ! right-hand side's own totals (D-113), which is what shows that no
+        ! channel is missing or counted twice.
+        xe402 = pdrXeExtra
+        do ik = 1, pdrNspec
+           if (ik == pdrNelect) cycle
+           if (index(pdrSpecies(ik), '+') > 0) xe402 = xe402 + abunPre(ik)
+        end do
+        do iE402 = 1, pdrNlinkEl
+           if (pdrElZ(iE402) <= 0) cycle
+           ch402 = 0.d0; gr402 = 0.d0
+           abEl402 = 1.d0
+           if (pdrElZ(iE402) > 1) abEl402 = dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(iE402)))
+           if (.not.lgElementOn(pdrElZ(iE402)) .or. abEl402 <= 0.d0) then
+              grid%pdrIonRate(cellP, pdrNchan*(iE402-1)+1:pdrNchan*iE402) = 0.
+              cycle
+           end if
+           do iR402 = 1, pdrNreacMod
+              if (.not.rxIn402(iR402)) cycle
+              if (rxNr402(iR402,iE402,1) + rxNr402(iR402,iE402,2) &
+                   & + rxNp402(iR402,iE402,1) + rxNp402(iR402,iE402,2) == 0) cycle
+              ! the volume rate [cm^-3 s^-1], and the same with one X or one
+              ! X+ left out of the reactants [s^-1 per X, per X+]
+              rAll402 = pdrRate(iR402); rNo402 = pdrRate(iR402)
+              lgSkip402 = .false.
+              if (rxGrain402(iR402)) then
+                 ! formation on grains, first order in the atom: k n_H n(X)
+                 rAll402 = rAll402*nH*abunPre(rxSp402(iR402,1))*nH
+                 rNo402  = rNo402*nH
+              else
+                 do ik = 1, 3
+                    if (rxSp402(iR402,ik) <= 0) cycle
+                    if (rxSp402(iR402,ik) == pdrNelect) then
+                       xf402 = xe402*nH
+                    else
+                       xf402 = abunPre(rxSp402(iR402,ik))*nH
+                    end if
+                    rAll402 = rAll402*xf402
+                    do js402 = 1, 2
+                       ! leave out the first X (js 1) or X+ (js 2) met
+                       if (rxSp402(iR402,ik) == carr402(js402, iE402) .and. .not.lgSkip402(js402)) then
+                          lgSkip402(js402) = .true.
+                       else
+                          rNo402(js402) = rNo402(js402)*xf402
+                       end if
+                    end do
+                 end do
+              end if
+              ! gross, for the check: per X or X+ consumed; per atom made
+              do js402 = 1, 2
+                 gr402(2*js402-1) = gr402(2*js402-1) + dble(rxNr402(iR402,iE402,js402))*rNo402(js402)
+                 gr402(2*js402)   = gr402(2*js402)   + dble(rxNp402(iR402,iE402,js402))*rAll402/nH
+              end do
+              if (rxMoc402(iR402,iE402)) cycle
+              ! net, for ionBalance
+              dN402 = rxNp402(iR402,iE402,1) - rxNr402(iR402,iE402,1)
+              dI402 = rxNp402(iR402,iE402,2) - rxNr402(iR402,iE402,2)
+              if (dN402 < 0 .and. dI402 > 0) then
+                 ik = min(-dN402, dI402)
+                 ch402(1) = ch402(1) + dble(ik)*rNo402(1)
+                 dN402 = dN402 + ik; dI402 = dI402 - ik
+              else if (dN402 > 0 .and. dI402 < 0) then
+                 ik = min(dN402, -dI402)
+                 ch402(2) = ch402(2) + dble(ik)*rNo402(2)
+                 dN402 = dN402 - ik; dI402 = dI402 + ik
+              end if
+              if (dN402 < 0) ch402(3) = ch402(3) - dble(dN402)*rNo402(1)
+              if (dN402 > 0) ch402(4) = ch402(4) + dble(dN402)*rAll402/nH/abEl402
+              if (dI402 < 0) ch402(5) = ch402(5) - dble(dI402)*rNo402(2)
+              if (dI402 > 0) ch402(6) = ch402(6) + dble(dI402)*rAll402/nH/abEl402
+           end do
+           grid%pdrIonRate(cellP, pdrNchan*(iE402-1)+1:pdrNchan*iE402) = real(ch402)
+           ! the check against the right-hand side's own totals
+           do js402 = 1, 2
+              ik = carr402(js402, iE402)
+              if (-pdrLossSp(ik) > 0.d0 .and. abunPre(ik) > 1.d-25) clos402(iE402,2*js402-1) = &
+                   & max(clos402(iE402,2*js402-1), abs(gr402(2*js402-1)/(-pdrLossSp(ik)) - 1.d0))
+              if (pdrFormSp(ik) > 1.d-40) clos402(iE402,2*js402) = &
+                   & max(clos402(iE402,2*js402), abs(gr402(2*js402)/pdrFormSp(ik) - 1.d0))
+           end do
         end do
 
         ! D-113 verification, one representative cell, last iteration only.
@@ -4313,6 +4518,7 @@ module pdr_mod
         double precision    :: cnt(2,3), mx(2)
         double precision    :: cmp362(30,4), mx362(30)     ! D-362
         double precision    :: cnt402(pdrNlinkEl,2,3), mx402(pdrNlinkEl,2)   ! D-402
+        double precision    :: cl402(pdrNlinkEl,4)
         character(len=400)  :: line402
         character(len=14), parameter :: zlab(2) = (/ 'ionized cells:', 'other cells:  ' /)
         integer             :: iz, iq2
@@ -4362,6 +4568,19 @@ module pdr_mod
         end if
         ion402 = 0.d0
         ionMax402 = 0.d0
+        call mpi_allreduce(clos402, cl402, size(clos402), mpi_double_precision, &
+             & mpi_max, mpi_comm_world, ierr)
+        if (taskid == 0) then
+           write(line402, '(a,i3,a)') " ! [D402] iteration", iterMC, &
+                & "  channels summed / right-hand side - 1, largest (loss X, form X, loss X+, form X+):"
+           do iq2 = 1, pdrNlinkEl
+              if (pdrElZ(iq2) <= 0) cycle
+              write(line402(len_trim(line402)+1:), '(2x,a,4es9.1)') &
+                   & trim(adjustl(pdrSpecies(pdrElNeut(iq2)))), cl402(iq2,1:4)
+           end do
+           print '(a)', trim(line402)
+        end if
+        clos402 = 0.d0
         nUnset358 = 0
 
         ! D-362: the balance's interpolated cooling against a solve at T
