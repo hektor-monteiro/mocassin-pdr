@@ -585,7 +585,9 @@ the size of the effect in Cloudy, not in ours. It was hidden: on pn150k our
 crossing sits 0.026 mag past Cloudy's because a line width that shields our
 H2 less (+0.10 mag, h2-model) and this missing sink (about -0.04) nearly
 cancel. hiipdr has no chlorine in either code. Not fixed: it needs Cl, Cl+,
-HCl, HCl+ and H2Cl+ in a network that is generated code.
+HCl, HCl+ and H2Cl+ in a network that is generated code. Deferred by the
+user 2026-10-10 and logged as work to do: D-400 has the reactions already in
+the tree, the decisions to take first and how it would be measured.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance

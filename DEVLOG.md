@@ -399,6 +399,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-397 | **The shielding columns were sampled, not integrated: every ray march took the nearest cell once per step of a cell width, the first sample half a step from the target cell's centre - inside the cell the columns leave out - so the path between the target's face and the end of the first step, in the neighbour that shields it most, was never counted.** Against the exact path lengths on the same rays and the same n(H2), the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's H2 transition (N = 1e15-1e20; one cell in twenty below 0.03-0.35) and 0.64-0.82 through pn150k's; 3-5% low in molecular gas. New `rayCells` (exact length of a ray in each cell, mirrors at a symmetric octant's lower faces) now carries `computeAVradial` (A_V and the H2, C, CO columns), `traceDiffuseSites` and `traceLineRays`; the stepping helpers are gone. Four flavours rc 0. **Measured on h2-model, seeded pairs: hiipdr's H/H2 crossing moves 0.18 pc (0.029 mag) towards the star, the rate through the transition falls to 0.51-0.72 and n(H2) rises 1.2-2.0x; the H2 lines fall 3.8-5.9%.** A_V was sampled too: hiipdr's axis reads 0.03 mag deeper (the inner cavity's edge, D-277's known offset) and pn150k's 0.007 mag, so in A_V the crossings read as before (1.406, 0.393). pn150k measured with D-398 | Done | 2026-10-09 |
 | D-398 | **A scattering site's first leg runs to the site, not to the near face of the site's cell.** D-347 took the stored near-face column `pdrColX(P)` for N(star -> P) because it was at hand; the light scattered in a cell has also crossed that cell's own gas as far as the scattering point. The first leg now adds the site's cell's own column from its near face to its centre (the length is `rayCells`' first segment, kept per cell beside the snapshot); the target cell's own column stays out (D-088). Four flavours rc 0. **Measured on h2-model: hiipdr's crossing moves another 0.065 pc (0.010 mag) to A_V 1.396 against Cloudy's 1.280 (0.12 mag apart; of the published 0.31, 0.19 was the reference's, D-396); the rate falls to 0.85-0.91, the H2 lines 1.9-2.4%, CO rises 2-5%.** pn150k with D-397 and D-398 together: crossing 0.007 pc nearer the star (0.393 in A_V, as before, against Cloudy's 0.368), rate 0.33-0.87 and n(H2) 1.07-3.0x through the transition, H2 lines -3.2 to -4.4%, CO 2-1 +4.2%; fronts, Hbeta and T at fixed radius unchanged | Done | 2026-10-09 |
 | D-399 | **The H/H2 crossing gaps against Cloudy are differences of larger things, and one of the things is chemistry the REDUCED network lacks: chlorine.** On the h2-model branch (DEVLOG-H2 H-026) the level model was rerun with Cloudy's H2 line damping width (each line's own A; a diagnostic, not adopted): hiipdr's crossing moves A_V 1.396 -> 1.188 past Cloudy's 1.280, pn150k's 0.393 -> 0.294 past Cloudy's 0.368. Cloudy's saved rates on pn150k show Cl+ + H2 -> HCl+ + H and HCl+ + H2 -> H2Cl+ + H carry 25-50% of its H2 destruction from A_V 0.26 on; Cloudy rerun without chlorine crosses at 0.326 (-0.042 mag). If the pieces add: pn150k +0.026 = +0.099 (width) - 0.042 (chlorine) - 0.031 (rest); hiipdr, no chlorine in either model, +0.116 = +0.208 - 0.092. Registered as L-46; whether the network gets chlorine is the user's decision | Found, not fixed | 2026-10-10 |
+| D-400 | **Chlorine in the network: the user deferred it and asked for it to be logged as work to do (L-46, D-399). Not started; no code changed.** The work is five species (Cl, Cl+, HCl, HCl+, H2Cl+) in the one compiled network, 33 -> 38. Checked what the tree already holds: 3D-PDR's vendored `full` network (`dataPDR/species_full.d`, `rates_full.d`; never built, D-003) has them, and 24 of its 45 chlorine reactions close within REDUCED's species plus the five, both of Cloudy's sinks among them with Cloudy's own coefficients (1.0e-9 and 1.3e-9 cm3/s, UMIST in both codes). pn150k has Cl/H = 3.16e-7; hiipdr has Cl = 0 in both codes and is the control. Decisions to take at the start: Cl and Cl+ are owned once (MOCASSIN solves chlorine's stages already), Cl's photoionization takes the field in its own window as H2, CO and C I do since D-350 (Cl ionizes only at 912-956 A, among H2's own lines), REDUCED is extended in place and not joined by a second selectable network, and the right-hand side is generated C with no generator in the tree | Deferred | 2026-10-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34813,4 +34814,132 @@ message still says 0.032).
 
 ### Status
 
-Found, not fixed. The decision on chlorine is the user's.
+Found, not fixed. The decision on chlorine is the user's. (2026-10-10: the
+user deferred it and had it logged as work to do. D-400.)
+
+## D-400 - Chlorine in the network: deferred, logged as work to do (2026-10-10)
+
+D-399 ended on a decision for the user: whether the network gets chlorine.
+The answer, 2026-10-10: "Log this suggestion so we can work on it later."
+So it is not started and no code changed. This entry is what a later session
+needs to start it without re-deriving D-399, with what the tree already
+holds (checked today, read only).
+
+### The work
+
+Five species in the compiled network, 33 -> 38: Cl, Cl+, HCl, HCl+, H2Cl+.
+The reason is L-46: in Cloudy's pn150k model Cl+ + H2 -> HCl+ + H and
+HCl+ + H2 -> H2Cl+ + H carry 25-50% of the destruction of H2 from A_V 0.26
+on, and our network has neither.
+
+### What the tree already holds
+
+  - **The reactions.** 3D-PDR's `full` network is vendored and never built
+    (D-003): `dataPDR/species_full.d` (215 species), `dataPDR/rates_full.d`
+    (2,926 reactions), `source/pdr/odes_full.c`. It has ten chlorine species
+    and 45 chlorine reactions. 24 of the 45 close within REDUCED's 33
+    species plus the five:
+
+    | no. in `rates_full.d` | reaction | alpha | beta | gamma |
+    |---|---|---|---|---|
+    | 1216 | H2 + Cl+ -> HCl+ + H | 1.00e-9 | 0 | 0 |
+    | 1223 | H2 + HCl+ -> H2Cl+ + H | 1.30e-9 | 0 | 0 |
+    | 686 | H2Cl+ + e- -> Cl + H + H | 1.08e-7 | -0.85 | 0 |
+    | 687 | H2Cl+ + e- -> HCl + H | 1.00e-8 | -0.85 | 0 |
+    | 737 | HCl+ + e- -> Cl + H | 2.00e-7 | -0.50 | 0 |
+    | 2763 | Cl+ + e- -> Cl + photon | 4.14e-12 | -0.61 | 0 |
+    | 2618 | Cl + photon -> Cl+ + e- | 9.50e-11 | 0 | 4.0 |
+    | 2649 | HCl + photon -> Cl + H | 1.70e-9 | 0 | 1.8 |
+    | 2650 | HCl + photon -> HCl+ + e- | 1.90e-10 | 0 | 1.8 |
+    | 184 | Cl+ + H -> Cl + H+ | 6.20e-11 | 0.79 | 6920 |
+    | 185 | Cl + H+ -> Cl+ + H | 9.30e-11 | 0.73 | 232 |
+    | 210 | H+ + HCl -> HCl+ + H | 3.30e-9 | 1.00 | 0 |
+    | 450 | O2 + Cl+ -> Cl + O2+ | 4.60e-10 | 0 | 0 |
+    | 1329 | H3+ + Cl -> HCl+ + H2 | 1.00e-9 | 0 | 0 |
+    | 1342 | H3+ + HCl -> H2Cl+ + H2 | 3.80e-9 | -0.50 | 0 |
+    | 1573 | He+ + HCl -> Cl+ + He + H | 3.90e-9 | -0.50 | 0 |
+    | 1093 | CH5+ + HCl -> H2Cl+ + CH4 | 2.06e-9 | -0.50 | 0 |
+    | 1134 | CO + H2Cl+ -> HCl + HCO+ | 7.80e-10 | 0 | 0 |
+    | 1279 | H2O + H2Cl+ -> HCl + H3O+ | 2.00e-9 | -0.50 | 0 |
+    | 2343 | Cl + H2 -> HCl + H | 5.27e-12 | 1.40 | 1760 |
+    | 2408 | HCl + H -> Cl + H2 | 2.43e-12 | 1.44 | 1240 |
+    | 492 | Cl + cosmic ray -> Cl+ + e- | 3.90e-17 | 0 | 0 |
+    | 539 | Cl + cosmic-ray photon -> Cl+ + e- | 1.30e-17 | 0 | 61 |
+    | 559 | HCl + cosmic-ray photon -> Cl + H | 1.30e-17 | 0 | 1370 |
+
+    Of the other 21, 18 involve CCl, CCl+, ClO, ClO+ or H2CCl+ and three
+    are X-ray reactions.
+  - **The two sinks' coefficients are not a difference between the codes.**
+    Cloudy's `data/mole_co_base.dat` has `H2,Cl+=>HCl+,H` at 1.0e-9 and
+    `H2,HCl+=>H2Cl+,H` at 1.3e-9 cm3/s, both marked UMIST: the numbers of
+    reactions 1216 and 1223.
+  - **The abundance.** pn150k's `abunGASS_pn150k.in` has Cl/H = 3.16e-7, and
+    MOCASSIN solves chlorine's ionization stages there already. hiipdr's
+    `abunV1.in` has Cl = 0, and its Cloudy model has chlorine off.
+  - **The electron sum.** `read_species.F90` already adds Cl+ to the
+    electrons when the species is present (`NCLx`).
+  - **The right-hand side is generated C and the generator is not in the
+    tree.** `odes_reduced.c` came from upstream; it was edited by hand once
+    (D-395, one reaction, three terms) and is post-processed by
+    `tools/patch_odes_capture.py` (D-113). The preprocessor has a
+    `MYNETWORK` slot (`species_mynetwork.d`, 58 species, `odes_mynetwork.c`)
+    that is never built.
+
+### Decisions to take when it starts
+
+  1. **One x(Cl+).** MOCASSIN has chlorine's stages; the network would hold
+     Cl and Cl+ too. Chlorine takes whatever C, O and Mg do today (D-251:
+     MOCASSIN owns the abundances), with no rule of its own.
+  2. **Chlorine's photoionization needs its own window of the field.**
+     Reactions 2618, 2649 and 2650 are fits to a diffuse-ISM field. Since
+     D-350 (3D build) every photo-rate is its alpha times this model's local
+     field with no A_V factor, and H2, HD, CO and C I take the field in
+     their own windows rather than the band average. Cl belongs with those:
+     it ionizes at 12.97 eV, so only between 912 and 956 A, among H2's Lyman
+     and Werner lines and H I's Lyman lines. On the band average it would be
+     ionized by photons that cannot ionize it. In Cloudy's model that band
+     keeps chlorine 12% ionized at A_V 0.30 and 1-3% at 0.38-0.46, and that
+     is what feeds the sink. The 1D flavour still has the prescription
+     (D-350 left it).
+  3. **Extend REDUCED in place** (my recommendation, not decided). A second
+     network chosen at build time would be a switch, and the `pdrNetwork`
+     keyword can only validate.
+  4. **Everything sized by 33**: the warm flavour's restart state, the
+     outputs, the tools. To be found at the start, not assumed.
+  5. **How the generated file is produced**: by hand (five species, 24
+     reactions, against D-395's one), or with upstream's generator brought
+     in. Not looked at.
+
+### How it would be measured
+
+  - pn150k 41^3, a seeded pair (seed 1001, 14 ranks, the same iteration
+    count), with and without. Against Cloudy's model with chlorine
+    (`runs/d396-cloudy-pn`): the crossing, n(H2) through the transition, the
+    share of each H2 sink by A_V (`tools/h026_cloudy_sinks.py` on h2-model
+    gives Cloudy's), and Cl+/Cl by A_V (Cloudy: 99% at A_V 0.20, 38% at
+    0.26, 12% at 0.30).
+  - hiipdr 31^3 as the control: Cl = 0 in both codes, so nothing there may
+    move beyond round-off.
+  - It is a production fix: made here and merged into h2-model (D-388).
+
+### What to expect, which is not a target
+
+Cloudy without chlorine crosses 0.042 mag nearer the star, with n(H2) at
+A_V 0.30 1.6x and its 28.2 um line 1.43x. So chlorine in ours should move
+our crossing deeper, from A_V 0.393 further from Cloudy's 0.368, and lower
+the pure-rotational lines. That is away from agreement. The size in ours is
+not Cloudy's and is not known.
+
+### Not yet known
+
+  - What the five species do in our network (D-399's first open item).
+  - Whether CCl, ClO and their ions matter. Cloudy's saved rates could say;
+    not looked at.
+  - What the window for Cl needs in the code (a cross-section, and H2's and
+    H I's lines across 912-956 A), and whether HCl's two photo-rates can
+    stay on the band average.
+  - What else in the code assumes 33 species.
+
+### Status
+
+Deferred by the user, 2026-10-10. Logged; not started.
