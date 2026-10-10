@@ -3988,10 +3988,27 @@ nothing measurable more.
     `lineFluxMol.out`. Whether the floor stays at 10 K is the user's
     decision (D-402, L-30).
 
+### Pages (2026-10-10)
+
+"H2 Lines in MOCASSIN" is version 10
+(https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8): a new first section
+with the tables above for both nebulae, the 40 lines by spin before and
+after, and four figures; the summary's "Now" numbers are the new runs'
+(pn150k ortho 0.91-1.11 and para 1.88-2.62 of Cloudy's, hiipdr 0.74-0.77
+and 1.05-1.10; 1-0 S(1) 1.11 and 0.76). The sections after it are as they
+were measured on H-026's runs and say so. The two comparison pages were
+rebuilt on the same runs (D-402, "Pages"). Builders in the session's
+scratchpad, `d402pages/build_h2v10.py`.
+
+D-402 was corrected the same day: its line comparison had read only the
+recombination lines. Nothing in this entry depended on it (the H2 lines
+are read from `lineFluxH2.out`).
+
 ### Not yet known
 
   - Why pn150k's ionized-zone H2 is 7-8% higher.
-  - The three published pages still show H-026's runs.
+  - What pn150k's 0-0 S(0) and S(1) would be with the charge-transfer
+    fits made for ionized gas in both solvers (D-402, L-48): not run.
 
 ### Status
 
