@@ -35667,8 +35667,9 @@ noise; supported in the sampled cells, not shown cell by cell:**
 
   - The estimator is spiky. The ionization rate the solve was given for H
     at iteration 18 is the cosmic rays' 1.975e-16 s^-1 to four digits in
-    five of the seven sampled cells past A_V 0.25 (no ionizing packet
-    crossed them that iteration), and 4.5e-15 and 3.5e-14 in the other two.
+    all five sampled cells past A_V 0.25 (no ionizing packet crossed them
+    that iteration), and 4.5e-15 and 3.5e-14 in the two at A_V 0.23 and
+    0.18.
   - A_V 0.226, a cell with photons this iteration: MOCASSIN's H+ balances
     recombination against that direct rate alone (ratio 1.00). The solver's
     has, besides, He+ + H -> He + H+ at 0.65 of the direct rate (2.6% of
