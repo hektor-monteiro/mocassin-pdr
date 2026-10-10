@@ -35,6 +35,7 @@ DEVLOG.md and arrives here by merge.
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: ortho 0.82-0.84, para 1.13-1.19 (corrected the same day: 0.37 and 0.50 were against an emergent line list, D-396) | Done | 2026-10-05 |
 | H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. **Measured (seeded pairs): hiipdr's crossing 10.028 -> 9.847 (D-397) -> 9.781 pc (D-398), A_V 1.396 against Cloudy's 1.280; pn150k's 0.3706 -> 0.3637 pc, A_V 0.393 against 0.368. Every H2 line falls, 6-8% on hiipdr and 3-4% on pn150k; the ortho/para split against Cloudy does not move (hiipdr ortho 0.75-0.78, para 1.05-1.10; pn150k 0.91-1.11, 1.88-2.62).** The site walk costs 1.4-1.6x, 4-5% of the level model | Done | 2026-10-09 |
 | H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.3 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. **pn150k, seeded pair at 18 iterations (2026-10-10): the crossing moves from A_V 0.393 to 0.294 (0.364 to 0.275 pc, six cells), past Cloudy's 0.368: +0.099 from the width against a published gap of 0.026.** Its ortho lines come to 0.45-0.69 and its para lines to 0.70-0.93 of Cloudy's (0.91-1.11 and 1.88-2.62); a factor 1.3-1.6 between the spins stays, the colder shielded gas (H-009). The PDR is 1.5-3.2 K warmer and still 8-12 K below Cloudy's; CO 2-1 +42%. **Cloudy's saved rates show its chlorine (Cl+ + H2, HCl+ + H2) is 25-50% of its H2 sink from A_V 0.26 on; Cloudy rerun without chlorine (`runs/h026-cloudy-pn-noCl`) crosses at 0.326. If the pieces add, pn150k's +0.026 = +0.099 (width) - 0.042 (chlorine, which the REDUCED network lacks) - 0.031 (the rest); hiipdr, with no chlorine in either model, +0.116 = +0.208 - 0.092.** The model keeps its width; whether to add chlorine to the network is open | Done | 2026-10-10 |
+| H-027 | **Production's D-402 (one x(X+): the same neutral/first-ion balance in both solvers) merged; what it does to this branch's H2 results.** Seeded pairs with H-026's published runs, level model in the loop (stage B). The H/H2 crossing does not move: hiipdr A_V 1.3961 -> 1.3962, pn150k 0.3931 -> 0.3927. hiipdr lines / Hbeta: 1-0 S(1) 7.032e-4 -> 6.988e-4 (-0.6%), 2-1 S(1) -0.6%, 0-0 S(0), S(1), S(2) -1.8, -0.8, +0.2%. pn150k: 1-0 S(1) 9.449e-4 -> 9.383e-4 (-0.7%), 2-1 S(1) -0.7%, 0-0 S(2) -0.5%, 0-0 S(1) -2.4%, S(0) -4.0% - the transition zone 3-6% colder, which traces to one charge-transfer coefficient (He+ + H; D-402, L-48). Ionized-zone H2 unchanged on hiipdr, +7-8% on pn150k (17-19 times Cloudy's; not attributed). No change to the level model; its cost per call is the day's (x1.20-1.28 on untouched code). hiipdr's outer shell now reaches the 10 K floor and is left out of the atomic and CO lines (not of `lineFluxH2.out`'s H2 lines, which move 0.1% between the two floors) | Done | 2026-10-10 |
 
 ---
 
@@ -3927,3 +3928,71 @@ message still says 0.032).
 
 Done (2026-10-10). The patch is `tools/patches/h008_cloudy_width.patch`; the
 code is unchanged. Open, for the user: whether the network gets chlorine.
+
+## H-027 - Production's D-402 merged: what one x(X+) does to the H2 results (2026-10-10)
+
+D-402 (`DEVLOG.md`) made the neutral/first-ion balance of H, He, C, O and Mg
+the same one in MOCASSIN's `ionBalance` and in the chemistry solve. It is a
+production fix, made there and merged here (0c0d5c7, 9542ac6, 3bc4983,
+03d80d3, 82e7769, ff87858; one conflict, the allocations in
+`iteration_mod.f90`, both sides kept). All four flavours, `h2Test` and
+`h2Slab` built at 82e7769. The full runs were made on this branch, with the
+level model in the loop, as seeded pairs with H-026's published runs
+(`runs/h026-site-hii31`, 15 iterations; `runs/h026-site-pn41`, 18).
+
+### Measured
+
+| | baseline | D-402 | Cloudy |
+|---|---|---|---|
+| hiipdr H/H2 crossing, A_V | 1.3961 | 1.3962 | 1.2799 |
+| hiipdr 1-0 S(1) / Hbeta | 7.032e-4 | 6.988e-4 (-0.6%) | 9.235e-4 |
+| hiipdr 2-1 S(1) | 3.727e-4 | -0.6% | 4.934e-4 |
+| hiipdr 0-0 S(0), S(1), S(2) | | -1.8, -0.8, +0.2% | |
+| pn150k H/H2 crossing, A_V | 0.3931 | 0.3927 | 0.3675 |
+| pn150k 1-0 S(1) / Hbeta | 9.449e-4 | 9.383e-4 (-0.7%) | 8.479e-4 |
+| pn150k 2-1 S(1) | 4.751e-4 | -0.7% | 4.293e-4 |
+| pn150k 0-0 S(0), S(1), S(2) | | -4.0, -2.4, -0.5% | |
+
+hiipdr's figures are the run with `teFloor 2.725` (`runs/d402-c-hii31-cmb`);
+with the default 10 K floor (`runs/d402-c-hii31`) the H2 lines differ by
+0.05-0.17%. H2 itself is unchanged to 0.5% through hiipdr's PDR and to 1%
+past pn150k's transition; the thresholds x(H2) = 1e-4 ... 0.9 on pn150k move
+by at most 0.0009 pc (6% of a cell). The pumping medians against Cloudy's
+are unchanged (pn150k v=0 ortho 0.912 -> 0.910, para 1.883 -> 1.882).
+
+pn150k's two lowest rotational lines lose 2.4 and 4.0% because the
+transition zone is 3-6% colder (4,805 -> 4,642 K at r 0.145-0.16 pc, 519 ->
+485, 173 -> 167): more neutral helium at the front absorbs more of the hard
+photons, and that is `ionBalance` now having He+ + H -> He + H+ at the
+network's coefficient, 1.7-3.1 times Kingdon & Ferland's at 5,000-12,000 K
+(D-402's own section; `doc/pdr-status.md` L-48 - which set should be the one
+in hot gas is open).
+
+Ionized-zone H2: unchanged on hiipdr; +7-8% at 0.03-0.06 pc on pn150k (15-17
+-> 17-19 times Cloudy's, L-43), not attributed.
+
+### The level model's cost
+
+Untouched code. Per call 111.7 s against 92.8 on hiipdr (13 calls) and 412 s
+against 322 on pn150k (16): the 2026-10-05 runs against this afternoon's,
+x1.20 and x1.28. That ratio is the machine's (memory: timings vary 1.4x
+between sessions) and was used in D-402 to show the rest of the run costs
+nothing measurable more.
+
+### What it changes for this branch's open items
+
+  - Chlorine (H-026, D-400): the user's rule is one x(Cl+). An element added
+    to the link table now gets that by construction.
+  - hiipdr's outer shell (A_V 2.7-3.0) reaches the default 10 K floor and is
+    flagged; flagged cells are left out of `lineFlux.out` and
+    `lineFluxMol.out`. Whether the floor stays at 10 K is the user's
+    decision (D-402, L-30).
+
+### Not yet known
+
+  - Why pn150k's ionized-zone H2 is 7-8% higher.
+  - The three published pages still show H-026's runs.
+
+### Status
+
+Done (2026-10-10). No code of this branch changed.
