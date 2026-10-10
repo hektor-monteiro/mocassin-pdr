@@ -401,7 +401,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-399 | **The H/H2 crossing gaps against Cloudy are differences of larger things, and one of the things is chemistry the REDUCED network lacks: chlorine.** On the h2-model branch (DEVLOG-H2 H-026) the level model was rerun with Cloudy's H2 line damping width (each line's own A; a diagnostic, not adopted): hiipdr's crossing moves A_V 1.396 -> 1.188 past Cloudy's 1.280, pn150k's 0.393 -> 0.294 past Cloudy's 0.368. Cloudy's saved rates on pn150k show Cl+ + H2 -> HCl+ + H and HCl+ + H2 -> H2Cl+ + H carry 25-50% of its H2 destruction from A_V 0.26 on; Cloudy rerun without chlorine crosses at 0.326 (-0.042 mag). If the pieces add: pn150k +0.026 = +0.099 (width) - 0.042 (chlorine) - 0.031 (rest); hiipdr, no chlorine in either model, +0.116 = +0.208 - 0.092. Registered as L-46; whether the network gets chlorine is the user's decision | Found, not fixed | 2026-10-10 |
 | D-400 | **Chlorine in the network: the user deferred it and asked for it to be logged as work to do (L-46, D-399). Not started; no code changed.** The work is five species (Cl, Cl+, HCl, HCl+, H2Cl+) in the one compiled network, 33 -> 38. Checked what the tree already holds: 3D-PDR's vendored `full` network (`dataPDR/species_full.d`, `rates_full.d`; never built, D-003) has them, and 24 of its 45 chlorine reactions close within REDUCED's species plus the five, both of Cloudy's sinks among them with Cloudy's own coefficients (1.0e-9 and 1.3e-9 cm3/s, UMIST in both codes). pn150k has Cl/H = 3.16e-7; hiipdr has Cl = 0 in both codes and is the control. Decisions to take at the start: Cl and Cl+ are owned once (MOCASSIN solves chlorine's stages already), Cl's photoionization takes the field in its own window as H2, CO and C I do since D-350 (Cl ionizes only at 912-956 A, among H2's own lines), REDUCED is extended in place and not joined by a second selectable network, and the right-hand side is generated C with no generator in the tree | Deferred | 2026-10-10 |
 | D-401 | **Audit of the chemistry coupling, and whether 3D-PDR's full network can be used. The user's rule for it: one x(Cl+).** Mechanically yes: with the Makefile's two network names changed and the D-113 capture applied, the vendored `full` network (215 species, 2,926 reactions, 13 elements) builds against the present code and solves a one-cell box at pn150k's own conditions at every depth tried. One solve costs 57-161 ms cold and 6-10 ms warm against the reduced network's 2.0-3.9 and 0.08-0.15 ms (25-48x and 40-100x): 19-300 s per iteration on pn150k at 14 ranks. **Three things stand in the way, none of them cost.** (1) The coupling does not deliver one x(X+) for an ion a molecule consumes: `ionBalance` has no molecular channels since D-193 (L-34), every run log shows it for O+ (78.5% of pn150k's cells more than 2x from the solver's own value), and MOCASSIN's balance holds chlorine 99.8% ionized at A_V 0.30 where Cloudy has 11.9% - the Cl+ + H2 sink is 1e4 times recombination there. (2) The full network is not the reduced one plus species: 9 of the reduced network's 332 reactions are absent from it (D-395's among them) and 148 have other coefficients; it carries its own two-level H2 (H2*: -11% H2 in the box at A_V 0.30), eight more elements each needing the link the rule demands, and 131 more photo-rates on a diffuse-ISM shape. (3) The element list is written by hand in six places and an unlinked element is seeded zero. In the box, with H2* off, the full network lowers 2n(H2)/nH by 2.5-3.5%, chlorine carrying 3-9% of the H2 loss against Cloudy's 25-50%: UMIST's Cl photoionization on our band-averaged field is 7-10x below the rate Cloudy's Cl+ implies (not decomposed; the spectrum's shape is 1.5x). Recommended order: L-34's decision, the links from the species file, chlorine in a 38-species network from a generator of our own, then the full network as a measured A/B | Audited, nothing changed | 2026-10-10 |
-| D-402 | **One x(X+): each network ion is its own ionization stage, and both solvers carry every channel of the neutral/first-ion balance, each computed once.** The user, on D-401's finding that the solver's ion fractions and MOCASSIN's differ: "This seems like a major self consistency problem we should solve before anything". Measured first, in the published runs' sampled cells, for all five linked elements: two defects under one symptom. In ionized gas one carrier stood for every ionized stage (L-32): solver X+/X down to 4e-6 of MOCASSIN's. In the PDR `ionBalance` lacked the network's own channels (L-34): H+ 1.1-3.3x, He+ 0.3-0.7x, O+ 0.01-2.7x, Mg+ to 579x, C within 4% until hiipdr's C+/C transition (10-13%). Step 1 (5681869): X+ is stage 2; `elemAvail` counted from the molecules' own atoms; the solve gets the electrons the network has no species for (`xe_extra`, vendored). Step 2 (5609d63): charge transfer with H from the network's reactions in both solvers, hydrogen taking the other side; every other reaction classified by its net effect on X and X+ and handed to `ionBalance`'s rates and matrix, the sum still `elemAvail`. The classified channels reproduce the right-hand side's own totals to 4e-16. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): cells more than 2x apart fall to 0-0.3% (Mg 6.6%), ionized cells exact. The user asked whether one solver should do everything: not now - `ionBalance` is re-solved at every trial temperature and needs the equation, not the answer; a joint solver is the next step if the one-iteration lag costs convergence. Full seeded pairs on both models running | In progress | 2026-10-10 |
+| D-402 | **One x(X+): each network ion is its own ionization stage, and both solvers carry every channel of the neutral/first-ion balance, each computed once.** The user, on D-401's finding that the solver's ion fractions and MOCASSIN's differ: "This seems like a major self consistency problem we should solve before anything". Measured first, in the published runs' sampled cells, for all five linked elements: two defects under one symptom. In ionized gas one carrier stood for every ionized stage (L-32): solver X+/X down to 4e-6 of MOCASSIN's. In the PDR `ionBalance` lacked the network's own channels (L-34): H+ 1.1-3.3x, He+ 0.3-0.7x, O+ 0.01-2.7x, Mg+ to 579x, C within 4% until hiipdr's C+/C transition (10-13%). Step 1 (5681869): X+ is stage 2; `elemAvail` counted from the molecules' own atoms; the solve gets the electrons the network has no species for (`xe_extra`, vendored). Step 2 (5609d63): charge transfer with H from the network's reactions in both solvers, hydrogen taking the other side; every other reaction classified by its net effect on X and X+ and handed to `ionBalance`'s rates and matrix, the sum still `elemAvail`. The classified channels reproduce the right-hand side's own totals to 4e-16. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): cells more than 2x apart fall to 0-0.3% (Mg 6.6%), ionized cells exact. The user asked whether one solver should do everything: not now - `ionBalance` is re-solved at every trial temperature and needs the equation, not the answer; a joint solver is the next step if the one-iteration lag costs convergence. The first full run then showed the cell update no longer converging in 14% of hiipdr's cells: hydrogen had been made to follow the metals' charge exchange pass by pass. Corrected (21ac639): hydrogen carries its net only. hiipdr, seeded pair: ion balance reached everywhere again, Hbeta +0.03%, crossing +0.0002 mag, H2 lines within 1.7%; cells more than 2x apart H 0.5, He 0, C 0.5, O 0.6, Mg 9.2% (were 80-86% for H and O), the rest being cells that still swing between iterations; H+, He+, O+, Mg+ move to within 0.6-4.5x of Cloudy's from 0.2-490x; ionized-zone CO x0.0045. The chemistry's deep heating falls 10% (it had been computed with He+ at 1.9-3.3x the network's own) and hiipdr's outer shell reaches the 10 K floor: 1,546 cells flagged, [C I] and CO read 23-37% low for it. pn150k and the floor run to come | In progress | 2026-10-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -35379,7 +35379,7 @@ every rank but the owner. It showed at once in the report: O and Mg alone
 did not improve, by exactly the missing share (0.52 where O+ + H2 was half
 the loss). Fixed before any full run.
 
-### Predictions, written before the full runs were read (11:50)
+### Predictions, written before the full runs were read (11:46)
 
 Seeded pairs with `h026-site-hii31` and `h026-site-pn41`, on h2-model.
 
@@ -35395,15 +35395,159 @@ Seeded pairs with `h026-site-hii31` and `h026-site-pn41`, on h2-model.
   5. hiipdr: [C II] 158 down 0-3%, [C I] up 0-5%, CO lines within 5%;
      pn150k PDR lines within 1%.
 
+### The first full run found a flaw in step 2 (`runs/d402-b-hii31`, h2-model)
+
+hiipdr 31^3, 15 iterations, seeded, against `h026-site-hii31`. The two
+solvers agreed as in the short test, and the cell update had stopped
+converging - which the short tests' own summaries also showed and I had not
+read:
+
+| | baseline | 5609d63 |
+|---|---|---|
+| ion balance not reached, last iteration | 0% | 4% (from iteration 1: 8, 1, 2, 2, 3 ...) |
+| Te balance not reached, last iteration | 0% | 10% |
+| cells flagged and left out of the line output | 4 | 2,170 |
+| Hbeta | 9.1657e36 | -0.745% |
+| CO 1-0, 2-1, 3-2 | | x0.68, 0.67, 0.64 |
+
+Flagged cells by A_V: 0.45-1.5, 620 (16-55% of the cells there); 2.7-3.0,
+1,547. Two causes.
+
+  - **Mine: hydrogen followed oxygen's last value.** 5609d63 put the
+    metals' charge transfer into hydrogen's balance with the metals'
+    densities of the previous pass of `updateCell`. In the atomic PDR the
+    exchange O+ + H <-> O + H+ is 60-97% of both the formation and the loss
+    of H+, so each species tracked the other's last value and the pair
+    cycled with nothing to damp it; the failures began at iteration 1,
+    before any chemistry. The exchange nearly cancels for hydrogen. **Fixed
+    in 21ac639**: hydrogen has no explicit charge transfer in `ionBalance`;
+    the solve hands it the NET of the two directions with the metals, as a
+    source of H+ or a specific sink. The metals keep the network's
+    coefficients with the call's own H and H+, one way, as `chex` was.
+  - **Not mine: the outer shell reached `teFloor`.** See below.
+
+### hiipdr with the corrected step 2 (`runs/d402-c-hii31`, 21ac639)
+
+Run time 59:41 against 44:38 on 2026-10-05 (not a same-night pair; the level
+model's 13 calls 1,447 s against 1,207).
+
+**The cell update converges as before**: ion balance not reached 0% at every
+iteration; Te as the baseline through iteration 6 (0, 55, 54, 42, 90, 81%),
+then 10% where the baseline has 0 (the floor, below). Hbeta +0.025%.
+
+**The two solvers** (`[D402]`, iteration 15; the right-hand side's totals
+reproduced to 5.6e-16):
+
+| | baseline (`[D358]`) | ionized cells (142), >10% | other cells (15,062), >10% | >2x | largest (dex) |
+|---|---|---|---|---|---|
+| H | 79.6% more than 2x apart | 0 | 28.9% | 0.5% | 0.85 |
+| He | - | 0 | 13.4% | 0 | 0.56 |
+| C | - | 0 | 1.5% | 0.5% | 0.94 |
+| O | 85.9% more than 2x apart | 0 | 20.9% | 0.6% | 2.03 |
+| Mg | - | 0 | 12.9% | 9.2% | 1.05 |
+
+The fractions stop falling at iteration 7 and hold to 15. They are the
+cells that have not settled, seen through the one iteration by which
+`ionBalance` trails the solve: in the baseline H2 moves by more than 1% in
+35% of the cells and CO in 97% at every iteration to the last (`[D354]`,
+L-26), and the new run's `[D354]` lines are the same to a point. The probe
+(`[D402p]`) shows it cell by cell: at the C+/C transition the term handed
+for Mg (charge transfer from C+) alternates between 4e-12 and 2.3e-11 s^-1
+from one iteration to the next as x_e flips between 6e-5 and 2.3e-4; deep
+hydrogen cells hold an atomic fraction of 0.31 in MOCASSIN's stages (last
+iteration's molecules) where the solve has just left 0.018.
+
+**MOCASSIN's own ions in the PDR, n in cm^-3, baseline -> new (Cloudy):**
+
+| r (pc), A_V | H+ | He+ | O+ | Mg+ |
+|---|---|---|---|---|
+| 6.0, 0.79 | 5.9e-3 -> 6.2e-3 (7.0e-3) | 6.6e-4 -> 3.4e-4 (3.9e-4) | 1.8e-8 -> 3.2e-8 (2.1e-8) | 2.70e-4 (2.70e-4) |
+| 10.5, 1.51 | 1.4e-3 -> 2.3e-3 (2.2e-3) | 6.1e-4 -> 2.0e-4 (1.2e-4) | 2.4e-9 -> 6.6e-10 (1.3e-9) | 2.69e-4 (2.69e-4) |
+| 14.0, 2.07 | 1.4e-4 -> 4.8e-4 (8.0e-4) | 5.2e-4 -> 2.1e-4 (1.1e-4) | 4.9e-9 -> 5.3e-11 (2.7e-11) | 2.58 -> 2.65e-4 (2.68e-4) |
+| 18.0, 2.71 | 2.8e-4 -> 8.5e-4 (6.7e-4) | 1.3e-3 -> 4.1e-4 (1.0e-4) | 5.6e-9 -> 5.1e-11 (1.2e-11) | 1.93 -> 2.59e-4 (2.65e-4) |
+
+H+ was 0.18-0.61 of Cloudy's past A_V 1.5 and is 0.60-1.37; He+ was 1.7-13
+times Cloudy's and is 0.9-3.9; O+ was 180-490 times Cloudy's deep and is
+2-4.5; Mg+ was 0.73 at the edge and is 0.98. O+ in the atomic PDR rises
+x1.5-1.7 (the network's pair in place of the statistical reverse rate) and
+is 1.2-1.5 times Cloudy's where our gas is 3-5 K warmer; exp(-227/T) is
+1.6 between 45.5 and 50.3 K.
+
+**Ionized zone (r 2 pc):** CO 1.8e-21 -> 8.1e-24 (Cloudy 1.6e-24: from
+1100 times to 5), CH x0.031 (5.5 times Cloudy's to 0.17), OH x0.086 (0.15
+to 0.013 of Cloudy's), HCO+ 1.9e-28 -> 0. H2 and H3+ unchanged.
+
+**Molecules in the PDR:** H2 unchanged to 0.5%; CO -3 to -6% deep, OH and
+H2O -4 to -5%, HCO+ -6 to -13%, H3+ -3 to -6%.
+
+**Structure and lines:**
+
+| | baseline | new | Cloudy |
+|---|---|---|---|
+| H/H2 crossing, A_V | 1.3961 | 1.3963 | 1.2799 |
+| H+ front (pc) | 3.8312 | 3.8315 | 3.7644 |
+| C+ = C radius (pc) | 15.251 | 15.229 | |
+| H2 1-0 S(1) / Hbeta | 7.032e-4 | 6.996e-4 (-0.5%) | 9.235e-4 |
+| H2 0-0 S(0), S(1), S(2) | | -1.7%, -0.6%, +0.2% | |
+| [C II] 158 | 0.15381 | -0.1% | |
+| [O I] 63 | 0.05171 | +2.0% | |
+| [C I] 609, 370 | | x0.77, x0.75 | |
+| CO 1-0, 2-1, 3-2 | | x0.67, x0.67, x0.63 | |
+
+The [C I] and CO figures are not the gas: they are the output leaving out
+the flagged outer shell (next).
+
+### The outer shell reaches the 10 K floor
+
+L-30 had `teFloor` as a clamp that did not bind ("the coldest hiipdr cell is
+10.9 K"). It binds now: 1,546 cells at A_V 2.7-3.0 are flagged (798 at
+10.000 K, the rest stopped between brackets just above it), the residual at
+the floor is net cooling (H - C = -4e-29 against +7e-31), and `outputGas`
+leaves flagged cells out of every line - which is where neutral carbon and
+CO are.
+
+The gas is colder because its heating fell: the chemistry's heating (all but
+photoelectric) is 10% lower from r 16 pc out (8.1e-28 -> 7.3e-28), T 3-5%
+lower (12.98 -> 12.50 K at 16 pc, 10.85 -> 10.36 at 18). **That heating had
+been overstated by the inconsistency.** `chemical_heating` counts twelve
+exothermic reactions, three of them He+ + H2 and He+ + CO, and evaluates
+them on the abundances after the re-imposition. In the baseline's sampled
+cells He+ was re-imposed at 1.9-3.3 times the value the network - which has
+those reactions as He+'s sinks - held, and the chemical heating so computed
+was 1.13-1.49 times what its own state gives (1.35 in the two deepest).
+
+Whether the floor should stand is a separate decision and is not taken
+here. `runs/d402-c-hii31-cmb` repeats the run with `teFloor 2.725` (the
+keyword exists) to show where those cells settle and what the lines are
+with every cell counted.
+
+### The predictions against hiipdr
+
+  1. `[D402]`: ionized cells 0% - held. Other cells more than 2x apart
+     under 2% - held for H, He, C, O (0-0.6%); Mg 9.2% against "under 10%".
+     "Falling through the run" - no: they plateau from iteration 7, at the
+     level the unsettled cells set.
+  2. Fronts and Hbeta within 0.2% - held (+0.025%, front +0.0003 pc).
+  3. Crossing within 0.005 mag - held (+0.0002). H2 lines within 2% -
+     held (-1.7 to +0.2%).
+  4. Ionized-zone molecules fall by orders - held for CO (x0.0045), CH,
+     HCO+; that is hiipdr, pn150k to come.
+  5. [C II] 158 down 0-3% - held (-0.1%). [C I] up 0-5%, CO within 5% -
+     **refuted**: x0.75-0.77 and x0.63-0.67, the flagged shell. I had not
+     foreseen that the consistent ions would lower the deep heating by 10%,
+     nor that the floor was 0.3 K away.
+
 ### Not yet known
 
-  - The full runs.
-  - Whether the remaining cells apart at convergence are the one-iteration
-    lag or the per-cell Monte Carlo noise of the deep field (L-26).
+  - pn150k (running), hiipdr with the floor at the CMB, and step 1 alone.
+  - The lag itself: whether evaluating the reactions among linked species
+    in `ionBalance` with its own densities (as the charge transfer with H
+    now is) removes Mg's 9%, and whether the rest is worth a second cell
+    update after the chemistry or the joint solver.
   - The 1D flavour compiles and is not run (as before).
   - Elements the network does not carry (N, S, Si) still have no chemistry;
     their ions' electrons now reach the solve.
 
 ### Status
 
-In progress: the three full runs.
+In progress: hiipdr measured with the corrected step 2; three runs to come.
