@@ -3645,3 +3645,14 @@ dissociation 0.60): fewer atoms are cycled.
   - The transition is two cells from Cloudy's with one width and one cell
     with the other: the resolution series (H-007: the profile was not
     converged at 41^3) has not been repeated in stage B.
+
+### Pages (2026-10-10)
+
+hiipdr Against Cloudy, version 24 (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx):
+a new first section, "With Cloudy's H2 line width, the transition moves past
+Cloudy's", with the pair's transition, rate, line emissivities and the 40
+lines by spin as figures, and the tables above. Version 23's "the second is
+not yet measured on this model" and its "0.12 mag deeper" bullet now say
+what was measured. The page's own numbers are unchanged: its run is the
+model's. The pn150k and H2 pages wait for the pn150k run.
+
