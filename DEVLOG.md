@@ -34466,7 +34466,9 @@ In each run's own A_V:
   - **C+ = C did not move in radius**: the prediction allowed that it might.
 
 The run took 49:12 against 40:55, with two Cloudy models sharing the machine
-for half of it; the level model's calls add up to 1,251 s against 1,095 s.
+for half of it; the level model's calls add up to 1,258 s against 1,102 s
+(corrected 2026-10-10: 1,251 and 1,095 had each call's fraction of a second
+dropped).
 
 pn150k is measured with D-398 (see there): one run with both changes. Its
 columns are exact in all 35,377 cells, its A_V axis moved +0.007 mag (the
@@ -34660,10 +34662,11 @@ In each run's own A_V:
 The largest change over the run's last three iterations is 1.49% (He2+),
 against 1.48% in the D-395 run; 86.2% of cells are converged against 85.2%.
 
-Cost. The site walk's rank-seconds rise 1.36x (2,138 -> 2,918 over the run):
+Cost. The site walk's rank-seconds rise 1.36x (2,147 -> 2,926 over the run):
 one site per cell crossed, where the sampled walk had one per step. The
-level model's calls add up to 5,144 s against 5,632 s, on different days
-(the machine's speed varies by more than that).
+level model's calls add up to 5,152 s against 5,640 s, on different days
+(the machine's speed varies by more than that). (Sums corrected 2026-10-10:
+the first ones had each call's fraction of a second dropped, 8-9 s low.)
 
 With D-395, D-397 and D-398 together pn150k's crossing is at A_V 0.393
 against Cloudy's 0.368, as it was; what moved on this fixture is the gas
