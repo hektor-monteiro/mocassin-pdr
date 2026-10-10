@@ -35537,9 +35537,183 @@ with every cell counted.
      foreseen that the consistent ions would lower the deep heating by 10%,
      nor that the floor was 0.3 K away.
 
+### pn150k with the corrected step 2 (`runs/d402-c-pn41`, 21ac639)
+
+41^3, 18 iterations, seeded, against `h026-site-pn41`. Run time 2:58:43
+against 2:24:17 on 2026-10-05, not a same-night pair: the level model, which
+this entry does not touch, took 6,598 s against 5,151 for the same 16 calls
+(x1.28) and everything else x1.18, so no cost can be read from it.
+
+**The cell update converges as the baseline's, iteration for iteration**: ion
+balance not reached 0% at all 18; Te 0% except iterations 5 and 6 (72, 33% -
+the baseline's own figures). No cell is flagged in either run (coldest 21.5 K
+against 20.8). Largest change of the integrated quantities over the last
+three iterations 1.44% (He2+) against 1.49%.
+
+**The two solvers** (`[D402]`, iteration 18; totals reproduced to 6.7e-16):
+
+| | baseline (`[D358]`) | ionized cells (415), >10% | other cells (34,969), >10% | >2x | largest (dex) |
+|---|---|---|---|---|---|
+| H | 44.8% more than 2x apart | 0 | 20.4% | 0.7% | 1.00 |
+| He | - | 0 | 1.1% | 0 | 0.21 |
+| C | - | 0 | 1.6% | 0 | 0.36 |
+| O | 78.5% more than 2x apart | 0 | 34.3% | 0.6% | 1.67 |
+| Mg | - | 0 | 0.8% | 0 | 0.29 |
+
+The fractions are level from iteration 12 (H 20.2-20.7%, O 33.6-34.9%). In
+the fifteen sampled cells (`ionsplit.py`) the ionized zone and the front
+agree to 1% in all five elements (were 4e-6 to 54x); deep (A_V 0.46-0.65) H
+is within 2-13%, O 10-16%, He, C and Mg within 3%. What is left sits at the
+H/H2 transition, A_V 0.22-0.33, with both signs in neighbouring cells:
+solver over MOCASSIN for H 1.46, 0.48, 0.13, oxygen following hydrogen
+through the exchange (1.45, 0.48, 0.13). There hard photons make the ions
+(H+ 55-66% photoionization and cosmic rays at A_V 0.26-0.32, He+ 100%), He+
+passes 30-43% of its ionizations on to hydrogen by charge transfer, and that
+term reaches `ionBalance` one iteration late from a field few packets
+sample. **A hypothesis, not shown**: lag times Monte Carlo noise. The
+outputs hold one iteration, so the cell-by-cell test (does the mismatch
+follow the change of the handed terms from one iteration to the next) cannot
+be made from them. 85.9% of the neutral cells pass the cell convergence test
+at iteration 18 (report only).
+
+**The solve's electrons.** In the baseline the solve ran with x_e 3-4.5%
+under MOCASSIN's through the PDR (2.77-2.88e-4 against 2.87-2.97e-4) and 7%
+under in the He2+ zone (1.09 against 1.17): the right-hand side summed its
+own cations, and the network has none for S, Si, N or helium's second
+electron. It is MOCASSIN's now, to 1% outside the transition cells above.
+
+**MOCASSIN's own ions, n in cm^-3, baseline -> new (Cloudy):**
+
+| r (pc), A_V | H+ | He+ | O+ |
+|---|---|---|---|
+| 0.14, 0.14 | 77.6 -> 82.8 (40.6) | 19.5 -> 17.3 (7.3) | 3.32e-2 -> 3.36e-2 (1.59e-2) |
+| 0.17, 0.18 | 2.63 -> 2.88 (4.59) | 1.79 -> 1.21 (0.88) | 7.2e-4 -> 1.04e-3 (1.04e-3) |
+| 0.21, 0.22 | 0.162 -> 0.249 (1.16) | 0.229 -> 0.135 (0.186) | 7.4e-6 -> 1.7e-5 (7.5e-5) |
+| 0.29, 0.31 | 3.9e-2 -> 4.2e-2 (0.110) | 4.2e-3 -> 2.1e-3 (1.08e-2) | 1.2e-7 -> 1.7e-7 (9.4e-7) |
+| 0.37, 0.40 | 1.9e-2 -> 2.6e-2 (2.9e-2) | 3.9e-3 -> 1.5e-3 (1.7e-3) | 3.9e-8 -> 2.2e-8 (1.1e-7) |
+| 0.45, 0.49 | 7.7e-3 -> 1.33e-2 (1.75e-2) | 3.7e-3 -> 1.4e-3 (9.8e-4) | 1.9e-8 -> 3.5e-9 (3.6e-8) |
+| 0.55, 0.60 | 3.1e-3 -> 6.5e-3 (1.21e-2) | 3.3e-3 -> 1.4e-3 (8.3e-4) | 2.0e-8 -> 9.7e-10 (8.6e-9) |
+
+H+ past r 0.33 was 0.26-0.66 of Cloudy's and is 0.54-0.92; He+ past r 0.37
+was 2.3-4.0 times Cloudy's and is 0.9-1.6. O+ deep goes from 0.5-2.4 times
+Cloudy's to 0.10-0.11: with `ionBalance` now holding O+ + H2 (90-96% of the
+solver's O+ loss at A_V 0.46 and beyond) O+/H+ is set by exp(-226/T), and
+our gas is 31 K where Cloudy's is 45 - a factor 9, from a temperature gap
+older than this entry. Mg is all Mg+ through the PDR in both codes.
+
+**Ionized zone (r 0.03 and 0.06 pc), against Cloudy:**
+
+| | baseline / Cloudy | new / Cloudy | new / baseline |
+|---|---|---|---|
+| CO | 8.5e7, 2.3e4 | 16, 2.1 | 1.8e-7, 9.1e-5 |
+| OH | 840, 52 | 0.09, 0.21 | 1.1e-4, 4.2e-3 |
+| CH | 220, 3.7 | 0.15, 0.047 | 6.6e-4, 1.3e-2 |
+| HCO+ (cm^-3) | 7.2e-25, 4.4e-23 | 0, 1.9e-27 (Cloudy 1.7e-37, 5.5e-32) | |
+| H2 | 15, 17 | 17, 19 | 1.08, 1.07 |
+
+H3+ unchanged. The 7-8% more H2 there is not attributed.
+
+**Structure and lines:**
+
+| | baseline | new | Cloudy |
+|---|---|---|---|
+| Hbeta (1e34 erg/s) | 2.6780 | 2.6850 (+0.26%) | |
+| H+ front (pc) | 0.12816 | 0.12833 (+0.13%) | 0.12795 |
+| He2+ front (pc) | 0.087699 | 0.087715 | 0.08800 |
+| H/H2 crossing, A_V | 0.3931 | 0.3927 | 0.3675 |
+| H2 1-0 S(1) / Hbeta | 9.449e-4 | 9.383e-4 (-0.7%) | 8.479e-4 |
+| H2 2-1 S(1) | 4.751e-4 | -0.7% | 4.293e-4 |
+| H2 0-0 S(0), S(1), S(2) | | -4.0%, -2.4%, -0.5% | |
+| [C II] 158 | 0.19738 | -0.45% | |
+| [O I] 63 | 0.26028 | +0.77% | |
+| [C I] 609, 370 | | +5.1%, +4.6% | |
+| CO 1-0, 2-1, 3-2 | | -4.4%, -4.4%, -4.5% | |
+| [O III] 5007, He II 4686, [N II] 6584 | | -0.2%, -0.3%, +0.1% | |
+
+Of the 68 lines of `lineFlux.out` above 1e-7 Hbeta two moved by more than
+1%, both He I (the larger -1.0%), none by 5%.
+
+### pn150k's front moved because of one coefficient: He+ + H -> He + H+
+
+A proxy for Hbeta (n_e n(H+) T^-0.9 summed over the cells) gives +0.25%, of
+it +0.23 in the shells r 0.115-0.145 pc: the front. There He+ falls and H+
+rises:
+
+| r (pc) | T (K) | He+ new/baseline | predicted from the coefficient | H+ new/baseline | He's transfer / hydrogen's recombinations |
+|---|---|---|---|---|---|
+| 0.125-0.135 | 9,870 | 0.994 | 0.966 | 1.012 | 0.5% -> 1.1% |
+| 0.135-0.145 | 8,160 | 0.875 | 0.833 | 1.064 | 5.5% -> 10.7% |
+| 0.145-0.160 | 4,810 | 0.646 | 0.629 | 1.194 | 22% -> 35% |
+| 0.160-0.180 | 520 | 0.680 | 0.737 | 1.127 | 0.8% -> 16% |
+| 0.180-0.220 | 117 | 0.606 | 0.671 | 1.50 | 0.1% -> 29% |
+
+`ionBalance` now has this reaction at the network's coefficient, where it
+had Kingdon & Ferland's fit - evaluated below the 6,000 K its range starts
+at:
+
+| T (K) | K&F fit (cm^3 s^-1) | network | ratio |
+|---|---|---|---|
+| 120 | 8.6e-18 | 4.1e-15 | 480 |
+| 500 | 1.4e-16 | 5.3e-15 | 37 |
+| 5,000 | 4.3e-15 | 1.34e-14 | 3.1 |
+| 8,000 | 6.8e-15 | 1.69e-14 | 2.5 |
+| 12,000 | 1.19e-14 | 2.07e-14 | 1.7 |
+
+The prediction column is that swap and nothing else (recombination
+4.27e-13 T4^-0.678 n_e). Each transfer is an H+. More neutral helium at the
+front takes more of the hard photons (helium's photoionization heating +4.9%
+at r 0.135-0.145) and passes fewer on: hydrogen's is 4-8% lower from r 0.145
+to 0.20 and the gas colder (4,805 -> 4,642 K, 519 -> 485, 173 -> 167), which
+is where the two lowest rotational H2 lines lose 2.4 and 4.0%.
+
+Cloudy, as I read `atmdat_char_tran.cpp` (read only): the Kingdon & Ferland
+expression at the gas temperature plus a quarter of it held at 6,000 K below
+that - 8.5e-15 at 8,000 K, 1.4e-15 at 500 K. The network's is 2.0 and 3.7
+times those. For oxygen the two sets agree to 7-18% below 1,000 K in the
+forward direction (the reverse 1.4-1.6x, the fit with fine structure against
+the statistical reverse), and the network's is 1.7-2.3 times K&F's at
+8,000-17,000 K in both directions; neutral oxygen in the ionized zone is
+x1.2-1.5 for it (1.8 -> 2.8 times Cloudy's at 0.03 pc). And MOCASSIN had no
+H+ + Mg -> Mg+ + H at all, which is 78-98% of the solver's Mg+ formation in
+ionized gas (Mg+ x1.03-1.17 at r 0.09-0.115).
+
+**Step 2 made each of these reactions one number in both solvers. It did not
+establish that the network's is the better number above a few thousand K,
+where UMIST's power laws are being used in photoionized gas.** The
+alternative with the same one-number property is D-358's direction:
+MOCASSIN's coefficient handed to the network's reaction. Not decided here;
+the measured size of the choice is Hbeta 0.26%, the He I lines 1%, the
+transition zone 3-6% in T.
+
+### The predictions against pn150k
+
+  1. `[D402]`: ionized cells 0% - held. More than 2x apart under 2% - held
+     (0-0.7%, Mg 0). C under 2% at the 10% level - held (1.6%). "Falling
+     through the run" - no: level from iteration 12, as hiipdr from 7.
+  2. Fronts within 0.2% - held (+0.13%, +0.02%). Hbeta within 0.2% -
+     **missed**, +0.26%, and not noise: the helium coefficient above.
+     [O I] 6300 "may move by 10%" - under 1%.
+  3. Crossing within 0.005 mag of 0.393 - held (-0.0004). H2 lines within
+     2% - held for 1-0 S(1), 2-1 S(1), 0-0 S(2); **missed** for 0-0 S(1)
+     (-2.4%) and S(0) (-4.0%), the colder transition zone.
+  4. Ionized-zone CO, OH, HCO+ down by orders of magnitude - held.
+  5. PDR lines within 1% - held for [C II] 158 and [O I] 63; **missed** for
+     [C I] (+5%) and CO (-4.4%). No cell is flagged here, so this is the
+     gas: neutral carbon is +3 to +6% in MOCASSIN's stages through the PDR
+     (its electrons +1-2% with H+ at 1.7-2.1 times, and the network's
+     carbon channels; not decomposed), and CO is -4 to -7% with H3+ -4.5%,
+     OH -5%, HCO+ -10% - the solve's 3-4.5% more electrons. I wrote the
+     prediction without counting that step 1 changes the solve's electron
+     density.
+
 ### Not yet known
 
-  - pn150k (running), hiipdr with the floor at the CMB, and step 1 alone.
+  - hiipdr with the floor at the CMB (running) and step 1 alone (queued).
+  - Whether the level left at the H/H2 transition is the lag and the noise,
+    as supposed: it needs two successive iterations of one cell, which no
+    output holds.
+  - Which charge-transfer coefficients should be the one set above a few
+    thousand K (previous section).
   - The lag itself: whether evaluating the reactions among linked species
     in `ionBalance` with its own densities (as the charge transfer with H
     now is) removes Mg's 9%, and whether the rest is worth a second cell
