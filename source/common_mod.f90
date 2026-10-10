@@ -954,6 +954,24 @@ module common_mod
     double precision    :: pdrCtAlpha(pdrMaxCt) = 0.d0, pdrCtBeta(pdrMaxCt) = 0.d0, &
          &                 pdrCtGamma(pdrMaxCt) = 0.d0, pdrCtTmin(pdrMaxCt) = 0.d0, &
          &                 pdrCtTmax(pdrMaxCt) = 0.d0
+    ! D-403: one coefficient per reaction in both solvers, and for each
+    ! reaction the fit made for the gas at hand. Where Kingdon & Ferland
+    ! (1996) fitted the reaction for ionized gas, k = a t4^b (1 + c exp(d t4))
+    ! with t4 = T/1e4 K, that fit is used inside its stated temperature range
+    ! and the network's coefficient outside it; pdrCtKF(1:4,i) = a [cm^3 s^-1],
+    ! b, c, d, and a = 0 means no such fit. Helium (He+ + H, 6,000-1e5 K) and
+    ! magnesium (H+ + Mg, 5,000-30,000 K) have one. Oxygen has none here on
+    ! purpose: the network's O+ + H and H+ + O are fits to Stancil et al.
+    ! (1999) over 10-41,000 K and agree with the fits to the same tables that
+    ! Cloudy uses to 0.89-1.04 and 0.97-1.33 from 30 to 25,000 K, where
+    ! Kingdon & Ferland's is 0.36-0.55 of them above 8,000 K (D-403).
+    ! pdrCtReac is the reaction's row in the rate file, so the solve can be
+    ! handed the same number (pdrStep); pdrHeEl is helium's linked-element
+    ! index, for hydrogen's side of He+ + H in ionBalance.
+    double precision    :: pdrCtKF(4,pdrMaxCt) = 0.d0, pdrCtKFTmin(pdrMaxCt) = 0.d0, &
+         &                 pdrCtKFTmax(pdrMaxCt) = 0.d0
+    integer             :: pdrCtReac(pdrMaxCt) = 0
+    integer             :: pdrHeEl = 0
     ! D-280: cosmic-ray ionization of every linked neutral, read from the
     ! network's own reactions (CRP direct, CRPHOT through cosmic-ray-induced
     ! photons) so MOCASSIN and the chemistry ionize with identical coefficients.
@@ -1208,8 +1226,14 @@ module common_mod
     ! bracket, and a silent floor at 10 K.
     ! teSolver 1 selects the Cloudy-shaped search so the two can be compared in
     ! one build. teFloor exposes the floor, which has never been a parameter.
+    ! D-403: the default is the CMB temperature, the one constant TcmbK that
+    ! the chemistry's grain-temperature floor is also made from (pdr_mod). At
+    ! 10 K the floor had come to decide the temperature of a tenth of hiipdr's
+    ! cells (D-402), and a cell on the floor is flagged and left out of every
+    ! line.
+    double precision, parameter :: TcmbK = 2.725d0
     integer             :: teSolver = 0
-    real                :: teFloor  = 10.
+    real                :: teFloor  = real(TcmbK)
     integer(kind=8)     :: teN = 0, teNconv = 0, teNstall = 0
     integer(kind=8)     :: teNloclamp = 0, teNhiclamp = 0, teNsteps = 0
     integer(kind=8)     :: teNwide = 0, teNnobrack = 0
@@ -1313,6 +1337,61 @@ module common_mod
 
 
 contains
+
+  !-----------------------------------------------------------------
+  ! D-402, D-403: the coefficient [cm^3 s^-1] of each of the network's
+  ! charge-transfer reactions of a linked element with hydrogen, at
+  ! temperature T, as BOTH solvers use it: ionBalance sums the rows by
+  ! element and direction (pdrCtRates), and pdrStep writes them into the
+  ! solve's rate array, row by row.
+  !
+  ! The network's own value is alpha (T/300)^beta exp(-gamma/T), evaluated
+  ! as calc_reac_rates.F90 evaluates a thermal reaction: where the network
+  ! gives a reaction several temperature ranges, the first whose upper limit
+  ! holds T, else the last, carries it and the other rows are zero; a
+  ! negative gamma is held at the range's lower limit below it. Where the
+  ! reaction has a fit made for ionized gas (pdrCtKF) and T is inside that
+  ! fit's stated range, the fit replaces the network's value in the row that
+  ! carries the reaction.
+  !-----------------------------------------------------------------
+  subroutine pdrCtCoef(T, k)
+    implicit none
+    double precision, intent(in)  :: T
+    double precision, intent(out) :: k(pdrMaxCt)
+    integer          :: i, j
+    double precision :: tl, t4
+
+    k = 0.d0
+    i = 1
+    do while (i <= pdrNct)
+       j = i
+       if (pdrCtDup(i) >= 1) then
+          do
+             if (T <= pdrCtTmax(j)) exit
+             if (j == pdrNct) exit
+             if (pdrCtDup(j+1) <= pdrCtDup(j)) exit
+             j = j + 1
+          end do
+       end if
+       if (.not.(pdrCtGamma(j) < -200.d0 .and. T < pdrCtTmin(j))) then
+          tl = T
+          if (pdrCtGamma(j) < 0.d0 .and. T < pdrCtTmin(j)) tl = pdrCtTmin(j)
+          if (tl > 0.d0) k(j) = pdrCtAlpha(j)*(tl/300.d0)**pdrCtBeta(j)*exp(-pdrCtGamma(j)/tl)
+       end if
+       if (pdrCtKF(1,j) > 0.d0 .and. T >= pdrCtKFTmin(j) .and. T <= pdrCtKFTmax(j)) then
+          t4 = T*1.d-4
+          k(j) = pdrCtKF(1,j)*t4**pdrCtKF(2,j)*(1.d0 + pdrCtKF(3,j)*exp(pdrCtKF(4,j)*t4))
+       end if
+       ! on to the next reaction: past the rest of this one's ranges
+       if (pdrCtDup(i) >= 1) then
+          do while (i < pdrNct)
+             if (pdrCtDup(i+1) <= pdrCtDup(i)) exit
+             i = i + 1
+          end do
+       end if
+       i = i + 1
+    end do
+  end subroutine pdrCtCoef
 
 #ifdef PDR
 

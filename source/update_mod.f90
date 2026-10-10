@@ -16,53 +16,27 @@ module update_mod
     contains
 
     !-----------------------------------------------------------------
-    ! D-402: the network's coefficients for X + H+ -> X+ + H (ctUp) and
+    ! D-402, D-403: the coefficients of X + H+ -> X+ + H (ctUp) and
     ! X+ + H -> X + H+ (ctDn) [cm^3 s^-1] at temperature T, per linked
-    ! element, evaluated as calc_reac_rates.F90 evaluates a thermal
-    ! reaction: alpha (T/300)^beta exp(-gamma/T); where the network gives
-    ! several temperature ranges, the first whose upper limit holds T, else
-    ! the last; a negative gamma held at the range's lower limit below it.
+    ! element: common_mod's pdrCtCoef, the one evaluation both solvers use,
+    ! summed over each element's reactions.
     !-----------------------------------------------------------------
     subroutine pdrCtRates(T, ctUp, ctDn)
       implicit none
       double precision, intent(in)  :: T
       double precision, intent(out) :: ctUp(pdrNlinkEl), ctDn(pdrNlinkEl)
-      integer          :: i, j
-      double precision :: tl, k
+      integer          :: i
+      double precision :: k(pdrMaxCt)
 
       ctUp = 0.d0; ctDn = 0.d0
-      i = 1
-      do while (i <= pdrNct)
-         j = i
-         if (pdrCtDup(i) >= 1) then
-            do
-               if (T <= pdrCtTmax(j)) exit
-               if (j == pdrNct) exit
-               if (pdrCtDup(j+1) <= pdrCtDup(j)) exit
-               j = j + 1
-            end do
+      call pdrCtCoef(T, k)
+      do i = 1, pdrNct
+         if (pdrCtEl(i) < 1 .or. pdrCtEl(i) > pdrNlinkEl) cycle
+         if (pdrCtDir(i) > 0) then
+            ctUp(pdrCtEl(i)) = ctUp(pdrCtEl(i)) + k(i)
+         else
+            ctDn(pdrCtEl(i)) = ctDn(pdrCtEl(i)) + k(i)
          end if
-         k = 0.d0
-         if (.not.(pdrCtGamma(j) < -200.d0 .and. T < pdrCtTmin(j))) then
-            tl = T
-            if (pdrCtGamma(j) < 0.d0 .and. T < pdrCtTmin(j)) tl = pdrCtTmin(j)
-            if (tl > 0.d0) k = pdrCtAlpha(j)*(tl/300.d0)**pdrCtBeta(j)*exp(-pdrCtGamma(j)/tl)
-         end if
-         if (pdrCtEl(j) >= 1 .and. pdrCtEl(j) <= pdrNlinkEl) then
-            if (pdrCtDir(j) > 0) then
-               ctUp(pdrCtEl(j)) = ctUp(pdrCtEl(j)) + k
-            else
-               ctDn(pdrCtEl(j)) = ctDn(pdrCtEl(j)) + k
-            end if
-         end if
-         ! on to the next reaction: past the rest of this one's ranges
-         if (pdrCtDup(i) >= 1) then
-            do while (i < pdrNct)
-               if (pdrCtDup(i+1) <= pdrCtDup(i)) exit
-               i = i + 1
-            end do
-         end if
-         i = i + 1
       end do
     end subroutine pdrCtRates
 
@@ -2795,6 +2769,27 @@ end subroutine iterateT
                           ionUp(elem,1) = ionUp(elem,1) - dble(revRate) + ctUp402(ie402)*nHp402
                           ionDn(elem,1) = dble(NeUsed)*dble(alphaTot(elem,1)) &
                                & + ctDn402(ie402)*nH0402
+                       else if (pdrHeEl > 0) then
+                          ! D-403: hydrogen's side of helium's charge transfer
+                          ! with it, He+ + H -> He + H+, carried here with this
+                          ! call's own He+ (and He, should the network ever
+                          ! have the reverse). It runs one way, so it cannot
+                          ! cycle as the H-O pair did; and it is the term that
+                          ! reached hydrogen an iteration late as part of the
+                          ! handed net, from a helium ionization that the hard
+                          ! photons of one iteration do not repeat in the next
+                          ! (D-402: the solvers 1.45x apart in H+ where H2
+                          ! forms on pn150k).
+                          if (lgElementOn(2)) then
+                             ionUp(1,1) = ionUp(1,1) + ctDn402(pdrHeEl) &
+                                  & *dble(grid%ionDen(cellP,elementXref(2),2)) &
+                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP),2)) &
+                                  & *dble(grid%Hden(cellP))
+                             ionDn(1,1) = ionDn(1,1) + ctUp402(pdrHeEl) &
+                                  & *dble(grid%ionDen(cellP,elementXref(2),1)) &
+                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP),2)) &
+                                  & *dble(grid%Hden(cellP))
+                          end if
                        end if
                        if (allocated(grid%pdrIonRate)) then
                           ionUp(elem,1) = ionUp(elem,1) &
