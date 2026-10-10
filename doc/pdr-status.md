@@ -502,11 +502,17 @@ still swings between iterations it shows as the two solvers 10% or more
 apart: hiipdr H 29%, He 13%, C 1.5%, O 21%, Mg 13% of the cells past the
 front; pn150k H 20%, He 1%, C 2%, O 34%, Mg 1%, level from iteration 12 and
 concentrated at the H/H2 transition (A_V 0.22-0.33), with both signs in
-neighbouring cells. That it is the lag and the Monte Carlo noise is a
-hypothesis: no output holds two iterations of one cell. Candidate next
-steps, none taken: evaluate the reactions among linked species in
-`ionBalance` with its own densities, as the charge transfer with H is; a
-second cell update after the chemistry; one solver for both.
+neighbouring cells. That it is the lag and the Monte Carlo noise is
+supported in pn150k's sampled cells and not shown cell by cell (no output
+holds two iterations of one cell): the ionization rate of H is the cosmic
+rays' alone in most deep cells in any one iteration and spikes when a hard
+photon crosses; the solver's H+ then has a source from He+ + H -> He + H+
+worth 0.65 of the direct rate, which MOCASSIN's balance receives an
+iteration late (predicted 1.45x apart in the sampled cell, measured 1.457).
+Candidate next steps, none taken, the first recommended: carry He+ + H for
+hydrogen in `ionBalance` with the call's own He+ (one-way, so it cannot
+cycle as the H-O pair did); a second cell update after the chemistry; one
+solver for both.
 
 **L-48. Charge transfer with H runs on UMIST's fits in photoionized gas**
 (D-402). One coefficient per reaction in both solvers was reached by giving
