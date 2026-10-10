@@ -571,6 +571,13 @@ module chemistry_module
   integer(kind=i4b),parameter :: MAX_RATE_SPEC = 256
   real(kind=dp),bind(c,name='chemistry_module_mp_species_form_') :: species_form(MAX_RATE_SPEC)
   real(kind=dp),bind(c,name='chemistry_module_mp_species_loss_') :: species_loss(MAX_RATE_SPEC)
+
+  ! LOCAL MODIFICATION (MOCASSIN, DEVLOG D-402): electrons per H nucleus from
+  ! ions the network does not carry - the host's stages above the first ion,
+  ! and the elements it has no species for. The generated right-hand side
+  ! builds x_e from the network's own cations and adds this to the sum
+  ! (tools/patch_odes_xe.py). Zero unless the host sets it: upstream behaviour.
+  real(kind=dp),bind(c,name='chemistry_module_mp_xe_extra_') :: xe_extra = 0.0D0
 end module chemistry_module
 
 

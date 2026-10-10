@@ -99,6 +99,8 @@ module pdr_mod
                                & pdrLossSp => species_loss
     use chemistry_module, only : pdrRelTol => relative_abundance_tolerance, &
                                & pdrAbsTol => absolute_abundance_tolerance
+    ! D-402: electrons of the ions the network has no species for
+    use chemistry_module, only : pdrXeExtra => xe_extra
 
     ! CALC_HEATING's chemical-heating term needs this module's reaction indices
     ! built first; without it the term reads unset state (DEVLOG D-029).
@@ -168,10 +170,13 @@ module pdr_mod
     integer :: iCr358(5) = 0, iPh358(5) = 0, iRec358(5,4) = 0, nRec358(5) = 0
     integer :: iH2cr358 = 0
     character(len=2), parameter :: lnk358(5) = (/ 'H ', 'He', 'C ', 'O ', 'Mg' /)
-    ! D-358: the solver's X+/X against MOCASSIN's, per iteration, for H and O:
-    ! cells compared, off by more than 2x, largest |log10| of the ratio;
-    ! and cells whose MOCASSIN rates were not yet set
-    double precision :: ion358(2,3) = 0.d0
+    ! D-402 (was D-358, H and O only): the solver's own X+/X against
+    ! MOCASSIN's stage 2 over stage 1, per iteration, for every linked
+    ! element, in ionized cells (x(H+) >= 0.5, zone 1) and in the rest
+    ! (zone 2): cells compared, more than 10% apart, more than 2x apart; and
+    ! the largest |log10| of the ratio. nUnset358: cells whose MOCASSIN rates
+    ! were not yet set
+    double precision :: ion402(pdrNlinkEl,2,3) = 0.d0, ionMax402(pdrNlinkEl,2) = 0.d0
     integer          :: nUnset358 = 0
     ! D-362: each coolant's cooling from a level-population solve at the
     ! cell's own temperature against the log-log interpolation of the D-215
@@ -198,6 +203,8 @@ module pdr_mod
         integer            :: iR, iLnk, jLnk   ! D-163
         logical            :: lgDupPhot, lgDupRec
         integer            :: iTyp280          ! D-280: 1 CRP, 2 CRPHOT
+        integer            :: nAt402(30)       ! D-402: atoms per element in a species
+        logical            :: lgOk402
         integer            :: ios, iS, iC
         integer            :: iLv, iUp, nT362  ! D-362: transition list
         logical            :: lgAtomic
@@ -508,6 +515,52 @@ module pdr_mod
         call linkIon(10, NMGx,    12, 2)   ! Mg+   -> Mg II
         if (taskid == 0) print*, "! [D118] chemistry/ion links established:", &
              & count(pdrLinkSpec > 0), "of", pdrNlink
+
+        ! D-402: the linked elements, and how many atoms of each every
+        ! species holds. The molecular share of an element is then a sum over
+        ! the species, whatever the carriers hold - which is what lets each
+        ! carrier be its own stage (X+ is stage 2, not every ionized stage).
+        do iLnk = 1, pdrNlinkEl
+           pdrElZ(iLnk) = 0; pdrElNeut(iLnk) = 0; pdrElIon(iLnk) = 0
+           if (pdrLinkSpec(2*iLnk-1) <= 0 .or. pdrLinkSpec(2*iLnk) <= 0) cycle
+           if (pdrLinkElem(2*iLnk-1) /= pdrLinkElem(2*iLnk) .or. &
+                & pdrLinkIon(2*iLnk-1) /= 1 .or. pdrLinkIon(2*iLnk) /= 2) then
+              print*, "! initPDRnetwork: link slots", 2*iLnk-1, 2*iLnk, &
+                   & " are not a neutral and its first ion"
+              stop
+           end if
+           pdrElZ(iLnk)    = pdrLinkElem(2*iLnk-1)
+           pdrElNeut(iLnk) = pdrLinkSpec(2*iLnk-1)
+           pdrElIon(iLnk)  = pdrLinkSpec(2*iLnk)
+        end do
+        if (allocated(pdrMolAtoms)) deallocate(pdrMolAtoms)
+        allocate(pdrMolAtoms(pdrNspec, pdrNlinkEl))
+        pdrMolAtoms = 0.d0
+        do iS = 1, pdrNspec
+           if (iS == pdrNelect) cycle
+           call speciesAtoms(pdrSpecies(iS), nAt402, lgOk402)
+           if (.not.lgOk402) then
+              ! a name that is not a formula (a PAH, a grain). It holds no
+              ! linked element as far as the element budgets can tell
+              if (taskid == 0) print*, "! [D402] species ", trim(adjustl(pdrSpecies(iS))), &
+                   & " is not an atomic formula: counted as holding no linked element"
+              cycle
+           end if
+           do iLnk = 1, pdrNlinkEl
+              if (pdrElZ(iLnk) <= 0) cycle
+              if (iS == pdrElNeut(iLnk) .or. iS == pdrElIon(iLnk)) cycle
+              pdrMolAtoms(iS, iLnk) = dble(nAt402(pdrElZ(iLnk)))
+           end do
+        end do
+        if (taskid == 0) then
+           do iLnk = 1, pdrNlinkEl
+              if (pdrElZ(iLnk) <= 0) cycle
+              print '(a,i3,a,a,a,a,a,i4,a)', " ! [D402] element", pdrElZ(iLnk), ": ", &
+                   & trim(adjustl(pdrSpecies(pdrElNeut(iLnk)))), " and ", &
+                   & trim(adjustl(pdrSpecies(pdrElIon(iLnk)))), " are its stages 1 and 2;", &
+                   & count(pdrMolAtoms(:,iLnk) > 0.d0), " other species hold it"
+           end do
+        end if
         call READ_RATES(pdrNreacMod, pdrReactant, pdrProduct, pdrAlpha, pdrBeta, &
              &          pdrGamma, pdrRate, pdrDuplicate, pdrRtmin, pdrRtmax)
 
@@ -2817,24 +2870,68 @@ module pdr_mod
       ! There is now one.
       !-----------------------------------------------------------------
       !-----------------------------------------------------------------
-      ! D-266: MOCASSIN's fraction of element iEl in all ionized stages.
-      ! The reduced network carries one ion per element, so that species
-      ! stands for every stage above neutral; this is the MOCASSIN quantity it
-      ! corresponds to. Stages sum to elemAvail, not 1, so this is on the same
-      ! footing as ionDen(.,1).
+      ! D-402: the atoms in a species, from its name. nAtZ(Z) is how many of
+      ! element Z the formula holds; charge signs and the excitation mark are
+      ! skipped. lgOk is false when the name is not a formula of element
+      ! symbols (a PAH, a grain, the electron).
+      !
+      ! D-266 had each ion carrier stand for every ionized stage MOCASSIN
+      ! has, because the molecular share of an element was then read off its
+      ! carriers. That put C++ to C4+ into the species the chemistry treats
+      ! as C+ (L-32). With the share counted from the molecules themselves
+      ! (setElemAvail) the carriers are free to be what their names say.
       !-----------------------------------------------------------------
-      double precision function mocIonizedFrac(grid, cellP, iEl)
+      subroutine speciesAtoms(name, nAtZ, lgOk)
         implicit none
-        type(grid_type), intent(in) :: grid
-        integer, intent(in)         :: cellP, iEl
-        integer :: ist
+        character(len=*), intent(in) :: name
+        integer, intent(out)         :: nAtZ(30)
+        logical, intent(out)         :: lgOk
 
-        mocIonizedFrac = 0.d0
-        do ist = 2, min(iEl+1, nstages)
-           mocIonizedFrac = mocIonizedFrac + &
-                & dble(grid%ionDen(cellP, elementXref(iEl), ist))
+        character(len=2), parameter :: sym(30) = (/ 'H ','He','Li','Be','B ','C ','N ', &
+             & 'O ','F ','Ne','Na','Mg','Al','Si','P ','S ','Cl','Ar','K ','Ca','Sc', &
+             & 'Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn' /)
+        character(len=len(name)) :: s
+        integer :: p, n, iz, k, mult, zFound
+
+        nAtZ = 0; lgOk = .true.
+        s = adjustl(name); n = len_trim(s)
+        if (n == 0) then
+           lgOk = .false.; return
+        end if
+        p = 1
+        do while (p <= n)
+           if (s(p:p) == '+' .or. s(p:p) == '-' .or. s(p:p) == '*') then
+              p = p + 1; cycle
+           end if
+           zFound = 0
+           if (p < n) then
+              if (s(p+1:p+1) >= 'a' .and. s(p+1:p+1) <= 'z') then
+                 do iz = 1, 30
+                    if (sym(iz) == s(p:p+1)) zFound = iz
+                 end do
+                 if (zFound > 0) p = p + 2
+              end if
+           end if
+           if (zFound == 0) then
+              do iz = 1, 30
+                 if (sym(iz)(2:2) == ' ' .and. sym(iz)(1:1) == s(p:p)) zFound = iz
+              end do
+              if (zFound > 0) p = p + 1
+           end if
+           if (zFound == 0) then
+              nAtZ = 0; lgOk = .false.; return
+           end if
+           mult = 0
+           do while (p <= n)
+              k = index('0123456789', s(p:p))
+              if (k == 0) exit
+              mult = 10*mult + k - 1
+              p = p + 1
+           end do
+           if (mult == 0) mult = 1
+           nAtZ(zFound) = nAtZ(zFound) + mult
         end do
-      end function mocIonizedFrac
+      end subroutine speciesAtoms
 
 
       subroutine seedAbunFromMocassin(grid, cellP, iAb, abun)
@@ -2855,18 +2952,12 @@ module pdr_mod
            if (.not.lgElementOn(iEl)) cycle
            ! elemAbun is relative to hydrogen; ionDen is the fraction of the
            ! element in that stage. Hydrogen's elemAbun is 1 by definition.
-           ! D-266: the network's ion carrier (C+, O+, Mg+, He+) stands for
-           ! EVERY ionized stage MOCASSIN has, not stage 2 alone. The reduced
-           ! network has no doubly ionized species, so seeding C+ from stage 2
-           ! left the C++ (and O++) share out of the chemistry's element total
-           ! for good - setElemAvail then reported it as locked in molecules
-           ! and ionBalance removed it: 80% of the carbon and 52% of the
-           ! oxygen were missing from the H II gas (D-265).
-           if (pdrLinkIon(iLnk) == 2) then
-              fracL = mocIonizedFrac(grid, cellP, iEl)
-           else
-              fracL = dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
-           end if
+           ! D-402: each carrier is its own stage - X is stage 1 and X+ is
+           ! stage 2. D-266 gave the ion carrier every ionized stage so that
+           ! the element's total stayed in the chemistry; the total is now
+           ! counted from the molecules (setElemAvail), and what MOCASSIN holds
+           ! in higher stages stays MOCASSIN's.
+           fracL = dble(grid%ionDen(cellP, elementXref(iEl), pdrLinkIon(iLnk)))
            if (iEl == 1) then
               abun(pdrLinkSpec(iLnk)) = fracL
            else
@@ -2928,7 +3019,6 @@ module pdr_mod
         integer            :: ik, il, jl, nlev, ilev
         integer            :: iTnear                     ! D-215
         double precision   :: coolTot, coolK, nSpec, Zpart, lsum
-        double precision   :: fIonL                      ! D-266
         double precision   :: lpop(pdrMaxLev), lsol(pdrMaxLev)
         double precision   :: Ccoef(pdrMaxLev,pdrMaxLev), trans(pdrMaxLev,pdrMaxLev)
         double precision   :: lline(pdrMaxLev,pdrMaxLev)
@@ -2946,6 +3036,8 @@ module pdr_mod
         integer            :: cellP, NRGR, NR2, NR3, NR4, NR5, NR6, it
         integer            :: iLnk, jLnk, iSpN, iSpI      ! D-153
         double precision   :: availTot, mocNeut, mocIon   ! D-153
+        integer            :: iE402, iAb402, ist402, iz402   ! D-402
+        double precision   :: abEl402, molEl402, stSum402, xeIon402
         integer            :: iTpass                     ! D-166
         integer            :: iEl                        ! D-188
         integer            :: iRay                       ! D-190
@@ -3211,25 +3303,31 @@ module pdr_mod
         ! evolve.
         ! D-193: unconditional. MOCASSIN's ionization is an input to the
         ! chemistry, never an output of it.
+        ! D-402: X and X+ are MOCASSIN's stages 1 and 2, and only those. What
+        ! the element has outside its molecules, A - M with M counted from the
+        ! species themselves, is shared among ALL of MOCASSIN's stages in its
+        ! own proportions; the network is handed the first two shares. So a
+        ! cell whose carbon is C++ holds little C+ here, where D-266 called
+        ! all of it C+ and let it recombine and react as C+ (L-32).
         if (.true.) then
-           do iLnk = 1, pdrNlink
-              if (pdrLinkSpec(iLnk) <= 0) cycle
-              if (pdrLinkIon(iLnk) /= 1) cycle       ! handle each element once
-              iSpN = pdrLinkSpec(iLnk)               ! neutral stage species
-              iSpI = 0
-              do jLnk = 1, pdrNlink
-                 if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
-                      & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
+           iAb402 = grid%abFileIndex(xP,yP,zP)
+           do iE402 = 1, pdrNlinkEl
+              if (pdrElZ(iE402) <= 0) cycle
+              if (.not.lgElementOn(pdrElZ(iE402))) cycle
+              iSpN = pdrElNeut(iE402)
+              iSpI = pdrElIon(iE402)
+              abEl402 = 1.d0
+              if (pdrElZ(iE402) > 1) abEl402 = dble(grid%elemAbun(iAb402, pdrElZ(iE402)))
+              molEl402 = sum(pdrMolAtoms(1:pdrNspec, iE402)*abun(1:pdrNspec))
+              stSum402 = 0.d0
+              do ist402 = 1, min(pdrElZ(iE402)+1, nstages)
+                 stSum402 = stSum402 + &
+                      & dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), ist402))
               end do
-              if (iSpI <= 0) cycle
-              availTot = abun(iSpN) + abun(iSpI)     ! non-molecular part
-              if (availTot <= 0.d0) cycle
-              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
-              ! D-266: all ionized stages, which the ion carrier stands for
-              mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
-              if (mocNeut + mocIon <= 0.d0) cycle
-              abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
-              abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
+              if (stSum402 <= 0.d0) cycle
+              availTot = max(abEl402 - molEl402, 0.d0)/stSum402
+              abun(iSpN) = availTot*dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 1))
+              abun(iSpI) = availTot*dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 2))
            end do
 
            ! ----------------------------------------------------- D-212
@@ -3275,6 +3373,20 @@ module pdr_mod
            if (pdrNelect > 0 .and. grid%Hden(cellP) > 0.) &
                 & abun(pdrNelect) = &
                 & max(dble(grid%Ne(cellP))/dble(grid%Hden(cellP)), 0.d0)
+           ! D-402: inside the solve the electrons are not this entry. The
+           ! generated right-hand side builds x_e from the network's own
+           ! cations at every evaluation, so the electrons of everything the
+           ! network has no species for were missing from it: the stages
+           ! above the first ion (He++ twice over) and the elements it does
+           ! not carry (S+, Si+, N+, ...). They are MOCASSIN's electrons less
+           ! the linked first ions just imposed, and they are added to that
+           ! sum (xe_extra, modules.F90).
+           xeIon402 = 0.d0
+           do iE402 = 1, pdrNlinkEl
+              if (pdrElIon(iE402) > 0) xeIon402 = xeIon402 + abun(pdrElIon(iE402))
+           end do
+           pdrXeExtra = 0.d0
+           if (pdrNelect > 0) pdrXeExtra = max(abun(pdrNelect) - xeIon402, 0.d0)
            ! D-230: what the imposition actually wrote, at the moment it wrote it
            if (teProbe /= 0 .and. taskid == 0 .and. nProbe230 < 24) then
               nProbe230 = nProbe230 + 1
@@ -3440,21 +3552,16 @@ module pdr_mod
         ! it here. Neither overrides the other's domain, and there is no
         ! quantity that both determine.
         if (.true.) then                        ! D-193: unconditional
-           do iLnk = 1, pdrNlink
-              if (pdrLinkSpec(iLnk) <= 0) cycle
-              if (pdrLinkIon(iLnk) /= 1) cycle
-              iSpN = pdrLinkSpec(iLnk)
-              iSpI = 0
-              do jLnk = 1, pdrNlink
-                 if (pdrLinkElem(jLnk) == pdrLinkElem(iLnk) .and. &
-                      & pdrLinkIon(jLnk) == 2) iSpI = pdrLinkSpec(jLnk)
-              end do
-              if (iSpI <= 0) cycle
+           ! D-402: the solver's X + X+ split in MOCASSIN's stage 1 : stage 2
+           do iE402 = 1, pdrNlinkEl
+              if (pdrElZ(iE402) <= 0) cycle
+              if (.not.lgElementOn(pdrElZ(iE402))) cycle
+              iSpN = pdrElNeut(iE402)
+              iSpI = pdrElIon(iE402)
               availTot = abun(iSpN) + abun(iSpI)
               if (availTot <= 0.d0) cycle
-              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrLinkElem(iLnk)), 1))
-              ! D-266: all ionized stages, which the ion carrier stands for
-              mocIon  = mocIonizedFrac(grid, cellP, pdrLinkElem(iLnk))
+              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 1))
+              mocIon  = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 2))
               if (mocNeut + mocIon <= 0.d0) cycle
               abun(iSpN) = availTot*mocNeut/(mocNeut+mocIon)
               abun(iSpI) = availTot*mocIon /(mocNeut+mocIon)
@@ -3572,32 +3679,24 @@ module pdr_mod
            passMax(iqP) = max(passMax(iqP), dqP)
         end do
 
-        ! D-358: how far the solver's own X+/X ends from MOCASSIN's, H and O
-        if (pdrNHsp > 0 .and. NPROTON > 0 .and. NO > 0 .and. NOx > 0) then
-           do iqP = 1, 2
-              if (iqP == 1) then
-                 dqP = dble(grid%ionDen(cellP,elementXref(1),1))
-                 if (dqP > 0.d0 .and. abunPre(pdrNHsp) > 0.d0 .and. abunPre(NPROTON) > 0.d0) then
-                    dqP = log10((abunPre(NPROTON)/abunPre(pdrNHsp)) &
-                         & / (dble(grid%ionDen(cellP,elementXref(1),2))/dqP))
-                 else
-                    cycle
-                 end if
-              else
-                 dqP = dble(grid%ionDen(cellP,elementXref(8),1))
-                 if (dqP > 0.d0 .and. abunPre(NO) > 0.d0 .and. abunPre(NOx) > 0.d0) then
-                    dqP = log10((abunPre(NOx)/abunPre(NO)) &
-                         & / (mocIonizedFrac(grid, cellP, 8)/dqP))
-                 else
-                    cycle
-                 end if
-              end if
-              if (dqP /= dqP) cycle
-              ion358(iqP,1) = ion358(iqP,1) + 1.d0
-              if (abs(dqP) > log10(2.d0)) ion358(iqP,2) = ion358(iqP,2) + 1.d0
-              ion358(iqP,3) = max(ion358(iqP,3), abs(dqP))
-           end do
-        end if
+        ! D-402: how far the solver's own X+/X ends from MOCASSIN's stage 2
+        ! over stage 1, for every linked element, ionized cells apart
+        iz402 = 2
+        if (dble(grid%ionDen(cellP,elementXref(1),2)) >= 0.5d0) iz402 = 1
+        do iE402 = 1, pdrNlinkEl
+           if (pdrElZ(iE402) <= 0) cycle
+           if (.not.lgElementOn(pdrElZ(iE402))) cycle
+           mocNeut = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 1))
+           mocIon  = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 2))
+           if (mocNeut <= 0.d0 .or. mocIon <= 0.d0) cycle
+           if (abunPre(pdrElNeut(iE402)) <= 0.d0 .or. abunPre(pdrElIon(iE402)) <= 0.d0) cycle
+           dqP = log10((abunPre(pdrElIon(iE402))/abunPre(pdrElNeut(iE402)))/(mocIon/mocNeut))
+           if (dqP /= dqP) cycle
+           ion402(iE402,iz402,1) = ion402(iE402,iz402,1) + 1.d0
+           if (abs(dqP) > log10(1.1d0)) ion402(iE402,iz402,2) = ion402(iE402,iz402,2) + 1.d0
+           if (abs(dqP) > log10(2.d0))  ion402(iE402,iz402,3) = ion402(iE402,iz402,3) + 1.d0
+           ionMax402(iE402,iz402) = max(ionMax402(iE402,iz402), abs(dqP))
+        end do
 
         grid%pdrAbun(cellP, 1:pdrNspec) = abun
 
@@ -3764,17 +3863,9 @@ module pdr_mod
            end if
            nlev = pdrCoolant2(ik)%cnlev
            nSpec = abun(pdrCoolant2(ik)%cspec)*nH
-           ! D-266: an atomic ION coolant (C+) must be excited at the
-           ! density of its own stage. Its carrier holds every ionized
-           ! stage, so take the stage-2 share of MOCASSIN's ionized total.
-           ! In the PDR that share is 1 and nothing changes; in the H II
-           ! gas it keeps C++ out of the [C II] cooling that replaces
-           ! MOCASSIN's own C II lines.
-           if (.not.pdrCoolIsMol(ik) .and. pdrCoolIon(ik) == 2) then
-              fIonL = mocIonizedFrac(grid, cellP, pdrCoolElem(ik))
-              if (fIonL > 0.d0) nSpec = nSpec &
-                   & *dble(grid%ionDen(cellP, elementXref(pdrCoolElem(ik)), 2))/fIonL
-           end if
+           ! D-402: an atomic ion coolant's carrier is its own stage (C+ is
+           ! MOCASSIN's C II), so its density is the abundance as it stands.
+           ! D-266 took the stage-2 share of a carrier that held them all.
 
            ! Skip a coolant whose carrier has been chemically destroyed.
            ! Below this the level populations are numerically meaningless
@@ -4164,6 +4255,10 @@ module pdr_mod
         integer, intent(in) :: iterMC
         double precision    :: cnt(2,3), mx(2)
         double precision    :: cmp362(30,4), mx362(30)     ! D-362
+        double precision    :: cnt402(pdrNlinkEl,2,3), mx402(pdrNlinkEl,2)   ! D-402
+        character(len=400)  :: line402
+        character(len=14), parameter :: zlab(2) = (/ 'ionized cells:', 'other cells:  ' /)
+        integer             :: iz, iq2
         integer             :: iq, ierr
         character(len=2), parameter :: lab(2) = (/ 'H2', 'CO' /)
 
@@ -4184,21 +4279,32 @@ module pdr_mod
         passCnt = 0.d0
         passMax = 0.d0
 
-        ! D-358: the solver's ionization against MOCASSIN's
-        call mpi_allreduce(ion358(:,1:2), cnt(:,1:2), 4, mpi_double_precision, &
+        ! D-402: the solver's ionization against MOCASSIN's, every linked
+        ! element, ionized cells and the rest
+        call mpi_allreduce(ion402, cnt402, size(ion402), mpi_double_precision, &
              & mpi_sum, mpi_comm_world, ierr)
-        call mpi_allreduce(ion358(:,3), mx, 2, mpi_double_precision, &
+        call mpi_allreduce(ionMax402, mx402, size(ionMax402), mpi_double_precision, &
              & mpi_max, mpi_comm_world, ierr)
         call mpi_allreduce(nUnset358, iq, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
         if (taskid == 0) then
-           print '(a,i3,2(a,a2,a,i7,a,f8.3,a,f7.2),a,i6)', " ! [D358] iteration", iterMC, &
-                & "  solver X+/X vs MOCASSIN:  ", 'H ', " cells", nint(cnt(1,1)), &
-                & "  off >2x", 100.d0*cnt(1,2)/max(cnt(1,1),1.d0), "%  max dex", mx(1), &
-                & "   ", 'O ', " cells", nint(cnt(2,1)), &
-                & "  off >2x", 100.d0*cnt(2,2)/max(cnt(2,1),1.d0), "%  max dex", mx(2), &
-                & "   rates unset in", iq
+           do iz = 1, 2
+              write(line402, '(a,i3,a,a)') " ! [D402] iteration", iterMC, &
+                   & "  solver X+/X vs MOCASSIN's, ", zlab(iz)
+              do iq2 = 1, pdrNlinkEl
+                 if (pdrElZ(iq2) <= 0) cycle
+                 write(line402(len_trim(line402)+1:), '(2x,a,a,i6,a,f6.1,a,f6.1,a,f5.2)') &
+                      & trim(adjustl(pdrSpecies(pdrElNeut(iq2)))), " n", nint(cnt402(iq2,iz,1)), &
+                      & " >10%", 100.d0*cnt402(iq2,iz,2)/max(cnt402(iq2,iz,1),1.d0), &
+                      & " >2x", 100.d0*cnt402(iq2,iz,3)/max(cnt402(iq2,iz,1),1.d0), &
+                      & " max", mx402(iq2,iz)
+              end do
+              print '(a)', trim(line402)
+           end do
+           print '(a,i3,a,i6)', " ! [D402] iteration", iterMC, &
+                & "  MOCASSIN's rates unset in", iq
         end if
-        ion358 = 0.d0
+        ion402 = 0.d0
+        ionMax402 = 0.d0
         nUnset358 = 0
 
         ! D-362: the balance's interpolated cooling against a solve at T
@@ -4281,7 +4387,7 @@ module pdr_mod
            end do
         end if
 
-        xe = 0.d0
+        xe = pdrXeExtra                   ! D-402: as the right-hand side has it
         do j = 1, pdrNspecMod
            if (index(pdrSpecies(j), '+') > 0) xe = xe + xs(j)
         end do
@@ -4332,7 +4438,7 @@ module pdr_mod
 
         type(grid_type), dimension(:), intent(inout) :: grid
 
-        integer          :: iG, i, j, k, cellP, yTop, iAb
+        integer          :: iG, i, j, k, cellP, yTop, iAb, iE
 
         do iG = 1, nGrids
            if (iG > 1 .or. (.not.lg2D)) then
@@ -4380,22 +4486,14 @@ module pdr_mod
                     ! needed, and carbon in CO simply does not appear in any
                     ! atomic stage: it emits no atomic line and contributes no
                     ! free electron, which is exactly right.
-                    if (pdrNHsp > 0 .and. NPROTON > 0) &
-                         & grid(iG)%elemAvail(cellP,1) = real(min(max( &
-                         &   grid(iG)%pdrAbun(cellP,pdrNHsp) &
-                         & + grid(iG)%pdrAbun(cellP,NPROTON), 0.d0), 1.d0))
-
-                    ! Helium: no helium-bearing molecule exists in the network,
-                    ! so its available fraction is 1 by construction. Written
-                    ! explicitly rather than left at whatever it held, so the
-                    ! array has one meaning everywhere.
-                    if (lgElementOn(2) .and. NHe > 0 .and. NHEx > 0) &
-                         & grid(iG)%elemAvail(cellP,2) = 1.0
-
+                    ! D-402: one rule for every linked element, hydrogen and
+                    ! helium included - what its molecules hold, counted from
+                    ! the species (setElemAvail).
                     iAb = grid(iG)%abFileIndex(i,j,k)
-                    call setElemAvail(grid(iG), cellP, iAb,  6, NC,  NCx)
-                    call setElemAvail(grid(iG), cellP, iAb,  8, NO,  NOx)
-                    call setElemAvail(grid(iG), cellP, iAb, 12, NMG, NMGx)
+                    do iE = 1, pdrNlinkEl
+                       if (pdrElZ(iE) <= 0) cycle
+                       call setElemAvail(grid(iG), cellP, iAb, iE)
+                    end do
                  end do
               end do
            end do
@@ -4405,41 +4503,41 @@ module pdr_mod
 
 
       !-----------------------------------------------------------------
-      ! Record how much of one element the chemistry did NOT lock into
-      ! molecules: (neutral + ion carrier)/total, from the network's own
-      ! abundances. Since D-266 the ion carrier holds every ionized stage, so
-      ! this is 1 - molecular fraction; before it, it also dropped the doubly
-      ! ionized share and removed it from MOCASSIN's gas (D-265). D-193: this is the whole handback for an element. The
-      ! ion stages themselves are MOCASSIN's and are not written here.
+      ! Record how much of one linked element the chemistry did NOT lock into
+      ! molecules: 1 - (what its molecules hold)/(the element's abundance),
+      ! with the molecules' content counted from the species themselves
+      ! (pdrMolAtoms, D-402). D-193: this is the whole handback for an
+      ! element. The ion stages themselves are MOCASSIN's and are not
+      ! written here.
       !
-      ! The fractions are taken relative to MOCASSIN's own elemAbun, which is
-      ! exact only if both codes use the same elemental abundances - the
-      ! network's come from species_*.d and MOCASSIN's from its abundance
-      ! file. They are clamped here, and reconciling them is an open item.
+      ! The fraction is taken relative to MOCASSIN's own elemAbun, which the
+      ! seed and every imposition also use (D-208, D-251). It is clamped to
+      ! [0, 1]; a value outside that range would mean the molecules hold more
+      ! of the element than the model has.
       !-----------------------------------------------------------------
-      subroutine setElemAvail(grid, cellP, iAb, elem, iNeut, iIon)
+      subroutine setElemAvail(grid, cellP, iAb, iE)
         implicit none
 
         type(grid_type), intent(inout) :: grid
-        integer, intent(in)            :: cellP, iAb, elem, iNeut, iIon
+        integer, intent(in)            :: cellP, iAb, iE
 
-        double precision :: tot, f0, f1
+        integer          :: elem
+        double precision :: tot, mol
 
-        if (elem > nElements) return
+        elem = pdrElZ(iE)
+        if (elem < 1 .or. elem > nElements) return
         if (.not.lgElementOn(elem)) return
-        if (iNeut <= 0 .or. iIon <= 0) return
 
-        tot = dble(grid%elemAbun(iAb, elem))
+        tot = 1.d0
+        if (elem > 1) tot = dble(grid%elemAbun(iAb, elem))
         if (tot <= 0.d0) return
 
-        f0 = min(max(grid%pdrAbun(cellP,iNeut)/tot, 0.d0), 1.d0)
-        f1 = min(max(grid%pdrAbun(cellP,iIon )/tot, 0.d0), 1.d0)
-
-        ! D-102: what is left over is locked in molecules - CO above all for
-        ! carbon and oxygen. Record the available fraction so ionBalance does
-        ! not renormalise the atomic stages back to one on the next pass, which
-        ! is what had been quietly undoing this handover ever since D-038.
-        grid%elemAvail(cellP, elem) = real(min(max(f0+f1, 0.d0), 1.d0))
+        ! D-402: what the molecules hold, from the species themselves. D-102
+        ! read the available fraction off the two carriers, (X + X+)/total,
+        ! which is the same number only while the ion carrier holds every
+        ! ionized stage (D-266).
+        mol = sum(pdrMolAtoms(1:pdrNspec, iE)*grid%pdrAbun(cellP, 1:pdrNspec))
+        grid%elemAvail(cellP, elem) = real(min(max(1.d0 - mol/tot, 0.d0), 1.d0))
 
       end subroutine setElemAvail
 
