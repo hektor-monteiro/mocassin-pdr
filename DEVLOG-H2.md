@@ -34,7 +34,7 @@ DEVLOG.md and arrives here by merge.
 | H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: ortho 0.82-0.84, para 1.13-1.19 (corrected the same day: 0.37 and 0.50 were against an emergent line list, D-396) | Done | 2026-10-05 |
 | H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. **Measured (seeded pairs): hiipdr's crossing 10.028 -> 9.847 (D-397) -> 9.781 pc (D-398), A_V 1.396 against Cloudy's 1.280; pn150k's 0.3706 -> 0.3637 pc, A_V 0.393 against 0.368. Every H2 line falls, 6-8% on hiipdr and 3-4% on pn150k; the ortho/para split against Cloudy does not move (hiipdr ortho 0.75-0.78, para 1.05-1.10; pn150k 0.91-1.11, 1.88-2.62).** The site walk costs 1.4-1.6x, 4-5% of the level model | Done | 2026-10-09 |
-| H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.3 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. **pn150k, seeded pair at 18 iterations (2026-10-10): the crossing moves from A_V 0.393 to 0.294 (0.364 to 0.275 pc, six cells), past Cloudy's 0.368: +0.099 from the width against a published gap of 0.026.** Its ortho lines come to 0.45-0.69 and its para lines to 0.70-0.93 of Cloudy's (0.91-1.11 and 1.88-2.62); a factor 1.3-1.6 between the spins stays, the colder shielded gas (H-009). The PDR is 1.5-3.2 K warmer and still 8-12 K below Cloudy's; CO 2-1 +42%. **Cloudy's saved rates show its chlorine (Cl+ + H2, HCl+ + H2) is 25-50% of its H2 sink from A_V 0.26 on; Cloudy rerun without chlorine (`runs/h026-cloudy-pn-noCl`) crosses at 0.326. If the pieces add, pn150k's +0.026 = +0.099 (width) - 0.042 (chlorine, which the REDUCED network lacks) - 0.032 (the rest); hiipdr, with no chlorine in either model, +0.116 = +0.208 - 0.092.** The model keeps its width; whether to add chlorine to the network is open | Done | 2026-10-10 |
+| H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.3 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. **pn150k, seeded pair at 18 iterations (2026-10-10): the crossing moves from A_V 0.393 to 0.294 (0.364 to 0.275 pc, six cells), past Cloudy's 0.368: +0.099 from the width against a published gap of 0.026.** Its ortho lines come to 0.45-0.69 and its para lines to 0.70-0.93 of Cloudy's (0.91-1.11 and 1.88-2.62); a factor 1.3-1.6 between the spins stays, the colder shielded gas (H-009). The PDR is 1.5-3.2 K warmer and still 8-12 K below Cloudy's; CO 2-1 +42%. **Cloudy's saved rates show its chlorine (Cl+ + H2, HCl+ + H2) is 25-50% of its H2 sink from A_V 0.26 on; Cloudy rerun without chlorine (`runs/h026-cloudy-pn-noCl`) crosses at 0.326. If the pieces add, pn150k's +0.026 = +0.099 (width) - 0.042 (chlorine, which the REDUCED network lacks) - 0.031 (the rest); hiipdr, with no chlorine in either model, +0.116 = +0.208 - 0.092.** The model keeps its width; whether to add chlorine to the network is open | Done | 2026-10-10 |
 
 ---
 
@@ -3825,9 +3825,9 @@ than the 0.026 mag the pages carry.
   7. **On pn150k too the gap is a difference of larger things.** The width
      alone is 0.099 mag, 3.9x the published 0.026, and with Cloudy's width
      ours forms its H2 0.073 mag before Cloudy's. Against Cloudy without
-     chlorine it is 0.032 mag before. So, if the pieces add, +0.026 =
+     chlorine it is 0.031 mag before. So, if the pieces add, +0.026 =
      +0.099 (the width) - 0.042 (Cloudy's chlorine, which our network does
-     not have) - 0.032 (the rest). The pieces were measured in different
+     not have) - 0.031 (the rest). The pieces were measured in different
      codes and one at a time; that they add is an assumption. hiipdr, with
      no chlorine in either model: +0.116 = +0.208 - 0.092.
   8. **The agreement of the two crossings to 0.026 mag on pn150k was a
@@ -3836,7 +3836,10 @@ than the 0.026 mag the pages carry.
      same residual as on hiipdr.
   9. **The chlorine is a gap in our chemistry, not a convention.** Cl+ +
      H2 -> HCl+ + H is fast and exothermic, and chlorine (I.P. 12.97 eV)
-     stays ionized through the atomic gas. On this model it carries a
+     stays ionized through the atomic gas: in Cloudy's model it is 99% Cl+
+     at A_V 0.20, 38% at 0.26, 12% at 0.30 and 1-3% at 0.38-0.46 (its
+     `.ele_Cl`), so behind the transition the Cl+ that reacts is what
+     photoionization of Cl resupplies. On this model it carries a
      quarter to a half of Cloudy's H2 destruction where photodissociation
      is shielded. Our network cannot represent it without new species (Cl,
      Cl+, HCl, HCl+, H2Cl+), and the network is generated code selected at
@@ -3886,6 +3889,39 @@ than the 0.026 mag the pages carry.
     0.82-0.84 of its H2 sink at A_V 0.26-0.38 and 0.37-0.75 beyond (O+,
     cosmic rays, H2+); ours is 93-100% photodissociation out to 0.43 pc
     (H-009).
+
+### Pages (2026-10-10, pn150k and the H2 lines)
+
+  - 150 kK PN Against Cloudy, version 23
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV): a new first
+    section, "The 0.026 mag agreement is a cancellation: a line width, and
+    chlorine": the pair's transition, rate, line emissivities and 40 lines
+    by spin, what destroys Cloudy's H2 (shares against A_V), the four
+    transitions (two runs, two Cloudy models), and the tables above with
+    Cloudy without chlorine as a fourth column. Version 22's "the para
+    lines stay 1.9-2.6x Cloudy's through its line damping width" now
+    carries the stage B measurement, and "H2 forms just past Cloudy's" the
+    three pieces.
+  - H2 Lines in MOCASSIN, version 9
+    (https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8): a new first
+    section, "The damping width where the level model is the physics", both
+    models side by side. Version 8's "on hiipdr it is not decomposed" and
+    its open item "hiipdr's lines by cause" are replaced by what was
+    measured.
+  - hiipdr Against Cloudy, version 24, republished: 1-0 S(1) with Cloudy's
+    width is 5.23e-4 (the page had 5.24e-4, from a ratio that
+    `tools/h009_lines.py` prints to three decimals; the lines now come from
+    each run's `lineFluxH2.out`, as in the table above), and a paragraph on
+    the companion model. The platform counts the republish as its version
+    25; the page still says 24.
+
+The page builders and numbers scripts are in the session's scratchpad
+(`h026wpages/`: `numsw.py`, `figcl.py`, `build_hii24.py`, `build_pn23.py`,
+`build_h2v9.py`), not in the repository, as for the earlier versions.
+
+Point 7's residual was first written as 0.032 mag; it is 0.0315 and rounds
+to 0.031, as the pages have it (corrected the same day; commit 568a98d's
+message still says 0.032).
 
 ### Status
 
