@@ -34,6 +34,7 @@ DEVLOG.md and arrives here by merge.
 | H-023 | **D-395's seeded pairs on this branch (reaction 332, e- + H2+ -> e- + H + H+, merged from production), at the converged counts.** hiipdr (`runs/h023-eh2p-hii31`, 15 iterations, 40:55): the zone's H2+ falls 2-2.8x and its H2 halves where x(H+) = 0.5-0.99, still 14-62x Cloudy's. pn150k (`runs/h023-eh2p-pn41`, 18, 2:29:55): H2+ falls 2.6-7x, to 3-4x Cloudy's (was 9-22x); H2 falls 1.6-4.1x, still 30-230x. Fronts, crossings, Hbeta and every PDR shell unchanged; the H2 lines within 0.2%. What is left of the zone's H2 is the level-resolved part of H-021's plan | Done | 2026-10-05 |
 | H-024 | **H-022's 'next': hiipdr's lit edge cell by cell. The 4000x column lag was a definition - h2Cells' N(H2) is the column to a cell's near face, and at A_V 0.50 the cells are the front cells themselves; at the cell centre it is 2-3x Cloudy's - and what was left was mostly the reference.** Like for like the lit-edge H2 at A_V 0.55-0.60 is 1.95-2.4x low, which formation (0.49-0.55, the silicate surface energies) and destruction (0.97-1.28) reproduce. The rest of hiipdr's gap was in Cloudy: no microturbulence, and the small H2 model's Elwert et al. (2005) shielding, 1.4-3.3x stronger than its own large model at N = 1e15-1e17 (production D-396, merged). Cloudy's crossing moves 1.090 -> 1.280 against our 1.400; n(H2) like for like is 1.0x Cloudy's at A_V 0.70 and 0.54x at 1.0 (H-022: 7x and 280x short). Our FUV field falls faster with A_V than Cloudy's, so it is not the field. hiipdr's H2 lines against Cloudy's large model, measured for the first time: ortho 0.82-0.84, para 1.13-1.19 (corrected the same day: 0.37 and 0.50 were against an emergent line list, D-396) | Done | 2026-10-05 |
 | H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. **Measured (seeded pairs): hiipdr's crossing 10.028 -> 9.847 (D-397) -> 9.781 pc (D-398), A_V 1.396 against Cloudy's 1.280; pn150k's 0.3706 -> 0.3637 pc, A_V 0.393 against 0.368. Every H2 line falls, 6-8% on hiipdr and 3-4% on pn150k; the ortho/para split against Cloudy does not move (hiipdr ortho 0.75-0.78, para 1.05-1.10; pn150k 0.91-1.11, 1.88-2.62).** The site walk costs 1.4-1.6x, 4-5% of the level model | Done | 2026-10-09 |
+| H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.4 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. The model keeps its width. pn150k: running | In progress | 2026-10-09 |
 
 ---
 
@@ -3452,3 +3453,192 @@ list they used.
 ### Status
 
 Done.
+
+## H-026 - The damping width in stage B: the crossing with Cloudy's width (2026-10-09)
+
+The user: "Proceed" (to the step recommended after H-025: measure the damping
+width's share of hiipdr's remaining 0.12 mag with H-008's patch).
+
+### The test
+
+H-008's one line, each line damped by its own A as Cloudy's H2 is, instead of
+by the upper level's total decay rate. It is now kept as
+`tools/patches/h008_cloudy_width.patch`; it is a diagnostic and is not in the
+code. H-008 ran it in stage A, where the level model only read the finished
+model, so it could move the lines and nothing else. Since stage B (H-012,
+H-013) the levels' photodissociation rate and heating are the chemistry's, so
+the same line now moves the transition.
+
+`runs/h026-aul-hii31` (binary `mocassin.h026aul`: a79ceac plus the patch; the
+source was restored and the branch's 3D binaries rebuilt, rc 0) against
+`runs/h026-site-hii31`: same input, seed, 15 iterations, 14 ranks. It ran
+37:25 (44:38); the level model's 13 calls took 880 s (1,200 s), the overlap
+step 243 rank-seconds a sweep against 524, as narrower wings reach fewer
+lines. Last integrated-test report 1.96% on Ne+ (2.02%).
+
+### Where the gap is (the model's own width)
+
+A_V at which 2n(H2)/n_H passes a value (ours: medians of cells in 0.02 mag
+bins, interpolated; Cloudy: its zones, `runs/d396-cloudy-hii`):
+
+| 2n(H2)/n_H | ours | ours, Cloudy's width | Cloudy | ours - Cloudy | Cloudy's width - Cloudy |
+|---|---|---|---|---|---|
+| 1e-4 | 0.909 | 0.900 | 0.942 | -0.033 | -0.042 |
+| 1e-3 | 0.981 | 0.943 | 0.991 | -0.009 | -0.047 |
+| 1e-2 | 1.072 | 0.997 | 1.020 | +0.052 | -0.023 |
+| 0.1 | 1.221 | 1.044 | 1.090 | +0.131 | -0.046 |
+| 0.5 | 1.397 | 1.187 | 1.280 | +0.117 | -0.093 |
+| 0.9 | 1.652 | 1.450 | 1.653 | -0.001 | -0.204 |
+
+With its own width the model turns H2 on where Cloudy does (0.01 mag at
+1e-3) and is molecular where Cloudy is (0.9 at 1.65). The whole gap opens
+between A_V 1.0 and 1.2, where Cloudy runs away and ours does not: there our
+photodissociation rate per molecule is 5-7x Cloudy's at the same A_V.
+
+### With Cloudy's width
+
+| | the model's width | Cloudy's width | Cloudy |
+|---|---|---|---|
+| H/H2 crossing, radius [pc] | 9.781 | 8.515 | 8.946 |
+| H/H2 crossing, A_V | 1.396 | 1.188 | 1.280 |
+| ionization front [pc] | 3.8312 | 3.8310 | 3.7644 |
+| C+ = C, radius [pc] | 15.251 | 15.251 | |
+| Hbeta [1e36 erg/s] | 9.166 | 9.166 | 10.02 |
+| 1-0 S(1) / Hbeta | 7.03e-4 | 5.23e-4 | 9.24e-4 |
+| 2-1 S(1) / 1-0 S(1) | 0.530 | 0.532 | |
+| 0-0 S(0), S(1), S(2) / Hbeta [1e-4] | 2.86, 3.94, 5.08 | 1.26, 2.31, 2.30 | 2.32, 4.84, 4.61 |
+| [C II] 158 um / Hbeta | 0.1538 | 0.1504 | 0.1151 |
+| CO 1-0, 2-1, 3-2 / Hbeta [1e-6] | 1.405, 2.115, 0.469 | 1.417, 2.136, 0.477 | |
+
+The crossing moves 0.208 mag, 1.27 pc, two cells (a cell is 0.627 pc, 0.100
+mag). It was 0.116 mag deeper than Cloudy's and is 0.092 mag shallower.
+
+In each run's own A_V (medians of the cells within 0.025 mag; Cloudy's zone at
+that A_V). The column is to the cell's near face:
+
+| A_V | 2n(H2)/n_H over Cloudy's: model's width | Cloudy's width | rate per H2 over Cloudy's: model's width | Cloudy's width | N(H2) to the cell: model's width | Cloudy's width | Cloudy |
+|---|---|---|---|---|---|---|---|
+| 0.70 | 0.79 | 0.80 | 0.74 | 0.74 | 5.7e13 | 5.7e13 | 1.8e14 |
+| 0.80 | 0.92 | 0.92 | 0.73 | 0.72 | 1.7e14 | 1.7e14 | 4.7e14 |
+| 0.90 | 2.83 | 3.68 | 0.24 | 0.17 | 5.5e14 | 5.6e14 | 1.6e15 |
+| 1.00 | 0.76 | 4.17 | 1.01 | 0.15 | 5.5e15 | 6.9e15 | 3.5e16 |
+| 1.05 | 0.14 | 2.52 | 5.78 | 0.29 | 3.7e16 | 6.9e16 | 7.3e17 |
+| 1.10 | 0.13 | 1.93 | 6.71 | 0.37 | 1.4e17 | 6.3e17 | 4.3e18 |
+| 1.15 | 0.17 | 1.79 | 5.77 | 0.36 | 4.9e17 | 7.4e18 | 1.2e19 |
+| 1.20 | 0.24 | 1.63 | 4.87 | 0.37 | 1.5e18 | 2.1e19 | 2.6e19 |
+| 1.30 | 0.47 | 1.41 | 3.12 | 0.33 | 8.2e18 | 7.0e19 | 6.3e19 |
+| 1.40 | 0.75 | 1.25 | 1.89 | 0.29 | 3.2e19 | 1.4e20 | 1.2e20 |
+| 1.50 | 0.95 | 1.18 | 1.13 | 0.21 | 8.0e19 | 2.3e20 | 1.7e20 |
+| 1.70 | 1.00 | 1.05 | 1.00 | 0.23 | 2.3e20 | 4.1e20 | 3.6e20 |
+| 2.00 | 1.01 | 1.01 | 0.69 | 0.19 | 5.1e20 | 6.9e20 | 6.5e20 |
+
+At fixed radius (shell medians), Cloudy's width over the model's:
+
+| r [pc] | A_V | n(H2) | rate per H2 | T [K]: model's width | Cloudy's width | Cloudy |
+|---|---|---|---|---|---|---|
+| 5.8 | 0.77 | 1.007 | 0.997 | 50.5 | 50.5 | 45.6 |
+| 6.5 | 0.89 | 1.09 | 0.92 | 49.0 | 49.0 | 45.0 |
+| 7.1 | 0.98 | 2.00 | 0.45 | 46.9 | 46.9 | 43.8 |
+| 7.8 | 1.08 | 16.1 | 0.051 | 43.8 | 44.9 | 42.5 |
+| 8.4 | 1.18 | 8.29 | 0.067 | 40.9 | 43.7 | 42.2 |
+| 9.1 | 1.29 | 3.34 | 0.103 | 38.2 | 42.4 | 41.9 |
+| 9.7 | 1.39 | 1.82 | 0.144 | 36.4 | 39.9 | 41.1 |
+| 10.4 | 1.50 | 1.27 | 0.186 | 34.2 | 36.1 | 39.5 |
+| 11.0 | 1.59 | 1.11 | 0.219 | 31.9 | 32.7 | 37.2 |
+| 12.3 | 1.80 | 1.03 | 0.230 | 26.5 | 26.6 | 31.5 |
+| 14.0 | 2.07 | 1.005 | 0.265 | 21.1 | 21.1 | 25.2 |
+
+Inside 6 pc nothing moves (the columns there are below 2e14 cm^-2, the
+Doppler core).
+
+The rate at equal column, to take the feedback out (ours: column to the
+cell's centre, medians per half dex; Cloudy: its zone at that column; each at
+its own A_V):
+
+| log N(H2) | A_V: model's width | Cloudy's width | Cloudy | rate over Cloudy's: model's width | Cloudy's width |
+|---|---|---|---|---|---|
+| 14.0-14.5 | 0.75 | 0.75 | 0.70 | 0.44 | 0.44 |
+| 15.0-15.5 | 0.89 | 0.89 | 0.91 | 0.49 | 0.60 |
+| 16.0-16.5 | 0.95 | 0.93 | 0.99 | 1.09 | 1.14 |
+| 16.5-17.0 | 0.99 | 0.95 | 1.01 | 2.11 | 2.06 |
+| 17.0-17.5 | 1.04 | 0.99 | 1.02 | 2.48 | 2.09 |
+| 17.5-18.0 | 1.10 | 1.00 | 1.04 | 2.08 | 1.65 |
+| 18.0-18.5 | 1.15 | 1.03 | 1.07 | 1.45 | 0.86 |
+| 18.5-19.0 | 1.22 | 1.08 | 1.11 | 1.11 | 0.59 |
+| 19.0-19.5 | 1.31 | 1.15 | 1.17 | 0.83 | 0.52 |
+| 19.5-20.0 | 1.43 | 1.25 | 1.28 | 0.60 | 0.49 |
+| 20.0-20.5 | 1.64 | 1.45 | 1.48 | 0.36 | 0.33 |
+| 20.5-21.0 | 2.07 | 1.96 | 1.91 | 0.26 | 0.16 |
+
+Over Cloudy's 40 strongest H2 lines (`tools/h009_lines.py`, its intrinsic
+list), median of ours over Cloudy's:
+
+| upper level | lines | the model's width | Cloudy's width | Cloudy's width / the model's |
+|---|---|---|---|---|
+| v = 0, ortho | 4 | 0.78 | 0.46 | 0.60 |
+| v = 0, para | 1 | 1.10 | 0.50 | 0.45 |
+| v = 1, ortho | 6 | 0.76 | 0.57 | 0.75 |
+| v = 1, para | 6 | 1.09 | 0.54 | 0.50 |
+| v >= 2, ortho | 9 | 0.75 | 0.56 | 0.75 |
+| v >= 2, para | 14 | 1.05 | 0.52 | 0.50 |
+
+The levels' H2 heating summed over the grid falls to 0.65 (formation 0.68,
+dissociation 0.60): fewer atoms are cycled.
+
+### What it means
+
+  1. **The 0.12 mag was not 'the surface energies and, for the rest, the
+     width'** (H-024, H-025, and the hiipdr page's version 23). The width
+     alone is 0.21 mag, 1.8x the gap, and with Cloudy's width ours forms its
+     H2 0.09 mag *before* Cloudy's. The gap is the difference of two larger
+     things: +0.21 from the width and -0.09 from everything else. With
+     Cloudy's surface energies as well (0.04 mag the same way, H-022, not run
+     together) it would be about -0.13.
+  2. **The 'everything else' has the sign H-008 found on pn150k**: with equal
+     widths ours absorbs less in the lines than Cloudy does. Here the rate
+     per molecule at equal column is 0.49-0.59 of Cloudy's from 3e18 to 1e20
+     cm^-2 and 0.16-0.33 beyond, and every H2 line is 0.46-0.57 of Cloudy's
+     (pn150k, stage A: 0.23-0.62).
+  3. **The two codes' shielding differs in shape, not only in the wings.**
+     At 3e16-1e18 cm^-2 ours is 1.6-2.5x Cloudy's rate with either width;
+     below 3e15 it is 0.44-0.60 with either. The width acts from about 1e18
+     on: at equal column our rate with the model's width is 1.2-1.9x that
+     with Cloudy's, behind 0.1-0.2 mag more dust, so the width's own factor
+     is larger than that. The 16x in n(H2) at 7.8 pc is that factor fed back
+     through the column.
+  4. **On hiipdr the split by spin is the width, all of it.** Para over ortho
+     against Cloudy goes from 1.40-1.43 to 0.93-1.08. The width multiplies
+     our para lines by 2.0-2.2 and our vibrational ortho lines by 1.34 (the
+     rotational ones by 1.67); on pn150k, in stage A, 3.2 and 2.2 (H-009).
+     H-025's "whether hiipdr's ortho lines at 0.75-0.78 are the crossing or
+     the excitation" is answered: neither, it is the width acting less on
+     them than on the para lines.
+  5. **Part of 'our PDR is colder than Cloudy's' at 8-10 pc is the hydrogen
+     being atomic.** With Cloudy's width the gas at 7.8-10.4 pc is 1.1-4.2 K
+     warmer, and at 7.8-9.7 pc within 2.4 K of Cloudy's (it was up to 4.7 K
+     colder), on 13% less heating (at 9.1 pc: photoelectric 2.56e-26 ->
+     2.41e-26 erg/s per H, the chemistry's terms 4.66e-27 -> 2.09e-27).
+     MOCASSIN's collisional line cooling balances that at the higher
+     temperature, which is what the coolants' colliders going from H to half
+     as many H2 would do; the coolants were not separated. Beyond 11 pc,
+     where both runs are molecular, the 4-5 K stays.
+  6. **Nothing changes in the code.** The natural width of a line is its
+     upper level's total decay rate; Cloudy uses that for every species but
+     its H2 (H-008). The difference is reported with its size: 0.21 mag on
+     hiipdr's crossing, 1.3-2.2x on its lines.
+
+### Not yet known
+
+  - pn150k: `runs/h026-aul-pn41` against `runs/h026-site-pn41` (18
+    iterations), launched 2026-10-09 23:48.
+  - What makes up the -0.09 mag and the half-strength lines at equal width.
+    Candidates, none isolated here: line overlap, which ours has (Draine &
+    Bertoldi's factor is 0.9 at 1e19, 0.7 at 1e20, 0.3 at 1e21, the trend of
+    the equal-column table); our FUV falling faster with depth (0.80 of
+    Cloudy's at A_V 1.0, 0.61 at 1.6, H-024); Cloudy's closure (1.2 on the
+    lines, H-009); the cell: 0.1 mag wide where n(H2) rises 16x in one.
+  - Why ours is 2x Cloudy's rate at 3e16-1e18 cm^-2 with either width. That
+    is where a cell's own column is most of the column (H-007).
+  - The transition is two cells from Cloudy's with one width and one cell
+    with the other: the resolution series (H-007: the profile was not
+    converged at 41^3) has not been repeated in stage B.

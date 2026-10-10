@@ -1,0 +1,13 @@
+diff --git a/source/h2_mod.f90 b/source/h2_mod.f90
+index 5ab2269..715373a 100644
+--- a/source/h2_mod.f90
++++ b/source/h2_mod.f90
+@@ -1332,7 +1332,7 @@ contains
+       real(dp) :: lam
+       lam = 1._dp/h2tWN(i)
+       sig = h2uG(h2tU(i))/h2G(h2tL(i))*h2tA(i)*lam**3/(8._dp*pi**1.5_dp*b)
+-      a = (h2uAtot(h2tU(i)) + h2uDiss(h2tU(i)))*lam/(4._dp*pi*b)
++      a = h2tA(i)*lam/(4._dp*pi*b)
+     end subroutine h2LineParams
+ 
+     !---------------------------------------------------------------------------
