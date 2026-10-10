@@ -4340,27 +4340,20 @@ end function getVolume
                      if (allocated(grid(iG)%H2den) .and. pdrIdxH2 > 0) &
                           & grid(iG)%H2den(cellP) = &
                           & real(grid(iG)%pdrAbun(cellP,pdrIdxH2))*grid(iG)%Hden(cellP)
-                     if (allocated(grid(iG)%elemAvail)) then
-                        do iLnkR = 1, pdrNlink
-                           if (pdrLinkSpec(iLnkR) <= 0) cycle
-                           if (pdrLinkIon(iLnkR) /= 1) cycle   ! once per element
-                           availR = grid(iG)%pdrAbun(cellP, pdrLinkSpec(iLnkR))
-                           do jLnkR = 1, pdrNlink
-                              if (pdrLinkSpec(jLnkR) <= 0) cycle
-                              if (pdrLinkElem(jLnkR) /= pdrLinkElem(iLnkR)) cycle
-                              if (pdrLinkIon(jLnkR) /= 2) cycle
-                              availR = availR + grid(iG)%pdrAbun(cellP, pdrLinkSpec(jLnkR))
-                           end do
-                           if (pdrLinkElem(iLnkR) == 1) then
-                              grid(iG)%elemAvail(cellP,1) = &
-                                   & real(min(max(availR, 0.d0), 1.d0))
-                           else if (grid(iG)%elemAbun(grid(iG)%abFileIndex(i,j,k), &
-                                &                     pdrLinkElem(iLnkR)) > 0.) then
-                              grid(iG)%elemAvail(cellP, pdrLinkElem(iLnkR)) = &
-                                   & real(min(max(availR/dble(grid(iG)%elemAbun( &
-                                   &   grid(iG)%abFileIndex(i,j,k), &
-                                   &   pdrLinkElem(iLnkR))), 0.d0), 1.d0))
-                           end if
+                     ! D-402: the same rule pdrToMocassin applies - what the
+                     ! molecules hold, counted from the species
+                     if (allocated(grid(iG)%elemAvail) .and. allocated(pdrMolAtoms)) then
+                        do iLnkR = 1, pdrNlinkEl
+                           if (pdrElZ(iLnkR) <= 0) cycle
+                           if (pdrElZ(iLnkR) > nElements) cycle
+                           if (.not.lgElementOn(pdrElZ(iLnkR))) cycle
+                           availR = 1.d0
+                           if (pdrElZ(iLnkR) > 1) availR = dble(grid(iG)%elemAbun( &
+                                & grid(iG)%abFileIndex(i,j,k), pdrElZ(iLnkR)))
+                           if (availR <= 0.d0) cycle
+                           grid(iG)%elemAvail(cellP, pdrElZ(iLnkR)) = real(min(max(1.d0 - &
+                                & sum(pdrMolAtoms(1:pdrNspec, iLnkR) &
+                                &     *grid(iG)%pdrAbun(cellP, 1:pdrNspec))/availR, 0.d0), 1.d0))
                         end do
                      end if
                   end if

@@ -944,6 +944,15 @@ module common_mod
     integer             :: pdrLinkElem(pdrNlink) = 0
     integer             :: pdrLinkIon (pdrNlink) = 0
     integer             :: pdrLinkSpec(pdrNlink) = 0
+    ! D-402: the linked elements, one per neutral/first-ion pair of the table
+    ! above (slots 2e-1 and 2e): atomic number, and the two species. And how
+    ! many atoms of each linked element every network species holds - zero
+    ! for the element's own two carriers, so the sum over species is what
+    ! its molecules hold. Built in initPDRnetwork from the species' names.
+    integer, parameter  :: pdrNlinkEl = pdrNlink/2
+    integer             :: pdrElZ(pdrNlinkEl) = 0, pdrElNeut(pdrNlinkEl) = 0, &
+         &                 pdrElIon(pdrNlinkEl) = 0
+    double precision, allocatable :: pdrMolAtoms(:,:)   ! (species, linked element)
     ! D-280: cosmic-ray ionization of every linked neutral, read from the
     ! network's own reactions (CRP direct, CRPHOT through cosmic-ray-induced
     ! photons) so MOCASSIN and the chemistry ionize with identical coefficients.

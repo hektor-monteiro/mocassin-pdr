@@ -15,6 +15,11 @@
 #include <sundials/sundials_types.h> /* Definition of type realtype */
 #include <sundials/sundials_types_deprecated.h> /* Definition of type realtype */
 
+/* D-402: electrons per H nucleus from ions the network does not carry,
+ * supplied by the host (chemistry_module, modules.F90). Zero by default. */
+extern double chemistry_module_mp_xe_extra_;
+
+
 /* D-113: per-species formation and destruction rates, exported to Fortran.
  * Declared in chemistry_module (modules.F90) with bind(c), the same
  * convention calculate_abundances.c already uses for the tolerances. */
@@ -50,7 +55,7 @@ int f(realtype t, N_Vector y, N_Vector ydot, void *user_data)
 
   /* The electron abundance is a conserved quantity, given by the sum
    * of the abundances of all ionized species in the chemical network */
-  x_e = x[0]+x[1]+x[3]+x[5]+x[6]+x[7]+x[8]+x[9]+x[10]+x[12]+x[13]+x[14]+x[15]+x[18]+x[19]+x[22]+x[23]+x[26];
+  x_e = chemistry_module_mp_xe_extra_+x[0]+x[1]+x[3]+x[5]+x[6]+x[7]+x[8]+x[9]+x[10]+x[12]+x[13]+x[14]+x[15]+x[18]+x[19]+x[22]+x[23]+x[26]; /* D-402 xe_extra */
 
   /* The ODEs created by MakeRates begin here... */
   loss = -rate[67]*x[24]*n_H-rate[68]*x[20]*n_H-rate[69]*x[16]*n_H-rate[70]*x[21]*n_H-rate[71]*x[29]*n_H-rate[72]*x[11]*n_H-rate[73]*x[28]*n_H-rate[74]*x[17]*n_H-rate[75]*x[2]*n_H-rate[76]*x[27]*n_H-rate[216]*x_e*n_H-rate[217]*x_e*n_H-rate[266]-rate[267];
