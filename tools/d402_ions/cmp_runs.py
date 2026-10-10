@@ -65,6 +65,22 @@ for r in (base, new):
     k = 4 if 'D402]' in ''.join(last[-4:]) else 1
     for l in last[-k:]:
         print('   ', l.strip()[:400])
+    # the cell update's own convergence, and the cells it flagged (left out of the line output)
+    ib = re.findall(r'Iteration\s+(\d+) ;\s+(\d+) % Ion balance not reached', lg)
+    tb = re.findall(r'Iteration\s+(\d+) ;\s+(\d+) % Te balance not reached', lg)
+    print('    ion balance not reached, %% of cells by iteration: %s' % ' '.join(x[1] for x in ib))
+    print('    Te balance not reached,  %% of cells by iteration: %s' % ' '.join(x[1] for x in tb))
+    t = open(os.path.join(r, 'output', 'grid0.out')).read().split()
+    n = int(t[1])*int(t[2])*int(t[3]); off = 7 + int(t[1]) + int(t[2]) + int(t[3])
+    g = np.array(t[off:off+n*3], float).reshape(n, 3)
+    pr = np.loadtxt(os.path.join(r, 'output', 'pdrRad.out'), skiprows=1)
+    g1 = np.loadtxt(os.path.join(r, 'output', 'grid1.out'))
+    act = g[:, 0] > 0; blk = act & (g[:, 2] > 0)
+    print('    flagged cells (lgBlack): %d of %d; at T <= 10.001 K: %d cells, of them flagged %d; coldest %.3f K' % (
+        blk.sum(), act.sum(), (act & (g1[:, 0] <= 10.001)).sum(), (blk & (g1[:, 0] <= 10.001)).sum(), g1[act, 0].min()))
+    if blk.sum():
+        print('    flagged cells by A_V: ' + '  '.join('%.1f-%.1f: %d' % (lo, lo+0.3, (blk & (pr[:, 0] >= lo) & (pr[:, 0] < lo+0.3)).sum())
+                                                     for lo in np.arange(0, 3.3, 0.3) if (blk & (pr[:, 0] >= lo) & (pr[:, 0] < lo+0.3)).sum()))
 
 hb0, l0 = lines(base, 'lineFlux.out'); hb1, l1 = lines(new, 'lineFlux.out')
 print('Hbeta [E36 erg/s]  %.5f -> %.5f  (%+.3f%%)' % (hb0, hb1, 100*(hb1/hb0-1)))
