@@ -89,7 +89,7 @@ for k in l0:
     if k in l1 and l0[k] > 1e-7 and l1[k] > 0:
         ch.append((abs(np.log(l1[k]/l0[k])), k, l0[k], l1[k]))
 ch.sort(reverse=True)
-print('lineFlux.out: %d lines above 1e-7 Hbeta; moved by more than 1%%: %d, more than 5%%: %d' % (
+print('lineFlux.out, recombination lines of H and He: %d above 1e-7 Hbeta; moved by more than 1%%: %d, more than 5%%: %d' % (
     len(ch), sum(1 for c in ch if c[0] > np.log(1.01)), sum(1 for c in ch if c[0] > np.log(1.05))))
 byion = {}
 for c in ch:
@@ -101,6 +101,29 @@ for ion, cs in sorted(byion.items(), key=lambda kv: -kv[1][0][0]):
     st = max(cs, key=lambda c: c[2])
     print('   %-8s lines %3d  largest x%.3f (%.2f A, %.2e)   strongest %.2f A  %.3e -> %.3e  x%.3f' % (
         ion, len(cs), cs[0][3]/cs[0][2], cs[0][1][1], cs[0][2], st[1][1], st[2], st[3], st[3]/st[2]))
+
+
+def forb(run):
+    """the heavy ions' collisionally excited lines of lineFlux.out's totals block:
+    {(element, ion, upper, lower): (wavelength [A], L/Hbeta)}. lines() above reads
+    only the two-column rows, which are the recombination lines of H and He."""
+    t = open(os.path.join(run, 'output', 'lineFlux.out')).read().split('Component:')[0]
+    d = {}
+    for l in t.split('Heavy ions forbidden lines')[1].splitlines():
+        q = l.split()
+        if len(q) == 7:
+            d[(int(q[0]), int(q[1]), int(q[2]), int(q[3]))] = (float(q[4]), float(q[5]))
+    return d
+
+
+f0, f1 = forb(base), forb(new)
+fr = sorted(((abs(np.log(f1[k][1]/v)), k, w, v, f1[k][1]) for k, (w, v) in f0.items()
+             if k in f1 and v > 1e-3 and f1[k][1] > 0), reverse=True)
+print('lineFlux.out, collisionally excited lines: %d above 1e-3 Hbeta; moved by more than 1%%: %d, more than 5%%: %d' % (
+    len(fr), sum(1 for c in fr if c[0] > np.log(1.01)), sum(1 for c in fr if c[0] > np.log(1.05))))
+for c in fr:
+    if c[0] > np.log(1.01):
+        print('   Z %2d stage %d  %12.1f A  %.4e -> %.4e  x%.3f' % (c[1][0], c[1][1], c[2], c[3], c[4], c[4]/c[3]))
 m0, m1 = mol(base), mol(new)
 print('lineFluxMol.out (L/Hbeta), base -> new, ratio:')
 for k in m0:
