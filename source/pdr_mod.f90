@@ -187,10 +187,13 @@ module pdr_mod
     ! transfer with H), so it is not handed over.
     integer, allocatable :: rxSp402(:,:), rxNr402(:,:,:), rxNp402(:,:,:)
     logical, allocatable :: rxGrain402(:), rxIn402(:), rxMoc402(:,:)
+    ! a linked metal's charge transfer with H, either direction
+    logical, allocatable :: rxCtH402(:)
     ! the largest |sum of the classified channels / the right-hand side's own
     ! total - 1| per element: loss of X, formation of X, loss of X+,
     ! formation of X+ (the right-hand side's totals are D-113's capture)
     double precision :: clos402(pdrNlinkEl,4) = 0.d0
+    integer          :: nProbe402 = 0
     integer          :: nUnset358 = 0
     ! D-362: each coolant's cooling from a level-population solve at the
     ! cell's own temperature against the log-log interpolation of the D-215
@@ -818,12 +821,12 @@ module pdr_mod
         ! D-402: each reaction as the right-hand side has it, and what it
         ! does to every linked element's X and X+.
         if (allocated(rxSp402)) deallocate(rxSp402, rxNr402, rxNp402, rxGrain402, &
-             & rxIn402, rxMoc402)
+             & rxIn402, rxMoc402, rxCtH402)
         allocate(rxSp402(pdrNreacMod,3), rxNr402(pdrNreacMod,pdrNlinkEl,2), &
              & rxNp402(pdrNreacMod,pdrNlinkEl,2), rxGrain402(pdrNreacMod), &
-             & rxIn402(pdrNreacMod), rxMoc402(pdrNreacMod,pdrNlinkEl))
+             & rxIn402(pdrNreacMod), rxMoc402(pdrNreacMod,pdrNlinkEl), rxCtH402(pdrNreacMod))
         rxSp402 = 0; rxNr402 = 0; rxNp402 = 0
-        rxGrain402 = .false.; rxIn402 = .true.; rxMoc402 = .false.
+        rxGrain402 = .false.; rxIn402 = .true.; rxMoc402 = .false.; rxCtH402 = .false.
         do iR = 1, pdrNreacMod
            do iC = 1, 3
               do iS = 1, pdrNspecMod
@@ -856,9 +859,11 @@ module pdr_mod
            end do
         end do
         do iC = 1, pdrNct
-           ! charge transfer with H: the metal's own, and hydrogen's side of it
+           ! charge transfer with H: ionBalance computes the metal's side. For
+           ! hydrogen the same reactions are handed over by their NET only
+           ! (pdrStep), so they are marked here
            rxMoc402(iCt402(iC), pdrCtEl(iC)) = .true.
-           if (pdrElOfZ(1) > 0) rxMoc402(iCt402(iC), pdrElOfZ(1)) = .true.
+           rxCtH402(iCt402(iC)) = .true.
         end do
         if (taskid == 0) then
            do iLnk = 1, pdrNlinkEl
@@ -3163,7 +3168,7 @@ module pdr_mod
         integer            :: iR402, js402, dN402, dI402
         integer            :: carr402(2, pdrNlinkEl)
         logical            :: lgSkip402(2)
-        double precision   :: xe402, xf402, rAll402, rNo402(2), ch402(pdrNchan), gr402(4)
+        double precision   :: xe402, xf402, rAll402, rNo402(2), ch402(pdrNchan), gr402(4), netCt402
         integer            :: iTpass                     ! D-166
         integer            :: iEl                        ! D-188
         integer            :: iRay                       ! D-190
@@ -3846,7 +3851,7 @@ module pdr_mod
         end do
         do iE402 = 1, pdrNlinkEl
            if (pdrElZ(iE402) <= 0) cycle
-           ch402 = 0.d0; gr402 = 0.d0
+           ch402 = 0.d0; gr402 = 0.d0; netCt402 = 0.d0
            abEl402 = 1.d0
            if (pdrElZ(iE402) > 1) abEl402 = dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(iE402)))
            if (.not.lgElementOn(pdrElZ(iE402)) .or. abEl402 <= 0.d0) then
@@ -3893,6 +3898,15 @@ module pdr_mod
               ! net, for ionBalance
               dN402 = rxNp402(iR402,iE402,1) - rxNr402(iR402,iE402,1)
               dI402 = rxNp402(iR402,iE402,2) - rxNr402(iR402,iE402,2)
+              ! Hydrogen's side of a metal's charge transfer with it: only
+              ! the net of the two directions, summed below. Each alone is
+              ! most of H+'s formation or loss in the atomic PDR and they
+              ! nearly cancel; handed over separately they would pin
+              ! MOCASSIN's H+ to the solver's last value.
+              if (pdrElZ(iE402) == 1 .and. rxCtH402(iR402)) then
+                 netCt402 = netCt402 + dble(dI402)*rAll402/nH
+                 cycle
+              end if
               if (dN402 < 0 .and. dI402 > 0) then
                  ik = min(-dN402, dI402)
                  ch402(1) = ch402(1) + dble(ik)*rNo402(1)
@@ -3907,6 +3921,47 @@ module pdr_mod
               if (dI402 < 0) ch402(5) = ch402(5) - dble(dI402)*rNo402(2)
               if (dI402 > 0) ch402(6) = ch402(6) + dble(dI402)*rAll402/nH/abEl402
            end do
+           ! a few of the cells where the two still differ by more than 2x,
+           ! with what ionBalance was handed last time and what it gets now
+           if (pdrDiagRates >= 2 .and. taskid == 0 .and. nProbe402 < 16 .and. &
+                & nIterateMC >= pdrStartIter + 2) then
+              mocNeut = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 1))
+              mocIon  = dble(grid%ionDen(cellP, elementXref(pdrElZ(iE402)), 2))
+              if (mocNeut > 0.d0 .and. mocIon > 0.d0 .and. abunPre(carr402(1,iE402)) > 0.d0 &
+                   & .and. abunPre(carr402(2,iE402)) > 0.d0) then
+                 dqP = log10((abunPre(carr402(2,iE402))/abunPre(carr402(1,iE402)))/(mocIon/mocNeut))
+                 if (abs(dqP) > log10(2.d0) .and. dble(grid%ionDen(cellP,elementXref(1),2)) < 0.5d0) then
+                    nProbe402 = nProbe402 + 1
+                    print '(a,i7,a,a,a,f7.3,a,f8.1,a,es10.3,a,f7.3)', " ! [D402p] cell", cellP, "  ", &
+                         & trim(adjustl(pdrSpecies(carr402(1,iE402)))), "  A_V", av, "  T", Tg, &
+                         & "  x(H+)", dble(grid%ionDen(cellP,elementXref(1),2)), "  dex", dqP
+                    print '(a,2es11.3,a,2es11.3,a,es11.3,a,es11.3)', " ! [D402p]   MOCASSIN x1 x2", mocNeut, mocIon, &
+                         & "   solver X X+ /A", abunPre(carr402(1,iE402))/abEl402, &
+                         & abunPre(carr402(2,iE402))/abEl402, "   x_e solver", xe402, &
+                         & "  Ne/nH", dble(grid%Ne(cellP))/nH
+                    print '(a,6es11.3)', " ! [D402p]   handed last time", &
+                         & grid%pdrIonRate(cellP, pdrNchan*(iE402-1)+1:pdrNchan*iE402)
+                    print '(a,6es11.3)', " ! [D402p]   handed now      ", ch402
+                    print '(a,2es11.3,a,2es11.3)', " ! [D402p]   MOCASSIN's rates in the solve: ionization, recombination coef", &
+                         & dble(grid%pdrPhotRate(cellP, iE402)), dble(grid%pdrAlphaRec(cellP, iE402)), &
+                         & "   gross loss of X, of X+ [s-1]", gr402(1), gr402(3)
+                 end if
+              end if
+           end if
+           ! hydrogen: the net of its charge transfer with the linked metals,
+           ! H -> H+ if positive (a source of H+, a sink of H), else the
+           ! reverse (a sink of H+, a source of H)
+           if (pdrElZ(iE402) == 1 .and. netCt402 /= 0.d0) then
+              if (netCt402 > 0.d0) then
+                 ch402(6) = ch402(6) + netCt402
+                 if (abunPre(carr402(1,iE402)) > 0.d0) ch402(3) = ch402(3) &
+                      & + netCt402/abunPre(carr402(1,iE402))
+              else
+                 ch402(4) = ch402(4) - netCt402
+                 if (abunPre(carr402(2,iE402)) > 0.d0) ch402(5) = ch402(5) &
+                      & - netCt402/abunPre(carr402(2,iE402))
+              end if
+           end if
            grid%pdrIonRate(cellP, pdrNchan*(iE402-1)+1:pdrNchan*iE402) = real(ch402)
            ! the check against the right-hand side's own totals
            do js402 = 1, 2

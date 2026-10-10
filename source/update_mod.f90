@@ -2556,7 +2556,7 @@ end subroutine iterateT
             ! of the element in hand; H0 and H+ densities; the chain's down
             ! rate; and whether an element has molecular terms in its matrix
             double precision       :: ctUp402(pdrNlinkEl), ctDn402(pdrNlinkEl)
-            integer                :: ie402, je402
+            integer                :: ie402
             double precision       :: nH0402, nHp402, dnChain402
             logical                :: lgChem402(nElements)
 
@@ -2778,27 +2778,23 @@ end subroutine iterateT
                     !   everything else the network does to X and X+ (charge
                     !     transfer with other species, reactions with
                     !     molecules) - from the last solve, below.
-                    ! Hydrogen takes the other side of the metals' charge
-                    ! transfer, with this call's own stage densities, so the
-                    ! O+ + H <-> O + H+ exchange is closed inside updateCell
-                    ! and not across two Monte Carlo iterations.
+                    ! Hydrogen does NOT take the other side of the metals'
+                    ! charge transfer here. The first version did, with the
+                    ! metals' densities of the previous pass, and updateCell's
+                    ! own iteration stopped converging: where the exchange
+                    ! O+ + H <-> O + H+ is most of both H+'s formation and its
+                    ! loss (the atomic PDR), each species followed the other's
+                    ! last value and the pair cycled - the ion balance was not
+                    ! reached in 4% of hiipdr's cells and the temperature in
+                    ! 10%, against none. The exchange nearly cancels for
+                    ! hydrogen; what is left is its NET, which the solve hands
+                    ! over with the rest (pdrStep).
                     if (lgPDR .and. ion == 1 .and. elem <= 30) ie402 = pdrElOfZ(elem)
                     if (ie402 > 0) then
                        if (elem > 1) then
                           ionUp(elem,1) = ionUp(elem,1) - dble(revRate) + ctUp402(ie402)*nHp402
                           ionDn(elem,1) = dble(NeUsed)*dble(alphaTot(elem,1)) &
                                & + ctDn402(ie402)*nH0402
-                       else
-                          do je402 = 1, pdrNlinkEl
-                             if (pdrElZ(je402) <= 1) cycle
-                             if (.not.lgElementOn(pdrElZ(je402))) cycle
-                             ionUp(1,1) = ionUp(1,1) + ctDn402(je402)*dble(grid%Hden(cellP)) &
-                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(je402))) &
-                                  & *dble(grid%ionDen(cellP, elementXref(pdrElZ(je402)), 2))
-                             ionDn(1,1) = ionDn(1,1) + ctUp402(je402)*dble(grid%Hden(cellP)) &
-                                  & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP), pdrElZ(je402))) &
-                                  & *dble(grid%ionDen(cellP, elementXref(pdrElZ(je402)), 1))
-                          end do
                        end if
                        if (allocated(grid%pdrIonRate)) then
                           ionUp(elem,1) = ionUp(elem,1) &
