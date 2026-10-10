@@ -400,6 +400,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-398 | **A scattering site's first leg runs to the site, not to the near face of the site's cell.** D-347 took the stored near-face column `pdrColX(P)` for N(star -> P) because it was at hand; the light scattered in a cell has also crossed that cell's own gas as far as the scattering point. The first leg now adds the site's cell's own column from its near face to its centre (the length is `rayCells`' first segment, kept per cell beside the snapshot); the target cell's own column stays out (D-088). Four flavours rc 0. **Measured on h2-model: hiipdr's crossing moves another 0.065 pc (0.010 mag) to A_V 1.396 against Cloudy's 1.280 (0.12 mag apart; of the published 0.31, 0.19 was the reference's, D-396); the rate falls to 0.85-0.91, the H2 lines 1.9-2.4%, CO rises 2-5%.** pn150k with D-397 and D-398 together: crossing 0.007 pc nearer the star (0.393 in A_V, as before, against Cloudy's 0.368), rate 0.33-0.87 and n(H2) 1.07-3.0x through the transition, H2 lines -3.2 to -4.4%, CO 2-1 +4.2%; fronts, Hbeta and T at fixed radius unchanged | Done | 2026-10-09 |
 | D-399 | **The H/H2 crossing gaps against Cloudy are differences of larger things, and one of the things is chemistry the REDUCED network lacks: chlorine.** On the h2-model branch (DEVLOG-H2 H-026) the level model was rerun with Cloudy's H2 line damping width (each line's own A; a diagnostic, not adopted): hiipdr's crossing moves A_V 1.396 -> 1.188 past Cloudy's 1.280, pn150k's 0.393 -> 0.294 past Cloudy's 0.368. Cloudy's saved rates on pn150k show Cl+ + H2 -> HCl+ + H and HCl+ + H2 -> H2Cl+ + H carry 25-50% of its H2 destruction from A_V 0.26 on; Cloudy rerun without chlorine crosses at 0.326 (-0.042 mag). If the pieces add: pn150k +0.026 = +0.099 (width) - 0.042 (chlorine) - 0.031 (rest); hiipdr, no chlorine in either model, +0.116 = +0.208 - 0.092. Registered as L-46; whether the network gets chlorine is the user's decision | Found, not fixed | 2026-10-10 |
 | D-400 | **Chlorine in the network: the user deferred it and asked for it to be logged as work to do (L-46, D-399). Not started; no code changed.** The work is five species (Cl, Cl+, HCl, HCl+, H2Cl+) in the one compiled network, 33 -> 38. Checked what the tree already holds: 3D-PDR's vendored `full` network (`dataPDR/species_full.d`, `rates_full.d`; never built, D-003) has them, and 24 of its 45 chlorine reactions close within REDUCED's species plus the five, both of Cloudy's sinks among them with Cloudy's own coefficients (1.0e-9 and 1.3e-9 cm3/s, UMIST in both codes). pn150k has Cl/H = 3.16e-7; hiipdr has Cl = 0 in both codes and is the control. Decisions to take at the start: Cl and Cl+ are owned once (MOCASSIN solves chlorine's stages already), Cl's photoionization takes the field in its own window as H2, CO and C I do since D-350 (Cl ionizes only at 912-956 A, among H2's own lines), REDUCED is extended in place and not joined by a second selectable network, and the right-hand side is generated C with no generator in the tree | Deferred | 2026-10-10 |
+| D-401 | **Audit of the chemistry coupling, and whether 3D-PDR's full network can be used. The user's rule for it: one x(Cl+).** Mechanically yes: with the Makefile's two network names changed and the D-113 capture applied, the vendored `full` network (215 species, 2,926 reactions, 13 elements) builds against the present code and solves a one-cell box at pn150k's own conditions at every depth tried. One solve costs 57-161 ms cold and 6-10 ms warm against the reduced network's 2.0-3.9 and 0.08-0.15 ms (25-48x and 40-100x): 19-300 s per iteration on pn150k at 14 ranks. **Three things stand in the way, none of them cost.** (1) The coupling does not deliver one x(X+) for an ion a molecule consumes: `ionBalance` has no molecular channels since D-193 (L-34), every run log shows it for O+ (78.5% of pn150k's cells more than 2x from the solver's own value), and MOCASSIN's balance holds chlorine 99.8% ionized at A_V 0.30 where Cloudy has 11.9% - the Cl+ + H2 sink is 1e4 times recombination there. (2) The full network is not the reduced one plus species: 9 of the reduced network's 332 reactions are absent from it (D-395's among them) and 148 have other coefficients; it carries its own two-level H2 (H2*: -11% H2 in the box at A_V 0.30), eight more elements each needing the link the rule demands, and 131 more photo-rates on a diffuse-ISM shape. (3) The element list is written by hand in six places and an unlinked element is seeded zero. In the box, with H2* off, the full network lowers 2n(H2)/nH by 2.5-3.5%, chlorine carrying 3-9% of the H2 loss against Cloudy's 25-50%: UMIST's Cl photoionization on our band-averaged field is 7-10x below the rate Cloudy's Cl+ implies (not decomposed; the spectrum's shape is 1.5x). Recommended order: L-34's decision, the links from the species file, chlorine in a 38-species network from a generator of our own, then the full network as a measured A/B | Audited, nothing changed | 2026-10-10 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -34942,4 +34943,284 @@ not Cloudy's and is not known.
 
 ### Status
 
-Deferred by the user, 2026-10-10. Logged; not started.
+Deferred by the user, 2026-10-10. Logged; not started. (Later the same day
+the user took decision 1 - one x(Cl+) - and asked for the audit: D-401.
+Decision 4 is answered there: nothing is sized by 33, the element list is
+what is fixed.)
+
+## D-401 - Audit of the chemistry coupling, and whether 3D-PDR's full network can be used (2026-10-10)
+
+The user: "audit the code and the coupling to the chemical network and
+evaluate if we could use the full network from 3Dpdr. We should stick to One
+x(Cl+)." That takes D-400's first decision. Nothing in the repository's code
+changed; the tools of this entry are in `tools/d401_netbox/`.
+
+Read: `source/pdr_mod.f90` (the bridge), `update_mod.f90`'s `ionBalance`,
+the vendored `read_species`, `read_rates`, `calc_reac_rates`,
+`calculate_abundances.c`, the four `odes_*.c`, the four network files in
+`dataPDR/`. Measured: the published pn150k model (`runs/h026-site-pn41` on
+h2-model, 41^3, 18 iterations), Cloudy's (`runs/d396-cloudy-pn`), and a
+one-cell box built in a scratch copy.
+
+### How the network is coupled today
+
+  - **Which network** is fixed at compile time (`-DREDUCED` and
+    `odes_reduced.o` in the Makefile); `pdrNetwork` only validates. The
+    species and reaction counts are read from the files and every array
+    follows them (`pdrAbun`, the restart file, the per-species capture up to
+    256), and a restart of another size is refused. **Nothing is sized by
+    33.** The stop message advises `NETWORK=<name>`, a make variable that
+    does not exist.
+  - **Ownership** (D-193): `ionBalance` owns every ion stage, in every cell.
+    The chemistry returns the molecular share of each element (`elemAvail`)
+    and heating and cooling.
+  - **What a cell's solve is handed**: the seed with no molecules (D-208);
+    MOCASSIN's neutral-to-ionized ratio for each linked element, before the
+    solve and again after it (D-153, D-162), the ion carrier standing for
+    every ionized stage (D-266); MOCASSIN's electrons (D-212, D-231); and
+    MOCASSIN's photoionization and recombination rates in the network's own
+    first-order slots (D-358). `ionBalance` takes the network's cosmic-ray
+    coefficients (D-280).
+  - **What `ionBalance` is not handed**: any reaction in which a molecule
+    makes or consumes the atom or the ion. `pdrIonRate` (the network's
+    formation and loss of each linked species, D-118) is still filled at
+    every solve and summed over the ranks, and since D-193 only a diagnostic
+    reads it.
+  - **The element list is written by hand in six places**: the ten
+    `linkIon` calls and `pdrNlink`; `lnk358(5)`; the `select case` in
+    `ionBalance`; `pdrPhotRate(.,6)` and `pdrAlphaRec(.,5)`; the three
+    `setElemAvail` calls; the four `reportAbun` calls. **An element with no
+    link is seeded zero** (`seedAbunFromMocassin`) and stays zero, and
+    D-251's stop covers linked elements only.
+  - Smaller things found: reactions 330 and 331 (He+ and C+ recombining on
+    grains) are read and given a rate, and the generated right-hand side has
+    no term for either, though the bridge's comment counts them as physics
+    the network carries. `colS` is zero. The [D358] report covers H and O
+    only.
+
+### One x(X+) is not what the coupling delivers when a molecule consumes the ion
+
+Already registered for H+ as L-34, and printed in every run log. The last
+iteration's `[D358]` line, the solver's own X+/X against MOCASSIN's:
+
+| | H: cells more than 2x apart | largest | O: cells more than 2x apart | largest |
+|---|---|---|---|---|
+| pn150k (h026-site-pn41, it. 18) | 44.8% | 0.69 dex | 78.5% | 6.37 dex |
+| hiipdr (h026-site-hii31, it. 15) | 79.6% | 0.99 dex | 85.9% | 2.09 dex |
+
+(Oxygen's largest values are the ionized zone, where one carrier stands for
+every stage: L-32.) The re-imposition then keeps MOCASSIN's, so the stored
+x(O+) and the one the molecules were solved with differ.
+
+Chlorine is this case at full strength. MOCASSIN already solves it on pn150k
+(Cl/H 3.16e-7), with photoionization, recombination and its own charge
+exchange and no molecule:
+
+| A_V | 2n(H2)/nH, ours | Cl+ of all chlorine, MOCASSIN now | Cloudy | box, full network | MOCASSIN over Cloudy |
+|---|---|---|---|---|---|
+| 0.22 | 2.8e-4 | 0.997 | 0.993 | 0.960 | 1.0 |
+| 0.26 | 0.018 | 0.998 | 0.379 | 0.214 | 2.6 |
+| 0.30 | 0.087 | 0.998 | 0.119 | 0.039 | 8.4 |
+| 0.34 | 0.237 | 0.997 | 0.049 | 0.011 | 20 |
+| 0.38 | 0.442 | 0.996 | 0.027 | 0.0044 | 36 |
+| 0.46 | 0.744 | 0.991 | 0.012 | 0.0016 | 81 |
+| 0.58 | 0.903 | 0.974 | 0.0051 | 0.0007 | 190 |
+| 0.66 | 0.934 | 0.945 | 0.0032 | 0.0005 | 295 |
+
+(MOCASSIN: median of the cells within 0.012 mag, `ions_by_av.py`. Cloudy:
+`.ele_Cl`; 3-12% of its chlorine is in molecules from A_V 0.26 on. Box: see
+below, H2* pumping off.) At A_V 0.30 Cl+ + H2 runs at 1e-9 x 43.5 = 4.4e-8
+s^-1 per ion against 4e-12 for radiative recombination (UMIST's
+coefficient, n_e 0.33): 1e4 times. So linking Cl and Cl+ into the present
+scheme would give the solve one x(Cl+) and store another - MOCASSIN's, 2.6
+to 295 times Cloudy's and 5 to 2,000 times the box's - which is what the
+rule forbids. **One x(Cl+) needs L-34's decision first.**
+
+What that decision looks like, from the code (a proposal, not designed):
+D-193's own comment separates the two roles - `elemAvail` sets the sum of
+the stages, rates set the ratios - and removed the injection because what
+was injected was the species' whole right-hand side, ionization and
+recombination included, on top of the sum. The matrix slots are still there
+(`chemSrc`, `chemSnk`, zeroed). The molecular channels alone - reactions
+where the atom or ion enters or leaves a molecule - would go into the stage
+rows and set the ratio, with the sum still `elemAvail`. To be settled: which
+reactions count (the network's charge exchange with H duplicates MOCASSIN's
+`chex`), and which stage row the conservation row replaces. The test exists:
+the `[D358]` line, for every linked element, should then read near zero.
+
+### The full network, as vendored
+
+`dataPDR/species_full.d`, `rates_full.d`, `source/pdr/odes_full.c`: 215
+species, 2,926 reactions, 214 equations, sizes consistent. 13 elements: H,
+He, C, N, O, F, Na, Mg, Si, P, S, Cl, Fe. The medium network (78) and
+`mynetwork` (58) have no chlorine.
+
+  - **It builds.** In a scratch copy: `-DREDUCED` to `-DFULL`,
+    `odes_reduced.o` to `odes_full.o`, `tools/patch_odes_capture.py` on
+    `odes_full.c` (214 capture points). No other edit; the readers, the rate
+    routine and the bridge already branch on `FULL`.
+  - **It is not the reduced network plus species.** Matching reactions by
+    reactants and products, 9 of the reduced network's 332 have no
+    counterpart in the full one: D-395's e- + H2+ -> e- + H + H+,
+    H+ + H2 -> H2+ + H, C+ + OH -> CO + H+, He+ + CO -> O+ + C + He,
+    CH3+ + e- -> C + H2 + H, CH + CH4, OH+ + photon, and the two grain
+    recombinations. 148 of the other 323 have different coefficients (the
+    full file is a later compilation, with DOIs: H + CH -> C + H2 is
+    2.7e-11 (T/300)^0.38 in one and 1.31e-10 exp(-80/T) in the other).
+    Moving to it changes the chemistry already compared with Cloudy.
+  - **The slots D-358 needs**, by element:
+
+    | | X + CRP | X + CRPHOT | own X + photon | X+ + e- -> X | X++ |
+    |---|---|---|---|---|---|
+    | H, He | yes | yes | none | yes | - |
+    | C, N, O | yes | yes | C only | yes | yes |
+    | Cl | yes (492) | yes (539) | yes (2618) | yes (2763) | - |
+    | Na, Mg, Si, P, S, Fe | none | yes | yes | yes | Si, S, Fe |
+    | F | none | none | none | none | - |
+
+    Chlorine fits the mechanism as it stands, and that answers most of
+    D-400's second decision: for a linked element the network's own
+    photoionization is zeroed and MOCASSIN's rate takes the slot, from its
+    own bins (five between 12.97 and 13.6 eV) and cross-section. What that
+    rate lacks is H2's line absorption in the band, which the Monte Carlo
+    field does not carry (D-346). F has no ionization slot, and D-358 stops
+    the run for a linked neutral without one.
+  - **Six doubly charged ions** (C, N, O, S, Si, Fe), formed by the X-ray
+    reactions, which `calc_reac_rates` sets to zero (106 reactions), and for
+    Si and Fe also by X+ + H+ -> X++ + H (endothermic by 30,000 K). Left
+    unlinked, four stay empty and L-32 stays as it is; Si++ and Fe++ would
+    fill in H II gas beside MOCASSIN's own. Linking them needs D-358's
+    mechanism one stage up.
+  - **Its own excited H2.** H2* is a species with 15 reactions:
+    H2 + photon -> H2* through the same shielding function as dissociation,
+    H2* + photon -> 2H unshielded, and H2* reacting with C+, O, OH. That is
+    a two-level H2 beside the level model on h2-model: two realities.
+  - **H-** (53 reactions): the gas-phase route to H2, whose absence D-358
+    noted in H II gas (OH and H3+ below Cloudy's). Its photodetachment
+    (threshold 0.75 eV) is
+    1.43e-7 times the FUV field, a diffuse-ISM ratio of visible to FUV light
+    that a 150 kK star does not have.
+  - **159 photo-reactions** against 28. All but H2, CO and C I (and S I,
+    on upstream's own function with a zero column) take alpha times the
+    band-averaged field (D-350). N2 and CN, dissociated through lines below
+    1000 A, get no shielding.
+  - Eight PAH reactions (no PAH seed: inert, L-7), eleven anions.
+
+### The box: the two networks at the run's own conditions
+
+`boxTest.f90`: one cell, n_H 1000, at the median T, T_dust, chi, N(H2) of
+pn150k's cells at eight depths, the seed MOCASSIN would hand over, and the
+run's own grain formation coefficient and H2 dissociation rate (the
+levels') imposed on both networks. Photo-rates are the network's alpha times
+the cell's chi. Not the model: no feedback through the columns, CO
+unshielded, MOCASSIN's ionization rates not inserted.
+
+**Check**: the reduced box returns the run's 2n(H2)/nH to 2% at A_V 0.22
+and 0.6% at the other seven.
+
+| A_V | run | reduced | full as shipped | full, H2* pumping off | Cl photoionization x4 | x8 |
+|---|---|---|---|---|---|---|
+| 0.26 | 0.0179 | 0.0180 | 0.0153 | 0.0175 | 0.0167 | 0.0163 |
+| 0.30 | 0.0871 | 0.0871 | 0.0750 | 0.0841 | 0.0768 | 0.0702 |
+| 0.34 | 0.237 | 0.237 | 0.210 | 0.229 | 0.208 | 0.185 |
+| 0.38 | 0.442 | 0.442 | 0.404 | 0.428 | 0.394 | 0.353 |
+| 0.46 | 0.744 | 0.744 | 0.708 | 0.724 | 0.683 | 0.632 |
+| 0.58 | 0.903 | 0.904 | 0.876 | 0.881 | 0.853 | 0.816 |
+| 0.66 | 0.934 | 0.934 | 0.909 | 0.911 | 0.890 | 0.863 |
+
+| share of the H2 loss | 0.26 | 0.30 | 0.34 | 0.38 | 0.46 | 0.58 | 0.66 |
+|---|---|---|---|---|---|---|---|
+| through H2*, as shipped | 0.126 | 0.115 | 0.104 | 0.093 | 0.070 | 0.038 | 0.022 |
+| chlorine (Cl+ and HCl+), x1 | 0.033 | 0.038 | 0.042 | 0.048 | 0.067 | 0.085 | 0.079 |
+| chlorine, x4 | 0.077 | 0.128 | 0.150 | 0.174 | 0.231 | 0.275 | 0.258 |
+| chlorine, x8 | 0.097 | 0.208 | 0.264 | 0.306 | 0.385 | 0.439 | 0.415 |
+| Cloudy's model (D-399) | 0.25-0.50 | | | | | | |
+
+  - **As shipped the full network lowers H2 by 14% at A_V 0.30, and 11 of
+    the 14 are its own H2***, dissociating pumped molecules the imposed rate
+    already counts (0.3 of 2.8% at A_V 0.66).
+  - **With H2* pumping off the full network lowers H2 by 2.5-3.5%** (A_V
+    0.26-0.66), and chlorine carries 3-9% of the loss - not Cloudy's 25-50%.
+    The x4 and x8 columns are a sensitivity, not a model. If photoionization
+    is what makes Cloudy's Cl+, its Cl+ + H2 rate and its Cl0 give
+    k n(H2) n(Cl+)/n(Cl0) = 1.6e-8 s^-1 at A_V 0.30 (n(H2) 110, Cl+ 0.119,
+    Cl0 0.796), against UMIST's 9.5e-11 on our chi of 18: 1.7e-9. The ratio
+    is 7-10 from A_V 0.30 to 0.66 and 20 at 0.26. With x8 the box's chlorine
+    share is 21-44% at A_V 0.30-0.58 and its H2 10-22% lower.
+  - **Hypothesis discarded**: that the gap is the star's bluer spectrum.
+    From `pdrFUVspec.out`, the share of FUV photons able to ionize Cl
+    (12.97-13.6 eV) is 1.50 times the Draine field's in the shell holding
+    the transition (0.24-0.38 pc) and 1.06 in the next (`clband.py`): not
+    7-10. The rest is not decomposed. Cloudy's saved G0 at equal A_V is
+    2.2-2.5 times our chi in Habing units, the O-02 comparison (D-287,
+    D-301) with its convention caveat; not rechecked here.
+  - CO in the full box is 1.04-2.7 times the reduced box's (both
+    unshielded) and x_e 7-13% higher: the other coefficients and the extra
+    metals, not chlorine.
+
+**Cost**, one core, per solve:
+
+| | reduced | full | ratio |
+|---|---|---|---|
+| cold (from the seed) | 2.0-3.9 ms | 57-161 ms | 25-48 |
+| warm (from the answer) | 0.08-0.15 ms | 5.7-10.1 ms | 40-100 |
+
+All solves returned status 0. If the box's times hold in every cell, one
+iteration of pn150k (35,384 cells, 14 ranks, one solve per cell, D-354)
+goes from 0.3-8 s to 19-300 s: 5-76 minutes on a run of 2 h 24 min with 15
+chemistry iterations, the first of them cold. hiipdr: 2-26 minutes. Memory
+(estimated, not measured): `pdrAbun` and its three reduction copies grow
+from 1.1 to 6.9 kB per cell per rank, 38 to about 44 at the peak, which
+lowers the 14-rank limit from about 46k to about 40k active cells; pn150k
+41^3 still fits.
+
+### Evaluation
+
+**Can the full network be used: yes, and cost does not forbid it.** What
+it needs before a result from it could be published:
+
+  1. L-34's decision, for every element it adds, or each new ion a molecule
+     consumes is stored twice.
+  2. The link table built from the species file, not six hand lists: eight
+     more elements (sixteen links, F without a slot).
+  3. H2* out (the level model is the excited H2), D-395's reaction and
+     H+ + H2 in. Both are edits to generated code with no generator in the
+     tree.
+  4. A window of MOCASSIN's field for what the band average gets wrong:
+     Cl (D-400), H- photodetachment, N2 and CN.
+  5. Every comparison with Cloudy rerun: 148 coefficients move at once.
+
+**Recommended order** (mine; the user decides):
+
+  1. L-34's decision, measured on the present network (the `[D358]` line
+     for every linked element).
+  2. The links from the species file.
+  3. A generator of our own for the right-hand side, from the species and
+     rate files, accepted when it reproduces `odes_reduced.c` and
+     `odes_full.c` numerically. It removes the hand edits (D-395 was one)
+     and makes item 3 above possible.
+  4. Chlorine alone: the reduced network plus the five species and D-400's
+     24 reactions (38 species), Cl's photoionization on MOCASSIN's own rate
+     through D-358's slot. Measured on pn150k, hiipdr as the control.
+  5. The full network as a seeded A/B against that.
+
+The reason for 4 before 5 is the one D-394 to D-398 followed: chlorine,
+eight elements and 148 coefficients in one step could not be told apart.
+
+### Not yet known
+
+  - MOCASSIN's own Cl photoionization rate against Cloudy's. D-358 would
+    put MOCASSIN's into the solve, not UMIST's; the box could not.
+  - Why Cloudy's implied rate is 7-10 times UMIST's on our field, and
+    whether Cloudy has other sources of Cl+.
+  - Whether restoring the molecular channels to `ionBalance` is stable in
+    the iteration; D-185 to D-193 is the history.
+  - The full network's cost in ionized cells and in the model's own
+    sequence of solves (the box brackets it, cold and warm).
+  - What the full network does to CO and the other molecules in the model;
+    the box has no CO shielding.
+  - The memory figures.
+
+### Status
+
+Audited; nothing changed. Decisions for the user: L-34's, and the order.
