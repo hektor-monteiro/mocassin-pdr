@@ -453,7 +453,13 @@ x(H+) is up to 4x MOCASSIN's at A_V 1.8-2.8 on hiipdr, and He+ 0.25-0.5x. The
 re-imposition keeps MOCASSIN's. D-193 stopped injecting the chemistry's
 source and sink terms into `ionBalance` because they double-counted the
 molecular drain. Carrying these channels without that needs a decision of
-its own.
+its own. D-401 (2026-10-10): every run log prints the size of it for H and O
+(`[D358]`: on pn150k the solver's O+/O is more than 2x from MOCASSIN's in
+78.5% of the cells, H+/H in 44.8%; hiipdr 85.9% and 79.6%), and chlorine is
+the same case at full strength - MOCASSIN's balance holds it 99.8% ionized
+at A_V 0.30 where Cloudy has 11.9%, because Cl+ + H2 is 1e4 times
+recombination and `ionBalance` does not have it. The user's rule for
+chlorine is one x(Cl+), so this decision comes before L-46.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
@@ -587,7 +593,10 @@ H2 less (+0.10 mag, h2-model) and this missing sink (about -0.04) nearly
 cancel. hiipdr has no chlorine in either code. Not fixed: it needs Cl, Cl+,
 HCl, HCl+ and H2Cl+ in a network that is generated code. Deferred by the
 user 2026-10-10 and logged as work to do: D-400 has the reactions already in
-the tree, the decisions to take first and how it would be measured.
+the tree, the decisions to take first and how it would be measured. D-401
+audits the coupling for it and for 3D-PDR's full network (usable, at
+25-100x the solve time, but not before L-34's decision; chlorine first, in
+a 38-species network, is the recommended order).
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
