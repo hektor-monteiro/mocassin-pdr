@@ -441,10 +441,18 @@ module common_mod
                                                      ! available to the atomic ion stages (D-102).
                                                      ! 1.0 everywhere the chemistry has not run.
         real, allocatable         :: pdrCool(:)      ! total PDR cooling [erg/s/cm^3]
-        ! D-118: the chemistry's formation and destruction rates for the ion
-        ! stages MOCASSIN also tracks, published per cell so ionBalance can put
-        ! them into its matrix. Indexed (cell, 1:2*pdrNlink) as
-        ! form(1..n) then loss(1..n), one entry per linked (element, stage).
+        ! D-402 (was D-118's whole right-hand side, unused since D-193): the
+        ! channels of each linked element's neutral/first-ion balance that
+        ! only the network has, from the last solve, for ionBalance to carry
+        ! too. Indexed (cell, pdrNchan*(e-1) + k) for linked element e:
+        !   k = 1  X -> X+   specific rate [s^-1 per X]
+        !   k = 2  X+ -> X   specific rate [s^-1 per X+]
+        !   k = 3  X lost to anything else  [s^-1 per X]
+        !   k = 4  X made from anything else [per atom of the element, s^-1]
+        !   k = 5  X+ lost to anything else [s^-1 per X+]
+        !   k = 6  X+ made from anything else [per atom of the element, s^-1]
+        ! Photoionization, recombination, cosmic rays and charge transfer
+        ! with H are not in these: ionBalance computes them itself.
         real, allocatable         :: pdrIonRate(:,:)
         ! D-358: MOCASSIN's own rates for the linked neutrals, stored by
         ! ionBalance so the chemistry solve runs on them - the same rates in
@@ -933,6 +941,19 @@ module common_mod
     integer             :: pdrElZ(pdrNlinkEl) = 0, pdrElNeut(pdrNlinkEl) = 0, &
          &                 pdrElIon(pdrNlinkEl) = 0
     double precision, allocatable :: pdrMolAtoms(:,:)   ! (species, linked element)
+    integer             :: pdrElOfZ(30) = 0             ! linked-element index of atomic number Z
+    integer, parameter  :: pdrNchan = 6                 ! channels per element in pdrIonRate
+    ! D-402: charge transfer of a linked element with hydrogen, X + H+ -> X+ + H
+    ! (pdrCtDir +1) and X+ + H -> X + H+ (-1), from the network's own
+    ! reactions, so ionBalance and the solve use one set of coefficients - as
+    ! D-280 does for the cosmic rays. One entry per reaction, in file order;
+    ! pdrCtDup is the network's temperature-range counter (0: one range).
+    integer, parameter  :: pdrMaxCt = 32
+    integer             :: pdrNct = 0
+    integer             :: pdrCtEl(pdrMaxCt) = 0, pdrCtDir(pdrMaxCt) = 0, pdrCtDup(pdrMaxCt) = 0
+    double precision    :: pdrCtAlpha(pdrMaxCt) = 0.d0, pdrCtBeta(pdrMaxCt) = 0.d0, &
+         &                 pdrCtGamma(pdrMaxCt) = 0.d0, pdrCtTmin(pdrMaxCt) = 0.d0, &
+         &                 pdrCtTmax(pdrMaxCt) = 0.d0
     ! D-280: cosmic-ray ionization of every linked neutral, read from the
     ! network's own reactions (CRP direct, CRPHOT through cosmic-ray-induced
     ! photons) so MOCASSIN and the chemistry ionize with identical coefficients.

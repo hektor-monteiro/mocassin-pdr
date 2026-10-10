@@ -1916,8 +1916,8 @@ module iteration_mod
               allocate(pdrLnSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
               allocate(pdrLbTmp(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)   ! D-363
               allocate(pdrLbSum(0:grid(iG)%nCells, 1:max(pdrNln,1)), stat=err)
-              allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
-              allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:2*pdrNlink), stat=err)
+              allocate(pdrIonRateTmp(0:grid(iG)%nCells, 1:pdrNchan*pdrNlinkEl), stat=err)
+              allocate(pdrIonRateSum(0:grid(iG)%nCells, 1:pdrNchan*pdrNlinkEl), stat=err)
               allocate(pdrCoolTmp(0:grid(iG)%nCells),   stat=err)
               allocate(pdrCoolSum(0:grid(iG)%nCells),   stat=err)
               allocate(pdrLevTmp(0:grid(iG)%nCells,1:max(pdrNlevTot,1)), stat=err)
@@ -2025,7 +2025,7 @@ module iteration_mod
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
               grid(iG)%pdrLineBeta(1:grid(iG)%nCells,:) = pdrLbSum(1:grid(iG)%nCells,:)
               lgPdrLineEm = .true.
-              size = (grid(iG)%nCells+1)*2*pdrNlink
+              size = (grid(iG)%nCells+1)*pdrNchan*pdrNlinkEl
               call mpi_allreduce(pdrIonRateTmp, pdrIonRateSum, size, &
                    & mpi_real, mpi_sum, mpi_comm_world, ierr)
               grid(iG)%pdrIonRate(1:grid(iG)%nCells,:) = pdrIonRateSum(1:grid(iG)%nCells,:)
@@ -2478,7 +2478,7 @@ module iteration_mod
                 & nIterateMC >= pdrStartIter) then
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%pdrIonRate)) cycle
-                 do iDum = 1, min(2*pdrNlink, 10)
+                 do iDum = 1, pdrNchan*pdrNlinkEl
                     wDum = 0.d0; nCv1 = 0
                     do jDum = 1, grid(iG)%nCells
                        if (grid(iG)%pdrIonRate(jDum,iDum) /= 0.) then
