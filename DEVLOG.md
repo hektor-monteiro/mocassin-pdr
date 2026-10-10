@@ -35659,15 +35659,35 @@ agree to 1% in all five elements (were 4e-6 to 54x); deep (A_V 0.46-0.65) H
 is within 2-13%, O 10-16%, He, C and Mg within 3%. What is left sits at the
 H/H2 transition, A_V 0.22-0.33, with both signs in neighbouring cells:
 solver over MOCASSIN for H 1.46, 0.48, 0.13, oxygen following hydrogen
-through the exchange (1.45, 0.48, 0.13). There hard photons make the ions
-(H+ 55-66% photoionization and cosmic rays at A_V 0.26-0.32, He+ 100%), He+
-passes 30-43% of its ionizations on to hydrogen by charge transfer, and that
-term reaches `ionBalance` one iteration late from a field few packets
-sample. **A hypothesis, not shown**: lag times Monte Carlo noise. The
-outputs hold one iteration, so the cell-by-cell test (does the mismatch
-follow the change of the handed terms from one iteration to the next) cannot
-be made from them. 85.9% of the neutral cells pass the cell convergence test
-at iteration 18 (report only).
+through the exchange (1.45, 0.48, 0.13). There hard photons make the ions,
+He+ passes 30-43% of its ionizations on to hydrogen by charge transfer, and
+that term - part of the net `ionBalance` is handed for hydrogen - arrives
+one iteration late from a field few packets sample. **Lag times Monte Carlo
+noise; supported in the sampled cells, not shown cell by cell:**
+
+  - The estimator is spiky. The ionization rate the solve was given for H
+    at iteration 18 is the cosmic rays' 1.975e-16 s^-1 to four digits in
+    five of the seven sampled cells past A_V 0.25 (no ionizing packet
+    crossed them that iteration), and 4.5e-15 and 3.5e-14 in the other two.
+  - A_V 0.226, a cell with photons this iteration: MOCASSIN's H+ balances
+    recombination against that direct rate alone (ratio 1.00). The solver's
+    has, besides, He+ + H -> He + H+ at 0.65 of the direct rate (2.6% of
+    its gross H+ formation against the direct rate's 4.0%; the other 93% is
+    the O exchange, which cancels). (1 + 0.65)/1.135, the second number the
+    two electron densities' ratio, is 1.45; measured 1.457.
+  - A_V 0.321, no photons this iteration: MOCASSIN's H+ needs 15 times the
+    cosmic-ray rate, the solver's has only that. It is what a cell looks
+    like one iteration after a hard photon: the solve, a steady state, has
+    forgotten it; the handed source has not.
+  - Deep (A_V 0.46-0.65), where the handed sources are steady (H2 + cosmic
+    rays, He+ + H2; 42-51% of H+ formation), the two agree to 2-13%.
+
+What the outputs cannot give is the same test in every cell: they hold one
+iteration. 85.9% of the neutral cells pass the cell convergence test at
+iteration 18 (report only). **The step this points to**: carry He+ + H ->
+He + H+ for hydrogen in `ionBalance` itself, with the call's own He+, as the
+metals' side already is - it runs one way, so it cannot cycle as the H-O
+pair did - and leave only the O and Mg exchange as a net. Not done here.
 
 **The solve's electrons.** In the baseline the solve ran with x_e 3-4.5%
 under MOCASSIN's through the PDR (2.77-2.88e-4 against 2.87-2.97e-4) and 7%
@@ -35802,9 +35822,11 @@ transition zone 3-6% in T.
 ### Not yet known
 
   - Whether `teFloor` stays at 10 K: not mine to decide (above).
-  - Whether the level left at the H/H2 transition is the lag and the noise,
-    as supposed: it needs two successive iterations of one cell, which no
-    output holds.
+  - Whether the level left at the H/H2 transition is the lag and the noise
+    in every cell, as the sampled ones say: it needs two successive
+    iterations of one cell, which no output holds. And whether hiipdr's
+    level (H 29%, O 21%, He and Mg 13%), with no hard photons, has the same
+    origin: its thirteen sampled cells all agree to 11%.
   - Which charge-transfer coefficients should be the one set above a few
     thousand K (previous section).
   - The lag itself: whether evaluating the reactions among linked species
