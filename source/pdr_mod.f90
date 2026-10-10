@@ -337,7 +337,7 @@ module pdr_mod
         pdrUVfacMod   = 0.0d0
         pdrZetaMod    = dble(pdrZeta)/1.3d-17       ! stored normalised, as upstream
         pdrRedshift   = 0.0d0
-        pdrTcmb       = 2.725d0*(1.0d0+pdrRedshift)
+        pdrTcmb       = TcmbK*(1.0d0+pdrRedshift)   ! D-403: the constant teFloor's default is
         pdrVturbMod   = dble(pdrVturb)*1.0d5        ! km/s -> cm/s
         pdrTminMod    = max(dble(pdrTmin), pdrTcmb)
         pdrTmaxMod    = dble(pdrTmax)
@@ -818,6 +818,22 @@ module pdr_mod
               pdrCtTmin(pdrNct)  = pdrRtmin(iR)
               pdrCtTmax(pdrNct)  = pdrRtmax(iR)
               iCt402(pdrNct)     = iR
+              pdrCtReac(pdrNct)  = iR
+              ! D-403: the fit made for ionized gas, where there is one
+              ! (Kingdon & Ferland 1996, ApJS 106, 205: their recombination
+              ! fit for He+ + H, 6,000-1e5 K, which MOCASSIN's own chex table
+              ! has, and their ionization fit for H+ + Mg, 5,000-30,000 K).
+              pdrCtKF(:,pdrNct) = 0.d0; pdrCtKFTmin(pdrNct) = 0.d0; pdrCtKFTmax(pdrNct) = 0.d0
+              if (pdrElZ(iLnk) == 2 .and. iTyp280 == -1) then
+                 pdrCtKF(:,pdrNct)   = (/7.47d-15, 2.06d0, 9.93d0, -3.89d0/)
+                 pdrCtKFTmin(pdrNct) = 6.0d3; pdrCtKFTmax(pdrNct) = 1.0d5
+              else if (pdrElZ(iLnk) == 12 .and. iTyp280 == 1) then
+                 pdrCtKF(:,pdrNct)   = (/9.76d-12, 3.14d0, 55.54d0, -1.12d0/)
+                 pdrCtKFTmin(pdrNct) = 5.0d3; pdrCtKFTmax(pdrNct) = 3.0d4
+              end if
+              if (taskid == 0 .and. pdrCtKF(1,pdrNct) > 0.d0) print '(a,i4,a,es10.3,3f8.2,a,2f9.0)', &
+                   & " ! [D403] reaction", iR, ": inside its range the ionized-gas fit a, b, c, d", &
+                   & pdrCtKF(:,pdrNct), "  T", pdrCtKFTmin(pdrNct), pdrCtKFTmax(pdrNct)
               if (taskid == 0) print '(a,i4,a,a,a,a,a,a,a,a,es10.3,a,f6.2,a,f8.1,a,2f8.0)', &
                    & " ! [D402] charge transfer with H: reaction", iR, "  ", &
                    & trim(adjustl(pdrReactant(iR,1))), " + ", trim(adjustl(pdrReactant(iR,2))), &
@@ -873,7 +889,13 @@ module pdr_mod
            ! (pdrStep), so they are marked here
            rxMoc402(iCt402(iC), pdrCtEl(iC)) = .true.
            rxCtH402(iCt402(iC)) = .true.
+           ! D-403: helium's transfer is the exception - ionBalance computes
+           ! hydrogen's side of it too, with its own He+, so for hydrogen it
+           ! is a channel of MOCASSIN's and not part of the handed net
+           if (pdrElZ(pdrCtEl(iC)) == 2 .and. pdrElOfZ(1) > 0) &
+                & rxMoc402(iCt402(iC), pdrElOfZ(1)) = .true.
         end do
+        pdrHeEl = pdrElOfZ(2)
         if (taskid == 0) then
            do iLnk = 1, pdrNlinkEl
               if (pdrElZ(iLnk) <= 0) cycle
@@ -3184,6 +3206,7 @@ module pdr_mod
         integer            :: carr402(2, pdrNlinkEl)
         logical            :: lgSkip402(2)
         double precision   :: xe402, xf402, rAll402, rNo402(2), ch402(pdrNchan), gr402(4), netCt402
+        double precision   :: ctK403(pdrMaxCt)
         integer            :: iTpass                     ! D-166
         integer            :: iEl                        ! D-188
         integer            :: iRay                       ! D-190
@@ -3690,6 +3713,16 @@ module pdr_mod
         ! photodissociation and pumping heating below.
         if (allocated(grid%h2Sol) .and. NR2 > 0) pdrRate(NR2) = dble(max(grid%h2Sol(cellP), 0.))
 #endif
+        ! D-403: charge transfer of the linked elements with hydrogen at the
+        ! one coefficient ionBalance used for this cell (pdrCtCoef, at the
+        ! cell's own temperature and not the clamped one the network's other
+        ! rates are evaluated at), row by row.
+        if (pdrNct > 0) then
+           call pdrCtCoef(dble(grid%Te(cellP)), ctK403)
+           do iqP = 1, pdrNct
+              pdrRate(pdrCtReac(iqP)) = ctK403(iqP)
+           end do
+        end if
 
         call calculate_abundances(abun, pdrRate, nH, Tg, npart, &
              & pdrNspecMod, pdrNreacMod)
