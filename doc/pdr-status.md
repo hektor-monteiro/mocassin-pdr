@@ -523,10 +523,15 @@ reverse agree to 7-18% and 1.4-1.6x below 1,000 K and are 1.7-2.3 times at
 8,000-17,000 K; H+ + Mg -> Mg+ + H MOCASSIN did not have. Cloudy's He value,
 as read from its source, is half the network's at 8,000 K. Measured size on
 pn150k: Hbeta +0.26%, the H+ front +0.13%, He I lines to -1%, the transition
-zone 3-6% colder and the 0-0 S(0), S(1) H2 lines -4.0, -2.4%. Which set
-should be the one above a few thousand K is not decided; the same
-one-number property is available the other way round (MOCASSIN's
-coefficient in the network's reaction, as D-358 does for recombination).
+zone 3-6% colder and the 0-0 S(0), S(1) H2 lines -4.0, -2.4%; **the Mg I
+lines x0.020** (4571: from 16 times Cloudy's to 0.31 - the network's
+H+ + Mg is 1.1e-9 at every temperature, Cloudy's fit 1.9e-10 at 1e4 K) and
+x0.12 on hiipdr; Mg II +14%; [O I] 6300 +4.6% on pn150k (1.43 -> 1.50 times
+Cloudy's) and +3.8% on hiipdr. Which set should be the one above a few
+thousand K is not decided. Recommended: the fits made for ionized gas
+(Kingdon & Ferland) inside their stated ranges and the network's below, in
+both solvers, by handing MOCASSIN's coefficient to the network's reaction
+as D-358 does for recombination.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
