@@ -574,6 +574,19 @@ towards the star and reads A_V 1.396 against Cloudy's 1.280 on the corrected
 axis; pn150k's moves 0.007 pc and reads 0.393 against 0.368. The H2 lines
 fall 3-8%. Not measured on the production branch's own runs.
 
+**L-46. The network has no chlorine, a quarter to a half of Cloudy's H2 sink
+in pn150k's shielded gas** (D-399; DEVLOG-H2 H-026). In Cloudy's model of the
+150 kK PN, Cl+ + H2 -> HCl+ + H and HCl+ + H2 -> H2Cl+ + H carry 25-50% of
+the destruction of H2 from A_V 0.26 on (photodissociation 64% falling to
+20%). REDUCED's 33 species bear H, He, C, O and Mg only. Cloudy rerun
+without chlorine turns molecular 0.042 mag earlier (crossing A_V 0.368 ->
+0.326), with n(H2) at A_V 0.30 1.6x and its 28.2 um H2 line 1.43x; that is
+the size of the effect in Cloudy, not in ours. It was hidden: on pn150k our
+crossing sits 0.026 mag past Cloudy's because a line width that shields our
+H2 less (+0.10 mag, h2-model) and this missing sink (about -0.04) nearly
+cancel. hiipdr has no chlorine in either code. Not fixed: it needs Cl, Cl+,
+HCl, HCl+ and H2Cl+ in a network that is generated code.
+
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance
 does. In H II gas that swaps CHIANTI 10.1's electron-impact data for the
