@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-377, 2026-09-28. Reference model throughout: the 150 kK PN,
+Status as of D-402, 2026-10-10. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -407,13 +407,22 @@ does. D-350's prediction 5 was therefore a free pass. The informative figure is
 the pre-rescale `[D220]` line.
 
 **L-30. Clamps that still decide a value** (D-352, which removed every run-time
-ownership switch and the zone flag). None binds on hiipdr today, and each is
-recorded so that it is not found late:
+ownership switch and the zone flag). None bound on hiipdr when this was
+written - the second does now - and each is recorded so that it is not found
+late:
   - The chemistry's rates are evaluated at Te clamped to [pdrTmin, pdrTmax],
     its heating terms at the unclamped Te: two temperatures in one pdrStep
     wherever Te > 2e4 K (3 cells of pn150k).
   - `teFloor` holds MOCASSIN's T at 10 K or above. The coldest hiipdr cell is
-    10.9 K.
+    10.9 K. **It binds since D-402 (2026-10-10)**: with the two solvers on
+    one ion balance the chemistry's deep heating is 10% lower, hiipdr's
+    outer shell (A_V 2.7-3.0, 1,548 cells, a tenth of the grid) wants
+    9.5-10.0 K, and a cell on the floor is flagged and left out of every
+    line - [C I] 609 16% low, CO 1-0 to 3-2 19-25% low for that alone. With
+    `teFloor 2.725` in the input no cell is flagged and the temperature
+    balance is reached everywhere. The floor had also been holding 29-39%
+    of the cells at iterations 2-4 of every earlier run. The default is
+    unchanged; whether it should be the CMB is the user's decision.
   - The chemistry's T_dust is floored at T_CMB, because MOCASSIN transports no
     CMB. Where the floor binds, the chemistry and MOCASSIN's dust emission see
     different grain temperatures; the fix is the CMB in MOCASSIN's field.
@@ -428,12 +437,20 @@ recombination rates for H, He, C, O, Mg and MOCASSIN's H2 photoionization,
 through the network's first-order slots. Ionized-zone H2 is now 5-71x Cloudy's
 and destroyed the way Cloudy's is. Nothing past the fronts moved.
 
-**L-32. One ion carrier per element** (D-358). The network has O+ for all of
+**L-32. CLOSED 2026-10-10 (D-402). One ion carrier per element** (D-358). The network has O+ for all of
 O++-O6+ and C+ for C++-C4+. Each carrier takes chemistry its true stages do
 not have: charge exchange into the neutral, and C+ + OH -> CO. In pn150k's
 20 kK zone the solver's neutral O is 5.4 dex above MOCASSIN's, and CO, OH and
 HCO+ run 3e7x, 630x and 1e12x Cloudy's at 0.03 pc, falling outward. Where the
 carrier is the true stage (hiipdr) it does not show.
+Each network ion is now its own stage (X+ is stage 2), `elemAvail` is counted
+from the molecules' own atoms, and the solve is given the electrons the
+network has no species for (it had run 3-4.5% short of MOCASSIN's through
+pn150k's PDR, 7% in the He2+ zone). In ionized cells the two solvers agree
+to 0.01 dex in all five linked elements on both fixtures. pn150k at 0.03 pc:
+CO from 8.5e7 times Cloudy's to 16, OH from 840 to 0.09, CH from 220 to
+0.15, HCO+ to zero. Ionized-zone H2 is unchanged (17-19 times Cloudy's,
+L-43).
 
 **L-33. Grain H2 formation 5-25x Cloudy's** per n_H n(H), at every depth
 compared on both fixtures (D-356, D-358). MOCASSIN's coefficient is near the
@@ -447,7 +464,7 @@ residual is the Cazaux & Tielens surface energies (3D-PDR's per-material set
 against Cloudy's single one: 0.45-0.70 at T_d 26-37 K), with MOCASSIN's colder
 gas (0.79-1.03); reported, not tuned.
 
-**L-34. The PDR's H+ has channels MOCASSIN's ion balance lacks** (O-05; D-358).
+**L-34. CLOSED 2026-10-10 (D-402), with the residual in L-47. The PDR's H+ has channels MOCASSIN's ion balance lacks** (O-05; D-358).
 These are H2 + CRP -> H+ + e + H and He+ + H2 -> He + H+ + H. The solver's
 x(H+) is up to 4x MOCASSIN's at A_V 1.8-2.8 on hiipdr, and He+ 0.25-0.5x. The
 re-imposition keeps MOCASSIN's. D-193 stopped injecting the chemistry's
@@ -460,6 +477,50 @@ the same case at full strength - MOCASSIN's balance holds it 99.8% ionized
 at A_V 0.30 where Cloudy has 11.9%, because Cl+ + H2 is 1e4 times
 recombination and `ionBalance` does not have it. The user's rule for
 chlorine is one x(Cl+), so this decision comes before L-46.
+D-402 took it: every channel of the neutral/first-ion balance is in both
+solvers, each computed once. Photoionization, collisional ionization and
+recombination are MOCASSIN's and handed to the solve (D-358); cosmic rays
+and charge transfer with H use the network's coefficients in `ionBalance`;
+every other reaction is classified by what it does to X and X+ and handed to
+`ionBalance`'s rates and matrix, the stages still summing to `elemAvail`
+(the classified channels reproduce the right-hand side's totals to 7e-16).
+Hydrogen takes only the NET of its charge exchange with the metals: carrying
+both directions made the H-O pair cycle and `updateCell` stop converging in
+14% of hiipdr's cells (the first version, withdrawn). Cells more than 2x
+apart: hiipdr H 79.6% -> 0.5%, O 85.9% -> 0.6% (Mg 9.2%); pn150k H 44.8% ->
+0.7%, O 78.5% -> 0.6%. MOCASSIN's own ions moved toward Cloudy's: on hiipdr
+H+ past A_V 1.5 from 0.18-0.61 of Cloudy's to 0.60-1.37, He+ from 1.7-13x to
+0.9-3.9x, O+ deep from 180-490x to 2-4.5x; on pn150k H+ past r 0.33 pc from
+0.26-0.66 to 0.54-0.92 and He+ past 0.37 from 2.3-4.0x to 0.9-1.6x. The
+chemistry's deep heating on hiipdr fell 10%: it had been computed with He+
+re-imposed at 1.9-3.3 times the value the network held.
+
+**L-47. `ionBalance` trails the chemistry by one iteration** (D-402). The
+terms the solve hands over are the previous iteration's. Where the gas has
+settled that costs nothing (ionized cells agree to 0.01 dex); where a cell
+still swings between iterations it shows as the two solvers 10% or more
+apart: hiipdr H 29%, He 13%, C 1.5%, O 21%, Mg 13% of the cells past the
+front; pn150k H 20%, He 1%, C 2%, O 34%, Mg 1%, level from iteration 12 and
+concentrated at the H/H2 transition (A_V 0.22-0.33), with both signs in
+neighbouring cells. That it is the lag and the Monte Carlo noise is a
+hypothesis: no output holds two iterations of one cell. Candidate next
+steps, none taken: evaluate the reactions among linked species in
+`ionBalance` with its own densities, as the charge transfer with H is; a
+second cell update after the chemistry; one solver for both.
+
+**L-48. Charge transfer with H runs on UMIST's fits in photoionized gas**
+(D-402). One coefficient per reaction in both solvers was reached by giving
+`ionBalance` the network's. Against Kingdon & Ferland's, which MOCASSIN used
+before: He+ + H -> He + H+ is 1.7-3.1 times at 5,000-12,000 K (and 37-480
+times below 500 K, where the K&F fit is outside its range); O+ + H and its
+reverse agree to 7-18% and 1.4-1.6x below 1,000 K and are 1.7-2.3 times at
+8,000-17,000 K; H+ + Mg -> Mg+ + H MOCASSIN did not have. Cloudy's He value,
+as read from its source, is half the network's at 8,000 K. Measured size on
+pn150k: Hbeta +0.26%, the H+ front +0.13%, He I lines to -1%, the transition
+zone 3-6% colder and the 0-0 S(0), S(1) H2 lines -4.0, -2.4%. Which set
+should be the one above a few thousand K is not decided; the same
+one-number property is available the other way round (MOCASSIN's
+coefficient in the network's reaction, as D-358 does for recombination).
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
@@ -596,7 +657,9 @@ user 2026-10-10 and logged as work to do: D-400 has the reactions already in
 the tree, the decisions to take first and how it would be measured. D-401
 audits the coupling for it and for 3D-PDR's full network (usable, at
 25-100x the solve time, but not before L-34's decision; chlorine first, in
-a 38-species network, is the recommended order).
+a 38-species network, is the recommended order). L-34's decision was taken
+in D-402: an added element now gets one x(X+) by construction, once it is
+in the link table.
 
 **L-38. In ionized gas the chemistry's atoms replace CHIANTI's electron data**
 (D-362). The substitution runs in every cell with the carrier, as the balance

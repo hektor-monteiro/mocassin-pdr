@@ -35521,6 +35521,67 @@ here. `runs/d402-c-hii31-cmb` repeats the run with `teFloor 2.725` (the
 keyword exists) to show where those cells settle and what the lines are
 with every cell counted.
 
+### hiipdr with the floor at the CMB (`runs/d402-c-hii31-cmb`)
+
+The same input with `teFloor 2.725`, same binary, same seed, the same
+afternoon.
+
+| | baseline (10 K) | D-402, 10 K floor | D-402, floor 2.725 K |
+|---|---|---|---|
+| Te balance not reached, iterations 2-4 | 55, 54, 42% | 55, 54, 42% | 16, 17, 13% |
+| iterations 5, 6 | 90, 80% | 90, 81% | 89, 79% |
+| iterations 7-15 | 0 | 10% | 0 |
+| ion balance not reached | 0 | 0 | 0 |
+| cells flagged, left out of the lines | 4 | 1,547 | 0 |
+| cells below 10 K | 0 | 0 | 1,548 |
+| coldest cell (K) | 10.000 | 10.000 | 9.469 |
+| cells at 10.001-10.5 K | 1,594 | 2,542 | 1,807 |
+
+The 1,548 cells are the outer shell, A_V 2.74-2.99 (r 18.2-19.4 pc), and
+they settle at 9.63, 9.79, 9.97 K (5th, 50th, 95th percentile): between 0.03
+and 0.5 K under the old floor, with the temperature balance reached in every
+one. The baseline's own outer shell stood 0.2-0.6 K above the floor (r 18-19
+pc 10.59 K, 19-20 pc 10.19); it is 10.10 and 9.71 K now. And the floor had
+been binding all along in the first iterations: of the 42-55% of cells
+failing at iterations 2-4 in every run to date, 29-39 points were cells
+parked on it.
+
+**The lines with every cell counted** (L/Hbeta; the two D-402 runs agree to
+0.2% in everything else, Hbeta to 0.010%):
+
+| | D-402 floor 2.725 K / baseline | 10 K floor / baseline | share the flag had removed |
+|---|---|---|---|
+| [C I] 609 | 0.918 | 0.769 | 16% |
+| [C I] 370 | 0.798 | 0.754 | 5.5% |
+| CO 1-0 | 0.900 | 0.672 | 25% |
+| CO 2-1 | 0.871 | 0.665 | 24% |
+| CO 3-2 | 0.777 | 0.632 | 19% |
+| [C II] 158 | 0.998 | 0.999 | |
+| [O I] 63 | 1.021 | 1.020 | |
+| H2 1-0 S(1), 0-0 S(0), S(1), S(2) | -0.6, -1.8, -0.8, +0.2% | -0.5, -1.7, -0.6, +0.2% | |
+| Hbeta | +0.035% | +0.025% | |
+
+So two things had been mixed in the 10 K run's [C I] and CO: the output
+dropping a tenth of the cells (5-25% of those lines), and the gas itself.
+The gas: from r 15 pc out T is 3-5% lower (14.43 -> 13.94 K at 15-16 pc,
+10.59 -> 10.10 at 18-19), neutral carbon +2-3%, C+ x0.88-0.96, CO x0.95-0.98,
+electrons x0.87-0.90. A level 62.5 K up loses exp(-62.5 (1/10.10 - 1/10.59))
+= 0.75 for that half kelvin, 23.6 K up 0.90, 33 K up 0.86: [C I] 370, 609
+and CO 3-2 as measured, to the few per cent the abundances add.
+
+Cost, the two same-afternoon runs: 54:09 against 59:41 with the level model
+at 1,452 and 1,447 s - the cells failing on the floor each ran the
+temperature iteration to its limit. Outside the level model the CMB-floor
+run took 1,797 s; the baseline's 1,471 s scaled by the level model's own
+ratio between the two days (1.20) is 1,770. No cost of D-402 is measurable.
+
+**The floor is the user's decision.** What the run shows: at 10 K it now
+decides the temperature of a tenth of hiipdr's cells and, through the flag,
+removes them from every line; at the CMB it decides nothing here (coldest
+cell 9.47 K). L-30 recorded it as a clamp that did not bind. The chemistry's
+grain temperature is already floored at T_CMB (L-30), the value 3D-PDR
+carries.
+
 ### The predictions against hiipdr
 
   1. `[D402]`: ionized cells 0% - held. Other cells more than 2x apart
