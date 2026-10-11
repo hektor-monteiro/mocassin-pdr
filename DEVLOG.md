@@ -36100,12 +36100,71 @@ pn150k:
      [O I] 6300 within 0.5% of D-402's.
   10. The crossing within 0.002 mag, 1-0 S(1) within 0.5%.
 
+### hiipdr (`runs/d403-hii31` against `runs/d402-c-hii31-cmb`)
+
+31^3, 15 iterations, seeded, the fixture's input with no floor keyword.
+52:44 (54:09 for the other, the same afternoon; level model 1,431 s against
+1,452).
+
+| | D-402, floor 2.725 K | D-403 |
+|---|---|---|
+| ion balance not reached, any iteration | 0 | 0 |
+| Te balance not reached, iterations 1-15 | 0, 16, 17, 13, 89, 79, 0 ... | the same |
+| cells flagged | 0 | 0 |
+| cells below 10 K; coldest | 1,548; 9.469 K | 1,545; 9.469 K |
+| more than 10% apart, H, He, C, O, Mg | 28.8, 13.3, 1.6, 20.9, 12.9% | 28.4, 13.2, 1.5, 21.1, 12.9% |
+| more than 2x apart | 0.4, 0, 0.5, 0.6, 9.2% | the same |
+| Hbeta (1e36 erg/s) | 9.1690 | 9.1664 (-0.027%) |
+| H/H2 crossing, A_V | 1.3962 | 1.3959 |
+| Mg I 4564, 4572, 2853 / Hbeta | 1.13e-4, 4.1e-5, 5.8e-5 | 4.42e-4, 1.61e-4, 2.30e-4 (x3.93) |
+| Mg II 2796 / Hbeta | 0.06661 | 0.06643 |
+| [O I] 6302 / Hbeta | 0.07144 | 0.07150 (+0.1%) |
+| [O IV] 25.9 um | | -1.4% (it was +1.1% at D-402) |
+| He+ at the front (r 4 pc, cm^-3) | 0.0676 | 0.0742 (0.0831 before D-402) |
+
+Of the 87 collisionally excited lines above 1e-4 Hbeta two moved by more
+than 1% (Mg I 4564, [O IV] 25.9 um); no recombination line of H or He moved
+by 1% (the largest 0.04%); H2 lines within 0.1%, [C I] 370 -0.6%, CO 3-2
+-0.4%, the rest of the page's lines within 0.1%. The default floor does
+what the keyword did.
+
+The Mg I lines are 0.48 of what they were before D-402 (0.12 at D-402).
+Cloudy's listing for this model has Mg I 2852 at 2.55e-3 Hbeta: ours was
+0.19 of that before D-402, 0.023 at D-402, and is 0.09. So on hiipdr the
+transfer moves the line away from Cloudy's with either coefficient, where on
+pn150k it had been 9 times above before D-402. Not explained; our H II gas
+is 600 K hotter than Cloudy's here, which by itself raises a 4.35 eV line
+by 1.5.
+
+**The predictions against hiipdr**: 1 (cell update), 2 (`[D402]`), 3 (Hbeta,
+crossing, lines) and 4 (Mg I x3-6: x3.9; [O I] 6300 within 0.5%: +0.1%)
+held. One expectation I had not written down did not: D-402's -1 to -1.7%
+in four He I lines stayed, so on hiipdr it was not helium's transfer in
+gas above 6,000 K. A candidate, not measured: the PDR's own He+ (cosmic
+rays), x0.3-0.5 since D-402, recombining at 10-50 K where the He I
+emissivity fits are far outside the temperatures they were made for.
+
+### Pages
+
+"hiipdr Against Cloudy" is the page's version 26 (the server's 27,
+https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx), on `runs/d403-hii31`:
+a new first section (the floor decided; the three data sets side by side;
+the model at versions 24, 25 and now; the solvers' agreement), the
+current-state parts rebuilt, version 25's section marked as of its version
+with its statement about oxygen's rates withdrawn and its "not decided"
+on the floor annotated. Builders in the session's scratchpad
+(`d403pages/`: `pagelib.py`, `nums23.py`, `nums_d403.py`, `build_hii26.py`).
+
 ### Not yet known
 
-  - The two full runs.
+  - pn150k (running).
+  - Why hiipdr's He I lines kept D-402's change (above).
+  - Whether UMIST's He+ + H predates the correction of Stancil et al.
+    (1998); and what the coefficient should be between 1,000 and 6,000 K,
+    where the network's is 2.4-3.4 times Cloudy's.
 
 ### Status
 
-In progress: code committed and merged; short test passed; hiipdr and
-pn150k running.
+In progress: code committed and merged; hiipdr measured and its page
+published; pn150k running.
 
