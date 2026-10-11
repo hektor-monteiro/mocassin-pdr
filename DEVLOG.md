@@ -403,6 +403,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-401 | **Audit of the chemistry coupling, and whether 3D-PDR's full network can be used. The user's rule for it: one x(Cl+).** Mechanically yes: with the Makefile's two network names changed and the D-113 capture applied, the vendored `full` network (215 species, 2,926 reactions, 13 elements) builds against the present code and solves a one-cell box at pn150k's own conditions at every depth tried. One solve costs 57-161 ms cold and 6-10 ms warm against the reduced network's 2.0-3.9 and 0.08-0.15 ms (25-48x and 40-100x): 19-300 s per iteration on pn150k at 14 ranks. **Three things stand in the way, none of them cost.** (1) The coupling does not deliver one x(X+) for an ion a molecule consumes: `ionBalance` has no molecular channels since D-193 (L-34), every run log shows it for O+ (78.5% of pn150k's cells more than 2x from the solver's own value), and MOCASSIN's balance holds chlorine 99.8% ionized at A_V 0.30 where Cloudy has 11.9% - the Cl+ + H2 sink is 1e4 times recombination there. (2) The full network is not the reduced one plus species: 9 of the reduced network's 332 reactions are absent from it (D-395's among them) and 148 have other coefficients; it carries its own two-level H2 (H2*: -11% H2 in the box at A_V 0.30), eight more elements each needing the link the rule demands, and 131 more photo-rates on a diffuse-ISM shape. (3) The element list is written by hand in six places and an unlinked element is seeded zero. In the box, with H2* off, the full network lowers 2n(H2)/nH by 2.5-3.5%, chlorine carrying 3-9% of the H2 loss against Cloudy's 25-50%: UMIST's Cl photoionization on our band-averaged field is 7-10x below the rate Cloudy's Cl+ implies (not decomposed; the spectrum's shape is 1.5x). Recommended order: L-34's decision, the links from the species file, chlorine in a 38-species network from a generator of our own, then the full network as a measured A/B | Audited, nothing changed | 2026-10-10 |
 | D-402 | **One x(X+): each network ion is its own ionization stage, and both solvers carry every channel of the neutral/first-ion balance, each computed once.** The user, on D-401's finding that the solver's ion fractions and MOCASSIN's differ: "This seems like a major self consistency problem we should solve before anything". Measured first, in the published runs' sampled cells, for all five linked elements: two defects under one symptom. In ionized gas one carrier stood for every ionized stage (L-32): solver X+/X down to 4e-6 of MOCASSIN's. In the PDR `ionBalance` lacked the network's own channels (L-34): H+ 1.1-3.3x, He+ 0.3-0.7x, O+ 0.01-2.7x, Mg+ to 579x, C within 4% until hiipdr's C+/C transition (10-13%). Step 1 (5681869): X+ is stage 2; `elemAvail` counted from the molecules' own atoms; the solve gets the electrons the network has no species for (`xe_extra`, vendored). Step 2 (5609d63): charge transfer with H from the network's reactions in both solvers, hydrogen taking the other side; every other reaction classified by its net effect on X and X+ and handed to `ionBalance`'s rates and matrix, the sum still `elemAvail`. The classified channels reproduce the right-hand side's own totals to 4e-16. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): cells more than 2x apart fall to 0-0.3% (Mg 6.6%), ionized cells exact. The user asked whether one solver should do everything: not now - `ionBalance` is re-solved at every trial temperature and needs the equation, not the answer; a joint solver is the next step if the one-iteration lag costs convergence. The first full run then showed the cell update no longer converging in 14% of hiipdr's cells: hydrogen had been made to follow the metals' charge exchange pass by pass. Corrected (21ac639): hydrogen carries its net only. hiipdr, seeded pair: ion balance reached everywhere again, Hbeta +0.03%, crossing +0.0002 mag, H2 lines within 1.7%; cells more than 2x apart H 0.5, He 0, C 0.5, O 0.6, Mg 9.2% (were 80-86% for H and O), the rest being cells that still swing between iterations; H+, He+, O+, Mg+ move to within 0.6-4.5x of Cloudy's from 0.2-490x; ionized-zone CO x0.0045. The chemistry's deep heating falls 10% (it had been computed with He+ at 1.9-3.3x the network's own) and hiipdr's outer shell reaches the 10 K floor: 1,546 cells flagged, [C I] and CO read 23-37% low for it. With `teFloor 2.725` (the keyword; default unchanged, the user's decision) that shell settles at 9.5-10.0 K, nothing is flagged, and the lines with every cell counted are [C I] 609, 370 x0.92, 0.80 and CO 1-0 to 3-2 x0.90-0.78 of the baseline - the gas half a kelvin colder; the flag alone had taken 5-25%. Step 1 alone moves only the ionized zone's molecules and, through the solve's electrons, the PDR's molecular ions by a few per cent; step 2 is the rest, at no measurable cost. pn150k, seeded pair: cell update converging as the baseline's, no cell flagged; cells more than 2x apart H 0.7, O 0.6, He, C, Mg 0% (were 44.8 and 78.5% for H and O), more than 10% apart H 20, O 34% - at the H/H2 transition, both signs, level from iteration 12 (L-47: the lag and the noise, a hypothesis); ionized-zone CO from 8.5e7 times Cloudy's to 16, OH 840 to 0.09; H+ past 0.33 pc 0.26-0.66 -> 0.54-0.92 of Cloudy's, He+ 2.3-4.0x -> 0.9-1.6x; crossing -0.0004 mag, H2 1-0 S(1) -0.7%, 0-0 S(0), S(1) -4.0, -2.4%, [C I] +5%, CO -4.4%. Hbeta +0.26% and the front +0.13% trace to one coefficient, He+ + H -> He + H+, the network's being 1.7-3.1 times Kingdon & Ferland's at 5,000-12,000 K (L-48: which set should be the one in hot gas is open). Corrected the same day while rebuilding the pages: my line comparison had read only the recombination lines; of pn150k's 176 collisionally excited lines above 1e-3 Hbeta ten moved by more than 1% - Mg I x0.020 (H+ + Mg -> Mg+ + H, the network's 1.1e-9 where MOCASSIN had none and Cloudy's fit gives 1.9e-10: from 9-16 times Cloudy's to 0.17-0.32), Mg II +14%, [O I] 6300 +4.6% (to 1.50 times Cloudy's) - so the coefficient choice is not small, and the recommendation is revised to the fits made for ionized gas in both solvers above their range's lower limit. Pages rebuilt on the new runs (PN v24, hiipdr v25 on the 2.725 K floor run, H2 lines v10) | Done | 2026-10-10 |
 | D-403 | **Charge transfer with H at the fit made for the gas at hand, in both solvers; hydrogen's side of He+ + H in `ionBalance` itself; the temperature floor's default at the CMB.** The user: "Proceed with your recommendations" (D-402's three open items). Measured before coding, on the data in the tree and in Cloudy's source: **the recommendation was wrong for oxygen**. The network's O+ + H and H+ + O are fits to Stancil et al. (1999) over 10-41,000 K and agree with the fits to the same tables that Cloudy uses to 0.89-1.04 and 0.97-1.33 from 30 to 25,000 K; Kingdon & Ferland's, which MOCASSIN had before D-402, is 0.36-0.55 of them above 8,000 K. Oxygen therefore stays on the network's, and D-402's +4.6% in [O I] 6300 was the better data arriving. Helium and magnesium change as recommended: inside the Kingdon & Ferland fit's stated range (He+ + H 6,000-1e5 K; H+ + Mg 5,000-30,000 K) both solvers use it, outside it the network's, from one routine (`pdrCtCoef`); the coefficient steps x2.9 at 6,000 K (He) and x30 at 5,000 K (Mg) where the two data sets meet. Hydrogen's side of He+ + H is computed in `ionBalance` with the call's own He+ instead of arriving an iteration late in the handed net. `teFloor` defaults to 2.725 K, the one constant the chemistry's grain floor is made from. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): ion balance reached in every cell at every iteration, Te not reached 0% from iteration 5 (2% at 7 before), no cell flagged (102), Mg I 4564 x4.1, [O I] 6300 +0.1%. hiipdr, seeded against D-402's 2.725 K run: the default floor does what the keyword did (no cell flagged, 1,545 below 10 K), the Mg I lines x3.9, nothing else by more than 0.6%, the solvers' level unmoved. pn150k: the Mg I lines x4.1, to 0.70-1.30 of Cloudy's (9-16 before D-402, 0.17-0.32 at D-402); [O I] 6300 +0.3%; cells more than 2x apart 0.7 -> 0.1% (H), more than 10% apart 20.4 -> 15.5% (H) and 34.3 -> 28.8% (O), against a prediction of under 10 and 20%; two cells flagged, one beside helium's step. **And it refutes D-402's "one coefficient"**: with the K&F fit back above 6,000 K He+ there returns to its old value and Hbeta (+0.25%), the gas behind the front (3-6% colder) and 0-0 S(0), S(1) (-3.9, -2.5%) do not - they follow the transfer below 6,000 K, where MOCASSIN had effectively none before D-402, and hydrogen receiving the H+ of each transfer. Five of ten predictions missed, four of them for having built on that attribution. Pages rebuilt (PN v25, hiipdr v26, H2 lines v11) | Done | 2026-10-11 |
+| D-404 | **A second solve of `ionBalance` after the chemistry: measured at every iteration with its result discarded, kept once at the end of the run.** The user, on L-47: "can we try including a second solve of MOCASSIN's balance after the chemistry only at the last iteration to see if that is indeed effective? Maybe that is enough for consistency?" `updateCell` takes an ion-only pass (the balance once, at the temperature the cell holds, on the terms handed over by then) used three ways: a control before the chemistry on the first solve's terms; after the chemistry on this iteration's terms, counted against the solver's own X+/X and put back, so the run's path is the one it had; and once the run has stopped, kept - at the temperature the last solves ran at and damped as the first solve's stages were. Short test (hiipdr 21^3, 7 iterations): the control moves nothing; with the delay removed and nothing else changed the cells more than 10% apart go from H 30.5, He 12.4, C 0.4, Mg 11.2% to 0.0 and oxygen from 22.8 to 11.6%, the rest of oxygen's being a source of O+ from molecules that a stage trimmed out of the matrix (O+/O 1.6e-9, `ionTrim` 1e-8) does not carry. Two versions withdrawn before the full runs: the kept solve at the damped temperature (it changed three things at once) and flagging a cell whose second solve fails. The user also asked for the damping itself to be re-evaluated later (L-49). Full runs: see the body. | In progress |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -36326,3 +36327,200 @@ Done, 2026-10-11: code on production (4cabcd8) and merged into h2-model
 (6778adb); both fixtures measured against D-402's runs; the three pages
 rebuilt. Open, in `doc/pdr-status.md`: L-47 (the delay), L-48 (helium's
 coefficient below 6,000 K and the steps).
+
+## D-404 - A second solve of `ionBalance` after the chemistry: measured every iteration, kept at the last (2026-10-11)
+
+The user, on the open item D-403 left (L-47: `ionBalance` trails the
+chemistry by one iteration; the general cure "a second solve of `ionBalance`
+after the chemistry with the fresh terms, or one solver"):
+
+> can we try including a second solve of MOCASSIN's balance after the
+> chemistry only at the last iteration to see if that is indeed effective?
+> Maybe that is enough for consistency?
+
+and, while the work was under way: "perhaps we should also re-evaluate the
+effect of damping since we have made many changes to the code since it has
+been implemented. Make a note of that so we can come back to it later."
+(Logged as L-49 in `doc/pdr-status.md`, 3f90e71; this entry supplies its
+first numbers.)
+
+### The two questions, and why they need different measurements
+
+1. **Is the delay what holds the two solvers apart?** D-403 left that as a
+   hypothesis: supported on pn150k by a few sampled cells, unexplained on
+   hiipdr, and one explicit term had removed only a quarter of it. The test
+   has to remove the delay and change nothing else.
+2. **Is a second solve at the last iteration enough to make the model that
+   is written out consistent?** That is a statement about the written model,
+   which is not the iteration's solve but a blend of it with the state
+   before (the damping, D-174/D-200).
+
+### Design
+
+`updateCell(grid, i, j, k, ionPass)`: with `ionPass` true the temperature
+is left alone and `ionBalance` is solved once at the temperature the cell
+holds, exactly as `iterateT` calls it at a trial temperature (`calcAlpha`,
+then the balance with its own n_e iteration), on whatever `pdrIonRate` and
+`elemAvail` hold at that moment. It flags nothing; it reports whether the
+cell had a field to solve with and whether the balance was reached.
+
+`ionSecondSolve` (`iteration_mod`) runs that pass over the cells each rank
+owns - the ownership `updateCell` and `pdrStep` already share - and
+`pdrIonCompare` counts the result against the solver's own X+/X, which
+`pdrStep` now stores per cell and element (`grid%pdrSolIon`). Three uses:
+
+| pass | when | terms | result |
+|---|---|---|---|
+| 1, control | after `updateCell`, before the chemistry | the ones the first solve had | put back |
+| 2 | after the chemistry and `pdrToMocassin` | this iteration's | put back |
+| 3, kept | once the run has decided to stop | the last iteration's | kept |
+
+Passes 1 and 2 restore the stages, n_e, their reduction buffers and the
+rates `ionBalance` stores for the chemistry, cell by cell, so the iteration
+goes on from the first solve as before. That is what makes the test of
+question 1 clean, and it is also what lets the full runs pair exactly with
+D-403's: until the run stops, nothing differs.
+
+Pass 3 cannot sit where pass 2 does, because the run decides to stop after
+the damping. So it is made at the temperature the last iteration's solves
+ran at (kept in `teSolved404` before the damping) and its stages are then
+damped against the iteration's start exactly as the first solve's were (the
+D-200 snapshot, handed on with `move_alloc` instead of freed). The written
+model then differs from the one without the pass in the terms of that one
+solve and in nothing else. The stage sums and the chemistry's atoms and
+electrons follow as they follow the first solve (`rescaleIonToAvail`;
+`pdrIonsToAbun`, the D-162/D-231 rule). **Not done by the pass:** the
+temperature is not solved again on the new ions, and the chemistry is not
+solved again on them.
+
+### Two versions withdrawn before the full runs
+
+**The kept solve at the model's damped temperature** (first version,
+`runs/d404-test-a`). It took the model as it stood after the damping and
+solved the balance at that temperature, leaving the result undamped. On the
+short test the written model then stood further from the solver in oxygen
+and magnesium than before (42.3 and 43.9% of cells more than 10% apart,
+from 22.8 and 11.2), Hbeta moved by -0.52%, [O I] 6300 by +8.7% and [S II]
+by +5%. None of that is the delay: the pass had changed three things at
+once (the terms, the temperature of the solve, and whether the stages are
+damped), and the last two dominate in a model that is still moving. With
+the version above, the same test moves Hbeta by -0.010% and no line above
+1e-3 Hbeta by 1%.
+
+**Flagging a cell whose second solve does not reach the balance.** Three of
+4,661 cells on the short test; flagged, they would have left the line sums.
+The first solve had reached its balance in those cells, so they now stand
+as they were and are counted (`balance not reached in`).
+
+One slip of mine on the way, recorded because it is the second of its kind
+(D-403's merge was the first): a build that failed went unnoticed inside a
+command chain and a test was launched on the previous binary
+(`runs/d404-test-c`, marked in its README; not a result). The binary's
+return code and time stamp are now checked before a launch.
+
+### Short test: hiipdr 21^3, 7 iterations, seeded as `runs/d403-test-a` (`runs/d404-test-e`)
+
+**The path is the one D-403's test took.** Every per-iteration line that
+depends on the model's state is identical to the printed digit: the 16
+`[D402]` lines, 8 `[D354]`, 8 `[D362]`, the four per-iteration `[D220]` and
+the 32 summary lines (converged cells, packets). Run time 3:51-4:05 over
+the four builds of these passes against 3:52 without them: any cost is at
+most 6% here, which is inside what this machine varies by; the full runs
+measure it better.
+
+**The control moves nothing.** A second solve on the first solve's terms
+leaves every element's X+/X within 10% in every cell at every iteration
+(largest move 0.01 dex) and n_e likewise. So whatever pass 2 moves is the
+terms.
+
+**The delay is the whole of it for H, He, C and Mg, and half of it for O.**
+Cells outside the ionized zone (x(H+) < 0.5; 4,608-4,611 of them) whose
+solver X+/X is more than 10% from MOCASSIN's, per cent, the first solve
+(the `[D402]` line, reproduced exactly by pass 2's own "before" count) and
+the second:
+
+| iteration | H | He | C | O | Mg |
+|---|---|---|---|---|---|
+| 4, first solve | 71.9 | 84.7 | 57.4 | 88.7 | 88.6 |
+| 4, second | 0.0 | 0.0 | 0.0 | 8.2 | 0.0 |
+| 5, first | 83.4 | 60.2 | 15.4 | 30.0 | 32.4 |
+| 5, second | 0.0 | 0.0 | 0.0 | 11.9 | 0.0 |
+| 6, first | 52.8 | 13.3 | 0.9 | 28.2 | 11.1 |
+| 6, second | 0.0 | 0.0 | 0.0 | 12.2 | 0.0 |
+| 7, first | 30.5 | 12.4 | 0.4 | 22.8 | 11.2 |
+| 7, second | 0.0 | 0.0 | 0.0 | 11.6 | 0.0 |
+
+Magnesium's 6.8% more than 2x apart at iteration 7 goes to 0.0 as well; the
+largest remaining difference is 0.01 dex in every element but oxygen (0.19).
+In the ionized cells both solves agree with the solver to 0.01 dex, as
+before. The second solve moved n_e by more than 10% in 0.8% of the cells,
+and reached its balance in every one.
+
+**Oxygen's other half is a source the trimmed stage does not carry.** The
+probe (`[D404p]`, 12 cells per iteration on rank 0) found the same thing in
+all 24 cells it printed: A_V 2.72-3.03, T 9.7-11.2 K, x(H2) 0.488, the
+solver's O+/O at 1.72-2.02e-9 and MOCASSIN's at 1.558-1.559e-9 in the first
+solve and the second alike - a constant, whatever is handed over. At 1.6e-9
+of the neutral the first ion is below `ionTrim` (1e-8), the stage is left
+out of the matrix and keeps its chain value, and the chain is a ratio of
+rates: it carries the handed loss (O+ + H2, 8.3e-8 s^-1) in its denominator
+but has no place for a source that does not come from O (channel 6, O+ made
+from molecules, 1.3-3.9e-17 per O atom per second). In each of the 24 cells
+(solver - MOCASSIN) x loss / source is 0.984-0.993: the difference is that
+source, to 2%. It is not the delay and a second solve cannot remove it. At
+2e-9 of the oxygen it reaches no line; it is a count that will not go to
+zero until the chain value of a trimmed first ion carries its source. Not
+changed here: it would alter the first solve and with it the pairing with
+D-403's runs.
+
+**The kept solve, and the written model.** On this test, which stops at
+iteration 7 with the PDR still cooling:
+
+| cells more than 10% apart, per cent | H | He | C | O | Mg |
+|---|---|---|---|---|---|
+| solver vs the kept solve, before the damping | 6.8 | 0.1 | 0.1 | 12.4 | 0.1 |
+| solver vs the written model, without the pass | 41.7 | 15.9 | 29.0 | 55.4 | 37.8 |
+| solver vs the written model, with it | 31.0 | 7.0 | 29.0 | 50.6 | 33.8 |
+| the written model's X+/X moved by the pass | 13.3 | 8.5 | 0.2 | 7.3 | 10.7 |
+
+The kept solve stands where pass 2 does except in hydrogen (6.8 against
+0.0): it is solved on the molecular content the model holds, which is
+damped, with sources the chemistry computed on the undamped one, and where
+H+ is made from H2 rather than from H the ratio follows the mismatch. The
+written model is far from the solver with or without the pass, because here
+the damping is most of the distance: the written temperature is more than
+1% from the one the last solves ran at in 98.9% of these cells and more than
+10% in 53.8%. That is a property of a 7-iteration test and says nothing yet
+about a settled run; it is the number the full runs are for. Three second
+solves did not reach the balance; none of the lines saw it (Hbeta -0.010%,
+0 of 68 recombination and 0 of 69 collisionally excited lines above the
+thresholds moved by 1%; CO 2-1, 3-2, 4-3 x1.0001; no flagged cell).
+
+### Predictions for the full runs, written before either was read
+
+`runs/d404-hii31` and `runs/d404-pn41` on h2-model (0bb7260), the inputs
+and seeds of `d403-hii31` and `d403-pn41`.
+
+1. The path is D-403's: every per-iteration `[D402]`, `[D354]` and summary
+   line identical to the printed digit, on both.
+2. The control moves no element by 10% in any cell at any iteration.
+3. With the delay removed (pass 2, last iteration): H, He, C and Mg at or
+   below 0.5% of cells more than 10% apart on both fixtures. That includes
+   hiipdr's 28, 13 and 13% in H, He and Mg, which D-403 could not explain.
+   Oxygen keeps a residual, the trimmed source: 5-15% on hiipdr; on pn150k
+   I do not know (its gas behind the front is warmer and O+/O larger) and
+   guess below 10%.
+4. The kept solve before the damping within 3 points of pass 2 in every
+   element.
+5. The written temperature more than 10% from the solved one in fewer than
+   5% of the cells outside the ionized zone on both, and more than 1% in
+   30-60%.
+6. The written model with the pass closer to the solver than without it in
+   H, He and Mg, but not at zero: I expect the damping to leave 5-15% of
+   cells more than 10% apart in H.
+7. Lines: Hbeta within 0.05%; no collisionally excited line above 1e-3
+   Hbeta moves by more than 2% on hiipdr; on pn150k the Mg I lines may move
+   by a few per cent and nothing else by more than 2%. The H2 lines within
+   0.5%.
+8. The second solve does not reach its balance in fewer than 0.1% of cells;
+   the flagged cells are D-403's (0 and 2).
