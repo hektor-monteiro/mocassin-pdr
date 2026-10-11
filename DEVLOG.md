@@ -402,7 +402,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-400 | **Chlorine in the network: the user deferred it and asked for it to be logged as work to do (L-46, D-399). Not started; no code changed.** The work is five species (Cl, Cl+, HCl, HCl+, H2Cl+) in the one compiled network, 33 -> 38. Checked what the tree already holds: 3D-PDR's vendored `full` network (`dataPDR/species_full.d`, `rates_full.d`; never built, D-003) has them, and 24 of its 45 chlorine reactions close within REDUCED's species plus the five, both of Cloudy's sinks among them with Cloudy's own coefficients (1.0e-9 and 1.3e-9 cm3/s, UMIST in both codes). pn150k has Cl/H = 3.16e-7; hiipdr has Cl = 0 in both codes and is the control. Decisions to take at the start: Cl and Cl+ are owned once (MOCASSIN solves chlorine's stages already), Cl's photoionization takes the field in its own window as H2, CO and C I do since D-350 (Cl ionizes only at 912-956 A, among H2's own lines), REDUCED is extended in place and not joined by a second selectable network, and the right-hand side is generated C with no generator in the tree | Deferred | 2026-10-10 |
 | D-401 | **Audit of the chemistry coupling, and whether 3D-PDR's full network can be used. The user's rule for it: one x(Cl+).** Mechanically yes: with the Makefile's two network names changed and the D-113 capture applied, the vendored `full` network (215 species, 2,926 reactions, 13 elements) builds against the present code and solves a one-cell box at pn150k's own conditions at every depth tried. One solve costs 57-161 ms cold and 6-10 ms warm against the reduced network's 2.0-3.9 and 0.08-0.15 ms (25-48x and 40-100x): 19-300 s per iteration on pn150k at 14 ranks. **Three things stand in the way, none of them cost.** (1) The coupling does not deliver one x(X+) for an ion a molecule consumes: `ionBalance` has no molecular channels since D-193 (L-34), every run log shows it for O+ (78.5% of pn150k's cells more than 2x from the solver's own value), and MOCASSIN's balance holds chlorine 99.8% ionized at A_V 0.30 where Cloudy has 11.9% - the Cl+ + H2 sink is 1e4 times recombination there. (2) The full network is not the reduced one plus species: 9 of the reduced network's 332 reactions are absent from it (D-395's among them) and 148 have other coefficients; it carries its own two-level H2 (H2*: -11% H2 in the box at A_V 0.30), eight more elements each needing the link the rule demands, and 131 more photo-rates on a diffuse-ISM shape. (3) The element list is written by hand in six places and an unlinked element is seeded zero. In the box, with H2* off, the full network lowers 2n(H2)/nH by 2.5-3.5%, chlorine carrying 3-9% of the H2 loss against Cloudy's 25-50%: UMIST's Cl photoionization on our band-averaged field is 7-10x below the rate Cloudy's Cl+ implies (not decomposed; the spectrum's shape is 1.5x). Recommended order: L-34's decision, the links from the species file, chlorine in a 38-species network from a generator of our own, then the full network as a measured A/B | Audited, nothing changed | 2026-10-10 |
 | D-402 | **One x(X+): each network ion is its own ionization stage, and both solvers carry every channel of the neutral/first-ion balance, each computed once.** The user, on D-401's finding that the solver's ion fractions and MOCASSIN's differ: "This seems like a major self consistency problem we should solve before anything". Measured first, in the published runs' sampled cells, for all five linked elements: two defects under one symptom. In ionized gas one carrier stood for every ionized stage (L-32): solver X+/X down to 4e-6 of MOCASSIN's. In the PDR `ionBalance` lacked the network's own channels (L-34): H+ 1.1-3.3x, He+ 0.3-0.7x, O+ 0.01-2.7x, Mg+ to 579x, C within 4% until hiipdr's C+/C transition (10-13%). Step 1 (5681869): X+ is stage 2; `elemAvail` counted from the molecules' own atoms; the solve gets the electrons the network has no species for (`xe_extra`, vendored). Step 2 (5609d63): charge transfer with H from the network's reactions in both solvers, hydrogen taking the other side; every other reaction classified by its net effect on X and X+ and handed to `ionBalance`'s rates and matrix, the sum still `elemAvail`. The classified channels reproduce the right-hand side's own totals to 4e-16. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): cells more than 2x apart fall to 0-0.3% (Mg 6.6%), ionized cells exact. The user asked whether one solver should do everything: not now - `ionBalance` is re-solved at every trial temperature and needs the equation, not the answer; a joint solver is the next step if the one-iteration lag costs convergence. The first full run then showed the cell update no longer converging in 14% of hiipdr's cells: hydrogen had been made to follow the metals' charge exchange pass by pass. Corrected (21ac639): hydrogen carries its net only. hiipdr, seeded pair: ion balance reached everywhere again, Hbeta +0.03%, crossing +0.0002 mag, H2 lines within 1.7%; cells more than 2x apart H 0.5, He 0, C 0.5, O 0.6, Mg 9.2% (were 80-86% for H and O), the rest being cells that still swing between iterations; H+, He+, O+, Mg+ move to within 0.6-4.5x of Cloudy's from 0.2-490x; ionized-zone CO x0.0045. The chemistry's deep heating falls 10% (it had been computed with He+ at 1.9-3.3x the network's own) and hiipdr's outer shell reaches the 10 K floor: 1,546 cells flagged, [C I] and CO read 23-37% low for it. With `teFloor 2.725` (the keyword; default unchanged, the user's decision) that shell settles at 9.5-10.0 K, nothing is flagged, and the lines with every cell counted are [C I] 609, 370 x0.92, 0.80 and CO 1-0 to 3-2 x0.90-0.78 of the baseline - the gas half a kelvin colder; the flag alone had taken 5-25%. Step 1 alone moves only the ionized zone's molecules and, through the solve's electrons, the PDR's molecular ions by a few per cent; step 2 is the rest, at no measurable cost. pn150k, seeded pair: cell update converging as the baseline's, no cell flagged; cells more than 2x apart H 0.7, O 0.6, He, C, Mg 0% (were 44.8 and 78.5% for H and O), more than 10% apart H 20, O 34% - at the H/H2 transition, both signs, level from iteration 12 (L-47: the lag and the noise, a hypothesis); ionized-zone CO from 8.5e7 times Cloudy's to 16, OH 840 to 0.09; H+ past 0.33 pc 0.26-0.66 -> 0.54-0.92 of Cloudy's, He+ 2.3-4.0x -> 0.9-1.6x; crossing -0.0004 mag, H2 1-0 S(1) -0.7%, 0-0 S(0), S(1) -4.0, -2.4%, [C I] +5%, CO -4.4%. Hbeta +0.26% and the front +0.13% trace to one coefficient, He+ + H -> He + H+, the network's being 1.7-3.1 times Kingdon & Ferland's at 5,000-12,000 K (L-48: which set should be the one in hot gas is open). Corrected the same day while rebuilding the pages: my line comparison had read only the recombination lines; of pn150k's 176 collisionally excited lines above 1e-3 Hbeta ten moved by more than 1% - Mg I x0.020 (H+ + Mg -> Mg+ + H, the network's 1.1e-9 where MOCASSIN had none and Cloudy's fit gives 1.9e-10: from 9-16 times Cloudy's to 0.17-0.32), Mg II +14%, [O I] 6300 +4.6% (to 1.50 times Cloudy's) - so the coefficient choice is not small, and the recommendation is revised to the fits made for ionized gas in both solvers above their range's lower limit. Pages rebuilt on the new runs (PN v24, hiipdr v25 on the 2.725 K floor run, H2 lines v10) | Done | 2026-10-10 |
-| D-403 | **Charge transfer with H at the fit made for the gas at hand, in both solvers; hydrogen's side of He+ + H in `ionBalance` itself; the temperature floor's default at the CMB.** The user: "Proceed with your recommendations" (D-402's three open items). Measured before coding, on the data in the tree and in Cloudy's source: **the recommendation was wrong for oxygen**. The network's O+ + H and H+ + O are fits to Stancil et al. (1999) over 10-41,000 K and agree with the fits to the same tables that Cloudy uses to 0.89-1.04 and 0.97-1.33 from 30 to 25,000 K; Kingdon & Ferland's, which MOCASSIN had before D-402, is 0.36-0.55 of them above 8,000 K. Oxygen therefore stays on the network's, and D-402's +4.6% in [O I] 6300 was the better data arriving. Helium and magnesium change as recommended: inside the Kingdon & Ferland fit's stated range (He+ + H 6,000-1e5 K; H+ + Mg 5,000-30,000 K) both solvers use it, outside it the network's, from one routine (`pdrCtCoef`); the coefficient steps x2.9 at 6,000 K (He) and x30 at 5,000 K (Mg) where the two data sets meet. Hydrogen's side of He+ + H is computed in `ionBalance` with the call's own He+ instead of arriving an iteration late in the handed net. `teFloor` defaults to 2.725 K, the one constant the chemistry's grain floor is made from. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): ion balance reached in every cell at every iteration, Te not reached 0% from iteration 5 (2% at 7 before), no cell flagged (102), Mg I 4564 x4.1, [O I] 6300 +0.1%. Full runs in progress | In progress | 2026-10-10 |
+| D-403 | **Charge transfer with H at the fit made for the gas at hand, in both solvers; hydrogen's side of He+ + H in `ionBalance` itself; the temperature floor's default at the CMB.** The user: "Proceed with your recommendations" (D-402's three open items). Measured before coding, on the data in the tree and in Cloudy's source: **the recommendation was wrong for oxygen**. The network's O+ + H and H+ + O are fits to Stancil et al. (1999) over 10-41,000 K and agree with the fits to the same tables that Cloudy uses to 0.89-1.04 and 0.97-1.33 from 30 to 25,000 K; Kingdon & Ferland's, which MOCASSIN had before D-402, is 0.36-0.55 of them above 8,000 K. Oxygen therefore stays on the network's, and D-402's +4.6% in [O I] 6300 was the better data arriving. Helium and magnesium change as recommended: inside the Kingdon & Ferland fit's stated range (He+ + H 6,000-1e5 K; H+ + Mg 5,000-30,000 K) both solvers use it, outside it the network's, from one routine (`pdrCtCoef`); the coefficient steps x2.9 at 6,000 K (He) and x30 at 5,000 K (Mg) where the two data sets meet. Hydrogen's side of He+ + H is computed in `ionBalance` with the call's own He+ instead of arriving an iteration late in the handed net. `teFloor` defaults to 2.725 K, the one constant the chemistry's grain floor is made from. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): ion balance reached in every cell at every iteration, Te not reached 0% from iteration 5 (2% at 7 before), no cell flagged (102), Mg I 4564 x4.1, [O I] 6300 +0.1%. hiipdr, seeded against D-402's 2.725 K run: the default floor does what the keyword did (no cell flagged, 1,545 below 10 K), the Mg I lines x3.9, nothing else by more than 0.6%, the solvers' level unmoved. pn150k: the Mg I lines x4.1, to 0.70-1.30 of Cloudy's (9-16 before D-402, 0.17-0.32 at D-402); [O I] 6300 +0.3%; cells more than 2x apart 0.7 -> 0.1% (H), more than 10% apart 20.4 -> 15.5% (H) and 34.3 -> 28.8% (O), against a prediction of under 10 and 20%; two cells flagged, one beside helium's step. **And it refutes D-402's "one coefficient"**: with the K&F fit back above 6,000 K He+ there returns to its old value and Hbeta (+0.25%), the gas behind the front (3-6% colder) and 0-0 S(0), S(1) (-3.9, -2.5%) do not - they follow the transfer below 6,000 K, where MOCASSIN had effectively none before D-402, and hydrogen receiving the H+ of each transfer. Five of ten predictions missed, four of them for having built on that attribution. Pages rebuilt (PN v25, hiipdr v26, H2 lines v11) | Done | 2026-10-11 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -35755,6 +35755,15 @@ below, and ten of those moved.)**
 
 ### pn150k's front moved because of one coefficient: He+ + H -> He + H+
 
+**(Refuted in part by D-403, 2026-10-11.** The shell table and its
+prediction for He+ hold. The inference from them to Hbeta, the temperature
+behind the front and the rotational lines does not: with the K&F fit back
+above 6,000 K He+ returns and those three stay. They follow the transfer
+below 6,000 K, where `ionBalance` had effectively none before this entry,
+and hydrogen receiving the H+ of each transfer. And the paragraph on
+oxygen's coefficients below is withdrawn: the network's are Stancil et al.
+1999, within 4% of the fits Cloudy uses. See D-403.**)**
+
 A proxy for Hbeta (n_e n(H+) T^-0.9 summed over the cells) gives +0.25%, of
 it +0.23 in the shells r 0.115-0.145 pc: the front. There He+ falls and H+
 rises:
@@ -36155,16 +36164,165 @@ with its statement about oxygen's rates withdrawn and its "not decided"
 on the floor annotated. Builders in the session's scratchpad
 (`d403pages/`: `pagelib.py`, `nums23.py`, `nums_d403.py`, `build_hii26.py`).
 
+### pn150k (`runs/d403-pn41` against `runs/d402-c-pn41`)
+
+41^3, 18 iterations, seeded. 3:00:41 (2:58:43 for the other, the same day;
+level model 6,572 s against 6,598).
+
+| | before D-402 | D-402 | D-403 |
+|---|---|---|---|
+| ion balance not reached, any iteration | 0 | 0 | 0 |
+| Te balance not reached, iterations 5, 6 (0 elsewhere) | 72, 33% | 72, 33% | 72, 25% |
+| cells flagged | 0 | 0 | 2 |
+| more than 10% apart: H, He, C, O, Mg | | 20.4, 1.1, 1.6, 34.3, 0.8% | 15.5, 0.4, 0.1, 28.8, 0.0% |
+| more than 2x apart: H, O | 44.8, 78.5% | 0.7, 0.6% | 0.1, 0.1% |
+| Hbeta (1e34 erg/s) | 2.6780 | 2.6850 | 2.6846 |
+| H+ front (pc) | 0.12816 | 0.12833 | 0.12828 |
+| H/H2 crossing, A_V | 0.3931 | 0.3927 | 0.3927 |
+| He I 5876 / Hbeta | 0.08518 | 0.08468 | 0.08495 |
+| [O I] 6300 / Hbeta | 0.4192 | 0.4386 | 0.4400 |
+| Mg I 4564, 4572, 2853 / Cloudy's | 16, 16, 8.8 | 0.32, 0.31, 0.17 | 1.30, 1.28, 0.70 |
+| Mg II 2796 / Cloudy's | 2.84 | 3.24 | 3.22 |
+| H2 1-0 S(1), 0-0 S(0), S(1), S(2) against before D-402 | | -0.7, -4.0, -2.4, -0.5% | -0.4, -3.9, -2.5, -0.4% |
+| [C II] 158, [O I] 63, [C I] 609, CO 2-1 against D-402 | | | +0.2, +0.1, -0.2, 0.0% |
+
+The front, shell by shell (before D-402 / D-402 / D-403):
+
+| r (pc) | T (K) | n(He+) | n(H+) |
+|---|---|---|---|
+| 0.125-0.135 | 9,870 / 9,880 / 9,870 | 62.4 / 62.0 / 62.6 | 446 / 452 / 451 |
+| 0.135-0.145 | 8,160 / 8,120 / 8,140 | 19.3 / 16.9 / 19.2 | 76.6 / 81.5 / 80.4 |
+| 0.145-0.160 | 4,810 / 4,640 / 4,610 | 4.67 / 3.02 / 3.04 | 11.2 / 13.3 / 13.7 |
+| 0.160-0.180 | 519 / 485 / 488 | 1.83 / 1.24 / 1.25 | 2.64 / 2.97 / 2.91 |
+
+Of the 238 collisionally excited lines above 1e-4 Hbeta only the Mg I lines
+moved by more than 1% since D-402 (x4.05-4.14); no recombination line did.
+The two flagged cells: one at 5,840 K (A_V 0.157), beside helium's step at
+6,000 K; one at 48 K (A_V 0.291).
+
+**Magnesium**: with the fit made for ionized gas the Mg I lines are
+0.70-1.30 of Cloudy's, from 9-16 times (no transfer) and 0.17-0.32 (the
+network's). Mg II did not come back down: neutral magnesium had been up to
+a sixth of Mg+ in the outer ionized gas before D-402, and is small with
+either coefficient.
+
+**Oxygen**: [O I] 6300 +0.3%, as it should be with nothing changed.
+
+### What this run refutes in D-402: it was not "one coefficient"
+
+D-402 traced pn150k's +0.26% in Hbeta, the 3-6% colder gas behind the front
+and the -2.4, -4.0% in the two lowest rotational H2 lines to "one
+coefficient", the network's He+ + H being 1.7-3.1 times Kingdon & Ferland's
+at 5,000-12,000 K, and I predicted that with the K&F fit back in its range
+Hbeta would return to 2.6780 and the lines recover in part. **It does not
+happen.** Above 6,000 K He+ is back at its value from before D-402 (19.2
+against 19.3 cm^-3 at 0.14 pc; the coefficient alone predicts x1.15 from
+D-402, measured x1.13) and He I 5876 comes half way back. Hbeta stays
+(-0.016% from D-402, +0.25% over the run before it); the gas behind the
+front stays at D-402's temperature; 0-0 S(0) and S(1) stay at -3.9, -2.5%.
+
+What those follow is the two other things D-402 did with the same reaction,
+both kept here:
+
+  - **the transfer below 6,000 K.** Before D-402 `ionBalance` evaluated
+    Kingdon & Ferland's fit there, outside its range, where it is 3 to 480
+    times smaller than the network's - effectively no transfer. Since D-402
+    both solvers have the network's. He+ behind the front fell by a third
+    (4.67 -> 3.02 at 0.15 pc, 1.83 -> 1.24 at 0.17) and is unchanged by
+    D-403, as is the temperature there;
+  - **hydrogen receiving the H+ of each transfer**, which its balance did
+    not before D-402 (the transfer removed a He+ and made nothing): H+ at
+    0.14 pc 76.6 -> 81.5 -> 80.4 with the transfer's size more than halved
+    in between.
+
+D-402's shell table was right about He+ and its "predicted from the
+coefficient" column held; the inference from He+ to Hbeta, the temperature
+and the lines was mine and was wrong. The open data question is therefore
+not the coefficient above 6,000 K but the one below it, where the network's
+is 2.4-3.4 times what Cloudy uses.
+
+### The two solvers: a quarter of the level is gone, and the rest has other carriers
+
+Hydrogen's side of He+ + H made current: cells more than 2x apart 0.7 ->
+0.1% (H) and 0.6 -> 0.1% (O); more than 10% apart 20.4 -> 15.5% (H), 34.3
+-> 28.8% (O), 1.6 -> 0.1% (C), 0.8 -> 0.0% (Mg), 1.1 -> 0.4% (He); level
+from iteration 12 (H 15.5-16.4%, O 28.8-30.3%). In the sampled cell where
+D-402 tested the explanation (A_V 0.23) the solver's H+/H over MOCASSIN's
+was 1.46 and is 1.00.
+
+The same sampled cells show what is left. A_V 0.26: 0.48 -> 0.87. A_V 0.32
+(grid cell 1,6,20): 0.13 -> 0.14, with MOCASSIN's x(H+) 3.0e-4 at D-402,
+2.8e-4 now and 3.6e-5 before D-402, the solver's 3.9e-5 in all three. In
+that cell MOCASSIN's H+ needs 8.6 times everything the network forms there
+(2.1e-15 against 2.45e-16 per H nucleus per s), in an iteration in which
+the ionization rate `ionBalance` itself had for hydrogen is the cosmic
+rays' alone (the solve's slot is 1.975e-16 to four digits). The excess can
+only have come with terms handed from the previous iteration. Helium's
+direct transfer is no longer one of them. Candidates in the network's own
+budget of that cell: H + H2+ -> H2 + H+ (10% of its H+ formation in a quiet
+iteration, 28% deeper; H2+ is made by the same hard photons through H2's
+photoionization, D-358) and He+ + H2 -> He + H+ + H. That a cell with the
+same seed shows it at the same iteration in two runs fits a photon event at
+iteration 17 common to both.
+
+### The predictions against pn150k
+
+  5. Cell update as before - held. No cell flagged - **missed**: two.
+  6. More than 10% apart, H under 10% and O under 20% - **missed**: 15.5
+     and 28.8%. The outliers went (0.7 -> 0.1%), the level did not.
+  7. Hbeta back to 2.6780 within 0.1% - **missed**: 2.6846. He I within
+     0.5% of the baseline - held (-0.27%).
+  8. T behind the front between the baseline's and D-402's, the two
+     rotational lines recovering in part - **missed**: at D-402's.
+  9. Mg I x3-5, to 0.5-1.6 times Cloudy's - held (x4.1; 0.70-1.30). Mg II
+     back down - **missed** (-0.7%). [O I] 6300 within 0.5% - held.
+  10. Crossing within 0.002 mag, 1-0 S(1) within 0.5% - held.
+
+Five of ten missed, and four of the five for one reason: I had taken
+D-402's "one coefficient" for established and built on it.
+
+### Pages
+
+All three rebuilt on the D-403 runs and published:
+
+  - 150 kK PN Against Cloudy, version 25,
+    https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV - `runs/d403-pn41`;
+  - hiipdr Against Cloudy, the page's version 26 (the server's 27),
+    https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx - `runs/d403-hii31`;
+  - H2 Lines in MOCASSIN, version 11,
+    https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8 - both.
+
+Each has a new first section: the three data sets side by side, what
+changed, the model at the last three versions, the solvers' agreement, and
+on the PN page the front shell by shell with what this run refutes. The
+current-state parts are rebuilt; the sections of the last version are
+marked as of their version, with the statement about oxygen's rates
+withdrawn, the "one coefficient" attribution marked refuted in part, and
+hiipdr's "not decided" on the floor annotated. Builders in the session's
+scratchpad (`d403pages/`: `pagelib.py`, `nums23.py`, `nums_d403.py`,
+`build_pn25.py`, `build_hii26.py`, `build_h2v11.py`).
+
 ### Not yet known
 
-  - pn150k (running).
-  - Why hiipdr's He I lines kept D-402's change (above).
-  - Whether UMIST's He+ + H predates the correction of Stancil et al.
-    (1998); and what the coefficient should be between 1,000 and 6,000 K,
-    where the network's is 2.4-3.4 times Cloudy's.
+  - What still holds the two solvers 10% apart in 15-29% of the neutral
+    cells. On pn150k the sampled cells point at the one-iteration delay
+    through other carriers (H2+, He+ + H2); on hiipdr, with no hard
+    photons, nothing has been identified and D-403 did not move it. One
+    more explicit term removed a quarter of pn150k's; the general cure is
+    the delay itself - a second solve of `ionBalance` after the chemistry
+    with the fresh terms, or one solver - and is not started.
+  - Helium's coefficient below 6,000 K: the network's is 2.4-3.4 times what
+    Cloudy uses and looks like the rate from before Stancil et al.'s (1998)
+    correction, which I cannot establish here. It sets the temperature
+    behind pn150k's front by 3-6% and 0-0 S(0), S(1) by 3.9, 2.5%.
+  - The steps where the two data sets join: one of pn150k's two flagged
+    cells sits beside helium's.
+  - Why hiipdr's He I lines kept D-402's change, and why its Mg I 2852 is
+    0.09 of Cloudy's where pn150k's is 0.70.
 
 ### Status
 
-In progress: code committed and merged; hiipdr measured and its page
-published; pn150k running.
-
+Done, 2026-10-11: code on production (4cabcd8) and merged into h2-model
+(6778adb); both fixtures measured against D-402's runs; the three pages
+rebuilt. Open, in `doc/pdr-status.md`: L-47 (the delay), L-48 (helium's
+coefficient below 6,000 K and the steps).
