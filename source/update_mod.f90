@@ -41,10 +41,20 @@ module update_mod
     end subroutine pdrCtRates
 
 
-      subroutine updateCell(grid, xP, yP, zP)
+      ! D-404: with ionPass present and true the cell's temperature is left
+      ! as it is and only the ionization balance is solved, once, at that
+      ! temperature and with whatever terms the chemistry has handed over by
+      ! then - a second solve of ionBalance after the chemistry of the same
+      ! iteration. It flags nothing: lgIonPassDone says the cell was solved,
+      ! lgIonPassConv that the balance was reached (counted in nIonPassFail
+      ! when not), and what to do with the result is the caller's, as is the
+      ! reduction of NeTemp and ionDenTemp, which must be allocated.
+      subroutine updateCell(grid, xP, yP, zP, ionPass)
         implicit none
 
         type(grid_type), intent(inout) :: grid         ! the grid
+        logical, intent(in), optional  :: ionPass      ! D-404
+        logical                        :: lgIonOnly    ! D-404: .false. = the full update
 
         ! D-289: Y0 and Y1 now come from constants_mod, one declaration.
 
@@ -127,8 +137,11 @@ module update_mod
            nspU = 1
         end if
 
+        lgIonOnly = .false.
+        if (present(ionPass)) lgIonOnly = ionPass
+
         ! initialise lgBlack
-        grid%lgBlack(cellP) = 0
+        if (.not.lgIonOnly) grid%lgBlack(cellP) = 0
 
         ! initialise lgHit
         lgHit = .false.
@@ -151,8 +164,21 @@ module update_mod
            end do
         end if
 
+        ! D-404: the ion-only pass. Where it has nothing to solve the cell
+        ! keeps what it holds, as the full update leaves an unhit cell.
+        if (lgIonOnly) then
+           lgIonPassDone         = .false.
+           lgIonPassConv         = .false.
+           NeTemp(cellP)         = grid%Ne(cellP)
+           ionDenTemp(cellP,:,:) = grid%ionDen(cellP,:,:)
+           if (.not.lgGas .or. .not.lgHit .or. lgNeInput) return
+           if (lgEcho) then
+              if (grid%echoVol(xP,yP,zP).eq.0.0) return
+           end if
+        end if
+
         ! in the case of a light echo only update cells inside the echo
-        if (lgEcho) then
+        if (lgEcho .and. .not.lgIonOnly) then
            if (grid%echoVol(xP,yP,zP).eq.0.0) then
               grid%Tdust(:,:,cellP) = echoTemp
               TdustTemp(:,:,cellP)  = grid%Tdust(:,:,cellP)
@@ -305,6 +331,17 @@ module update_mod
          thResidualLow  = 0.
          Thigh          = 0.
          Tlow           = 0.
+
+         ! D-404: the ionization balance alone, at the temperature the cell
+         ! holds, exactly as iterateT calls it at each trial temperature
+         if (lgIonOnly) then
+            call calcAlpha()
+            nIterateX = 1
+            call ionBalance(lgIonPassConv)
+            lgIonPassDone = .true.
+            if (.not.lgIonPassConv) nIonPassFail = nIonPassFail + 1
+            return
+         end if
 
          if (lgDust .and. lgGas .and. lgPhotoelectric) then
             allocate (grainPot(1:nSPecies, 1:nsizes))
