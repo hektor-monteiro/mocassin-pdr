@@ -36,6 +36,7 @@ DEVLOG.md and arrives here by merge.
 | H-025 | **H-024's 'found, not fixed' was not an on-axis curiosity: every shielding column was sampled once per step of a cell width, and the path between the target cell's face and the end of the first step was never counted. Against the exact path on the same ray, the star-ward N(H2) was a median 0.46-0.75 of the true one through hiipdr's transition and 0.64-0.82 through pn150k's (production D-397, merged: `rayCells`).** The level model's `starColumns` and site columns take the same routine. Checked: the new columns equal an independent exact integral in all 15,191 cells (1.000); A_V equals 0.159737 mag/pc times the exact path in every cell to 3e-8, where the sampled A_V was off by -0.058 to +0.057 mag (median -0.028) at the inner cavity's edge; 36 mirrored rays agree with a brute-force walk to 3e14 cm. Also (production D-398): a scattering site's first leg runs to the site, not to the near face of its cell. **Measured (seeded pairs): hiipdr's crossing 10.028 -> 9.847 (D-397) -> 9.781 pc (D-398), A_V 1.396 against Cloudy's 1.280; pn150k's 0.3706 -> 0.3637 pc, A_V 0.393 against 0.368. Every H2 line falls, 6-8% on hiipdr and 3-4% on pn150k; the ortho/para split against Cloudy does not move (hiipdr ortho 0.75-0.78, para 1.05-1.10; pn150k 0.91-1.11, 1.88-2.62).** The site walk costs 1.4-1.6x, 4-5% of the level model | Done | 2026-10-09 |
 | H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.3 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. **pn150k, seeded pair at 18 iterations (2026-10-10): the crossing moves from A_V 0.393 to 0.294 (0.364 to 0.275 pc, six cells), past Cloudy's 0.368: +0.099 from the width against a published gap of 0.026.** Its ortho lines come to 0.45-0.69 and its para lines to 0.70-0.93 of Cloudy's (0.91-1.11 and 1.88-2.62); a factor 1.3-1.6 between the spins stays, the colder shielded gas (H-009). The PDR is 1.5-3.2 K warmer and still 8-12 K below Cloudy's; CO 2-1 +42%. **Cloudy's saved rates show its chlorine (Cl+ + H2, HCl+ + H2) is 25-50% of its H2 sink from A_V 0.26 on; Cloudy rerun without chlorine (`runs/h026-cloudy-pn-noCl`) crosses at 0.326. If the pieces add, pn150k's +0.026 = +0.099 (width) - 0.042 (chlorine, which the REDUCED network lacks) - 0.031 (the rest); hiipdr, with no chlorine in either model, +0.116 = +0.208 - 0.092.** The model keeps its width; whether to add chlorine to the network is open | Done | 2026-10-10 |
 | H-027 | **Production's D-402 (one x(X+): the same neutral/first-ion balance in both solvers) merged; what it does to this branch's H2 results.** Seeded pairs with H-026's published runs, level model in the loop (stage B). The H/H2 crossing does not move: hiipdr A_V 1.3961 -> 1.3962, pn150k 0.3931 -> 0.3927. hiipdr lines / Hbeta: 1-0 S(1) 7.032e-4 -> 6.988e-4 (-0.6%), 2-1 S(1) -0.6%, 0-0 S(0), S(1), S(2) -1.8, -0.8, +0.2%. pn150k: 1-0 S(1) 9.449e-4 -> 9.383e-4 (-0.7%), 2-1 S(1) -0.7%, 0-0 S(2) -0.5%, 0-0 S(1) -2.4%, S(0) -4.0% - the transition zone 3-6% colder, which traces to one charge-transfer coefficient (He+ + H; D-402, L-48). Ionized-zone H2 unchanged on hiipdr, +7-8% on pn150k (17-19 times Cloudy's; not attributed). No change to the level model; its cost per call is the day's (x1.20-1.28 on untouched code). hiipdr's outer shell now reaches the 10 K floor and is left out of the atomic and CO lines (not of `lineFluxH2.out`'s H2 lines, which move 0.1% between the two floors) | Done | 2026-10-10 |
+| H-028 | **Production's D-403 merged (charge transfer with H by the gas at hand in both solvers; hydrogen's side of He+ + H in `ionBalance`; the temperature floor's default at 2.725 K); what it does to this branch's H2 results: nothing beyond 0.3%.** Seeded against H-027's runs. Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3962 -> 1.3959. pn150k lines against H-027's: 1-0 S(1) +0.3%, 0-0 S(0), S(1), S(2) +0.1, -0.1, +0.1%; hiipdr's within 0.1%. So pn150k's 0-0 S(0) and S(1) stay 3.9 and 2.5% below their values from before the shared ionization balance, with the Kingdon & Ferland fit back above 6,000 K: H-027's reading, that this loss was the size of helium's coefficient at the front, is refuted - it is the transfer below 6,000 K, where MOCASSIN had effectively none before, cooling the gas behind the front (4,805 -> 4,642 -> 4,614 K, 519 -> 485 -> 488 K). hiipdr run with no floor keyword gives what `teFloor 2.725` gave. One merge conflict (`pdr_mod.f90`, before the solve; both sides kept: the level model's H2 rate and D-403's charge-transfer rows). Page: H2 Lines in MOCASSIN, version 11 | Done | 2026-10-11 |
 
 ---
 
@@ -4013,3 +4014,75 @@ are read from `lineFluxH2.out`).
 ### Status
 
 Done (2026-10-10). No code of this branch changed.
+
+
+## H-028 - Production's D-403 merged: the charge-transfer data checked, and what H-027 got wrong (2026-10-11)
+
+The user, on D-402's three open items: "Proceed with your recommendations".
+D-403 (`DEVLOG.md`) is production's: for charge transfer with H both
+solvers use, per reaction, the fit made for the gas at hand (helium's and
+magnesium's Kingdon & Ferland inside its stated range and the network's
+outside; oxygen's stay on the network's, which are Stancil et al. 1999, the
+data Cloudy uses too); hydrogen's side of He+ + H is computed in
+`ionBalance` with its own He+; `teFloor` defaults to 2.725 K. Merged here
+as 6778adb, with one conflict in `pdr_mod.f90` before the solve - both
+sides kept (the level model's H2 photodissociation rate, H-012, and
+D-403's charge-transfer rows). All four flavours, `h2Test` and `h2Slab`
+rc 0. Runs on this branch, seeded, the level model in the loop:
+`runs/d403-hii31` (15 iterations, 52:44) and `runs/d403-pn41` (18, 3:00:41).
+
+### Measured
+
+| | before one balance (H-026) | one balance (H-027) | now | Cloudy |
+|---|---|---|---|---|
+| pn150k H/H2 crossing, A_V | 0.3931 | 0.3927 | 0.3927 | 0.3675 |
+| pn150k 1-0 S(1) / Hbeta | 9.449e-4 | 9.383e-4 | 9.410e-4 | 8.473e-4 |
+| pn150k 0-0 S(0) | 1.493e-4 | 1.434e-4 | 1.435e-4 | 7.76e-5 |
+| pn150k 0-0 S(1) | 5.557e-4 | 5.424e-4 | 5.420e-4 | 4.804e-4 |
+| pn150k 0-0 S(2) | 1.131e-3 | 1.126e-3 | 1.127e-3 | 4.481e-4 |
+| hiipdr H/H2 crossing, A_V | 1.3961 | 1.3962 | 1.3959 | 1.2799 |
+| hiipdr 1-0 S(1) / Hbeta | 7.032e-4 | 6.988e-4 | 6.993e-4 | 9.237e-4 |
+| hiipdr 0-0 S(0), S(1), S(2) against H-027 | | | 0.0, +0.1, 0.0% | |
+
+The medians by spin of Cloudy's 40 strongest lines are unchanged (pn150k
+ortho 0.91-1.11, para 1.88-2.62; hiipdr 0.74-0.78, 1.05-1.10). H2 in
+pn150k's partly ionized gas is 34-210 times Cloudy's at the same x(H+), as
+at H-027. The level model's cost per call is unchanged (6,572 s for 16
+calls against 6,598 the same day).
+
+### What H-027 got wrong
+
+H-027 said pn150k's 0-0 S(0) and S(1) lost 4.0 and 2.4% because the gas
+behind the ionization front was 3-6% colder, and that this was "one
+charge-transfer coefficient (He+ + H; D-402, L-48)" - the network's being
+1.7-3.1 times Kingdon & Ferland's at 5,000-12,000 K. The first half
+stands. The second does not: with the Kingdon & Ferland fit back above
+6,000 K the two lines are where H-027 left them (-3.9, -2.5% from H-026)
+and so is the temperature (4,805 -> 4,642 -> 4,614 K at 0.15 pc, 519 -> 485
+-> 488 K at 0.17). That gas is below 6,000 K, where MOCASSIN's balance had
+effectively no transfer before D-402 and both solvers now have the
+network's: He+ there fell by a third at D-402 and stays, and the neutral
+helium takes more of the hard photons that heat it. D-403 has the shell
+table.
+
+### Pages
+
+"H2 Lines in MOCASSIN" is version 11
+(https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8): a new first section
+with the tables above for both nebulae at the three stages; the summary's
+"Now" numbers are these runs'; H-027's section is marked as measured then,
+with its "one coefficient" marked refuted in part. The two comparison
+pages were rebuilt on the same runs (D-403, "Pages").
+
+### Not yet known
+
+  - What helium's coefficient should be between 1,000 and 6,000 K, where
+    the network's is 2.4-3.4 times what Cloudy uses (D-403, L-48): it sets
+    pn150k's 0-0 S(0) and S(1) by 3.9 and 2.5%.
+  - Why pn150k's ionized-zone H2 is 7-8% higher than before the shared
+    balance (H-027's item, unchanged).
+
+### Status
+
+Done (2026-10-11). No code of this branch changed.
+
