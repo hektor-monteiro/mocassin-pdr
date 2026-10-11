@@ -1412,6 +1412,11 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrIonRate memory"; stop
                 end if
+                allocate(grid%pdrSolIon(0:grid%nCells, 1:pdrNlinkEl), stat = err)   ! D-404
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrSolIon memory"; stop
+                end if
+                grid%pdrSolIon = -1.d0
                 allocate(grid%pdrPhotRate(0:grid%nCells, 1:6), &
                      & grid%pdrAlphaRec(0:grid%nCells, 1:5), stat = err)   ! D-358
                 if (err /= 0) then
@@ -3937,6 +3942,11 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrIonRate memory"; stop
                end if
+               allocate(grid(iG)%pdrSolIon(0:grid(iG)%nCells, 1:pdrNlinkEl), stat = err)   ! D-404
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrSolIon memory"; stop
+               end if
+               grid(iG)%pdrSolIon = -1.d0
                allocate(grid(iG)%pdrPhotRate(0:grid(iG)%nCells, 1:6), &
                     & grid(iG)%pdrAlphaRec(0:grid(iG)%nCells, 1:5), stat = err)   ! D-358
                if (err /= 0) then

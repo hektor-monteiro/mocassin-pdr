@@ -454,6 +454,11 @@ module common_mod
         ! Photoionization, recombination, cosmic rays and charge transfer
         ! with H are not in these: ionBalance computes them itself.
         real, allocatable         :: pdrIonRate(:,:)
+        ! D-404: the solver's own X+/X of each linked element at the end of
+        ! the last solve of this cell (pdrStep), kept so that a later solve
+        ! of ionBalance can be read against it. Each rank holds the cells it
+        ! solves. -1 = not set.
+        double precision, allocatable :: pdrSolIon(:,:)
         ! D-358: MOCASSIN's own rates for the linked neutrals, stored by
         ! ionBalance so the chemistry solve runs on them - the same rates in
         ! both solvers. Columns 1-5 are H, He, C, O, Mg: photoionization (and,
@@ -1156,6 +1161,13 @@ module common_mod
     !   Te = (1 - iterDamp)*Te_new + iterDamp*Te_previous
     ! so 0.25 mixes in a quarter of the old value. 0 disables.
     real                :: iterDamp = 0.25
+    ! D-404: second solves of ionBalance (updateCell's ionPass) that did not
+    ! reach the balance, on this rank, since last reported.
+    integer             :: nIonPassFail = 0
+    ! D-404: the last ionPass call solved its cell (it had a field to solve
+    ! with), as opposed to leaving it as it was; and that solve reached the
+    ! balance.
+    logical             :: lgIonPassDone = .false., lgIonPassConv = .false.
     ! D-178. Cloudy decides ITERATION-level convergence on several
     ! independent, model-integrated quantities - the outward Hbeta fraction,
     ! the Lya/Halpha optical depths, and MOLECULAR COLUMN DENSITIES - each
