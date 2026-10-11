@@ -35755,14 +35755,14 @@ below, and ten of those moved.)**
 
 ### pn150k's front moved because of one coefficient: He+ + H -> He + H+
 
-**(Refuted in part by D-403, 2026-10-11.** The shell table and its
+**Refuted in part by D-403, 2026-10-11.** The shell table and its
 prediction for He+ hold. The inference from them to Hbeta, the temperature
 behind the front and the rotational lines does not: with the K&F fit back
 above 6,000 K He+ returns and those three stay. They follow the transfer
 below 6,000 K, where `ionBalance` had effectively none before this entry,
 and hydrogen receiving the H+ of each transfer. And the paragraph on
 oxygen's coefficients below is withdrawn: the network's are Stancil et al.
-1999, within 4% of the fits Cloudy uses. See D-403.**)**
+1999, within 4% of the fits Cloudy uses. See D-403.
 
 A proxy for Hbeta (n_e n(H+) T^-0.9 summed over the cells) gives +0.25%, of
 it +0.23 in the shells r 0.115-0.145 pc: the front. There He+ falls and H+
