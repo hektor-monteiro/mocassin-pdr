@@ -534,6 +534,29 @@ network's 1.1e-9). Open:
     x30 at 5,000 K (Mg). One of pn150k's two flagged cells is at 5,840 K;
   - hiipdr's Mg I 2852 is 0.09 of Cloudy's (0.19 before any transfer).
 
+**L-49. The damping across iterations has not been re-evaluated since it was
+introduced** (the user, 2026-10-11, during D-404; to come back to). `iterDamp`
+0.25 mixes a quarter of the previous iteration's value into the temperature
+(D-174) and, since D-200 (2026-09-09), into the molecular abundances and the
+ion stages. It was put in to break a limit cycle: D-173 had 44-76% of the
+cells crossing the 1,000 K branch boundary on every iteration. Much of what
+produced that cycle has changed since - `updateCell` once per iteration
+(D-216), the chemistry solved once (D-354), the escape of the cooling lines,
+the scattering sites, one x(X+) in both solvers (D-402, D-403) - and nobody
+has checked whether the cycle is still there without the damping. What the
+damping costs is that the model that is written out is a blend, not a
+solution: its temperature, stages and abundances are each 0.75 of this
+iteration's solve and 0.25 of the state before it, and n_e is not damped at
+all. Where the model has settled the two agree; where a cell still moves
+from one iteration to the next they do not. Measured so far only on a short
+test that is far from settled (hiipdr 21^3, 7 iterations, `runs/d404-test-e`):
+the written temperature is more than 10% from the one the last solves ran at
+in 53.8% of the cells outside the ionized zone. The same count on the full
+fixtures is printed by every run from D-404 on (`[D404] ... the model's T
+(damped ...`). To do: seeded pairs with `iterDamp 0` against 0.25 on hiipdr
+and pn150k - do cells still flip, does the integrated test stop sooner or
+later, and what moves in the lines and the profiles.
+
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
 n_e 1e2-1e14) with 5-point polynomials in log(emissivity). It extrapolates
