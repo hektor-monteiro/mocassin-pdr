@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-402, 2026-10-10. Reference model throughout: the 150 kK PN,
+Status as of D-403, 2026-10-11. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -421,8 +421,11 @@ late:
     line - [C I] 609 16% low, CO 1-0 to 3-2 19-25% low for that alone. With
     `teFloor 2.725` in the input no cell is flagged and the temperature
     balance is reached everywhere. The floor had also been holding 29-39%
-    of the cells at iterations 2-4 of every earlier run. The default is
-    unchanged; whether it should be the CMB is the user's decision.
+    of the cells at iterations 2-4 of every earlier run. **Since D-403
+    (2026-10-10, the user's decision) the default is 2.725 K**, the constant
+    `TcmbK` from which the chemistry's grain floor is also made; hiipdr run
+    with no keyword gives what `teFloor 2.725` gave. The clamp no longer
+    binds on either fixture (coldest cells 9.47 and 21.6 K).
   - The chemistry's T_dust is floored at T_CMB, because MOCASSIN transports no
     CMB. Where the floor binds, the chemistry and MOCASSIN's dust emission see
     different grain temperatures; the fix is the CMB in MOCASSIN's field.
@@ -495,43 +498,41 @@ H+ past A_V 1.5 from 0.18-0.61 of Cloudy's to 0.60-1.37, He+ from 1.7-13x to
 chemistry's deep heating on hiipdr fell 10%: it had been computed with He+
 re-imposed at 1.9-3.3 times the value the network held.
 
-**L-47. `ionBalance` trails the chemistry by one iteration** (D-402). The
-terms the solve hands over are the previous iteration's. Where the gas has
-settled that costs nothing (ionized cells agree to 0.01 dex); where a cell
-still swings between iterations it shows as the two solvers 10% or more
-apart: hiipdr H 29%, He 13%, C 1.5%, O 21%, Mg 13% of the cells past the
-front; pn150k H 20%, He 1%, C 2%, O 34%, Mg 1%, level from iteration 12 and
-concentrated at the H/H2 transition (A_V 0.22-0.33), with both signs in
-neighbouring cells. That it is the lag and the Monte Carlo noise is
-supported in pn150k's sampled cells and not shown cell by cell (no output
-holds two iterations of one cell): the ionization rate of H is the cosmic
-rays' alone in most deep cells in any one iteration and spikes when a hard
-photon crosses; the solver's H+ then has a source from He+ + H -> He + H+
-worth 0.65 of the direct rate, which MOCASSIN's balance receives an
-iteration late (predicted 1.45x apart in the sampled cell, measured 1.457).
-Candidate next steps, none taken, the first recommended: carry He+ + H for
-hydrogen in `ionBalance` with the call's own He+ (one-way, so it cannot
-cycle as the H-O pair did); a second cell update after the chemistry; one
-solver for both.
+**L-47. `ionBalance` trails the chemistry by one iteration** (D-402, D-403).
+The terms the solve hands over are the previous iteration's. Where the gas
+has settled that costs nothing (ionized cells agree to 0.01 dex); where a
+cell's ionization comes and goes with single photons it shows as the two
+solvers 10% or more apart. D-403 made one such term current - hydrogen's
+side of He+ + H, now computed in `ionBalance` with its own He+ - and on
+pn150k the cells more than 2x apart fell from 0.7 to 0.1% and those more
+than 10% apart from 20.4 to 15.5% (H) and 34.3 to 28.8% (O); C, Mg and He
+went to 0.1, 0.0 and 0.4%. hiipdr did not move: H 28%, He 13%, O 21%, Mg
+13%. On pn150k the sampled cells say the rest is the same delay through
+other carriers (H2+, He+ + H2): one cell holds 8.6 times the H+ the network
+forms there in an iteration with no ionizing photon. On hiipdr nothing has
+been identified. Not done, and the general cure: bring the two solvers to
+the same iteration - a second solve of `ionBalance` after the chemistry
+with the fresh terms, or one solver for both.
 
-**L-48. Charge transfer with H runs on UMIST's fits in photoionized gas**
-(D-402). One coefficient per reaction in both solvers was reached by giving
-`ionBalance` the network's. Against Kingdon & Ferland's, which MOCASSIN used
-before: He+ + H -> He + H+ is 1.7-3.1 times at 5,000-12,000 K (and 37-480
-times below 500 K, where the K&F fit is outside its range); O+ + H and its
-reverse agree to 7-18% and 1.4-1.6x below 1,000 K and are 1.7-2.3 times at
-8,000-17,000 K; H+ + Mg -> Mg+ + H MOCASSIN did not have. Cloudy's He value,
-as read from its source, is half the network's at 8,000 K. Measured size on
-pn150k: Hbeta +0.26%, the H+ front +0.13%, He I lines to -1%, the transition
-zone 3-6% colder and the 0-0 S(0), S(1) H2 lines -4.0, -2.4%; **the Mg I
-lines x0.020** (4571: from 16 times Cloudy's to 0.31 - the network's
-H+ + Mg is 1.1e-9 at every temperature, Cloudy's fit 1.9e-10 at 1e4 K) and
-x0.12 on hiipdr; Mg II +14%; [O I] 6300 +4.6% on pn150k (1.43 -> 1.50 times
-Cloudy's) and +3.8% on hiipdr. Which set should be the one above a few
-thousand K is not decided. Recommended: the fits made for ionized gas
-(Kingdon & Ferland) inside their stated ranges and the network's below, in
-both solvers, by handing MOCASSIN's coefficient to the network's reaction
-as D-358 does for recombination.
+**L-48. Charge transfer with H: which data, where** (D-402, D-403). Both
+solvers use one coefficient per reaction, from one routine (`pdrCtCoef`).
+D-403 put the data sets side by side: **oxygen's** rates in the network are
+fits to Stancil et al. (1999) over 10-41,000 K and agree with the fits
+Cloudy uses to 0.89-1.04 (O+ + H) and 0.97-1.33 (H+ + O); Kingdon &
+Ferland's, MOCASSIN's until D-402, is 0.36-0.55 of them above 8,000 K. They
+stay, and what D-402 said of them is withdrawn. **Magnesium** (H+ + Mg) and
+**helium** (He+ + H) use Kingdon & Ferland's fit inside its stated range
+(5,000-30,000 K; 6,000-1e5 K) and the network's outside: pn150k's Mg I
+lines are 0.70-1.30 of Cloudy's (9-16 with no transfer, 0.17-0.32 with the
+network's 1.1e-9). Open:
+  - helium below 6,000 K, where the network's is 2.4-3.4 times what Cloudy
+    uses. It, and hydrogen receiving the transfer at all, are what moved
+    pn150k at D-402 (Hbeta +0.25%, the gas behind the front 3-6% colder,
+    0-0 S(0), S(1) -3.9, -2.5%) - not the coefficient's size above 6,000 K,
+    as D-402 had it;
+  - the coefficient steps where the data sets join: x2.9 at 6,000 K (He),
+    x30 at 5,000 K (Mg). One of pn150k's two flagged cells is at 5,840 K;
+  - hiipdr's Mg I 2852 is 0.09 of Cloudy's (0.19 before any transfer).
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
