@@ -36524,3 +36524,99 @@ and seeds of `d403-hii31` and `d403-pn41`.
    0.5%.
 8. The second solve does not reach its balance in fewer than 0.1% of cells;
    the flagged cells are D-403's (0 and 2).
+
+### hiipdr 31^3, 15 iterations (`runs/d404-hii31` on h2-model, against `runs/d403-hii31`)
+
+Read with `tools/d404_second/read404.py <run> <base run>`.
+
+**The path is D-403's** (prediction 1 met): the 48 `[D402]` lines, 24
+`[D354]`, 16 `[D362]`, 72 summary lines, the 12 per-iteration `[D220]` and
+the 30 "balance not reached" lines are identical to the printed digit. Run
+time 48:39 against 52:44 the night before: no cost that shows.
+
+**Question 1: on this model the delay is all of the disagreement in H, He,
+C and Mg, and half of oxygen's.** Cells outside the ionized zone (15,041 to
+15,062) with the solver's X+/X more than 10% from MOCASSIN's, per cent:
+
+| iteration | H first / second | He | C | O | Mg |
+|---|---|---|---|---|---|
+| 4 | 74.0 / 0.0 | 83.1 / 0.0 | 53.8 / 0.0 | 87.2 / 6.4 | 89.4 / 0.0 |
+| 6 | 22.4 / 0.0 | 7.1 / 0.0 | 1.7 / 0.0 | 16.8 / 5.6 | 14.9 / 0.0 |
+| 7 | 86.2 / 0.0 | 85.1 / 0.0 | 43.7 / 0.0 | 29.2 / 9.9 | 54.6 / 0.0 |
+| 9 | 29.1 / 0.0 | 12.4 / 0.0 | 1.7 / 0.0 | 21.7 / 9.5 | 12.0 / 0.0 |
+| 12 | 27.9 / 0.0 | 13.0 / 0.0 | 1.4 / 0.0 | 20.4 / 9.7 | 12.5 / 0.0 |
+| 15 | 28.4 / 0.0 | 13.2 / 0.0 | 1.5 / 0.0 | 21.1 / 9.7 | 12.9 / 0.0 |
+
+More than 2x apart at iteration 15: H 0.4, C 0.5, O 0.6, Mg 9.2% after the
+first solve; 0.0 in every element after the second. In the 142 ionized
+cells both solves stand on the solver. This is the level D-403 recorded as
+unexplained on hiipdr (H 28.4, He 13.2, O 21.1, Mg 12.9%): prediction 3
+met, with oxygen's residual inside the 5-15% I gave. The second solve moves
+n_e by more than 10% in 1.5-2.1% of these cells from iteration 7 on, and
+fails to reach its balance in 0-2 cells an iteration.
+
+The control (prediction 2) holds as a percentage and not to the letter: it
+moves no element by 10% in more than 0.05% of the cells at any iteration,
+but the largest move is not zero - 0.16 dex for oxygen in at least one cell
+at iteration 15 (0.14 at 7, 0.10 at 11). I wrote "in any cell".
+
+**Oxygen's residual is the trimmed stage's source in every cell probed.**
+120 cells over iterations 6-15, all oxygen, A_V 2.60-2.94, x(H2) 0.479-0.489:
+the solver's O+/O is 1.72-1.85e-9, MOCASSIN's 1.56-1.57e-9 in the first solve
+and the second alike, and (solver - MOCASSIN) x loss / source is 0.977-0.996.
+The two differ by 10-18% there, so cells just under the 10% line are not in
+the count. The probe prints the first twelve cells rank 0 meets in each
+iteration, so it samples the outer shell along one edge of the grid, not the
+whole of the 9.7%.
+
+**Question 2: the kept solve, and the written model.** Iteration 15:
+
+| cells more than 10% from the solver's own X+/X, per cent | H | He | C | O | Mg |
+|---|---|---|---|---|---|
+| the first solve, before the damping (`[D402]`) | 28.4 | 13.2 | 1.5 | 21.1 | 12.9 |
+| the second solve, discarded (pass 2) | 0.0 | 0.0 | 0.0 | 9.7 | 0.0 |
+| the second solve, kept, before the damping (pass 3) | 3.4 | 0.0 | 0.3 | 10.5 | 0.0 |
+| the written model without the pass | 28.7 | 14.7 | 32.0 | 25.7 | 25.1 |
+| the written model with it | 16.0 | 8.6 | 31.8 | 19.7 | 18.0 |
+| the written X+/X moved by the pass | 16.1 | 9.2 | 1.2 | 8.0 | 12.1 |
+
+More than 2x from the solver, written model without / with: H 0.5 / 0.6, He
+1.5 / 1.5, C 12.4 / 12.5, O 2.2 / 1.8, Mg 4.9 / 0.4. The kept solve reached
+its balance in every cell and moved nothing in the ionized zone.
+
+Three things in that table:
+
+  - The kept solve is not pass 2 for hydrogen (3.4% against 0.0; I had said
+    within 3 points, prediction 4, missed by 0.4). It is solved on the
+    molecular content the model holds, which is damped, with the sources the
+    chemistry computed on the undamped one.
+  - **What separates the written model from the solver is mostly the
+    damping, not the delay.** Carbon shows it alone: its first solve is on
+    the solver in all but 1.5% of the cells, and the written model is more
+    than 10% off in 32% and more than 2x off in 12%, with or without the
+    pass. The written stages are 0.75 of this iteration's and 0.25 of the
+    state before, and where a trace stage follows a photoionization rate
+    that changes by a large factor from one iteration to the next (few
+    packets in a deep cell) a quarter of the old value is most of the new
+    one. The written temperature is more than 1% from the one the last
+    solves ran at in 51.2% of these cells and more than 10% in 5.0%
+    (prediction 5: I said under 5% and 30-60%).
+  - Against that background the pass does what it can: H 28.7 -> 16.0, He
+    14.7 -> 8.6, O 25.7 -> 19.7, Mg 25.1 -> 18.0 (prediction 6: closer, not
+    zero; I had put hydrogen's remainder at 5-15% and it is 16.0). The
+    comparison is not quite like for like, and that should be kept in mind
+    when reading it: the solver's X+/X is one iteration's answer to one
+    Monte Carlo field, the written model is a running mean over iterations.
+
+**Nothing on the line lists moves** (prediction 7 met for hiipdr): Hbeta
+9.16644 -> 9.16619e36 erg/s (-0.003%); 0 of 68 recombination lines above
+1e-7 Hbeta and 0 of 69 collisionally excited lines above 1e-3 Hbeta move by
+1%; CO 2-1, 3-2, 4-3 x1.0000; the 4,083 H2 lines within 0.04% (largest 0-0
+S(0), x1.0004). Medians by radius: H+ x0.984-1.01, e- x0.994-0.999, O+
+x0.985-1.05, C+ x1.03 at 16 pc, the rest unchanged to three figures. No
+cell flagged, as in D-403's run (prediction 8 met here); the inner
+convergence lines are D-403's.
+
+Hydrogen's budget, as `[D220]` prints it before its rescale: off by more
+than 1% in 19.9% of the cells after the damping, 6.0% after the kept solve
+(both are then rescaled to the molecular content, as before).
