@@ -38108,3 +38108,120 @@ the level model in the loop. Chained after the production pair
      packet's weight at depth.
  22. [C I] 609 and 370 um, undamped, 5-20% lower than without the biasing
      and [C II] 158 um 1-4% higher. Held weakly.
+
+### hiipdr undamped at four times the packets (`runs/d405-hii31-d0-p4`, 19:04)
+
+`nPhotons 24000000`, everything else as `runs/d405-hii31-d0`; rc 0, 15
+iterations, 43:47 (39:47 at 6e6: the transfer is a tenth of this run).
+Below, "6e6" is the first undamped run and "2.4e7" this one.
+
+**1. Where the noise is scatter about a mean, it halves.** Spread among
+cells that are one cell (`cmpdamp.py`), 2.4e7 over 6e6, and the median
+step of a cell from one iteration to the next (`histdamp.py`, iterations
+9-15); packet noise gives 0.5:
+
+| A_V | spread: T | H | H2 | C | CO | n_e | step: T | x(H) | x(C) | x(CO) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.46-1.00 | 0.54 | | 0.64 | 0.49 | 0.52 | 0.57 | | 0.63 | 0.48 | 0.50 |
+| 1.00-1.48 | 0.50 | 0.50 | 0.60 | 0.49 | 0.51 | 0.49 | 0.49 | 0.52 | 0.47 | 0.52 |
+| 1.48-1.91 | 0.50 | 0.52 | 0.48 | 0.46 | 0.47 | 0.48 | 0.50 | 0.48 | 0.48 | 0.48 |
+| 1.91-2.29 | 0.24 | 0.54 | 0.53 | 0.31 | 0.47 | 0.03 | 0.36 | 0.68 | 0.46 | 0.55 |
+| 2.29-2.65 | 1.54 | 1.16 | 1.16 | (76) | 1.63 | 6.3 | 1.17 | 1.22 | (116) | 1.67 |
+| 2.65-2.99 | 0.89 | 1.00 | 1.01 | 2.7 | 0.71 | 4.2 | 1.54 | 1.58 | 1.78 | 0.68 |
+
+To A_V 1.91 every quantity is at 0.46-0.64, the temperature at 1.48-1.91
+from 4.88% to 2.44%. Past it the two columns stop being about noise: the
+carbon turn has left the band 1.91-2.29 (where the spread collapses) and
+arrived in 2.29-2.65 and beyond (where it appears). The histories at
+2.4e7 are independent draws as at 6e6 (R 0.90-1.20, c -0.39 to -0.55 in
+every neutral band; no cell goes from cold to above 3,000 K at any
+iteration).
+
+**2. The carbon turn is set by the packet count.** Cells by C+ over
+carbon, last iteration (below 0.18 / between / above 0.9):
+
+| A_V | cells | 6e6 | 2.4e7 | deep state: 6e6 | 2.4e7 | exp(-4 mu) from the 6e6 share |
+|---|---|---|---|---|---|---|
+| 2.0-2.1 | 763 | 74 / 67 / 622 | 0 / 7 / 756 | 9.7% | 0.0% | 0.01% |
+| 2.1-2.2 | 828 | 209 / 128 / 491 | 5 / 56 / 767 | 25% | 0.6% | 0.4% |
+| 2.2-2.3 | 859 | 400 / 122 / 337 | 29 / 198 / 632 | 47% | 3.4% | 4.7% |
+| 2.3-2.4 | 978 | 687 / 111 / 180 | 102 / 403 / 473 | 70% | 10% | 25% |
+| 2.4-2.5 | 1,033 | 887 / 71 / 75 | 307 / 529 / 197 | 86% | 30% | 54% |
+| 2.5-2.6 | 1,068 | 1,006 / 33 / 29 | 560 / 431 / 77 | 94% | 52% | 79% |
+
+A cell is in the deep state when no packet of the band crossed it; with
+four times the packets, Poisson gives the fourth power of the share. The
+shares fall to that or below it: to it at A_V 2.1-2.3, and to 0.4-0.7 of
+it from 2.3 on, where the carbon in front is now ionized and lets more
+of the band through (carbon's own opacity, the candidate of the
+histories section, with the right sign). The middle fills in, because a
+packet carries a quarter as much: one crossing no longer ionizes the
+carbon outright. **C+ = C by the page's measure: A_V 2.27 with the
+damping, 2.29 without, 2.51 at four times the packets; Cloudy 2.93.**
+D-365 had 2.26 -> 2.72 at 21 times the tracks per cell with the grid
+changed as well; this is the packets alone. Over the neutral cells
+2.4e7 over 6e6: n(C) -28%, n(C+) +22%, n(CO) -7.4%, n(OH) -20%, n(H)
++0.14%, n(H2) -0.03%. T at A_V 2.50: 11.2 -> 15.1 K (Cloudy 19.3).
+
+**3. The lines.** 2.4e7 over 6e6, both undamped:
+
+| | change | of Cloudy's: damped 6e6 (the pages) | undamped 6e6 | undamped 2.4e7 |
+|---|---|---|---|---|
+| [C I] 609 um | -20.2% | 1.71 | 1.65 | 1.32 |
+| [C I] 370 um | -20.2% | 1.47 | 1.29 | 1.03 |
+| [C II] 158 um | -1.5 +- 0.2% | 1.33 | 1.34 | 1.32 |
+| [O I] 63 um | +1.2 +- 0.5% | 8.0 | 8.0 | 8.1 |
+| Hbeta | -0.03% | | | |
+| CO 2-1, 3-2 | +0.5 +- 1.0%, +4.8 +- 1.2% | | | |
+| CO 4-3, 5-4, 6-5 | +19 +- 2%, +42 +- 5%, +46 +- 9% | | | |
+
+No recombination line of 34 by 1% (median 0.06%); of the 89
+collisionally excited lines above 1e-4 Hbeta, 17 by more than 1% and the
+two [C I] lines by more than 5%; none of 2,693 H2 lines by 1% (largest
++0.73%); H/H2 crossing 1.3951 -> 1.3933. Written over solve at 2.4e7:
+[C I] 609 um 1.005, 370 um 0.990. **The [C I] lines of this model are
+not converged in the packet count: a fifth of them goes at four times
+the packets, and with the damping's excess that is most of what the
+pages show above Cloudy at 370 um.** The high CO lines rise because the
+gas past A_V 2.3 with its carbon ionized is at 18-20 K where the deep
+state is at 11-12 K.
+
+**4. The one-iteration events.** Cells with x(H+) above ten times their
+median: 107-146 per iteration (76-103 at 6e6), at 26 times the median
+(52), He+ 54 (112), n_e 2.2 (4.2): more packets, each with a quarter of
+the energy, as the mechanism has it. Steps of the molecular fraction
+below -0.5: 23 in six iterations, all on such cells (202 at 6e6); cells
+that lose 30% of their H2: 49-69 per iteration (60-77). The events fall
+on cells whose carbon was neutral the iteration before here too (33% of
+them at A_V 2.2-2.3, where 3.6% of the cells are).
+
+**5. The stop.** 1.93% at the fourteenth iteration and 1.45% at the
+fifteenth (2.002 and 1.83 at 6e6): one iteration sooner. Neutral cells
+counted converged 78% against 65%.
+
+### The predictions for the run at four times the packets
+
+  7. Deep-state cells at most exp(-4 mu) of each bin (0, 3, 40, 240, 560,
+     840 from A_V 2.0-2.1 to 2.5-2.6), fewer if ionized carbon lets more
+     through, and the middle filling in: **met** (0, 5, 29, 102, 307,
+     560; the middle 7, 56, 198, 403, 529, 431 against 67, 128, 122, 111,
+     71, 33).
+  8. The floor of the steps halves: **half met, and its rider was wrong.**
+     The spread of T among equivalent cells at A_V 1.48-1.91 went from
+     4.9% to 2.4% (2.3-2.8 predicted), and every step and spread before
+     the carbon turn is at 0.46-0.64. But the median step of x(H0) over
+     all the cells did not move (3.3% at both; 1.5-1.9% predicted),
+     because the carbon turn moved from shells holding a fifth of the
+     cells into shells holding half of them and took its steps along.
+     The rider said "if the floor does not move it is a cycle". It did
+     not move and it is not a cycle: the histories are independent draws
+     at 2.4e7 as at 6e6. A median over all cells was the wrong floor to
+     name.
+  9. Steps of the molecular fraction above 0.5 from 60-70 per iteration
+     to fewer than 20: **met** (6-14).
+ 10. C+ = C to A_V 2.45-2.65: **met** (2.51).
+ 11. [C I] 609 um down 5-15%: **missed** (-20%). [C II] 158 um up 1-3%:
+     **wrong sign** (-1.5 +- 0.2%). The carbon that becomes C+ at four
+     times the packets is at 18-20 K, far below the 91 K of the line, and
+     adds nothing to it; why the line falls by 1.5% is not looked into.
+ 12. Hbeta within 0.3%: **met** (-0.03%).
