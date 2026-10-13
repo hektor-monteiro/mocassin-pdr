@@ -37596,7 +37596,11 @@ fourteenth iteration, +3.0% and +2.6%: the same seed, the same packets at
 the front.) With the damping the same quantity kept the test above 4%
 until the sixteenth iteration. A test quantity carried by a few hundred
 cells at the front is D-391's choice to revisit, with or without the
-damping; noted for the status document.
+damping; noted for the status document. (`cvdamp.py` now prints the
+breakdown from the written model of any run. hiipdr is the same: 68% of
+its T(H0) is its 182 cells above 3,000 K and 29% the 15,007 below 100 K;
+the last seven values of the undamped arm scatter by 0.94%, so the 2%
+limit is 1.5 standard deviations of the test's difference there.)
 
 **5. The damping derails the first PDR iterations here too.** Temperature
 balance not reached at iterations 5 and 6: 72% and 25% of the cells with
@@ -37872,7 +37876,7 @@ rate of order 4e-14 s^-1 per hydrogen atom, which against recombination
 at 12 K puts x(H+) near 4e-3 (an estimate); the cells show 8e-4, 88
 times their usual 9e-6. The same order, no better.
 
-**Read in the code afterwards (17:38), and it is what the code does.** A
+**Read in the code afterwards (17:36), and it is what the code does.** A
 packet absorbed by the gas becomes a "diffuse" packet
 (`photon_mod.f90:896-1010`). With probability `totalLines` - the cell's
 line emission over its line plus continuum emission - it leaves as a
