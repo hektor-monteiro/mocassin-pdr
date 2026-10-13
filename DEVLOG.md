@@ -37560,8 +37560,8 @@ damping. Noted for the status document.
 | 18 | 1.451% | 1.548% | 86.1% | 79.5% | 0.691 | 0.691 |
 
 The two arms end on the same molecular content (n(H2) -0.03%, n(H0)
-+0.06%, undamped over damped) and the undamped arm had it five iterations
-sooner: its n(H2) is within 0.2% of its last value from the eleventh
++0.06%, undamped over damped) and the undamped arm had it six iterations
+sooner: its n(H2) is within 0.2% of its last value from the tenth
 iteration, the damped arm's from the sixteenth (n(H2)
 undamped over damped: +8.0% at the ninth iteration, +4.7, +3.0, +1.9,
 +1.2, +0.7, +0.5, +0.2, +0.1, -0.03%). The step sizes say the same: the
@@ -37650,7 +37650,8 @@ second solve, either arm). On hiipdr the two arms had the same.
     pn150k has no carbon turn inside it (A_V 0.66 at the edge, C+ all the
     way), so there are no two states for the blend to mix.
   - H/H2 crossing A_V 0.3916 -> 0.3923 (+0.18%; D-393's seed scatter of
-    that number is 0.20%); front 0.1349 in both.
+    that number is 0.20%; the page tools' measure gives 0.3927 -> 0.3930);
+    front 0.1349 in both.
 
 **8. Profiles.** Contents agree: over all neutral cells n(C) -0.24%, n(C+)
 0.00%, n(CO) -0.40%, n(H) +0.02%, n(H2) -0.01%, n(OH) -0.14%. Medians by
