@@ -37669,7 +37669,7 @@ and -2.3% in the mean).
   6. The lines: all met (Hbeta -0.25%; the atoms' far-infrared lines
      within 0.6%; H2 within 0.8%; CO within 0.4%; crossing 0.0007 mag).
 
-### A third test queued: the pair on the production binary (17:15)
+### A third test queued: the pair on the production binary (17:09)
 
 Every run above is the h2-model binary, which has the level model in its
 heating. The default lives in production code, and the claim "no cycle
@@ -37705,3 +37705,53 @@ without having taken it out.
  18. The undamped carbon is two states: 85-97% of the cells of each 0.1
      mag bin from A_V 1.9 to 2.6 below 0.18 or above 0.9 of
      C+/(C+ + C + CO).
+
+### The damped arm's carbon, read as blends of two states (hiipdr, 17:20)
+
+Drawn for the page (the share of the cells of A_V 2.1-2.4 in each 0.04 of
+C+/(C+ + C + CO), both arms), the damped arm's distribution is not a smear
+between the two states. It has peaks, and they sit where a blend of 0.75
+and 0.25 of the two states puts them. The undamped arm's states in that
+range are 0.166 (the deep state) and 0.965 (median of the cells above
+0.9), so:
+
+| the cell at this iteration, and the one before | 0.75 new + 0.25 old | the damped arm's peak |
+|---|---|---|
+| deep, deep | 0.17 | 0.16-0.20 |
+| deep, deep, and ionized two before | 0.22 | 0.20-0.24 |
+| deep, ionized before | 0.37 | 0.32-0.36 |
+| ionized, deep before | 0.77 | 0.76-0.80 |
+| ionized, ionized | 0.92-0.97 | 0.88-1.0 |
+
+Nothing lies between 0.44 and 0.64 but 2% of the cells. So the written
+carbon of the damped model is the last two or three draws of an on/off
+state, weighted 0.75, 0.19, 0.05 - which is all a blend of answers can be
+when the answer has two values.
+
+The same histogram says how the state at one iteration relates to the one
+before, without a cell history. Share of the cells of each bin within
+0.07 of 0.37 ("deep now, ionized before") and of 0.77 ("ionized now, deep
+before") in the damped arm, against the product of the undamped arm's
+shares of ionized and deep cells at its one iteration:
+
+| A_V | undamped: deep | ionized | damped: near 0.37 | near 0.77 | deep x ionized |
+|---|---|---|---|---|---|
+| 2.0-2.1 | 9.7% | 81.5% | 8.8% | 9.0% | 7.9% |
+| 2.1-2.2 | 25.2% | 59.3% | 16.2% | 18.8% | 15.0% |
+| 2.2-2.3 | 46.6% | 39.2% | 20.5% | 21.4% | 18.3% |
+| 2.3-2.4 | 70.2% | 18.4% | 17.1% | 16.2% | 12.9% |
+| 2.4-2.5 | 85.9% | 7.3% | 9.6% | 8.3% | 6.2% |
+| 2.5-2.6 | 94.2% | 2.7% | 4.8% | 4.1% | 2.6% |
+
+The two mixed peaks are equal, as a stationary process needs, and 1.1 to
+1.6 times the product (the undamped arm's cells between the states, 5-15%
+of each bin, are counted in neither factor; counting them as ionized puts
+the product at 8.8, 18.8, 24.9, 20.9, 12.1, 5.5%, which brackets the
+peaks). A state that persisted from one iteration to the next would leave
+the mixed peaks far below the product; one that alternated would put them
+at the smaller of the two shares. **The carbon state of a cell is drawn
+afresh at every iteration, to the accuracy of this reading.** The cell
+histories of the two reruns will give the transition counts themselves.
+
+Figure for the pages: `d405_states_hii31` (scratchpad `d405pages/`,
+`d405states.py`).
