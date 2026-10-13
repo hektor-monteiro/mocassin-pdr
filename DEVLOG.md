@@ -38485,6 +38485,29 @@ is at least three (scatter about a mean, an on/off state, rare events).
   - Which of the two routes to more of the band at depth, four times the
     packets or the path biasing, is nearer the model's limit in CO.
 
+### Pages (2026-10-13, 20:20)
+
+Each of the three pages has a new first section on this test, built on
+the version published this morning (compared byte for byte with the live
+page first); their models are still the damped runs, since the default
+has not changed. hiipdr Against Cloudy v28
+(https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx): the pair by
+iteration, six figures (the test, the noise inside a run, the two carbon
+states and their blends, the carbon turn with and without the damping
+and at four times the packets, the noise at four times the packets), the
+carbon states by depth for three runs, solve against written emission,
+the model with, without and at four times the packets against Cloudy,
+the production pair, the path-biasing run. 150 kK PN Against Cloudy v27
+(https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV): the pair by
+iteration, four figures, when the run would stop and what T(H0) is made
+of, the pattern along z. H2 Lines in MOCASSIN v13
+(https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8): the H2 with and
+without the damping on both nebulae, the two derailed iterations, the
+cells that lose their H2 for an iteration. Builders and numbers in the
+session's scratchpad (`d405pages/`: `build_hii28.py`, `build_pn27.py`,
+`build_h2v13.py`, `nums_d405.py`), copied to
+`runs/_scratchpad_backup_2026-10-13/`.
+
 ### Status
 
 Done as a measurement. **No source changed; `iterDamp` is 0.25.** The
