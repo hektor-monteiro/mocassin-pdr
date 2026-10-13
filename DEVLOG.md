@@ -38290,3 +38290,84 @@ budget lines and the code; this is the run with the term taken out.
      undamped: **met** (1.104, 0.983).
  18. The undamped carbon in two states, 85-97% of each bin: **met**
      (84-97%).
+
+### The undamped model with path biasing (`runs/d405-prod-hii31-d0-ps`, 20:12)
+
+Production binary, `runs/d405-prod-hii31-d0`'s input with `pathStretch
+0.5` added; rc 0, 15 iterations, 19:09 (23:06 without). D-239's census at
+the last iterations: packet weights from 5e-37 to 7.8e3-1.1e4, mean 1.30,
+mean log10 -0.79, 1.0e6 of 1.65e7 draws ended by the roulette. Against
+the undamped production arm without the biasing ("analog"):
+
+**The deep state is gone.** Cells by C+ over carbon, last iteration
+(below 0.18 / between / above 0.9):
+
+| A_V | analog | biased |
+|---|---|---|
+| 2.0-2.1 | 70 / 70 / 623 | 0 / 31 / 732 |
+| 2.1-2.2 | 204 / 132 / 492 | 0 / 182 / 646 |
+| 2.2-2.3 | 403 / 127 / 329 | 0 / 445 / 414 |
+| 2.3-2.4 | 691 / 103 / 184 | 0 / 708 / 270 |
+| 2.4-2.5 | 887 / 66 / 80 | 0 / 901 / 132 |
+| 2.5-2.6 | 1,005 / 35 / 28 | 0 / 1,017 / 51 |
+
+No cell before A_V 2.6 is left without the band, and the carbon is a
+profile again. C+ = C by `cmpdamp.py`'s measure (medians in 79 bins of
+A_V, added to the tool for this): 2.25 analog, **2.62 biased**; the same
+measure gives 2.25 for both h2-model arms at 6e6 and 2.52 at four times
+the packets (the page tools' measure: 2.27, 2.29, 2.51), and Cloudy is at
+2.93. Over the neutral cells: n(C) -39%, n(C+) +31%, n(OH) -29%, n(H)
+-1.3%, n(H2) +0.3%, **n(CO) +36%**. Median T at A_V 2.29-2.65: 11.6 ->
+15.8 K. H/H2 crossing 1.4271 -> 1.4210.
+
+**The lines.** Hbeta +0.02%. [C I] 609 um -18.1%, 370 um -8.8%; [C II]
+158 um -2.9 +- 0.4%; [O I] 63 um +0.0 +- 0.6%. **CO 2-1 +52%, 3-2 +61%,
+4-3 +85%, 5-4 +109%.** Written over solve: [C I] 1.003 and 0.989.
+
+**The noise.** No cell goes from cold to hot beyond one per iteration;
+the histories are independent draws (R 1.02-1.14, c -0.42 to -0.49).
+But the spread among equivalent cells, biased over analog, is 1.25-1.45
+for T, 1.14-1.55 for C and 1.14-1.43 for n_e from A_V 0.46 to 1.91:
+larger, not smaller. It falls only where the two states were (T 0.45 at
+A_V 1.91-2.29) and rises again behind (T 2.3 at 2.65-2.99). The median
+step of x(H0) is 5.1-5.7% an iteration against 3.3-3.5%, and the
+integrated test stands at 2.23 and 2.26% at iterations 14 and 15 where
+the analog arm passed at 14.
+
+**The one-iteration events.** Cells with x(H+) above ten times their
+median: 63-93 per iteration (72-105 analog), at 23 times the median (53);
+cells that lose 30% of their H2: 14-25 per iteration (56-78); steps of
+the molecular fraction below -0.5: 38 in six iterations, each on such a
+cell (187).
+
+**What it says.** The two states are the analog estimator's, as D-280
+had it: give every cell a share of the band and they are gone, and the
+carbon turn moves 0.37 mag towards Cloudy's. But the biasing as it stands
+is not a remedy to switch on. Its weights span forty decades with a tail
+to 1e4, the ordinary scatter in front of the turn grows by a quarter to a
+half, and it does not agree with the run at four times the packets about
+CO: n(CO) +36% and the lines +52 to +109% here, -7% and +0.5 to +46%
+there. Both runs put more of the band at depth; which of them is nearer
+the model's limit in CO is not known, and a single heavy packet in a
+cold cell is exactly the event L-51 describes. O-34 (splitting, so that
+the biasing can be the default) is where this was left in September, and
+this run does not move it.
+
+### The predictions for the path-biasing run
+
+ 19. The deep state under 10% of every bin to A_V 2.6, the middle filling
+     in, C+ = C at A_V 2.5-2.7: **met** (no cell in the deep state; 2.62).
+ 20. No cell flips; the spread of T among equivalent cells at A_V 1.5-2.6
+     down by a third or more: **mostly wrong.** No cell flips. The spread
+     falls by half in the band the two states were in and rises by a
+     quarter in the band before it; over A_V 1.48-1.91, 1.91-2.29 and
+     2.29-2.65 the ratios are 1.25, 0.45 and 0.91.
+ 21. Cells with x(H+) above ten times their median fewer than half as
+     many: **missed** (63-93 against 72-105). They are weaker (23 times
+     the median against 53) and a third as many cost a cell 30% of its
+     H2.
+ 22. [C I] 609 and 370 um 5-20% lower: met (-18%, -9%). [C II] 158 um
+     1-4% higher: **wrong sign**, as at four times the packets (-2.9 +-
+     0.4%). More C+ at 15-20 K adds nothing to a line 91 K up; that the
+     line falls twice when the deep field rises is a pattern, and it is
+     not looked into.

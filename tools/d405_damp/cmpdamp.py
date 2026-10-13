@@ -79,6 +79,24 @@ def cross(d):
     return float(xc[j] - r[j] * (xc[j + 1] - xc[j]) / (r[j + 1] - r[j]))
 
 
+def cross_c(d):
+    """A_V at which n(C+) = n(C), from the medians in bins of A_V (the outermost crossing from C+ above to C above)"""
+    z = d['zone'] == 1
+    e = np.linspace(d['AV'][z].min(), d['AV'][z].max(), 80)
+    xc, r = [], []
+    for i in range(len(e) - 1):
+        s = z & (d['AV'] >= e[i]) & (d['AV'] < e[i + 1])
+        if s.sum() >= 3 and np.median(d['C+'][s]) > 0 and np.median(d['C'][s]) > 0:
+            xc.append(0.5 * (e[i] + e[i + 1]))
+            r.append(np.log(np.median(d['C'][s]) / np.median(d['C+'][s])))
+    xc, r = np.array(xc), np.array(r)
+    j = np.flatnonzero((r[:-1] < 0) & (r[1:] >= 0))
+    if len(j) == 0:
+        return float('nan')
+    j = j[0]
+    return float(xc[j] - r[j] * (xc[j + 1] - xc[j]) / (r[j + 1] - r[j]))
+
+
 def states(d, lo=1.9, hi=2.6, step=0.1):
     """cells of each A_V bin by C+ / (C+ + C + CO): below 0.18, between, above 0.9"""
     f = d['C+'] / (d['C+'] + d['C'] + d['CO'])
@@ -152,7 +170,8 @@ def compare(a, b):
         return float(np.median(v)) if len(v) >= 5 else float('nan')
 
     out = {'ncell': int(len(c)), 'nsets': len(orb), 'inset': int(sum(len(g) for g in orb)), 'nion': int(ion.sum()),
-           'nneutral': int(neutral.sum()), 'bands': [], 'cross': [cross(A), cross(B)], 'front': [float(A['A_front']), float(B['A_front'])],
+           'nneutral': int(neutral.sum()), 'bands': [], 'cross': [cross(A), cross(B)], 'cross_c': [cross_c(A), cross_c(B)],
+           'front': [float(A['A_front']), float(B['A_front'])],
            'states': [states(A), states(B)], 'blends': blends(A, B) if A['AV'][neutral].max() > 2.2 else [], 'sums': {}}
     for k in ('C', 'C+', 'CO', 'H', 'H2', 'OH'):
         out['sums'][k] = float(B[k][neutral].sum() / A[k][neutral].sum())
@@ -193,6 +212,7 @@ if __name__ == '__main__':
                 v['mln'], v['eln'], v['mabs'], v['rel'], 100 * (v['mean'][1] / v['mean'][0] - 1)))
     print('\nall neutral cells, sum of n, undamped / damped - 1: ' + '  '.join('%s %+.2f%%' % (k, 100 * (v - 1)) for k, v in C['sums'].items()))
     print('\nH/H2 crossing (2 n(H2) = n(H), medians in 79 bins of A_V): damped %.4f, undamped %.4f' % tuple(C['cross']))
+    print('C+ = C (medians in 79 bins of A_V): damped %.4f, undamped %.4f' % tuple(C['cross_c']))
     print('front (smallest A_V with x(H+) < 0.3): damped %.4f, undamped %.4f' % tuple(C['front']))
     for lab, st in zip(('damped', 'undamped'), C['states']):
         if not st:
