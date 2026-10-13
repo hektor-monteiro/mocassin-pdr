@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-404, 2026-10-13. Reference model throughout: the 150 kK PN,
+Status as of D-405, 2026-10-13. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -142,7 +142,8 @@ depth, isotropic chi/12 weighting of a one-sided field, HEALPix rings about z."*
 
 What MOCASSIN ran was `computeRayColumns` (D-190; removed in D-348 - the
 paragraphs down to "Progress" describe it as it was) - twelve HEALPix nside=1
-directions per cell per MC iteration, walked through the real grid. The vendored 3D-PDR tracer (`calc_columndens`/`raytheia`) is **dead in
+directions per cell per MC iteration, walked through the real grid. The
+vendored 3D-PDR tracer (`calc_columndens`/`raytheia`) is **dead in
 this build**: its only caller is 3D-PDR's own `chemicaliterations.F90`.
 
 Of the three per-ray arrays reaching `CALCULATE_REACTION_RATES`, **only the
@@ -344,6 +345,39 @@ packets gives 0.8/1.5/2.8/4.8% iteration-to-iteration noise at A_V
 with it (C+ = C A_V 2.26 -> 2.72, Cloudy 2.95). The noise is now below the
 fixed grid-direction pattern (L-39) at every depth, so more packets no longer
 improve a per-cell map.
+**D-405: at the carbon turn the noise is not scatter about a mean, it is two
+states.** With every iteration's cells kept and no damping, 85-97% of
+hiipdr's cells in each 0.1 mag bin from A_V 1.9 to 2.6 are either ionized in
+carbon (C+ above 0.9 of the carbon, about 20 K, n_e 2.3e-2) or in the state
+cosmic rays alone maintain (C+ 0.166, about 12 K, n_e 5.6e-3); the deep
+state holds 3, 10, 25, 47, 70, 87, 94% of the cells down those bins. A cell
+is ionized when a packet of the 11.26-13.6 eV band crossed it in that
+iteration: one crossing gives a rate 20-100 times the recombination rate
+*(estimate)*. The state is drawn again at every iteration, with a
+correlation of 0.04-0.16 with the iteration before, half of it unequal
+exposure within a bin and half memory of one iteration (candidate, not
+tested: neutral carbon's own opacity in that band, about 0.5 across a cell).
+"C+ = C" in this model is where half the cells are missed, not where the
+mean rate balances recombination. **At four times the packets the turn
+moves**: the deep state's shares become 0.0, 0.6, 3.4, 10, 30, 52% from A_V
+2.0-2.1 to 2.5-2.6, the fourth power of the 6e6 shares at A_V 2.1-2.2 and
+0.4-0.7 of it from 2.2 on (ionized carbon in front lets more of the band
+through); C+ = C goes from A_V 2.29 to 2.51 (Cloudy 2.93), n(C) over the
+neutral cells falls by 28% and n(C+) rises by 22%, and [C I] 609 and 370 um
+both fall by 20%, from 1.65 and 1.29 of Cloudy's to 1.32 and 1.03 (1.71 and
+1.47 with the damping). **hiipdr's [C I] lines are not converged in the packet
+count at 6e6.** With D-280's path biasing on the undamped production model
+(pathStretch 0.5) no cell before A_V 2.6 is left in the deep state and C+ = C
+is at A_V 2.62 (the comparison tool's measure, which gives 2.25 without it and
+2.52 at four times the packets); but the weights reach 1e4, the scatter among
+equivalent cells before the turn is 1.25-1.45 of the analog run's, and n(CO)
+rises by 36% and the CO lines by 52-109% where four times the packets gives
+-7% and +0.5 to +46%. It is not a remedy to switch on as it stands. The
+field's noise itself is new at
+every iteration in full: the spread of a cell's 7- or 9-iteration mean among
+symmetry-equivalent cells is 0.33-0.41 of one iteration's, as 1/sqrt(N).
+The first remedy above (accumulate the field once it has settled) is what
+this calls for, and it is still a design decision.
 
 **L-27. Line escape in the 3D flavour is a slab with a third of its rays shut**
 (D-061, D-063, D-190; registered D-351). `pdrStep` gives the four `mu = 0`
@@ -448,7 +482,8 @@ recombination rates for H, He, C, O, Mg and MOCASSIN's H2 photoionization,
 through the network's first-order slots. Ionized-zone H2 is now 5-71x Cloudy's
 and destroyed the way Cloudy's is. Nothing past the fronts moved.
 
-**L-32. CLOSED 2026-10-10 (D-402). One ion carrier per element** (D-358). The network has O+ for all of
+**L-32. CLOSED 2026-10-10 (D-402). One ion carrier per element** (D-358). The
+network has O+ for all of
 O++-O6+ and C+ for C++-C4+. Each carrier takes chemistry its true stages do
 not have: charge exchange into the neutral, and C+ + OH -> CO. In pn150k's
 20 kK zone the solver's neutral O is 5.4 dex above MOCASSIN's, and CO, OH and
@@ -475,7 +510,8 @@ residual is the Cazaux & Tielens surface energies (3D-PDR's per-material set
 against Cloudy's single one: 0.45-0.70 at T_d 26-37 K), with MOCASSIN's colder
 gas (0.79-1.03); reported, not tuned.
 
-**L-34. CLOSED 2026-10-10 (D-402), with the residual in L-47. The PDR's H+ has channels MOCASSIN's ion balance lacks** (O-05; D-358).
+**L-34. CLOSED 2026-10-10 (D-402), with the residual in L-47. The PDR's H+ has
+channels MOCASSIN's ion balance lacks** (O-05; D-358).
 These are H2 + CRP -> H+ + e + H and He+ + H2 -> He + H+ + H. The solver's
 x(H+) is up to 4x MOCASSIN's at A_V 1.8-2.8 on hiipdr, and He+ 0.25-0.5x. The
 re-imposition keeps MOCASSIN's. D-193 stopped injecting the chemistry's
@@ -556,40 +592,75 @@ network's 1.1e-9). Open:
     x30 at 5,000 K (Mg). One of pn150k's two flagged cells is at 5,840 K;
   - hiipdr's Mg I 2852 is 0.09 of Cloudy's (0.19 before any transfer).
 
-**L-49. The damping across iterations has not been re-evaluated since it was
-introduced** (the user, 2026-10-11, during D-404; to come back to). `iterDamp`
-0.25 mixes a quarter of the previous iteration's value into the temperature
-(D-174) and, since D-200 (2026-09-09), into the molecular abundances and the
-ion stages. It was put in to break a limit cycle: D-173 had 44-76% of the
-cells crossing the 1,000 K branch boundary on every iteration. Much of what
-produced that cycle has changed since - `updateCell` once per iteration
-(D-216), the chemistry solved once (D-354), the escape of the cooling lines,
-the scattering sites, one x(X+) in both solvers (D-402, D-403) - and nobody
-has checked whether the cycle is still there without the damping. What the
-damping costs is that the model that is written out is a blend, not a
-solution: its temperature, stages and abundances are each 0.75 of this
-iteration's solve and 0.25 of the state before it, and n_e is not damped at
-all. Where the model has settled the two agree; where a cell still moves
-from one iteration to the next they do not. D-404 measured it on the
-fixtures at their last iterations (15 and 18): the written temperature is
-more than 1% from the one the last solves ran at in 51.2% of hiipdr's
-neutral cells and 37.4% of pn150k's, and more than 10% in 5.0% and
-1.6%; and with the delay of L-47 removed, the written ions are still
-more than 10% from the chemistry's own in 13.4 (H), 8.5 (He),
-32.1 (C), 18.7 (O), 18.1 (Mg) per cent of hiipdr's neutral cells
-and 6.4, 9.1, 14.1, 18.6, 0.7 of pn150k's, where the
-undamped solve differs in 0.0 (9.7 for hiipdr's oxygen). Carbon shows it
-alone: its solve agrees with the chemistry's in all but 1.5% of hiipdr's
-cells and the written model is off in a third of them, 12% by more than a
-factor of two, because a quarter of the previous state is most of the new
-one wherever a rare stage follows an ionization rate that changes by a
-large factor between iterations. (That comparison sets one iteration's
-answer to one Monte Carlo field against a running mean, so part of it is
-noise the damping averages, not error it introduces.) Every run prints the
-counts (`[D404] ... the model as written`, `... the model's T (damped`).
-To do: seeded pairs with `iterDamp 0` against 0.25 on hiipdr
-and pn150k - do cells still flip, does the integrated test stop sooner or
-later, and what moves in the lines and the profiles.
+**L-49. The damping across iterations no longer holds back a cycle, and it
+has a cost: measured, the default unchanged** (D-405; asked for by the user
+on 2026-10-11 and taken up on 2026-10-13). `iterDamp` 0.25 mixes a quarter of
+the previous iteration's value into the temperature (D-174) and, since D-200,
+into the molecular abundances and the ion stages; n_e is not damped. It was
+put in against D-173's limit cycle, 44-76% of the cells crossing a branch
+boundary at every iteration. Seeded pairs, `iterDamp 0` against 0.25 with
+the same executable (h2-model), input and seed, on hiipdr 31^3 (15
+iterations) and pn150k 41^3 (18), every iteration's cells kept
+(`tools/d405_damp/`):
+  - **no cycle.** Cells going from cold to above 3,000 K: none or one per
+    iteration on hiipdr, 10-33 of 35,384 on pn150k, in either arm. Cell by
+    cell the changes are independent draws (the change over two iterations
+    as large as over one, successive changes anticorrelated at -0.5; a
+    cycle gives 0 and -1), no more cells have a cycle's signature than
+    chance gives, and the molecular fraction's large steps are single
+    excursions in different cells (L-51);
+  - **what moves is Monte Carlo noise.** Steps of the written model 1.39
+    (hiipdr) and 1.48 (pn150k) of the damped arm's, against 1.49 for
+    independent noise through such a blend; the spread among cells that the
+    octant's symmetry makes one cell 1.2-1.4 (1.29); n_e, never damped,
+    1.0. At four times the packets (hiipdr, undamped) every spread and step
+    before the carbon turn is at 0.46-0.64 of its value (packet noise gives
+    0.5; T at A_V 1.48-1.91 from 4.9% to 2.4%), the histories are independent
+    draws again, and no cell goes from cold to hot at any iteration;
+  - **the damping is a filter on the output.** With the damping taken out
+    of the damped run's own history (solve = (written - 0.25 before) /
+    0.75) its solves are the undamped run's: the same two carbon states in
+    the same shares to a percentage point (L-26), the same statistics. The
+    solves are equilibrium solves and keep no memory of their start;
+  - **the damped arm trails.** By three iterations on hiipdr (EM(H+)) and
+    five to six on pn150k (n(H2), T(em)). The 2% stop falls at 15 in both
+    hiipdr arms and at 17 damped against 15 undamped on pn150k. Hbeta is
+    0.55% and 0.25% lower without the damping, which is the ionized gas
+    further along (L-40), not another solution; pn150k's ultraviolet lines
+    of highest excitation are up to 2.7% higher for the same reason;
+  - **on h2-model the damping derails the chemistry's second and third
+    iterations**: temperature balance not reached in 89 and 79% of hiipdr's
+    cells and 72 and 25% of pn150k's, in none without. The same pair on the
+    production executable, which has no level model, has none with or without
+    the damping (the damped arm carries the same remnant of the starting
+    temperature, a median 140 K against 11 K after the chemistry's first
+    iteration, and reaches its balance in every cell from the fifth
+    iteration): the derailment needs the damping and H-013's heating term
+    together, the term being computed at the written temperature. In
+    everything else the production pair repeats h2-model's (no cell flips,
+    steps 1.41, the two carbon states, [C I] 370 um 10.4% above its own solve
+    damped and 1.7% below undamped; the 2% stop at 14 undamped, not by 15
+    damped);
+  - **without it the written model is its solution.** Neutral cells whose
+    written X+/X is more than 10% from the solver's: hiipdr H 13.4, He 8.5,
+    C 32.1, O 18.7, Mg 18.1 damped and 0.0, 0.0, 0.0, 9.9 (L-50), 0.0
+    undamped; pn150k 6.4, 9.1, 14.1, 18.6, 0.7 and none;
+  - **where a cell's answer has two values the blend writes states no solve
+    gave.** Past A_V 2 hiipdr's carbon is two states (L-26); the damped
+    model writes cells at 0.37 and 0.77 of C+ over carbon, the blends of
+    0.166 and 0.965, at blended temperatures (12.4 and 19.9 K give 14.2 and
+    18.0), and emits 4.5% more [C I] 609 um and 11.6% more [C I] 370 um
+    than its own last solve (the undamped model 0.4% more and 1.5% less).
+    **Every published hiipdr [C I] value carries that.** Medians of n(C)
+    at the turn are 1.9 times the undamped model's with the sums equal to
+    1%. pn150k has no carbon turn and no excess.
+What the damping still buys: 0.77 of the cell-to-cell scatter in the
+written model, and a quieter T(H0) in the stop test (L-52). **Open, and the
+user's to decide:** the default (0.25 stands, so the published models are
+the damped ones); and whether the noise should be met by averaging the
+field over iterations where the damping averages the solves (L-26). Not
+run: the slabs and `ifront`, denser models, pn150k on the production
+executable, a second seed.
 
 **L-50. A first ion trimmed out of the ion matrix has no place for a
 source** (D-404). `ionBalance` solves each element's stages as a matrix
@@ -607,6 +678,75 @@ every sample is of this kind. pn150k's second solve leaves 0.0% of its
 cells apart in oxygen. No line sees it. To do: keep the first two stages
 of a linked element in the matrix whenever it has molecular terms, or give
 the chain value the source.
+
+**L-51. A packet absorbed by the gas is re-emitted from the hydrogen and
+helium spectrum, whatever absorbed it; in the PDR some come back ionizing**
+(D-405). A gas absorption makes a "diffuse" packet: a line with probability
+`totalLines`, otherwise a frequency drawn from `recPDF`, the hydrogen and
+helium diffuse continua and nothing else (`photon_mod.f90:896-1010`,
+`emission_mod.f90:855-925`). That closes the energy budget of an ionized
+nebula. In neutral gas the absorber of an 11.26-13.6 eV packet is carbon,
+and what returns, some of the time, is a photon that ionizes hydrogen or
+helium, with the full packet energy, absorbed on the spot. Measured from
+cell histories without damping (`histdamp.events`): 76-103 of hiipdr's
+15,048 neutral cells per iteration have x(H+) above ten times their own
+median (52 times in the median, x(He+) 112 times, n_e 4.2 times, the FUV
+field unchanged): 1.9% of the cells per iteration at A_V 2.15-2.43, where
+neutral carbon meets its band, 0.1% at 1.6-1.9 and at 2.7-3.0, none at
+0.74-1.31, and 0.6% in the first quarter magnitude behind the ionization
+front, where the ionizing field itself ends.
+The chemistry is solved in steady state, so it takes one iteration's
+ionization as permanent: 60-77 of those cells lose 30% or more of their H2
+for that iteration and about 35 more than half (median molecular fraction
+0.98 -> 0.38 -> 0.98); every one of the 202 such drops in six iterations is
+on an over-ionized cell. pn150k: 10-28 cells per iteration and all eight
+drops. In the sums it is 0.3% of hiipdr's deep H2; in a map it is a cell
+with the wrong state, and the damping spreads it over the following
+iterations. At four times the packets there are 107-146 such cells per
+iteration, at 26 times their median (He+ 54, n_e 2.2), and 23 drops of more
+than half the H2 in six iterations: more packets, each with a quarter of the
+energy. The mechanism is read in the code, and two things it
+requires hold in the histories: the events fall on cells whose carbon was
+neutral at the iteration before, which is the model the transfer ran on (a
+third of the events at A_V 1.8-2.0 from the 1-3% of cells that had it, two
+thirds at 2.0-2.2 from the 11-25%), and from A_V 2.0 to 2.7 their rate is
+0.11-0.18 of the product of a bin's shares of ionized and deep cells while
+the rate itself changes twelvefold. It is **not isolated** by a run with
+the channel closed. A remedy is a design decision: which spectrum an
+absorption by something other than hydrogen or helium should return
+through.
+
+**L-52. T(H0) in the stop test is the ionization front's hot cells**
+(D-405). The temperature weighted by neutral hydrogen, one of the integrated
+quantities of D-391's test, is carried by the cells above 3,000 K: 72% of
+its sum on pn150k (701 cells of 35,384) and 68% on hiipdr (182 of 15,204);
+the cells below 100 K, which are the neutral gas, hold 14% and 29%
+(`cvdamp.py` prints it for any run). Ten to thirty of pn150k's hot cells
+change side at each iteration, so T(H0) scatters by 1.0% from one iteration
+to the next without damping (0.9% on hiipdr), and the test's difference of
+two values three iterations apart by 1.4%: the 2% limit is 1.4-1.5 standard
+deviations of that. pn150k's undamped run passes at 15 and 16 and would
+fail at 17 (2.73%) on T(H0) alone. With the damping the same quantity keeps
+the test above 4% until iteration 16. To decide: whether a quantity carried
+by a few hundred front cells belongs in the test, or with what limit.
+
+**L-53. Cells that the grid's symmetry makes equal differ in H2, following
+z** (D-405). In an octant on a cubic grid the cells (i,j,k) and their
+permutations are one cell of the model. Their spread is Monte Carlo noise
+that averages away over iterations as 1/sqrt(N) for the field, the
+temperature and carbon; for H2 before and across the H/H2 transition it does
+not (0.61, 0.63, 0.48 of one iteration's spread after nine iterations on
+pn150k, where 0.33 is expected). What stays follows the z axis: of six
+equivalent cells the one nearest the plane z = 0 has 11% more H2 than the
+two nearest x = 0 and y = 0 just behind pn150k's front, 6% at A_V
+0.25-0.35, 1.8% at 0.35-0.44 and under 0.6% in the molecular gas, the two
+agreeing with each other; on hiipdr 11% and 7% before the transition and
+nothing past it, with x and y differing too (the FUV field there differs
+by direction by 0.4%). The star's A_V of those cells is equal to rounding.
+The chemistry's columns are integrated along twelve directions fixed in the
+grid frame (HEALPix level 0; L-27), a set symmetric in x and y and not in
+z. **That the rays are the cause is not tested** (a run at another ray
+level would). Radial means average it; a map does not.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
@@ -795,6 +935,14 @@ see it, because each front cell moves by less than `convLimit`. Every
 published hiipdr number that depends on the front or on Hbeta carries this;
 Hbeta is 13-18% below Cloudy's 9.95 E36 and not yet a converged number
 *(most of that gap is L-41, not convergence - D-370)*.
+**D-405: the relaxation is geometric and the 2% stop does not wait for it.**
+At the iteration the test stops hiipdr (15), the hydrogen emission measure
+is still falling by 0.14% per iteration without the damping and 0.24% with
+it, successive steps in the ratio 0.72 and 0.76; carried on as geometric
+series the two arms have 0.36% and 0.77% still to go *(extrapolation)*. On
+pn150k the ionized gas's temperature rises with ratio 0.6 (0.73 damped) and
+He+ still falls 0.1-0.2% per iteration at 18. What sets a ratio of 0.6-0.7
+per iteration is not known; the damping makes it 0.73-0.76.
 pn150k at 81^3 (D-368) stopped itself at 94% converged cells with its He2+
 front still moving outward 0.003 pc per iteration (0.0799 pc against 0.0833 at
 41^3 and Cloudy's 0.0880), taking He II 4686 11% low. The per-cell test covers

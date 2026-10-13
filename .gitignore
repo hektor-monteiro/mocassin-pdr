@@ -56,3 +56,7 @@ runs/
 tools/__pycache__/
 h2Test
 h2Slab
+
+# Python byte code (tools/)
+__pycache__/
+*.pyc
