@@ -37668,3 +37668,40 @@ and -2.3% in the mean).
      neutral cells, a factor 1.2; no change on hiipdr).
   6. The lines: all met (Hbeta -0.25%; the atoms' far-infrared lines
      within 0.6%; H2 within 0.8%; CO within 0.4%; crossing 0.0007 mag).
+
+### A third test queued: the pair on the production binary (17:15)
+
+Every run above is the h2-model binary, which has the level model in its
+heating. The default lives in production code, and the claim "no cycle
+without the damping" has not been made for production's heating. So:
+`runs/d405-prod-hii31-d25` and `runs/d405-prod-hii31-d0` in the production
+worktree, the production binary built from the committed tree
+(`make PDR=1 PDRGEOM=3D`, rc 0, md5 33ec96fb...), `runs/d404b-hii31`'s
+input with production's `pdrDataDir`, the second with `iterDamp 0.` added;
+15 iterations, seed 1001, 14 ranks, `snap.py` on both. Chained after the
+h2-model queue (`runs/d405prod-chain.sh`). hiipdr only; pn150k on
+production is not run.
+
+It is also the run that removes only the level model's heating term, which
+point 4 of the hiipdr section blamed for the two derailed iterations
+without having taken it out.
+
+**Predictions, written before either run exists:**
+
+ 13. No branch cycle in either arm: at most two cells per iteration go
+     from cold to above 3,000 K from the eighth iteration on.
+ 14. The plateau of the median step of x(H0), undamped over damped:
+     1.3-1.6.
+ 15. The integrated test without the damping is below the damped arm's at
+     iterations 8-11, and the 2% stop falls at the same iteration or one
+     sooner.
+ 16. **The temperature balance is reached in every cell from the fifth
+     iteration on in both arms** (as in `runs/d391-new-hii31`): the
+     damped production arm does not have h2-model's 89% and 79% at
+     iterations 5 and 6. If it has them, the level model's term is not
+     the cause and point 4 is wrong.
+ 17. [C I] 370 um, written over solve: 1.08-1.15 damped, 0.97-1.02
+     undamped. The blend's excess is production's too.
+ 18. The undamped carbon is two states: 85-97% of the cells of each 0.1
+     mag bin from A_V 1.9 to 2.6 below 0.18 or above 0.9 of
+     C+/(C+ + C + CO).
