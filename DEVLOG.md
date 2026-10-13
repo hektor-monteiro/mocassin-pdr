@@ -38031,11 +38031,15 @@ cells (408 in 247).
 
 **So the damping changes what is written and not what is solved.** Every
 solve here is an equilibrium solve (the chemistry in steady state,
-`ionBalance`, the thermal balance): it has no memory of the state it
-started from, and the state reaches the next solve only through the
-opacities the transfer runs on. A quarter of the last state in those
-opacities does not move the carbon front by a percentage point of a
-bin's cells. The damping is a filter on the output.
+`ionBalance`, the thermal balance): it keeps no memory of the state it
+started from. The written state reaches the next solve through the
+opacities the transfer runs on and, on this branch, through the level
+model's heating term, which is computed at the written temperature and
+is what derails the chemistry's second and third iterations (point 4 of
+the hiipdr section). Once the model has settled, a quarter of the last
+state in those does not move the carbon front by a percentage point of
+a bin's cells. From the tenth iteration on the damping is a filter on
+the output.
 
 As written, the damped run shows what a filter does to an event: cells
 with x(H+) above ten times their median are 79-144 per iteration, and
