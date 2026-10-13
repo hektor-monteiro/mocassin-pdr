@@ -36381,6 +36381,9 @@ goes on from the first solve as before. That is what makes the test of
 question 1 clean, and it is also what lets the full runs pair exactly with
 D-403's: until the run stops, nothing differs.
 
+**(Replaced after the full runs: pass 3 as described in this paragraph - a
+third solve once the run has stopped - is the third version withdrawn, see
+"A third version withdrawn" below. What is kept now is pass 2's own result.)**
 Pass 3 cannot sit where pass 2 does, because the run decides to stop after
 the damping. So it is made at the temperature the last iteration's solves
 ran at (kept in `teSolved404` before the damping) and its stages are then
@@ -36613,10 +36616,124 @@ Three things in that table:
 1e-7 Hbeta and 0 of 69 collisionally excited lines above 1e-3 Hbeta move by
 1%; CO 2-1, 3-2, 4-3 x1.0000; the 4,083 H2 lines within 0.04% (largest 0-0
 S(0), x1.0004). Medians by radius: H+ x0.984-1.01, e- x0.994-0.999, O+
-x0.985-1.05, C+ x1.03 at 16 pc, the rest unchanged to three figures. No
+x0.985-1.05, C+ x1.03 at 16 pc, He+ and C within 1%, the molecules
+unchanged to three figures. No
 cell flagged, as in D-403's run (prediction 8 met here); the inner
 convergence lines are D-403's.
 
 Hydrogen's budget, as `[D220]` prints it before its rescale: off by more
 than 1% in 19.9% of the cells after the damping, 6.0% after the kept solve
 (both are then rescaled to the molecular content, as before).
+
+### pn150k 41^3, 18 iterations (`runs/d404-pn41` on h2-model, against `runs/d403-pn41`)
+
+Read on 2026-10-13 (the run ended 2026-10-11 13:41, 3:01:36 against 3:00:41
+for D-403's).
+
+**The path is D-403's** (prediction 1 met): the 60 `[D402]` lines, 30
+`[D354]`, 19 `[D362]`, 87 summary lines, the 15 per-iteration `[D220]` and
+the 36 "balance not reached" lines identical to the printed digit.
+
+**Question 1: on this model the delay is the whole of the disagreement, in
+every element.** Cells outside the ionized zone (34,970) with the solver's
+X+/X more than 10% from MOCASSIN's, per cent:
+
+| iteration | H first / second | He | C | O | Mg |
+|---|---|---|---|---|---|
+| 4 | 28.4 / 0.0 | 2.3 / 0.0 | 0.0 / 0.0 | 41.0 / 0.0 | 96.5 / 0.0 |
+| 6 | 58.5 / 0.0 | 41.6 / 0.0 | 0.0 / 0.0 | 66.0 / 0.0 | 0.0 / 0.0 |
+| 7 | 75.1 / 0.0 | 71.7 / 0.0 | 0.1 / 0.0 | 82.3 / 0.0 | 0.1 / 0.0 |
+| 9 | 30.3 / 0.0 | 0.7 / 0.0 | 0.1 / 0.0 | 46.4 / 0.0 | 0.0 / 0.0 |
+| 12 | 15.7 / 0.0 | 0.4 / 0.0 | 0.1 / 0.0 | 30.3 / 0.0 | 0.0 / 0.0 |
+| 15 | 15.5 / 0.0 | 0.4 / 0.0 | 0.1 / 0.0 | 28.9 / 0.0 | 0.0 / 0.0 |
+| 18 | 15.5 / 0.0 | 0.4 / 0.0 | 0.1 / 0.0 | 28.8 / 0.0 | 0.0 / 0.0 |
+
+More than 2x apart goes to 0.0 in every element at every iteration (from
+10.8% for oxygen at iteration 7, 0.1% at 18). The second solve reached its
+balance in every cell at every iteration and moved n_e by more than 10% in
+0.1% of these cells or fewer. The control moved oxygen by more than 10% in
+0.1% of the cells at iteration 7 (0.19 dex at most) and in 0.0% otherwise.
+The probe printed nothing: no cell on rank 0 was left more than 10% apart.
+So D-403's reading of its sampled cells - that the 15.5% and 28.8% it left
+were the same delay through other carriers - holds, now by a run that
+removes the delay and nothing else; and oxygen has no second cause here
+(prediction 3: I guessed under 10% for oxygen and it is 0.0; this gas is
+warm enough that O+ stays inside the matrix).
+
+**The kept solve of the first version did not reach its balance in 549
+cells.** Iteration 18, the third solve from the damped state:
+
+| cells more than 10% from the solver's own X+/X, per cent | H | He | C | O | Mg |
+|---|---|---|---|---|---|
+| the first solve, before the damping (`[D402]`) | 15.5 | 0.4 | 0.1 | 28.8 | 0.0 |
+| the second solve, discarded (pass 2) | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| the third solve, kept, before the damping | 1.7 | 1.5 | 0.6 | 1.7 | 0.2 |
+| the written model without the pass | 17.6 | 9.1 | 14.2 | 43.5 | 0.8 |
+| the written model with it | 7.0 | 9.1 | 13.7 | 21.4 | 0.8 |
+| the written X+/X moved by the pass | 2.9 | 0.1 | 0.0 | 16.6 | 0.0 |
+
+The written temperature is more than 1% from the one the last solves ran at
+in 37.4% of these cells and more than 10% in 1.6% (prediction 5 met here).
+The 549 cells (547 found in the output as the cells whose H+, He+ and O+ are
+those of D-403's run to the last digit) are all outside the ionized zone, in
+the warm atomic layer behind the front: A_V 0.18-0.31 (median 0.23), 49-334
+K, 2x(H2) from 1e-5 to 0.12, x(H+) from 6e-5 to 1.4e-3. They are 14% of the
+cells at A_V 0.15-0.20, 27% at 0.20-0.25, 9% at 0.25-0.30 and 2% at
+0.30-0.35 - the layer whose ionization comes and goes with single hard
+photons, which is where the delay matters most. Pass 2 solves the same
+balance at the same temperature on the same terms in those cells and
+reaches it in all of them; it starts from the first solve's stages, the
+third solve from the damped ones. I did not test whether more than the 50
+passes one call allows would have settled them (inside `iterateT` the
+balance is called again at every trial temperature, each call starting
+where the last ended). Prediction 8 (under 0.1% of cells) missed: 1.55%.
+
+**Nothing on the line lists moves** (prediction 7; the Mg I lines I thought
+might move by a few per cent did not): Hbeta 2.68460 -> 2.68462e34 erg/s
+(+0.001%); 0 of 68 recombination lines above 1e-7 Hbeta, 0 of 173
+collisionally excited lines above 1e-3 Hbeta and 0 of 361 above 1e-6 move
+by 1% (largest, the O I lines at 1302-1359 A, x0.9990); CO 2-1, 3-2, 4-3
+x1.0000; the 3,993 H2 lines within 0.05% (largest 0-0 S(0), x1.0005).
+Medians by radius within 1% everywhere. The two flagged cells are D-403's.
+
+### A third version withdrawn: the kept solve as a third solve from the damped state
+
+The two full runs show what was wrong with solving once more after the run
+has stopped. It starts from the damped stages and runs on the damped
+molecular content with sources the chemistry computed on the undamped one,
+so it is not the solve pass 2 made: it leaves hydrogen more than 10% from
+the solver in 3.4% (hiipdr) and 1.7% (pn150k) of the neutral cells where
+pass 2 leaves none, and on pn150k it does not converge in 549 cells of the
+layer that matters. The user asked for the second solve after the chemistry
+at the last iteration to be kept; pass 2 at the last iteration is that
+solve.
+
+**Now** (aa7a3ea; merged into h2-model 997efdf): pass 2 sets its result
+aside in each iteration - stages and n_e, in the cells where the solve was
+made and reached its balance - and puts the model back as before. When the
+run stops, `ionKeepSecond` puts that result in the first solve's place,
+damped against the iteration's start exactly as the first was, and n_e as
+it is. No third solve, no stored temperature. The cost is one more copy of
+the stages on each rank (about 0.4 kB per cell, 1% of the run's memory).
+
+Short test again (`runs/d404-test-f`, the inputs of the other short tests):
+the per-iteration lines are those of D-403's test and the 12 control and 28
+second-solve lines those of the earlier build; the second solve is kept in
+all 4,661 cells. The written model stands more than 10% from the solver in
+H 27.1, He 6.7, C 29.2, O 49.6, Mg 33.8% of the neutral cells (31.0, 7.0,
+29.0, 50.6, 33.8 with the third solve; 41.7, 15.9, 29.0, 55.4, 37.8 with
+none). Hbeta -0.015%; no line above the thresholds by 1%; no cell flagged.
+
+**The hydrogen budget closes.** `[D220]` prints, before its rescale, how
+far x(H0) + x(H+) + 2x(H2) is from 1 in the stages as they stand. With the
+first solve (every iteration, every run since D-220): off by more than 1% in
+26.4% of the short test's cells at its last iteration, mean 0.0134. With the
+second solve in its place: 0 cells, mean 0.0000. That is not a coincidence
+of this test. The first solve normalises the stages to the molecular
+content of the iteration before (the hand-back it has at that point), so
+its damped stages sum to 1 - 2x(H2) of the previous iteration and the
+D-220 rescale has to move them. The second solve is normalised to this
+iteration's own molecular content, and 0.75 of it plus 0.25 of the stages
+the iteration started with sums to 1 minus twice the damped x(H2) exactly.
+The stale normalisation is the same delay, seen in the conserved sum
+instead of in a ratio.
