@@ -38485,7 +38485,7 @@ is at least three (scatter about a mean, an on/off state, rare events).
   - Which of the two routes to more of the band at depth, four times the
     packets or the path biasing, is nearer the model's limit in CO.
 
-### Pages (2026-10-13, 20:20)
+### Pages (2026-10-13, 20:15)
 
 Each of the three pages has a new first section on this test, built on
 the version published this morning (compared byte for byte with the live
