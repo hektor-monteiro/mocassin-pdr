@@ -37755,3 +37755,30 @@ histories of the two reruns will give the transition counts themselves.
 
 Figure for the pages: `d405_states_hii31` (scratchpad `d405pages/`,
 `d405states.py`).
+
+**The two states are also two temperatures, and that is the [C I] excess.**
+Undamped arm, medians of the cells of each state; damped arm, the cells
+of each blend class (C is the neutral carbon's share of the carbon):
+
+| A_V | undamped, deep: T, C | ionized: T, C | damped, deep now and ionized before: T, C | ionized now and deep before: T, C |
+|---|---|---|---|---|
+| 2.1-2.2 | 13.1 K, 0.833 | 20.6 K, 0.032 | 15.0 K, 0.644 | 18.4 K, 0.211 |
+| 2.2-2.3 | 12.4 K, 0.833 | 19.9 K, 0.036 | 14.2 K, 0.659 | 18.1 K, 0.226 |
+| 2.3-2.4 | 11.8 K, 0.834 | 19.2 K, 0.042 | 13.6 K, 0.675 | 17.4 K, 0.236 |
+
+A cell that a carbon-ionizing packet crossed is 7.5 K warmer than one that
+none crossed, with four times the electrons (n_e 2.3e-2 against 5.6e-3
+cm^-3). The damped classes sit on the blends of the two rows to 0.1 K in T
+(0.75 x 12.4 + 0.25 x 19.9 = 14.3; 0.75 x 19.9 + 0.25 x 12.4 = 18.0) and
+0.03 in C. So the damped model holds a fifth to a quarter of the carbon
+neutral in cells written at 17-18 K, where no solve had more than 4%, and
+two thirds of it neutral in cells written 2 K warmer than the solve that
+made it neutral. [C I] 370 um's upper level is 62.5 K above ground. As a
+Boltzmann estimate only (C x exp(-62.5/T), not the atom's level solve), at
+A_V 2.2-2.3: deep 5.4e-3, ionized 1.6e-3, and the two blend classes 8.0e-3
+and 7.1e-3 - each above both of the states it blends. Over the four
+classes as the damped arm populates that bin the mean is 1.5 times the
+undamped arm's mixture of the two states. Sign and order agree with the
+measured excess of the whole model (written over solve 1.116 at 370 um,
+1.045 at 609 um, whose level is 23.6 K up); the estimate is not a
+measurement of it.
