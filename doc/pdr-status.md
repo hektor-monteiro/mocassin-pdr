@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-403, 2026-10-11. Reference model throughout: the 150 kK PN,
+Status as of D-404, 2026-10-13. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -33,7 +33,7 @@ columns), plain `mocassin` (no PDR), and `PDR=1 mocassinWarm` (resume).
 
 | test | result | where |
 |---|---|---|
-| x(HI) + 2x(H2) + x(HII) = 1 at every depth | holds **by construction** since `rescaleIonToAvail` (D-220); the test that can fail is the pre-rescale `[D220]` lag - see L-29 | D-351 |
+| x(HI) + 2x(H2) + x(HII) = 1 at every depth | holds **by construction** since `rescaleIonToAvail` (D-220); the test that can fail is the pre-rescale `[D220]` lag - see L-29. Since D-404 it passes un-enforced in the written model: no cell off by more than 1% on hiipdr or pn150k | D-351, D-404 |
 | thermal balance residual (H-C)/H | 7e-4 to 7e-3 across the PDR | D-304 |
 | budget recorded at the cell's kept T_e | 0.8% median, 4.1% p95 | D-304 |
 | grain diagnostic closes: PE = Nabs/H x \<Y\> x \<E\> | **1.00** | D-304 |
@@ -404,7 +404,15 @@ stages are normalised to the chemistry's `x(H) + x(H+)` before the budget is
 printed and before `writeGrid`. So `x(HI) + 2x(H2) + x(HII) = 1` holds in the
 log and in every output file up to H in other species, whatever the coupling
 does. D-350's prediction 5 was therefore a free pass. The informative figure is
-the pre-rescale `[D220]` line.
+the pre-rescale `[D220]` line. D-404 found what that line measures: the
+first solve of `ionBalance` normalises the stages to the molecular content
+the chemistry handed back an iteration earlier, so the stages it leaves sum
+to 1 - 2x(H2) of the iteration before - off 1 by more than 1% in 19.9% of
+hiipdr's cells and 57.6% of pn150k's at their last iterations. A second
+solve after the chemistry is normalised to that iteration's own content,
+and with it in the first's place (kept at the last iteration, D-404) the
+sum holds before the rescale: no cell off by 1% on either. In the
+iterations before the last the rescale still does the work.
 
 **L-30. Clamps that still decide a value** (D-352, which removed every run-time
 ownership switch and the zone flag). None bound on hiipdr when this was
@@ -498,21 +506,35 @@ H+ past A_V 1.5 from 0.18-0.61 of Cloudy's to 0.60-1.37, He+ from 1.7-13x to
 chemistry's deep heating on hiipdr fell 10%: it had been computed with He+
 re-imposed at 1.9-3.3 times the value the network held.
 
-**L-47. `ionBalance` trails the chemistry by one iteration** (D-402, D-403).
-The terms the solve hands over are the previous iteration's. Where the gas
-has settled that costs nothing (ionized cells agree to 0.01 dex); where a
-cell's ionization comes and goes with single photons it shows as the two
-solvers 10% or more apart. D-403 made one such term current - hydrogen's
-side of He+ + H, now computed in `ionBalance` with its own He+ - and on
-pn150k the cells more than 2x apart fell from 0.7 to 0.1% and those more
-than 10% apart from 20.4 to 15.5% (H) and 34.3 to 28.8% (O); C, Mg and He
-went to 0.1, 0.0 and 0.4%. hiipdr did not move: H 28%, He 13%, O 21%, Mg
-13%. On pn150k the sampled cells say the rest is the same delay through
-other carriers (H2+, He+ + H2): one cell holds 8.6 times the H+ the network
-forms there in an iteration with no ionizing photon. On hiipdr nothing has
-been identified. Not done, and the general cure: bring the two solvers to
-the same iteration - a second solve of `ionBalance` after the chemistry
-with the fresh terms, or one solver for both.
+**L-47. `ionBalance` trails the chemistry by one iteration: measured, and
+removed from the written ions; the iterations before the last still run on
+it** (D-402, D-403, D-404). MOCASSIN solves its balance before the chemistry
+in each iteration, so the terms it takes from the chemistry, and the
+molecular content its stages are normalised to, are the previous
+iteration's. D-404 tested it by solving the balance a second time after the
+chemistry, at the same temperature, with the model put back afterwards so
+that the run's path is unchanged, and with a control (a second solve on the
+old terms, which moves nothing). Neutral cells whose solver X+/X is more
+than 10% from MOCASSIN's, last iteration, first solve -> second: hiipdr H
+28.4 -> 0.0, He 13.2 -> 0.0, C 1.5 -> 0.0, O 21.1 -> 9.7, Mg 12.9 -> 0.0;
+pn150k H 15.5 -> 0.0, He 0.4 -> 0.0, O 28.8 -> 0.0; and so at every
+iteration. The delay was all of it but hiipdr's oxygen (L-50). When a run
+stops, the last iteration's second solve now takes the first's place in
+the written model, damped as the first was; the hydrogen budget then closes
+un-enforced (L-29) and no line of either fixture moves by more than 1.0%
+([C I] 370 um, hiipdr). The written ions are still more than 10% from the
+solver's in 13.4 (H), 32.1 (C), 18.7 (O) per cent of hiipdr's
+neutral cells and 6.4, 14.1, 18.6 of pn150k's; that is the damping
+(L-49), not the delay. Open:
+  - the second solve is kept at the last iteration only. Every iteration
+    before it still gives the transfer, the thermal balance and the
+    chemistry ions solved one iteration behind. Keeping it throughout
+    changes the path and has not been run; within an iteration it moves n_e
+    by more than 10% in at most 0.1% (pn150k) and 2.1% (hiipdr) of the
+    neutral cells;
+  - neither the temperature nor the chemistry is solved again on the
+    second solve's ions;
+  - one solver for both, D-401's other route, is not started.
 
 **L-48. Charge transfer with H: which data, where** (D-402, D-403). Both
 solvers use one coefficient per reaction, from one routine (`pdrCtCoef`).
@@ -548,14 +570,43 @@ damping costs is that the model that is written out is a blend, not a
 solution: its temperature, stages and abundances are each 0.75 of this
 iteration's solve and 0.25 of the state before it, and n_e is not damped at
 all. Where the model has settled the two agree; where a cell still moves
-from one iteration to the next they do not. Measured so far only on a short
-test that is far from settled (hiipdr 21^3, 7 iterations, `runs/d404-test-e`):
-the written temperature is more than 10% from the one the last solves ran at
-in 53.8% of the cells outside the ionized zone. The same count on the full
-fixtures is printed by every run from D-404 on (`[D404] ... the model's T
-(damped ...`). To do: seeded pairs with `iterDamp 0` against 0.25 on hiipdr
+from one iteration to the next they do not. D-404 measured it on the
+fixtures at their last iterations (15 and 18): the written temperature is
+more than 1% from the one the last solves ran at in 51.2% of hiipdr's
+neutral cells and 37.4% of pn150k's, and more than 10% in 5.0% and
+1.6%; and with the delay of L-47 removed, the written ions are still
+more than 10% from the chemistry's own in 13.4 (H), 8.5 (He),
+32.1 (C), 18.7 (O), 18.1 (Mg) per cent of hiipdr's neutral cells
+and 6.4, 9.1, 14.1, 18.6, 0.7 of pn150k's, where the
+undamped solve differs in 0.0 (9.7 for hiipdr's oxygen). Carbon shows it
+alone: its solve agrees with the chemistry's in all but 1.5% of hiipdr's
+cells and the written model is off in a third of them, 12% by more than a
+factor of two, because a quarter of the previous state is most of the new
+one wherever a rare stage follows an ionization rate that changes by a
+large factor between iterations. (That comparison sets one iteration's
+answer to one Monte Carlo field against a running mean, so part of it is
+noise the damping averages, not error it introduces.) Every run prints the
+counts (`[D404] ... the model as written`, `... the model's T (damped`).
+To do: seeded pairs with `iterDamp 0` against 0.25 on hiipdr
 and pn150k - do cells still flip, does the integrated test stop sooner or
 later, and what moves in the lines and the profiles.
+
+**L-50. A first ion trimmed out of the ion matrix has no place for a
+source** (D-404). `ionBalance` solves each element's stages as a matrix
+over the stages within `ionTrim` (1e-8) of the largest and leaves the rest
+at their chain value, a product of rate ratios. For a linked element the
+chain's ratio carries what the network does to X+ per X+ (the loss to
+molecules) but cannot carry X+ made from something other than X (channel 6
+of `pdrIonRate`). Where O+/O falls below 1e-8 - hiipdr's cold molecular
+gas, A_V 2.6-2.9, about 10 K, O+/O 1.6e-9 - MOCASSIN's O+ is 10-18% under
+the solver's, and in each of the 120 cells probed the difference is that
+source to within 3%. Those 120 are samples of the 9.7% of hiipdr's neutral
+cells that the second solve of L-47 leaves more than 10% apart in oxygen
+(the first twelve rank 0 meets in each iteration, all in the outer shell);
+every sample is of this kind. pn150k's second solve leaves 0.0% of its
+cells apart in oxygen. No line sees it. To do: keep the first two stages
+of a linked element in the matrix whenever it has molecular terms, or give
+the chain value the source.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
