@@ -38295,7 +38295,8 @@ budget lines and the code; this is the run with the term taken out.
 
 Production binary, `runs/d405-prod-hii31-d0`'s input with `pathStretch
 0.5` added; rc 0, 15 iterations, 19:09 (23:06 without). D-239's census at
-the last iterations: packet weights from 5e-37 to 7.8e3-1.1e4, mean 1.30,
+the last iterations: packet weights from 5e-37 to 7.8e3-1.1e4 (5.0e4 at
+the largest of the run), mean 1.30,
 mean log10 -0.79, 1.0e6 of 1.65e7 draws ended by the roulette. Against
 the undamped production arm without the biasing ("analog"):
 
