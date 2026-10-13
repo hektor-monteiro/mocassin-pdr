@@ -37,6 +37,7 @@ DEVLOG.md and arrives here by merge.
 | H-026 | **The damping width in stage B, where the levels' rate is the chemistry's (H-008's one line, now `tools/patches/h008_cloudy_width.patch`; a diagnostic, not adopted). hiipdr, seeded pair at 15 iterations: with each line damped by its own A, as Cloudy's H2, the H/H2 crossing moves from A_V 1.396 to 1.188 (9.78 to 8.52 pc, two cells), past Cloudy's 1.280 (8.95 pc). The remaining 0.12 mag was therefore not 'the width and the surface energies': it is +0.21 from the width and -0.09 from everything else.** The split by spin goes with it: ortho 0.46-0.57 and para 0.50-0.54 of Cloudy's, where they were 0.75-0.78 and 1.05-1.10; with equal widths every H2 line is about half Cloudy's, as on pn150k in stage A (H-008). Fronts, Hbeta and the C+/C crossing do not move; the transition gas is 1-4 K warmer (to within 2.3 K of Cloudy's at 7.8-9.7 pc) on 13% less heating, [C II] 158 um -2.2%. **pn150k, seeded pair at 18 iterations (2026-10-10): the crossing moves from A_V 0.393 to 0.294 (0.364 to 0.275 pc, six cells), past Cloudy's 0.368: +0.099 from the width against a published gap of 0.026.** Its ortho lines come to 0.45-0.69 and its para lines to 0.70-0.93 of Cloudy's (0.91-1.11 and 1.88-2.62); a factor 1.3-1.6 between the spins stays, the colder shielded gas (H-009). The PDR is 1.5-3.2 K warmer and still 8-12 K below Cloudy's; CO 2-1 +42%. **Cloudy's saved rates show its chlorine (Cl+ + H2, HCl+ + H2) is 25-50% of its H2 sink from A_V 0.26 on; Cloudy rerun without chlorine (`runs/h026-cloudy-pn-noCl`) crosses at 0.326. If the pieces add, pn150k's +0.026 = +0.099 (width) - 0.042 (chlorine, which the REDUCED network lacks) - 0.031 (the rest); hiipdr, with no chlorine in either model, +0.116 = +0.208 - 0.092.** The model keeps its width; whether to add chlorine to the network is open | Done | 2026-10-10 |
 | H-027 | **Production's D-402 (one x(X+): the same neutral/first-ion balance in both solvers) merged; what it does to this branch's H2 results.** Seeded pairs with H-026's published runs, level model in the loop (stage B). The H/H2 crossing does not move: hiipdr A_V 1.3961 -> 1.3962, pn150k 0.3931 -> 0.3927. hiipdr lines / Hbeta: 1-0 S(1) 7.032e-4 -> 6.988e-4 (-0.6%), 2-1 S(1) -0.6%, 0-0 S(0), S(1), S(2) -1.8, -0.8, +0.2%. pn150k: 1-0 S(1) 9.449e-4 -> 9.383e-4 (-0.7%), 2-1 S(1) -0.7%, 0-0 S(2) -0.5%, 0-0 S(1) -2.4%, S(0) -4.0% - the transition zone 3-6% colder, which traces to one charge-transfer coefficient (He+ + H; D-402, L-48). Ionized-zone H2 unchanged on hiipdr, +7-8% on pn150k (17-19 times Cloudy's; not attributed). No change to the level model; its cost per call is the day's (x1.20-1.28 on untouched code). hiipdr's outer shell now reaches the 10 K floor and is left out of the atomic and CO lines (not of `lineFluxH2.out`'s H2 lines, which move 0.1% between the two floors) | Done | 2026-10-10 |
 | H-028 | **Production's D-403 merged (charge transfer with H by the gas at hand in both solvers; hydrogen's side of He+ + H in `ionBalance`; the temperature floor's default at 2.725 K); what it does to this branch's H2 results: nothing beyond 0.3%.** Seeded against H-027's runs. Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3962 -> 1.3959. pn150k lines against H-027's: 1-0 S(1) +0.3%, 0-0 S(0), S(1), S(2) +0.1, -0.1, +0.1%; hiipdr's within 0.1%. So pn150k's 0-0 S(0) and S(1) stay 3.9 and 2.5% below their values from before the shared ionization balance, with the Kingdon & Ferland fit back above 6,000 K: H-027's reading, that this loss was the size of helium's coefficient at the front, is refuted - it is the transfer below 6,000 K, where MOCASSIN had effectively none before, cooling the gas behind the front (4,805 -> 4,642 -> 4,614 K, 519 -> 485 -> 488 K). hiipdr run with no floor keyword gives what `teFloor 2.725` gave. One merge conflict (`pdr_mod.f90`, before the solve; both sides kept: the level model's H2 rate and D-403's charge-transfer rows). Page: H2 Lines in MOCASSIN, version 11 | Done | 2026-10-11 |
+| H-029 | **Production's D-404 merged (the ionization balance solved a second time after the chemistry, counted at every iteration and kept at the last); what it does to this branch's H2 results: nothing beyond 0.1%.** The kept solve runs before the level model's final call, so `lineFluxH2.out` is computed on the ions that are written. Seeded against H-028's runs, which the new runs follow to the last iteration (the second solve is discarded until then). Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3959 -> 1.3959 (neither by 0.0001). pn150k lines against H-028's: 1-0 S(1) +0.02%, 0-0 S(0), S(1), S(2) +0.10, +0.07, +0.01%; hiipdr's within 0.04%; the largest change among all the lines of `lineFluxH2.out` is 0.10% (pn150k) and 0.04% (hiipdr), both 0-0 S(0). The medians by spin and the ionized-zone H2 (34-210 times Cloudy's) are unchanged. Production's result, for the record here: the delay of one iteration between the two solvers was the cause of their disagreement (neutral cells more than 10% apart, first -> second solve: pn150k H 15.5 -> 0.0%, O 28.8 -> 0.0%; hiipdr H 28.4 -> 0.0%, O 21.1 -> 9.7%), and the written hydrogen budget closes before its rescale (off by 1% in 57.6% and 19.9% of cells -> none). Two merge conflicts (`iteration_mod.f90`, `pdr_mod.f90`), both sides kept. Page: H2 Lines in MOCASSIN, version 12 | Done | 2026-10-13 |
 
 ---
 
@@ -4086,3 +4087,138 @@ pages were rebuilt on the same runs (D-403, "Pages").
 
 Done (2026-10-11). No code of this branch changed.
 
+## H-029 - Production's D-404 merged: a second solve of the ionization balance, and nothing in the H2 moves (2026-10-13)
+
+The user, on the cells in which the two solvers still disagreed (D-403,
+L-47): "can we try including a second solve of MOCASSIN's balance after the
+chemistry only at the last iteration to see if that is indeed effective?
+Maybe that is enough for consistency?" D-404 (`DEVLOG.md`) is production's.
+Inside an iteration `ionBalance` runs before the chemistry, so the terms it
+takes from the chemistry are the previous iteration's. D-404 solves it
+again after the chemistry, at the same temperature, at every iteration: the
+result is counted against the chemistry's own X+/X and the model is put
+back, so a run takes the path it took before. At the stop the last
+iteration's second solve takes the first's place in the ions that are
+written (`ionKeepSecond`), damped as the first was.
+
+Merged here in three steps: 0bb7260 (2026-10-11, the first version),
+997efdf (2026-10-13, the kept solve reworked: the one made straight after
+the chemistry, not a third from the damped state) and 98c08c3 (the closed
+entry and the status document; no source). The first two each had the same
+two conflicts, resolved with both sides kept: `pdr_mod.f90`'s public list,
+and the two stop branches of `iteration_mod.f90`, where `ionKeepSecond` is
+placed **before** `h2LevelModel(grid(1:nGrids), 12)`. So the level model's
+final call, the one that writes `lineFluxH2.out`, `h2Cells.out` and
+`h2Pop.bin`, reads the kept ions and electrons; its calls inside the loop
+read the first solve's, as before. All four flavours, `h2Test` and
+`h2Slab` rc 0 on 997efdf.
+
+Runs on this branch, seeded, the level model in the loop, same inputs as
+H-028's: `runs/d404b-hii31` (15 iterations, 40:02) and `runs/d404c-pn41`
+(18, 2:35:41). Both follow H-028's runs line for line up to the stop
+(`tools/d404_second/read404.py <run> <base run>`: the per-iteration
+`[D402]`, `[D354]`, `[D362]`, convergence and "balance not reached" lines
+are identical). `runs/d404-hii31` and `runs/d404-pn41` are the first
+version's (a third solve at the stop; withdrawn, D-404), and
+`runs/d404b-pn41` was stopped in its sixth iteration for a reboot the user
+asked for - not a result.
+
+### Measured
+
+| | H-028 | now | Cloudy |
+|---|---|---|---|
+| pn150k H/H2 crossing, A_V | 0.3927 | 0.3927 | 0.3675 |
+| pn150k 1-0 S(1) / Hbeta | 9.410e-04 | 9.411e-04 (+0.02%) | 8.473e-04 |
+| pn150k 0-0 S(0) / Hbeta | 1.435e-04 | 1.437e-04 (+0.10%) | 7.758e-05 |
+| pn150k 0-0 S(1) / Hbeta | 5.420e-04 | 5.424e-04 (+0.07%) | 4.804e-04 |
+| pn150k 0-0 S(2) / Hbeta | 1.127e-03 | 1.127e-03 (+0.01%) | 4.481e-04 |
+| hiipdr H/H2 crossing, A_V | 1.3959 | 1.3959 | 1.2799 |
+| hiipdr 1-0 S(1) / Hbeta | 6.993e-04 | 6.993e-04 (+0.01%) | 9.237e-04 |
+| hiipdr 2-1 S(1) / Hbeta | 3.706e-04 | 3.706e-04 (+0.01%) | 4.936e-04 |
+| hiipdr 0-0 S(0) / Hbeta | 2.812e-04 | 2.813e-04 (+0.04%) | 2.318e-04 |
+| hiipdr 0-0 S(1) / Hbeta | 3.913e-04 | 3.914e-04 (+0.01%) | 4.845e-04 |
+| hiipdr 0-0 S(2) / Hbeta | 5.089e-04 | 5.089e-04 (+0.00%) | 4.606e-04 |
+
+Neither crossing moves by 0.0001 mag. Over every line the two runs share
+in `lineFluxH2.out` (3,993 on pn150k, 4,083 on hiipdr) the largest change
+is 0.10% and 0.04%, in both the 0-0 S(0) line of the table. Hbeta is
+unchanged to 0.001% (pn150k) and 0.003% (hiipdr). The medians by spin of
+Cloudy's 40 strongest lines are unchanged (pn150k ortho 0.91-1.11, para
+1.88-2.62; hiipdr 0.74-0.78, 1.05-1.10), and H2 in pn150k's partly ionized
+gas is 34-210 times Cloudy's at the same x(H+), as at H-028.
+
+That nothing moves is what the design allows: the temperature, the
+chemistry's abundances (H2 among them) and the radiation field of the
+written model are the ones H-028's runs ended on. What the kept solve
+changes for the level model is the ions and electrons it collides the H2
+with: n_e by more than 10% in 0.1% of pn150k's neutral cells and 1.6% of
+hiipdr's, the written H+/H in 7.2% and 20.7%. The lines above are what
+that amounts to.
+
+### Production's result, as far as it bears on this branch
+
+Per cent of the neutral cells in which the chemistry's X+/X and MOCASSIN's
+differ by more than 10%, last iteration (hiipdr 15,062 cells, pn150k
+34,970):
+
+| | pn150k, first solve | second | hiipdr, first solve | second |
+|---|---|---|---|---|
+| H | 15.5 | 0.0 | 28.4 | 0.0 |
+| He | 0.4 | 0.0 | 13.2 | 0.0 |
+| C | 0.1 | 0.0 | 1.5 | 0.0 |
+| O | 28.8 | 0.0 | 21.1 | 9.7 |
+| Mg | 0.0 | 0.0 | 12.9 | 0.0 |
+
+The delay of one iteration was the cause. hiipdr's oxygen remainder is
+deep, cold gas in which O+ is trimmed out of MOCASSIN's ion matrix and
+keeps a value that cannot carry a source from molecules (D-404, L-50). The
+hydrogen budget x(H) + x(H+) + 2x(H2) of the ions as written was off 1 by
+more than 1% in 57.6% of pn150k's cells and 19.9% of hiipdr's before the
+rescaling step (D-220) repaired it, because the first solve shares out the
+hydrogen left by the molecules of the iteration before; with the second
+solve it is off in none. The second solve was kept in all 35,384 of
+pn150k's cells and in 15,203 of hiipdr's 15,204.
+
+What still separates the written ions from the chemistry's (more than 10%
+apart in 6.4% of pn150k's neutral cells for H, 13.4% of hiipdr's) is the
+damping across iterations, which mixes the last solve with the model of
+the iteration before; production holds that as L-49, noted by the user for
+later.
+
+### Cost
+
+The level model took 5,777 s for its 16 calls on pn150k and 1,056 s for 13
+on hiipdr; H-028's runs had 6,572 s and 1,431 s for the same calls. The
+calls inside the loop are the same work on the same path, so the
+difference (x0.88, x0.74) is the machine's from one session to another, as
+at H-027 (x1.20-1.28 on untouched code), not the code's. The second solve
+itself costs two `ionBalance` solves per cell per iteration (the control
+and the solve on the new terms).
+
+### Pages
+
+"H2 Lines in MOCASSIN" is version 12
+(https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8): a new first section
+with the solver counts by iteration for both nebulae and the tables above;
+the summary's "Now" numbers are these runs'. The two comparison pages were
+rebuilt on the same runs (D-404).
+
+### Not yet known
+
+  - Whether the H2 would move if the second solve were kept at **every**
+    iteration instead of the last: that changes the path of the run and
+    has not been run. The counts suggest little (the second solve changes
+    n_e by more than 10% in at most 0.1% of pn150k's neutral cells at any
+    iteration, and in at most 2.1% of hiipdr's from the sixth on, after
+    53.8 and 22.7% at the fourth and fifth), but that is an inference, not
+    a measurement.
+  - The level model's populations are not re-converged against a
+    temperature solved on the kept ions: D-404 re-solves neither the
+    temperature nor the chemistry.
+  - H-028's two items stand: helium's coefficient between 1,000 and
+    6,000 K, and why pn150k's ionized-zone H2 is 7-8% higher than before
+    the shared balance.
+
+### Status
+
+Done (2026-10-13). No code of this branch changed beyond the merges.
