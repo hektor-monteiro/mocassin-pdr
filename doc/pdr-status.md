@@ -368,7 +368,7 @@ both fall by 20%, from 1.65 and 1.29 of Cloudy's to 1.32 and 1.03 (1.71 and
 1.47 with the damping). **hiipdr's [C I] lines are not converged in the packet
 count at 6e6.** With D-280's path biasing on the undamped production model
 (pathStretch 0.5) no cell before A_V 2.6 is left in the deep state and C+ = C
-is at A_V 2.62 (the comparison tool's measure, which gives 2.25 without it and
+is at A_V 2.61 (the comparison tool's measure, which gives 2.25 without it and
 2.52 at four times the packets); but the weights reach 1e4, the scatter among
 equivalent cells before the turn is 1.25-1.45 of the analog run's, and n(CO)
 rises by 36% and the CO lines by 52-109% where four times the packets gives
