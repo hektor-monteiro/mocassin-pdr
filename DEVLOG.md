@@ -37105,7 +37105,7 @@ damped:
 | 2.29-2.65 | 1.17 | 1.17 | 1.16 | (0.10) | 1.23 | 1.15 | 0.84 |
 | 2.65-2.99 | 1.20 | 1.21 | 1.21 | 1.15 | 1.30 | 1.28 | 0.96 |
 
-(Table regenerated 2026-10-13 17:10 from `cmpdamp.py` as committed; the
+(Table regenerated 2026-10-13 16:55 from `cmpdamp.py` as committed; the
 first version, from the script before it was made a function, differed by
 0.01-0.02 in nine entries.)
 
@@ -37420,7 +37420,8 @@ decision and nothing of it is coded here.
 
 ### pn150k, the undamped arm (`runs/d405-pn41-d0`, 18 iterations, 2:31:37)
 
-Against `runs/d404c-pn41` (2:35:41), rc 0, no cell flagged, coldest cell
+Against `runs/d404c-pn41` (2:35:41), rc 0, two cells flagged (left out of
+the lines), as in the damped arm and in `runs/d403-pn41`; coldest cell
 20.8 K (21.6 K damped). `snap.py` kept the cells of iterations 3-18.
 
 **1. No branch cycle.** Cells that start an iteration cold and end it above
