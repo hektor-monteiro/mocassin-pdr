@@ -37706,7 +37706,7 @@ without having taken it out.
      mag bin from A_V 1.9 to 2.6 below 0.18 or above 0.9 of
      C+/(C+ + C + CO).
 
-### The damped arm's carbon, read as blends of two states (hiipdr, 17:20)
+### The damped arm's carbon, read as blends of two states (hiipdr, 17:11)
 
 Drawn for the page (the share of the cells of A_V 2.1-2.4 in each 0.04 of
 C+/(C+ + C + CO), both arms), the damped arm's distribution is not a smear
@@ -37723,7 +37723,7 @@ range are 0.166 (the deep state) and 0.965 (median of the cells above
 | ionized, deep before | 0.77 | 0.76-0.80 |
 | ionized, ionized | 0.92-0.97 | 0.88-1.0 |
 
-Nothing lies between 0.44 and 0.64 but 2% of the cells. So the written
+Between 0.44 and 0.64 lie 2.8% of the cells (1.3% undamped). So the written
 carbon of the damped model is the last two or three draws of an on/off
 state, weighted 0.75, 0.19, 0.05 - which is all a blend of answers can be
 when the answer has two values.
