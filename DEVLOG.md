@@ -37857,7 +37857,7 @@ cells with x(H+) above ten times their median: 94, 101, 76, 85, 89, 89,
 | 2.43-2.71 | 3,166 | 0.52% | 51 | 85% |
 | 2.71-2.99 | 3,060 | 0.11% | 39 | 87% |
 
-(`histdamp.events`, in the tool since 17:47; nine equal bins of A_V.
+(`histdamp.events`, in the tool since 17:45; nine equal bins of A_V.
 Over all the events, not only those with a large step of the molecular
 fraction, the medians are x(H+) 52, x(He+) 112, n_e 4.2, T 1.04 and chi
 1.00 times the cell's own. Events that cost the cell 30% of its H2 or
@@ -37984,3 +37984,63 @@ There x and y differ as well, and the FUV field itself differs by
 direction by 0.4% (+0.0044, -0.0013, -0.0031 +- 0.0007), so on hiipdr
 the rays are not the only pattern. Nothing past A_V 1.48 (below 0.002 in
 H2).
+
+### hiipdr, the damped arm's histories (`runs/d405-hii31-d25h`, 18:18)
+
+The rerun of the published run is the published run byte for byte (the
+same eight files against `runs/d404b-hii31`; rc 0, 46:08, on a machine
+shared with the page tools). `histdamp.py runs/d405-hii31-d25h 9`,
+iterations 9-15, once on the model as written and once with the damping
+taken out of the history (`--unblend=0.25`: the written state is 0.75 of
+the iteration's solve and 0.25 of the state written before it, so the
+solve is (written - 0.25 before) / 0.75; T and the abundances, the
+electron density never having been damped).
+
+**The damped run's solves are the undamped run's, statistically.** All
+neutral cells:
+
+| | R: ln T | ln x(H) | ln x(C) | ln x(CO) | c: ln T | ln x(C) |
+|---|---|---|---|---|---|---|
+| undamped run | 1.18 | 1.02 | 1.09 | 1.02 | -0.41 | -0.46 |
+| damped run, as written | 1.48 | 1.49 | 1.48 | 1.38 | -0.26 | -0.27 |
+| damped run, damping taken out | 1.17 | 0.98 | 1.06 | 1.00 | -0.42 | -0.48 |
+
+(Independent draws give 1.00 and -0.50, the same through the blend 1.25
+and -0.38. The temperature's 1.17-1.18 is the carbon state's correlation
+with the iteration before, below.)
+
+The carbon states of the solves, damped run with the damping taken out
+against the undamped run:
+
+| A_V | ionized: undamped | damped, taken out | deep: undamped | damped, taken out | ionized if ionized before, less if deep before: undamped | damped, taken out |
+|---|---|---|---|---|---|---|
+| 1.9-2.0 | 93.1% | 92.8% | 3.3% | 3.7% | 0.07 | 0.09 |
+| 2.0-2.1 | 81.1% | 80.8% | 10.5% | 10.6% | 0.13 | 0.11 |
+| 2.1-2.2 | 60.4% | 61.3% | 25.5% | 24.7% | 0.16 | 0.14 |
+| 2.2-2.3 | 38.8% | 39.0% | 47.4% | 47.2% | 0.16 | 0.16 |
+| 2.3-2.4 | 19.1% | 19.3% | 70.1% | 70.6% | 0.08 | 0.08 |
+| 2.4-2.5 | 7.7% | 7.8% | 86.6% | 86.9% | 0.05 | 0.04 |
+| 2.5-2.6 | 2.9% | 3.1% | 94.3% | 94.6% | 0.04 | 0.05 |
+
+To a percentage point the two runs solve the same two states in the same
+shares, with the same correlation from one iteration to the next. The
+one-iteration events are the same too: cells with x(H+) above ten times
+their median 74-133 per iteration (76-103 undamped), x(H+) 52 times the
+median in both, steps of the molecular fraction above 0.5 404 in 239
+cells (408 in 247).
+
+**So the damping changes what is written and not what is solved.** Every
+solve here is an equilibrium solve (the chemistry in steady state,
+`ionBalance`, the thermal balance): it has no memory of the state it
+started from, and the state reaches the next solve only through the
+opacities the transfer runs on. A quarter of the last state in those
+opacities does not move the carbon front by a percentage point of a
+bin's cells. The damping is a filter on the output.
+
+As written, the damped run shows what a filter does to an event: cells
+with x(H+) above ten times their median are 79-144 per iteration, and
+195 cells have two such iterations where the undamped run has 30 (the
+second is the quarter left of the first); steps of the molecular fraction
+above 0.5 are 35 in 35 cells, none followed by a step back, because an
+excursion is written at three quarters of its depth (0.98 -> 0.46 in the
+median, against 0.38 solved) and then decays by quarters.
