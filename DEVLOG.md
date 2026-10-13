@@ -38145,14 +38145,15 @@ carbon, last iteration (below 0.18 / between / above 0.9):
 | 2.0-2.1 | 763 | 74 / 67 / 622 | 0 / 7 / 756 | 9.7% | 0.0% | 0.01% |
 | 2.1-2.2 | 828 | 209 / 128 / 491 | 5 / 56 / 767 | 25% | 0.6% | 0.4% |
 | 2.2-2.3 | 859 | 400 / 122 / 337 | 29 / 198 / 632 | 47% | 3.4% | 4.7% |
-| 2.3-2.4 | 978 | 687 / 111 / 180 | 102 / 403 / 473 | 70% | 10% | 25% |
+| 2.3-2.4 | 978 | 687 / 111 / 180 | 102 / 403 / 473 | 70% | 10% | 24% |
 | 2.4-2.5 | 1,033 | 887 / 71 / 75 | 307 / 529 / 197 | 86% | 30% | 54% |
 | 2.5-2.6 | 1,068 | 1,006 / 33 / 29 | 560 / 431 / 77 | 94% | 52% | 79% |
 
 A cell is in the deep state when no packet of the band crossed it; with
 four times the packets, Poisson gives the fourth power of the share. The
-shares fall to that or below it: to it at A_V 2.1-2.3, and to 0.4-0.7 of
-it from 2.3 on, where the carbon in front is now ionized and lets more
+shares fall to that or below it: to it at A_V 2.1-2.2 (5 cells where 3
+are expected), and to 0.4-0.7 of it from 2.2 on, where the carbon in
+front is now ionized and lets more
 of the band through (carbon's own opacity, the candidate of the
 histories section, with the right sign). The middle fills in, because a
 packet carries a quarter as much: one crossing no longer ionizes the
