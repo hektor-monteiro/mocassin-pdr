@@ -36780,3 +36780,22 @@ Page: [hiipdr Against Cloudy](https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx)
 the page's version 27 (2026-10-13), rebuilt on this run with a new first
 section; version 26's "what holds these cells apart here has not been
 found" is annotated.
+
+### 2026-10-13, 10:20: the pn150k run stopped for a reboot
+
+The user: "I will need to reboot the computer for some updates. Stop the
+run and wait for my ok to restart it". `runs/d404b-pn41` (h2-model, the
+chain's second run) was stopped in iteration 6 of 18; it has no end-of-run
+file and is marked as not a result. Nothing else was running. hiipdr on the
+code as it stands is complete (above) and its page is published; pn150k on
+the code as it stands, and with it the PN and H2 pages, the closing
+sections of this entry and the status document's items, wait for the
+user's word and then for one more run of about three hours, from the same
+input in a fresh directory.
+
+The session's working directory is on a tmpfs and does not survive a
+reboot. It was copied whole to `runs/_scratchpad_backup_2026-10-13/` in the
+production worktree (1,408 files, 288 MB; `runs/` is not tracked): the
+page builders of every version since D-348, the number and figure scripts
+they import, the build scripts and the drafts for this entry's close
+(`d404/finish_logs.py`, `d404pages/build_pn26.py`, `build_h2v12.py`).
