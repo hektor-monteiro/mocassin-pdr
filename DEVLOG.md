@@ -37962,3 +37962,12 @@ spread of the means exceeds the spread at one iteration (ratio 1.0-6.4).
 A quantity with two values has no "spread" in this sense, and the noise
 ratio of the hiipdr table for C and C+ at 2.29-2.65 (0.10, 0.15) is the
 same thing seen from the damped side.
+
+By direction (`histdamp.orient`, now in the tool, which also reproduces
+pn150k's table): the cell nearest z = 0 has more H2 than its set's mean
+by 0.072 +- 0.008 in ln at A_V 0.46-1.00, against -0.036 and -0.036 for
+x and y, and by 0.043 +- 0.004 at 1.00-1.48, against -0.034 and -0.009.
+There x and y differ as well, and the FUV field itself differs by
+direction by 0.4% (+0.0044, -0.0013, -0.0031 +- 0.0007), so on hiipdr
+the rays are not the only pattern. Nothing past A_V 1.48 (below 0.002 in
+H2).

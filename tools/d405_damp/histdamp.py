@@ -40,6 +40,11 @@ frozen() compares that spread at one iteration with the spread of each
 cell's mean over the N iterations. Noise drawn afresh gives 1/sqrt(N) of it
 (a little more through the blend), a pattern that stays gives all of it.
 
+What stays is then looked at by direction: in each set of six equivalent
+cells, the mean over the iterations of ln q of the cell nearest the plane
+x = 0, y = 0 or z = 0 (its smallest index along that axis), less the set's
+mean: orient(). A pattern that follows one axis shows there.
+
 --unblend=b takes the damping out of a damped run's history before anything
 is computed: the written state is (1 - b) of the iteration's solve and b of
 the state written before it, so the solve is (written - b * before) /
@@ -161,6 +166,40 @@ def frozen(run, i0=9, i1=None):
     return out
 
 
+def orient(run, i0=9, i1=None, keys=('x_H2', 'x_CO', 'x_C', 'Te', 'chi')):
+    """per band of A_V and quantity: mean over the sets of six of (time-mean ln q of the cell whose smallest index is
+    along x, y, z) - (the set's mean), with the standard error of the z value"""
+    use, D, its = load(run, i0, i1)
+    last = D[-1]
+    idx = last['idx']
+    nx, ny, nz = [int(v) for v in last['shape']]
+    c = np.stack([idx // (ny * nz), (idx // nz) % ny, idx % nz], axis=1)
+    small = np.argmin(c, axis=1)
+    av = last['AV'].astype(float)
+    xhp = np.array([d['x_H+'] for d in D])
+    neutral = np.all(xhp < 0.3, axis=0)
+    orb = [g for g in orbits(idx, last['shape']) if len(g) == 6 and np.all(neutral[g])]
+    oav = np.array([np.median(av[g]) for g in orb])
+    q = np.quantile(av[neutral], QB)
+    out = {'run': run, 'its': use, 'bands': []}
+    for i in range(6):
+        sel = [g for g, a in zip(orb, oav) if q[i] <= a <= q[i + 1]]
+        if len(sel) < 20:
+            continue
+        row = {'name': 'A_V %.2f-%.2f' % (q[i], q[i + 1]), 'sets': len(sel), 'q': {}}
+        for k in keys:
+            m = np.log(np.maximum(np.array([d[k] for d in D], float), 1e-300)).mean(axis=0)
+            dev = [[], [], []]
+            for g in sel:
+                r = m[g] - m[g].mean()
+                for j, cell in enumerate(g):
+                    dev[small[cell]].append(r[j])
+            row['q'][k] = {'x': float(np.mean(dev[0])), 'y': float(np.mean(dev[1])), 'z': float(np.mean(dev[2])),
+                           'err': float(np.std(dev[2], ddof=1) / np.sqrt(len(dev[2])))}
+        out['bands'].append(row)
+    return out
+
+
 def analyse(run, i0=9, i1=None):
     use, D, its = load(run, i0, i1)
     last = D[-1]
@@ -247,6 +286,12 @@ if __name__ == '__main__':
         for k, r in row['q'].items():
             print('%-13s %-9s sets %4d   %10.3e %10.3e   %6.3f   %5.2f' % (row['name'], k, row['sets'], r['one'], r['mean'], r['r'], r['kept']))
         print()
+    Or = orient(run, A['its'][0], A['its'][-1])
+    print('by direction: time-mean ln q of the cell nearest the plane x = 0, y = 0, z = 0, less the mean of its set of six (+- of the z value)')
+    for row in Or['bands']:
+        print('%-13s sets %4d   ' % (row['name'], row['sets']) + '   '.join('%s %+.4f %+.4f %+.4f (%.4f)' % (
+            k.replace('x_', ''), r['x'], r['y'], r['z'], r['err']) for k, r in row['q'].items()))
+    print()
     n1 = len(A['its']) - 1
     for j in A['jumps']:
         print('f_mol steps above %.2f: per iteration %s; %d steps in %d cells; followed by one back the next iteration: %d of %d (%.0f%%)' % (
