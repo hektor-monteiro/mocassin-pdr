@@ -45,6 +45,11 @@ cells, the mean over the iterations of ln q of the cell nearest the plane
 x = 0, y = 0 or z = 0 (its smallest index along that axis), less the set's
 mean: orient(). A pattern that follows one axis shows there.
 
+And the cells over-ionized for one iteration: neutral cells whose x(H+)
+at an iteration is more than ten times their own median over the
+iterations - how many per iteration, with helium too, by depth, and how
+many of the molecular fraction's large down-steps fall on one: events().
+
 --unblend=b takes the damping out of a damped run's history before anything
 is computed: the written state is (1 - b) of the iteration's solve and b of
 the state written before it, so the solve is (written - b * before) /
@@ -200,6 +205,43 @@ def orient(run, i0=9, i1=None, keys=('x_H2', 'x_CO', 'x_C', 'Te', 'chi')):
     return out
 
 
+def events(run, i0=9, i1=None, fac=10., edges=None):
+    """neutral cells with x(H+) above fac times their own median over the iterations"""
+    use, D, its = load(run, i0, i1)
+    arr = lambda k: np.array([d[k] for d in D], float)                                  # noqa: E731
+    fm, hp, hep, ne, T, chi = 2 * arr('x_H2'), arr('x_H+'), arr('x_He+'), arr('Ne'), arr('Te'), arr('chi')
+    av = D[-1]['AV'].astype(float)
+    neutral = np.all(hp < 0.3, axis=0)
+    mh, mhe, mf = np.median(hp, axis=0), np.median(hep, axis=0), np.median(fm, axis=0)
+    ev = (hp > fac * mh[None, :]) & neutral[None, :]
+    evhe = (hep > fac * mhe[None, :]) & neutral[None, :]
+    over = lambda x: float(np.median((x / np.maximum(np.median(x, axis=0), 1e-300)[None, :])[ev])) if ev.any() else float('nan')   # noqa: E731
+    out = {'run': run, 'its': use, 'fac': fac, 'nneutral': int(neutral.sum()), 'per': [int(x) for x in ev.sum(axis=1)],
+           'per_he': [int(x) for x in evhe.sum(axis=1)], 'per_both': [int(x) for x in (ev & evhe).sum(axis=1)],
+           'over': {'x(H+)': over(hp), 'x(He+)': over(hep), 'n_e': over(ne), 'T': over(T), 'chi': over(chi)}, 'bands': []}
+    nev = ev.sum(axis=0)
+    out['cells'] = [int(x) for x in np.bincount(nev[nev > 0])[1:]]
+    d1 = fm[1:] - fm[:-1]
+    n, c = np.where(d1 < -0.5)
+    out['down'] = {'n': int(len(n)), 'on_event': int(ev[n + 1, c].sum()), 'per': float(len(n) / max(len(d1), 1)),
+                   'fm': [float(np.median(fm[n, c])), float(np.median(fm[n + 1, c]))] if len(n) else None,
+                   'av': [float(av[c].min()), float(np.median(av[c])), float(av[c].max())] if len(n) else None}
+    lost = (fm < 0.7 * mf[None, :]) & ev
+    out['lost30'] = [int(x) for x in lost.sum(axis=1)]
+    if edges is None:
+        lo, hi = av[neutral].min(), av[neutral].max()
+        edges = np.linspace(lo, hi, 10)
+    for a, b in zip(edges[:-1], edges[1:]):
+        m = neutral & (av >= a) & (av < b)
+        if m.sum() == 0:
+            continue
+        e = ev[:, m]
+        out['bands'].append({'lo': float(a), 'hi': float(b), 'cells': int(m.sum()), 'rate': float(e.mean()),
+                             'fac': float(np.median((hp[:, m] / mh[None, m])[e])) if e.any() else None,
+                             'lost30': float(lost[:, m][e].mean()) if e.any() else None, 'fmol': float(np.median(mf[m]))})
+    return out
+
+
 def analyse(run, i0=9, i1=None):
     use, D, its = load(run, i0, i1)
     last = D[-1]
@@ -286,6 +328,21 @@ if __name__ == '__main__':
         for k, r in row['q'].items():
             print('%-13s %-9s sets %4d   %10.3e %10.3e   %6.3f   %5.2f' % (row['name'], k, row['sets'], r['one'], r['mean'], r['r'], r['kept']))
         print()
+    Ev = events(run, A['its'][0], A['its'][-1])
+    print('neutral cells with x(H+) above %.0f times their own median, per iteration: %s of %d; with x(He+) so: %s; both: %s' % (
+        Ev['fac'], ' '.join(map(str, Ev['per'])), Ev['nneutral'], ' '.join(map(str, Ev['per_he'])), ' '.join(map(str, Ev['per_both']))))
+    print('   in those cells at that iteration, over the cell\'s median: ' + ', '.join('%s %.2f' % kv for kv in Ev['over'].items()))
+    print('   cells by number of events (1, 2, ...): %s; events that cost the cell 30%% of its H2 or more, per iteration: %s' % (
+        ' '.join(map(str, Ev['cells'])), ' '.join(map(str, Ev['lost30']))))
+    if Ev['down']['n']:
+        print('   steps of the molecular fraction below -0.5: %d (%.1f per iteration), of which on such a cell at that iteration: %d; '
+              'median f_mol %.3f -> %.3f; A_V %.2f-%.2f, median %.2f' % (Ev['down']['n'], Ev['down']['per'], Ev['down']['on_event'], *Ev['down']['fm'],
+                                                                         Ev['down']['av'][0], Ev['down']['av'][2], Ev['down']['av'][1]))
+    print('   A_V          cells   events per cell and iteration [%]   x(H+) over the median   share losing 30% of H2 [%]   median f_mol')
+    for b in Ev['bands']:
+        print('   %.2f-%.2f   %6d   %10.3f   %24s   %20s   %14.3f' % (b['lo'], b['hi'], b['cells'], 100 * b['rate'],
+              '%.0f' % b['fac'] if b['fac'] else '-', '%.0f' % (100 * b['lost30']) if b['lost30'] is not None else '-', b['fmol']))
+    print()
     Or = orient(run, A['its'][0], A['its'][-1])
     print('by direction: time-mean ln q of the cell nearest the plane x = 0, y = 0, z = 0, less the mean of its set of six (+- of the z value)')
     for row in Or['bands']:

@@ -37848,19 +37848,31 @@ cells with x(H+) above ten times their median: 94, 101, 76, 85, 89, 89,
 
 | A_V | cells | events per cell and iteration | x(H+) over the cell's median | events that cost the cell 30% of its H2 or more |
 |---|---|---|---|---|
-| 0.46-1.00 | 759 | 0.24% | 29 | 0% |
-| 1.00-1.40 | 1,157 | none | | |
-| 1.40-1.80 | 1,958 | 0.07% | 52 | 60% |
-| 1.80-2.00 | 1,282 | 0.51% | 75 | 67% |
-| 2.00-2.20 | 1,591 | 1.54% | 61 | 77% |
-| 2.20-2.40 | 1,837 | 1.93% | 49 | 78% |
-| 2.40-2.60 | 2,101 | 0.74% | 52 | 85% |
-| 2.60-2.80 | 2,474 | 0.19% | 51 | 85% |
-| 2.80-3.00 | 1,889 | 0.05% | 30 | 86% |
+| 0.46-0.74 | 292 | 0.64% | 29 | 0% |
+| 0.74-1.31 | 1,299 | none | | |
+| 1.31-1.59 | 1,139 | 0.03% | 21 | 50% |
+| 1.59-1.87 | 1,543 | 0.11% | 67 | 75% |
+| 1.87-2.15 | 2,024 | 0.95% | 67 | 72% |
+| 2.15-2.43 | 2,522 | 1.91% | 52 | 78% |
+| 2.43-2.71 | 3,166 | 0.52% | 51 | 85% |
+| 2.71-2.99 | 3,060 | 0.11% | 39 | 87% |
+
+(`histdamp.events`, in the tool since 17:47; nine equal bins of A_V.
+Over all the events, not only those with a large step of the molecular
+fraction, the medians are x(H+) 52, x(He+) 112, n_e 4.2, T 1.04 and chi
+1.00 times the cell's own. Events that cost the cell 30% of its H2 or
+more: 60-77 per iteration.)
 
 605 cells have at least one event in the seven iterations, 31 have two or
 more (13 expected if they fell at random on the neutral cells; they are
 concentrated in a third of them).
+
+pn150k has them too (`runs/d405-pn41-d0`, iterations 10-18): 10-28
+cells per iteration with x(H+) above ten times their median, of 34,932,
+and all eight of its steps of the molecular fraction below -0.5 fall on
+one. Helium alone is over-ionized so in 379-556 cells per iteration
+there: a 150,000 K star has photons hard enough to reach the neutral gas,
+and they too arrive a packet at a time.
 
 What is measured is that. **What it is, is inferred and not traced:** an
 ionizing photon cannot reach A_V 2.3 from the H II region (its free path
