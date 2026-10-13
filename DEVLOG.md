@@ -37869,17 +37869,18 @@ if that draw falls in the hydrogen or helium recombination continuum, an
 ionizing packet of the full packet energy (L/6e6) appears inside the
 cloud and is absorbed on the spot. One packet in a 2e18 cm cell gives a
 rate of order 4e-14 s^-1 per hydrogen atom, which against recombination
-at 12 K puts x(H+) near 4e-3, some hundreds of times the usual 9e-6;
-the size is right (an estimate). Whether that is what the code does has
-to be read in the emission and re-emission routines; it is not read
-here.
+at 12 K puts x(H+) near 4e-3 (an estimate); the cells show 8e-4, 88
+times their usual 9e-6. The same order, no better. Whether that is what
+the code does has to be read in the emission and re-emission routines;
+it is not read here.
 
 Two things follow whichever way that turns out. First, the chemistry is
 solved in steady state, so it answers one iteration's ionization as if
 it were permanent and removes most of the H2 of the cell; the cell is
-back at the next iteration. About 65 cells at any one iteration are
-written 60% atomic that are 98% molecular in every other. In the sums it
-is 0.3% of the deep H2. Second, with the damping on, each such event is
+back at the next iteration. At any one iteration about 35 cells have
+lost more than half of their H2 (202 down-steps in six iterations) and
+about 70 more than 30%, cells that are 98% molecular in every other. In
+the sums it is 0.3% of the deep H2. Second, with the damping on, each such event is
 written as three quarters of itself and leaves a quarter of that in the
 next iteration's model.
 
