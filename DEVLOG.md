@@ -37533,8 +37533,8 @@ chemistry's columns are integrated along twelve rays fixed in the grid
 frame (HEALPix level 0, `pdr_mod.f90`), a set that is symmetric in x and y
 and not in z, which is the symmetry of the pattern. **That the rays are
 the cause is not tested** (a run at another ray level would). Its size:
-cells that the geometry makes equal differ by 4-10% in H2 across the
-transition and by 0.2% behind it. It is the same in both arms, which is why
+cells that the geometry makes equal differ in H2 by 10% just behind the
+front, 6% at A_V 0.25-0.35, 1.7% at 0.35-0.44 and 0.2% deeper. It is the same in both arms, which is why
 the noise ratio of that band is near 1, and it has nothing to do with the
 damping. Noted for the status document.
 
@@ -37558,13 +37558,13 @@ damping. Noted for the status document.
 | 18 | 1.451% | 1.548% | 86.1% | 79.5% | 0.691 | 0.691 |
 
 The two arms end on the same molecular content (n(H2) -0.03%, n(H0)
-+0.06%, undamped over damped) and the undamped arm had it six iterations
-sooner: its n(H2) is within 0.1% of its last value from the twelfth
-iteration, the damped arm's from the seventeenth or eighteenth (n(H2)
++0.06%, undamped over damped) and the undamped arm had it five iterations
+sooner: its n(H2) is within 0.2% of its last value from the eleventh
+iteration, the damped arm's from the sixteenth (n(H2)
 undamped over damped: +8.0% at the ninth iteration, +4.7, +3.0, +1.9,
 +1.2, +0.7, +0.5, +0.2, +0.1, -0.03%). The step sizes say the same: the
 undamped arm is on its floor at the tenth iteration, the damped at the
-thirteenth or fourteenth.
+twelfth or thirteenth.
 
 In the ionized gas the mean temperature weighted by the emission measure
 rises in both arms with successive steps in the ratio 0.6 undamped and
@@ -37588,7 +37588,8 @@ Ten to thirty of those 700 cells change side at each iteration, in either
 arm, and T(H0) moves by 1% (standard deviation over iterations 12-18,
 undamped). The test compares values three iterations apart, so 2% is 1.4
 standard deviations of that: once everything else has settled, T(H0)
-alone fails the test about one iteration in six. (Both arms jump at the
+alone fails the test about one iteration in six (if its noise is
+Gaussian; seven values are not enough to say). (Both arms jump at the
 fourteenth iteration, +3.0% and +2.6%: the same seed, the same packets at
 the front.) With the damping the same quantity kept the test above 4%
 until the sixteenth iteration. A test quantity carried by a few hundred
@@ -37597,9 +37598,10 @@ damping; noted for the status document.
 
 **5. The damping derails the first PDR iterations here too.** Temperature
 balance not reached at iterations 5 and 6: 72% and 25% of the cells with
-the damping, none without. The damped arm enters the first PDR iteration
-at a median 196 K, the undamped at 23 K: the blend still carries the
-15,000 K the neutral gas started from, a quarter at a time.
+the damping, none without. The damped arm writes a median 196 K at the
+end of the first PDR iteration (the fourth), the undamped 23 K: the blend
+still carries the 15,000 K the neutral gas started from, a quarter at a
+time.
 
 **6. The written model is its solution.** Neutral cells in which the
 chemistry's X+/X and the written model's differ by more than 10%:
