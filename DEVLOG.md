@@ -37014,7 +37014,7 @@ hiipdr with the damping has not been still since about its tenth
 iteration, it has been stationary. From iteration 10 to 15: the median
 step of x(H0) is 2.4% and the 90th percentile 30%, every iteration; the
 chemistry's H2 moves by more than 1% in 32-34% of the cells and CO in
-97-99%; the cells counted converged stay at 68-69% of the neutral ones;
+97-99%; the cells counted converged stay at 67-70% of the neutral ones;
 the first solve leaves 28-29% of the neutral cells more than 10% from the
 chemistry in hydrogen. Branch crossings are none or one cell per
 iteration (pn150k: 4-25 of 35,384). The integrated test falls 16, 8.3,
@@ -37059,3 +37059,261 @@ If 1 and 2 hold, the damping is no longer what keeps the model from
 cycling, and what it does is trade a quarter less scatter in the written
 model for a written model that is not a solution. If either fails, where
 it fails is the next measurement.
+
+### hiipdr, the undamped arm (`runs/d405-hii31-d0`, 15 iterations, 39:47)
+
+Against `runs/d404b-hii31` (40:02). Tools, all in `tools/d405_damp/`:
+`readdamp.py` (the logs, per iteration), `cvdamp.py` (the integrated
+quantities of `convergence.out`), `cmpdamp.py` (the two written models cell
+by cell), `cmplines.py` (the lines), `emdamp.py` (what the last solve emits
+against what the written model emits).
+
+**1. No branch cycle.** Cells that start an iteration cold and end it above
+3,000 K: none or one per iteration in either arm, from the fourth iteration
+to the last. Cells above 3,000 K at the end: 183 damped, 182 undamped.
+D-173's 44-76% is not there with the damping off.
+
+**2. The floor is noise, of the size independent noise predicts.**
+
+| iterations 10-15 | damped | undamped | ratio |
+|---|---|---|---|
+| step of x(H0), median | 2.35-2.51% | 3.28-3.44% | 1.39 |
+| step of x(H0), 90th percentile | 29-30% | 41-42% | 1.39 |
+| step of the molecular fraction, 90th percentile | 0.024-0.030 | 0.033-0.035 | 1.3 |
+| chemistry's H2 moved by more than 1%, share of cells | 32.2-33.9% | 31.8-32.7% | |
+| chemistry's CO moved by more than 1% | 97.0-98.8% | 97.2-97.6% | |
+
+(The first three are steps of the written model; the last two set the
+chemistry's new answer against the stored state, which the damping changes
+by less: sqrt(2/1.6) = 1.12 in size, invisible in a share of cells.) The
+prediction for independent noise was 1.49 and "not several times".
+
+A second measure needs no second run. The fixture is an octant on a cubic
+grid with equal axes, so the cells (i,j,k), (j,i,k), ... are one cell of
+the model, and their spread inside a run is that run's own Monte Carlo
+noise in the written model. `cmpdamp.py` takes the 2,784 sets of three or
+six such cells (15,187 of the 15,204 active cells). Standard deviation of
+ln q inside a set, median over the sets of a band of A_V, undamped over
+damped:
+
+| A_V | T | H2 | H | C | CO | OH | n_e |
+|---|---|---|---|---|---|---|---|
+| 0.46-1.00 | 1.34 | 1.25 | (0.94) | 1.21 | 1.18 | 1.36 | 0.98 |
+| 1.00-1.48 | 1.38 | 1.24 | 1.28 | 1.28 | 1.28 | 1.31 | 1.06 |
+| 1.48-1.91 | 1.31 | 1.29 | 1.28 | 1.31 | 1.25 | 1.24 | 1.00 |
+| 1.91-2.29 | 1.27 | 1.05 | 1.12 | 1.35 | 1.34 | 1.26 | 1.00 |
+| 2.29-2.65 | 1.19 | 1.16 | 1.16 | (0.11) | 1.23 | 1.14 | 0.84 |
+| 2.65-2.99 | 1.20 | 1.21 | 1.21 | 1.16 | 1.30 | 1.28 | 0.97 |
+
+The prediction for independent noise through the blend is 1.29. The
+electron density is the control: it is the one quantity the damping never
+touched, and its noise is the same in the two arms. (H in the first band
+is 99.99% of the hydrogen and has nothing to scatter.) Two cautions. The
+ray directions of the column integration are not symmetric under the
+permutations, so part of a set's spread is the same in both arms and
+pulls a ratio towards 1; and the two arms share a seed, so their noise
+need not be independent of each other. Neither changes the reading.
+
+The size of that noise is worth having on record, damped arm, standard
+deviation of ln q among cells that are the same cell: T 0.5% at A_V
+0.46-1.00, 3.8% at 1.48-1.91, 12% at 1.91-2.29 and 11% at 2.29-2.65;
+x(H) 23% and x(C) 28% at 1.48-1.91; x(C) 98% and x(CO) 58% at
+1.91-2.29, where carbon turns from C+ to C.
+
+The one place the ratio is far from 1.29 is C (0.11) and C+ (0.16) at A_V
+2.29-2.65, just behind that turn: the damped arm's spread of x(C+) inside
+a set is 34%, the undamped arm's 5%. There the written carbon stages of
+the damped arm are noisier than the solve, not quieter. Not looked into
+further; L-49 had the mechanism (a quarter of the previous state is most
+of the new one wherever a stage follows a rate that changes by a large
+factor).
+
+**What is not yet read from the logs.** The share of cells whose molecular
+fraction moves by more than 0.5 in one iteration is 0.41-0.47% undamped
+(60-70 cells, steady from the eighth iteration on) against 0.03-0.05%
+damped. The two are not the same test, since a damped step is 0.75 of the
+solve's and a solve alternating between 0.9 and 0.2 writes steps of 0.42.
+Sixty cells are about a sixth of a one-cell shell at the H/H2 crossing.
+Whether they are the same cells going back and forth (a cycle of period
+two in the front cells, which a negative feedback through the one
+iteration between the temperature solve and the chemistry could give) or
+different cells each time (a front sharper than a cell, moved by the
+field's noise) the logs cannot say. Cell histories can: MOCASSIN rewrites
+`grid1.out` and `pdrGrid.out` at the end of every iteration, and
+`tools/d405_damp/snap.py` copies T, n_e and ten abundances of every
+active cell to `<run>/hist/itNN.npz` each time, reading only. It is
+running on pn150k's undamped arm from its third iteration.
+
+**3. Convergence: the damped arm trails, by three iterations at the
+fifteenth.**
+
+| iteration | integrated test, damped | undamped | cells converged, neutral: damped | undamped | ionized: damped | undamped |
+|---|---|---|---|---|---|---|
+| 8 | 54.9% | 29.9% | 47.5% | 63.0% | 72.0% | 76.2% |
+| 9 | 42.6% | 10.5% | 62.4% | 65.0% | 74.2% | 78.9% |
+| 10 | 16.1% | 7.0% | 67.5% | 65.7% | 75.5% | 83.6% |
+| 11 | 8.25% | 4.60% | 68.4% | 65.0% | 80.3% | 90.8% |
+| 12 | 4.12% | 2.98% | 69.1% | 66.1% | 83.0% | 90.8% |
+| 13 | 3.20% | 2.49% | 69.5% | 65.0% | 88.4% | 94.4% |
+| 14 | 2.32% | 2.002% | 68.4% | 64.6% | 91.6% | 97.9% |
+| 15 | 1.989% | 1.833% | 69.0% | 65.5% | 93.0% | 99.3% |
+
+The 2% stop falls at the fifteenth iteration in both arms (the undamped
+arm misses the fourteenth by 0.002 of a percentage point). What the test
+is reading at the end is not the PDR: the largest change is in Ne+, O+
+or N+, the ionized gas, whose emission measures are still falling in
+both arms. `convergence.out`, the hydrogen emission measure, change per
+iteration from the twelfth to the fifteenth: damped -0.55, -0.46, -0.32,
+-0.24%; undamped -0.38, -0.33, -0.20, -0.14%. Successive steps are in
+the ratio 0.72 without the damping and 0.76 with it (a relaxation of
+ratio q becomes q + 0.25(1 - q) under the blend: 0.72 -> 0.79). The
+damped arm ends where the undamped arm was at iteration 12.1, and the
+undamped arm is ahead at every iteration and in every ion: at the last,
+EM(H+) -0.62%, He+ -0.86%, N+ -1.06%, O+ -1.28%, Ne+ -1.09%, S2+
+-1.35%, S+ +1.76%. The gap closes as both go on (H+: -2.46% at the
+sixth iteration). Carried on as geometric series the two arms have
+-0.77% and -0.36% still to go and end 0.2% apart - one limit, to the
+accuracy of that. **Neither arm is converged to better than 0.4% in
+Hbeta when the 2% test stops it, and the damped one is 0.8% from it.**
+Why the ionized gas of a model like this relaxes with a ratio of 0.7
+per iteration is not known; it is not the damping.
+
+In the neutral gas the undamped arm is on its floor by the seventh
+iteration (step sizes, the chemistry's H2) and the damped arm by the
+tenth. The count of converged neutral cells is lower without the damping
+(65% against 69%) because the step it tests is not shrunk by a quarter.
+Contents at the last iteration, undamped over damped: n(H0) -0.29%,
+n(H2) +0.06%, T(H2) -0.13%.
+
+**4. The damping is what derails the first PDR iterations on the h2-model
+branch.** D-404 left open "hiipdr's jump at iteration 7", after two
+iterations in which most cells did not reach their temperature balance.
+Share of cells in which the balance is not reached, iterations 4, 5, 6,
+7: damped 13, 89, 79, 0%; undamped 14, 0, 0, 0%. Neutral cells with
+hydrogen's first solve more than 10% from the chemistry's at iteration
+7: damped 86.2%, undamped 31.4%. The run that removes only the damping
+removes both. What the budget lines show (`[D217]`, cells that stay
+cold): the damped arm enters the first PDR iteration at a mean 554 K -
+the memory of `TeStart` 8000 K, a quarter at a time - where the undamped
+arm enters at 15 K; both solve to 15 K; the damped arm then writes 157 K
+and enters the next iteration there, with the gas now molecular. The
+level model (H-013) computes H2's heating at that temperature - line
+cooling, since the gas is far warmer than the levels - and the term is
+held fixed through the temperature search: -1.7e-24 erg/s per H at
+iteration 5 and -1.8e-26 at 6, against +1.9e-27 and +1.8e-27 without
+the damping. No temperature balances that, the search ends at 5.9 K and
+9.4 K, and the blend walks down 157 -> 47 -> 19 K before the term comes
+right. Production, which has no level model in its heating, does not
+have these two iterations: `runs/d391-new-hii31` has the balance
+unreached in 55, 54 and 43% of cells at iterations 2-4 and in none from
+the fifth on. (That the term is the level model's is read from the
+budget lines and the code, not from a run with the term taken out.)
+
+**5. The written model is its solution.** Neutral cells in which the
+chemistry's X+/X and the written model's differ by more than 10%:
+
+| | H | He | C | O | Mg |
+|---|---|---|---|---|---|
+| damped | 13.4% | 8.5% | 32.1% | 18.7% | 18.1% |
+| undamped | 0.0% | 0.0% | 0.0% | 9.9% | 0.0% |
+
+Oxygen's 9.9% is L-50's trimmed stage. The first solve's disagreement,
+which is the one-iteration delay, is the same in the two arms (hydrogen
+28.4% and 29.6% of neutral cells at the last iteration, oxygen 21.1% and
+21.3%), and so is what the second solve leaves. The hydrogen budget
+before its rescale is off by more than 1% in 19.9% of cells damped and
+23.3% undamped with the first solve, in none with the second. Second
+solve kept in 15,203 cells of 15,204 damped, in all undamped. No cell
+flagged in either. Cells below 10 K: 1,545 damped, 1,715 undamped
+(coldest 9.47 K in both).
+
+**6. The lines.** Undamped over damped (`cmplines.py`):
+
+  - Hbeta -0.55%, which is the ionized gas three iterations further on
+    (above), not another solution.
+  - No recombination line of 34 above 1e-4 Hbeta by 1% (He I -0.27%,
+    relative to Hbeta).
+  - Of 89 collisionally excited lines above 1e-4 Hbeta, 46 by more than
+    1% and one by more than 5%; median 1.02%. The ionized gas's:
+    [S II] +2.7 to +2.9%, C II] 1335 -2.6%, [O I] 5577 +2.6%.
+  - The H2 lines of the level model: +1.1 to +1.6% over Hbeta for the
+    six named lines (1-0 S(1) +1.60%), +2.07% the largest of 2,690; in
+    luminosity +0.5 to +1.0%.
+  - H/H2 crossing A_V 1.3959 -> 1.3951.
+  - **[C I] 370 um -12.0% and [C I] 609 um -3.2%** (-12.5% and -3.7% in
+    luminosity).
+
+The [C I] lines are where the damping shows in a published number, and
+the reason can be read without a third run. The chemistry stores each
+coolant line's emission from the level populations of its own solve
+(`pdrLineEm.out`), in either arm at the temperature and abundances that
+solve had; `lineFlux.out`'s [C I], [C II] and [O I] are MOCASSIN's own
+atoms on the model as written (D-363). `emdamp.py`, with an error from
+the six wedges of the octant that are the same model (i<j<k and its
+permutations; sqrt(6) of the scatter of a wedge's sum):
+
+| line | solve, undamped / damped - 1 | written / solve, damped | written / solve, undamped |
+|---|---|---|---|
+| [C II] 158 um | -0.48 +- 0.11% | 0.967 | 0.969 |
+| [C I] 609 um | +0.23 +- 0.48% | 1.045 | 1.004 |
+| [C I] 370 um | -0.79 +- 1.87% | 1.116 | 0.985 |
+| [O I] 63 um | -0.66 +- 0.36% | 1.000 | 0.993 |
+| [O I] 145 um | -0.70 +- 0.38% | 0.996 | 0.990 |
+| CO 2-1 | -0.05 +- 0.34% | | |
+| CO 3-2 | -0.27 +- 0.51% | | |
+| CO 4-3 | -1.5 +- 1.5% | | |
+| CO 5-4 | -6.1 +- 4.6% | | |
+| CO 6-5 | -17 +- 10% | | |
+
+The two arms' solves emit the same [C I] to within the noise. The
+undamped written model emits what its solve does (1.004, 0.985); **the
+damped written model emits 4.5% more [C I] 609 um and 11.6% more
+[C I] 370 um than its own solve.** The published hiipdr values are the
+damped written model's. The likely mechanism, not isolated: where a cell
+alternates between "carbon neutral and cold" and "carbon ionized and
+warmer", the blend holds most of the neutral carbon of the first at a
+temperature raised by the second, and a line 62 K above ground at 11 K
+answers a 1.9% change of T with 10%. ([C II] 158 um is 3% under the
+chemistry's in both arms: not the damping.)
+
+CO's lines are the chemistry's own and need no such correction. The
+high ones are carried by a few warm cells in either arm (CO 6-5: one
+cell holds 8.6% of the damped arm's sum and ten cells 28%; undamped 3.4%
+and 16%) and are not a property of the model at this packet count.
+
+**7. What the blend does to a profile.** Contents agree and typical
+values do not. Over all neutral cells, undamped over damped: n(C)
++0.50%, n(C+) -0.39%, n(CO) +0.43%, n(H) -0.24%, n(H2) +0.05%. In the
+band A_V 1.91-2.29, where carbon turns from C+ to C, the mean of n(C)
+agrees to +0.9% and the **median is 1.9 times higher in the damped
+arm** (1.57e-3 against 0.83e-3 cm^-3; CO's median 1.27 times); in the
+other bands the medians of C are within 7%. A running arithmetic mean of
+a quantity that scatters by a factor of e from one iteration to the next
+lies above its median, as the mean of a log-normal does. The published
+profile figures draw medians by shell. Median T by band, damped and
+undamped: 49.85 and 49.80 K, 38.52 and 38.63, 28.69 and 28.73, 20.21 and
+20.45, 11.53 and 11.31, 10.10 and 10.05.
+
+### Predictions, on hiipdr
+
+  1. No branch cycle: **met** (0-1 cells per iteration).
+  2. The floor is noise, steps 1.3-1.7 of the damped arm's: **met** (1.39
+     in the steps, 1.2-1.4 in the noise of equivalent cells).
+  3. Faster at first, then a higher floor and no stop by 15: **half
+     wrong.** Faster, yes (iterations 8-11 at 0.25-0.55 of the damped
+     arm's value). But the test ends lower without the damping (1.83%
+     against 1.99%) and both stop at 15, because what it reads at the end
+     is the ionized gas still relaxing, where the damped arm trails, and
+     not the PDR's noise.
+  4. The written model is its solution: **met** (0.0% in H, He, C, Mg;
+     oxygen 9.9%).
+  5. The delay grows with the steps, hydrogen to 35-45%: **wrong** (28.4
+     -> 29.6%). The terms the first solve takes from the chemistry are the
+     previous iteration's fresh solve in either arm; the damping blends
+     the state, not the terms, so the delay is the field's noise from one
+     iteration to the next and the same in both.
+  6. The lines: Hbeta within 0.3%: **missed** (-0.55%, the lag). [C II]
+     158, [O I] 63, [C I] 609 um within 5%: met (-0.2, -1.3, -3.7% in
+     luminosity). [C I] 370 um within 5%: **missed** (-12.5%, the blend).
+     H2 within 3%: met. CO within 20%: met for what it is worth (6-5
+     -17 +- 10%). Crossing within 0.01 mag: met (0.0008).

@@ -110,7 +110,7 @@ def g(d, k, i=None, fmt='%6.1f', miss='     -'):
 runs = sys.argv[1:]
 R = [(r, ) + read(r) for r in runs]
 for r, it, damp, t in R:
-    print('%-28s iterDamp %s   iterations %d   run time %s' % (r.rstrip('/').split('/')[-1], 'as printed %.2f' % damp if damp else '0 (no damped-T line)', max(it), t))
+    print('%-28s iterDamp %s   iterations %d   run time %s' % (r.rstrip('/').split('/')[-1], 'not printed' if damp is None else '%.2f' % damp, max(it), t))
 
 print('\n-- the model-integrated test: largest change over the last 3 iterations [%] (quantity); cells converged [%], ionized / neutral')
 for i in sorted(set().union(*[set(x[1]) for x in R])):
