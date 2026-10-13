@@ -120,6 +120,7 @@ module pdr_mod
     public :: reportPassChange                           ! D-354
     public :: h2LevelModel                               ! H-007 (branch h2-model)
     public :: pdrIonCompare, reportSecondSolve, pdrIonsToAbun   ! D-404
+    public :: kept404                                           ! D-404
 
     ! D-195: mean GEOMETRIC cross section of one grain [cm^2], per dust chemistry
     ! component, split by material. Fixed by the size distribution and the
@@ -190,14 +191,17 @@ module pdr_mod
     ! D-404: the same counts for a second solve of ionBalance (pdrIonCompare).
     ! Last index, the pass: 1 a control before the chemistry, on the terms
     ! the first solve had; 2 after the chemistry, on this iteration's terms,
-    ! its result discarded; 3 the same solve once the run has stopped, kept;
-    ! 4 the model that is then written, that solve damped as the first was.
-    ! Third index before it, what is compared: 1 the solver's own X+/X
-    ! against the stages after the pass; 2 the stages after it against the
-    ! stages before it; 3 the solver's own against the stages before it.
-    ! ne404: n_e after against before (zone, class, pass).
-    double precision :: ion404(pdrNlinkEl,2,3,3,4) = 0.d0, ionMax404(pdrNlinkEl,2,3,4) = 0.d0
-    double precision :: ne404(2,3,4) = 0.d0
+    ! the model then put back; 3 the model that is written once the run has
+    ! stopped, the last iteration's second solve in the first's place and
+    ! damped as it was. Third index before it, what is compared: 1 the
+    ! solver's own X+/X against the stages after the pass; 2 the stages
+    ! after it against the stages before it; 3 the solver's own against the
+    ! stages before it. ne404: n_e after against before (zone, class, pass).
+    ! kept404: at pass 3, cells that took the second solve and cells that
+    ! stand as they were (no second solve, or its balance not reached).
+    double precision :: ion404(pdrNlinkEl,2,3,3,3) = 0.d0, ionMax404(pdrNlinkEl,2,3,3) = 0.d0
+    double precision :: ne404(2,3,3) = 0.d0
+    integer          :: kept404(2) = 0
     ! te404: at pass 3, how far the temperature the model holds (damped,
     ! iterDamp) stands from the one its last solves ran at: cells, more than
     ! 1% and more than 10% apart, per zone. nProbe404: cells printed by the
@@ -4620,9 +4624,10 @@ module pdr_mod
 
       !-----------------------------------------------------------------
       ! D-404: one cell of a second solve of ionBalance (updateCell's
-      ! ionPass), counted as D-402 counts the first. ionOld and neOld are
-      ! the stages and n_e the solve started from; the grid holds its
-      ! result. The cells are split by ionOld's x(H+), so pass 2 uses the
+      ! ionPass), counted as D-402 counts the first, or - pass 3 - of the
+      ! model as it is written once that solve is in it. ionOld and neOld
+      ! are the stages and n_e before the pass; the grid holds what the pass
+      ! left. The cells are split by ionOld's x(H+), so pass 2 uses the
       ! partition of the [D402] line of the same iteration. Every owned cell
       ! is counted, a cell the pass had nothing to solve in included (it
       ! then stands as it was), so the samples are D-402's.
@@ -4637,7 +4642,7 @@ module pdr_mod
         integer          :: iE, iz, iX, iK
         double precision :: n1, n2, o1, o2, dq(3)
 
-        if (cellP <= 0 .or. iPass < 1 .or. iPass > 4) return
+        if (cellP <= 0 .or. iPass < 1 .or. iPass > 3) return
         if (grid%Hden(cellP) <= 0.) return
         iz = 2
         if (dble(ionOld(elementXref(1),2)) >= 0.5d0) iz = 1
@@ -4712,18 +4717,17 @@ module pdr_mod
         double precision    :: cnt(pdrNlinkEl,2,3,3), mx(pdrNlinkEl,2,3), cne(2,3), cte(2,3)
         character(len=400)  :: line
         character(len=14), parameter :: zlab(2) = (/ 'ionized cells:', 'other cells:  ' /)
-        character(len=56), parameter :: plab(4) = (/ character(len=56) :: &
+        character(len=56), parameter :: plab(3) = (/ character(len=56) :: &
              & 'control, the first solve''s terms:', &
-             & 'second solve, this iteration''s terms (discarded):', &
-             & 'last iteration, second solve (kept), before the damping:', &
+             & 'second solve, this iteration''s terms:', &
              & 'last iteration, the model as written:' /)
         character(len=40), parameter :: klab(3) = (/ character(len=40) :: &
              & 'solver X+/X vs MOCASSIN''s after it, ', &
              & 'MOCASSIN''s X+/X moved, ', &
              & 'solver X+/X vs MOCASSIN''s before it, ' /)
-        integer             :: iz, iq, ierr, nFail, iK
+        integer             :: iz, iq, ierr, nFail, iK, nKept(2)
 
-        if (iPass < 1 .or. iPass > 4) return
+        if (iPass < 1 .or. iPass > 3) return
         nProbe404 = 0
         call mpi_allreduce(nIonPassFail, nFail, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
         nIonPassFail = 0
@@ -4739,14 +4743,14 @@ module pdr_mod
            call mpi_allreduce(te404, cte, 6, mpi_double_precision, &
                 & mpi_sum, mpi_comm_world, ierr)
            te404 = 0.d0
+           call mpi_allreduce(kept404, nKept, 2, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+           kept404 = 0
         end if
         if (taskid /= 0) return
 
         do iK = 3, 1, -1
-           ! the control has only what it moved; the kept solve before the
-           ! damping is read against the solver alone
+           ! the control has only what it moved
            if (iPass == 1 .and. iK /= 2) cycle
-           if (iPass == 3 .and. iK /= 1) cycle
            do iz = 1, 2
               write(line, '(a,i3,2x,a,2x,a,1x,a)') " ! [D404] iteration", iterMC, &
                    & trim(plab(iPass)), trim(klab(iK)), zlab(iz)
@@ -4761,28 +4765,41 @@ module pdr_mod
               print '(a)', trim(line)
            end do
         end do
-        if (iPass /= 4) print '(a,i3,2x,a,a,i7,a,f6.1,a,f6.1,a,i7,a,f6.1,a,f6.1,a,i6)', &
-             & " ! [D404] iteration", iterMC, trim(plab(iPass)), &
-             & "  n_e moved, ionized cells: n", nint(cne(1,1)), &
-             & " >10%", 100.d0*cne(1,2)/max(cne(1,1),1.d0), &
-             & " >2x", 100.d0*cne(1,3)/max(cne(1,1),1.d0), &
-             & "  other cells: n", nint(cne(2,1)), &
-             & " >10%", 100.d0*cne(2,2)/max(cne(2,1),1.d0), &
-             & " >2x", 100.d0*cne(2,3)/max(cne(2,1),1.d0), &
-             & "  balance not reached in", nFail
-        if (iPass == 3) print '(a,i3,a,f5.2,a,i7,a,f6.1,a,f6.1,a,i7,a,f6.1,a,f6.1)', &
-             & " ! [D404] iteration", iterMC, "  the model's T (damped, iterDamp", iterDamp, &
-             & ") vs the T its last solves ran at, ionized cells: n", nint(cte(1,1)), &
-             & " >1%", 100.d0*cte(1,2)/max(cte(1,1),1.d0), &
-             & " >10%", 100.d0*cte(1,3)/max(cte(1,1),1.d0), &
-             & "  other cells: n", nint(cte(2,1)), &
-             & " >1%", 100.d0*cte(2,2)/max(cte(2,1),1.d0), &
-             & " >10%", 100.d0*cte(2,3)/max(cte(2,1),1.d0)
+        if (iPass /= 3) then
+           print '(a,i3,2x,a,a,i7,a,f6.1,a,f6.1,a,i7,a,f6.1,a,f6.1,a,i6)', &
+                & " ! [D404] iteration", iterMC, trim(plab(iPass)), &
+                & "  n_e moved, ionized cells: n", nint(cne(1,1)), &
+                & " >10%", 100.d0*cne(1,2)/max(cne(1,1),1.d0), &
+                & " >2x", 100.d0*cne(1,3)/max(cne(1,1),1.d0), &
+                & "  other cells: n", nint(cne(2,1)), &
+                & " >10%", 100.d0*cne(2,2)/max(cne(2,1),1.d0), &
+                & " >2x", 100.d0*cne(2,3)/max(cne(2,1),1.d0), &
+                & "  balance not reached in", nFail
+        else
+           print '(a,i3,2x,a,a,i7,a,f6.1,a,f6.1,a,i7,a,f6.1,a,f6.1,a,i7,a,i7)', &
+                & " ! [D404] iteration", iterMC, trim(plab(iPass)), &
+                & "  n_e moved, ionized cells: n", nint(cne(1,1)), &
+                & " >10%", 100.d0*cne(1,2)/max(cne(1,1),1.d0), &
+                & " >2x", 100.d0*cne(1,3)/max(cne(1,1),1.d0), &
+                & "  other cells: n", nint(cne(2,1)), &
+                & " >10%", 100.d0*cne(2,2)/max(cne(2,1),1.d0), &
+                & " >2x", 100.d0*cne(2,3)/max(cne(2,1),1.d0), &
+                & "  second solve kept in", nKept(1), " cells, not in", nKept(2)
+           print '(a,i3,a,f5.2,a,i7,a,f6.1,a,f6.1,a,i7,a,f6.1,a,f6.1)', &
+                & " ! [D404] iteration", iterMC, "  the model's T (damped, iterDamp", iterDamp, &
+                & ") vs the T its last solves ran at, ionized cells: n", nint(cte(1,1)), &
+                & " >1%", 100.d0*cte(1,2)/max(cte(1,1),1.d0), &
+                & " >10%", 100.d0*cte(1,3)/max(cte(1,1),1.d0), &
+                & "  other cells: n", nint(cte(2,1)), &
+                & " >1%", 100.d0*cte(2,2)/max(cte(2,1),1.d0), &
+                & " >10%", 100.d0*cte(2,3)/max(cte(2,1),1.d0)
+        end if
       end subroutine reportSecondSolve
 
       !-----------------------------------------------------------------
-      ! D-404: after a second solve whose result is kept, the atoms and
-      ! first ions the chemistry's state holds follow it - each linked
+      ! D-404: once the last iteration's second solve is in the model
+      ! (ionKeepSecond), the atoms and first ions the chemistry's state
+      ! holds follow it - each linked
       ! element's X + X+ in MOCASSIN's stage 1 : stage 2, and MOCASSIN's
       ! electrons - the rule pdrStep applies after every solve (D-162,
       ! D-231). ionDen and Ne are reduced by then and every rank holds
