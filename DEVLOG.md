@@ -36739,3 +36739,44 @@ iteration's own molecular content, and 0.75 of it plus 0.25 of the stages
 the iteration started with sums to 1 minus twice the damped x(H2) exactly.
 The stale normalisation is the same delay, seen in the conserved sum
 instead of in a ratio.
+
+### The runs on the code as it stands: hiipdr (`runs/d404b-hii31`)
+
+Same input, seed and rank count as `d403-hii31` and `d404-hii31`; h2-model
+at 997efdf. 40:02 (48:39 two days before on the first version, 52:44 for
+D-403's three days before: the machine was faster this morning, and no cost
+of the passes can be read from these).
+
+  - **Path and passes**: the per-iteration lines are D-403's, and the 36
+    control and 84 second-solve lines are those of `d404-hii31` to the
+    printed digit, the 120 probe lines too. Everything said above about
+    passes 1 and 2 on hiipdr stands as measured.
+  - **Kept**: the second solve takes the first's place in 15,203 of the
+    15,204 cells; one stands as it was.
+  - **The written model against the solver**, cells outside the ionized
+    zone more than 10% apart: H 28.7 -> 13.4, He 14.7 -> 8.5, C 32.0 ->
+    32.1, O 25.7 -> 18.7, Mg 25.1 -> 18.1 per cent (with the third solve of
+    the first version: 16.0, 8.6, 31.8, 19.7, 18.0). More than 2x: H 0.5 ->
+    0.6, He 1.5 -> 1.5, C 12.4 -> 12.6, O 2.2 -> 1.9, Mg 4.9 -> 0.4. The
+    written X+/X changes by more than 10% in H 20.7, He 9.1, C 1.2, O 8.9,
+    Mg 12.1% of these cells, and n_e in 1.6%. Nothing changes in the
+    ionized cells.
+  - **The hydrogen budget closes**: before the rescale, x(H0) + x(H+) +
+    2x(H2) is off 1 by more than 1% in 3,028 cells (19.9%, mean 0.0107)
+    with the first solve and in none (mean 0.0000) with the second. The
+    short test's result holds on the full model.
+  - **Lines**: Hbeta 9.16644 -> 9.16615e36 erg/s (-0.003%); 0 of 68
+    recombination lines above 1e-7 Hbeta by 1%; **1 of 69 collisionally
+    excited lines above 1e-3 Hbeta by 1%: [C I] 370 um, 1.0731e-3 ->
+    1.0623e-3 Hbeta (-1.0%)**, with [C I] 609 um -0.14%; CO 1-0 to 4-3
+    x1.0000; the 4,083 H2 lines within 0.04% (0-0 S(0) x1.0004). Prediction
+    7 said no collisionally excited line above 1e-3 Hbeta by more than 2%
+    on hiipdr: met. Medians by radius: H+ x0.977-1.02, e- x0.992-0.999, O+
+    x0.989-1.03, C+ x1.04 at 16 pc, C x0.990-0.995, He+ x0.992-0.999, the
+    molecules and the temperature unchanged. No cell flagged; inner
+    convergence lines as D-403's.
+
+Page: [hiipdr Against Cloudy](https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx),
+the page's version 27 (2026-10-13), rebuilt on this run with a new first
+section; version 26's "what holds these cells apart here has not been
+found" is annotated.
