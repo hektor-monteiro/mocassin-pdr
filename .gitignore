@@ -54,3 +54,7 @@ pdrSmokeTest
 # extracted from them are in the DEVLOG; the raw logs are not worth versioning.
 runs/
 tools/__pycache__/
+
+# Python byte code (tools/)
+__pycache__/
+*.pyc
