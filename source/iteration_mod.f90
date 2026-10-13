@@ -39,12 +39,14 @@ module iteration_mod
        integer :: num_chunks, chunk_elements
        real, allocatable :: temp_chunk(:,:,:)
 #ifdef PDR
-       ! D-404: what the kept second solve needs once the run has stopped -
-       ! the temperature the last iteration's solves ran at (before the
-       ! D-174 damping) and the stages that iteration started from (the
-       ! D-200 snapshot, handed on instead of freed). Here and not in
-       ! iterateMC, which is recursive.
-       real, allocatable :: teSolved404(:), ionStart404(:,:,:)
+       ! D-404: what keeping the last iteration's second solve needs once
+       ! the run has stopped - that solve's stages and n_e in the cells this
+       ! rank owns (lgSecond404: 1 where it was solved and reached its
+       ! balance), and the stages the iteration started from (the D-200
+       ! snapshot, handed on instead of freed). Here and not in iterateMC,
+       ! which is recursive.
+       real, allocatable    :: ionSecond404(:,:,:), neSecond404(:), ionStart404(:,:,:)
+       integer, allocatable :: lgSecond404(:)
 #endif
 
        call iterateMC()
@@ -2139,8 +2141,11 @@ module iteration_mod
               ! iteration's chemistry has just left, at the temperature both
               ! solves ran at, and count how far the solver's own X+/X stands
               ! from THAT - the [D402] line with the delay removed and
-              ! nothing else changed. The result is discarded: the iteration
-              ! goes on from the first solve, as it did before.
+              ! nothing else changed. The model is put back as it was: the
+              ! iteration goes on from the first solve, as it did before.
+              ! The second solve's result is set aside, and kept in the
+              ! first's place should this be the run's last iteration
+              ! (ionKeepSecond).
               if (lgGas) then
                  call ionSecondSolve(iG, 2)
                  call reportSecondSolve(nIterateMC, 2)
@@ -2348,14 +2353,6 @@ module iteration_mod
            ! across ranks, so every rank damps the same complete array against
            ! the same iteration-start snapshot. Te only, for now: it is the
            ! bistable variable, and one change at a time is the point.
-#ifdef PDR
-           ! D-404: the temperature this iteration's solves ran at, kept for
-           ! the second solve should the run stop here
-           if (lgPDR .and. lgGas .and. nGrids == 1) then
-              if (.not.allocated(teSolved404)) allocate(teSolved404(0:grid(1)%nCells))
-              teSolved404 = grid(1)%Te(0:grid(1)%nCells)
-           end if
-#endif
            if (iterDamp > 0.) then
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%TeIterStart)) cycle
@@ -3224,7 +3221,7 @@ module iteration_mod
 #endif
 
 #ifdef PDR
-              call ionFinalSolve()                              ! D-404
+              call ionKeepSecond()                              ! D-404
 #endif
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
@@ -3252,7 +3249,7 @@ module iteration_mod
            else if (nIterateMC >= maxIterateMC) then
 
 #ifdef PDR
-              call ionFinalSolve()                              ! D-404
+              call ionKeepSecond()                              ! D-404
 #endif
               if (taskid==0) then
 
@@ -3324,49 +3321,41 @@ module iteration_mod
          ! caller reports). The ownership is updateCell's and pdrStep's, so
          ! each rank reads its own cells' stored solver ratios.
          !
-         ! iPass 1 and 2 leave the model exactly as they found it: the
-         ! stages, n_e, their reduction buffers and the rates ionBalance
-         ! stores for the chemistry are put back cell by cell.
-         !
-         ! iPass 3 runs once the run has stopped and keeps the result. By
-         ! then the model holds the damped temperature and stages (D-174,
-         ! D-200), so the solve is made at the temperature the last
-         ! iteration's solves ran at (teSolved404) and its stages are damped
-         ! against the iteration's start exactly as the first solve's were:
-         ! the model that is written differs from the one without this pass
-         ! in the terms of that one solve and in nothing else. n_e is the
-         ! second solve's, as it was the first solve's (it is not damped).
-         ! A cell whose second solve does not reach the balance stands as it
-         ! was (counted, not flagged). Collective for iPass 3.
+         ! Both passes leave the model exactly as they found it: the stages,
+         ! n_e, their reduction buffers and the rates ionBalance stores for
+         ! the chemistry are put back cell by cell. iPass 1 is the control,
+         ! before the chemistry. iPass 2, after it, also sets its result
+         ! aside for ionKeepSecond, in the cells where the solve was made
+         ! and reached its balance.
          subroutine ionSecondSolve(iG, iPass)
            implicit none
-           include 'mpif.h'
 
            integer, intent(in) :: iG, iPass
 
-           integer :: ii, jj, kk, iC, cP, yT, nSz, ierr4, err4
-           logical :: lgOwnTemp
-           real    :: neSv, neTmpSv, teSv
+           integer :: ii, jj, kk, iC, cP, yT, err4
+           logical :: lgSave
+           real    :: neSv, neTmpSv
            real, allocatable    :: ionSv(:,:), ionTmpSv(:,:), photSv(:), alphaSv(:)
 
-           if (.not.lgGas) return
+           if (.not.lgGas .or. .not.allocated(NeTemp)) return
            if (iG > 1 .or. (.not.lg2D)) then
               yT = grid(iG)%ny
            else
               yT = 1
            end if
 
-           ! after the run has stopped the reduction buffers are gone
-           lgOwnTemp = .not.allocated(NeTemp)
-           if (lgOwnTemp) then
-              allocate(NeTemp(0:grid(iG)%nCells), ionDenTemp(0:grid(iG)%nCells, &
-                   & nElementsUsed, nStages), stat = err4)
-              if (err4 /= 0) then
-                 print*, "! ionSecondSolve: can't allocate array memory: NeTemp, ionDenTemp ", iG
-                 stop
+           ! one grid, as the damping the kept solve has to follow
+           lgSave = (iPass == 2 .and. nGrids == 1)
+           if (lgSave) then
+              if (.not.allocated(ionSecond404)) then
+                 allocate(ionSecond404(0:grid(iG)%nCells, nElementsUsed, nStages), &
+                      & neSecond404(0:grid(iG)%nCells), lgSecond404(0:grid(iG)%nCells), stat = err4)
+                 if (err4 /= 0) then
+                    print*, "! ionSecondSolve: can't allocate array memory: ionSecond404 ", iG
+                    stop
+                 end if
               end if
-              NeTemp     = 0.
-              ionDenTemp = 0.
+              lgSecond404 = 0
            end if
            allocate(ionSv(nElementsUsed, nStages), ionTmpSv(nElementsUsed, nStages))
            if (allocated(grid(iG)%pdrPhotRate)) &
@@ -3385,86 +3374,120 @@ module iteration_mod
                     neSv     = grid(iG)%Ne(cP)
                     ionTmpSv = ionDenTemp(cP,:,:)
                     neTmpSv  = NeTemp(cP)
-                    if (iPass == 3) then
-                       teSv = grid(iG)%Te(cP)
-                       if (allocated(teSolved404)) then
-                          if (teSolved404(cP) > 0.) grid(iG)%Te(cP) = teSolved404(cP)
-                       end if
-                       call updateCell(grid(iG), ii, jj, kk, .true.)
-                       grid(iG)%Te(cP) = teSv
-                       if (lgIonPassDone .and. .not.lgIonPassConv) then
-                          grid(iG)%ionDen(cP,:,:) = ionSv
-                          grid(iG)%Ne(cP)         = neSv
-                          ionDenTemp(cP,:,:)      = ionSv
-                          NeTemp(cP)              = neSv
-                          lgIonPassDone           = .false.
-                       end if
-                       call pdrIonCompare(grid(iG), cP, 3, ionSv, neSv)
-                       ! damped as the first solve's stages were, in the
-                       ! cells the pass solved; the others stand as they are
-                       if (lgIonPassDone .and. iterDamp > 0. .and. allocated(ionStart404)) then
-                          grid(iG)%ionDen(cP,:,:) = (1.-iterDamp)*grid(iG)%ionDen(cP,:,:) &
-                               & + iterDamp*ionStart404(cP,:,:)
-                          ionDenTemp(cP,:,:) = grid(iG)%ionDen(cP,:,:)
-                       end if
-                       call pdrIonCompare(grid(iG), cP, 4, ionSv, neSv)
-                    else
-                       if (allocated(photSv)) then
-                          photSv  = grid(iG)%pdrPhotRate(cP,:)
-                          alphaSv = grid(iG)%pdrAlphaRec(cP,:)
-                       end if
-                       call updateCell(grid(iG), ii, jj, kk, .true.)
-                       call pdrIonCompare(grid(iG), cP, iPass, ionSv, neSv)
-                       grid(iG)%ionDen(cP,:,:) = ionSv
-                       grid(iG)%Ne(cP)         = neSv
-                       ionDenTemp(cP,:,:)      = ionTmpSv
-                       NeTemp(cP)              = neTmpSv
-                       if (allocated(photSv)) then
-                          grid(iG)%pdrPhotRate(cP,:) = photSv
-                          grid(iG)%pdrAlphaRec(cP,:) = alphaSv
-                       end if
+                    if (allocated(photSv)) then
+                       photSv  = grid(iG)%pdrPhotRate(cP,:)
+                       alphaSv = grid(iG)%pdrAlphaRec(cP,:)
+                    end if
+                    call updateCell(grid(iG), ii, jj, kk, .true.)
+                    call pdrIonCompare(grid(iG), cP, iPass, ionSv, neSv)
+                    if (lgSave .and. lgIonPassDone .and. lgIonPassConv) then
+                       ionSecond404(cP,:,:) = grid(iG)%ionDen(cP,:,:)
+                       neSecond404(cP)      = grid(iG)%Ne(cP)
+                       lgSecond404(cP)      = 1
+                    end if
+                    grid(iG)%ionDen(cP,:,:) = ionSv
+                    grid(iG)%Ne(cP)         = neSv
+                    ionDenTemp(cP,:,:)      = ionTmpSv
+                    NeTemp(cP)              = neTmpSv
+                    if (allocated(photSv)) then
+                       grid(iG)%pdrPhotRate(cP,:) = photSv
+                       grid(iG)%pdrAlphaRec(cP,:) = alphaSv
                     end if
                  end do
               end do
            end do
 
-           if (iPass == 3) then
-              nSz = grid(iG)%nCells + 1
-              call mpi_allreduce(NeTemp, grid(iG)%Ne, nSz, &
-                   & mpi_real, mpi_sum, mpi_comm_world, ierr4)
-              nSz = (grid(iG)%nCells+1)*nElementsUsed*nStages
-              call mpi_allreduce(ionDenTemp, grid(iG)%ionDen, nSz, &
-                   & mpi_real, mpi_sum, mpi_comm_world, ierr4)
-           end if
-
            deallocate(ionSv, ionTmpSv)
            if (allocated(photSv)) deallocate(photSv, alphaSv)
-           if (lgOwnTemp) deallocate(NeTemp, ionDenTemp)
 
          end subroutine ionSecondSolve
 
          ! ------------------------------------------------------- D-404
-         ! The kept second solve, once the run has decided to stop: the
-         ! stages that are written out hold, for the last iteration, the
-         ! balance on that iteration's own chemistry and not on the one
-         ! before it. The stage sums and the chemistry's atoms and electrons
-         ! follow, as they follow the first solve (rescaleIonToAvail, D-220;
-         ! pdrIonsToAbun). The temperature is NOT solved again: it stands as
-         ! updateCell left it, on the first solve's ions, and the chemistry
-         ! is not solved again on the new ones.
-         ! Collective; every rank calls it. One grid, as the damping it
-         ! follows.
-         subroutine ionFinalSolve()
+         ! Once the run has decided to stop, the last iteration's second
+         ! solve takes the first solve's place in the model that is written:
+         ! its stages damped against the iteration's start exactly as the
+         ! first solve's were (D-200), its n_e as it is (n_e is not damped).
+         ! The written model then differs from the one without this step in
+         ! the terms of that one solve and in nothing else - same
+         ! temperature, same field, same molecular content - and the solve
+         ! itself is the one pass 2 made straight after the chemistry, not a
+         ! new one from the damped state (the first version of this did that
+         ! and did not reach its balance in 549 of pn150k's cells). A cell
+         ! with no second solve, or one that did not reach its balance,
+         ! stands as it is. The stage sums and the chemistry's atoms and
+         ! electrons follow as they follow the first solve
+         ! (rescaleIonToAvail, D-220; pdrIonsToAbun).
+         !
+         ! NOT done: the temperature is not solved again on the new ions,
+         ! and the chemistry is not solved again on them.
+         ! Collective; every rank calls it. One grid, as the damping.
+         subroutine ionKeepSecond()
            implicit none
+           include 'mpif.h'
+
+           integer :: ii, jj, kk, iC, cP, yT, nSz, ierr4, err4
+           real    :: neSv
+           real, allocatable :: ionSv(:,:)
 
            if (.not.(lgPDR .and. lgGas)) return
            if (nIterateMC < pdrStartIter .or. nGrids /= 1) return
-           call ionSecondSolve(1, 3)
+           if (.not.allocated(ionSecond404)) return
+           if (.not.lg2D) then
+              yT = grid(1)%ny
+           else
+              yT = 1
+           end if
+
+           allocate(NeTemp(0:grid(1)%nCells), ionDenTemp(0:grid(1)%nCells, &
+                & nElementsUsed, nStages), ionSv(nElementsUsed, nStages), stat = err4)
+           if (err4 /= 0) then
+              print*, "! ionKeepSecond: can't allocate array memory: NeTemp, ionDenTemp"
+              stop
+           end if
+           NeTemp     = 0.
+           ionDenTemp = 0.
+
+           iC = 0
+           do ii = 1, grid(1)%nx
+              do jj = 1, yT
+                 do kk = 1, grid(1)%nz
+                    iC = iC + 1
+                    if (mod(iC-(taskid+1),numtasks) /= 0) cycle
+                    cP = grid(1)%active(ii,jj,kk)
+                    if (cP <= 0) cycle
+                    ionSv = grid(1)%ionDen(cP,:,:)
+                    neSv  = grid(1)%Ne(cP)
+                    if (lgSecond404(cP) == 1) then
+                       if (iterDamp > 0. .and. allocated(ionStart404)) then
+                          grid(1)%ionDen(cP,:,:) = (1.-iterDamp)*ionSecond404(cP,:,:) &
+                               & + iterDamp*ionStart404(cP,:,:)
+                       else
+                          grid(1)%ionDen(cP,:,:) = ionSecond404(cP,:,:)
+                       end if
+                       grid(1)%Ne(cP) = neSecond404(cP)
+                       kept404(1) = kept404(1) + 1
+                    else
+                       kept404(2) = kept404(2) + 1
+                    end if
+                    ionDenTemp(cP,:,:) = grid(1)%ionDen(cP,:,:)
+                    NeTemp(cP)         = grid(1)%Ne(cP)
+                    call pdrIonCompare(grid(1), cP, 3, ionSv, neSv)
+                 end do
+              end do
+           end do
+
+           nSz = grid(1)%nCells + 1
+           call mpi_allreduce(NeTemp, grid(1)%Ne, nSz, &
+                & mpi_real, mpi_sum, mpi_comm_world, ierr4)
+           nSz = (grid(1)%nCells+1)*nElementsUsed*nStages
+           call mpi_allreduce(ionDenTemp, grid(1)%ionDen, nSz, &
+                & mpi_real, mpi_sum, mpi_comm_world, ierr4)
+           deallocate(NeTemp, ionDenTemp, ionSv)
+
            call reportSecondSolve(nIterateMC, 3)
-           call reportSecondSolve(nIterateMC, 4)
            call rescaleIonToAvail(grid(1:nGrids))
            call pdrIonsToAbun(grid(1:nGrids))
-         end subroutine ionFinalSolve
+         end subroutine ionKeepSecond
 #endif
 
          ! ------------------------------------------------------- D-196

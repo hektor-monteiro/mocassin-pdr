@@ -5,9 +5,13 @@ usage: read404.py <run dir> [<base run dir>]
 
 Prints, per iteration and for the cells outside the ionized zone (x(H+) < 0.5), the per cent of
 cells whose solver X+/X is more than 10% (and more than 2x) from MOCASSIN's: after the first solve
-([D402]), after a second solve on the same iteration's terms (pass 2, discarded), and what the
-control moved. Then the kept solve and the written model at the last iteration. With a base run,
-checks that every per-iteration line that depends on the model's state is identical in the two.
+([D402]), after a second solve on the same iteration's terms (pass 2, the model put back), and
+what the control moved. Then the written model at the last iteration, with the second solve kept
+in the first's place. With a base run, checks that every per-iteration line that depends on the
+model's state is identical in the two.
+
+Runs of the first version of the kept pass (runs/d404-hii31, d404-pn41: a third solve from the
+damped state) print a "before the damping" line as well; it is read if present.
 """
 import re, sys
 
@@ -26,7 +30,7 @@ def parse(lines):
         elif '[D404] iteration' in l:
             it = int(l.split('iteration')[1].split()[0])
             if 'control' in l: ps = 'control'
-            elif 'discarded' in l: ps = 'second'
+            elif "second solve, this iteration's terms" in l: ps = 'second'
             elif 'before the damping' in l: ps = 'kept'
             elif 'as written' in l: ps = 'written'
             else: ps = None
@@ -35,8 +39,10 @@ def parse(lines):
                 out[('te', it)] = m.groups()
                 continue
             if 'n_e moved' in l:
-                m = re.search(r'ionized cells: n\s*(\d+) >10%\s*([\d.]+) >2x\s*([\d.]+)\s+other cells: n\s*(\d+) >10%\s*([\d.]+) >2x\s*([\d.]+)\s+balance not reached in\s*(\d+)', l)
-                out[('ne', ps, it)] = m.groups()
+                m = re.search(r'ionized cells: n\s*(\d+) >10%\s*([\d.]+) >2x\s*([\d.]+)\s+other cells: n\s*(\d+) >10%\s*([\d.]+) >2x\s*([\d.]+)', l)
+                f = re.search(r'balance not reached in\s*(\d+)', l)
+                k = re.search(r'second solve kept in\s*(\d+) cells, not in\s*(\d+)', l)
+                out[('ne', ps, it)] = m.groups() + ((f.group(1),) if f else (None,)) + (k.groups() if k else (None, None))
                 continue
             if 'before it' in l: k = 'before'
             elif 'after it' in l: k = 'after'
@@ -72,11 +78,12 @@ def main():
         n = P.get(('ne', 'second', it)); c = P.get(('ne', 'control', it))
         print('  it %2d  n_e >10%% %s  >2x %s   not reached %s   (control: n_e >10%% %s, not reached %s)' % (
             it, n[4], n[5], n[6], c[4], c[6]))
-    kit = sorted({k[3] for k in P if k[0] == 'kept'})
+    kit = sorted({k[3] for k in P if k[0] == 'written' and k[1] == 'after'})
     for it in kit:
-        print('-- last iteration (%d): the kept solve and the written model, cells outside the ionized zone' % it)
-        print('  solver vs kept solve, before the damping   >10%%: %s' % fmt(P[('kept', 'after', 'oth', it)]))
-        print('                                             >2x : %s' % fmt(P[('kept', 'after', 'oth', it)], 3))
+        print('-- last iteration (%d): the written model, cells outside the ionized zone' % it)
+        if ('kept', 'after', 'oth', it) in P:
+            print('  solver vs third solve, before the damping  >10%%: %s' % fmt(P[('kept', 'after', 'oth', it)]))
+            print('                                             >2x : %s' % fmt(P[('kept', 'after', 'oth', it)], 3))
         print('  solver vs written model, without the pass  >10%%: %s' % fmt(P[('written', 'before', 'oth', it)]))
         print('  solver vs written model, with the pass     >10%%: %s' % fmt(P[('written', 'after', 'oth', it)]))
         print('                           without / with    >2x : %s / %s' % (
@@ -84,8 +91,12 @@ def main():
         print('  the written X+/X moved by the pass         >10%%: %s' % fmt(P[('written', 'moved', 'oth', it)]))
         print('                                             >2x : %s' % fmt(P[('written', 'moved', 'oth', it)], 3))
         print('  ionized cells, written X+/X moved          >10%%: %s' % fmt(P[('written', 'moved', 'ion', it)]))
-        n = P[('ne', 'kept', it)]
-        print('  n_e moved >10%%: ionized %s, other %s; balance not reached in %s cells' % (n[1], n[4], n[6]))
+        if ('ne', 'written', it) in P:
+            n = P[('ne', 'written', it)]
+            print('  n_e moved >10%%: ionized %s, other %s; second solve kept in %s cells, not in %s' % (n[1], n[4], n[7], n[8]))
+        else:
+            n = P[('ne', 'kept', it)]
+            print('  n_e moved >10%%: ionized %s, other %s; third solve: balance not reached in %s cells' % (n[1], n[4], n[6]))
         t = P[('te', it)]
         print('  written T vs solved T: ionized cells n %s >1%% %s >10%% %s;  other cells n %s >1%% %s >10%% %s' % t)
     if len(sys.argv) > 2:
