@@ -49,6 +49,13 @@ And the cells over-ionized for one iteration: neutral cells whose x(H+)
 at an iteration is more than ten times their own median over the
 iterations - how many per iteration, with helium too, by depth, and how
 many of the molecular fraction's large down-steps fall on one: events().
+It also tests what such an event should need if it is a carbon-ionizing
+packet absorbed by neutral carbon and re-emitted ionizing: carbon neutral in
+the cell at the iteration before (the opacities a transfer runs on are the
+last iteration's) and a packet of the band now. Per 0.1 mag: the share of
+events in cells whose carbon was in the deep state the iteration before,
+against that share among all the cells; and the event rate over the product
+of the bin's shares of ionized and deep cells.
 
 --unblend=b takes the damping out of a damped run's history before anything
 is computed: the written state is (1 - b) of the iteration's solve and b of
@@ -239,6 +246,19 @@ def events(run, i0=9, i1=None, fac=10., edges=None):
         out['bands'].append({'lo': float(a), 'hi': float(b), 'cells': int(m.sum()), 'rate': float(e.mean()),
                              'fac': float(np.median((hp[:, m] / mh[None, m])[e])) if e.any() else None,
                              'lost30': float(lost[:, m][e].mean()) if e.any() else None, 'fmol': float(np.median(mf[m]))})
+    fc = arr('x_C+') / np.maximum(arr('x_C+') + arr('x_C') + arr('x_CO'), 1e-300)
+    out['carbon'] = []
+    lo = np.floor(10 * av[neutral].min()) / 10
+    for a in np.arange(lo, av[neutral].max(), 0.1):
+        m = neutral & (av >= a) & (av < a + 0.1)
+        if m.sum() < 50:
+            continue
+        e, offb = ev[1:, m], fc[:-1, m] < 0.18
+        p_on, p_off = float((fc[:, m] > 0.9).mean()), float((fc[:, m] < 0.18).mean())
+        if e.sum() < 5 or p_on * p_off < 5e-3:
+            continue
+        out['carbon'].append({'lo': float(a), 'cells': int(m.sum()), 'n': int(e.sum()), 'rate': float(e.mean()), 'off_before_events': float(offb[e].mean()),
+                              'off_before_all': float(offb.mean()), 'on': p_on, 'off': p_off, 'ratio': float(e.mean() / (p_on * p_off))})
     return out
 
 
@@ -342,6 +362,11 @@ if __name__ == '__main__':
     for b in Ev['bands']:
         print('   %.2f-%.2f   %6d   %10.3f   %24s   %20s   %14.3f' % (b['lo'], b['hi'], b['cells'], 100 * b['rate'],
               '%.0f' % b['fac'] if b['fac'] else '-', '%.0f' % (100 * b['lost30']) if b['lost30'] is not None else '-', b['fmol']))
+    if Ev['carbon']:
+        print('   A_V        events   per cell and iteration [%]   carbon deep the iteration before [%]: at the events | all cells   ionized x deep   rate over it')
+        for b in Ev['carbon']:
+            print('   %.1f-%.1f   %6d   %12.3f   %38.1f | %5.1f   %18.4f   %10.3f' % (b['lo'], b['lo'] + 0.1, b['n'], 100 * b['rate'],
+                  100 * b['off_before_events'], 100 * b['off_before_all'], b['on'] * b['off'], b['ratio']))
     print()
     Or = orient(run, A['its'][0], A['its'][-1])
     print('by direction: time-mean ln q of the cell nearest the plane x = 0, y = 0, z = 0, less the mean of its set of six (+- of the z value)')

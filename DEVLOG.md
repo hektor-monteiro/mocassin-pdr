@@ -37912,6 +37912,36 @@ limitation (the status document); a remedy is a design decision (which
 spectrum a non-hydrogen absorption should return through) and none is
 made here.
 
+**A test the mechanism could have failed (18:21).** If an event is a
+carbon-ionizing packet absorbed by neutral carbon, it needs two things at
+once: carbon neutral in that cell in the model the transfer ran on, which
+is the one written at the iteration before, and a packet of the band now.
+So events should fall on cells whose carbon was in the deep state the
+iteration before far more often than the cells of their depth are in it,
+and their rate should follow the product of a bin's shares of ionized and
+deep cells. `histdamp.events`, undamped run, iterations 9-15:
+
+| A_V | events | per cell and iteration | carbon deep the iteration before: at the events | all the cells of the bin | ionized x deep | rate over it |
+|---|---|---|---|---|---|---|
+| 1.8-1.9 | 8 | 0.22% | 38% | 0.8% | 0.008 | 0.28 |
+| 1.9-2.0 | 27 | 0.67% | 33% | 3.2% | 0.031 | 0.22 |
+| 2.0-2.1 | 43 | 0.94% | 67% | 10.6% | 0.085 | 0.11 |
+| 2.1-2.2 | 104 | 2.09% | 68% | 25.4% | 0.154 | 0.14 |
+| 2.2-2.3 | 111 | 2.15% | 87% | 47.3% | 0.184 | 0.12 |
+| 2.3-2.4 | 102 | 1.74% | 87% | 69.9% | 0.134 | 0.13 |
+| 2.4-2.5 | 61 | 0.98% | 97% | 86.5% | 0.066 | 0.15 |
+| 2.5-2.6 | 32 | 0.50% | 100% | 94.2% | 0.028 | 0.18 |
+| 2.6-2.7 | 13 | 0.18% | 100% | 97.7% | 0.011 | 0.16 |
+
+Both hold. Where few cells have neutral carbon the events pick them out
+(a third of the events at A_V 1.8-2.0 from the 1-3% of cells that had
+it; two thirds at 2.0-2.2 from the 11-25%). And from A_V 2.0 to 2.7 the
+rate is 0.11-0.18 of the product while the rate itself changes twelvefold:
+of the times a packet of the band meets a cell whose carbon the transfer
+holds neutral, one in six to nine ends as an over-ionized cell. That is
+still not the run with the channel closed, but it is no longer only a
+reading of the code.
+
 Two things follow whichever way that turns out. First, the chemistry is
 solved in steady state, so it answers one iteration's ionization as if
 it were permanent and removes most of the H2 of the cell; the cell is
