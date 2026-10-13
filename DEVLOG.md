@@ -37173,8 +37173,10 @@ EM(H+) -0.62%, He+ -0.86%, N+ -1.06%, O+ -1.28%, Ne+ -1.09%, S2+
 -1.35%, S+ +1.76%. The gap closes as both go on (H+: -2.46% at the
 sixth iteration). Carried on as geometric series the two arms have
 -0.77% and -0.36% still to go and end 0.2% apart - one limit, to the
-accuracy of that. **Neither arm is converged to better than 0.4% in
-Hbeta when the 2% test stops it, and the damped one is 0.8% from it.**
+accuracy of that. **By that extrapolation (it is not a measurement)
+neither arm's hydrogen emission measure, and so its Hbeta, is within 0.3%
+of its limit when the 2% test stops it, and the damped arm's is 0.8% from
+it.**
 Why the ionized gas of a model like this relaxes with a ratio of 0.7
 per iteration is not known; it is not the damping.
 
@@ -37300,7 +37302,7 @@ undamped: 49.85 and 49.80 K, 38.52 and 38.63, 28.69 and 28.73, 20.21 and
   2. The floor is noise, steps 1.3-1.7 of the damped arm's: **met** (1.39
      in the steps, 1.2-1.4 in the noise of equivalent cells).
   3. Faster at first, then a higher floor and no stop by 15: **half
-     wrong.** Faster, yes (iterations 8-11 at 0.25-0.55 of the damped
+     wrong.** Faster, yes (iterations 8-11 at 0.25-0.56 of the damped
      arm's value). But the test ends lower without the damping (1.83%
      against 1.99%) and both stop at 15, because what it reads at the end
      is the ionized gas still relaxing, where the damped arm trails, and
@@ -37317,3 +37319,95 @@ undamped: 49.85 and 49.80 K, 38.52 and 38.63, 28.69 and 28.73, 20.21 and
      luminosity). [C I] 370 um within 5%: **missed** (-12.5%, the blend).
      H2 within 3%: met. CO within 20%: met for what it is worth (6-5
      -17 +- 10%). Crossing within 0.01 mag: met (0.0008).
+
+### What the damping was hiding at the carbon turn (hiipdr)
+
+Drawn for the page's figure (C+ and C against A_V, both arms, with the
+spread of the cells of each bin), the undamped arm's carbon is not a
+profile with scatter: it is two states. Cells of each 0.1 mag bin by
+C+ / (C+ + C + CO), last iteration:
+
+| A_V | cells | undamped: below 0.18 | 0.18-0.9 | above 0.9 | damped: below 0.18 | 0.18-0.9 | above 0.9 |
+|---|---|---|---|---|---|---|---|
+| 1.9-2.0 | 669 | 24 | 25 | 620 | 0 | 66 | 603 |
+| 2.0-2.1 | 763 | 74 | 67 | 622 | 3 | 187 | 573 |
+| 2.1-2.2 | 828 | 209 | 128 | 491 | 29 | 424 | 375 |
+| 2.2-2.3 | 859 | 400 | 122 | 337 | 113 | 566 | 180 |
+| 2.3-2.4 | 978 | 687 | 111 | 180 | 363 | 559 | 56 |
+| 2.4-2.5 | 1,033 | 887 | 71 | 75 | 681 | 338 | 14 |
+| 2.5-2.6 | 1,068 | 1,006 | 33 | 29 | 891 | 174 | 3 |
+
+Without the damping 85-97% of the cells of every bin are in one of two
+states: carbon ionized (above 0.9), or the deep state, in which C+ sits at
+3.6e-5 per hydrogen (0.16 of the carbon) from A_V 2.3 to the edge, the same
+in every cell. The two coexist over 0.7 mag, six or seven cells in depth.
+With the damping two thirds of the cells of the middle bins are written
+between the two, at values no solve gave. That is where the damped arm's
+excess [C I] comes from (neutral carbon held at a blended temperature), why
+the median of n(C) is 1.9 times higher there, and what the peak of the
+spread among equivalent cells at A_V 2.2-2.3 is (x(C) by a factor e^1.3,
+n_e by e^0.5, T by 20%).
+
+**The reading, which the log already half holds.** A cell whose carbon is
+ionized is a cell that a packet of the carbon-ionizing band (11.26-13.6 eV)
+crossed in that iteration; a cell in the deep state is one that none
+crossed, where cosmic rays alone keep the C+. One crossing is far more than
+enough: a packet of 6e6 carries L/6e6, and its path through a 2e18 cm cell
+gives a photoionization rate of order 1e-10 s^-1 per carbon atom, against
+a recombination rate alpha n_e of 1e-12 to 5e-12 s^-1 (an estimate from the
+fixture's numbers, not read from the code's rates). So the per-cell field
+in that band is not noisy around its mean at this depth, it is on or off,
+and the share of cells in the deep state is the share that drew no packet:
+if crossings are Poisson, 47% at A_V 2.2-2.3 is a mean of 0.76 crossings
+per cell and iteration, and 3.6, 9.7, 25, 47, 70, 86, 94% down the table
+are means of 3.3, 2.3, 1.4, 0.76, 0.35, 0.15, 0.06. The model's "C+ = C"
+is then where half the cells are missed, and not where the mean
+photoionization balances recombination, which at one hundredth of a
+crossing would still hold. D-237 and D-241 found the one-packet floor in
+the deep field, D-261 put C+'s cliff down to it ("exactly zero C I-ionizing
+flux below one packet per bin... not re-measured"), D-365 saw C+ = C go
+from A_V 2.26 to 2.72 (Cloudy 2.95) at 21 times the tracks per cell with
+the resolution changed as well, and L-26 lists the remedies. What this run
+adds is the two states themselves, counted.
+
+**What it means for the damping.** The damping averages the *answers* of
+successive iterations. Where the answer is a strongly non-linear function
+of a field that is on or off, the average of the answers is not the answer
+to the average field: it keeps the bias (carbon neutral in every cell-
+iteration that drew no packet) and writes states that are no solution. An
+average of the *field* over iterations would be the estimator the physics
+wants - J is linear in the packets, so its running mean is unbiased, and
+the solve on it is a solve. That is L-26's first remedy; it is a design
+decision and nothing of it is coded here.
+
+**Tests queued, no code:**
+
+  - `runs/d405-hii31-d0h`, `runs/d405-hii31-d25h`: the two arms again,
+    byte for byte, with `snap.py` keeping every iteration's cells
+    (`runs/d405h-chain.sh`, after pn150k). Does a cell's carbon state at
+    one iteration say anything about the next (independent draws do not),
+    and are the molecular fraction's jumps at the H/H2 crossing the same
+    cells going back and forth?
+  - `runs/d405-hii31-d0-p4`: the undamped arm at four times the packets
+    (2.4e7), everything else the same (`runs/d405p-chain.sh`). Noise falls
+    by two and a cycle does not.
+
+**Predictions for the run at four times the packets (written before it):**
+
+  7. Cells in the deep carbon state: at most exp(-4 mu) of each bin with
+     mu from the table - 0, 3, 40, 240, 560 and 840 cells in the bins from
+     2.0-2.1 to 2.5-2.6 (74, 209, 400, 687, 887, 1,006 now) - and fewer if
+     ionized carbon in front lets more of the band through. "On" becomes
+     less absolute too: a packet carries a quarter as much, so cells
+     crossed once land at 0.8-0.95 and the middle fills in.
+  8. The floor of the steps halves: the median step of x(H0) from 3.3% to
+     1.5-1.9%, and the spread of T among equivalent cells at A_V 1.48-1.91
+     from 4.9% to 2.3-2.8%. If the floor does not move it is a cycle and
+     prediction 2 was wrong.
+  9. Steps of the molecular fraction above 0.5: from 60-70 cells per
+     iteration to fewer than 20.
+ 10. C+ = C (the page's measure, 2.27 damped) moves to A_V 2.45-2.65.
+ 11. [C I] 609 um falls by 5-15% and [C II] 158 um rises by 1-3%. Held
+     weakly.
+ 12. Hbeta within 0.3% of the undamped run at 6e6: the ionized gas does not
+     feel this noise.
