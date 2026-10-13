@@ -107,55 +107,56 @@ def g(d, k, i=None, fmt='%6.1f', miss='     -'):
     return fmt % v
 
 
-runs = sys.argv[1:]
-R = [(r, ) + read(r) for r in runs]
-for r, it, damp, t in R:
-    print('%-28s iterDamp %s   iterations %d   run time %s' % (r.rstrip('/').split('/')[-1], 'not printed' if damp is None else '%.2f' % damp, max(it), t))
-
-print('\n-- the model-integrated test: largest change over the last 3 iterations [%] (quantity); cells converged [%], ionized / neutral')
-for i in sorted(set().union(*[set(x[1]) for x in R])):
-    s = '  it %2d ' % i
+if __name__ == '__main__':
+    runs = sys.argv[1:]
+    R = [(r, ) + read(r) for r in runs]
     for r, it, damp, t in R:
-        d = it.get(i, {})
-        s += ' | %s %-7s conv %s (%s /%s)' % (g(d, 'tot', fmt='%7.3f', miss='      -'), '(' + d.get('totq', '-') + ')', g(d, 'conv', fmt='%3.0f', miss='  -'),
-                                             g(d, 'convI', fmt='%5.1f', miss='    -'), g(d, 'convN', fmt='%5.1f', miss='    -'))
-    print(s)
+        print('%-28s iterDamp %s   iterations %d   run time %s' % (r.rstrip('/').split('/')[-1], 'not printed' if damp is None else '%.2f' % damp, max(it), t))
 
-print('\n-- branches (3000 K): cells that started cold and ended hot; cells above 3000 K; T balance not reached [% of cells]')
-for i in sorted(set().union(*[set(x[1]) for x in R])):
-    s = '  it %2d ' % i
+    print('\n-- the model-integrated test: largest change over the last 3 iterations [%] (quantity); cells converged [%], ionized / neutral')
+    for i in sorted(set().union(*[set(x[1]) for x in R])):
+        s = '  it %2d ' % i
+        for r, it, damp, t in R:
+            d = it.get(i, {})
+            s += ' | %s %-7s conv %s (%s /%s)' % (g(d, 'tot', fmt='%7.3f', miss='      -'), '(' + d.get('totq', '-') + ')', g(d, 'conv', fmt='%3.0f', miss='  -'),
+                                                 g(d, 'convI', fmt='%5.1f', miss='    -'), g(d, 'convN', fmt='%5.1f', miss='    -'))
+        print(s)
+
+    print('\n-- branches (3000 K): cells that started cold and ended hot; cells above 3000 K; T balance not reached [% of cells]')
+    for i in sorted(set().union(*[set(x[1]) for x in R])):
+        s = '  it %2d ' % i
+        for r, it, damp, t in R:
+            d = it.get(i, {})
+            s += ' | c->h %s  hot %s  T not reached %s' % (g(d, 'c2h', fmt='%5d', miss='    0'), g(d, 'hot', fmt='%5d', miss='    -'), g(d, 'tenot', fmt='%3.0f', miss='  -'))
+        print(s)
+
+    print('\n-- steps of the written model: |dx(H0)|/x median, p90;  |df_mol| p90, cells moved >0.10 and >0.50 [%];  median T [K], mean f_mol')
+    for i in sorted(set().union(*[set(x[1]) for x in R])):
+        s = '  it %2d ' % i
+        for r, it, damp, t in R:
+            d = it.get(i, {})
+            s += ' | %s %s  %s %s %s  %s %s' % (g(d, 'dx', 0, '%8.2e', '       -'), g(d, 'dx', 1, '%8.2e', '       -'), g(d, 'dfm', 1, '%6.4f'),
+                                               g(d, 'fm10', fmt='%5.2f', miss='    -'), g(d, 'fm50', fmt='%5.2f', miss='    -'), g(d, 'te', 1, '%7.2f', '      -'), g(d, 'fmol', fmt='%6.4f'))
+        print(s)
+
+    print('\n-- the chemistry\'s own answer against the iteration before: cells in which H2, CO moved by more than 1% [%]')
+    for i in sorted(set().union(*[set(x[1]) for x in R])):
+        s = '  it %2d ' % i
+        for r, it, damp, t in R:
+            d = it.get(i, {})
+            s += ' | H2 %s  CO %s' % (g(d, 'm_H2', 1, '%6.2f'), g(d, 'm_CO', 1, '%6.2f'))
+        print(s)
+
+    print('\n-- neutral cells with the solver\'s X+/X more than 10% from MOCASSIN\'s [%]: first solve H, O; second solve H, O; hydrogen budget off by >1% before the rescale')
+    for i in sorted(set().union(*[set(x[1]) for x in R])):
+        s = '  it %2d ' % i
+        for r, it, damp, t in R:
+            d = it.get(i, {})
+            f, se = d.get('first', {}), d.get('second', {})
+            s += ' | %s %s  %s %s  %s' % (g(f, 'H'), g(f, 'O'), g(se, 'H'), g(se, 'O'), ' '.join('%5.2f' % b for b in d.get('bud', [])) or '    -')
+        print(s)
+
+    print('\n-- last iteration, the model as written: neutral cells with the solver\'s X+/X more than 10% from the written [%]')
     for r, it, damp, t in R:
-        d = it.get(i, {})
-        s += ' | c->h %s  hot %s  T not reached %s' % (g(d, 'c2h', fmt='%5d', miss='    0'), g(d, 'hot', fmt='%5d', miss='    -'), g(d, 'tenot', fmt='%3.0f', miss='  -'))
-    print(s)
-
-print('\n-- steps of the written model: |dx(H0)|/x median, p90;  |df_mol| p90, cells moved >0.10 and >0.50 [%];  median T [K], mean f_mol')
-for i in sorted(set().union(*[set(x[1]) for x in R])):
-    s = '  it %2d ' % i
-    for r, it, damp, t in R:
-        d = it.get(i, {})
-        s += ' | %s %s  %s %s %s  %s %s' % (g(d, 'dx', 0, '%8.2e', '       -'), g(d, 'dx', 1, '%8.2e', '       -'), g(d, 'dfm', 1, '%6.4f'),
-                                           g(d, 'fm10', fmt='%5.2f', miss='    -'), g(d, 'fm50', fmt='%5.2f', miss='    -'), g(d, 'te', 1, '%7.2f', '      -'), g(d, 'fmol', fmt='%6.4f'))
-    print(s)
-
-print('\n-- the chemistry\'s own answer against the iteration before: cells in which H2, CO moved by more than 1% [%]')
-for i in sorted(set().union(*[set(x[1]) for x in R])):
-    s = '  it %2d ' % i
-    for r, it, damp, t in R:
-        d = it.get(i, {})
-        s += ' | H2 %s  CO %s' % (g(d, 'm_H2', 1, '%6.2f'), g(d, 'm_CO', 1, '%6.2f'))
-    print(s)
-
-print('\n-- neutral cells with the solver\'s X+/X more than 10% from MOCASSIN\'s [%]: first solve H, O; second solve H, O; hydrogen budget off by >1% before the rescale')
-for i in sorted(set().union(*[set(x[1]) for x in R])):
-    s = '  it %2d ' % i
-    for r, it, damp, t in R:
-        d = it.get(i, {})
-        f, se = d.get('first', {}), d.get('second', {})
-        s += ' | %s %s  %s %s  %s' % (g(f, 'H'), g(f, 'O'), g(se, 'H'), g(se, 'O'), ' '.join('%5.2f' % b for b in d.get('bud', [])) or '    -')
-    print(s)
-
-print('\n-- last iteration, the model as written: neutral cells with the solver\'s X+/X more than 10% from the written [%]')
-for r, it, damp, t in R:
-    w = it[max(it)].get('written', {})
-    print('  %-28s ' % r.rstrip('/').split('/')[-1] + '  '.join('%s %5.1f' % (e, v) for e, v in w.items()))
+        w = it[max(it)].get('written', {})
+        print('  %-28s ' % r.rstrip('/').split('/')[-1] + '  '.join('%s %5.1f' % (e, v) for e, v in w.items()))

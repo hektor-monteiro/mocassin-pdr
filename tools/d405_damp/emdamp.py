@@ -60,19 +60,34 @@ def sums(d, j):
     return s.sum(), np.sqrt(6) * s.std(ddof=1), s
 
 
-a, b = sys.argv[1], sys.argv[2]
-A, B = load(a), load(b)
-print('damped   %s\nundamped %s' % (a, b))
-f = A['mol'][('12co.dat', 2, 1)][1] * A['hb'] / sums(A, 0)[0]
-print('grid sum to luminosity (CO 2-1 of lineFluxMol.out over the octant\'s sum): %.4f' % f)
-print('\n%-11s %12s %6s %12s %6s  %16s   %s' % ('', 'solve, d', '+-%', 'solve, u', '+-%', 'u / d - 1 [%]', 'written / solve: damped, undamped'))
-for name, j, key in SEL:
-    sa, ea, wa = sums(A, j)
-    sb, eb, wb = sums(B, j)
-    r = wb / wa
-    line = '%-11s %12.4e %6.2f %12.4e %6.2f  %+7.2f +- %5.2f' % (name, f * sa, 100 * ea / sa, f * sb, 100 * eb / sb,
-                                                            100 * (sb / sa - 1), 100 * r.std(ddof=1) / np.sqrt(6))
-    if key is not None:
-        la, lb = A['forb'][key][1] * A['hb'], B['forb'][key][1] * B['hb']
-        line += '   %6.3f  %6.3f   (written u / d - 1: %+6.2f%%)' % (la / (f * sa), lb / (f * sb), 100 * (lb / la - 1))
-    print(line)
+def table(a, b):
+    """rows: name, solve luminosity and its error in each arm, undamped / damped of the solve with its error, and for the
+    atoms' lines the written model's line over the solve's in each arm"""
+    A, B = load(a), load(b)
+    f = A['mol'][('12co.dat', 2, 1)][1] * A['hb'] / sums(A, 0)[0]
+    rows = []
+    for name, j, key in SEL:
+        sa, ea, wa = sums(A, j)
+        sb, eb, wb = sums(B, j)
+        r = wb / wa
+        row = {'name': name, 'La': f * sa, 'ea': ea / sa, 'Lb': f * sb, 'eb': eb / sb, 'r': sb / sa - 1, 'er': float(r.std(ddof=1) / np.sqrt(6)),
+               'top1': [float((A['em'][:, j] * A['V']).max() / sa), float((B['em'][:, j] * B['V']).max() / sb)],
+               'top10': [float(np.sort(A['em'][:, j] * A['V'])[-10:].sum() / sa), float(np.sort(B['em'][:, j] * B['V'])[-10:].sum() / sb)]}
+        if key is not None:
+            la, lb = A['forb'][key][1] * A['hb'], B['forb'][key][1] * B['hb']
+            row.update(wa=la / (f * sa), wb=lb / (f * sb), wr=lb / la - 1)
+        rows.append(row)
+    return f, rows
+
+
+if __name__ == '__main__':
+    a, b = sys.argv[1], sys.argv[2]
+    f, rows = table(a, b)
+    print('damped   %s\nundamped %s' % (a, b))
+    print('grid sum to luminosity (CO 2-1 of lineFluxMol.out over the octant\'s sum): %.4f' % f)
+    print('\n%-11s %12s %6s %12s %6s  %16s   %s' % ('', 'solve, d', '+-%', 'solve, u', '+-%', 'u / d - 1 [%]', 'written / solve: damped, undamped'))
+    for r in rows:
+        line = '%-11s %12.4e %6.2f %12.4e %6.2f  %+7.2f +- %5.2f' % (r['name'], r['La'], 100 * r['ea'], r['Lb'], 100 * r['eb'], 100 * r['r'], 100 * r['er'])
+        if 'wa' in r:
+            line += '   %6.3f  %6.3f   (written u / d - 1: %+6.2f%%)' % (r['wa'], r['wb'], 100 * r['wr'])
+        print(line)

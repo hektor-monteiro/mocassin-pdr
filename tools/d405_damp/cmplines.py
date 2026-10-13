@@ -83,21 +83,44 @@ def h2(run):
     return d
 
 
-def stat(name, rows, lim, show=12, always=()):
-    """rows: (label, a, b). Counts above lim in run a; the largest changes."""
+NAMED = ('1- 0 S( 1)', '2- 1 S( 1)', '0- 0 S( 0)', '0- 0 S( 1)', '0- 0 S( 2)', '0- 0 S( 3)')
+
+
+def sets(a, b):
+    """the two runs' lines as lists of (label, a, b) by kind"""
+    ra, rb = recomb(a), recomb(b)
+    fa, fb = forb(a), forb(b)
+    ma, mb = mol(a), mol(b)
+    xa, xb = h2(a), h2(b)
+    out = {'recomb': [('%s %.2f' % (k[0], k[1]), ra[k], rb[k]) for k in ra if k in rb],
+           'forb': [('[%s %s] %.2f' % (ELN.get(k[0], k[0]), ROM.get(k[1], k[1]), fa[k][0]), fa[k][1], fb[k][1]) for k in fa if k in fb],
+           'h2': [(k, xa[k][1], xb[k][1]) for k in xa if k in xb]}
+    for c in sorted({k[0] for k in ma}):
+        out['mol ' + c] = [('%d-%d %.2f um' % (k[1], k[2], ma[k][0]), ma[k][1], mb[k][1]) for k in ma if k in mb and k[0] == c]
+    return out
+
+
+def summary(rows, lim):
+    """counts above lim in run a and the changes, largest first"""
     r = [(lab, a, b, b / a) for lab, a, b in rows if a > lim and b > 0]
     if not r:
-        return
+        return None
     ch = sorted(r, key=lambda x: -abs(np.log(x[3])))
-    n1 = sum(1 for x in r if abs(np.log(x[3])) > np.log(1.01))
-    n5 = sum(1 for x in r if abs(np.log(x[3])) > np.log(1.05))
-    n20 = sum(1 for x in r if abs(np.log(x[3])) > np.log(1.20))
+    ab = [abs(np.log(x[3])) for x in r]
+    return {'n': len(r), 'gt1': sum(1 for x in ab if x > np.log(1.01)), 'gt5': sum(1 for x in ab if x > np.log(1.05)),
+            'gt20': sum(1 for x in ab if x > np.log(1.20)), 'med': float(np.exp(np.median(ab)) - 1), 'top': ch, 'all': {x[0]: x[3] for x in r}}
+
+
+def stat(name, rows, lim, show=12, always=()):
+    s = summary(rows, lim)
+    if s is None:
+        return
     print('\n%s: %d lines above %.0e Hbeta; moved by more than 1%%: %d, 5%%: %d, 20%%: %d; median |change| %.2f%%' % (
-        name, len(r), lim, n1, n5, n20, 100 * (np.exp(np.median([abs(np.log(x[3])) for x in r])) - 1)))
-    for lab, a, b, x in ch[:show]:
+        name, s['n'], lim, s['gt1'], s['gt5'], s['gt20'], 100 * s['med']))
+    for lab, a, b, x in s['top'][:show]:
         print('    %-26s %11.4e -> %11.4e  %+7.2f%%' % (lab, a, b, 100 * (x - 1)))
-    for lab, a, b, x in r:
-        if lab in always and (lab, a, b, x) not in ch[:show]:
+    for lab, a, b, x in s['top'][show:]:
+        if lab in always:
             print('    %-26s %11.4e -> %11.4e  %+7.2f%%   (named)' % (lab, a, b, 100 * (x - 1)))
 
 
@@ -107,16 +130,11 @@ if __name__ == '__main__':
     ha, hb = hbeta(a), hbeta(b)
     print('a %s\nb %s' % (a, b))
     print('Hbeta [E36 erg/s]: %.6f -> %.6f  %+.3f%%' % (ha, hb, 100 * (hb / ha - 1)))
-
-    ra, rb = recomb(a), recomb(b)
-    stat('recombination lines', [('%s %.2f' % (k[0], k[1]), ra[k], rb[k]) for k in ra if k in rb], lim, show=6)
-    fa, fb = forb(a), forb(b)
-    stat('collisionally excited lines', [('[%s %s] %.2f' % (ELN.get(k[0], k[0]), ROM.get(k[1], k[1]), fa[k][0]), fa[k][1], fb[k][1])
-                                        for k in fa if k in fb], lim, show=14)
-    ma, mb = mol(a), mol(b)
-    for c in sorted({k[0] for k in ma}):
-        stat('coolant %s' % c, [('%d-%d %.2f um' % (k[1], k[2], ma[k][0]), ma[k][1], mb[k][1]) for k in ma if k in mb and k[0] == c], 1e-9, show=8)
-    xa, xb = h2(a), h2(b)
-    if xa and xb:
-        named = ('1- 0 S( 1)', '2- 1 S( 1)', '0- 0 S( 0)', '0- 0 S( 1)', '0- 0 S( 2)', '0- 0 S( 3)')
-        stat('H2 lines (level model)', [(k, xa[k][1], xb[k][1]) for k in xa if k in xb], 1e-7, show=6, always=named)
+    S = sets(a, b)
+    stat('recombination lines', S['recomb'], lim, show=6)
+    stat('collisionally excited lines', S['forb'], lim, show=14)
+    for k in S:
+        if k.startswith('mol '):
+            stat('coolant %s' % k[4:], S[k], 1e-9, show=8)
+    if S['h2']:
+        stat('H2 lines (level model)', S['h2'], 1e-7, show=6, always=NAMED)
