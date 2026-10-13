@@ -37870,9 +37870,30 @@ ionizing packet of the full packet energy (L/6e6) appears inside the
 cloud and is absorbed on the spot. One packet in a 2e18 cm cell gives a
 rate of order 4e-14 s^-1 per hydrogen atom, which against recombination
 at 12 K puts x(H+) near 4e-3 (an estimate); the cells show 8e-4, 88
-times their usual 9e-6. The same order, no better. Whether that is what
-the code does has to be read in the emission and re-emission routines;
-it is not read here.
+times their usual 9e-6. The same order, no better.
+
+**Read in the code afterwards (17:38), and it is what the code does.** A
+packet absorbed by the gas becomes a "diffuse" packet
+(`photon_mod.f90:896-1010`). With probability `totalLines` - the cell's
+line emission over its line plus continuum emission - it leaves as a
+line; otherwise its frequency is drawn from `recPDF`, the cumulative
+sum of the hydrogen and helium diffuse continua and nothing else
+(`emission_mod.f90:855-925`, D-233: "A gas absorption samples recPDF").
+Those continua include the recombination continua above 13.6 and 24.6
+eV. Nothing ties the frequency that comes out to the absorber or to the
+frequency that went in. That is the energy-packet scheme of an ionized
+nebula, where hydrogen and helium do the absorbing and the bookkeeping
+closes. In the neutral gas the absorber of a 11.26-13.6 eV packet is
+carbon, and what the scheme returns for it, some of the time, is a
+photon that ionizes hydrogen or helium - which the energy of a carbon
+photoionization cannot make. The mechanism is read, and it fits the
+signature (hydrogen and helium together, the FUV field unchanged, the
+rate peaking where neutral carbon meets its band). It is not isolated:
+no run has the channel closed, and the share of gas absorptions that
+come back ionizing in a deep cell is not measured. Registered as a
+limitation (the status document); a remedy is a design decision (which
+spectrum a non-hydrogen absorption should return through) and none is
+made here.
 
 Two things follow whichever way that turns out. First, the chemistry is
 solved in steady state, so it answers one iteration's ionization as if
