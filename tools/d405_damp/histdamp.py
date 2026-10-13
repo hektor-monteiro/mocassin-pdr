@@ -27,6 +27,14 @@ large steps, and the carbon state (C+ over C+ + C above 0.9, or below 0.18).
 For a state drawn afresh at every iteration with probability p, the chance
 that a cell is 'on' given that it was 'on' the iteration before is p, the
 same as given that it was 'off'.
+
+Two controls. What a series of N independent draws gives for each cell's own
+R (the shares below 0.3 and above 2.5) is computed, not assumed: null(). And
+the spread among cells that are one cell of the model (the octant's
+permutations, cmpdamp.py) is noise drawn afresh only if it averages away:
+frozen() compares that spread at one iteration with the spread of each
+cell's mean over the N iterations. Noise drawn afresh gives 1/sqrt(N) of it
+(a little more through the blend), a pattern that stays gives all of it.
 """
 import glob
 import os
@@ -62,6 +70,70 @@ def stats(x):
             'c': float((d1[1:] * d1[:-1]).mean() / (d1 ** 2).mean()),
             'Rn': float((u2 ** 2).mean() / (u1 ** 2).mean()), 'cn': float((u1[1:] * u1[:-1]).mean() / (u1 ** 2).mean()),
             'lowR': float((rc < 0.3).mean()), 'highR': float((rc > 2.5).mean()), 'n': int(ok.sum())}
+
+
+def null(nit, blend=0., ntrial=200000, seed=405):
+    """independent draws (through the blend, if any), nit iterations: pooled R and c, the shares of cells with their own
+    R below 0.3 and above 2.5"""
+    rng = np.random.default_rng(seed)
+    x = rng.standard_normal((nit + 40, ntrial))
+    if blend > 0:
+        for i in range(1, len(x)):
+            x[i] = (1 - blend) * x[i] + blend * x[i - 1]
+    r = stats(x[40:])
+    return {'R': r['R'], 'c': r['c'], 'lowR': r['lowR'], 'highR': r['highR']}
+
+
+def meanfac(n, rho):
+    """the scatter of a mean of n successive values over that of one value: 1/sqrt(n) for independent draws"""
+    k = np.arange(1, n)
+    return float(np.sqrt((1 + 2 * ((1 - k / n) * rho ** k).sum()) / n))
+
+
+def orbits(idx, shape):
+    nx, ny, nz = [int(v) for v in shape]
+    assert nx == ny == nz, 'the symmetry needs a cubic grid'
+    c = np.stack([idx // (ny * nz), (idx // nz) % ny, idx % nz], axis=1)
+    s = np.sort(c, axis=1)
+    key = (s[:, 0] * ny + s[:, 1]) * nz + s[:, 2]
+    order = np.argsort(key, kind='stable')
+    cut = np.flatnonzero(np.diff(key[order])) + 1
+    return [g for g in np.split(order, cut) if len(g) >= 3]
+
+
+def frozen(run, i0=9, i1=None):
+    """per band of A_V and quantity: the spread among equivalent cells at one iteration (mean over the iterations of the
+    median over the sets), the same for each cell's mean over the iterations, and their ratio"""
+    use, D, its = load(run, i0, i1)
+    last = D[-1]
+    lg = lambda k: np.log(np.maximum(np.array([d[k] for d in D], float), 1e-300))     # noqa: E731
+    Q = {'ln chi': lg('chi'), 'ln T': lg('Te'), 'ln n_e': lg('Ne'), 'ln x(H2)': lg('x_H2'), 'ln x(H)': lg('x_H'), 'ln x(C)': lg('x_C'),
+         'ln x(C+)': lg('x_C+'), 'ln x(CO)': lg('x_CO')}
+    av = last['AV'].astype(float)
+    xhp = np.array([d['x_H+'] for d in D])
+    neutral = np.all(xhp < 0.3, axis=0)
+    orb = orbits(last['idx'], last['shape'])
+    oav = np.array([np.median(av[g]) for g in orb])
+    on = np.array([bool(np.all(neutral[g])) for g in orb])
+    q = np.quantile(av[neutral], QB)
+    n = len(use)
+    out = {'run': run, 'its': use, 'n': n, 'white': meanfac(n, 0.), 'blend': meanfac(n, 0.25), 'bands': []}
+    for i in range(6):
+        sel = [g for g, ok, a in zip(orb, on, oav) if ok and q[i] <= a <= q[i + 1]]
+        if len(sel) < 20:
+            continue
+        row = {'name': 'A_V %.2f-%.2f' % (q[i], q[i + 1]), 'sets': len(sel), 'q': {}}
+        for k, x in Q.items():
+            if np.any(x[:, np.concatenate(sel)] < -600):         # a zero somewhere: no logarithm
+                continue
+            s1 = float(np.mean([np.median([np.std(x[t, g], ddof=1) for g in sel]) for t in range(n)]))
+            m = x.mean(axis=0)
+            sn = float(np.median([np.std(m[g], ddof=1) for g in sel]))
+            if s1 > 0:
+                r = sn / s1
+                row['q'][k] = {'one': s1, 'mean': sn, 'r': r, 'kept': max(0., (r * r - 1. / n) / (1 - 1. / n))}
+        out['bands'].append(row)
+    return out
 
 
 def analyse(run, i0=9, i1=None):
@@ -128,6 +200,19 @@ if __name__ == '__main__':
     for row in A['bands']:
         for k, r in row['q'].items():
             print('%-13s %-9s %10.3e %6.2f %+6.2f   %6.2f %+6.2f   %9.1f %9.1f' % (row['name'], k, r['step'], r['R'], r['c'], r['Rn'], r['cn'], 100 * r['lowR'], 100 * r['highR']))
+        print()
+    nit = len(A['its'])
+    for lab, b in (('independent draws', 0.), ('the same through the blend', 0.25)):
+        z = null(nit, b)
+        print('%d iterations of %-27s R %.2f  c %+.2f   cells with their own R below 0.3: %.1f%%, above 2.5: %.1f%%' % (
+            nit, lab + ':', z['R'], z['c'], 100 * z['lowR'], 100 * z['highR']))
+    Fz = frozen(run, A['its'][0], A['its'][-1])
+    print('\nspread among cells that are one cell: at one iteration, of the means over the %d iterations, their ratio' % Fz['n'])
+    print('(noise drawn afresh gives %.3f, through the blend %.3f; a pattern that stays gives 1), and the share of the variance that stays' % (
+        Fz['white'], Fz['blend']))
+    for row in Fz['bands']:
+        for k, r in row['q'].items():
+            print('%-13s %-9s sets %4d   %10.3e %10.3e   %6.3f   %5.2f' % (row['name'], k, row['sets'], r['one'], r['mean'], r['r'], r['kept']))
         print()
     n1 = len(A['its']) - 1
     for j in A['jumps']:
