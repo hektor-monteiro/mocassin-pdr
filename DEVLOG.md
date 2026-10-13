@@ -37245,7 +37245,8 @@ flagged in either. Cells below 10 K: 1,545 damped, 1,715 undamped
   - The H2 lines of the level model: +1.1 to +1.6% over Hbeta for the
     six named lines (1-0 S(1) +1.60%), +2.07% the largest of 2,690; in
     luminosity +0.5 to +1.0%.
-  - H/H2 crossing A_V 1.3959 -> 1.3951.
+  - H/H2 crossing A_V 1.3959 -> 1.3951 (the page tools' measure;
+    `cmpdamp.py`'s own, medians in 79 bins, gives 1.3919 -> 1.3917).
   - **[C I] 370 um -12.0% and [C I] 609 um -3.2%** (-12.5% and -3.7% in
     luminosity).
 
@@ -37763,8 +37764,11 @@ of each blend class (C is the neutral carbon's share of the carbon):
 | A_V | undamped, deep: T, C | ionized: T, C | damped, deep now and ionized before: T, C | ionized now and deep before: T, C |
 |---|---|---|---|---|
 | 2.1-2.2 | 13.1 K, 0.833 | 20.6 K, 0.032 | 15.0 K, 0.644 | 18.4 K, 0.211 |
-| 2.2-2.3 | 12.4 K, 0.833 | 19.9 K, 0.036 | 14.2 K, 0.659 | 18.1 K, 0.226 |
-| 2.3-2.4 | 11.8 K, 0.834 | 19.2 K, 0.042 | 13.6 K, 0.675 | 17.4 K, 0.236 |
+| 2.2-2.3 | 12.4 K, 0.833 | 19.9 K, 0.036 | 14.2 K, 0.659 | 18.0 K, 0.227 |
+| 2.3-2.4 | 11.8 K, 0.834 | 19.2 K, 0.042 | 13.6 K, 0.677 | 17.4 K, 0.237 |
+
+(Both tables of this section are printed by `cmpdamp.py`, whose windows
+around the two blends, +-0.07, are the ones used here.)
 
 A cell that a carbon-ionizing packet crossed is 7.5 K warmer than one that
 none crossed, with four times the electrons (n_e 2.3e-2 against 5.6e-3

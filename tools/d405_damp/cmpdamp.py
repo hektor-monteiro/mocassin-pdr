@@ -21,7 +21,13 @@ Per band of A_V this prints, for each quantity,
     of what it blends. The medians and the sums are printed beside it.
 
 Then the cells near the carbon turn by C+ / (C+ + C + CO), in bins of 0.1
-mag, for each arm: two states, or values between.
+mag, for each arm: two states, or values between. And the damped arm's
+values between, read as blends: with the two states' values s0 and s1 taken
+from the undamped arm, a cell that is in the deep state now and was ionized
+the iteration before is written at 0.75 s0 + 0.25 s1, the reverse at
+0.75 s1 + 0.25 s0. The shares of the damped arm's cells near those two
+values are set against the product of the undamped arm's shares of the two
+states, which is what a state drawn afresh at every iteration gives.
 """
 import os
 import sys
@@ -88,6 +94,38 @@ def states(d, lo=1.9, hi=2.6, step=0.1):
     return out
 
 
+def blends(A, B, lo=2.0, hi=2.6, step=0.1, damp=0.25):
+    """per A_V bin: the two states of the undamped arm B (share, median T, neutral carbon's share of the carbon, n_e)
+    and the damped arm A's cells near the two blends of them"""
+    fa = A['C+'] / (A['C+'] + A['C'] + A['CO'])
+    fb = B['C+'] / (B['C+'] + B['C'] + B['CO'])
+    ca = A['C'] / (A['C+'] + A['C'] + A['CO'])
+    cb = B['C'] / (B['C+'] + B['C'] + B['CO'])
+    out = []
+    for a in np.arange(lo, hi - 1e-9, step):
+        m = (A['AV'] >= a) & (A['AV'] < a + step) & (A['zone'] == 1) & (B['zone'] == 1)
+        off, on = m & (fb < 0.18), m & (fb > 0.9)
+        if off.sum() < 5 or on.sum() < 5:
+            continue
+        s0, s1 = float(np.median(fb[off])), float(np.median(fb[on]))
+        b01, b10 = (1 - damp) * s0 + damp * s1, (1 - damp) * s1 + damp * s0       # deep now, ionized before; the reverse
+        k01 = m & (fa > b01 - 0.07) & (fa < b01 + 0.07)
+        k10 = m & (fa > b10 - 0.09) & (fa < b10 + 0.07)
+        med = lambda d, k, sel: float(np.median(d[k][sel])) if sel.sum() else float('nan')     # noqa: E731
+        row = {'lo': float(a), 'hi': float(a + step), 'n': int(m.sum()),
+               'off': float(off.sum() / m.sum()), 'on': float(on.sum() / m.sum()), 's0': s0, 's1': s1, 'b01': b01, 'b10': b10,
+               'T0': med(B, 'Tgas', off), 'T1': med(B, 'Tgas', on), 'C0': float(np.median(cb[off])), 'C1': float(np.median(cb[on])),
+               'ne0': med(B, 'e-', off), 'ne1': med(B, 'e-', on),
+               'n01': float(k01.sum() / m.sum()), 'n10': float(k10.sum() / m.sum()),
+               'T01': med(A, 'Tgas', k01), 'T10': med(A, 'Tgas', k10),
+               'C01': float(np.median(ca[k01])) if k01.sum() else float('nan'), 'C10': float(np.median(ca[k10])) if k10.sum() else float('nan')}
+        row['prod'] = row['on'] * row['off']
+        row['prod_hi'] = (1 - row['off']) * row['off']
+        row['between'] = [float(((fx[m] >= 0.44) & (fx[m] < 0.64)).mean()) for fx in (fa, fb)]
+        out.append(row)
+    return out
+
+
 def compare(a, b):
     A, B = R.read_run(a), R.read_run(b)
     c, shape = ijk(a)
@@ -115,7 +153,7 @@ def compare(a, b):
 
     out = {'ncell': int(len(c)), 'nsets': len(orb), 'inset': int(sum(len(g) for g in orb)), 'nion': int(ion.sum()),
            'nneutral': int(neutral.sum()), 'bands': [], 'cross': [cross(A), cross(B)], 'front': [float(A['A_front']), float(B['A_front'])],
-           'states': [states(A), states(B)], 'sums': {}}
+           'states': [states(A), states(B)], 'blends': blends(A, B) if A['AV'][neutral].max() > 2.2 else [], 'sums': {}}
     for k in ('C', 'C+', 'CO', 'H', 'H2', 'OH'):
         out['sums'][k] = float(B[k][neutral].sum() / A[k][neutral].sum())
     for name, m, lim in bands:
@@ -166,3 +204,12 @@ if __name__ == '__main__':
             print('  %.1f-%.1f   %5d   %8d  %8d   %8d   %8.1f                %8s                  %6.1f' % (
                 s['lo'], s['hi'], s['n'], s['low'], s['mid'], s['high'], 100 * (s['low'] + s['high']) / s['n'],
                 '%.2f' % -np.log(p0) if 0 < p0 < 1 else '-', s['T']))
+    if C['blends']:
+        print('\nthe two states (undamped arm) and the damped arm\'s cells near their blends')
+        print('  A_V       cells  deep [%]  ionized [%]   T deep, ionized [K]   C/carbon deep, ionized   n_e deep, ionized     blends at      damped near them [%]'
+              '   deep x ionized [%] (deep x not deep)   T, C/carbon of the two blend classes')
+        for r in C['blends']:
+            print('  %.1f-%.1f  %5d   %6.1f    %6.1f       %5.2f  %5.2f          %.3f  %.3f        %.2e %.2e   %.3f %.3f     %5.1f  %5.1f          %5.1f (%5.1f)'
+                  '              %5.2f K %.3f   %5.2f K %.3f' % (
+                      r['lo'], r['hi'], r['n'], 100 * r['off'], 100 * r['on'], r['T0'], r['T1'], r['C0'], r['C1'], r['ne0'], r['ne1'], r['b01'], r['b10'],
+                      100 * r['n01'], 100 * r['n10'], 100 * r['prod'], 100 * r['prod_hi'], r['T01'], r['C01'], r['T10'], r['C10']))

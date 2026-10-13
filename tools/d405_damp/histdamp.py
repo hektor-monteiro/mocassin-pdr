@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """D-405 (L-49): do cells oscillate, or scatter? Read from cell histories.
 
-    histdamp.py <run> [<first iteration, default 9>] [<last iteration>]
+    histdamp.py <run> [<first iteration, default 9>] [<last iteration>] [--unblend=0.25]
 
 Needs <run>/hist/itNN.npz, one per iteration (tools/d405_damp/snap.py).
 
@@ -35,6 +35,12 @@ permutations, cmpdamp.py) is noise drawn afresh only if it averages away:
 frozen() compares that spread at one iteration with the spread of each
 cell's mean over the N iterations. Noise drawn afresh gives 1/sqrt(N) of it
 (a little more through the blend), a pattern that stays gives all of it.
+
+--unblend=b takes the damping out of a damped run's history before anything
+is computed: the written state is (1 - b) of the iteration's solve and b of
+the state written before it, so the solve is (written - b * before) /
+(1 - b). Applied to T and the abundances; the electron density was never
+damped. The series then starts one iteration later.
 """
 import glob
 import os
@@ -45,14 +51,29 @@ import numpy as np
 QB = (0, 0.05, 0.15, 0.3, 0.5, 0.75, 1.0)
 
 
+UNBLEND = 0.
+
+
 def load(run, i0=9, i1=None):
     files = sorted(glob.glob(os.path.join(run, 'hist', 'it*.npz')))
     its = [int(os.path.basename(f)[2:4]) for f in files]
     i1 = max(its) if i1 is None else i1
-    use = [(i, f) for i, f in zip(its, files) if i0 <= i <= i1]
-    assert len(use) >= 4, 'needs four iterations or more, has %s' % its
+    b = UNBLEND
+    lo = i0 - 1 if b > 0 else i0
+    use = [(i, f) for i, f in zip(its, files) if lo <= i <= i1]
+    assert len(use) >= (5 if b > 0 else 4), 'needs four iterations or more, has %s' % its
     assert [u[0] for u in use] == list(range(use[0][0], use[-1][0] + 1)), 'iterations missing: %s' % its
-    return [u[0] for u in use], [np.load(f) for _, f in use], its
+    D = [dict(np.load(f)) for _, f in use]
+    if b > 0:
+        E = []
+        for n in range(1, len(D)):
+            d = dict(D[n])
+            for k in d:
+                if k == 'Te' or k.startswith('x_'):
+                    d[k] = np.maximum((D[n][k].astype(float) - b * D[n - 1][k].astype(float)) / (1. - b), 0.)
+            E.append(d)
+        return [u[0] for u in use[1:]], E, its
+    return [u[0] for u in use], D, its
 
 
 def stats(x):
@@ -173,7 +194,7 @@ def analyse(run, i0=9, i1=None):
                        fm=[float(np.median(fm[:, c].min(axis=0))), float(np.median(fm[:, c].max(axis=0)))])
         out['jumps'].append(row)
     # the carbon state, by bins of 0.1 mag where both states occur
-    f = np.array([d['x_C+'] / (d['x_C+'] + d['x_C'] + d['x_CO']) for d in D])
+    f = np.array([d['x_C+'] / np.maximum(d['x_C+'] + d['x_C'] + d['x_CO'], 1e-300) for d in D])
     on, off = f > 0.9, f < 0.18
     for a in np.arange(np.floor(10 * av[neutral].min()) / 10, av[neutral].max(), 0.1):
         m = neutral & (av >= a) & (av < a + 0.1)
@@ -192,8 +213,14 @@ def analyse(run, i0=9, i1=None):
 
 
 if __name__ == '__main__':
-    run = sys.argv[1].rstrip('/')
-    A = analyse(run, int(sys.argv[2]) if len(sys.argv) > 2 else 9, int(sys.argv[3]) if len(sys.argv) > 3 else None)
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    for a in sys.argv[1:]:
+        if a.startswith('--unblend='):
+            UNBLEND = float(a.split('=')[1])
+    run = args[0].rstrip('/')
+    A = analyse(run, int(args[1]) if len(args) > 1 else 9, int(args[2]) if len(args) > 2 else None)
+    if UNBLEND > 0:
+        print('the damping taken out of the history: solve = (written - %.2f * before) / %.2f' % (UNBLEND, 1 - UNBLEND))
     print('%s: iterations %d-%d (%d kept in all: %s)' % (run, A['its'][0], A['its'][-1], len(A['kept']), ' '.join(map(str, A['kept']))))
     print('cells %d: ionized throughout %d, neutral throughout %d, changing side %d' % (A['ncell'], A['nion'], A['nneutral'], A['ncell'] - A['nion'] - A['nneutral']))
     print('\n%-13s %-9s %10s %6s %6s   %6s %6s   %9s %9s' % ('', '', 'med |d1|', 'R', 'c', 'R cell', 'c cell', 'R<0.3 [%]', 'R>2.5 [%]'))
