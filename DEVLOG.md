@@ -38078,3 +38078,33 @@ second is the quarter left of the first); steps of the molecular fraction
 above 0.5 are 35 in 35 cells, none followed by a step back, because an
 excursion is written at three quarters of its depth (0.98 -> 0.46 in the
 median, against 0.38 solved) and then decays by quarters.
+
+### A fourth test queued: the undamped model with the path biasing of D-280 (18:38)
+
+The two states of carbon are the Monte Carlo floor that D-280 took apart:
+"without `pathStretch` the C I-ionizing field is exactly zero in 63-100%
+of cells past A_V 2.3 ...; biasing reduces that to <=9% to A_V 2.8", and
+C+ = C went from A_V 2.12 to 2.60 with it. The option is still in the
+code and still off in the fixtures. So the remedy for the noise that the
+log already holds is not only "accumulate the field" (L-26); it is also
+this one, and it costs one input line to look:
+`runs/d405-prod-hii31-d0-ps`, the production binary, the undamped
+production arm's input with `pathStretch 0.5` added (the value of D-280's
+runs), 15 iterations, seed 1001, 14 ranks, `snap.py` on. On production's
+executable and not h2-model's because the biasing has never been run with
+the level model in the loop. Chained after the production pair
+(`runs/d405ps-chain.sh`).
+
+**Predictions, written before the run exists:**
+
+ 19. The deep carbon state (C+ below 0.18 of the carbon) holds under 10%
+     of the cells of every 0.1 mag bin to A_V 2.6 (10-94% without the
+     biasing from A_V 2.0), the middle fills in, and C+ = C moves to A_V
+     2.5-2.7.
+ 20. No cell flips; the spread of T among equivalent cells at A_V 1.5-2.6
+     falls by a third or more.
+ 21. Cells with x(H+) above ten times their median fall to fewer than
+     half as many per iteration: a biased packet carries less than a full
+     packet's weight at depth.
+ 22. [C I] 609 and 370 um, undamped, 5-20% lower than without the biasing
+     and [C II] 158 um 1-4% higher. Held weakly.
