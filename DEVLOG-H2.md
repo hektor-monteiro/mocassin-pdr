@@ -38,6 +38,7 @@ DEVLOG.md and arrives here by merge.
 | H-027 | **Production's D-402 (one x(X+): the same neutral/first-ion balance in both solvers) merged; what it does to this branch's H2 results.** Seeded pairs with H-026's published runs, level model in the loop (stage B). The H/H2 crossing does not move: hiipdr A_V 1.3961 -> 1.3962, pn150k 0.3931 -> 0.3927. hiipdr lines / Hbeta: 1-0 S(1) 7.032e-4 -> 6.988e-4 (-0.6%), 2-1 S(1) -0.6%, 0-0 S(0), S(1), S(2) -1.8, -0.8, +0.2%. pn150k: 1-0 S(1) 9.449e-4 -> 9.383e-4 (-0.7%), 2-1 S(1) -0.7%, 0-0 S(2) -0.5%, 0-0 S(1) -2.4%, S(0) -4.0% - the transition zone 3-6% colder, which traces to one charge-transfer coefficient (He+ + H; D-402, L-48). Ionized-zone H2 unchanged on hiipdr, +7-8% on pn150k (17-19 times Cloudy's; not attributed). No change to the level model; its cost per call is the day's (x1.20-1.28 on untouched code). hiipdr's outer shell now reaches the 10 K floor and is left out of the atomic and CO lines (not of `lineFluxH2.out`'s H2 lines, which move 0.1% between the two floors) | Done | 2026-10-10 |
 | H-028 | **Production's D-403 merged (charge transfer with H by the gas at hand in both solvers; hydrogen's side of He+ + H in `ionBalance`; the temperature floor's default at 2.725 K); what it does to this branch's H2 results: nothing beyond 0.3%.** Seeded against H-027's runs. Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3962 -> 1.3959. pn150k lines against H-027's: 1-0 S(1) +0.3%, 0-0 S(0), S(1), S(2) +0.1, -0.1, +0.1%; hiipdr's within 0.1%. So pn150k's 0-0 S(0) and S(1) stay 3.9 and 2.5% below their values from before the shared ionization balance, with the Kingdon & Ferland fit back above 6,000 K: H-027's reading, that this loss was the size of helium's coefficient at the front, is refuted - it is the transfer below 6,000 K, where MOCASSIN had effectively none before, cooling the gas behind the front (4,805 -> 4,642 -> 4,614 K, 519 -> 485 -> 488 K). hiipdr run with no floor keyword gives what `teFloor 2.725` gave. One merge conflict (`pdr_mod.f90`, before the solve; both sides kept: the level model's H2 rate and D-403's charge-transfer rows). Page: H2 Lines in MOCASSIN, version 11 | Done | 2026-10-11 |
 | H-029 | **Production's D-404 merged (the ionization balance solved a second time after the chemistry, counted at every iteration and kept at the last); what it does to this branch's H2 results: nothing beyond 0.1%.** The kept solve runs before the level model's final call, so `lineFluxH2.out` is computed on the ions that are written. Seeded against H-028's runs, which the new runs follow to the last iteration (the second solve is discarded until then). Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3959 -> 1.3959 (neither by 0.0001). pn150k lines against H-028's: 1-0 S(1) +0.02%, 0-0 S(0), S(1), S(2) +0.10, +0.07, +0.01%; hiipdr's within 0.04%; the largest change among all the lines of `lineFluxH2.out` is 0.10% (pn150k) and 0.04% (hiipdr), both 0-0 S(0). The medians by spin and the ionized-zone H2 (34-210 times Cloudy's) are unchanged. Production's result, for the record here: the delay of one iteration between the two solvers was the cause of their disagreement (neutral cells more than 10% apart, first -> second solve: pn150k H 15.5 -> 0.0%, O 28.8 -> 0.0%; hiipdr H 28.4 -> 0.0%, O 21.1 -> 9.7%), and the written hydrogen budget closes before its rescale (off by 1% in 57.6% and 19.9% of cells -> none). Two merge conflicts (`iteration_mod.f90`, `pdr_mod.f90`), both sides kept. Page: H2 Lines in MOCASSIN, version 12 | Done | 2026-10-13 |
+| H-030 | **Production's D-405 on this branch's executable: the damping across iterations no longer holds back a cycle, the H2 does not move without it, and the two derailed iterations at the start of the chemistry are the damping together with H-013's heating term.** Seeded pairs, `iterDamp 0` against 0.25, the level model in the loop: no cell flips on either nebula; crossings pn150k A_V 0.3927 -> 0.3930, hiipdr 1.3959 -> 1.3951; none of pn150k's 2,644 H2 lines by 1% (largest +0.77%), hiipdr's of the tables +1.1 to +1.6% over an Hbeta 0.55% lower. Temperature balance not reached at iterations 5, 6: 72, 25% (pn150k) and 89, 79% (hiipdr) of cells with the damping, none without; production's damped arm, with no level model, has none either. With every iteration's cells kept: about 35 deep hiipdr cells lose more than half their H2 for one iteration, each on a single ionizing packet (L-51), and cells the symmetry makes equal differ in H2 by up to 11% along z before the transition (L-53). No source changed; the default is unchanged, the user's decision | Done | 2026-10-13 |
 
 ---
 
@@ -4222,3 +4223,116 @@ rebuilt on the same runs (D-404).
 ### Status
 
 Done (2026-10-13). No code of this branch changed beyond the merges.
+
+## H-030 - Production's D-405: the damping across iterations, re-evaluated on this branch's executable (2026-10-13)
+
+The user, 2026-10-11, during D-404: "perhaps we should also re-evaluate the
+effect of damping since we have made many changes to the code since it has
+been implemented." And on 2026-10-13: "lets work on the Damping
+re-evaluation". D-405 (`DEVLOG.md`) is production's entry and holds the
+measurements; this one says what they are for this branch. No source
+changed in either. Merged here: f7ec5e7 (the entry, the status document
+and `tools/d405_damp/`).
+
+All but one pair of D-405's runs are this branch's executable
+(`mocassin.d404b`, md5 3ba0c9dc..., 997efdf: the level model in the loop),
+in this worktree: the damped arms are H-029's runs (`runs/d404b-hii31`,
+`runs/d404c-pn41`), the undamped arms the same input and seed with
+`iterDamp 0.` added (`runs/d405-hii31-d0`, `runs/d405-pn41-d0`); both
+hiipdr arms again with every iteration's cells kept (`-d0h`, `-d25h`,
+byte-identical to the first two); and hiipdr undamped at four times the
+packets (`-d0-p4`). The one pair on production's executable
+(`runs/d405-prod-hii31-d25`, `-d0`, in production's worktree) is the
+control for point 2 below.
+
+### What it means here
+
+**1. No cycle, and the H2 does not move.** Without the damping no cell
+flips (cold to above 3,000 K: none or one per iteration on hiipdr, 10-33
+of 35,384 on pn150k, in either arm), and cell by cell the changes from
+one iteration to the next are independent draws.
+
+| | with the damping | without | Cloudy |
+|---|---|---|---|
+| pn150k H/H2 crossing, A_V | 0.3927 | 0.3930 | 0.3675 |
+| pn150k 1-0 S(1) / Hbeta | 9.411e-04 | 9.437e-04 (+0.27%) | 8.473e-04 |
+| pn150k 0-0 S(0) / Hbeta | 1.437e-04 | 1.448e-04 (+0.77%) | 7.758e-05 |
+| pn150k 0-0 S(1) / Hbeta | 5.424e-04 | 5.459e-04 (+0.65%) | 4.804e-04 |
+| pn150k 0-0 S(2) / Hbeta | 1.127e-03 | 1.129e-03 (+0.20%) | 4.481e-04 |
+| hiipdr H/H2 crossing, A_V | 1.3959 | 1.3951 | 1.2799 |
+| hiipdr 1-0 S(1) / Hbeta | 6.993e-04 | 7.105e-04 (+1.60%) | 9.237e-04 |
+| hiipdr 2-1 S(1) / Hbeta | 3.706e-04 | 3.766e-04 (+1.61%) | 4.936e-04 |
+| hiipdr 0-0 S(0) / Hbeta | 2.813e-04 | 2.844e-04 (+1.10%) | 2.318e-04 |
+| hiipdr 0-0 S(1) / Hbeta | 3.914e-04 | 3.972e-04 (+1.48%) | 4.845e-04 |
+| hiipdr 0-0 S(2) / Hbeta | 5.089e-04 | 5.147e-04 (+1.14%) | 4.606e-04 |
+
+Of pn150k's 2,644 H2 lines above 1e-7 Hbeta none moves by 1% (largest
++0.77%, 0-0 S(0)). hiipdr's rise by 1.1-1.6% over Hbeta in the lines of
+the table (2,674 of 2,690 by more than 1%, the largest 2.07%), of which
+0.55% is Hbeta: the undamped run's ionized gas is three iterations
+further along. In luminosity +0.5 to +1.1%.
+
+**2. The two derailed iterations are the damping's, through H-013's
+heating term.** H-029's figures showed a jump in the two solvers'
+disagreement at iteration 7 on hiipdr. Cells whose temperature balance is
+not reached, iterations 4 to 7:
+
+| | pn150k, damped | undamped | hiipdr, damped | undamped |
+|---|---|---|---|---|
+| 4 | 0% | 0% | 13% | 14% |
+| 5 | 72% | 0% | 89% | 0% |
+| 6 | 25% | 0% | 79% | 0% |
+| 7 | 0% | 0% | 0% | 0% |
+
+The blend carries the starting temperature into the chemistry a quarter
+at a time (median T after the chemistry's first iteration: pn150k 196 K
+damped, 23 K undamped; hiipdr 140 and 11 K). `h2LevelModel` computes the
+H2 heating at the temperature it finds, and `pdrHeatXtra` holds it
+through MOCASSIN's temperature search (H-013). At a temperature far above
+the one the levels are populated for, the term is a net cooling
+(-1.7e-24 erg/s per H at hiipdr's iteration 5 against +1.9e-27 undamped)
+and no temperature balances it. The control is the pair on
+production's executable, which has no level model: its damped arm carries
+the same remnant (median 140 K after the chemistry's first iteration,
+11 K undamped) and reaches its balance in every cell from the fifth
+iteration on. So the two derailed iterations need both, the damping and
+this term; with either one gone they do not occur. Everything else of
+D-405 is the same on the two executables.
+
+**3. Cells that lose their H2 for one iteration.** Followed cell by cell
+without the damping, hiipdr has 76-103 neutral cells per iteration whose
+x(H+) is more than ten times their own median (52 times in the median,
+He+ 112 times, the FUV field unchanged), 60-77 of which lose 30% or more
+of their H2 for that iteration, and about 35 more than half (median
+molecular fraction 0.98 -> 0.38 -> 0.98). pn150k: 10-28 and 8 in eight
+iterations. Each is one packet of ionizing radiation absorbed in a cell
+deep in the neutral gas, answered by a chemistry that is solved in steady
+state. Where it comes from is read in production's code and supported by
+the histories (D-405, L-51): a far-ultraviolet packet absorbed by neutral
+carbon is re-emitted from the hydrogen and helium spectrum. Not isolated
+by a run. For the level model it is 0.3% of hiipdr's deep H2 in the sums,
+and a cell with the wrong populations in a map. At four
+times the packets there are 107-146 such cells per iteration at 26 times
+their median, and 23 drops of more than half the H2 in six iterations
+(202 at 6e6); the H2 lines of the table move by 0.44% at most and the
+crossing by 0.002 mag.
+
+**4. A pattern in the H2 that follows z.** Of six cells that the octant's
+symmetry makes one cell of the model, the one nearest z = 0 has 11% more
+H2 than the two nearest x = 0 and y = 0 just behind pn150k's front, 6% at
+A_V 0.25-0.35, 1.8% at 0.35-0.44 and under 0.6% in the molecular gas; it
+does not average away over iterations (L-53). The shielding columns of
+H-021 to H-025 are integrated along twelve directions fixed in the grid
+frame, symmetric in x and y and not in z. That they are the cause is not
+tested.
+
+### Not yet known
+
+  - Whether the default changes: the user's decision. Until it does the
+    pages' model, and H-029's runs, stand.
+  - What closes L-51's channel, and what the H2 looks like with it closed.
+  - Whether the z pattern is the twelve rays (a run at another ray level).
+
+### Status
+
+Done. No code. Pages: H2 Lines in MOCASSIN v13, and the two Cloudy pages.
