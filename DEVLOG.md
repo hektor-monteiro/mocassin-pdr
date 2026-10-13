@@ -36694,7 +36694,8 @@ might move by a few per cent did not): Hbeta 2.68460 -> 2.68462e34 erg/s
 collisionally excited lines above 1e-3 Hbeta and 0 of 361 above 1e-6 move
 by 1% (largest, the O I lines at 1302-1359 A, x0.9990); CO 2-1, 3-2, 4-3
 x1.0000; the 3,993 H2 lines within 0.05% (largest 0-0 S(0), x1.0005).
-Medians by radius within 1% everywhere. The two flagged cells are D-403's.
+Medians by radius within about 1% everywhere (H+ x0.992-0.998, e-
+x0.992-0.999, O+ x0.999-1.01). The two flagged cells are D-403's.
 
 ### A third version withdrawn: the kept solve as a third solve from the damped state
 
@@ -36714,7 +36715,8 @@ made and reached its balance - and puts the model back as before. When the
 run stops, `ionKeepSecond` puts that result in the first solve's place,
 damped against the iteration's start exactly as the first was, and n_e as
 it is. No third solve, no stored temperature. The cost is one more copy of
-the stages on each rank (about 0.4 kB per cell, 1% of the run's memory).
+the stages on each rank: 0.3 kB per cell on pn150k (11 elements, 7 stages),
+under 1% of the 38 kB a cell costs per rank (D-370).
 
 Short test again (`runs/d404-test-f`, the inputs of the other short tests):
 the per-iteration lines are those of D-403's test and the 12 control and 28
