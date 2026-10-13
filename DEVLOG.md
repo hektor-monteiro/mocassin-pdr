@@ -38226,3 +38226,67 @@ counted converged 78% against 65%.
      times the packets is at 18-20 K, far below the 91 K of the line, and
      adds nothing to it; why the line falls by 1.5% is not looked into.
  12. Hbeta within 0.3%: **met** (-0.03%).
+
+### The pair on the production executable (`runs/d405-prod-hii31-d25`, `-d0`, 19:51)
+
+hiipdr 31^3, 15 iterations, seed 1001, 14 ranks, the production binary
+(no level model; md5 33ec96fb...), rc 0 both, 25:18 damped and 23:06
+undamped. Every iteration's cells kept in both.
+
+| | damped | undamped | h2-model: damped | undamped |
+|---|---|---|---|---|
+| cells cold -> above 3,000 K, per iteration | 0-1 | 0-1 | 0-1 | 0-1 |
+| median step of x(H0), iterations 10-15 | 2.34-2.56% | 3.35-3.54% | 2.35-2.51% | 3.28-3.44% |
+| integrated test at 12, 13, 14, 15 | 4.11, 3.22, 2.34, 2.014% | 3.00, 2.53, 1.950, 1.81% | 4.12, 3.20, 2.32, 1.989% | 2.98, 2.49, 2.002, 1.83% |
+| temperature balance not reached, iterations 4, 5, 6, 7 | 13, 0, 0, 0% | 14, 0, 0, 0% | 13, 89, 79, 0% | 14, 0, 0, 0% |
+| median T after the chemistry's first iteration | 140 K | 11 K | 140 K | 11 K |
+| EM(H+), last step | -0.24% | -0.14% | -0.24% | -0.14% |
+| written X+/X more than 10% from the solver's: H, He, C, O, Mg | 13.6, 8.2, 31.7, 18.5, 18.0% | 0.0, 0.0, 0.0, 9.8, 0.0% | 13.4, 8.5, 32.1, 18.7, 18.1% | 0.0, 0.0, 0.0, 9.9, 0.0% |
+| [C I] 609, 370 um, written over solve | 1.042, 1.104 | 1.004, 0.983 | 1.045, 1.116 | 1.004, 0.985 |
+
+Undamped over damped: step ratio 1.41 (1.49 for independent noise);
+noise of equivalent cells 1.2-1.4 for T, H2, C, CO, OH to A_V 2.29, n_e
+0.97-1.01; the damped arm ends where the undamped was at iteration 12.1;
+Hbeta -0.57%; no recombination line by 1%; 45 of 89 collisionally excited
+lines by more than 1% and one by 5% ([C I] 370 um -11.7% over Hbeta, 609
+um -3.0%). The undamped carbon is two states in the same shares as on
+h2-model (cells in one of the two: 96, 91, 84, 85, 90, 94, 97% of the bins
+from A_V 1.9 to 2.6; deep 12.7 K, ionized 20.1 K at 2.2-2.3), and the
+histories are independent draws (R 1.00-1.21, c -0.40 to -0.49; steps of
+the molecular fraction above 0.5: 377 in 232 cells, none with three).
+The one-iteration events are production's too: 72-105 neutral cells per
+iteration with x(H+) above ten times their median (53 times in the
+median), every one of the 187 drops of the molecular fraction on such a
+cell, the events on cells whose carbon was neutral the iteration before
+(25-42% of them at A_V 1.8-2.0 from the 1-3% of such cells), their rate
+0.10-0.16 of the product of the ionized and deep shares from A_V 2.0 to
+2.7. L-51 is not the level model's.
+
+**So the level model changes none of this but one thing**, the one the
+pair was run for. The damped production arm carries the same remnant of
+the starting temperature into the chemistry as the damped h2-model arm
+(median 140 K after the chemistry's first iteration in both, 11 K
+undamped) and reaches its temperature balance in every cell from the
+fifth iteration on. The two derailed iterations need both: the damping,
+which keeps the written temperature above the solved one, and H-013's
+heating term, which is computed at the written temperature and held
+through the search. Point 4 of the hiipdr section had that from the
+budget lines and the code; this is the run with the term taken out.
+
+### The predictions for the production pair
+
+ 13. No branch cycle: **met** (0-1 cells per iteration in either arm).
+ 14. Step ratio 1.3-1.6: **met** (1.41).
+ 15. The undamped test below the damped one at iterations 8-11: met
+     (22.4, 10.5, 6.98, 4.59% against 62.4, 29.0, 7.99, 5.91%). The stop
+     at the same iteration or one sooner: **missed on the size**. The
+     undamped arm passes at the fourteenth iteration (1.950%); the damped
+     arm has not passed at the fifteenth (2.014%), so it is two sooner at
+     the least. Both margins are a few hundredths of a per cent.
+ 16. Temperature balance reached in every cell from the fifth iteration
+     in both arms: **met.** The level model's term is the second
+     ingredient.
+ 17. [C I] 370 um written over solve 1.08-1.15 damped, 0.97-1.02
+     undamped: **met** (1.104, 0.983).
+ 18. The undamped carbon in two states, 85-97% of each bin: **met**
+     (84-97%).
