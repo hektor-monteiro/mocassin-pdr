@@ -26,7 +26,11 @@ Two-state quantities are also counted cell by cell: the molecular fraction's
 large steps, and the carbon state (C+ over C+ + C above 0.9, or below 0.18).
 For a state drawn afresh at every iteration with probability p, the chance
 that a cell is 'on' given that it was 'on' the iteration before is p, the
-same as given that it was 'off'.
+same as given that it was 'off'. Where the first exceeds the second, the
+same difference two iterations apart tells why: cells of one bin that are
+not equally exposed (each with its own p, and no memory) give the same
+difference at every lag; a state that remembers the one before it gives
+the square of it at lag two.
 
 Two controls. What a series of N independent draws gives for each cell's own
 R (the shares below 0.3 and above 2.5) is computed, not assumed: null(). And
@@ -205,8 +209,10 @@ def analyse(run, i0=9, i1=None):
             continue
         o0, o1 = on[:-1, m], on[1:, m]
         f0 = off[:-1, m]
+        p0, p2, q0 = on[:-2, m], on[2:, m], off[:-2, m]
         out['carbon'].append({'lo': float(a), 'n': int(m.sum()), 'on': p_on, 'off': p_off,
                               'on_on': float((o0 & o1).sum() / max(o0.sum(), 1)), 'on_off': float((f0 & o1).sum() / max(f0.sum(), 1)),
+                              'on_on2': float((p0 & p2).sum() / max(p0.sum(), 1)), 'on_off2': float((q0 & p2).sum() / max(q0.sum(), 1)),
                               'always_on': float(on[:, m].all(axis=0).mean()), 'always_off': float(off[:, m].all(axis=0).mean()),
                               'iid_on': p_on ** on.shape[0], 'iid_off': p_off ** on.shape[0]})
     return out
@@ -251,8 +257,9 @@ if __name__ == '__main__':
     if A['carbon']:
         k = len(A['its'])
         print('\ncarbon, on = C+/(C+ + C + CO) above 0.9, off = below 0.18; over %d iterations' % k)
-        print('  A_V        cells   on [%]  off [%]   on, if on before [%]   on, if off before [%]   on throughout [%] (if drawn afresh)   off throughout [%] (if drawn afresh)')
+        print('  A_V        cells   on [%]  off [%]   on, if on before [%]   on, if off before [%]   difference   the same two iterations apart   on throughout [%] (if drawn afresh)'
+              '   off throughout [%] (if drawn afresh)')
         for c in A['carbon']:
-            print('  %.1f-%.1f   %5d   %6.1f   %6.1f   %12.1f   %20.1f   %14.2f (%.2f)   %24.2f (%.2f)' % (
-                c['lo'], c['lo'] + 0.1, c['n'], 100 * c['on'], 100 * c['off'], 100 * c['on_on'], 100 * c['on_off'], 100 * c['always_on'], 100 * c['iid_on'],
-                100 * c['always_off'], 100 * c['iid_off']))
+            print('  %.1f-%.1f   %5d   %6.1f   %6.1f   %12.1f   %20.1f   %12.3f   %20.3f   %14.2f (%.2f)   %24.2f (%.2f)' % (
+                c['lo'], c['lo'] + 0.1, c['n'], 100 * c['on'], 100 * c['off'], 100 * c['on_on'], 100 * c['on_off'], c['on_on'] - c['on_off'],
+                c['on_on2'] - c['on_off2'], 100 * c['always_on'], 100 * c['iid_on'], 100 * c['always_off'], 100 * c['iid_off']))

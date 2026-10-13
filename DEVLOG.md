@@ -37786,3 +37786,153 @@ undamped arm's mixture of the two states. Sign and order agree with the
 measured excess of the whole model (written over solve 1.116 at 370 um,
 1.045 at 609 um, whose level is 23.6 K up); the estimate is not a
 measurement of it.
+
+### hiipdr, the cell histories of the undamped arm (`runs/d405-hii31-d0h`, 17:33)
+
+The rerun is the first undamped run byte for byte: `lineFlux.out`,
+`lineFluxMol.out`, `lineFluxH2.out`, `grid1.out`, `grid2.out`,
+`pdrGrid.out`, `convergence.out` and `pdrLineEm.out` compare equal (rc 0,
+41:25). The watcher changes nothing. `histdamp.py runs/d405-hii31-d0h 9`,
+iterations 9-15.
+
+**1. Independent draws, no cell that goes back and forth.** R and c as for
+pn150k (1 and -0.5 for draws independent from one iteration to the next;
+0 and -1 for a cycle of period two):
+
+| band of A_V | R: ln T | ln x(H) | ln x(C) | ln x(CO) | c: ln T | ln x(C) |
+|---|---|---|---|---|---|---|
+| 0.46-1.00 | 1.08 | (1.97) | 1.06 | 1.04 | -0.51 | -0.50 |
+| 1.00-1.48 | 0.87 | 1.20 | 1.00 | 1.36 | -0.56 | -0.49 |
+| 1.48-1.91 | 1.01 | 1.07 | 1.07 | 1.05 | -0.51 | -0.48 |
+| 1.91-2.29 | 1.20 | 1.01 | 1.11 | 1.04 | -0.40 | -0.45 |
+| 2.29-2.65 | 1.20 | 0.99 | 1.06 | 0.97 | -0.40 | -0.48 |
+| 2.65-2.99 | 1.17 | 0.96 | 0.92 | 1.01 | -0.41 | -0.53 |
+
+Each cell's own R over the seven iterations is below 0.3 in 2.0-3.5% of
+the neutral cells, by quantity, where seven independent draws give 4.5%:
+fewer cells with a cycle's signature than chance alone gives, not more.
+(Above 2.5 in 2.5-4.6%, 2.8% by chance; the excess is the molecular
+hydrogen of the atomic layer, A_V below 1.5, which still drifts: R 1.3-1.5
+there. The ionized cells drift too, R 1.3-3.5, as point 3 of the hiipdr
+section found from the totals.)
+
+**2. The large steps of the molecular fraction are single excursions, in
+different cells each time, and not at the H/H2 crossing.** Steps above 0.5:
+69, 72, 62, 71, 68, 66 per iteration, 408 in all, in 247 cells; 86 of
+those cells have one such step and 161 have two, none has three. Above
+0.25: 135-157 per iteration, 888 steps in 535 cells, of which 6 cells
+have more than two. That answers the question the logs left open
+("the same cells going back and forth, or different cells each time"):
+different cells, and where a cell has two steps they are one down and one
+back (median molecular fraction 0.98 -> 0.38 -> 0.98).
+
+They are deep: A_V 1.70-2.81, median 2.29, where the gas is 98%
+molecular - not at the crossing (A_V 1.40), where the log had placed
+them by their number.
+
+**3. What an excursion is: a cell over-ionized for one iteration.** In
+every one of the 202 down-steps below -0.5 the cell's x(H+) is more than
+ten times its own median at that iteration. Medians over the 202: x(H+)
+88 times the cell's median, x(He+) 195 times, n_e 7.9 times, T 1.09
+times (18.7 K against 17.3 K), and the FUV field chi 1.01 times
+(0.91-1.15): the far-ultraviolet field of the cell is the usual one, and
+hydrogen and helium are both ionized far above it. Counted on their own,
+cells with x(H+) above ten times their median: 94, 101, 76, 85, 89, 89,
+103 per iteration of the 15,048 neutral ones; with x(He+) so: 103, 111,
+77, 88, 97, 93, 106; with both: 86, 94, 70, 75, 84, 79, 92. By depth:
+
+| A_V | cells | events per cell and iteration | x(H+) over the cell's median | events that cost the cell 30% of its H2 or more |
+|---|---|---|---|---|
+| 0.46-1.00 | 759 | 0.24% | 29 | 0% |
+| 1.00-1.40 | 1,157 | none | | |
+| 1.40-1.80 | 1,958 | 0.07% | 52 | 60% |
+| 1.80-2.00 | 1,282 | 0.51% | 75 | 67% |
+| 2.00-2.20 | 1,591 | 1.54% | 61 | 77% |
+| 2.20-2.40 | 1,837 | 1.93% | 49 | 78% |
+| 2.40-2.60 | 2,101 | 0.74% | 52 | 85% |
+| 2.60-2.80 | 2,474 | 0.19% | 51 | 85% |
+| 2.80-3.00 | 1,889 | 0.05% | 30 | 86% |
+
+605 cells have at least one event in the seven iterations, 31 have two or
+more (13 expected if they fell at random on the neutral cells; they are
+concentrated in a third of them).
+
+What is measured is that. **What it is, is inferred and not traced:** an
+ionizing photon cannot reach A_V 2.3 from the H II region (its free path
+in neutral gas of 100 cm^-3 is 1e15-1e16 cm, a thousandth of a cell), so
+the photon was made in the cell or next to it, and a packet is the only
+thing here that arrives one at a time. The rate peaks where neutral
+carbon first meets the carbon-ionizing band, which is where the gas
+(and not the dust) absorbs the most far-ultraviolet packets. A packet
+absorbed by the gas is re-emitted with the cell's gas emission spectrum;
+if that draw falls in the hydrogen or helium recombination continuum, an
+ionizing packet of the full packet energy (L/6e6) appears inside the
+cloud and is absorbed on the spot. One packet in a 2e18 cm cell gives a
+rate of order 4e-14 s^-1 per hydrogen atom, which against recombination
+at 12 K puts x(H+) near 4e-3, some hundreds of times the usual 9e-6;
+the size is right (an estimate). Whether that is what the code does has
+to be read in the emission and re-emission routines; it is not read
+here.
+
+Two things follow whichever way that turns out. First, the chemistry is
+solved in steady state, so it answers one iteration's ionization as if
+it were permanent and removes most of the H2 of the cell; the cell is
+back at the next iteration. About 65 cells at any one iteration are
+written 60% atomic that are 98% molecular in every other. In the sums it
+is 0.3% of the deep H2. Second, with the damping on, each such event is
+written as three quarters of itself and leaves a quarter of that in the
+next iteration's model.
+
+**4. The carbon state from one iteration to the next.** On = C+ above 0.9
+of the carbon, off = below 0.18; seven iterations:
+
+| A_V | cells | on | off | on, if on before | on, if off before | difference | the same, two iterations apart |
+|---|---|---|---|---|---|---|---|
+| 1.9-2.0 | 669 | 93.1% | 3.3% | 93.5% | 86.2% | 0.07 | 0.03 |
+| 2.0-2.1 | 763 | 81.1% | 10.5% | 82.8% | 70.2% | 0.13 | 0.08 |
+| 2.1-2.2 | 828 | 60.4% | 25.5% | 65.1% | 49.1% | 0.16 | 0.09 |
+| 2.2-2.3 | 859 | 38.8% | 47.4% | 47.7% | 31.7% | 0.16 | 0.07 |
+| 2.3-2.4 | 978 | 19.1% | 70.1% | 24.8% | 17.0% | 0.08 | 0.02 |
+| 2.4-2.5 | 1,033 | 7.7% | 86.6% | 12.6% | 7.5% | 0.05 | 0.01 |
+| 2.5-2.6 | 1,068 | 2.9% | 94.3% | 6.8% | 2.9% | 0.04 | -0.01 |
+
+A state drawn afresh with one probability for the whole bin gives zero in
+the last two columns. It is not zero: a cell that was ionized is 4 to 16
+percentage points more likely to be ionized again. Two things give such
+a difference and the second lag tells them apart. Cells of one bin that
+are not equally exposed, each with its own probability and no memory,
+give the same difference at every lag; a state that remembers the one
+before gives its square at lag two (0.16 -> 0.03). The second lag has
+0.07-0.09 at the turn: about half is unequal exposure and half is memory
+of one iteration, of strength 0.08-0.09. **So the reading of the damped
+arm's histogram stands with a correction: the state is drawn afresh at
+every iteration to within a correlation of 0.04-0.16 with the iteration
+before, of which about half is real memory.** A candidate for the
+memory, not tested: neutral carbon is itself opaque in that band
+(an estimated optical depth of 0.5 across one cell where carbon is
+neutral, against 0.02 where it is ionized), and the transfer of one
+iteration runs on the carbon of the one before, so a cell ionized last
+time, and the cells in front of it, let more of the band through this
+time. That is the physics of an ionization front, and the "C+ = C" of
+this model is one.
+
+Cells ionized in all seven iterations: 64.7, 28.6, 5.7, 0.7% of the bins
+from 1.9-2.0 to 2.2-2.3 (60.4, 23.1, 2.9, 0.1% if drawn afresh); neutral
+in all seven: 2.7, 12.8, 39.3, 67.7% from 2.2-2.3 to 2.5-2.6 (0.5, 8.3,
+36.4, 66.3%).
+
+**5. The symmetry measure, controlled.** The spread among cells that are
+one cell, at one iteration and of each cell's mean over the seven (0.378
+if the noise is drawn afresh): the FUV field 0.37-0.41 in every band,
+the temperature 0.34-0.45 to A_V 2.65, carbon 0.37-0.40 to A_V 2.29. The
+field's noise is new at every iteration here as on pn150k. A part that
+stays shows where it did on pn150k, in the molecular hydrogen of the
+layers before the transition (33% of the variance at A_V 0.46-1.00, 21%
+at 1.00-1.48) and in H2's small spread at 1.91-2.29 (59% of a spread of
+0.6%). For carbon, C+ and n_e past A_V 2.29 the measure does not apply:
+the median set has all its cells in the deep state at any one iteration
+and differs only in how often each was ionized over the seven, so the
+spread of the means exceeds the spread at one iteration (ratio 1.0-6.4).
+A quantity with two values has no "spread" in this sense, and the noise
+ratio of the hiipdr table for C and C+ at 2.29-2.65 (0.10, 0.15) is the
+same thing seen from the damped side.
