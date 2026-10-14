@@ -409,6 +409,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
 | D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.17 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
 | D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
+| D-410 | **L-53: does the z pattern follow the ray set? (the user: "lets investigate the test of the z pattern with a different ray set")** The twelve HEALPix nside=1 directions, fixed in the grid frame with their ring axis along z, place the diffuse FUV field's scattering sites (traceDiffuseSites) and the line-escape rays (traceLineRays). Stage 1, attribution: the same twelve rotated so their ring axis is x (a diagnostic patch, two lines), hiipdr 31^3 at 6e6 packets, every iteration's cells kept, against D-405's run. Stage 2, if stage 1 attributes it: 48 directions (nside=2). Predictions on record before the run | In progress | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39076,3 +39077,85 @@ CO converges; whether L-53 is the ray set (a hypothesis until a run without
 it is read).
 
 Status: Proposed, for the user's decision.
+
+## D-410 - L-53: does the z pattern follow the ray set? (2026-10-14)
+
+Asked by the user after D-409: "lets investigate the test of the z pattern
+with a different ray set". The pattern (L-53, D-405, D-408): in cells the
+octant makes one cell, the one nearest the plane z = 0 has more H2 than
+the two nearest x = 0 and y = 0. On hiipdr 31^3 the excess is +11.4 / +9.4 /
++10.0 / +10.1% at A_V 0.46-1.00 and +6.7 / +5.3 / +5.0 / +4.9% at
+1.00-1.48 from 6e6 to 3.84e8 packets. On pn150k it is +10.7 / +11.2% at
+0.13-0.25. The FUV field, T and n_e carry under 0.5%, and x against y
+agree within 0.5%.
+
+### Where the twelve directions enter (read in the code, h2-model's pdr_mod.f90)
+
+  - **The direct field is not on them.** Jste - Jdif is shielded along the
+    star-ward column (computeAVradial; ray 0 of the chemistry). That
+    column is radial, so it has no frame.
+  - **The diffuse field is.** traceDiffuseSites walks twelve directions from
+    the cell and makes every cell a ray crosses a scattering site. The
+    site's weight is the formal solution for isotropic scattering, and its
+    H2, C and CO columns are the two legs, star -> site -> cell. pdrStep
+    hands each site to the chemistry as a ray of its own, carrying
+    chiDif * w / wTot (D-348). The total diffuse field is the MC's, but how
+    it is shielded depends on which cells the twelve directions cross.
+  - **The level model uses the same sites** for its diffuse pumping. It uses
+    the twelve line rays of traceLineRays (D-377) for every line's escape,
+    as pdrStep does for the coolants.
+  - **The set.** Both routines build the same twelve HEALPix nside=1 pixel
+    centres in ring order: four at mu = +2/3 (phi = 45 + 90k degrees), four
+    at mu = 0 (phi = 90k: the +-x and +-y axes), four at mu = -2/3. The set
+    maps onto itself under the octant's three mirrors and under x <-> y,
+    and not under x <-> z or y <-> z. That is the pattern's own symmetry
+    (z apart, x and y equal).
+
+### Stage 1: rotate the set, keep everything else
+
+The same twelve directions with their ring axis along x: in both routines
+(vx, vy, vz) = (mu, sr cos phi, sr sin phi) in place of (sr cos phi,
+sr sin phi, mu). This is a cyclic permutation. It keeps the ray order, the
+mirror symmetry and every weight, and the set is now symmetric under y <->
+z and not x <-> y. The patch is two lines, in a scratch copy of the h2-model
+tree; it is saved as tools/patches/d410_rays_axis_x.patch on h2-model,
+and the code is not changed.
+
+Run: hiipdr 31^3, the input of runs/h031-hii31-def (the default), 6e6
+packets, seed 1001, 14 ranks, 15 iterations, every iteration's cells kept
+(snap.py). The executable is the h2-model tree as committed plus the patch.
+An unpatched build of the same copy is checked against mocassin.h031 first
+(md5), so that the patch is the only difference. The reference is
+runs/d405-hii31-d0h, which is the default run byte for byte with its cells
+kept (D-406).
+
+Rotating the frame of a symmetric model is the same as relabelling its
+axes. If the rays are the cause, the excess must move to the x = 0 cells
+at the same size, and nothing integrated may change beyond the noise of a
+second realization.
+
+### Predictions (written 2026-10-14 20:24, before the patch is built)
+
+  1. The excess follows the frame: H2 of the cell nearest x = 0 over the
+     mean of the y and z ones is +9 to +13% at A_V 0.46-1.00 and +4 to +8%
+     at 1.00-1.48; z against y within 1.5%. CO's excess at 1.00-1.48
+     (+3% on z at 64x) moves to x with it.
+  2. The FUV field, T and n_e still carry under 0.5% in every direction.
+  3. The totals are those of a second realization of the same model: the
+     H2 lines of the tables within 1%, Hbeta within 0.1%, the H/H2
+     crossing within 0.005 mag; [C I] 609 and 370 um within 5% and CO
+     within 10% (the carbon turn at 6e6 is set by which cells a packet of
+     its band crosses, D-405).
+  4. Run time 38-46 minutes (41 for the reference).
+
+If 1 fails, with the excess still on z, the rays are not the cause. The
+candidates left would be in the frame of the transfer itself (the MC's
+emission or the octant's mirrors), which the field's own isotropy
+(under 0.1% at 16x) already argues against.
+
+Not tested by stage 1: whether more directions shrink the pattern, and
+whether the twelve bias the mean H2 as well as its orientation (they could:
+the same quadrature serves every cell). Stage 2, 48 directions (nside = 2),
+answers both. It needs the count of twelve made a parameter, about fifteen
+places in pdr_mod.f90 on h2-model (wkN, lrN, the site storage, the
+escape arrays, the level model's escape), and is designed after stage 1.
