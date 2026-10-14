@@ -39,6 +39,7 @@ DEVLOG.md and arrives here by merge.
 | H-028 | **Production's D-403 merged (charge transfer with H by the gas at hand in both solvers; hydrogen's side of He+ + H in `ionBalance`; the temperature floor's default at 2.725 K); what it does to this branch's H2 results: nothing beyond 0.3%.** Seeded against H-027's runs. Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3962 -> 1.3959. pn150k lines against H-027's: 1-0 S(1) +0.3%, 0-0 S(0), S(1), S(2) +0.1, -0.1, +0.1%; hiipdr's within 0.1%. So pn150k's 0-0 S(0) and S(1) stay 3.9 and 2.5% below their values from before the shared ionization balance, with the Kingdon & Ferland fit back above 6,000 K: H-027's reading, that this loss was the size of helium's coefficient at the front, is refuted - it is the transfer below 6,000 K, where MOCASSIN had effectively none before, cooling the gas behind the front (4,805 -> 4,642 -> 4,614 K, 519 -> 485 -> 488 K). hiipdr run with no floor keyword gives what `teFloor 2.725` gave. One merge conflict (`pdr_mod.f90`, before the solve; both sides kept: the level model's H2 rate and D-403's charge-transfer rows). Page: H2 Lines in MOCASSIN, version 11 | Done | 2026-10-11 |
 | H-029 | **Production's D-404 merged (the ionization balance solved a second time after the chemistry, counted at every iteration and kept at the last); what it does to this branch's H2 results: nothing beyond 0.1%.** The kept solve runs before the level model's final call, so `lineFluxH2.out` is computed on the ions that are written. Seeded against H-028's runs, which the new runs follow to the last iteration (the second solve is discarded until then). Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3959 -> 1.3959 (neither by 0.0001). pn150k lines against H-028's: 1-0 S(1) +0.02%, 0-0 S(0), S(1), S(2) +0.10, +0.07, +0.01%; hiipdr's within 0.04%; the largest change among all the lines of `lineFluxH2.out` is 0.10% (pn150k) and 0.04% (hiipdr), both 0-0 S(0). The medians by spin and the ionized-zone H2 (34-210 times Cloudy's) are unchanged. Production's result, for the record here: the delay of one iteration between the two solvers was the cause of their disagreement (neutral cells more than 10% apart, first -> second solve: pn150k H 15.5 -> 0.0%, O 28.8 -> 0.0%; hiipdr H 28.4 -> 0.0%, O 21.1 -> 9.7%), and the written hydrogen budget closes before its rescale (off by 1% in 57.6% and 19.9% of cells -> none). Two merge conflicts (`iteration_mod.f90`, `pdr_mod.f90`), both sides kept. Page: H2 Lines in MOCASSIN, version 12 | Done | 2026-10-13 |
 | H-030 | **Production's D-405 on this branch's executable: the damping across iterations no longer holds back a cycle, the H2 does not move without it, and the two derailed iterations at the start of the chemistry are the damping together with H-013's heating term.** Seeded pairs, `iterDamp 0` against 0.25, the level model in the loop: no cell flips on either nebula; crossings pn150k A_V 0.3927 -> 0.3930, hiipdr 1.3959 -> 1.3951; none of pn150k's 2,644 H2 lines by 1% (largest +0.77%), hiipdr's of the tables +1.1 to +1.6% over an Hbeta 0.55% lower. Temperature balance not reached at iterations 5, 6: 72, 25% (pn150k) and 89, 79% (hiipdr) of cells with the damping, none without; production's damped arm, with no level model, has none either. With every iteration's cells kept: about 35 deep hiipdr cells lose more than half their H2 for one iteration, each on a single ionizing packet (L-51), and cells the symmetry makes equal differ in H2 by up to 11% along z before the transition (L-53). No source changed; the default is unchanged, the user's decision | Done | 2026-10-13 |
+| H-031 | **Production's D-406 on this branch: the damping across iterations is off by default (`iterDamp` 0, the user's decision), and H2den has one rounding for every writer.** The four flavours, `h2Test` and `h2Slab` build; the round trips of both of H-030's undamped runs are byte for byte; a fresh hiipdr run with the new default is `runs/d405-hii31-d0` byte for byte in all 26 output files, the level model's included. The pages' models are H-030's undamped runs: crossings pn150k 0.3930, hiipdr 1.3951; against Cloudy ortho/para pn150k 0.91-1.11 / 1.89-2.62, hiipdr 0.76-0.78 / 1.06-1.12, 1-0 S(1) 1.11 and 0.77. H-030's two derailed iterations do not occur by default. H2 Lines in MOCASSIN v14 | Done | 2026-10-14 |
 
 ---
 
@@ -4336,3 +4337,65 @@ tested.
 ### Status
 
 Done. No code. Pages: H2 Lines in MOCASSIN v13, and the two Cloudy pages.
+
+## H-031 - Production's D-406: the damping off by default, on this branch (2026-10-14)
+
+The user, after D-405 and H-030: "lets change the default to 0 since it
+works better." D-406 (`DEVLOG.md`) is production's entry: `iterDamp`
+defaults to 0 (`common_mod.f90`), and H2den, which the restore
+(`resetGrid`) had rounded as the damping step does, is now rounded one
+way by every writer, the chemistry's (`pdrStep`, its seed, the damping
+step, `resetGrid`). Merged here: 7acf29f (8c446f6: the source, the entry,
+the status document).
+
+### What it means here
+
+  - **The level model's runs are now undamped.** No writer of an
+    undamped run changed, so this branch's executable with the new
+    default does what H-030's undamped runs did. The pages' models become
+    those runs: `runs/d405-hii31-d0` (15 iterations) and
+    `runs/d405-pn41-d0` (18; its test passes at 15, fails at 17 on T(H0)
+    and passes again at 18, so a run of the fixture would stop at 15).
+    For the H2 that is H-030's "without" columns: crossings pn150k
+    0.3927 -> 0.3930, hiipdr 1.3959 -> 1.3951; pn150k's lines by 0.77% at
+    most; hiipdr's lines of the tables +1.1 to +1.6% over an Hbeta 0.55%
+    lower. Against Cloudy, ortho and para: pn150k 0.91-1.11 and
+    1.89-2.62, hiipdr 0.76-0.78 and 1.06-1.12; 1-0 S(1) 1.11 and 0.77
+    (1.11 and 0.76 damped).
+  - **The derailed iterations go.** H-030's two iterations at the start
+    of the chemistry in which most cells missed their temperature balance
+    (the damping together with H-013's heating term, which is computed at
+    the written temperature) do not occur without the damping. A run that
+    sets `iterDamp 0.25` again is expected to have them (not run).
+
+### Checks on this branch
+
+  - The four flavours, with `mocassinOutput` and `mocassinPlot`, and
+    `h2Test` and `h2Slab`, build with rc 0 and no errors
+    (`PREFIX=$HOME/.local/mocassin_h2`).
+  - The round trip (`mocassinOutput`, new) of both undamped runs
+    (`runs/h031-rt-hii-d0`, `runs/h031-rt-pn-d0`): every output file byte
+    for byte, `summary.out` but for the two `T(H+)` lines the output stage
+    appends (as on production, and with the old executable). The level
+    model's files are not rewritten by `mocassinOutput` (no populations are
+    loaded), so this does not test them.
+  - **The default.** D-405's undamped hiipdr input without its
+    `iterDamp 0.` line, on the new executable (`runs/h031-hii31-def`):
+    every one of its 26 output files byte-identical to
+    `runs/d405-hii31-d0`, the level model's `lineFluxH2.out`,
+    `h2Cells.out` and `h2Pop.bin` included, `summary.out` but for its
+    clock times; the log prints `iterDamp 0.00`. 34:24 against 39:47
+    (machine timing). pn150k's was not repeated (2 h 32 min); no writer of
+    an undamped run changed, and its round trip is exact.
+
+### Not yet known
+
+  - As H-030: what closes L-51's channel; whether the z pattern is the
+    twelve rays; and the field's accumulation over iterations, which the
+    user has not taken up.
+
+### Status
+
+Done. Merged: 7acf29f (the source), 946d026 (production's entry
+completed). Pages: H2 Lines in MOCASSIN v14 and the two Cloudy pages (hiipdr
+v29, 150 kK PN v28), all on the undamped runs.
