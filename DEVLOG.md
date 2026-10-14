@@ -405,7 +405,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-403 | **Charge transfer with H at the fit made for the gas at hand, in both solvers; hydrogen's side of He+ + H in `ionBalance` itself; the temperature floor's default at the CMB.** The user: "Proceed with your recommendations" (D-402's three open items). Measured before coding, on the data in the tree and in Cloudy's source: **the recommendation was wrong for oxygen**. The network's O+ + H and H+ + O are fits to Stancil et al. (1999) over 10-41,000 K and agree with the fits to the same tables that Cloudy uses to 0.89-1.04 and 0.97-1.33 from 30 to 25,000 K; Kingdon & Ferland's, which MOCASSIN had before D-402, is 0.36-0.55 of them above 8,000 K. Oxygen therefore stays on the network's, and D-402's +4.6% in [O I] 6300 was the better data arriving. Helium and magnesium change as recommended: inside the Kingdon & Ferland fit's stated range (He+ + H 6,000-1e5 K; H+ + Mg 5,000-30,000 K) both solvers use it, outside it the network's, from one routine (`pdrCtCoef`); the coefficient steps x2.9 at 6,000 K (He) and x30 at 5,000 K (Mg) where the two data sets meet. Hydrogen's side of He+ + H is computed in `ionBalance` with the call's own He+ instead of arriving an iteration late in the handed net. `teFloor` defaults to 2.725 K, the one constant the chemistry's grain floor is made from. Four flavours rc 0 on both branches. Short test (hiipdr 21^3, 7 iterations): ion balance reached in every cell at every iteration, Te not reached 0% from iteration 5 (2% at 7 before), no cell flagged (102), Mg I 4564 x4.1, [O I] 6300 +0.1%. hiipdr, seeded against D-402's 2.725 K run: the default floor does what the keyword did (no cell flagged, 1,545 below 10 K), the Mg I lines x3.9, nothing else by more than 0.6%, the solvers' level unmoved. pn150k: the Mg I lines x4.1, to 0.70-1.30 of Cloudy's (9-16 before D-402, 0.17-0.32 at D-402); [O I] 6300 +0.3%; cells more than 2x apart 0.7 -> 0.1% (H), more than 10% apart 20.4 -> 15.5% (H) and 34.3 -> 28.8% (O), against a prediction of under 10 and 20%; two cells flagged, one beside helium's step. **And it refutes D-402's "one coefficient"**: with the K&F fit back above 6,000 K He+ there returns to its old value and Hbeta (+0.25%), the gas behind the front (3-6% colder) and 0-0 S(0), S(1) (-3.9, -2.5%) do not - they follow the transfer below 6,000 K, where MOCASSIN had effectively none before D-402, and hydrogen receiving the H+ of each transfer. Five of ten predictions missed, four of them for having built on that attribution. Pages rebuilt (PN v25, hiipdr v26, H2 lines v11) | Done | 2026-10-11 |
 | D-404 | **A second solve of `ionBalance` after the chemistry: measured at every iteration, kept at the last. The one-iteration delay is what held the two solvers apart.** The user, on L-47: "can we try including a second solve of MOCASSIN's balance after the chemistry only at the last iteration to see if that is indeed effective? Maybe that is enough for consistency?" `updateCell` takes an ion-only pass (the balance once, at the temperature the cell holds, on the terms handed over by then), used as a control before the chemistry and again after it; both put the model back, so each run takes the path D-403's took, to the printed digit. With the delay removed and nothing else changed, the neutral cells whose solver X+/X is more than 10% from MOCASSIN's go from H 28.4, He 13.2, C 1.5, Mg 12.9% to 0.0 on hiipdr and from H 15.5, O 28.8% to 0.0 on pn150k, at every iteration; the control moves nothing. hiipdr's oxygen keeps 9.7% (of 21.1): in every cell probed, a source of O+ from molecules that a stage trimmed out of the matrix does not carry (L-50). When the run stops, the last iteration's second solve takes the first's place in the written model, damped as the first was. The written hydrogen budget then closes before the D-220 rescale (off by more than 1% in 19.9% and 57.6% of the cells with the first solve; in none with the second). No line of either fixture moves by more than 1.0% ([C I] 370 um on hiipdr). What still separates the written ions from the solver's is the damping (L-49, which the user asked to be noted for later). Three versions withdrawn on the way: the kept solve at the damped temperature, flagging a failed second solve, and a third solve from the damped state (549 cells of pn150k did not settle). Not run: the second solve kept at every iteration. | Done 2026-10-13 |
 | D-405 | **The damping across iterations re-evaluated (L-49): it no longer holds back a cycle, and it has a cost. The default is unchanged; the decision is the user's.** The user: "lets work on the Damping re-evaluation". Seeded pairs, `iterDamp 0` against 0.25, one input line apart: hiipdr 31^3 and pn150k 41^3 on the h2-model executable, hiipdr again on production's; both hiipdr arms repeated with every iteration's cells kept (byte-identical); undamped at four times the packets; undamped with D-280's path biasing. (1) No cycle: cells cold -> above 3,000 K 0-1 per iteration (hiipdr) and 10-33 of 35,384 (pn150k) in either arm; cell histories are independent draws (R 1.0, c -0.5), no excess of cycling cells. (2) What moves is Monte Carlo noise: steps 1.39-1.48 of the damped arm's (1.49 for independent noise through the blend), equivalent cells 1.2-1.4, n_e (never damped) 1.0; it halves at four times the packets wherever it is scatter. (3) The damping is a filter on the output: taken out of the damped run's history, its solves are the undamped run's to a percentage point. (4) It costs 3 iterations (hiipdr) and 5-6 (pn150k); the 2% stop at 15/15 and 17/15. (5) On h2-model it derails the chemistry's second and third iterations (T balance unreached in 89, 79% and 72, 25% of cells; none without) - the damping together with H-013's heating term, since production's damped arm has none. (6) Without it the written model is its solution (written X+/X vs the solver's >10%: 13-32% -> 0, hiipdr's oxygen 9.9%, L-50). (7) Where a cell's answer has two values the blend writes states no solve gave: hiipdr's damped [C I] 609, 370 um are 4.5%, 11.6% above its own last solve. Found on the way: hiipdr's carbon past A_V 2 is two states set by whether a 11.26-13.6 eV packet crossed the cell, C+ = C is a count of packets (2.29 -> 2.51 at four times the packets, 2.61 with path biasing by another measure, Cloudy 2.93) and [C I] falls 20% (L-26); 76-103 cells per iteration over-ionized by a packet re-emitted from the H/He spectrum whatever absorbed it, each losing its H2 for that iteration (L-51, read in the code, two tests passed, not isolated); T(H0) in the stop test is 68-72% the front's hot cells (L-52); an H2 pattern along z among equivalent cells (L-53). 22 predictions written before their runs: 13 met, 5 half, 4 missed. No source changed | Done | 2026-10-13 |
-| D-406 | **The damping across iterations off by default: `iterDamp` 0 (the user's decision on D-405: "lets change the default to 0 since it works better").** The keyword stays; 0.25 gives the old blend. Found on the way by D-363's round trip: `mocassinOutput` on D-405's undamped run gave back [C I] 609 um 1.1e-7 off, because the restore rounded H2den as the damping step does and without that step the last writer is `pdrStep`; every writer now rounds as `pdrStep` does, so no undamped writer changed. Checked on production (hiipdr 31^3): four flavours build; a fresh run with the new default and no `iterDamp` line is D-405's `iterDamp 0.` run byte for byte in all 23 output files; the round trips of both, and of six damped iterations with `iterDamp 0.25`, are byte for byte. The pages' models become D-405's undamped runs: hiipdr [C I] 370/609 um -12.0/-3.2%, Hbeta -0.55%, every other line within 1.8% but CO 4-3 to 6-5 (-6 to -33%, lines a few cells carry); pn150k no line by 1%. In progress: h2-model (H-031), the pages | In progress | 2026-10-14 |
+| D-406 | **The damping across iterations off by default: `iterDamp` 0 (the user's decision on D-405: "lets change the default to 0 since it works better").** The keyword stays; 0.25 gives the old blend. Found on the way by D-363's round trip: `mocassinOutput` on D-405's undamped run gave back [C I] 609 um 1.1e-7 off, because the restore rounded H2den as the damping step does and without that step the last writer is `pdrStep`; every writer now rounds as `pdrStep` does, so no undamped writer changed. Checked on production (hiipdr 31^3): four flavours build; a fresh run with the new default and no `iterDamp` line is D-405's `iterDamp 0.` run byte for byte in all 23 output files; the round trips of both, and of six damped iterations with `iterDamp 0.25`, are byte for byte. The pages' models become D-405's undamped runs: hiipdr [C I] 370/609 um -12.0/-3.2%, Hbeta -0.55%, every other line within 1.8% but CO 4-3 to 6-5 (-6 to -33%, lines a few cells carry); pn150k no line by 1%. On h2-model (H-031) a fresh hiipdr run with the new default is D-405's undamped run byte for byte in all 26 output files, the level model's included. Pages: hiipdr Against Cloudy v29, 150 kK PN Against Cloudy v28, H2 Lines in MOCASSIN v14, on the undamped runs; two slips in the published pages corrected (hiipdr v28's ordinals without 'section', two stale references on the H2 page) | Done | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -38575,7 +38575,17 @@ On production, hiipdr 31^3, seed 1001, 14 ranks (`runs/d406prod-chain.sh`):
 
 ### h2-model
 
-To be merged and checked there (DEVLOG-H2 H-031).
+Merged into h2-model as 7acf29f (DEVLOG-H2 H-031). There, with
+`PREFIX=$HOME/.local/mocassin_h2`: the four flavours, `mocassinOutput`,
+`mocassinPlot`, `h2Test` and `h2Slab` build with rc 0 and no errors; the
+round trips of both of D-405's undamped runs with the new
+`mocassinOutput` (`runs/h031-rt-hii-d0`, `runs/h031-rt-pn-d0`) are byte
+for byte; and **a fresh hiipdr run with the new default and no `iterDamp`
+line (`runs/h031-hii31-def`) is `runs/d405-hii31-d0` byte for byte in
+all 26 output files**, the level model's `lineFluxH2.out`, `h2Cells.out`
+and `h2Pop.bin` included, `summary.out` but for its clock times (34:24
+against 39:47). So the hiipdr pages' model is exactly what the code now
+gives by default. pn150k's undamped run was not repeated (2 h 32 min).
 
 ### What it changes in what is published
 
@@ -38604,11 +38614,39 @@ As D-405 said: the slabs, `ifront`, denser models, pn150k on the
 production executable, a second seed. Not taken up: the field's
 accumulation over iterations (L-26), L-51, L-52, L-53.
 
-### Pages
+### Pages (2026-10-14, 10:37)
 
-Next: the three pages rebuilt on the undamped runs.
+Each page's live version was compared with the source it was built from
+(identical inside the publish wrapper) before the new one went up by its
+url. hiipdr Against Cloudy v29 (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx)
+and 150 kK PN Against Cloudy v28
+(https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV): the current-state
+parts (header, headline numbers, what was matched, the whole model's
+three figures, selected depths, the ionized gas, the line table, what
+agrees and what does not, the cost) rebuilt on the undamped runs, as
+D-404 did for its runs; a new first section (the decision, the run and
+the check, the model before and now against Cloudy, what moves, the
+rounding); the D-405 section marked as of its version, its open decision
+annotated as made; hiipdr's "what was matched" gains a row for the
+damping. H2 Lines in MOCASSIN v14 (https://claude.ai/artifact/B98zztmSp6yCK9NAy83PE8):
+a short first section, a finding at the head of the summary, the
+summary's current numbers on the undamped runs, H-030's section marked.
+Numbers from `nums23.py` and `nums_d404.py` rerun with the undamped run
+last (hiipdr) and D-405's files (pn150k). **Two slips in the published
+pages found and corrected on the way:** hiipdr v28 had "the
+charge-exchange data of the second, or with the second solve of the
+first", ordinals without the word "section" that its renumbering missed
+(one place too early each); and the H2 page carried two references stale
+from earlier versions ("the second section has them" in its stage B
+section, and a link labelled "the first section" to the width section,
+now the sixth). Builders in the session's scratchpad (`d406pages/`:
+`build_hii29.py`, `build_pn28.py`, `build_h2v14.py`, `sec_*.html`).
 
 ### Status
 
-The code change is made and checked on production. Next: the merge into
-h2-model and its checks (H-031), then the three pages.
+Done. `iterDamp` defaults to 0 on both branches; H2den has one rounding;
+four flavours build on both; the default checked byte for byte on both
+executables (hiipdr); the three pages are on the undamped runs. Not
+taken up, as before: the field's accumulation over iterations (L-26),
+L-51, L-52, L-53; and the models D-405 did not run (the slabs, `ifront`,
+denser gas, pn150k on production, a second seed).
