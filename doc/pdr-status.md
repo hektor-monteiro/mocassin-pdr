@@ -153,7 +153,7 @@ The gas warms with it (A_V 2.5: 11.2 -> 16.9 K, Cloudy 19.3), as D-333's
 open hypothesis above would have it. Whether that is through the carbon's
 cooling or another path has not been separated.
 
-The [C I] carrier is no longer 5x off. [C I] 609 um falls from 1.65 to 1.18
+The [C I] carrier is no longer 5x off. [C I] 609 um falls from 1.65 to 1.17
 of Cloudy's and stops (-0.9% from 16x); 370 um goes 1.29 -> 1.10. CO still
 moves at 64x (L-26). D-333's comparison against the vendored 3D-PDR
 reference has not been repeated at a higher count.
