@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-406, 2026-10-14. Reference model throughout: the 150 kK PN,
+Status as of D-409, 2026-10-14. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -114,7 +114,7 @@ reported/Cloudy moves from 1.289/1.304/1.272/1.256 to
 the *opposite* sign, 9-13% cool, and is a spectral-shape difference rather
 than a magnitude one - see L-19.
 
-**L-3. O-01: deep C+ drop past A_V ~2.1 - now MEASURED, and it is real**
+**L-3. O-01: deep C+ drop past A_V ~2.1 - measured (D-333); most of it was the packet count (D-408)**
 (D-333). The claim that stood here until 2026-09-23 - that the reference model
 reaches only A_V 0.68 so the region is not exercised - was stale: it described
 pn150k, while `runs/d326-stick` spans A_V 0.466-2.999 and the vendored 3D-PDR
@@ -133,6 +133,30 @@ cause of hiipdr's deep cold. [C I] 609 um has E/k = 23.6 K against [C II]'s
 91.2 K, so at the 15-25 K reached beyond A_V 2 a premature C+ -> C conversion
 switches on a coolant the gas can actually drive. `pdrCoolSp.out` holds the
 split already; the test costs no run.
+
+**D-408: most of it is the packet count.** On hiipdr against Cloudy,
+x(C+) over Cloudy's at A_V 2.3 / 2.5 / 2.7 / 2.9 is:
+
+| packets | 2.3 | 2.5 | 2.7 | 2.9 | C+ = C |
+|---|---|---|---|---|---|
+| 6e6 | 0.18 | 0.18 | 0.21 | 0.29 | 2.29 |
+| 2.4e7 | 0.97 | 0.68 | 0.21 | 0.29 | 2.51 |
+| 9.6e7 | 0.98 | 0.92 | 0.71 | 0.29 | 2.72 |
+| **3.84e8** | **0.98** | **0.93** | **0.82** | **0.63** | **2.80** |
+
+Cloudy's C+ = C is at 2.93. Each factor of 4 moved the turn by 0.22, 0.21
+and then 0.08 mag. What remains at 64x is a turn 0.13 mag shallow whose
+deep side is still sharpening: a divergence to report, a fifth of the 6e6
+one.
+
+The gas warms with it (A_V 2.5: 11.2 -> 16.9 K, Cloudy 19.3), as D-333's
+open hypothesis above would have it. Whether that is through the carbon's
+cooling or another path has not been separated.
+
+The [C I] carrier is no longer 5x off. [C I] 609 um falls from 1.65 to 1.18
+of Cloudy's and stops (-0.9% from 16x); 370 um goes 1.29 -> 1.10. CO still
+moves at 64x (L-26). D-333's comparison against the vendored 3D-PDR
+reference has not been repeated at a higher count.
 
 **L-4. O-14: the 3D self-shielding tracer has four named defects, two of them
 active on both production fixtures** (D-259, re-read in D-339).
@@ -378,6 +402,31 @@ every iteration in full: the spread of a cell's 7- or 9-iteration mean among
 symmetry-equivalent cells is 0.33-0.41 of one iteration's, as 1/sqrt(N).
 The first remedy above (accumulate the field once it has settled) is what
 this calls for, and it is still a design decision.
+**D-408, the series to 64x.** hiipdr from 6e6 to 3.84e8 packets, pn150k to
+2.4e7, seed 1001, the iteration counts fixed.
+
+  - **Per-cell spread.** Before the carbon turn every spread falls to
+    0.46-0.69 of the count before at each factor of 4, as 1/sqrt(N). The
+    exception is H2's at A_V 0.46-1.48, where L-53's pattern stays
+    (0.60-0.96).
+  - **The turn** converges at 64x (L-3).
+  - **The products split.** Converged at 6e6 on both fixtures: the H2
+    lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing
+    (hiipdr's 1-0 S(1) +0.8% from 6e6 to 3.84e8). [C I] needs 16-64x. CO
+    still moves at 64x on hiipdr (+5 to +10.5% per factor of 4, half the
+    step before) and falls by 5% at 4x on pn150k.
+  - **The bias of the means is one way.** Fewer packets give a shallower
+    turn and colder deep gas on hiipdr, and more C and CO on pn150k. A
+    higher count is a correction, not only less scatter.
+  - **pn150k at A_V 0.25-0.35.** In this band alone the steps from one
+    iteration to the next grow at 4x (ln x(H+) 0.062 -> 0.145, n_e 0.004 ->
+    0.040). Read as the ionizing packets past the front arriving at about
+    one per cell per iteration; not tested.
+  - **Cost.** hiipdr 31^3 goes from 41 min to 2 h 07 min at 64x, about 1.4
+    min per 6e6 packets. pn150k's packets cost nothing at 4x.
+
+The choice between a production count and accumulating the field is
+D-409's: proposed, and the user's to make.
 
 **L-27. Line escape in the 3D flavour is a slab with a third of its rays shut**
 (D-061, D-063, D-190; registered D-351). `pdrStep` gives the four `mu = 0`
@@ -723,6 +772,16 @@ the channel closed. A remedy is a design decision: which spectrum an
 absorption by something other than hydrogen or helium should return
 through.
 
+**D-408.** On hiipdr at 16x and 64x there are 135-167 and 90-124
+over-ionized cells per iteration, at 18 times their median both times. No
+drop of more than half the H2 remains: 202 / 23 / 0 / 0 from 6e6 to
+3.84e8.
+
+On pn150k the events do not fall with the packets: 11-27 and 14-33 cells
+per iteration at 6e6 and 2.4e7, at 24 and 26 times their median. Its He+
+events fall by a factor of 2.7, and the drops of half the H2 go from 9 to
+0.
+
 **L-52. T(H0) in the stop test is the ionization front's hot cells**
 (D-405). The temperature weighted by neutral hydrogen, one of the integrated
 quantities of D-391's test, is carried by the cells above 3,000 K: 72% of
@@ -737,6 +796,16 @@ fail at 17 (2.73%) on T(H0) alone. With the damping the same quantity keeps
 the test above 4% until iteration 16; since D-406 the default is undamped,
 so this scatter is in every run's test. To decide: whether a quantity carried
 by a few hundred front cells belongs in the test, or with what limit.
+
+**D-408: the test does not see the packet count.** On hiipdr the trail is
+the same from 6e6 to 3.84e8 packets: 2.3-2.5% at iteration 13, 1.6-2.0% at
+14 and 1.3-1.8% at 15, carried by O+ and S2+ in the H II region. Over the
+same series C+ = C moves 0.5 mag. A run stopped at 2% stops at iteration 14
+whatever its packets (15 at 6e6).
+
+On pn150k at 4x the test sits at 0.3-0.6% once He2+ has settled, the
+excursion of T(H0) at 17 is gone, and T(H0)'s floor falls from 1.02% to
+0.47%.
 
 **L-53. Cells that the grid's symmetry makes equal differ in H2, following
 z** (D-405). In an octant on a cubic grid the cells (i,j,k) and their
@@ -755,6 +824,24 @@ The chemistry's columns are integrated along twelve directions fixed in the
 grid frame (HEALPix level 0; L-27), a set symmetric in x and y and not in
 z. **That the rays are the cause is not tested** (a run at another ray
 level would). Radial means average it; a map does not.
+
+**D-408: not noise, and not the field.** The excess does not move with the
+packets:
+
+| fixture, A_V band | the counts | excess in H2 |
+|---|---|---|
+| hiipdr, 0.46-1.00 | 6e6 / 2.4e7 / 9.6e7 / 3.84e8 | +11.4 / +9.4 / +10.0 / +10.1% |
+| hiipdr, 1.00-1.48 | 6e6 / 2.4e7 / 9.6e7 / 3.84e8 | +6.7 / +5.3 / +5.0 / +4.9% |
+| pn150k, 0.13-0.25 | 6e6 / 2.4e7 | +10.7 / +11.2% |
+| pn150k, 0.25-0.35 | 6e6 / 2.4e7 | +5.7 / +5.3% (CO +6%) |
+
+At 16x-64x chi, T and n_e carry under 0.5%, and x against y agree within
+0.5% in H2. So the part of the H2 spread that stays grows as the noise
+goes. At 16x this pattern is the largest systematic in an H2 map's
+transition zone.
+
+The ray set is still the candidate, and still not tested. A run with
+another ray level is D-409's next step after the field, at the user's word.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
@@ -1236,6 +1323,9 @@ Stated explicitly, because absence of a reported problem is not evidence.
     a defect claim - the A_V zero points differ and the G0 unit convention has
     not been checked across the two codes - but the check has never been made
     (D-333).
+  - **The packet count past 64x** (D-408). On hiipdr CO still moves at
+    3.84e8 packets, and where it stops is not measured. Nor is pn150k past
+    2.4e7, or a grid larger than 31^3 at these counts.
   - **Cloudy's own charging exponent.** D-304's Lya correction transfers
     MOCASSIN's measured `d ln(PE)/d ln(G0) = 0.42` to Cloudy. A Cloudy run
     with its FUV field cut by the Lya fraction would measure Cloudy's own
