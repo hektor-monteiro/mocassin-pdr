@@ -95,8 +95,11 @@ def sets(a, b):
     out = {'recomb': [('%s %.2f' % (k[0], k[1]), ra[k], rb[k]) for k in ra if k in rb],
            'forb': [('[%s %s] %.2f' % (ELN.get(k[0], k[0]), ROM.get(k[1], k[1]), fa[k][0]), fa[k][1], fb[k][1]) for k in fa if k in fb],
            'h2': [(k, xa[k][1], xb[k][1]) for k in xa if k in xb]}
+    # lineFluxMol.out numbers a coolant's levels from 1. For a rotor (the CO files) level n is J = n - 1, so the
+    # label is J upper - J lower (D-408: printed as level numbers, "6-5 520.23 um" read as J 6-5 was J 5-4)
     for c in sorted({k[0] for k in ma}):
-        out['mol ' + c] = [('%d-%d %.2f um' % (k[1], k[2], ma[k][0]), ma[k][1], mb[k][1]) for k in ma if k in mb and k[0] == c]
+        dj = 1 if c.lower().endswith('co.dat') else 0
+        out['mol ' + c] = [('%d-%d %.2f um' % (k[1] - dj, k[2] - dj, ma[k][0]), ma[k][1], mb[k][1]) for k in ma if k in mb and k[0] == c]
     return out
 
 
