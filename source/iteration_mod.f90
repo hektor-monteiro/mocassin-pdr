@@ -1172,8 +1172,9 @@ module iteration_mod
 #ifdef PDR
               ! D-179: and x(H2), the quantity that is actually moving when the
               ! PDR first engages. D-391: from pdrAbun, the chemistry's own
-              ! reduced and damped answer, which every rank holds for every
-              ! cell - the end of the iteration is tested against the same array.
+              ! reduced answer (damped too when iterDamp > 0), which every rank
+              ! holds for every cell - the end of the iteration is tested against
+              ! the same array.
               if (allocated(grid(iG)%xH2iterStart) .and. allocated(grid(iG)%H2den)) then
                  do iDum = 0, grid(iG)%nCells
                     if (grid(iG)%Hden(iDum) <= 0.) then
@@ -2370,6 +2371,9 @@ module iteration_mod
            ! across ranks, so every rank damps the same complete array against
            ! the same iteration-start snapshot. Te only, for now: it is the
            ! bistable variable, and one change at a time is the point.
+           !
+           ! D-406: off by default (iterDamp = 0, common_mod), this and the
+           ! D-200 step below; D-405 found no cycle left for them to break.
            if (iterDamp > 0.) then
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%TeIterStart)) cycle
@@ -2443,12 +2447,16 @@ module iteration_mod
               ! branch at iteration 12 while the same census recomputed from
               ! pdrAbun (damped) put 1.6% there. Same cells, same threshold,
               ! two different molecular fractions.
+              ! D-406: in the chemistry's own form (pdrStep, its seed),
+              ! x(H2)*n_H in double precision and then to single, so H2den
+              ! has one rounding whether or not this step runs and a restored
+              ! grid (resetGrid) carries it to the bit either way.
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%H2den)) cycle
                  if (pdrIdxH2 <= 0) cycle
                  do iDum = 0, grid(iG)%nCells
                     grid(iG)%H2den(iDum) = &
-                         & real(grid(iG)%pdrAbun(iDum,pdrIdxH2))*grid(iG)%Hden(iDum)
+                         & real(grid(iG)%pdrAbun(iDum,pdrIdxH2)*dble(grid(iG)%Hden(iDum)))
                  end do
               end do
               ! elemAvail is DERIVED from pdrAbun, so republish it from the
