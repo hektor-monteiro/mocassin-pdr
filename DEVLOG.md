@@ -407,7 +407,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-405 | **The damping across iterations re-evaluated (L-49): it no longer holds back a cycle, and it has a cost. The default is unchanged; the decision is the user's.** The user: "lets work on the Damping re-evaluation". Seeded pairs, `iterDamp 0` against 0.25, one input line apart: hiipdr 31^3 and pn150k 41^3 on the h2-model executable, hiipdr again on production's; both hiipdr arms repeated with every iteration's cells kept (byte-identical); undamped at four times the packets; undamped with D-280's path biasing. (1) No cycle: cells cold -> above 3,000 K 0-1 per iteration (hiipdr) and 10-33 of 35,384 (pn150k) in either arm; cell histories are independent draws (R 1.0, c -0.5), no excess of cycling cells. (2) What moves is Monte Carlo noise: steps 1.39-1.48 of the damped arm's (1.49 for independent noise through the blend), equivalent cells 1.2-1.4, n_e (never damped) 1.0; it halves at four times the packets wherever it is scatter. (3) The damping is a filter on the output: taken out of the damped run's history, its solves are the undamped run's to a percentage point. (4) It costs 3 iterations (hiipdr) and 5-6 (pn150k); the 2% stop at 15/15 and 17/15. (5) On h2-model it derails the chemistry's second and third iterations (T balance unreached in 89, 79% and 72, 25% of cells; none without) - the damping together with H-013's heating term, since production's damped arm has none. (6) Without it the written model is its solution (written X+/X vs the solver's >10%: 13-32% -> 0, hiipdr's oxygen 9.9%, L-50). (7) Where a cell's answer has two values the blend writes states no solve gave: hiipdr's damped [C I] 609, 370 um are 4.5%, 11.6% above its own last solve. Found on the way: hiipdr's carbon past A_V 2 is two states set by whether a 11.26-13.6 eV packet crossed the cell, C+ = C is a count of packets (2.29 -> 2.51 at four times the packets, 2.61 with path biasing by another measure, Cloudy 2.93) and [C I] falls 20% (L-26); 76-103 cells per iteration over-ionized by a packet re-emitted from the H/He spectrum whatever absorbed it, each losing its H2 for that iteration (L-51, read in the code, two tests passed, not isolated); T(H0) in the stop test is 68-72% the front's hot cells (L-52); an H2 pattern along z among equivalent cells (L-53). 22 predictions written before their runs: 13 met, 5 half, 4 missed. No source changed | Done | 2026-10-13 |
 | D-406 | **The damping across iterations off by default: `iterDamp` 0 (the user's decision on D-405: "lets change the default to 0 since it works better").** The keyword stays; 0.25 gives the old blend. Found on the way by D-363's round trip: `mocassinOutput` on D-405's undamped run gave back [C I] 609 um 1.1e-7 off, because the restore rounded H2den as the damping step does and without that step the last writer is `pdrStep`; every writer now rounds as `pdrStep` does, so no undamped writer changed. Checked on production (hiipdr 31^3): four flavours build; a fresh run with the new default and no `iterDamp` line is D-405's `iterDamp 0.` run byte for byte in all 23 output files; the round trips of both, and of six damped iterations with `iterDamp 0.25`, are byte for byte. The pages' models become D-405's undamped runs: hiipdr [C I] 370/609 um -12.0/-3.2%, Hbeta -0.55%, every other line within 1.8% but CO 4-3 to 6-5 (-6 to -33%, lines a few cells carry); pn150k no line by 1%. On h2-model (H-031) a fresh hiipdr run with the new default is D-405's undamped run byte for byte in all 26 output files, the level model's included. Pages: hiipdr Against Cloudy v29, 150 kK PN Against Cloudy v28, H2 Lines in MOCASSIN v14, on the undamped runs; two slips in the published pages corrected (hiipdr v28's ordinals without 'section', two stale references on the H2 page) | Done | 2026-10-14 |
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
-| D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 16 times the packets (9.6e7) and pn150k 41^3 at 4 times (2.4e7), h2-model executable with the new default, seed 1001, 14 ranks, the iteration counts of their 1x runs, every iteration's cells kept; 1x and hiipdr's 4x exist (D-405, D-406). Predictions on record before the runs | In progress | 2026-10-14 |
+| D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.18 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
+| D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -38852,3 +38853,218 @@ values in D-405 and D-407 are annotated, not changed. The pages' CO rows
 come from `nums_d404.py`, which converts, except one parenthesis on hiipdr
 v29 ("one cell held 8.6% of the damped run's 6-5", which is 5-4), to
 correct at its next version.
+
+### pn150k at 4x (`runs/d408-pn41-p4`, 2:11:12)
+
+Finished 2026-10-14 14:17, read from 14:20 (the page's measures at
+18:30). The same tools, 1x / 4x:
+
+| | 6e6 | 2.4e7 | 4x / 1x - 1 | over Cloudy's, 1x -> 4x |
+|---|---|---|---|---|
+| Hbeta [1e34 erg/s] | 2.6779 | 2.6779 | +0.00% | 0.964 |
+| the page's 23 lines from He I 5876 to [C I] 9824+9850 | | | within 0.30% ([C I] 9824+9850 -0.30, [O III] 4363 -0.23, [O I] 6300 +0.17) | unchanged to 0.005 |
+| [O I] 63 / 145 um | | | +0.27 / +0.18% | 1.499 -> 1.503 / 1.610 -> 1.613 |
+| [C II] 158 um | | | +1.14% | 0.584 -> 0.591 |
+| [C I] 609 / 370 um | | | -3.67 / -2.42% | 0.655 -> 0.631 / 0.457 -> 0.446 |
+| CO 1-0 / 2-1 / 3-2 / 4-3 / 5-4 / 6-5 | | | -5.3 / -5.2 / -4.8 / -4.4 / -4.3 / -5.0% | 2-1 0.640 -> 0.607, 4-3 0.226 -> 0.216, 6-5 0.072 -> 0.069 |
+| H2 1-0 S(1), 2-1 S(1), 0-0 S(0) / S(1) / S(2) / S(3) | | | +0.19, +0.15, -0.82 / -0.34 / +0.48 / +0.26% | |
+| H/H2 crossing [A_V] | 0.3923 | 0.3915 | | |
+| T_gas at A_V 0.22 / 0.28 [K] | 102.7 / 48.9 | 107.9 / 50.6 | +5.1 / +3.5% | 0.84 -> 0.88 / 0.75 -> 0.78 |
+| T_gas at A_V 0.38, 0.50, 0.65 [K] | 38.6, 30.8, 24.7 | the same to 0.2% | | 0.68-0.74 |
+| photoelectric heating at A_V 0.22 / deeper | | | +6.1% / within 0.6% | |
+| n(C), n(CO), n(OH), n(C+), n(H2) over the neutral cells | | | -4.4, -5.6, -3.3, +0.03, -0.16% | |
+| T(H0) [K] | 256.57 | 257.29 | +0.28% | |
+| stop test, iterations 12-18 [%] | 5.49 3.26 2.48 1.14 1.16 2.73 1.55 | 5.52 3.30 2.15 1.12 0.59 0.49 0.32 | | |
+| over-ionized neutral cells per iteration (L-51); x(H+) over own median; He+ events; drops of half the H2, it. 9-18 | 11-27; 24; 365-531; 9 | 14-33; 26; 132-200; 0 | | |
+
+**pn150k's ionized gas, [O I] and H2 are converged at 6e6 packets; its
+carbon is not.** Of the 239 lines of `lineFlux.out` above 1e-4 Hbeta,
+three move by more than 1%, and they are the carbon lines. Neutral carbon
+and CO fall by 2.4-5.6% with four times the packets, away from Cloudy's,
+and [C II] rises 1.1%. The warm layer behind the front (A_V 0.2-0.3) is
+4-5% warmer, its photoelectric heating at 0.22 6% higher. There is no
+carbon turn to move: the model's A_V reaches 0.66.
+
+**The stop test.** The approach of He2+ up to iteration 15 is the same at
+both counts. After it the test sits at 0.3-0.6% at 4x, a third of 1x's,
+the excursion of T(H0) at 17 (2.73% at 1x) is gone, and T(H0)'s floor
+(the scatter of its last iterations, `cvdamp.floor`) is 1.02% -> 0.47%.
+
+**Noise among equivalent cells, 4x / 1x:** ionized 0.44-0.65; A_V
+0.13-0.25 0.53-0.73; the three deepest bands (A_V 0.44-0.66, 24,464 of
+the 34,932 neutral cells) 0.48-0.55; A_V 0.25-0.44 0.51-0.93 (n_e 0.93
+and 0.77, CO 0.90 and 0.79, T 0.80 at 0.25-0.35). Two things hold the
+transition's spread up.
+
+  - **L-53, as in hiipdr.** The H2 of the cell nearest z = 0 over the
+    mean of the x and y ones (`histdamp.orient`, iterations 9-18), 1x / 4x:
+    +10.7 / +11.2% at A_V 0.13-0.25, +5.7 / +5.3% at 0.25-0.35, +1.7 /
+    +1.4% at 0.35-0.44, within 0.5% deeper; CO +6.1 / +6.2% at
+    0.25-0.35. x against y within 0.5% in H2; chi, T and n_e within 0.5%.
+    It is the same layer of the H2's rise and the same size as in hiipdr,
+    again not in the field. The share of the H2's spread that stays from
+    one iteration to the next grows as the noise goes (0.31 -> 0.63 at
+    A_V 0.25-0.35, `histdamp.frozen`).
+  - **At A_V 0.25-0.35 alone, the steps from one iteration to the next grow
+    with the packets**, all drawn afresh (R 1.0, c -0.50), where every
+    deeper band's halve. Median |step|: ln x(H+) 0.062 -> 0.145, n_e
+    0.004 -> 0.040, T 0.033 -> 0.039, CO 0.158 -> 0.222. H+ carries
+    13-14% of the electrons there, and He+'s share rises 0.64 -> 1.04%.
+    Reading, not tested: the ionizing packets that get past the front
+    arrive there at about one per cell per iteration at 4x. At 1x most
+    cells get none in most iterations, so the median step of a count
+    rises before it falls.
+
+**L-51 does not fall with the packets in pn150k**, unlike hiipdr's (52 ->
+26 -> 18): x(H+) in the over-ionized cells is 24 and 26 times its own
+median, 11-27 and 14-33 of them per iteration. The He+ events fall by a
+factor of 2.7 and the drops of more than half the H2 go from 9 to 0.
+
+**Run time 2:11:12, less than 1x's 2:31:37.** At 4x iterations 5-17 took
+7.3-8.1 minutes each. At 1x (run on 2026-10-13) iterations 5-9 took
+9.6-10.4, 10-12 8.0-8.3, 13-16 7.3-7.7 and 17-18 9.4-9.6: 4x ran at
+the pace of 1x's fastest stretch, and the rest is the machine. pn150k's
+time is its chemistry (35k neutral cells), and four times the packets
+cost nothing measurable.
+
+**Predictions:** 9 half (the ionized gas and [O I] within 0.3%; [C II]
++1.1%, [C I] -2.4 / -3.7%, CO -4.3 to -5.3%); 10 met (the named H2 lines
+within 0.82%; of the 2,644 lines above 1e-7 Hbeta, 301 by 1.0-1.8%, none
+by 5%; the crossing by 0.0008 mag); 11 half (0.48-0.55 in the three
+deepest bands, 70% of the neutral cells; 0.51-0.93 at A_V 0.25-0.44); 12
+met; 13 missed (2 h 11 min, below the range and below 1x's; the
+prediction scaled 1x's time by hiipdr's 10% for the packets).
+
+### hiipdr at 64x (`runs/d408-hii31-p64`, 3.84e8 packets, 2:06:57)
+
+Started 14:17 by the chain when pn150k finished, finished 16:24 (rc=0),
+read from 18:34: two hours late, because no wait was armed for it. **No predictions were written for it before it started.**
+The rule that called for it was on record, but what it would give was not;
+its numbers are recorded as measured.
+
+| | 6e6 | 2.4e7 | 9.6e7 | 3.84e8 | Cloudy |
+|---|---|---|---|---|---|
+| C+ = C, page's measure [A_V] | 2.287 | 2.508 | 2.719 | 2.798 | 2.933 |
+| C+ = C, the tool's measure | 2.250 | 2.520 | 2.722 | 2.792 | |
+| C+ over Cloudy's at A_V 2.3 / 2.5 / 2.7 / 2.9 | 0.18 / 0.18 / 0.21 / 0.29 | 0.97 / 0.68 / 0.21 / 0.29 | 0.98 / 0.92 / 0.71 / 0.29 | 0.98 / 0.93 / 0.82 / 0.63 | 1 |
+| T_gas at A_V 2.5 / 2.9 [K] | 11.15 / 9.72 | 15.12 / 9.80 | 16.74 / 9.84 | 16.86 / 11.07 | 19.34 / 11.80 |
+| [C I] 609 / 370 um, over Cloudy's | 1.65 / 1.29 | 1.32 / 1.03 | 1.19 / 1.06 | 1.18 / 1.10 | 1 |
+| [C II] 158, [O I] 63, [O I] 6300, over Cloudy's | 1.34, 7.96, 7.01 | 1.32, 8.06, 7.06 | 1.30, 8.10, 7.10 | 1.30, 8.11, 7.10 | 1 |
+| CO 1-0 / 2-1 / 3-2 / 4-3 / 5-4, step from the run before | | +0.5 / +4.8 / +19 / +42 / +46% | +18 / +24 / +36 / +44 / +39% | +8.1 / +9.2 / +10.5 / +9.1 / +4.9% | |
+| n(C), n(C+), n(CO) over the neutral cells, step | | -28, +22, -7% | -30, +14, +7% | -19, +5.5, +5% | |
+| H2 1-0 S(1), 0-0 S(0) / S(1) / S(2), over Cloudy's | 0.769, 1.23 / 0.82 / 1.12 | 0.772, 1.23 / 0.82 / 1.12 | 0.774, 1.23 / 0.83 / 1.12 | 0.775, 1.23 / 0.83 / 1.12 | 1 |
+| H/H2 crossing [A_V] | 1.3951 | 1.3933 | 1.3944 | 1.3945 | 1.2799 |
+| Hbeta [1e36 erg/s] | 9.1158 | 9.1132 | 9.1084 | 9.1079 | 10.02 |
+| stop test at iterations 13 / 14 / 15 [%] | 2.49 / 2.00 / 1.83 | 2.34 / 1.93 / 1.45 | 2.31 / 1.61 / 1.33 | 2.28 / 1.64 / 1.38 | |
+| over-ionized cells per iteration (L-51); x(H+) over own median; drops of half the H2, it. 9-15 | 76-103; 52; 202 | 107-146; 26; 23 | 135-167; 18; 0 | 90-124; 18; 0 | |
+| H2 of the z = 0 cells over x and y's, A_V 0.46-1.00 / 1.00-1.48 (L-53) | +11.4 / +6.7% | +9.4 / +5.3% | +10.0 / +5.0% | +10.1 / +4.9% | |
+| run time | 41:25 | 43:47 | 58:34 | 2:06:57 | |
+
+**The carbon turn converges at 64x.** Its step falls from 0.21 to 0.08
+mag, under the 0.1 mag that prediction 1 set as the sign of a turn that
+has reached where the field's mean puts it. It sits at A_V 2.80, 0.13 mag
+short of Cloudy's 2.93: a divergence to report, a fifth of the 0.65 mag at
+6e6. C+ to A_V 2.5 is 0.93-0.98 of Cloudy's and no longer moves (within
+0.01); the turn's deep side still does (C+ at A_V 2.7 0.71 -> 0.82, at
+2.9 0.29 -> 0.63 of Cloudy's; T at 2.9 9.8 -> 11.1 K, Cloudy 11.8).
+[C I] 609 um has stopped (-0.9%, 1.18 of Cloudy's) and 370 um rises 4.2%
+(1.10), with n(C) over the neutral cells -19%.
+
+**CO is the one product still moving**: every line +4.9 to +10.5%, half
+of the step before. The rest is within 0.4% of 16x: the H2 lines (none of
+2,695 by 1%; 1-0 S(1) +0.8% from 6e6 to 3.84e8), [C II] -0.4%, [O I] 63
++0.2%, the crossing, Hbeta.
+
+Noise among equivalent cells, 64x / 16x: before the turn (A_V < 1.91)
+0.50-0.69 in T, n_e and C, 0.54-0.74 in CO. H2's is 0.96 at A_V
+0.46-1.00 and 0.74 at 1.00-1.48, where L-53's pattern is now most of the
+spread. Past A_V 1.91 the spreads of n_e and H2 grow (H2's 0.07 -> 0.66%
+at 2.29-2.65, in gas that is all H2) as the turn moves into those bands.
+
+**The stop test cannot see any of this.** Its trail is the same at every
+count (2.3-2.5% at iteration 13, 1.6-2.0% at 14, 1.3-1.8% at 15, carried
+by O+ and S2+ in the H II region) while C+ = C moved 0.5 mag. A run
+stopped at 2% (D-392) stops at 14 (15 at 1x) whatever its packets (L-52).
+
+### What the series says (D-407 step 1)
+
+  - **Converged at 6e6 packets in both fixtures:** the lines of the ionized
+    gas, Hbeta, [O I], the H2 lines (1-0 S(1) +0.8% from 6e6 to 3.84e8 in
+    hiipdr; within 0.82% at 4x in pn150k) and the H/H2 crossing. For the H2
+    of D-383's science products the default count is enough.
+  - **Not converged at 6e6:** hiipdr's carbon turn and its lines ([C I] 609
+    1.65 -> 1.18 of Cloudy's; C+ = C moves by under 0.1 mag only from 16x
+    to 64x) and
+    the temperature behind it (A_V 2.5: 11.2 -> 16.9 K), and CO in both
+    fixtures (hiipdr still +5-10% per factor of 4 at 64x; pn150k -5% at 4x).
+    The deep-C+ deficit that L-3 and the hiipdr page call 0.2-0.3 of
+    Cloudy's was the packet count: 0.93-0.98 of Cloudy's to A_V 2.5 at 64x.
+  - **The cost:** hiipdr 31^3 goes from 41 minutes to 2 h 07 min at 64x,
+    about 1.4 minutes per 6e6 packets. pn150k's chemistry sets its time, and
+    its packets cost nothing at 4x.
+  - **What packets do not change:** L-53 (H2 +10% and +5% on the cells
+    nearest z = 0, at every count in hiipdr and in pn150k's transition) and
+    the stop test's trail (L-52).
+  - **Noise biases the products one way.** With fewer packets the means of
+    C, CO and T are biased, monotonically in the count (hiipdr: C+ = C
+    shallower, the deep gas colder; pn150k: C and CO higher). So more
+    packets are not only less scatter, they move the answer.
+
+Status: Done (2026-10-14). Step 2 is D-409.
+
+## D-409 - D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field (2026-10-14)
+
+D-408 measured what the science products need. **The H2 lines need nothing
+more than the default 6e6 packets. The carbon turn and its lines need
+16x-64x. CO still moves at 64x.** This entry is a recommendation; the
+decision is the user's (D-405 left it open, D-407 named it step 2).
+
+**A: a production packet count.**
+  - 64x (3.84e8) puts hiipdr's carbon turn and its lines within ~0.1 mag
+    and a few per cent of where they stop: 2 h 07 min for hiipdr 31^3,
+    three times 6e6's.
+  - 16x (9.6e7, 59 min) leaves the turn 0.08 mag shallow, [C I] 370 4%
+    low and CO 5-10% low against 64x.
+  - CO is not converged at 64x. A count that converges it would be 256x or
+    more by the trend: about 6 1/2 hours for hiipdr 31^3 at 1.4 minutes
+    per 6e6 packets. That count is not measured.
+  - The packets' cost grows with the grid; pn150k's chemistry dominates its
+    time, but a larger hiipdr-like model's transport would not.
+
+**B: the field accumulated over iterations (D-405's open design).**
+  - The estimators `Jste`/`Jdif` are zeroed every iteration
+    (`iteration_mod.f90`, ~569/580). Summed over the last N iterations,
+    each with its own normalisation, the field's mean would rest on N times
+    the packets at the cost of one iteration's.
+  - With the series' 15 iterations, accumulating 9-15 gives ~7x from 6e6
+    packets, and ~112x from 16x.
+  - What it needs: a design for where to start (the model still moves early
+    on: the stop test is ~10% at iteration 9), and a check that a field
+    built on the opacities of earlier iterations does not lag the model.
+    The series is its reference: a 1x run with the field accumulated can be
+    read against 4x-64x at the same seed, product by product.
+  - It is a change to the code's iteration scheme. It is not implemented
+    without the user's word.
+
+**Recommended: B, tested against D-408's series.** Two reasons:
+  - CO needs more than 64x, and the count that would converge it costs
+    hours per model.
+  - The noise biases the means one way (D-408), so a test against the
+    series shows at once whether an accumulated field takes the bias out.
+
+Until that is decided, a science run that quotes the carbon lines or CO
+should use 64x (16x if an hour matters more than the last 0.08 mag). Its
+H2 lines are converged at the default.
+
+**Then L-53.** H2 is 10% higher on the cells nearest z = 0 in the
+transition layer, at every count and in both fixtures. That is now the
+largest systematic in an H2 map's transition zone, larger than 16x's
+packet noise. The candidate is the twelve shielding rays fixed in the grid
+frame (z is the HEALPix polar axis; x against y show no pattern). The test
+is a run with another ray set, which is not done without the user's word.
+
+Not known: whether an accumulated field lags or biases the model; where
+CO converges; whether L-53 is the ray set (a hypothesis until a run without
+it is read).
+
+Status: Proposed, for the user's decision.
