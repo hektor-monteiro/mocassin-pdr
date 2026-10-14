@@ -24,8 +24,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cmplines import forb, hbeta, mol                       # noqa: E402
 
 # pdrLineEm.out's transitions: the coolants in the order of the input's pdrCoolants (12co, 12c+, 12c, 16o), each
-# with its radiative transitions upper level outer, lower inner. Checked against lineFluxMol.out below.
-SEL = (('CO 2-1', 0, None), ('CO 3-2', 1, None), ('CO 4-3', 2, None), ('CO 5-4', 3, None), ('CO 6-5', 4, None),
+# with its radiative transitions upper level outer, lower inner. Checked against lineFluxMol.out below. CO's are
+# named by J (level n is J = n - 1): D-408 found them named by level, one J too high.
+SEL = (('CO 1-0', 0, None), ('CO 2-1', 1, None), ('CO 3-2', 2, None), ('CO 4-3', 3, None), ('CO 5-4', 4, None),
        ('[C II] 158', 40, (6, 2, 1, 2)), ('[C I] 609', 49, (6, 1, 1, 2)), ('[C I] 370', 51, (6, 1, 2, 3)),
        ('[O I] 63', 56, (8, 1, 1, 2)), ('[O I] 145', 58, (8, 1, 2, 3)))
 
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     a, b = sys.argv[1], sys.argv[2]
     f, rows = table(a, b)
     print('damped   %s\nundamped %s' % (a, b))
-    print('grid sum to luminosity (CO 2-1 of lineFluxMol.out over the octant\'s sum): %.4f' % f)
+    print('grid sum to luminosity (CO 1-0 of lineFluxMol.out over the octant\'s sum): %.4f' % f)
     print('\n%-11s %12s %6s %12s %6s  %16s   %s' % ('', 'solve, d', '+-%', 'solve, u', '+-%', 'u / d - 1 [%]', 'written / solve: damped, undamped'))
     for r in rows:
         line = '%-11s %12.4e %6.2f %12.4e %6.2f  %+7.2f +- %5.2f' % (r['name'], r['La'], 100 * r['ea'], r['Lb'], 100 * r['eb'], 100 * r['r'], 100 * r['er'])
