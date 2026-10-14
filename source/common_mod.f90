@@ -1160,7 +1160,17 @@ module common_mod
     ! CONVENTION: the weight on the PREVIOUS iteration's value.
     !   Te = (1 - iterDamp)*Te_new + iterDamp*Te_previous
     ! so 0.25 mixes in a quarter of the old value. 0 disables.
-    real                :: iterDamp = 0.25
+    !
+    ! D-406: the default is 0 (0.25 from D-174 to D-405; the user's
+    ! decision). D-405 measured no cycle without it - hiipdr 31^3 and
+    ! pn150k 41^3, cells cold -> hot 0-1 and 10-33 per iteration in either
+    ! arm, histories independent draws - so what it damped was Monte Carlo
+    ! noise. The written model was then a blend of solves rather than a
+    ! solution (X+/X >10% from the solver's in 6-32% of neutral cells), it
+    ! trailed by 3-6 iterations, and where a cell has two states it wrote
+    ! states no solve gave (hiipdr's [C I] 370 um +11.6% over its own last
+    ! solve). Kept as a keyword.
+    real                :: iterDamp = 0.
     ! D-404: second solves of ionBalance (updateCell's ionPass) that did not
     ! reach the balance, on this rank, since last reported.
     integer             :: nIonPassFail = 0

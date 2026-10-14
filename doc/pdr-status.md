@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-405, 2026-10-13. Reference model throughout: the 150 kK PN,
+Status as of D-406, 2026-10-14. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -556,12 +556,14 @@ than 10% from MOCASSIN's, last iteration, first solve -> second: hiipdr H
 pn150k H 15.5 -> 0.0, He 0.4 -> 0.0, O 28.8 -> 0.0; and so at every
 iteration. The delay was all of it but hiipdr's oxygen (L-50). When a run
 stops, the last iteration's second solve now takes the first's place in
-the written model, damped as the first was; the hydrogen budget then closes
-un-enforced (L-29) and no line of either fixture moves by more than 1.0%
-([C I] 370 um, hiipdr). The written ions are still more than 10% from the
-solver's in 13.4 (H), 32.1 (C), 18.7 (O) per cent of hiipdr's
-neutral cells and 6.4, 14.1, 18.6 of pn150k's; that is the damping
-(L-49), not the delay. Open:
+the written model (damped as the first was, while the damping was on); the
+hydrogen budget then closes un-enforced (L-29) and no line of either
+fixture moves by more than 1.0% ([C I] 370 um, hiipdr). With the damping
+the written ions were still more than 10% from the solver's in 13.4 (H),
+32.1 (C), 18.7 (O) per cent of hiipdr's neutral cells and 6.4, 14.1, 18.6
+of pn150k's; that was the damping (L-49), not the delay, and since D-406,
+with the damping off by default, only hiipdr's oxygen is (9.9%, L-50).
+Open:
   - the second solve is kept at the last iteration only. Every iteration
     before it still gives the transfer, the thermal balance and the
     chemistry ions solved one iteration behind. Keeping it throughout
@@ -593,8 +595,9 @@ network's 1.1e-9). Open:
   - hiipdr's Mg I 2852 is 0.09 of Cloudy's (0.19 before any transfer).
 
 **L-49. The damping across iterations no longer holds back a cycle, and it
-has a cost: measured, the default unchanged** (D-405; asked for by the user
-on 2026-10-11 and taken up on 2026-10-13). `iterDamp` 0.25 mixes a quarter of
+has a cost: off by default since D-406** (D-405, D-406; asked for by the
+user on 2026-10-11, measured on 2026-10-13, decided by the user on
+2026-10-14). `iterDamp` 0.25 mixes a quarter of
 the previous iteration's value into the temperature (D-174) and, since D-200,
 into the molecular abundances and the ion stages; n_e is not damped. It was
 put in against D-173's limit cycle, 44-76% of the cells crossing a branch
@@ -654,13 +657,17 @@ iterations) and pn150k 41^3 (18), every iteration's cells kept
     **Every published hiipdr [C I] value carries that.** Medians of n(C)
     at the turn are 1.9 times the undamped model's with the sums equal to
     1%. pn150k has no carbon turn and no excess.
-What the damping still buys: 0.77 of the cell-to-cell scatter in the
-written model, and a quieter T(H0) in the stop test (L-52). **Open, and the
-user's to decide:** the default (0.25 stands, so the published models are
-the damped ones); and whether the noise should be met by averaging the
-field over iterations where the damping averages the solves (L-26). Not
-run: the slabs and `ifront`, denser models, pn150k on the production
-executable, a second seed.
+What the damping still bought: 0.77 of the cell-to-cell scatter in the
+written model, and a quieter T(H0) in the stop test (L-52). **Decided
+(D-406, the user): the default is 0**; `iterDamp 0.25` in an input gives
+the old blend. With the new default and no `iterDamp` line, production's
+hiipdr is D-405's undamped run byte for byte, and the published models are
+the undamped runs. On the way, the restore's rounding of H2den, which D-363
+had matched to the damping step's, gave back an undamped run's [C I] 609 um
+1.1e-7 off; every writer now rounds as `pdrStep` does. **Open:** whether
+the noise should be met by averaging the field over iterations where the
+damping averaged the solves (L-26). Not run: the slabs and `ifront`,
+denser models, pn150k on the production executable, a second seed.
 
 **L-50. A first ion trimmed out of the ion matrix has no place for a
 source** (D-404). `ionBalance` solves each element's stages as a matrix
@@ -727,7 +734,8 @@ to the next without damping (0.9% on hiipdr), and the test's difference of
 two values three iterations apart by 1.4%: the 2% limit is 1.4-1.5 standard
 deviations of that. pn150k's undamped run passes at 15 and 16 and would
 fail at 17 (2.73%) on T(H0) alone. With the damping the same quantity keeps
-the test above 4% until iteration 16. To decide: whether a quantity carried
+the test above 4% until iteration 16; since D-406 the default is undamped,
+so this scatter is in every run's test. To decide: whether a quantity carried
 by a few hundred front cells belongs in the test, or with what limit.
 
 **L-53. Cells that the grid's symmetry makes equal differ in H2, following

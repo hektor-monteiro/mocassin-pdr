@@ -4331,15 +4331,20 @@ end function getVolume
                      ! functions of pdrAbun, so recompute them from the state
                      ! that WAS restored rather than storing them twice or
                      ! letting a default stand in.
-                     ! D-363: rounded as the D-200 damping step writes it at
-                     ! the end of every PDR iteration (iterDamp > 0, the
-                     ! default) - x(H2) to single precision, then times n_H -
-                     ! so a restored grid carries the run's own H2den to the
-                     ! bit. real(x*n_H) differed in the last bit, which moved
-                     ! [C I] 370 um by 7e-8 in mocassinOutput's lineFlux.out.
+                     ! D-363: rounded as the step that wrote the run's last
+                     ! H2den, so a restored grid carries it to the bit; one
+                     ! rounding off moved [C I] 370 um by 7e-8 in
+                     ! mocassinOutput's lineFlux.out. D-363 matched the D-200
+                     ! damping step (x(H2) to single, then times n_H), which
+                     ! wrote it while iterDamp's default was 0.25. D-406: with
+                     ! the default 0 the last writer is pdrStep, and every
+                     ! writer - pdrStep, its seed, the damping step - now uses
+                     ! its form, x(H2)*n_H in double and then to single (with
+                     ! the damping step's, an undamped run's [C I] 609 um came
+                     ! back 1.1e-7 off).
                      if (allocated(grid(iG)%H2den) .and. pdrIdxH2 > 0) &
                           & grid(iG)%H2den(cellP) = &
-                          & real(grid(iG)%pdrAbun(cellP,pdrIdxH2))*grid(iG)%Hden(cellP)
+                          & real(grid(iG)%pdrAbun(cellP,pdrIdxH2)*dble(grid(iG)%Hden(cellP)))
                      ! D-402: the same rule pdrToMocassin applies - what the
                      ! molecules hold, counted from the species
                      if (allocated(grid(iG)%elemAvail) .and. allocated(pdrMolAtoms)) then
