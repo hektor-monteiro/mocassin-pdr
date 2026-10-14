@@ -40,6 +40,7 @@ DEVLOG.md and arrives here by merge.
 | H-029 | **Production's D-404 merged (the ionization balance solved a second time after the chemistry, counted at every iteration and kept at the last); what it does to this branch's H2 results: nothing beyond 0.1%.** The kept solve runs before the level model's final call, so `lineFluxH2.out` is computed on the ions that are written. Seeded against H-028's runs, which the new runs follow to the last iteration (the second solve is discarded until then). Crossings: pn150k A_V 0.3927 -> 0.3927, hiipdr 1.3959 -> 1.3959 (neither by 0.0001). pn150k lines against H-028's: 1-0 S(1) +0.02%, 0-0 S(0), S(1), S(2) +0.10, +0.07, +0.01%; hiipdr's within 0.04%; the largest change among all the lines of `lineFluxH2.out` is 0.10% (pn150k) and 0.04% (hiipdr), both 0-0 S(0). The medians by spin and the ionized-zone H2 (34-210 times Cloudy's) are unchanged. Production's result, for the record here: the delay of one iteration between the two solvers was the cause of their disagreement (neutral cells more than 10% apart, first -> second solve: pn150k H 15.5 -> 0.0%, O 28.8 -> 0.0%; hiipdr H 28.4 -> 0.0%, O 21.1 -> 9.7%), and the written hydrogen budget closes before its rescale (off by 1% in 57.6% and 19.9% of cells -> none). Two merge conflicts (`iteration_mod.f90`, `pdr_mod.f90`), both sides kept. Page: H2 Lines in MOCASSIN, version 12 | Done | 2026-10-13 |
 | H-030 | **Production's D-405 on this branch's executable: the damping across iterations no longer holds back a cycle, the H2 does not move without it, and the two derailed iterations at the start of the chemistry are the damping together with H-013's heating term.** Seeded pairs, `iterDamp 0` against 0.25, the level model in the loop: no cell flips on either nebula; crossings pn150k A_V 0.3927 -> 0.3930, hiipdr 1.3959 -> 1.3951; none of pn150k's 2,644 H2 lines by 1% (largest +0.77%), hiipdr's of the tables +1.1 to +1.6% over an Hbeta 0.55% lower. Temperature balance not reached at iterations 5, 6: 72, 25% (pn150k) and 89, 79% (hiipdr) of cells with the damping, none without; production's damped arm, with no level model, has none either. With every iteration's cells kept: about 35 deep hiipdr cells lose more than half their H2 for one iteration, each on a single ionizing packet (L-51), and cells the symmetry makes equal differ in H2 by up to 11% along z before the transition (L-53). No source changed; the default is unchanged, the user's decision | Done | 2026-10-13 |
 | H-031 | **Production's D-406 on this branch: the damping across iterations is off by default (`iterDamp` 0, the user's decision), and H2den has one rounding for every writer.** The four flavours, `h2Test` and `h2Slab` build; the round trips of both of H-030's undamped runs are byte for byte; a fresh hiipdr run with the new default is `runs/d405-hii31-d0` byte for byte in all 26 output files, the level model's included. The pages' models are H-030's undamped runs: crossings pn150k 0.3930, hiipdr 1.3951; against Cloudy ortho/para pn150k 0.91-1.11 / 1.89-2.62, hiipdr 0.76-0.78 / 1.06-1.12, 1-0 S(1) 1.11 and 0.77. H-030's two derailed iterations do not occur by default. H2 Lines in MOCASSIN v14 | Done | 2026-10-14 |
+| H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
 
 ---
 
@@ -4399,3 +4400,66 @@ the status document).
 Done. Merged: 7acf29f (the source), 946d026 (production's entry
 completed). Pages: H2 Lines in MOCASSIN v14 and the two Cloudy pages (hiipdr
 v29, 150 kK PN v28), all on the undamped runs.
+
+## H-032 - Production's D-408: the packet series, read for the H2 lines (2026-10-14)
+
+D-408 ran on this branch's executable (`mocassin.h031`, md5 391fb1b3...), so
+every run of the series also has the level model's output. These are
+`lineFluxH2.out`, `h2Cells.out` and `h2Pop.bin` (H-007), in
+`runs/d405-hii31-d0`, `runs/d405-hii31-d0-p4`, `runs/d408-hii31-p16`,
+`runs/d408-hii31-p64`, `runs/d405-pn41-d0` and `runs/d408-pn41-p4`.
+Production's D-408 and D-409 have the full series; this entry is what it
+says about H2.
+
+### The H2 lines, over Cloudy's (its saved emissivities over its sphere, D-390)
+
+| hiipdr 31^3 | 6e6 | 2.4e7 | 9.6e7 | 3.84e8 |
+|---|---|---|---|---|
+| 1-0 S(1) 2.12 um | 0.769 | 0.772 | 0.774 | 0.775 |
+| 2-1 S(1) 2.25 um | 0.763 | 0.765 | 0.768 | 0.769 |
+| 0-0 S(0) 28.2 um | 1.227 | 1.230 | 1.227 | 1.227 |
+| 0-0 S(1) 17.0 um | 0.820 | 0.823 | 0.827 | 0.828 |
+| 0-0 S(2) 12.3 um | 1.118 | 1.120 | 1.119 | 1.120 |
+| lines moving by more than 1% from the count before, of 2,693 | | 0 | 28 (1.0-1.1%) | 0 |
+| H/H2 crossing [A_V] (Cloudy 1.280) | 1.395 | 1.393 | 1.394 | 1.395 |
+| level model [s] | 175 | 191 | 204 | 219 |
+
+1-0 S(1) gains 0.8% from 6e6 to 3.84e8 packets, 0-0 S(1) 1.0%, and the
+rest less. pn150k at 2.4e7 against 6e6: 1-0 S(1) +0.19%, 2-1 S(1) +0.15%,
+0-0 S(0) -0.82%, S(1) -0.34%, S(2) +0.48%, S(3) +0.26%. Of its 2,644
+lines above 1e-7 Hbeta, 301 move by 1.0-1.8% (v >= 6) and none by 5%; its
+level model took 786 and 565 s (the machine; the 1x ran on 2026-10-13).
+**For the H2 lines of D-383's science products, the default 6e6 packets
+are enough.** The carbon turn, [C I] and CO are not (production's D-408),
+and CO still moves at 3.84e8.
+
+### What the packets do not change: L-53
+
+The H2 of the cell nearest z = 0 over the x and y ones, in sets the octant
+makes one cell:
+
+  - hiipdr: +11.4 / +9.4 / +10.0 / +10.1% at A_V 0.46-1.00 and +6.7 /
+    +5.3 / +5.0 / +4.9% at 1.00-1.48, from 6e6 to 3.84e8 packets.
+  - pn150k: +10.7 / +11.2% at A_V 0.13-0.25 and +5.7 / +5.3% at
+    0.25-0.35, at 6e6 and 2.4e7.
+
+The field, T and n_e carry under 0.5% of it. A line map of the transition
+zone takes this pattern from the H2. In a total it averages over the three
+orientations, but what that does to a luminosity is not measured. At 16x
+it is the largest systematic in such a map. The candidate is the twelve
+shielding rays (z is the HEALPix polar axis). The test is a run at another
+ray level, which is not done without the user's word (production's
+D-409).
+
+### Not yet known
+
+  - What the z pattern does to the H2 line totals (a run without it, i.e.
+    another ray set, would show).
+  - Whether a field accumulated over iterations, if the user takes it up
+    (D-409), moves the H2 lines at all. The series says it should not.
+
+### Status
+
+Done. Merged: f312df0 (production's D-408, D-409 and the status as of
+D-409). Pages: the three are updated with the series in their next
+versions (hiipdr v30, 150 kK PN v29, H2 Lines in MOCASSIN v15).
