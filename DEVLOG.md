@@ -406,6 +406,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-404 | **A second solve of `ionBalance` after the chemistry: measured at every iteration, kept at the last. The one-iteration delay is what held the two solvers apart.** The user, on L-47: "can we try including a second solve of MOCASSIN's balance after the chemistry only at the last iteration to see if that is indeed effective? Maybe that is enough for consistency?" `updateCell` takes an ion-only pass (the balance once, at the temperature the cell holds, on the terms handed over by then), used as a control before the chemistry and again after it; both put the model back, so each run takes the path D-403's took, to the printed digit. With the delay removed and nothing else changed, the neutral cells whose solver X+/X is more than 10% from MOCASSIN's go from H 28.4, He 13.2, C 1.5, Mg 12.9% to 0.0 on hiipdr and from H 15.5, O 28.8% to 0.0 on pn150k, at every iteration; the control moves nothing. hiipdr's oxygen keeps 9.7% (of 21.1): in every cell probed, a source of O+ from molecules that a stage trimmed out of the matrix does not carry (L-50). When the run stops, the last iteration's second solve takes the first's place in the written model, damped as the first was. The written hydrogen budget then closes before the D-220 rescale (off by more than 1% in 19.9% and 57.6% of the cells with the first solve; in none with the second). No line of either fixture moves by more than 1.0% ([C I] 370 um on hiipdr). What still separates the written ions from the solver's is the damping (L-49, which the user asked to be noted for later). Three versions withdrawn on the way: the kept solve at the damped temperature, flagging a failed second solve, and a third solve from the damped state (549 cells of pn150k did not settle). Not run: the second solve kept at every iteration. | Done 2026-10-13 |
 | D-405 | **The damping across iterations re-evaluated (L-49): it no longer holds back a cycle, and it has a cost. The default is unchanged; the decision is the user's.** The user: "lets work on the Damping re-evaluation". Seeded pairs, `iterDamp 0` against 0.25, one input line apart: hiipdr 31^3 and pn150k 41^3 on the h2-model executable, hiipdr again on production's; both hiipdr arms repeated with every iteration's cells kept (byte-identical); undamped at four times the packets; undamped with D-280's path biasing. (1) No cycle: cells cold -> above 3,000 K 0-1 per iteration (hiipdr) and 10-33 of 35,384 (pn150k) in either arm; cell histories are independent draws (R 1.0, c -0.5), no excess of cycling cells. (2) What moves is Monte Carlo noise: steps 1.39-1.48 of the damped arm's (1.49 for independent noise through the blend), equivalent cells 1.2-1.4, n_e (never damped) 1.0; it halves at four times the packets wherever it is scatter. (3) The damping is a filter on the output: taken out of the damped run's history, its solves are the undamped run's to a percentage point. (4) It costs 3 iterations (hiipdr) and 5-6 (pn150k); the 2% stop at 15/15 and 17/15. (5) On h2-model it derails the chemistry's second and third iterations (T balance unreached in 89, 79% and 72, 25% of cells; none without) - the damping together with H-013's heating term, since production's damped arm has none. (6) Without it the written model is its solution (written X+/X vs the solver's >10%: 13-32% -> 0, hiipdr's oxygen 9.9%, L-50). (7) Where a cell's answer has two values the blend writes states no solve gave: hiipdr's damped [C I] 609, 370 um are 4.5%, 11.6% above its own last solve. Found on the way: hiipdr's carbon past A_V 2 is two states set by whether a 11.26-13.6 eV packet crossed the cell, C+ = C is a count of packets (2.29 -> 2.51 at four times the packets, 2.61 with path biasing by another measure, Cloudy 2.93) and [C I] falls 20% (L-26); 76-103 cells per iteration over-ionized by a packet re-emitted from the H/He spectrum whatever absorbed it, each losing its H2 for that iteration (L-51, read in the code, two tests passed, not isolated); T(H0) in the stop test is 68-72% the front's hot cells (L-52); an H2 pattern along z among equivalent cells (L-53). 22 predictions written before their runs: 13 met, 5 half, 4 missed. No source changed | Done | 2026-10-13 |
 | D-406 | **The damping across iterations off by default: `iterDamp` 0 (the user's decision on D-405: "lets change the default to 0 since it works better").** The keyword stays; 0.25 gives the old blend. Found on the way by D-363's round trip: `mocassinOutput` on D-405's undamped run gave back [C I] 609 um 1.1e-7 off, because the restore rounded H2den as the damping step does and without that step the last writer is `pdrStep`; every writer now rounds as `pdrStep` does, so no undamped writer changed. Checked on production (hiipdr 31^3): four flavours build; a fresh run with the new default and no `iterDamp` line is D-405's `iterDamp 0.` run byte for byte in all 23 output files; the round trips of both, and of six damped iterations with `iterDamp 0.25`, are byte for byte. The pages' models become D-405's undamped runs: hiipdr [C I] 370/609 um -12.0/-3.2%, Hbeta -0.55%, every other line within 1.8% but CO 4-3 to 6-5 (-6 to -33%, lines a few cells carry); pn150k no line by 1%. On h2-model (H-031) a fresh hiipdr run with the new default is D-405's undamped run byte for byte in all 26 output files, the level model's included. Pages: hiipdr Against Cloudy v29, 150 kK PN Against Cloudy v28, H2 Lines in MOCASSIN v14, on the undamped runs; two slips in the published pages corrected (hiipdr v28's ordinals without 'section', two stale references on the H2 page) | Done | 2026-10-14 |
+| D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 4-3 to 6-5 rise 19-46% (D-405), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report | Proposed | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -38650,3 +38651,70 @@ executables (hiipdr); the three pages are on the undamped runs. Not
 taken up, as before: the field's accumulation over iterations (L-26),
 L-51, L-52, L-53; and the models D-405 did not run (the slabs, `ifront`,
 denser gas, pn150k on production, a second seed).
+
+## D-407 - The next step for science production: how the radiation field is sampled (2026-10-14)
+
+The user, after D-406: "what would be the most relevant next step
+considering the target science production?" This is the recommendation as
+given; nothing is run or changed until the user decides.
+
+### What a science run would quote, and what is not settled
+
+The products are `lineFlux.out`, `lineFluxMol.out`, `lineFluxH2.out` and,
+since D-383, line emission maps of H2 and CO (the user: "I want a way to
+produce line emission maps for the molecular lines of H2 and CO"). Of the
+settings a production run has to fix, iterations are settled by the stop
+test (D-392; Hbeta still drifts 0.1-0.2% an iteration at the stop, L-40),
+and resolution is settled for pn150k's radial means at 41^3 (D-368), with
+hiipdr's [O I] 63 um set by unresolved front cells (L-37). **The packet
+count is the one known to be unconverged for numbers a paper would quote.**
+From 6e6 to 2.4e7 packets on hiipdr (D-405): C+ = C moves from A_V 2.29 to
+2.51 (Cloudy 2.93); [C I] 609 and 370 um fall by 20%, from 1.65 and 1.29 of
+Cloudy's to 1.32 and 1.03; CO 4-3 to 6-5 rise 19-46%; every per-cell spread
+and step before the carbon turn falls to 0.46-0.64. That cost 44 minutes
+against 40. For maps the same noise is the per-cell scatter: pn150k's CO
+scatters 7-20% from cell to cell at 41^3 and 6e6 (D-368, 3-5% at 81^3 and
+1e9), and with the damping off (D-406) the written model's cell-to-cell
+scatter is 1.3 times what it was (the damping bought 0.77 of it, D-405).
+
+### Recommendation
+
+  1. **Measure packet convergence on the science products** (no code): the
+     h2-model executable with the new default, hiipdr 31^3 at 16 times the
+     packets (about an hour) and, if its lines still move, 64 times (about
+     two hours); pn150k 41^3 at 4 times (about three hours). Read: the
+     line totals ([C I], [C II], [O I], the CO ladder, the H2 lines,
+     Hbeta), C+ = C, the deep C+ and the two carbon states' shares, and
+     the spread among cells the symmetry makes one cell, which is what a
+     map shows.
+  2. **Then choose how production samples the field.** If the lines
+     converge at a packet count whose cost is acceptable, that is the
+     production setting. If not, or for the large grids where the
+     transport dominates the run time (D-365, D-368), accumulate the
+     field estimator over iterations, D-405's open design decision
+     (`Jste`, `Jdif` are zeroed every iteration at `iteration_mod.f90`
+     569 and 580). Its traps: the stop test must be decided before the
+     accumulation starts, or it passes for free (D-176..D-181); the
+     ionized gas still relaxes at 0.6-0.7 per iteration (L-40), so
+     accumulating earlier lags it; the warm start must carry the sums.
+
+### Why not something else first
+
+  - **L-51** (a packet absorbed by the gas is re-emitted from the H and
+    He spectrum): a physics defect that shows in maps, but 0.3% of
+    hiipdr's deep H2 in the sums; second. Its fix, re-emitting from the
+    cell's own cooling spectrum, is a design question too.
+  - **L-53** (H2 among equivalent cells differs by up to 11% along z):
+    matters for H2 maps; one run at a finer ray set would tell whether it
+    is the twelve rays; third.
+  - **The PDR temperature against Cloudy** (pn150k 0.67-0.93, hiipdr's
+    gas beyond A_V 1.5 0.58-0.85; the photoelectric heating per hydrogen
+    0.29-0.44 of Cloudy's on pn150k): the largest physics divergence left,
+    and it sets the PDR lines' absolute strengths, but it is a divergence
+    to report (D-370), not a defect found.
+  - **The slabs and `ifront`**: low priority at the user's direction
+    (D-338, L-11), outside the 3D scope.
+
+### Status
+
+Proposed; waiting for the user.
