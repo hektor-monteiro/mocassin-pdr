@@ -412,6 +412,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: the H2 lines carry no more than the seed's noise (2.5%), and CO's lines carry +9-12% only in cells that emit under 0.03% of their light on hiipdr; maps of n(H2) show it. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
 | D-411 | **The field accumulated over iterations (D-409's option B) registered for future development (the user: "register this for future development").** Not started; no code changed. The design, what it buys, its risks and its test against D-408's series are in D-409's addendum of 2026-10-15. The user turned to line maps of H2 and CO (H-034). Until it is built, D-409's interim stands as a recommendation, not a decision: 64x (or 16x) for runs that quote carbon or CO, the default for H2 | Deferred | 2026-10-15 |
 | D-412 | **What H-034's line maps found in the production model (the user's request for H2 and CO maps, D-411).** Map columns at the same projected radius cross cells at the same radii, so a spherical model gives them equal intensity exactly. The H2 maps show no orientation (0.993-1.016 at 1x, 0.996-1.000 at 64x) and their pixel noise falls as the packets'. Two things do not fall. (1) At hiipdr's ionization front, cell sets at exactly one radius differ by orientation: ln x(H0) spreads 0.29 and 0.19 at 0.80-0.95 and 0.95-1.10 r_front, the same at 1x and 64x, with 48 ray directions and at 41^3; pn150k 0.011-0.016. The front is 0.64-0.67 cells wide at both resolutions (unresolved; pn150k's 1.54). In a map: H2 1-0 S(1)'s axis columns -11% at 3.2 pc. A first reading, that the symmetry planes are more ionized, was withdrawn: two interior sets differ as much. (2) hiipdr's outer CO (16-19.4 pc) scatters per cell by 0.45-0.60 in ln at 16x and 64x, almost all of it x(CO), and little of it repeats cell by cell between the two. No code changed; causes not tested | Recorded | 2026-10-15 |
+| D-413 | **Every five-column Q dust file failed at start-up since D-313: its test for the optional Im(m) column could not tell five columns from six.** Found by test-running H-035's manual on test_Problem, which stopped at once with "End of file" in dustData/PAHneu_30.cat (ph_mod.f90). A list-directed read of six values takes the sixth from the next record instead of failing, so all four of Draine's Q files here (PAHneu_30, Car_90, Sil_21, suvSil_81) were read as six-column, lost a record and ran off the end; only D-313's own grph-avg.cat (six columns, pn150k's) read right. Fixed: the first data record's columns are counted, and the log says what each Q file holds. A five-column file now meets D-313's intended refusal (no Im(m), so no photoelectric yield). test_Problem, with its PAHs and photoelectric heating on by default, does not run as committed | Done | 2026-10-15 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39657,3 +39658,61 @@ CO 1-0's per-cell emissivity about its radial profile (rms of ln):
 
 Status: Recorded. No code changed. The packet item in doc/pdr-status.md's
 open list carries the CO point.
+
+## D-413 - Five-column Q dust files and D-313's column test (2026-10-15)
+
+Found while test-running the manual of DEVLOG-H2's H-035 (the user asked for
+a manual to run a PDR + H2 model from the test_Problem benchmark). The run
+stopped at start-up:
+
+    At line 1342 of file source/ph_mod.f90 (unit = 20, file = '.../dustData/PAHneu_30.cat')
+    Fortran runtime error: End of file
+
+### Cause
+
+D-313 added an optional sixth column to Q files, Im(m), so that a Q species
+can have a photoelectric yield. Its test read six values list-directed, took
+`ios == 0` as "six columns", and backspaced one record. A list-directed read
+does not fail on a five-column record: it takes the sixth value from the next
+one. Measured with a three-line file: `ios = 0`, values 1-6, and after one
+backspace the file is at the second record.
+
+So every five-column file was taken as six-column. The first record was
+lost, and the reads ran off the end. PAHneu_30.cat has 36,030 five-column
+records (30 radii x 1,201 wavelengths).
+
+All four of Draine's Q files in dustData have five columns: PAHneu_30.cat,
+Car_90.cat, Sil_21.cat and suvSil_81.cat. Only grph-avg.cat, written for
+D-313 by tools/mkqfile.py with the sixth column, read right, and it is the
+one the pn150k fixture uses. No PDR fixture uses a five-column Q file, which
+is why this went unseen. A file could have been misread silently rather than
+crash only if enough records followed its table; none here does.
+
+### Fix
+
+The first data record is read as text and its columns counted (blank, comma
+or tab separated). `lgHaveK` is true at six or more. Each Q file now gets
+one line in the log:
+
+    ! makeDustXsec [D-413] dustData/grph-avg.cat:   35 radii x    900 wavelengths,  6 columns
+
+### Verified
+
+  - All four flavours compile.
+  - **pn150k's fixture input** (3D PDR binary, 2 ranks): grph-avg.cat is
+    read as 35 x 900 with 6 columns, and the run goes on.
+  - **test_Problem's dust**: PAHneu_30.cat is read as 30 x 1,201 with 5
+    columns. The run then stops with D-313's own refusal: a Q file with no
+    Im(m) column cannot give a photoelectric yield. The message says to add
+    the column (tools/mkqfile.py) or use `noPhotoelectric`.
+
+### What follows
+
+test_Problem, the standard MOCASSIN test, does not run as committed in any
+build. Its dust includes PAHneu_30.cat and photoelectric heating is on by
+default, so D-313's refusal now applies, where before it crashed. To run it,
+remove the PAH species, give it a six-column file, or set
+`noPhotoelectric`. The benchmark is not changed here. H-035's manual says
+so and drops the PAHs for a PDR run.
+
+Status: Done.
