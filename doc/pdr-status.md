@@ -1373,7 +1373,10 @@ Stated explicitly, because absence of a reported problem is not evidence.
     (D-333).
   - **The packet count past 64x** (D-408). On hiipdr CO still moves at
     3.84e8 packets, and where it stops is not measured. Nor is pn150k past
-    2.4e7, or a grid larger than 31^3 at these counts.
+    2.4e7, or a grid larger than 31^3 at these counts. Per cell, CO 1-0 at
+    16-19.4 pc scatters by 0.45-0.60 in ln at 16x and 64x, almost all of it
+    x(CO), not falling and little of it the same cell by cell in the two
+    runs; a CO map carries it as +-17% per pixel pair (D-412).
   - **Cloudy's own charging exponent.** D-304's Lya correction transfers
     MOCASSIN's measured `d ln(PE)/d ln(G0) = 0.42` to Cloudy. A Cloudy run
     with its FUV field cut by the Lya fraction would measure Cloudy's own
