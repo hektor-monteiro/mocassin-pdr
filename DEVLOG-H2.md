@@ -4580,7 +4580,8 @@ H2 and CO lines so I can start doing some scientific tests."
      is the cells' noise. The H2 lines show no orientation beyond the
      seed's 2.5% (H-033).
   3. On hiipdr, 1-0 S(1) is a ring at the projected radius of the H/H2
-     transition (r ~ 6 pc of the 18 pc sphere, A_V ~ 1.4 from the star).
+     transition (r ~ 6 pc of the 19.4 pc sphere, A_V ~ 1.4 from the star;
+     the sphere's radius corrected from 18 pc at 10:48, the prediction unchanged).
      CO 1-0 is limb-brightened toward the edge of the sphere, since its
      light comes from beyond A_V 1.9 (D-410).
   4. On pn150k, the H2 and CO rings sit in the thin PDR between the front
