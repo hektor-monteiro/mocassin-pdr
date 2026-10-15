@@ -42,6 +42,7 @@ DEVLOG.md and arrives here by merge.
 | H-031 | **Production's D-406 on this branch: the damping across iterations is off by default (`iterDamp` 0, the user's decision), and H2den has one rounding for every writer.** The four flavours, `h2Test` and `h2Slab` build; the round trips of both of H-030's undamped runs are byte for byte; a fresh hiipdr run with the new default is `runs/d405-hii31-d0` byte for byte in all 26 output files, the level model's included. The pages' models are H-030's undamped runs: crossings pn150k 0.3930, hiipdr 1.3951; against Cloudy ortho/para pn150k 0.91-1.11 / 1.89-2.62, hiipdr 0.76-0.78 / 1.06-1.12, 1-0 S(1) 1.11 and 0.77. H-030's two derailed iterations do not occur by default. H2 Lines in MOCASSIN v14 | Done | 2026-10-14 |
 | H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
 | H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
+| H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total | In progress | 2026-10-15 |
 
 ---
 
@@ -4522,3 +4523,69 @@ Done. Merged: b68eee3 (production's D-410). The user kept the twelve
 says so where v16 had the choice open. Pages: H2 Lines in MOCASSIN v16 (a first section on
 the test, with the orientation figure; version 15's two statements on the
 pattern annotated), published 2026-10-14 22:51.
+
+## H-034 - Emission-line maps of H2 and CO (2026-10-15)
+
+The user: "for now I want to work on generating the emission line maps for
+H2 and CO lines so I can start doing some scientific tests."
+
+### What exists
+
+  - **D-383 (production):** maps of the chemistry's coolant lines (CO, and
+    MOCASSIN's own lines) through mocassinPlot. plot.in's 'mol' entries go
+    to plot.out, which tools/d383_maps.py makes into emissivity cubes and
+    x/y/z maps (lineMaps.fits). Its sums reproduced lineFluxMol.out to 1e-5.
+    H2 was "not possible yet: no H2 level model".
+  - **The level model now writes all that an H2 map needs**, on every
+    finished run. h2Pop.bin has every cell's level populations; h2Cells.out
+    has each cell's i, j, k and n(H2). lineFluxH2.out defines a line's
+    luminosity as L = sum n(H2) pop_u A_ul h nu V (optically thin, no dust
+    extinction), with the A values of dataPDR/h2/transprob_X.dat and the
+    energies of energy_X.dat.
+  - **pdrLineEm.out has every cell's escaping emission** [erg/s/cm^3] of the
+    chemistry's coolant transitions, which is what lineFluxMol.out sums.
+    The transitions are in the order of the input's pdrCoolants, upper level
+    outer and lower level inner. CO is in it, so CO needs no mocassinPlot
+    run.
+
+### The tool (tools/h034_maps.py)
+
+  - **Per line, each cell's emissivity** j = L_cell / (4 pi V)
+    [erg s^-1 cm^-3 sr^-1]:
+      - H2 from the populations, with A and nu from the data files the
+        level model reads;
+      - CO from pdrLineEm.out, its column found from the coolant files'
+        own radiative transitions, not from a fixed index.
+  - **The octant unfolded** as in d383_maps.py: the cells on the symmetry
+    planes appear once, at their full width.
+  - **Surface-brightness maps along x, y and z**, I = sum j dl
+    [erg s^-1 cm^-2 sr^-1], in one FITS file per run with a linear
+    coordinate in pc. The emissivity cubes are optional.
+  - **Each map checked against the line's total** in lineFluxH2.out or
+    lineFluxMol.out (4 pi times its integral over the sky), and the
+    ratio written in its header.
+  - **What the maps are:** intrinsic. There is no dust extinction (the
+    near-IR H2 lines would lose some of A_K ~ 0.1 A_V) and no velocity axis.
+    CO's emission is each cell's own escaping emission (the escape
+    probabilities of D-377), with no absorption by the cells between it and
+    the observer. Those are the line tables' own conventions, so the maps
+    and the tables agree by construction.
+
+### Predictions (written before the tool is run)
+
+  1. Every map's integral returns its line's total in lineFluxH2.out or
+     lineFluxMol.out within 1e-4. The populations are stored in single
+     precision, and the tables print 6 digits.
+  2. The maps are round: their azimuthal spread at a given projected radius
+     is the cells' noise. The H2 lines show no orientation beyond the
+     seed's 2.5% (H-033).
+  3. On hiipdr, 1-0 S(1) is a ring at the projected radius of the H/H2
+     transition (r ~ 6 pc of the 18 pc sphere, A_V ~ 1.4 from the star).
+     CO 1-0 is limb-brightened toward the edge of the sphere, since its
+     light comes from beyond A_V 1.9 (D-410).
+  4. On pn150k, the H2 and CO rings sit in the thin PDR between the front
+     (0.128 pc) and the edge (0.61 pc).
+
+The runs: the default models of the pages (runs/d405-hii31-d0,
+runs/d405-pn41-d0), and for CO the 64x hiipdr run (runs/d408-hii31-p64,
+which CO's packet series favours) and pn150k at 4x (runs/d408-pn41-p4).
