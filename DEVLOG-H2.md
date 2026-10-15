@@ -4500,8 +4500,10 @@ reference's -3.7%).
     line's emission follows the pumping rate times n(H2), which in
     photodissociation-limited gas the formation rate holds, whatever
     shields the field. So H-032's "the largest systematic in an H2 map's
-    transition zone" holds for maps of n(H2), not for the H2 lines (CO's
-    lines carry it in full, +9-12%, production's D-410).
+    transition zone" holds for maps of n(H2), not for the H2 lines. CO's
+    lines carry it per cell (+9-12%), but in cells that give 8e-5 of CO
+    1-0's luminosity on hiipdr, so no line map shows it (production's
+    D-410).
   - **Cost.** The level model's call on the finished model takes 205.6 s
     with 48 directions against 174.6 s (1.18). The run takes 59:14
     against 40:07; most of the increase is the chemistry's four times as
