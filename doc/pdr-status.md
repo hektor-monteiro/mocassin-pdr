@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-409, 2026-10-14. Reference model throughout: the 150 kK PN,
+Status as of D-410, 2026-10-14. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -856,9 +856,25 @@ direction's component is 0.132 along it against 0.218 across it
 (isotropic 0.2). The directions place the diffuse field's scattering sites
 and the line-escape rays (the direct field is radial).
 
-Stage 2 tests 48 directions (HEALPix nside = 2, 0.188 against 0.201).
-The generalized code reproduces the default at nside = 1 in every output
-file.
+**Stage 2: 48 directions remove it.** HEALPix nside = 2 gives 0.188
+against 0.201 in the same moment. The generalized code reproduces the
+default at nside = 1 in every output file.
+
+At A_V 0.46-1.00 the three orientations agree within 1% (+11.4% on z
+with the twelve). At 1.00-1.48 what is left is the seed's noise, which all
+three runs share. The totals move by under 1%: the H2 lines by -0.3 to
+-0.55%, the crossing by +0.0004 mag, [C I] by +0.3% and CO by up to 1%.
+The run takes 1.48 times as long on hiipdr 31^3 (59 against 40 minutes).
+
+Which of the two users of the directions carries the pattern is not
+separated. Both were changed together: the sites and the line rays.
+
+Not done:
+  - pn150k with 48 directions;
+  - the production code's run.
+
+Adopting nside = 2 as the 3D flavour's resolution is the user's decision
+(DEVLOG D-410, tools/patches/d410_rays_nside.patch on h2-model).
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
