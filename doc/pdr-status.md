@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-409, 2026-10-14. Reference model throughout: the 150 kK PN,
+Status as of D-410, 2026-10-14. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -842,6 +842,49 @@ transition zone.
 
 The ray set is still the candidate, and still not tested. A run with
 another ray level is D-409's next step after the field, at the user's word.
+
+**D-410 (the user's request): the rays are the cause.** Stage 1 rotated the
+same twelve directions so their ring axis is x and changed nothing else.
+On hiipdr at 6e6 the excess moved from the cells nearest z = 0 (+11.4% at
+A_V 0.46-1.00) to the cells nearest x = 0 (+8.8%), and y and z, which
+the rotated set makes equal, came to agree. Every total stayed within
+0.3%, as relabelling a symmetric model requires: the error is one of
+orientation, which a map shows and the totals average away.
+
+The twelve single out their ring axis. The mean fourth power of a
+direction's component is 0.132 along it against 0.218 across it
+(isotropic 0.2). The directions place the diffuse field's scattering sites
+and the line-escape rays (the direct field is radial).
+
+**Stage 2: 48 directions remove it.** HEALPix nside = 2 gives 0.188
+against 0.201 in the same moment. The generalized code reproduces the
+default at nside = 1 in every output file.
+
+At A_V 0.46-1.00 the three orientations agree within 1% (+11.4% on z
+with the twelve). At 1.00-1.48 what is left is the seed's noise, which all
+three runs share. The totals move by under 1%: the H2 lines by -0.3 to
+-0.55%, the crossing by +0.0004 mag, [C I] by +0.3% and CO by up to 1%.
+The run takes 1.48 times as long on hiipdr 31^3 (59 against 40 minutes).
+
+Which of the two users of the directions carries the pattern is not
+separated. Both were changed together: the sites and the line rays.
+
+**What a map carries** (one snapshot each, the finished models):
+  - **CO 1-0 and 3-2 carry it in full**: +12% and +9% on the singled-out
+    axis at A_V 0.46-1.00 and 1.00-1.48. It follows the rotation and is
+    gone with the 48. CO's abundance carries +0.7% there, so for the CO
+    lines the excess comes through their populations and escape, which the
+    line rays set.
+  - **The H2 lines carry no more than the seed's noise** (2.5%) where
+    n(H2) carries +11%.
+  - **[C II] 158** stays within about 1%.
+
+Not done:
+  - pn150k with 48 directions;
+  - the production code's run.
+
+Adopting nside = 2 as the 3D flavour's resolution is the user's decision
+(DEVLOG D-410, tools/patches/d410_rays_nside.patch on h2-model).
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
