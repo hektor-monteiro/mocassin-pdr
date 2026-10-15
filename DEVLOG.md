@@ -39224,7 +39224,7 @@ which the totals average away: a third of the cells see it on each axis.
 
 Stage 2 follows: the remedy is more directions, not another orientation.
 
-### Stage 2: 48 directions (written 2026-10-14 21:12, before the build)
+### Stage 2: 48 directions (written 2026-10-14 21:09, before the build)
 
 The same twelve, generalized: a parameter pdrRayNside, and
 rayDirections() building the HEALPix nside pixel centres in ring order.
