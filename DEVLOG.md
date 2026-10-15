@@ -39363,7 +39363,11 @@ diffuse shielding is not most of its cost, as prediction 9 assumed.
     The pages' runs would be made again, their totals moving by under 1%
     and their maps losing the pattern.
 
-Status: Done (2026-10-14). The adoption is for the user to decide.
+Status: Done (2026-10-14). The adoption is for the user to decide. Pages
+(published 2026-10-14 22:51): H2 Lines in MOCASSIN v16 (a first section with
+the three runs' table and the orientation figure, d408pages/d410fig.py;
+version 15's two statements on the pattern annotated), hiipdr Against
+Cloudy v31 and 150 kK PN Against Cloudy v30 (one annotation each).
 
 ### What a line map carries (read 2026-10-14 22:42, the finished models)
 
