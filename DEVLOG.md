@@ -39339,11 +39339,14 @@ diffuse shielding is not most of its cost, as prediction 9 assumed.
 
   - **L-53 is the twelve directions' quadrature.** They single out their
     ring axis (the mean fourth power of a component is 0.132 along it and
-    0.218 across it, isotropic 0.2). The scattering sites they place
-    shield the diffuse FUV field more for the cells in the plane
-    perpendicular to that axis. The result is an orientation error of
-    +10% in H2 and +3-5% in CO before and across the H/H2 transition: a
-    map shows it, and the totals average it away (stage 1).
+    0.218 across it, isotropic 0.2). The cells in the plane perpendicular
+    to that axis hold +10% more H2, and 3-5% more CO, before and across the
+    H/H2 transition: an error of orientation, which a map shows and the
+    totals average away (stage 1). Both stages changed the directions of
+    the scattering sites and of the line-escape rays together, so which of
+    the two carries it is not separated. The diffuse field's shielding is
+    the likelier, since T, which the coolants' escape sets, shows no
+    pattern; but that is a reading, not a test.
   - **48 directions (HEALPix nside = 2) remove it** for 1.5 times the run
     time on hiipdr 31^3, and move no total by more than 1%.
   - **Not done:** pn150k with 48 directions (its pattern, +11% at A_V
