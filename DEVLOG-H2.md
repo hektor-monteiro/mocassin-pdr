@@ -43,7 +43,7 @@ DEVLOG.md and arrives here by merge.
 | H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
 | H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
 | H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total. Result (11:15): seven runs mapped; every CO map returns lineFluxMol.out within 3e-6 and every H2 map lineFluxH2.out less the flagged cells (lgBlack: MOCASSIN and lineFluxMol.out leave them out, lineFluxH2.out does not; up to 2.9e-4). No orientation in any map (H2 0.993-1.016 at 1x, 0.996-1.000 at 64x). Not noise: at hiipdr's unresolved front cells at one radius differ by orientation (1-0 S(1) axis columns -11% at 3.2 pc; production's D-412), and hiipdr's outer CO scatters per cell by 0.45-0.60 in ln x(CO) at 16x and 64x. Rings: 1-0 S(1) 4.9 pc projected (predicted ~6), CO at the edge in both models, whose CO is under 0.1% of the carbon there | Done | 2026-10-15 |
-| H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem) | In progress | 2026-10-15 |
+| H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem). Result: tested as written (runs/h035-testproblem-c): the integrated test passed at 17 iterations, 34 min at 14 ranks; a molecular shell (2,259 cells x(H2) > 0.1, all carbon in CO); hydrogen budget 3.9e-9 over all species; 1-0 S(1) 8.1e-5 Hbeta. Found on the way: production's D-413 (five-column Q files); test_Problem's PAHs are refused and its silicates alone form no H2 (Tdust(0,0) ~1e-6 K from empty size bins, run b), so the manual uses the pn150k fixture's grains; the map tool read lineFluxMol.out's last component block (fixed) | Done | 2026-10-15 |
 
 ---
 
@@ -4879,3 +4879,121 @@ Q file with no Im(m) cannot give a photoelectric yield, and a PDR's gas
 temperature rests on that yield. So the manual drops the PAH species from
 test_Problem's dust, as the silicates (an n,k file) carry their own yield.
 The test is relaunched with that one change to the dust and the D-413 binary.
+
+### Run b at iteration 12 (12:02): the shell stays atomic
+
+runs/h035-testproblem-b, with test_Problem's silicates alone:
+  - **The neutral gas is all atomic.** 3,778 of 4,661 active cells have
+    x(H) > 0.5, but x(H2) is 2e-7 at most and x(CO) 8e-11. The largest A_V
+    from the star is 1.45. convergence.out marks n(H2) and n(CO) as under 1%
+    of the hydrogen (not significant), and T(H0) is 470 K.
+  - **Reading, not tested apart:** the grains are 0.07-50 um. That leaves
+    little grain surface to form H2 on and little FUV extinction, against a
+    200 kK star of 7e37 erg/s.
+  - **Prediction 3 is missed**, at least for this dust.
+  - **There are 4,661 active cells, not 9,260.** Rout cuts the cube to an
+    octant sphere (about 52% of it is active); prediction 4's memory number
+    used the whole cube. Measured: 8.6 GB at 14 ranks, 0.61-0.62 GB per
+    rank.
+  - **The stop test is led by the hot ions,** He2+ and O3+, still growing
+    and slowing down: O3+ 61%, 25%, 81%, 57%, 39%, 16% and 9% over
+    iterations 7-14.
+
+### Variant c (prepared at 12:02, run after b), and its prediction
+
+runs/h035-testproblem-c is run b's input with the pn150k fixture's grains:
+dust_species.dat and dust_sizes.dat from benchmarks/pdr/pn150k (graphite
+0.005-0.25 um, the six-column grph-avg.cat), and `MdMg constant 2.4827e-3`
+(the fixture's dust-to-gas mass ratio) in place of test_Problem's Ndust file.
+
+Prediction: the dense shell becomes molecular. There are cells with
+x(H2) > 0.1, and H2 1-0 S(1) and CO 1-0 come out at least 100 times run b's.
+
+### Run b, finished (12:04): why the shell stays atomic
+
+  - **The run.** It stopped on the integrated test at iteration 17 (1.73%,
+    O2+) in 10:24 per processor, with a clean exit. 4,661 cells are active
+    and 3 flagged.
+  - **The hydrogen budget closes to 2.6e-8** in every cell.
+  - **The neutral gas.** 3,792 cells have x(H) > 0.5. x(H2) is 2.1e-7 at
+    most, and x(CO) 8.2e-11.
+  - **The lines.** Hbeta is 4.90e35 erg/s and 1-0 S(1) 8.3e29 erg/s, which
+    is 1.7e-6 Hbeta. The grid holds 1.76e50 H2 molecules.
+  - **The cause is measured: no H2 forms on grains anywhere.** The level
+    model's log says "4661 cells solved (4661 without grain formation)".
+      - The dust temperature the bridge reads, Tdust(0,0), is 2.0e-6 to
+        8.0e-6 K in every cell (pdrRad.out).
+      - That is the trap benchmarks/pdr/README.md describes (D-073, D-092).
+        Tdust(0,0) is a number-weighted mean over the whole size grid.
+        test_Problem's grid runs 1e-4 to 5 um, and the silicates fill only
+        the bins from 0.07 um up. The PAHs filled the small bins; dropping
+        them (D-413) left those bins empty and the mean at nothing.
+      - The grain area is not zero, 2.26e-23 cm^2 per H, against Cazaux &
+        Tielens' 8.47e-22. A_V/N_H is 5.33e-23, a tenth of interstellar.
+  - **Predictions.**
+      - 1, the stop: met, at 17.
+      - 2, the budget: met.
+      - 3, a molecular shell: missed, for the reason above.
+      - 4: the memory came in at 8.6 GB. The prediction counted the whole
+        cube; the formula with the 4,661 active cells gives 9.1 GB. The time
+        was 10 minutes, not 1-2 h.
+  - **What the manual takes from it:** a size grid must span its species'
+    own sizes. Variant c's does: pn150k's grid runs exactly 0.005-0.25 um.
+  - **Open, for the user:** whether Tdust(0,0) should be the mean over the
+    grains present, rather than over the whole grid. As it stands, an empty
+    bin turns off H2 formation, silently.
+
+### Variant c, finished (12:39): the recipe of the manual
+
+  - **The run.** It stopped on the integrated test at iteration 17 (1.76%,
+    n(CO)) in 33:38 per processor, with a clean exit. 4,661 cells are
+    active and 19 flagged. The flagged cells carry under 4e-14 of any H2
+    line and none of CO's.
+  - **Grain formation works.** The grain area is 5.7e-22 cm^2 per H, against
+    Cazaux & Tielens' 7.9e-22 for carbon. The level model reports "0 without
+    grain formation", and T_dust is 27-281 K.
+  - **The shell is molecular.**
+      - 2,259 cells have x(H2) > 0.1, up to 0.5.
+      - x(CO) reaches 3.0e-4, all the carbon.
+      - A_V from the star reaches 10.3.
+      - convergence.out: n(H2) 1.12e12 against n(H0) 3.1e11, so 88% of the
+        neutral hydrogen is in H2.
+  - **The lines.**
+      - 1-0 S(1): 3.76e31 erg/s, 8.1e-5 Hbeta.
+      - 0-0 S(1): 5.17e31 erg/s, 1.1e-4 Hbeta.
+      - 0-0 S(2): 2.52e31 erg/s, 5.4e-5 Hbeta.
+      - CO 1-0: 1.35e30 erg/s.
+      - Hbeta: 4.65e35 erg/s.
+  - **The prediction for c, half met.** The shell is molecular, and CO 1-0
+    is 1e11 times run b's. But 1-0 S(1) is 45 times run b's, not 100 or
+    more: run b's trace H2, pumped by an unshielded field, still shines in
+    the pumped lines.
+  - **The cost** is mostly the level model. Its first sweep took 212 s, then
+    about 80 s per iteration, against 24 s in run b.
+  - **The maps** (h034_maps.py, as the manual runs it). The H2 lines trace
+    the inner face of the dense gas, about 0.06 pc out. That gas is a box
+    (n_H = 8e4 from 1.2e17 cm out along the axes), so the ring is square.
+    CO fills the disc.
+
+### Two corrections the runs made
+
+  - **The map tool read the wrong block of lineFluxMol.out.** With
+    multiChemistry, lineFluxMol.out has the total and then a block per
+    component. tools/h034_maps.py kept the last block, so c's CO maps came
+    out 1.09-1.13 times their "table". Fixed: it now reads the first block
+    only. c's CO maps are within 3e-6, and d405-hii31-d0 is unchanged.
+    H-034's seven runs have one component each, so their checks stand.
+  - **The hydrogen budget needs every species.** In c,
+    x(H) + 2x(H2) + x(H+) misses 1.5e-5 in the worst cell, all of it
+    water. Counting the hydrogen of all 33 species closes it to 3.9e-9 (run
+    b 4.1e-9, pn150k 1.6e-10). Prediction 2, read as the three-term sum, is
+    missed in c and met in b. The manual's check counts every species.
+
+### Status
+
+Done (2026-10-15): doc/manual-pdr-h2.md, tested as written (variant c). It
+also reports run b, which shows why test_Problem's own dust makes no H2.
+Not done:
+  - `make install` was not repeated: the prefix's data were installed on
+    2026-10-05, and data/ and dustData/ have not changed since.
+  - The open question of Tdust(0,0) above is left for the user's word.

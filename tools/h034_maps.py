@@ -105,8 +105,11 @@ def mol_columns(cool, ddir):
 
 
 def mol_totals(run):
+    """the totals over the grid: the first block; with multiChemistry, per-component blocks follow (H-035)"""
     d = {}
     for l in open(os.path.join(run, 'output', 'lineFluxMol.out')):
+        if l.startswith('# component'):
+            break
         q = l.split()
         if len(q) >= 7 and not q[0].startswith('#'):
             d[(q[0], int(q[1]), int(q[2]))] = (float(q[3]), float(q[5]))
