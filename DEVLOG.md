@@ -409,7 +409,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
 | D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.17 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
 | D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
-| D-410 | **L-53: does the z pattern follow the ray set? (the user: "lets investigate the test of the z pattern with a different ray set")** The twelve HEALPix nside=1 directions, fixed in the grid frame with their ring axis along z, place the diffuse FUV field's scattering sites (traceDiffuseSites) and the line-escape rays (traceLineRays). Stage 1, attribution: the same twelve rotated so their ring axis is x (a diagnostic patch, two lines), hiipdr 31^3 at 6e6 packets, every iteration's cells kept, against D-405's run. Stage 2, if stage 1 attributes it: 48 directions (nside=2). Predictions on record before the run | In progress | 2026-10-14 |
+| D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). Adopting it is the user's decision | Done | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39290,3 +39290,74 @@ lines by "time", "date" and "elapsed", which these lines do not contain,
 so it reported a failure and did not start the run. That is a slip in the
 script, not in the code. The run was started by hand at 21:39
 (runs/d410c-chain.sh): runs/d410-hii31-n2, md5 cfae26dc....
+
+### Stage 2 result (runs/d410-hii31-n2, 48 directions, 59:14; read 2026-10-14 22:40)
+
+Each orientation's H2 over the mean of the other two, iterations 9-15:
+
+| A_V band | twelve, ring axis z (reference) x / y / z | twelve, ring axis x | 48 directions |
+|---|---|---|---|
+| 0.46-1.00 | -5.2 / -5.2 / **+11.4%** | **+8.8** / -4.9 / -3.3 | +0.2 / +0.4 / -0.6 |
+| 1.00-1.48 | -5.0 / -1.3 / **+6.7%** | **+2.3** / -1.3 / -1.0 | -2.0 / +1.6 / +0.4 |
+| 1.48-2.99 | within 0.2% | within 0.2% | within 0.1% |
+
+**With 48 directions the pattern is gone.** At A_V 0.46-1.00 the three
+orientations agree within 1%. At 1.00-1.48 what is left is the shared
+seed's noise: x - y is -3.6%, where the reference, whose set makes x and y
+equal, has -3.7%. CO's excess at 1.00-1.48 (z +5.0) is gone the same way
+(x -2.8 / y +1.6 / z +1.2; x - y -4.4, the reference's -4.4). The share
+of H2's spread among equivalent cells that stays from one iteration to the
+next halves (0.33 -> 0.15 at A_V 0.46-1.00, 0.21 -> 0.11 at 1.00-1.48):
+the pattern was half of it. At the carbon turn (A_V 1.91-2.29), C is x
++8.2 / y -11.8 / z +4.8, the seed's realization in all three runs.
+
+**The twelve barely bias the mean:**
+  - H2 lines -0.31 to -0.55% (named), none of 2,693 by 1%;
+  - the crossing 1.3917 -> 1.3921 and C+ = C 2.250 -> 2.248;
+  - [C I] 609 +0.3%, [C II] -0.4%, CO +0.1 to +1.0%, Hbeta -0.002%;
+  - n(C), n(CO), n(H2) over the neutral cells within 0.2%;
+  - the stop test 2.99 / 2.49 / 2.02 / 1.78% at 12-15.
+
+**The cost is 1.48 times the twelve's** (59:14 against 40:07). The
+iterations with the chemistry take 4.22 minutes against 2.75: four times
+the sites for the chemistry's photorates and four times the walks. The
+level model's finished call takes 205.6 s against 174.6 (1.18). Its
+diffuse shielding is not most of its cost, as prediction 9 assumed.
+
+**Predictions:**
+  - 6 met: -0.6% at A_V 0.46-1.00, under the 4% (and the 1.5-2% the
+    moments suggested); H2's orientations within 3.6% in every band.
+    C and CO at the turn differ by up to 20%, the same in all three runs.
+  - 7 met: everything within the bounds and well under them; the largest
+    change is H2's -0.55%.
+  - 8 met: chi, T and n_e equal the reference's to 0.1% in the bands of the
+    pattern (chi's +0.7% at 1.00-1.48 is in all three runs).
+  - 9 missed, narrowly: 59 minutes, under the 60-160 predicted. The cost
+    is 1.5 times the twelve's, not 1.5-4.
+
+### What D-410 says
+
+  - **L-53 is the twelve directions' quadrature.** They single out their
+    ring axis (the mean fourth power of a component is 0.132 along it and
+    0.218 across it, isotropic 0.2). The scattering sites they place
+    shield the diffuse FUV field more for the cells in the plane
+    perpendicular to that axis. The result is an orientation error of
+    +10% in H2 and +3-5% in CO before and across the H/H2 transition: a
+    map shows it, and the totals average it away (stage 1).
+  - **48 directions (HEALPix nside = 2) remove it** for 1.5 times the run
+    time on hiipdr 31^3, and move no total by more than 1%.
+  - **Not done:** pn150k with 48 directions (its pattern, +11% at A_V
+    0.13-0.25, has the same symmetry; its run time is set by the
+    chemistry, so the factor may differ); nside = 3 or more; the
+    production code's own run (it has the same twelve in the same two
+    routines, without the level model).
+  - **What adopting it would take** (the user's decision): the
+    generalization of tools/patches/d410_rays_nside.patch made the code,
+    on production first (the two walks, the site storage, the line rays,
+    pdrStep's escape arrays, the diagnostics) and merged into h2-model
+    with the level model's parts. nside would be a stated resolution of
+    the model, like nbins, with 2 the default, and the four flavours built.
+    The pages' runs would be made again, their totals moving by under 1%
+    and their maps losing the pattern.
+
+Status: Done (2026-10-14). The adoption is for the user to decide.
