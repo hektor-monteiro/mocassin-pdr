@@ -4518,6 +4518,7 @@ reference's -3.7%).
 ### Status
 
 Done. Merged: b68eee3 (production's D-410). The user kept the twelve
-(2026-10-15, D-410); the 48 stay a patch. Pages: H2 Lines in MOCASSIN v16 (a first section on
+(2026-10-15, D-410); the 48 stay a patch. H2 Lines in MOCASSIN v17 (2026-10-15)
+says so where v16 had the choice open. Pages: H2 Lines in MOCASSIN v16 (a first section on
 the test, with the orientation figure; version 15's two statements on the
 pattern annotated), published 2026-10-14 22:51.
