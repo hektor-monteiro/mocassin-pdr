@@ -7,7 +7,7 @@ entry; nothing is asserted from expectation.
 Read alongside `doc/dust.md` (grain input and optics) and `DEVLOG.md` (the
 full history, including the hypotheses that turned out wrong).
 
-Status as of D-410, 2026-10-14. Reference model throughout: the 150 kK PN,
+Status as of D-410, 2026-10-15. Reference model throughout: the 150 kK PN,
 41^3, n_H = 1000, MRN graphite, against Cloudy c25.00 on a matched input.
 
 ---
@@ -885,8 +885,9 @@ Not done:
   - pn150k with 48 directions;
   - the production code's run.
 
-Adopting nside = 2 as the 3D flavour's resolution is the user's decision
-(DEVLOG D-410, tools/patches/d410_rays_nside.patch on h2-model).
+**The user kept the twelve** (2026-10-15, D-410), since no line map carries
+the pattern. The 48 are a patch (tools/patches/d410_rays_nside.patch on
+h2-model), ready if a map of n(H2) or of CO's abundance becomes a product.
 
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
