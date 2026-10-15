@@ -4727,22 +4727,29 @@ across the annulus: 2-23%, and the same at 1x and 64x.
 
 hiipdr, d405-hii31-d0 (front 3.80 pc, 2n(H2) = n(H) at 9.77 pc, C+ = C at
 15.15 pc, edge 19.4 pc). Radii in pc: the z map's peak in one-cell annuli,
-the 3D emissivity's peak (median per one-cell shell), and the radius
-holding half the line's luminosity:
+the 3D emissivity's peak (the shells whose median is within 2% of the
+largest), and the radius holding half the line's luminosity:
 
 | line | projected | 3D peak | half the light |
 |---|---|---|---|
-| 1-0 S(1) | 4.86 | 6.16 | 7.59 |
-| 2-1 S(1) | 4.86 | 5.51 | 7.50 |
+| 1-0 S(1) | 4.86 | 5.51-6.16 | 7.59 |
+| 2-1 S(1) | 4.86 | 5.51-6.16 | 7.50 |
 | 0-0 S(0) | 8.10 | 8.75 | 9.37 |
-| 0-0 S(3) | 6.81 | 8.10 | 8.48 |
+| 0-0 S(3) | 6.81 | 7.45-8.10 | 8.48 |
 | CO 1-0 | 16.53 | 19.12 (the outermost shell) | 17.88 |
 | CO 6-5 | 14.58 | 14.58 | 15.62 |
+
+(Corrected 2026-10-15 11:28, while building the quick-look page. The table
+first gave single shells: 6.16, 5.51 and 8.10 for 1-0 S(1), 2-1 S(1) and
+0-0 S(3). 1-0 S(1)'s emissivity is flat between 5.51 and 6.16 pc, the two
+medians 0.07% apart, so which shell came out on top depended on how the
+cells were weighted. The page weights each octant cell by its volume.)
 
   - **Prediction 3 for 1-0 S(1): missed.** The projected ring is at 4.9 pc,
     not ~6. The H/H2 transition is at 9.8 pc, not 6. The vibrational lines
     come from the partly molecular gas 1-4 pc beyond the front, where the
-    pumping is strong; the ~6 pc matched their 3D peak, not the transition.
+    pumping is strong; the ~6 pc falls in their 3D peak, which is flat from
+    5.5 to 6.2 pc, not at the transition.
     The rotational lines sit at the transition.
   - **Prediction 3 for CO 1-0, limb-brightened: met.** Peak over centre is
     2.1 at 1x and 2.8 at 64x. Its emissivity peaks in the outermost shell.
@@ -4750,10 +4757,13 @@ holding half the line's luminosity:
     C+ = C crossing.
   - **Prediction 4: met.** pn150k: front 0.129 pc, 2n(H2) = n(H) at
     0.364 pc, edge 0.61 pc.
-      - The vibrational H2 lines are at 0.174 pc projected, 0.174 in 3D,
-        with half the light within 0.28-0.29 pc.
-      - The rotational lines are at 0.22-0.25 pc projected, 0.25-0.30 in 3D,
-        half the light within 0.32-0.38 pc.
+      - 1-0 S(1), 2-1 S(1) and 1-0 Q(1) are at 0.174 pc projected and in
+        3D, with half the light within 0.28-0.29 pc. 1-0 S(0) sits deeper:
+        0.22 projected, 0.27-0.28 in 3D (corrected 11:28: it was counted
+        with the other vibrational lines).
+      - The rotational lines are at 0.22-0.25 pc projected, 0.24-0.31 in 3D
+        (0.25-0.30 before the 11:28 correction), half the light within
+        0.32-0.38 pc.
       - CO is at 0.51-0.54 pc projected. In 3D it peaks in the outermost
         shell, with half the light within 0.53-0.56 pc.
       - CO 6-5's projected peak at 1x is one hot cell at 0.04 pc, gone at
@@ -4798,3 +4808,18 @@ Done (2026-10-15): the tool and the maps of seven runs. Predictions: 1 met
 once flagged cells are handled (they were not foreseen); 2 met for
 orientation, not met for "noise only" at hiipdr's front and in its outer CO;
 3 half met (1-0 S(1)'s radius missed, CO met); 4 met.
+
+Page (the user: "put the maps and radial profiles on a quick-look page so I
+can inspect it"): H2 and CO Line Maps, version 1, published 2026-10-15
+11:29 (https://claude.ai/artifact/MjdfSU63xkvfzvuyhGXLBU).
+  - **What it shows:** the 14 lines' maps along z, x and y for hiipdr at
+    1x and 64x and pn150k at 1x and 4x, in log or linear over 2-6 decades,
+    with the pixel readout. Beside each map, the radial profile, projected
+    I(p) or emissivity j(r), with its 16-84% band and the other packet
+    count dashed. Below: the transition radii, each line's checks and the
+    exact roundness tests, a gallery of all 14 lines, and every line's
+    profile normalized to its peak.
+  - **How it is built:** the scratchpad's h034page/data.py (the numbers,
+    from the runs' maps_h2co.fits and cells) and build.py (the page). The
+    maps are embedded as 16-bit log intensity over 8 decades (2.6 MB). The
+    3D statistics weight each octant cell by its volume.
