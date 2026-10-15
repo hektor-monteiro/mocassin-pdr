@@ -42,7 +42,7 @@ DEVLOG.md and arrives here by merge.
 | H-031 | **Production's D-406 on this branch: the damping across iterations is off by default (`iterDamp` 0, the user's decision), and H2den has one rounding for every writer.** The four flavours, `h2Test` and `h2Slab` build; the round trips of both of H-030's undamped runs are byte for byte; a fresh hiipdr run with the new default is `runs/d405-hii31-d0` byte for byte in all 26 output files, the level model's included. The pages' models are H-030's undamped runs: crossings pn150k 0.3930, hiipdr 1.3951; against Cloudy ortho/para pn150k 0.91-1.11 / 1.89-2.62, hiipdr 0.76-0.78 / 1.06-1.12, 1-0 S(1) 1.11 and 0.77. H-030's two derailed iterations do not occur by default. H2 Lines in MOCASSIN v14 | Done | 2026-10-14 |
 | H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
 | H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
-| H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total | In progress | 2026-10-15 |
+| H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total. Result (11:15): seven runs mapped; every CO map returns lineFluxMol.out within 3e-6 and every H2 map lineFluxH2.out less the flagged cells (lgBlack: MOCASSIN and lineFluxMol.out leave them out, lineFluxH2.out does not; up to 2.9e-4). No orientation in any map (H2 0.993-1.016 at 1x, 0.996-1.000 at 64x). Not noise: at hiipdr's unresolved front cells at one radius differ by orientation (1-0 S(1) axis columns -11% at 3.2 pc; production's D-412), and hiipdr's outer CO scatters per cell by 0.45-0.60 in ln x(CO) at 16x and 64x. Rings: 1-0 S(1) 4.9 pc projected (predicted ~6), CO at the edge in both models, whose CO is under 0.1% of the carbon there | Done | 2026-10-15 |
 
 ---
 
@@ -4590,3 +4590,211 @@ H2 and CO lines so I can start doing some scientific tests."
 The runs: the default models of the pages (runs/d405-hii31-d0,
 runs/d405-pn41-d0), and for CO the 64x hiipdr run (runs/d408-hii31-p64,
 which CO's packet series favours) and pn150k at 4x (runs/d408-pn41-p4).
+
+### What the maps return (prediction 1)
+
+Results recorded 2026-10-15 11:15. Seven runs mapped: hiipdr at 1x, 4x,
+16x and 64x (d405-hii31-d0, d405-hii31-d0-p4, d408-hii31-p16,
+d408-hii31-p64), hiipdr with 48 directions (d410-hii31-n2), and pn150k at
+1x and 4x (d405-pn41-d0, d408-pn41-p4).
+
+  - **Within 3e-6 where no cell is flagged** (d405-hii31-d0, d410-hii31-n2):
+    all 14 lines, against lineFluxH2.out and lineFluxMol.out.
+  - **Missed at first where cells are flagged.** CO 1-0 came out 3.2e-4
+    above its table on d405-hii31-d0-p4 and 1.4e-4 above it on
+    d408-hii31-p16:
+      - MOCASSIN flags a cell (lgBlack, update_mod.f90) when its thermal or
+        ionization balance is not reached, or T >= 30000 K. It leaves the
+        cell out of lineFlux.out, and lineFluxMol.out uses the same test
+        (output_mod.f90).
+      - pdrLineEm.out writes every cell. The level model does not test the
+        flag, so lineFluxH2.out includes flagged cells.
+      - One to three cells are flagged per run. On hiipdr at 4x it is one
+        cell at 19.1 pc; on pn150k at 1x, two at 0.26-0.28 pc.
+      - The prediction had not foreseen that the two tables count different
+        cells.
+  - **The tool now leaves flagged cells out of every map**, as MOCASSIN
+    does, so the H2 and CO maps are made of the same cells. The primary
+    header's NFLAG counts them; each map's LFLAG holds what they carried.
+    After the change:
+      - CO is within 3e-6 of lineFluxMol.out in all seven runs.
+      - H2 is within 3e-6 of lineFluxH2.out once LFLAG is added back. Without
+        it, H2 sits below its table by the flagged share: up to 2.9e-4 on
+        pn150k at 1x, 1.9e-4 on hiipdr at 64x.
+  - **lineFluxH2.out's count diverges from the other tables.** Recorded, not
+    changed: having the level model's sums leave flagged cells out would
+    change h2Lines_mod.f90, so it waits for the user's word.
+
+### Round, and where it is not noise (prediction 2)
+
+**The test is exact.** In an octant on a cubic grid, these pairs of map
+columns cross cells at the same set of radii:
+  - columns (a,b) and (b,a);
+  - column (n,0) and column (a,b), when a^2 + b^2 = n^2.
+
+So a spherically symmetric model gives each pair equal intensity, exactly.
+  - **A swapped pair** compares one image axis with the other: x with y in
+    the z map, y with z in the x map (where D-410's pattern would show), and
+    x with z in the y map.
+  - **An axis pair** compares a column of symmetry-plane cells with a column
+    of interior cells.
+
+An annulus-based spread, tried first, measures the steep radial gradient
+across the annulus: 2-23%, and the same at 1x and 64x.
+
+  - **No orientation: met.** The light-weighted swap ratio, over the bright
+    part (I > 1e-2 of the peak) and all three maps, for H2 1-0 S(1) and 0-0
+    S(0):
+
+    | run | swap ratio |
+    |---|---|
+    | hiipdr 1x | 0.993-1.016 |
+    | hiipdr 64x | 0.996-1.000 |
+    | hiipdr 48 directions | 0.995-1.016 |
+    | pn150k 1x | 0.995-1.011 |
+    | pn150k 4x | 0.994-1.001 |
+
+    CO 1-0 gives 0.982-1.020.
+  - **The pairs' scatter is the packets' noise for H2.** 1-0 S(1) is +-11-13%
+    per pair at 1x and +-1.4-2.7% at 64x on hiipdr (sqrt 64 = 8). On
+    pn150k it is +-7-11% at 1x and +-4-7% at 4x. pn150k's CO behaves the same
+    way: CO 1-0 goes from +-15% to +-7-8%.
+  - **Not noise (1): hiipdr's ionization front.**
+      - **In the maps.** At p = 3.2 pc (n = 5) the axis columns are
+        0.886-0.898 of the off-axis ones in all six axis directions at 64x,
+        and 0.86-0.97 at 1x. At 6.5 pc they are 1.02-1.03.
+      - **It is not the symmetry planes.** I first read it as the plane cells
+        being more ionized, from their median against the interior's profile
+        at the same radius. That comparison moved from 0.82 to 0.59 at 3.0-3.5
+        pc when only the profile's bin edges changed, so it was discarded.
+      - **Cell sets at exactly the same radius** (e.g. (0,1,4) against
+        (2,2,3)) differ by orientation, with a sign that changes from one
+        radius to the next. x(H0) differs by 0.45-1.33x and chiFUV by 0.92-1.17x
+        at 2.7-4.0 pc. Two interior sets differ as much as a plane set and an
+        interior set do: chiFUV 1.11 at r^2 = 41.
+      - **Its size.** The spread of ln x(H0) across sets at one radius is
+        0.29 at 0.80-0.95 r_front and 0.19 at 0.95-1.10 r_front.
+      - **It does not move.** It is the same at 1x and 64x, with 48
+        directions, and at 41^3 (0.28 and 0.19; h007-full-hii41). On pn150k
+        it is 0.011-0.016, at 1x and 4x alike.
+      - **The front is unresolved.** x(H0) goes from 0.05 to 0.8 within
+        0.64 cells at 31^3 and 0.67 cells at 41^3, so the front narrows with
+        the cell. pn150k's front spans 1.54 cells.
+      - **Reading, not tested.** Cells whose centres sit at the same radius
+        straddle an unresolved front differently by orientation: a cube spans
+        +-0.5 cell in radius along an axis and +-0.87 along the body
+        diagonal. pn150k's spread is 20x smaller where a front 2.4x gentler
+        per cell would give about 2.4x, so this reading is incomplete.
+      - **What it leaves in a map.** H2 1-0 S(1) pixels at projected radii
+        near the front differ by ~10%, deterministically. The rotational
+        lines and CO lie past the front.
+      - **Production's D-412** records it.
+  - **Not noise (2): hiipdr's outer CO.**
+      - **Per cell.** CO 1-0's emissivity scatters about its radial profile
+        (rms of ln):
+
+        | shell [pc] | 1x | 16x | 64x |
+        |---|---|---|---|
+        | 10-12 | 0.29 | 0.09 | 0.09 |
+        | 12-14 | 0.71 | 0.16 | 0.09 |
+        | 14-16 | 0.86 | 0.27 | 0.16 |
+        | 16-18 | 0.48 | 0.55 | 0.45 |
+        | 18-19.4 | 0.32 | 0.60 | 0.60 |
+
+      - **Inside 16 pc it falls with the packets.** Beyond 16 pc it does
+        not.
+      - **Little of it repeats cell by cell.** The residuals correlate 0.18
+        at 17-19.4 pc between 16x and 64x, against 0.52 at 10-14 pc. With 1x,
+        whose noise is large, they correlate 0.02-0.19.
+      - **It is the abundance.** 92-106% of the variance is x(CO)'s. The
+        escape probability carries 0.4-1% rms and the excitation 1-19%.
+      - **The cell's own T and chiFUV do not follow it** (|r| <= 0.42 and
+        <= 0.29).
+      - **The outer carbon moves with the packets** (D-408): C+/C is 0.2 at
+        16-18 pc at 1x and 4.0 at 64x.
+      - **In the maps** it gives CO 1-0 +-17% per pixel pair at 64x (+-16% at
+        1x).
+  - **The faint outskirts at 1x** (I < 1e-2 of the peak, hiipdr):
+      - The level model's pumping rate is zero in over half the cells beyond
+        16 pc: no packet reached them. So the outskirts are a few cells,
+        mirrored.
+      - The planes' half-volume cells take fewer packets, which makes the
+        axis spikes: axis/off-axis 0.28-1.36 at 11-13 pc, near zero beyond.
+      - At 64x the axis pairs are within 0.89-1.04 out to 13 pc.
+      - 48 directions give the same as 12, so this is not the ray set.
+
+### Where the rings sit (predictions 3 and 4)
+
+hiipdr, d405-hii31-d0 (front 3.80 pc, 2n(H2) = n(H) at 9.77 pc, C+ = C at
+15.15 pc, edge 19.4 pc). Radii in pc: the z map's peak in one-cell annuli,
+the 3D emissivity's peak (median per one-cell shell), and the radius
+holding half the line's luminosity:
+
+| line | projected | 3D peak | half the light |
+|---|---|---|---|
+| 1-0 S(1) | 4.86 | 6.16 | 7.59 |
+| 2-1 S(1) | 4.86 | 5.51 | 7.50 |
+| 0-0 S(0) | 8.10 | 8.75 | 9.37 |
+| 0-0 S(3) | 6.81 | 8.10 | 8.48 |
+| CO 1-0 | 16.53 | 19.12 (the outermost shell) | 17.88 |
+| CO 6-5 | 14.58 | 14.58 | 15.62 |
+
+  - **Prediction 3 for 1-0 S(1): missed.** The projected ring is at 4.9 pc,
+    not ~6. The H/H2 transition is at 9.8 pc, not 6. The vibrational lines
+    come from the partly molecular gas 1-4 pc beyond the front, where the
+    pumping is strong; the ~6 pc matched their 3D peak, not the transition.
+    The rotational lines sit at the transition.
+  - **Prediction 3 for CO 1-0, limb-brightened: met.** Peak over centre is
+    2.1 at 1x and 2.8 at 64x. Its emissivity peaks in the outermost shell.
+    High-J CO sits deeper: 4-3 to 6-5 peak at 14.6-15.2 pc in 3D, at the
+    C+ = C crossing.
+  - **Prediction 4: met.** pn150k: front 0.129 pc, 2n(H2) = n(H) at
+    0.364 pc, edge 0.61 pc.
+      - The vibrational H2 lines are at 0.174 pc projected, 0.174 in 3D,
+        with half the light within 0.28-0.29 pc.
+      - The rotational lines are at 0.22-0.25 pc projected, 0.25-0.30 in 3D,
+        half the light within 0.32-0.38 pc.
+      - CO is at 0.51-0.54 pc projected. In 3D it peaks in the outermost
+        shell, with half the light within 0.53-0.56 pc.
+      - CO 6-5's projected peak at 1x is one hot cell at 0.04 pc, gone at
+        4x.
+  - **CO's light is set by where the grid ends.** In both models CO is a
+    trace at the edge. CO/(C+ + C + CO) is 1-2e-5 at 0.50-0.62 pc on
+    pn150k and 4-9e-4 at 16-19.4 pc on hiipdr. Both models end before the
+    transition, so a CO map's brightness and ring radius follow the
+    boundary. A model meant for CO maps has to reach past it.
+
+### The products
+
+  - **`runs/<run>/output/maps_h2co.fits`**, for the seven runs:
+      - MAP{X,Y,Z}_<line>, e.g. MAPZ_H21to0S1 and MAPZ_CO1to0, in
+        erg/s/cm2/sr. Each header has LINE, SPECIES, LAMBDA, the levels,
+        LTOT, LMAP, LFLAG and a linear WCS in pc.
+      - XAXIS, YAXIS and ZAXIS: cell centres and widths in cm.
+      - LINES: LTABLE, LCELLS, LMAP and LFLAG per line.
+  - **maps_h2co_cubes.fits** (the emissivity, erg/s/cm3/sr) for
+    d405-hii31-d0 and d405-pn41-d0.
+  - **maps_h2co.png**, a quick look along z, for all seven runs.
+  - **What to use for a test:**
+      - H2: the 1x runs, +-7-13% per pixel pair; hiipdr at 64x, +-1.4-3%.
+      - CO: hiipdr at 64x (D-408), which still has +-17% per pixel pair in CO
+        1-0; pn150k at 4x, +-7-8%.
+      - Every map has the octant's mirror symmetry, so its noise appears
+        four times.
+
+### Not yet known
+
+  - What sets the direction spread at hiipdr's front, beyond the unresolved
+    front (production's D-412).
+  - What sets hiipdr's outer per-cell x(CO) scatter, which 64x does not
+    reduce.
+  - pn150k past 4x, for CO.
+  - Whether lineFluxH2.out should leave flagged cells out (the user's
+    word).
+
+### Status
+
+Done (2026-10-15): the tool and the maps of seven runs. Predictions: 1 met
+once flagged cells are handled (they were not foreseen); 2 met for
+orientation, not met for "noise only" at hiipdr's front and in its outer CO;
+3 half met (1-0 S(1)'s radius missed, CO met); 4 met.
