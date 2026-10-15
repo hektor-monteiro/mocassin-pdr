@@ -39078,6 +39078,88 @@ it is read).
 
 Status: Proposed, for the user's decision.
 
+### Option B explained, at the user's request (2026-10-15 10:24)
+
+The user: "explain the proposed strategy for accumulating the radiation
+field over iterations better so I can decide."
+
+**What the code does now.** Each iteration launches nPhotons packets and
+builds the field estimators Jste and Jdif (the mean intensity per cell and
+frequency bin, from the packets' path lengths) from zero
+(iteration_mod.f90:569/580). It reduces them over the ranks and scales them
+(~923). Everything downstream reads that one iteration's field:
+  - MOCASSIN's ionization and thermal balance;
+  - the dust temperatures;
+  - the chemistry's photorates and the diffuse field's sites;
+  - the level model's pumping.
+
+**What option B changes.** After the scaling, the iteration's estimate is
+folded into a running mean, and the mean is what everything downstream
+reads. It is one field, used by every part of the model as now.
+
+**Why it is not the damping.** The damping (off since D-406) averaged the
+*answers*: T and the abundances. Where the answer is a non-linear function
+of a field that is on or off, an average of answers is no answer (D-405).
+The field is linear in the packets, so the mean of M iterations' fields is
+the estimate M times the packets would give, while the model does not
+move. The model written is then the solution on that field.
+
+**Variants.**
+  - **A, recommended: a running mean from a start iteration K.** K is the
+    same in every cell, set by the run's own convergence measure: the first
+    iteration whose stop test is under 10%. That is 10 on hiipdr (15
+    iterations, so 6 are averaged) and 11 on pn150k (18 iterations, 8
+    averaged). The run is held from stopping until enough iterations are
+    averaged.
+  - **B: an exponential average** with weight w and no start rule. w = 1/4
+    gives 7 times the packets at steady state, with a lag of about 3
+    iterations; the gain does not grow with the run.
+  - **C, only if A shows a lag: a per-cell restart.** A cell's mean starts
+    again where the new estimate departs from it by more than their noise.
+
+**What it buys** (hiipdr 31^3, 15 iterations). The series gives about
+2.64 + 0.091 p minutes per iteration at p times the default packets. With A
+the final model's field rests on about 6p:
+
+| effective packets | packets alone | with A |
+|---|---|---|
+| 6x | 6x, ~48 min | 1x, 41 min (today's cost) |
+| 64x | 64x, 127 min (measured) | ~11x, ~55 min |
+| 256x | 256x, ~6.5 h | ~43x, ~1 h 40 min |
+
+Per-cell noise in a map falls by the square root of the iterations
+averaged.
+
+**Risks, and how the test sees them.**
+  - **Lag.** The ionized gas still settles over iterations 9-15 (O+, S2+
+    carry the stop test), so a mean from iteration 10 carries a little of
+    the earlier field. Seen in the H II lines and Hbeta against the
+    series; variant C is the fix if it matters.
+  - **The stop test passes sooner** with less noise. Hence the hold.
+  - **Memory: +4.8 kB per active cell per rank**, two single-precision
+    arrays of nbins. That is +1 GB on hiipdr 31^3 at 14 ranks and +2.4 GB
+    on pn150k 41^3 (to ~27 of the ~31 GB). The largest grid at 14 ranks
+    falls from ~46k to ~41k active cells.
+  - **Warm start:** the running mean has to be saved and restored.
+  - **The cell's own carbon** absorbs the band it is ionized by (opacity
+    ~0.5 across a cell, D-405). The averaged field should end the flipping,
+    but that is what the test checks.
+
+**The test, against D-408's series as the reference.**
+  - hiipdr at 1x with A (~6x): should land between the series' 4x and 16x.
+  - hiipdr at 8x with A (~48x): should land within the step between 16x
+    and 64x of the 64x run. That means C+ = C within 0.08 mag, [C I]
+    within 4%, CO within 10%, and Hbeta, the H II lines and the H2 lines
+    within 0.3%.
+  - Two controls: with accumulation off the code is the default byte for
+    byte; and the final iteration's own estimate against the mean shows
+    whether the mean lags.
+  - pn150k optionally.
+
+**Scope.** iteration_mod.f90 (the running mean after the scaling, the start
+rule, the hold), the warm-start state and the four flavours, then the
+runs: about 41 and 55 minutes on hiipdr.
+
 ## D-410 - L-53: does the z pattern follow the ray set? (2026-10-14)
 
 Asked by the user after D-409: "lets investigate the test of the z pattern
