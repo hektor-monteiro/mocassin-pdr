@@ -41,6 +41,7 @@ DEVLOG.md and arrives here by merge.
 | H-030 | **Production's D-405 on this branch's executable: the damping across iterations no longer holds back a cycle, the H2 does not move without it, and the two derailed iterations at the start of the chemistry are the damping together with H-013's heating term.** Seeded pairs, `iterDamp 0` against 0.25, the level model in the loop: no cell flips on either nebula; crossings pn150k A_V 0.3927 -> 0.3930, hiipdr 1.3959 -> 1.3951; none of pn150k's 2,644 H2 lines by 1% (largest +0.77%), hiipdr's of the tables +1.1 to +1.6% over an Hbeta 0.55% lower. Temperature balance not reached at iterations 5, 6: 72, 25% (pn150k) and 89, 79% (hiipdr) of cells with the damping, none without; production's damped arm, with no level model, has none either. With every iteration's cells kept: about 35 deep hiipdr cells lose more than half their H2 for one iteration, each on a single ionizing packet (L-51), and cells the symmetry makes equal differ in H2 by up to 11% along z before the transition (L-53). No source changed; the default is unchanged, the user's decision | Done | 2026-10-13 |
 | H-031 | **Production's D-406 on this branch: the damping across iterations is off by default (`iterDamp` 0, the user's decision), and H2den has one rounding for every writer.** The four flavours, `h2Test` and `h2Slab` build; the round trips of both of H-030's undamped runs are byte for byte; a fresh hiipdr run with the new default is `runs/d405-hii31-d0` byte for byte in all 26 output files, the level model's included. The pages' models are H-030's undamped runs: crossings pn150k 0.3930, hiipdr 1.3951; against Cloudy ortho/para pn150k 0.91-1.11 / 1.89-2.62, hiipdr 0.76-0.78 / 1.06-1.12, 1-0 S(1) 1.11 and 0.77. H-030's two derailed iterations do not occur by default. H2 Lines in MOCASSIN v14 | Done | 2026-10-14 |
 | H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
+| H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times | Done | 2026-10-14 |
 
 ---
 
@@ -4463,3 +4464,56 @@ D-409).
 Done. Merged: f312df0 (production's D-408, D-409 and the status as of
 D-409). Pages: the three are updated with the series in their next
 versions (hiipdr v30, 150 kK PN v29, H2 Lines in MOCASSIN v15).
+
+## H-033 - Production's D-410: the z pattern and the ray set, read for H2 (2026-10-14)
+
+D-410 (production's log, the user's request) tested L-53 with diagnostic
+builds of this tree. The two patches are tools/patches/d410_rays_axis_x.patch
+and d410_rays_nside.patch (commit 521ba9c), built in runs/d410-src and
+runs/d410-src48 and not applied to the code. The twelve HEALPix nside = 1
+directions of traceDiffuseSites and traceLineRays place the diffuse field's
+scattering sites, the level model's diffuse pumping and every line's escape
+(the level model's N12 too). The direct field is radial.
+
+### n(H2), hiipdr 31^3 at 6e6 packets (iterations 9-15)
+
+| A_V band | twelve, ring axis z: x / y / z | ring axis x | 48 directions |
+|---|---|---|---|
+| 0.46-1.00 | -5.2 / -5.2 / **+11.4%** | **+8.8** / -4.9 / -3.3 | +0.2 / +0.4 / -0.6 |
+| 1.00-1.48 | -5.0 / -1.3 / **+6.7%** | **+2.3** / -1.3 / -1.0 | -2.0 / +1.6 / +0.4 |
+
+The excess follows the frame, and with 48 directions what is left is the
+seed's noise, which all three runs share (x - y -3.6% at 1.00-1.48, the
+reference's -3.7%).
+
+### The level model's lines
+
+  - **Totals.** 48 directions against the twelve: 1-0 S(1) -0.54%, 2-1
+    S(1) -0.55%, 0-0 S(0) -0.48%, S(1) -0.31%, S(2) -0.40%, S(3) -0.42%,
+    and none of 2,693 lines above 1e-7 Hbeta by 1%. The rotated twelve:
+    within 0.17%, as relabelling a symmetric model requires.
+  - **Per cell (what a map is made of).** The emissivity of 1-0 S(1) and
+    0-0 S(1) in the sets of six equivalent cells shows no orientation
+    beyond 2.5% in any of the three runs, at A_V 0.46-1.48, where n(H2)
+    carries +11% and +7%. The +1.2 to +2.5% on y in 1-0 S(1) is in all
+    three runs, so it is the seed's. Reading, not tested apart: a pumped
+    line's emission follows the pumping rate times n(H2), which in
+    photodissociation-limited gas the formation rate holds, whatever
+    shields the field. So H-032's "the largest systematic in an H2 map's
+    transition zone" holds for maps of n(H2), not for the H2 lines (CO's
+    lines carry it in full, +9-12%, production's D-410).
+  - **Cost.** The level model's call on the finished model takes 205.6 s
+    with 48 directions against 174.6 s (1.18). The run takes 59:14
+    against 40:07; most of the increase is the chemistry's four times as
+    many sites.
+
+### Not yet known
+
+  - pn150k with 48 directions.
+  - Whether the scattering sites or the line rays carry n(H2)'s pattern;
+    CO's lines point to the line rays for CO.
+
+### Status
+
+Done. Merged: b68eee3 (production's D-410). Adopting 48 directions is the
+user's decision (D-410).
