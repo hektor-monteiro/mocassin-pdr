@@ -411,6 +411,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Deferred (D-411) | 2026-10-14 |
 | D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: the H2 lines carry no more than the seed's noise (2.5%), and CO's lines carry +9-12% only in cells that emit under 0.03% of their light on hiipdr; maps of n(H2) show it. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
 | D-411 | **The field accumulated over iterations (D-409's option B) registered for future development (the user: "register this for future development").** Not started; no code changed. The design, what it buys, its risks and its test against D-408's series are in D-409's addendum of 2026-10-15. The user turned to line maps of H2 and CO (H-034). Until it is built, D-409's interim stands as a recommendation, not a decision: 64x (or 16x) for runs that quote carbon or CO, the default for H2 | Deferred | 2026-10-15 |
+| D-412 | **What H-034's line maps found in the production model (the user's request for H2 and CO maps, D-411).** Map columns at the same projected radius cross cells at the same radii, so a spherical model gives them equal intensity exactly. The H2 maps show no orientation (0.993-1.016 at 1x, 0.996-1.000 at 64x) and their pixel noise falls as the packets'. Two things do not fall. (1) At hiipdr's ionization front, cell sets at exactly one radius differ by orientation: ln x(H0) spreads 0.29 and 0.19 at 0.80-0.95 and 0.95-1.10 r_front, the same at 1x and 64x, with 48 ray directions and at 41^3; pn150k 0.011-0.016. The front is 0.64-0.67 cells wide at both resolutions (unresolved; pn150k's 1.54). In a map: H2 1-0 S(1)'s axis columns -11% at 3.2 pc. A first reading, that the symmetry planes are more ionized, was withdrawn: two interior sets differ as much. (2) hiipdr's outer CO (16-19.4 pc) scatters per cell by 0.45-0.60 in ln at 16x and 64x, almost all of it x(CO), and little of it repeats cell by cell between the two. No code changed; causes not tested | Recorded | 2026-10-15 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39548,3 +39549,111 @@ default packets for the H2 lines. The user turned to line maps of H2 and CO
 (DEVLOG-H2 H-034).
 
 Status: Deferred.
+
+## D-412 - What H-034's line maps found in the production model (2026-10-15)
+
+The user asked for emission-line maps of H2 and CO, to start scientific
+tests (D-411). The tool and its checks are in DEVLOG-H2's H-034. The maps
+come from h2-model runs, whose photoionization and chemistry are this
+branch's. Two of the findings belong to the production model, so they are
+recorded here.
+
+### The test
+
+In an octant on a cubic grid, these pairs of map columns cross cells at the
+same set of radii:
+  - columns (a,b) and (b,a);
+  - column (n,0) and column (a,b), when a^2 + b^2 = n^2.
+
+So a spherically symmetric model gives each pair equal intensity, exactly.
+Cells can be compared the same way, by the sets of indices with one
+i^2 + j^2 + k^2.
+
+The H2 maps pass. They show no orientation: the light-weighted ratios of
+swapped columns are 0.993-1.016 at 1x and 0.996-1.000 at 64x, in all three
+projections, the z axis's included. The pairs' scatter falls as the
+packets' noise: H2 1-0 S(1) +-11-13% at 1x, +-1.4-2.7% at 64x. Two things
+do not fall.
+
+### 1. hiipdr's ionization front, by orientation
+
+  - **In the maps:** at p = 3.2 pc, H2 1-0 S(1)'s axis columns are
+    0.886-0.898 of the off-axis ones at 64x, in all six axis directions
+    (0.86-0.97 at 1x).
+  - **In the cells:** the spread of ln x(H0) across inequivalent index sets
+    at exactly one radius:
+
+| run | 0.50-0.80 r_front | 0.80-0.95 | 0.95-1.10 |
+|---|---|---|---|
+| hiipdr 31^3, 1x | 0.062 | 0.292 | 0.186 |
+| hiipdr 31^3, 64x | 0.061 | 0.291 | 0.189 |
+| hiipdr 31^3, 48 directions | 0.062 | 0.291 | 0.185 |
+| hiipdr 41^3 (h007-full-hii41) | 0.073 | 0.282 | 0.187 |
+| pn150k 41^3, 1x / 4x | 0.005 / 0.004 | 0.011 / 0.011 | 0.016 / 0.015 |
+
+  - **Per pair:** at 2.7-4.0 pc x(H0) differs by 0.45-1.33x and chiFUV by
+    0.92-1.17x. The sign changes from one radius to the next: (2,2,3) is more
+    neutral than (0,1,4), while (0,0,5) is more neutral than (0,3,4).
+  - **Not the packets, the ray set or the planes.** Two interior sets differ
+    as much as a plane set and an interior set do (chiFUV 1.11 at
+    r^2 = 41). A first reading was that the symmetry-plane cells are more
+    ionized at the same radius. It came from comparing their medians with the
+    interior's interpolated profile, and that comparison moved from 0.82 to
+    0.59 at 3.0-3.5 pc when only the profile's bin edges changed. It was
+    withdrawn.
+  - **The front is unresolved.** x(H0) goes from 0.05 to 0.8 within 0.64
+    cells at 31^3 and within 0.67 cells at 41^3 (0.415 and 0.325 pc), so
+    the front narrows with the cell. pn150k's front spans 1.54 cells.
+  - **Reading, not tested:**
+      - Cells whose centres sit at the same radius straddle an unresolved
+        front differently by orientation. A cube spans +-0.5 cell in radius
+        along an axis and +-0.87 along the body diagonal.
+      - That would not shrink while the front stays narrower than a cell,
+        which it does at both resolutions.
+      - It does not account for pn150k's spread being 20x smaller, where a
+        front 2.4x gentler per cell gives about 2.4x. So the reading is
+        incomplete.
+  - **What it costs:** pixels near the front in a map of a line made there,
+    by ~10%, deterministically. The cells of the symmetry planes hold 35% of
+    the volume inside hiipdr's front at 31^3 (7.3% of the sphere), and the
+    axis columns are made of them. What it does to totals is not measured.
+    The radial means average it.
+
+### 2. hiipdr's outer CO, per cell
+
+CO 1-0's per-cell emissivity about its radial profile (rms of ln):
+
+| shell [pc] | 1x | 16x | 64x |
+|---|---|---|---|
+| 10-12 | 0.29 | 0.09 | 0.09 |
+| 12-14 | 0.71 | 0.16 | 0.09 |
+| 14-16 | 0.86 | 0.27 | 0.16 |
+| 16-18 | 0.48 | 0.55 | 0.45 |
+| 18-19.4 | 0.32 | 0.60 | 0.60 |
+
+  - **Inside 16 pc it falls with the packets. Beyond 16 pc it does not.**
+  - **Little of it repeats cell by cell.** The residuals correlate 0.18
+    between 16x and 64x at 17-19.4 pc, against 0.52 at 10-14 pc.
+  - **It is the abundance.** 92-106% of the variance is x(CO)'s. The escape
+    probability carries 0.4-1% rms and the excitation 1-19%. The cell's T
+    and chiFUV do not follow it (|r| <= 0.42 and <= 0.29).
+  - **The outer carbon moves with the packets** (D-408): C+/C is 0.2 at
+    16-18 pc at 1x and 4.0 at 64x.
+  - **In the maps** it gives CO 1-0 +-17% per pixel pair at 64x. pn150k's CO
+    is the packets' noise: +-15% at 1x, +-7-8% at 4x.
+  - **CO is a trace at the grid's edge in both fixtures.** CO/(C+ + C + CO)
+    is 4-9e-4 on hiipdr at 16-19.4 pc and 1-2e-5 on pn150k at
+    0.50-0.62 pc. CO's emissivity peaks in the outermost shell, so a CO
+    map's brightness and ring radius follow the boundary.
+
+### Not yet known
+
+  - What sets the front's direction spread, and why pn150k has 20x less.
+    A test would be hiipdr at a resolution where the front spans several
+    cells, which is past what 14 ranks can hold.
+  - What sets the outer CO's per-cell scatter. Untested candidates: the
+    outer chemistry's state at the iteration a run stops, and the deep field
+    at the CO-forming wavelengths.
+
+Status: Recorded. No code changed. The packet item in doc/pdr-status.md's
+open list carries the CO point.
