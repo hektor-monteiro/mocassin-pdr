@@ -39400,7 +39400,7 @@ rotated, and none for the 48:
     n(H2) and of CO's lines. It does not hold for the H2 lines, which the
     twelve leave within about 2.5%.
 
-### Weighted by emission: CO's lines do not carry it either (read 2026-10-14 22:52)
+### Weighted by emission: CO's lines do not carry it either (read 2026-10-14 22:49)
 
 The table above is per cell, and the cells where CO's emissivity carries
 +9-12% emit almost none of CO's light. The share of each line's luminosity
@@ -39418,5 +39418,5 @@ either model, and the H2 lines carry no more than the seed's noise.**
 The statement above that "CO's lines carry it in full" is per cell. What
 L-53 does show in is a map of n(H2) (+10% before the transition) and of
 CO's abundance at A_V 1.0-1.5 (+3-5%). Neither is a line, and both are in
-gas that emits little. For the science products of D-383 the pattern is
-smaller than the packets' noise at the default count.
+gas that emits little. For the line maps of D-383's science products the
+pattern is below what these runs can see (about 2.5%, the seed's own).
