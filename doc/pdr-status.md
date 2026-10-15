@@ -869,6 +869,16 @@ The run takes 1.48 times as long on hiipdr 31^3 (59 against 40 minutes).
 Which of the two users of the directions carries the pattern is not
 separated. Both were changed together: the sites and the line rays.
 
+**What a map carries** (one snapshot each, the finished models):
+  - **CO 1-0 and 3-2 carry it in full**: +12% and +9% on the singled-out
+    axis at A_V 0.46-1.00 and 1.00-1.48. It follows the rotation and is
+    gone with the 48. CO's abundance carries +0.7% there, so for the CO
+    lines the excess comes through their populations and escape, which the
+    line rays set.
+  - **The H2 lines carry no more than the seed's noise** (2.5%) where
+    n(H2) carries +11%.
+  - **[C II] 158** stays within about 1%.
+
 Not done:
   - pn150k with 48 directions;
   - the production code's run.
