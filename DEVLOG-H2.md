@@ -4518,4 +4518,6 @@ reference's -3.7%).
 ### Status
 
 Done. Merged: b68eee3 (production's D-410). Adopting 48 directions is the
-user's decision (D-410).
+user's decision (D-410). Pages: H2 Lines in MOCASSIN v16 (a first section on
+the test, with the orientation figure; version 15's two statements on the
+pattern annotated), published 2026-10-14 22:51.
