@@ -43,6 +43,7 @@ DEVLOG.md and arrives here by merge.
 | H-032 | **Production's D-408 on this branch's executable: the level model's H2 lines are converged in the packet count at the default.** The series ran on `mocassin.h031` (hiipdr 31^3 at 6e6-3.84e8 packets, pn150k 41^3 at 6e6 and 2.4e7). hiipdr's 1-0 S(1) 0.769/0.772/0.774/0.775 of Cloudy's, +0.8% from 6e6 to 3.84e8, and of its 2,693 lines none moves by 1% from 16x to 64x; pn150k's named six within 0.82% at 4x. What packets do not change is L-53: H2 +10% on the cells nearest z = 0 in the transition at every count, the largest systematic in an H2 map's transition zone. The level model costs 175-219 s on hiipdr at every count | Done | 2026-10-14 |
 | H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
 | H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total. Result (11:15): seven runs mapped; every CO map returns lineFluxMol.out within 3e-6 and every H2 map lineFluxH2.out less the flagged cells (lgBlack: MOCASSIN and lineFluxMol.out leave them out, lineFluxH2.out does not; up to 2.9e-4). No orientation in any map (H2 0.993-1.016 at 1x, 0.996-1.000 at 64x). Not noise: at hiipdr's unresolved front cells at one radius differ by orientation (1-0 S(1) axis columns -11% at 3.2 pc; production's D-412), and hiipdr's outer CO scatters per cell by 0.45-0.60 in ln x(CO) at 16x and 64x. Rings: 1-0 S(1) 4.9 pc projected (predicted ~6), CO at the edge in both models, whose CO is under 0.1% of the carbon there | Done | 2026-10-15 |
+| H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem) | In progress | 2026-10-15 |
 
 ---
 
@@ -4823,3 +4824,58 @@ can inspect it"): H2 and CO Line Maps, version 1, published 2026-10-15
     from the runs' maps_h2co.fits and cells) and build.py (the page). The
     maps are embedded as 16-bit log intensity over 8 decades (2.6 MB). The
     3D statistics weight each octant cell by its volume.
+
+
+## H-035 - A user manual for a complete PDR + H2 run, from test_Problem (2026-10-15)
+
+The user: "now write a small manual to help another user run a complete PDR
+model including H2 based on the test_problem benchmark setup. Save it in a
+markdown file".
+
+### What the manual has to get right (read from the code, 11:42)
+
+  - **The H2 level model has no keyword.** In an h2-model build with
+    PDRGEOM=3D it runs whenever `pdr 1`: one sweep per iteration before
+    the chemistry (stage B, H-012) and up to 12 on the finished model
+    (iteration_mod.f90). The 1D build skips it and says so.
+  - **The binary reads its data under the PREFIX it was built with**
+    (data/, dustData/, and dataPDR/ when pdrDataDir is not given), so a
+    new user needs `make install` with the same PREFIX.
+  - **test_Problem's autoPackets cannot stay.** It multiplies the packets
+    by 1.5 in every iteration whose converged-cell percentage is under 95%
+    and improved by 20% or less (iteration_mod.f90:3189-3207). A PDR model
+    plateaus at 72-92% (D-391), so the packets would grow every iteration.
+  - **convTotals defaults to 2%** (D-392), the stop the user chose. The
+    fixtures' `convTotals 1.e-6` is for paired fixed-count runs only.
+  - **test_Problem has a PDR to compute.** Its baseline puts 17% of the
+    hydrogen in H I: a shell of n_H = 8e4 cm^-3 at 2-4e17 cm, beyond the
+    front of a 200 kK star. multiChemistry, the density file and the dust
+    file all reach the chemistry per cell (abFileIndex, Ndust).
+  - **Its dust** is 0.07-50 um silicates and PAHs. Large grains give grey
+    FUV extinction (benchmarks/pdr/README.md). The manual keeps them, since
+    the model owns its dust, and says what that means.
+
+### The test (predictions written before it runs)
+
+runs/h035-testproblem: test_Problem's input with autoPackets removed (1e7
+packets fixed), the cap at 30, and the PDR block of the fixtures (reduced
+network, zeta 5e-17, the four coolants, pdrStartIter 4, randomSeed 1001).
+Binary: h2-model at 583eafd, built as the manual says. 14 ranks.
+
+  1. It stops on the integrated test, between iterations 15 and 25.
+  2. x(H) + 2x(H2) + x(H+) = 1 within 1e-6 in every cell.
+  3. The shell makes H2: cells with x(H2) > 0.1, H2 lines in
+     lineFluxH2.out and CO lines in lineFluxMol.out.
+  4. About 12 GB at 14 ranks (0.47 GB + 38 kB per active cell per rank,
+     9,260 active cells), and 1-2 h.
+
+### The first launch (11:44) and production's D-413
+
+The run stopped at start-up with "End of file" in dustData/PAHneu_30.cat.
+D-313's test for a Q file's optional Im(m) column could not tell five
+columns from six (production's D-413, fixed at 4551160). With the fix, the
+file is read as five columns and the run meets D-313's intended refusal: a
+Q file with no Im(m) cannot give a photoelectric yield, and a PDR's gas
+temperature rests on that yield. So the manual drops the PAH species from
+test_Problem's dust, as the silicates (an n,k file) carry their own yield.
+The test is relaunched with that one change to the dust and the D-413 binary.
