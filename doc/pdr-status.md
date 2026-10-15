@@ -401,7 +401,9 @@ field's noise itself is new at
 every iteration in full: the spread of a cell's 7- or 9-iteration mean among
 symmetry-equivalent cells is 0.33-0.41 of one iteration's, as 1/sqrt(N).
 The first remedy above (accumulate the field once it has settled) is what
-this calls for, and it is still a design decision.
+this calls for, and it is still a design decision. **Registered for future
+development by the user (2026-10-15, D-411):** the design, its risks and its
+test against D-408's series are in D-409's addendum.
 **D-408, the series to 64x.** hiipdr from 6e6 to 3.84e8 packets, pn150k to
 2.4e7, seed 1001, the iteration counts fixed.
 

@@ -408,8 +408,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-406 | **The damping across iterations off by default: `iterDamp` 0 (the user's decision on D-405: "lets change the default to 0 since it works better").** The keyword stays; 0.25 gives the old blend. Found on the way by D-363's round trip: `mocassinOutput` on D-405's undamped run gave back [C I] 609 um 1.1e-7 off, because the restore rounded H2den as the damping step does and without that step the last writer is `pdrStep`; every writer now rounds as `pdrStep` does, so no undamped writer changed. Checked on production (hiipdr 31^3): four flavours build; a fresh run with the new default and no `iterDamp` line is D-405's `iterDamp 0.` run byte for byte in all 23 output files; the round trips of both, and of six damped iterations with `iterDamp 0.25`, are byte for byte. The pages' models become D-405's undamped runs: hiipdr [C I] 370/609 um -12.0/-3.2%, Hbeta -0.55%, every other line within 1.8% but CO 4-3 to 6-5 (-6 to -33%, lines a few cells carry); pn150k no line by 1%. On h2-model (H-031) a fresh hiipdr run with the new default is D-405's undamped run byte for byte in all 26 output files, the level model's included. Pages: hiipdr Against Cloudy v29, 150 kK PN Against Cloudy v28, H2 Lines in MOCASSIN v14, on the undamped runs; two slips in the published pages corrected (hiipdr v28's ordinals without 'section', two stale references on the H2 page) | Done | 2026-10-14 |
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
 | D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.17 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
-| D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
+| D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Deferred (D-411) | 2026-10-14 |
 | D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: the H2 lines carry no more than the seed's noise (2.5%), and CO's lines carry +9-12% only in cells that emit under 0.03% of their light on hiipdr; maps of n(H2) show it. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
+| D-411 | **The field accumulated over iterations (D-409's option B) registered for future development (the user: "register this for future development").** Not started; no code changed. The design, what it buys, its risks and its test against D-408's series are in D-409's addendum of 2026-10-15. The user turned to line maps of H2 and CO (H-034). Until it is built, D-409's interim stands as a recommendation, not a decision: 64x (or 16x) for runs that quote carbon or CO, the default for H2 | Deferred | 2026-10-15 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39076,7 +39077,8 @@ Not known: whether an accumulated field lags or biases the model; where
 CO converges; whether L-53 is the ray set (a hypothesis until a run without
 it is read).
 
-Status: Proposed, for the user's decision.
+Status: Proposed, for the user's decision. Deferred 2026-10-15: option B
+registered for future development (D-411).
 
 ### Option B explained, at the user's request (2026-10-15 10:24)
 
@@ -39517,3 +39519,32 @@ way back, should a map of n(H2) or of CO's abundance become a product. L-53
 stays in the status document as understood: an orientation error of +10% in
 n(H2) and 3-5% in CO's abundance before and across the H/H2 transition,
 which no line map carries beyond the seed's noise.
+
+## D-411 - The field accumulated over iterations, registered for future development (2026-10-15)
+
+The user, after D-409's option B was explained: "register this for future
+development. But for now I want to work on generating the emission line
+maps for H2 and CO lines so I can start doing some scientific tests."
+
+Registered, not started; no code changed. Everything needed to pick it up is
+in D-409's addendum of 2026-10-15:
+  - the design: a running mean of Jste and Jdif after the scaling in
+    iteration_mod.f90, from the first iteration whose stop test is under
+    10%, the same in every cell, and a hold on the stop;
+  - why it is not the damping;
+  - what it buys: 64x for the cost of ~11x on hiipdr 31^3, 256x for ~43x;
+  - its risks: lag in the ionized gas, the stop test passing sooner,
+    +4.8 kB per cell per rank, the warm start, the cell's own carbon in
+    the band;
+  - its test against D-408's series, with the controls.
+
+The series' runs, with their cells kept, are the reference it needs:
+runs/d405-hii31-d0h, d405-hii31-d0-p4, d408-hii31-p16 and d408-hii31-p64
+on h2-model.
+
+Until it is built, D-409's interim is a recommendation and not a decision:
+64x (or 16x) for runs that quote [C I], the carbon turn or CO, and the
+default packets for the H2 lines. The user turned to line maps of H2 and CO
+(DEVLOG-H2 H-034).
+
+Status: Deferred.
