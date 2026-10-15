@@ -814,6 +814,7 @@ module xSec_mod
         ! photoelectric yield. Without it setGrainYield never runs for a Q
         ! species and the grain silently loses all its photoelectric heating.
         logical :: lgHaveK
+        integer :: nCol413, iCh413   ! D-413: the first data record's columns
         real, allocatable :: tmpkk(:), EimQ(:)
         real :: rdum(6)
         real :: normWeight ! normalization constant for grain size weighting
@@ -1328,9 +1329,30 @@ module xSec_mod
                  endif                
 
                  ! D-313: does this file carry the optional Im(m) column?
-                 read(20,*,iostat=ios) rdum(1),rdum(2),rdum(3),rdum(4),rdum(5),rdum(6)
-                 lgHaveK = (ios == 0)
+                 ! D-413: count the first data record's columns. A list-
+                 ! directed read of six values does not fail on a five-column
+                 ! record - it takes the sixth from the next one - so D-313's
+                 ! test called every five-column file six-column (Draine's
+                 ! PAHneu_30, Car_90, Sil_21, suvSil_81), lost a record to the
+                 ! single backspace, and read off the end of the file.
+                 read(20,'(A)',iostat=ios) speciesLine
+                 nCol413 = 0
+                 if (ios == 0) then
+                    do iCh413 = 1, len_trim(speciesLine)
+                       if (index(' ,'//achar(9), speciesLine(iCh413:iCh413)) == 0) then
+                          if (iCh413 == 1) then
+                             nCol413 = nCol413 + 1
+                          else if (index(' ,'//achar(9), speciesLine(iCh413-1:iCh413-1)) > 0) then
+                             nCol413 = nCol413 + 1
+                          end if
+                       end if
+                    end do
+                 end if
+                 lgHaveK = (nCol413 >= 6)
                  backspace(20)
+                 if (taskid == 0) print '(3a,i4,a,i6,a,i2,a)', " ! makeDustXsec [D-413] ", &
+                      & trim(extinctionFile), ": ", nRadii, " radii x ", nWav, " wavelengths, ", &
+                      & nCol413, " columns"
                  if (allocated(tmpkk)) deallocate(tmpkk)
                  allocate(tmpkk(1:nWav), stat=err)
                  tmpkk = 0.
