@@ -870,14 +870,16 @@ Which of the two users of the directions carries the pattern is not
 separated. Both were changed together: the sites and the line rays.
 
 **What a map carries** (one snapshot each, the finished models):
-  - **CO 1-0 and 3-2 carry it in full**: +12% and +9% on the singled-out
-    axis at A_V 0.46-1.00 and 1.00-1.48. It follows the rotation and is
-    gone with the 48. CO's abundance carries +0.7% there, so for the CO
-    lines the excess comes through their populations and escape, which the
-    line rays set.
   - **The H2 lines carry no more than the seed's noise** (2.5%) where
     n(H2) carries +11%.
+  - **CO 1-0 and 3-2 carry it per cell**: +12% and +9% on the singled-out
+    axis at A_V 0.46-1.00 and 1.00-1.48, following the rotation and gone
+    with the 48. CO's abundance carries +0.7% there, so for these lines it
+    comes through their populations and escape, which the line rays set.
+    But those cells give 8e-5 of CO 1-0's luminosity on hiipdr, and the
+    bands of pn150k's pattern 0.3%, so a CO map shows none of it.
   - **[C II] 158** stays within about 1%.
+  - So L-53 shows in a map of n(H2) and of CO's abundance, not of the lines.
 
 Not done:
   - pn150k with 48 directions;

@@ -409,7 +409,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
 | D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.17 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
 | D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
-| D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: CO 1-0 and 3-2 carry +9-12% on the singled-out axis (through their escape: CO's abundance carries +0.7%), the H2 lines no more than the seed's noise (2.5%). Adopting it is the user's decision | Done | 2026-10-14 |
+| D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: the H2 lines carry no more than the seed's noise (2.5%), and CO's lines carry +9-12% only in cells that emit under 0.03% of their light on hiipdr; maps of n(H2) show it. Adopting it is the user's decision | Done | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39399,3 +39399,24 @@ rotated, and none for the 48:
     (and D-408's "in a map of the transition zone") holds for maps of
     n(H2) and of CO's lines. It does not hold for the H2 lines, which the
     twelve leave within about 2.5%.
+
+### Weighted by emission: CO's lines do not carry it either (read 2026-10-14 22:49)
+
+The table above is per cell, and the cells where CO's emissivity carries
++9-12% emit almost none of CO's light. The share of each line's luminosity
+from each band (pdrLineEm.out x the cell volumes, the reference run):
+
+| hiipdr band | 0.46-1.00 | 1.00-1.48 | 1.48-1.91 | 1.91-2.29 | 2.29-2.65 | 2.65-2.99 |
+|---|---|---|---|---|---|---|
+| CO 1-0 | 1.2e-10 | 7.9e-5 | 0.005 | 0.094 | 0.345 | 0.557 |
+| CO 3-2 | 4.5e-10 | 2.6e-4 | 0.013 | 0.165 | 0.386 | 0.438 |
+| [C I] 609 | 4.8e-5 | 7.4e-4 | 0.008 | 0.143 | 0.422 | 0.427 |
+
+On pn150k, the bands of its pattern (A_V 0.13-0.35) give 0.3% of CO 1-0
+and 2.5% of [C I] 609. **So a map of CO's lines shows none of it on
+either model, and the H2 lines carry no more than the seed's noise.**
+The statement above that "CO's lines carry it in full" is per cell. What
+L-53 does show in is a map of n(H2) (+10% before the transition) and of
+CO's abundance at A_V 1.0-1.5 (+3-5%). Neither is a line, and both are in
+gas that emits little. For the line maps of D-383's science products the
+pattern is below what these runs can see (about 2.5%, the seed's own).
