@@ -1,0 +1,22 @@
+--- a/source/pdr_mod.f90
++++ b/source/pdr_mod.f90
+@@ -2159,7 +2159,8 @@
+                  zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+               end if
+               sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+-              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
++              ! D-410 diagnostic (L-53): the same twelve with their ring axis along x
++              vx(kray) = zz; vy(kray) = sr*cos(ph); vz(kray) = sr*sin(ph)
+            end do
+            lgDirs = .true.
+         end if
+@@ -2345,7 +2346,8 @@
+                  zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+               end if
+               sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+-              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
++              ! D-410 diagnostic (L-53): the same twelve with their ring axis along x
++              vx(kray) = zz; vy(kray) = sr*cos(ph); vz(kray) = sr*sin(ph)
+            end do
+            lgDirs = .true.
+         end if
