@@ -843,6 +843,23 @@ transition zone.
 The ray set is still the candidate, and still not tested. A run with
 another ray level is D-409's next step after the field, at the user's word.
 
+**D-410 (the user's request): the rays are the cause.** Stage 1 rotated the
+same twelve directions so their ring axis is x and changed nothing else.
+On hiipdr at 6e6 the excess moved from the cells nearest z = 0 (+11.4% at
+A_V 0.46-1.00) to the cells nearest x = 0 (+8.8%), and y and z, which
+the rotated set makes equal, came to agree. Every total stayed within
+0.3%, as relabelling a symmetric model requires: the error is one of
+orientation, which a map shows and the totals average away.
+
+The twelve single out their ring axis. The mean fourth power of a
+direction's component is 0.132 along it against 0.218 across it
+(isotropic 0.2). The directions place the diffuse field's scattering sites
+and the line-escape rays (the direct field is radial).
+
+Stage 2 tests 48 directions (HEALPix nside = 2, 0.188 against 0.201).
+The generalized code reproduces the default at nside = 1 in every output
+file.
+
 **L-35. The H I line list is corrupt in every PDR run** (D-360). `hlinex`
 (`output_mod.f90`) interpolates Storey & Hummer's `e1bx.dat` (T 300-30,000 K,
 n_e 1e2-1e14) with 5-point polynomials in log(emissivity). It extrapolates
