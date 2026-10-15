@@ -39278,3 +39278,15 @@ Predictions:
   9. Run time 60-160 minutes (40 with the twelve). Four times the sites
      for the chemistry and for the level model's diffuse shielding, which
      is most of its cost, and four times the line rays.
+
+### Stage 2: the validation (runs/d410-val-h031, runs/d410-val-n1; 21:11-21:39)
+
+Both runs on 7 ranks, side by side, 5 iterations. **Prediction 5 met:**
+25 of the 26 output files are identical byte for byte. Among them are the
+level model's lineFluxH2.out, h2Cells.out and h2Pop.bin, pdrGrid.out and
+lineFlux.out. summary.out differs only in two "finished at" clock times, a
+second apart (iterations 1 and 4). The chain's comparison filtered clock
+lines by "time", "date" and "elapsed", which these lines do not contain,
+so it reported a failure and did not start the run. That is a slip in the
+script, not in the code. The run was started by hand at 21:39
+(runs/d410c-chain.sh): runs/d410-hii31-n2, md5 cfae26dc....
