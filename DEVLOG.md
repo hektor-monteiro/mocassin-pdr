@@ -409,7 +409,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-407 | **The next step for science production, asked by the user after D-406: settle how the radiation field is sampled. A recommendation; the decision is the user's.** The science products are line totals and line emission maps of H2 and CO (D-383). The one production setting known to be unconverged for what a paper would quote is the packet count: from 6e6 to 2.4e7 packets hiipdr's C+ = C moves A_V 2.29 -> 2.51 (Cloudy 2.93), [C I] 609 and 370 um fall 20% and CO 3-2 to 5-4 rise 19-46% (D-405; labelled 4-3 to 6-5 until D-408), for 10% more run time; every per-cell spread before the carbon turn halves, and with the damping off (D-406) the written model's cell-to-cell scatter is 1.3 times what it was, so the maps are noisier. Proposed: a packet series on the science products (hiipdr 31^3 at 16x and, if it still moves, 64x; pn150k 41^3 at 4x), then either a production packet count or the field accumulated over iterations (D-405's open design decision). After it: L-51, L-53, L-37's front resolution. The PDR temperature against Cloudy stays a divergence to report. Accepted (the user: "proceed"); step 1 is D-408 | Accepted | 2026-10-14 |
 | D-408 | **Packet convergence of the science products (D-407 step 1).** hiipdr 31^3 at 1x/4x/16x/64x (6e6-3.84e8 packets) and pn150k 41^3 at 1x/4x, seed 1001, 14 ranks. The H2 lines, the ionized gas's lines, [O I], Hbeta and the H/H2 crossing are converged at 6e6 in both. hiipdr's carbon turn converges at 64x: C+ = C 2.29/2.51/2.72/2.80 (Cloudy 2.93); the deep-C+ deficit of L-3 was the packet count (0.93-0.98 of Cloudy's to A_V 2.5 at 64x); [C I] 609 1.65 -> 1.17 of Cloudy's. CO still moves at 64x (+5-10% per factor of 4); pn150k's carbon and CO -2.4 to -5.6% at 4x. Noise biases the means one way. L-53 (H2 +10% on the cells nearest z = 0) at every count in both fixtures; the stop test's trail is the same at every count (L-52). pn150k at 4x costs nothing (2:11 against 2:32); hiipdr at 64x 2:07. No predictions were on record for the 64x run | Done | 2026-10-14 |
 | D-409 | **D-407 step 2: give the carbon and CO the packets they need, by a count or by accumulating the field.** A: a production count (64x: hiipdr 31^3 in 2 h 07 min; CO needs more, ~256x by the trend, not measured). B: the field accumulated over iterations (D-405's open design: N iterations give N times the packets at one iteration's cost), tested against D-408's series. Recommended: B; until it is decided, 64x (or 16x) for runs that quote carbon or CO, the default for H2. Then L-53's ray-set test. The decision is the user's | Proposed | 2026-10-14 |
-| D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). Adopting it is the user's decision | Done | 2026-10-14 |
+| D-410 | **L-53 is the twelve ray directions' quadrature, and 48 directions remove it (the user: "lets investigate the test of the z pattern with a different ray set").** Stage 1: the same twelve rotated to ring axis x moved hiipdr's H2 excess from the z = 0 cells (+11.4% at A_V 0.46-1.00) to the x = 0 cells (+8.8%), every total within 0.3%. Stage 2: HEALPix nside = 2 (48 directions; the generalized code reproduces the default at nside = 1 in every output file) leaves the orientations within 1% at A_V 0.46-1.00 (the rest is the shared seed's noise), moves the H2 lines by -0.3 to -0.55% and nothing else by more than 1%, for 1.48 times the run time (59 against 40 min). In the maps: CO 1-0 and 3-2 carry +9-12% on the singled-out axis (through their escape: CO's abundance carries +0.7%), the H2 lines no more than the seed's noise (2.5%). Adopting it is the user's decision | Done | 2026-10-14 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39364,3 +39364,38 @@ diffuse shielding is not most of its cost, as prediction 9 assumed.
     and their maps losing the pattern.
 
 Status: Done (2026-10-14). The adoption is for the user to decide.
+
+### What a line map carries (read 2026-10-14 22:42, the finished models)
+
+The same orientation measure on each cell's line emissivity, in one
+snapshot (the finished model), not a mean over iterations. The H2 lines
+come from the level model's populations (h2Pop.bin x n(H2)); the coolants
+from pdrLineEm.out. The singled-out axis is z for the twelve, x when
+rotated, and none for the 48:
+
+| line, A_V band | twelve, ring axis z: x / y / z | ring axis x: x / y / z | 48: x / y / z |
+|---|---|---|---|
+| H2 1-0 S(1), 0.46-1.00 | -0.5 / +1.4 / -0.9 | -0.9 / +1.4 / -0.4 | -0.6 / +1.2 / -0.5 |
+| H2 1-0 S(1), 1.00-1.48 | -0.1 / +2.5 / -2.4 | -1.8 / +2.2 / -0.3 | -0.8 / +1.9 / -1.1 |
+| H2 0-0 S(1), 0.46-1.00 | -0.8 / -1.4 / +2.3 | +1.7 / -1.4 / -0.3 | +0.3 / -0.3 / +0.0 |
+| CO 1-0, 0.46-1.00 | -3.1 / -7.9 / **+12.1** | **+12.0** / -7.8 / -3.2 | +2.6 / -2.3 / -0.3 |
+| CO 1-0, 1.00-1.48 | -5.7 / -2.6 / **+8.9** | **+7.1** / -2.8 / -3.9 | -0.6 / +2.4 / -1.7 |
+| [C II] 158, 0.46-1.48 | within 1.1% | within 1.4% | within 1.1% |
+
+  - **The H2 lines carry almost none of it.** Where n(H2) carries +11%,
+    the H2 lines' emissivity carries no more than the shared seed's noise
+    (y +1.2 to +2.5% in 1-0 S(1) in all three runs). A pumped line's
+    emission follows the pumping, and in photodissociation-limited gas
+    n(H2) x the pumping rate is held by the formation rate, whatever
+    shields the field. That is a reading, consistent with the table and
+    not tested apart.
+  - **CO's lines carry it in full.** +12% and +9% on the singled-out axis,
+    following the rotation and gone with the 48, where CO's abundance
+    carries +0.7% at A_V 0.46-1.00. For the CO lines the excess is in the
+    level populations and the escape, which the line-escape rays set. This
+    separates the two users of the directions for CO (the line rays) while
+    leaving H2's abundance to the sites, which remains a reading.
+  - So H-032's "the largest systematic in an H2 map's transition zone"
+    (and D-408's "in a map of the transition zone") holds for maps of
+    n(H2) and of CO's lines. It does not hold for the H2 lines, which the
+    twelve leave within about 2.5%.
