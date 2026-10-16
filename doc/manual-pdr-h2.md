@@ -49,6 +49,11 @@ results are under "What the test run gave".
     `PREFIX/share/mocassin/dustData`. It also reads `dataPDR` from there
     when the input does not name one. The second line of every run log
     names the directories the binary uses.
+  - **Keep `PREFIX` under about 90 characters.** MOCASSIN holds each
+    atomic-data path in 128 characters. A longer prefix truncates the
+    paths, the atomic data are skipped without a message, and the run
+    dies at start-up with a segmentation fault on every worker rank
+    (DEVLOG-H2 H-036).
   - **`make install` builds all four programs** with the flags given:
     `mocassin`, `mocassinWarm`, `mocassinOutput` and `mocassinPlot`. It
     copies them to `PREFIX/bin`, and copies `data`, `dustData`, `dataPDR`
@@ -69,44 +74,56 @@ writes into `output/`. The file paths inside the input (`input/...`) are
 relative to the same directory. The dust files (`dustData/...`) are read
 under `PREFIX/share/mocassin`.
 
-### 3.1 The dust files
+### 3.1 The dust: two choices, both tested
 
-Replace the test problem's two dust files with the pn150k fixture's:
+**(a) The test problem's own dust, unchanged:** astrosilicate (0.07–50 µm)
+and PAHs (10⁻⁵–0.002 µm), with its `dust_sizes.dat` and its Ndust file. It
+runs, and it gives an atomic PDR. Two fixes were needed (production DEVLOG
+D-414, D-415):
+  - **The PAH file now carries Im(m).** The photoelectric yield
+    (Weingartner & Draine 2001, WD01) needs the photon attenuation length
+    l_a = λ/(4π Im(m)). No dielectric function exists for PAHs, so WD01
+    (eq. 15) take graphite's, ⅔ Im(m⊥) + ⅓ Im(m∥), "for all carbonaceous
+    grains". `tools/qfile_addk.py` appended that column to
+    `dustData/PAHneu_30.cat`, and the efficiencies are untouched. Any other
+    five-column Q file can be given one the same way. Without it the run
+    stops:
+
+        ! makeDustXsec: dustData/<file>.cat is a Q file with no Im(m) column, so no photoelectric yield can be built for it.
+
+  - **The mean dust temperature is taken over the bins that hold grains.**
+    Before, the test problem's empty size bins pulled the mean that H2
+    formation uses down to 10⁻⁶ K, and no H2 formed on grains.
+
+Its grains carry little surface for H2 formation: 3.4×10⁻²³ cm² per H,
+about a fiftieth of the interstellar value Cazaux & Tielens assume. A_V per
+H is a tenth of interstellar. In the dense gas H2 forms at
+R = 1.6×10⁻¹⁹ cm³/s against a photodissociation rate of 3.5×10⁻⁷ s⁻¹, so
+x(H2) ≈ R n_H / rate ≈ 5×10⁻⁸. The shell stays atomic. Use this dust to
+test the workflow, not for H2 or CO.
+
+**(b) For a molecular PDR, the pn150k fixture's grains** (what section 3.2
+uses):
 
     cp <checkout>/benchmarks/pdr/pn150k/input/dust_species.dat input/
     cp <checkout>/benchmarks/pdr/pn150k/input/dust_sizes.dat input/
 
 These are graphite grains from 0.005 to 0.25 µm in one six-column Q file
-(`dustData/grph-avg.cat`), over a size grid that spans exactly those
-sizes. The test problem's own dust cannot make H2. It fails in two ways,
-both measured (DEVLOG-H2 H-035):
+(`dustData/grph-avg.cat`). Their amount is set by `MdMg` (section 3.2).
+They give 5.7×10⁻²² cm² per H, R = 1.4×10⁻¹⁷ cm³/s and A_V up to 10 in the
+dense gas, where x(H2) reaches 0.5.
 
-  1. **Its PAHs are refused.** `PAHneu_30.cat` is a Q file with five
-     columns: efficiencies, but no Im(m). A grain's photoelectric yield
-     needs Im(m), and a PDR's gas temperature is set mostly by photoelectric
-     heating. So with photoelectric heating on, the default, the run stops:
-
-         ! makeDustXsec: dustData/PAHneu_30.cat is a Q file with no Im(m) column, so no photoelectric yield can be built for it.
-
-  2. **Its silicates alone form no H2.** The test problem's size grid runs
-     from 10⁻⁴ to 5 µm, and its silicates cover only 0.07–50 µm. The dust
-     temperature the chemistry reads for H2 formation is a number-weighted
-     mean over the whole grid, so the empty small bins pull it down to
-     about 10⁻⁶ K. No H2 then forms on grains anywhere. The log shows it as
-     `4661 cells solved (4661 without grain formation)`: the shell stays
-     atomic, with x(H2) ≤ 2×10⁻⁷. Large grains also give little area for
-     H2 formation and little FUV extinction.
-
-The rules to take from this, for any dust:
-  - **`dust_sizes.dat` must span exactly its species' sizes**
+**For any dust:**
+  - **A Q file needs a sixth column, Im(m)**, for its grains to heat the
+    gas. `tools/qfile_addk.py` adds graphite's to a carbonaceous file, and
+    `tools/mkqfile.py` writes a Q file from optical constants (see
+    `doc/dust.md`). An n,k file (`.nk`) carries its own.
+  - **Prefer a size grid that spans its species' sizes**
     (`benchmarks/pdr/README.md`).
-  - **A Q file needs a sixth column, Im(m)**, if the grains are to heat the
-    gas. `tools/mkqfile.py` writes one from optical constants; see
-    `doc/dust.md`. An n,k file (`.nk`) carries its own.
   - **Check the log** once the chemistry starts:
       - `[D195] H2 formation grain area at the calibration cell` gives the
-        grain area per H, beside the 8.5×10⁻²² (silicate) and 7.9×10⁻²²
-        (carbon) cm² that Cazaux & Tielens assume.
+        grain area per H, beside Cazaux & Tielens' 8.5×10⁻²² (silicate) and
+        7.9×10⁻²² (carbon) cm².
       - `h2LevelModel: sweep ... (0 without grain formation)` says that
         every cell forms H2 on grains.
 
@@ -164,7 +181,8 @@ The four changes:
      `MdMg constant 2.4827e-3`.** The Ndust file gives grain number densities
      for the test problem's own grains. `MdMg` gives the dust-to-gas ratio
      by mass, here the pn150k fixture's, and the code turns it into a grain
-     density in each cell from that cell's gas density.
+     density in each cell from that cell's gas density. For choice (a)
+     of section 3.1, keep the `Ndust file` line.
   4. **The PDR block is added.** The keywords are listed below.
      `pdrDataDir` must be an absolute path; the input file does not expand
      `$HOME`. It can be left out after `make install`, but the map tool
@@ -362,7 +380,18 @@ Two runs on 2026-10-15, each with 14 ranks and branch h2-model at
   - **"As written":** section 3 exactly, with the pn150k fixture's grains
     (`runs/h035-testproblem-c`).
   - **"Silicates alone":** the test problem's own dust with its PAHs
-    dropped and its Ndust file kept (`runs/h035-testproblem-b`).
+    dropped and its Ndust file kept, before D-414 (`runs/h035-testproblem-b`).
+
+And on 2026-10-16, with D-414 and D-415 (DEVLOG-H2 H-036, 7 ranks each,
+two runs at once):
+  - **"Test problem's dust":** choice (a) of section 3.1
+    (`runs/h036b-tp-orig`). It stopped on the integrated test at 17
+    (1.64%), in 25 min 25 s per processor, with 3 flagged cells and a
+    hydrogen budget of 5.5×10⁻⁹. T_dust was 97–423 K, x(H2) ≤ 3.9×10⁻⁷,
+    and 1-0 S(1) came out at 1.5×10⁻⁵ Hβ. CO 1-0 was 2.5×10²⁰ erg/s.
+  - **The silicates alone again**, after D-414 (`runs/h036b-tp-sil`).
+    T_dust was 39.5–155 K instead of 10⁻⁶ K, with grain formation in every
+    cell, and x(H2) ≤ 4.2×10⁻⁷.
 
 | | as written | silicates alone |
 |---|---|---|
@@ -374,7 +403,7 @@ Two runs on 2026-10-15, each with 14 ranks and branch h2-model at
 | cells with x(H2) > 0.1 | 2,259 (x(H2) up to 0.5) | none (x(H2) ≤ 2×10⁻⁷) |
 | largest x(CO) | 3.0×10⁻⁴, all the carbon | 8×10⁻¹¹ |
 | largest A_V from the star | 10.3 | 1.45 |
-| T_dust | 27–281 K | about 10⁻⁶ K (section 3.1) |
+| T_dust | 27–281 K | about 10⁻⁶ K, before D-414 (section 3.1) |
 | Hβ [erg/s] | 4.65×10³⁵ | 4.90×10³⁵ |
 | H2 1-0 S(1) 2.12 µm / Hβ | 8.1×10⁻⁵ | 1.7×10⁻⁶ |
 | H2 0-0 S(1) 17.0 µm / Hβ | 1.1×10⁻⁴ | 6.3×10⁻¹⁰ |

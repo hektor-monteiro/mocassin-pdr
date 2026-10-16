@@ -44,6 +44,7 @@ DEVLOG.md and arrives here by merge.
 | H-033 | **Production's D-410 on this branch's executable: the z pattern is the twelve ray directions' frame, and 48 directions remove it; the H2 lines never carried it.** Diagnostic builds of this tree (tools/patches/d410_*.patch, not applied to the code). Rotated to ring axis x, hiipdr's n(H2) excess moves to the x = 0 cells; with HEALPix nside = 2 it is gone. The level model's lines move by -0.31 to -0.55% with 48 directions, and their emissivity per cell shows no orientation beyond the seed's noise (2.5%) where n(H2) carries +11%. The level model's finished call takes 1.18 times as long, the run 1.48 times. The user kept the twelve (2026-10-15) | Done | 2026-10-14 |
 | H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total. Result (11:15): seven runs mapped; every CO map returns lineFluxMol.out within 3e-6 and every H2 map lineFluxH2.out less the flagged cells (lgBlack: MOCASSIN and lineFluxMol.out leave them out, lineFluxH2.out does not; up to 2.9e-4). No orientation in any map (H2 0.993-1.016 at 1x, 0.996-1.000 at 64x). Not noise: at hiipdr's unresolved front cells at one radius differ by orientation (1-0 S(1) axis columns -11% at 3.2 pc; production's D-412), and hiipdr's outer CO scatters per cell by 0.45-0.60 in ln x(CO) at 16x and 64x. Rings: 1-0 S(1) 4.9 pc projected (predicted ~6), CO at the edge in both models, whose CO is under 0.1% of the carbon there | Done | 2026-10-15 |
 | H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem). Result: tested as written (runs/h035-testproblem-c): the integrated test passed at 17 iterations, 34 min at 14 ranks; a molecular shell (2,259 cells x(H2) > 0.1, all carbon in CO); hydrogen budget 3.9e-9 over all species; 1-0 S(1) 8.1e-5 Hbeta. Found on the way: production's D-413 (five-column Q files); test_Problem's PAHs are refused and its silicates alone form no H2 (Tdust(0,0) ~1e-6 K from empty size bins, run b), so the manual uses the pn150k fixture's grains; the map tool read lineFluxMol.out's last component block (fixed) | Done | 2026-10-15 |
+| H-036 | **test_Problem's own astrosilicate + PAH dust in a PDR + H2 run, with production's D-414 (the mean dust temperature over the bins that hold grains) and D-415 (Im(m) for the PAH Q file, from graphite as WD01 take it) - the user's decisions after H-035.** Two runs: the original mixture, and run b's silicates alone as the test of D-414 by itself. Result: the original mixture runs (PAH read with Im(m), carbonaceous yield, the integrated test at 17, budget 5.5e-9), and every cell forms H2 on grains (T_dust 97-423 K, was 1e-6 K). But the shell stays atomic, x(H2) <= 4e-7: the grains carry 3.4e-23 cm^2 per H, a fiftieth of interstellar, so R_form = 1.6e-19 against a photodissociation rate of 3.5e-7/s. pn150k's grains (H-035 c) give 1.4e-17 and x(H2) = 0.5. Found: a PREFIX over ~90 characters truncates the atomic-data paths silently (128-character variable) | Done | 2026-10-16 |
 
 ---
 
@@ -4997,3 +4998,139 @@ Not done:
   - `make install` was not repeated: the prefix's data were installed on
     2026-10-05, and data/ and dustData/ have not changed since.
   - The open question of Tdust(0,0) above is left for the user's word.
+
+### Results (15:49)
+
+| | tp-orig: astrosilicate + PAH | tp-sil: silicates alone | run b (before D-414) |
+|---|---|---|---|
+| stop | integrated test at 17 (1.64%, O2+) | at 17 (1.76%, O2+) | at 17 (1.73%) |
+| time per processor (7 ranks, two runs at once) | 25:25 | 24:54 | 10:24 (14 ranks) |
+| flagged cells | 3 | 3 | 3 |
+| hydrogen budget, all species | 5.5e-9 | 4.6e-9 | 4.1e-9 |
+| T_dust | 97-423 K | 39.5-155 K | 2-8e-6 K |
+| cells forming H2 on grains | all 4,661 | all 4,661 | none |
+| x(H2), largest | 3.9e-7 | 4.2e-7 | 2.1e-7 |
+| H2 molecules in the grid | 1.57e51 | 1.56e51 | 1.76e50 |
+| 1-0 S(1) / Hbeta | 1.47e-5 | 1.50e-5 | 1.68e-6 |
+| CO 1-0 [erg/s] | 2.5e20 | 2.2e20 | 1.4e19 |
+
+**Why the shell stays atomic,** read in its 384 dense neutral cells
+(n_H = 8e4; medians, h2Cells.out):
+
+| run | T_dust | A_V | R_form [cm^3/s] | photodissociation [1/s] | x(H2) |
+|---|---|---|---|---|---|
+| tp-sil | 57.7 K | 0.72 | 1.60e-19 | 3.5e-7 | 4.8e-8 |
+| tp-orig | 143.5 K | 0.71 | 1.55e-19 | 3.2e-7 | 5.0e-8 |
+| variant c (pn150k's grains) | 40.6 K | 5.15 | 1.43e-17 | 7e-46 | 0.5 |
+
+  - **The balance accounts for it.** R n_H / rate = 1.6e-19 x 8e4 /
+    3.5e-7 = 3.7e-8, against the 4.8e-8 computed.
+  - **The cause is the grains.** test_Problem's carry 3.4e-23 cm^2 of
+    surface per H (2.2e-23 silicate, 1.2e-23 PAH), about a fiftieth of
+    Cazaux & Tielens'. Their A_V per H is a tenth of interstellar. With so
+    little formation, the column cannot build up to self-shield (N(H2) to a
+    cell 4e14 cm^-2, against 3.7e21 in c).
+  - **tp-orig forms H2 at tp-sil's rate with 1.5 times the area.** Reading,
+    not tested apart: its mean T_dust, 143.5 K, is pulled up by the hot
+    PAHs, and H2 formation applies one T_dust to both channels (D-414's
+    "not changed"). A temperature per material would separate them.
+
+**Predictions:**
+  1. tp-sil: T_dust tens of K, met (39.5-155 K). Grain formation in every
+     cell, met. x(H2) at least 1e3 times run b's: missed, it is twice
+     (and the H2 content 9 times). Cells over 0.1: none.
+  2. tp-orig:
+      - 6 columns, a carbonaceous yield (W 4.39 eV) and a run that starts:
+        met.
+      - The PAHs dominate the grain area: missed. They carry 1.2e-23
+        against the silicates' 2.2e-23.
+      - x(H2) > 0.1, and CO 1-0 at least 1e6 times run b's: missed. CO is
+        18 times run b's.
+      - T_dust hotter than the silicates': met.
+  3. Both stop on the test, met. The budget within 1e-7, met.
+
+**For the user:** the code runs test_Problem's astrosilicate + PAH mixture,
+as asked. That dust cannot make the shell molecular around this star.
+pn150k's grains do (H-035's variant c), and the manual now gives both.
+
+### Status
+
+Done (2026-10-16). The manual (doc/manual-pdr-h2.md) is updated: the dust
+section gives both choices with their results, and section 2 gives the
+PREFIX limit. Open, for the user's word:
+  - a T_dust per grain material for H2 formation;
+  - the 128-character path variable;
+  - Im(m) columns for the other Draine Q files.
+
+
+## H-036 - test_Problem's original dust, after D-414 and D-415 (2026-10-16)
+
+The user, after H-035: "H2 formation average only over bins that actually
+contain grains. How can we obtain the necessary constants for PAH? The code
+should be able to run with the astrosilicate plus PAH mixture as in the
+original test problem."
+
+Done on production and merged (901f1e8):
+  - **D-414:** the mean dust temperature is a mean over the bins that hold
+    grains. It is exact where a species fills the grid: at a fixed seed,
+    21 of 22 outputs are byte-identical.
+  - **D-415:** dustData/PAHneu_30.cat carries Im(m), graphite's 2/3-1/3
+    axis-weighted k, as WD01 eq. 15 takes it for all carbonaceous grains
+    (tools/qfile_addk.py).
+
+### The runs (launched 15:18, both at once, 7 ranks each)
+
+The binary is installed with its data in a scratch prefix (make install
+PREFIX=scratchpad/pfx), which holds the new PAH file. The user's own
+installs are not touched.
+  - **runs/h036-tp-orig:** test_Problem's input with only the manual's
+    changes to input.in (autoPackets removed, the cap at 30, the PDR
+    block). Its dust files are the original ones: astroSilD2003_base.nk
+    with weight 0.98 over 0.07-50 um, PAHneu_30.cat with 0.02 over
+    1e-5 - 0.002 um, dust_sizes.dat and the Ndust file.
+  - **runs/h036-tp-sil:** run b's input exactly (the silicates alone). It
+    tests D-414 by itself against run b.
+
+### Predictions
+
+  1. **tp-sil.**
+      - T_dust in the dense gas is tens of K, not 2-8e-6 K.
+      - The level model reports 0 cells without grain formation.
+      - x(H2) reaches at least 1e3 times run b's 2e-7.
+      - Whether cells reach x(H2) > 0.1 is open: the silicate area per H
+        is 2.3e-23 cm^2, 37 times under Cazaux & Tielens'.
+  2. **tp-orig.**
+      - The log reads PAHneu_30.cat as 30 x 1201 with 6 columns.
+      - setGrainYield builds the PAH's yield as carbonaceous (W 4.4 eV),
+        and the run starts.
+      - The PAHs dominate the grain area, so H2 forms: there are cells
+        with x(H2) > 0.1, and CO 1-0 is at least 1e6 times run b's.
+      - T_dust(0,0) is the PAHs' equilibrium temperature, hotter than the
+        silicates'.
+  3. **Both** stop on the integrated test within the cap of 30, and close
+     the hydrogen budget over all species within 1e-7.
+
+### The first launch (15:18): a prefix too long for MOCASSIN's file names
+
+Both runs crashed at start-up with SIGSEGV on every worker rank. Rank 0 went
+on into seedPDR. Bisected with runs of one minute each:
+  - yesterday's binary at 7 ranks runs;
+  - today's at 14 ranks crashes.
+So the binary was the cause, not the rank count. The cause was the build,
+not the code:
+  - makeElements (hydro_mod.f90) holds each atomic-data path in a
+    `character(len=128)` variable: PREFIX, then /share/mocassin/, then the
+    file name.
+  - The scratch prefix is 116 characters long, so the paths were
+    truncated. `inquire` then found no file, and that ion's data were
+    skipped without a message.
+  - getDustT (D-414) is called only from updateCell, during the
+    iterations, so it could not have been the cause.
+
+Rebuilt into runs/h036-prefix (46 characters) and relaunched at 15:23
+(runs/h036b-tp-orig, runs/h036b-tp-sil). Both start and iterate.
+
+**A latent defect, recorded and not changed:** any PREFIX longer than about
+90 characters loses the atomic data silently and crashes. The manual says
+so. Raising the variable to 512 characters is a one-line fix, for the
+user's word.
