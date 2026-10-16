@@ -413,6 +413,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-411 | **The field accumulated over iterations (D-409's option B) registered for future development (the user: "register this for future development").** Not started; no code changed. The design, what it buys, its risks and its test against D-408's series are in D-409's addendum of 2026-10-15. The user turned to line maps of H2 and CO (H-034). Until it is built, D-409's interim stands as a recommendation, not a decision: 64x (or 16x) for runs that quote carbon or CO, the default for H2 | Deferred | 2026-10-15 |
 | D-412 | **What H-034's line maps found in the production model (the user's request for H2 and CO maps, D-411).** Map columns at the same projected radius cross cells at the same radii, so a spherical model gives them equal intensity exactly. The H2 maps show no orientation (0.993-1.016 at 1x, 0.996-1.000 at 64x) and their pixel noise falls as the packets'. Two things do not fall. (1) At hiipdr's ionization front, cell sets at exactly one radius differ by orientation: ln x(H0) spreads 0.29 and 0.19 at 0.80-0.95 and 0.95-1.10 r_front, the same at 1x and 64x, with 48 ray directions and at 41^3; pn150k 0.011-0.016. The front is 0.64-0.67 cells wide at both resolutions (unresolved; pn150k's 1.54). In a map: H2 1-0 S(1)'s axis columns -11% at 3.2 pc. A first reading, that the symmetry planes are more ionized, was withdrawn: two interior sets differ as much. (2) hiipdr's outer CO (16-19.4 pc) scatters per cell by 0.45-0.60 in ln at 16x and 64x, almost all of it x(CO), and little of it repeats cell by cell between the two. No code changed; causes not tested | Recorded | 2026-10-15 |
 | D-413 | **Every five-column Q dust file failed at start-up since D-313: its test for the optional Im(m) column could not tell five columns from six.** Found by test-running H-035's manual on test_Problem, which stopped at once with "End of file" in dustData/PAHneu_30.cat (ph_mod.f90). A list-directed read of six values takes the sixth from the next record instead of failing, so all four of Draine's Q files here (PAHneu_30, Car_90, Sil_21, suvSil_81) were read as six-column, lost a record and ran off the end; only D-313's own grph-avg.cat (six columns, pn150k's) read right. Fixed: the first data record's columns are counted, and the log says what each Q file holds. A five-column file now meets D-313's intended refusal (no Im(m), so no photoelectric yield). test_Problem, with its PAHs and photoelectric heating on by default, does not run as committed | Done | 2026-10-15 |
+| D-414 | **The mean dust temperature is now a mean over the bins that hold grains (the user: "H2 formation average only over bins that actually contain grains").** getDustT summed each species' T over its own size range against grainWeight normalised over the whole grid, so a species covering part of the grid put the empty bins in at T = 0. test_Problem's silicates alone (0.07-50 um on a 1e-4 - 5 um grid) came out at 2-8e-6 K and formed no H2 on grains (DEVLOG-H2 H-035). Tdust(nS,0) is now renormalised over the species' bins, and Tdust(0,0) weights each species by the grains it has. Every consumer reads it: the chemistry, the level model's H2 formation, the dust-only convergence test and pdrRad.out. Exact where a species fills the grid (all fixtures): before/after at a fixed seed, 21 of 22 outputs byte-identical and summary.out different only in clock times | Done | 2026-10-16 |
+| D-415 | **A PAH Q file can now heat the gas: dustData/PAHneu_30.cat carries Im(m), from graphite as Weingartner & Draine (2001) take it (the user: "How can we obtain the necessary constants for PAH?").** No PAH dielectric function exists. WD01 (p. 8, eq. 15) use 1/l_a = (4pi/lambda)[2/3 Im(m_perp) + 1/3 Im(m_par)] of graphite "for all carbonaceous grains". tools/qfile_addk.py appends that column (dustData/grph2-dl.nk perpendicular 2/3, grph1-dl.nk parallel 1/3, the weights of mkqfile.py's grph-avg.cat). Li & Draine's efficiencies are kept verbatim. The original test_Problem mixture (astrosilicate + PAH) can then run with photoelectric heating | Done | 2026-10-16 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39716,3 +39718,125 @@ remove the PAH species, give it a six-column file, or set
 so and drops the PAHs for a PDR run.
 
 Status: Done.
+
+## D-414 - The mean dust temperature over the bins that hold grains (2026-10-16)
+
+The user, on the open question of DEVLOG-H2 H-035: "H2 formation average
+only over bins that actually contain grains."
+
+### What was wrong
+
+getDustT (update_mod.f90) builds two means:
+  - Tdust(nS,0) = sum T(nS,a) grainWeight(a), over the bins within species
+    nS's size range;
+  - Tdust(0,0) = sum over species of Tdust(nS,0) grainAbun(nS).
+
+grainWeight is normalised over the whole size grid. A species that covers
+part of the grid therefore put the weight of every bin outside its range in
+at T = 0. This is the trap benchmarks/pdr/README.md records (D-073, D-092).
+
+H-035 measured it. test_Problem's silicates alone, 0.07-50 um on a
+1e-4 - 5 um grid, came out at 2.0-8.0e-6 K in every cell. The bridge
+passes Tdust(0,0) to H2 formation, so no cell formed H2 on grains, and the
+shell stayed atomic: x(H2) <= 2e-7.
+
+### The fix
+
+  - **Each species' mean is renormalised over its own bins.** The factor is
+    fIn, the share of the grid's weight in those bins.
+  - **Tdust(0,0) weights each species by the grains it has:**
+    grainAbun x fIn. The result is a number-weighted mean over the grains
+    present. The weighting itself is unchanged.
+  - **It is written as ratios to the grid's weight**, summed in the same
+    loop order. A species that fills the grid gets fIn = x/x = 1 exactly,
+    and the mixture's factor is exactly 1.
+
+Every consumer reads the corrected mean:
+  - the chemistry's dust temperature (pdr_mod, with its CMB floor);
+  - the level model's H2 formation;
+  - the H2 seeding;
+  - the dust-only convergence test;
+  - pdrRad.out's T_dust column.
+
+The temperature per bin, which the dust emission uses, is not touched.
+
+### Verified
+
+  - **All four flavours compile.**
+  - **Exact where nothing should change.** Variant c of H-035 (graphite,
+    whose grid spans exactly its range) ran for 5 iterations at seed 1001
+    on 14 ranks, with the binary before (4551160) and after. 21 of 22
+    output files are byte-identical. summary.out differs only in its
+    "finished at" times.
+  - **Where it should change:** H-035's runs on h2-model (see there).
+
+### Not changed, for the record
+
+H2 formation uses one T_dust for both of its channels, silicate and carbon.
+In a mixture of two materials, a temperature per material, each a mean over
+its own grains' area, would follow the physics more closely. Not done; the
+user's decision was the occupied-bins mean.
+
+Status: Done.
+
+## D-415 - Im(m) for a PAH Q file, from graphite as WD01 take it (2026-10-16)
+
+The user: "How can we obtain the necessary constants for PAH? The code
+should be able to run with the astrosilicate plus PAH mixture as in the
+original test problem."
+
+### What is needed, and why there are no PAH constants
+
+D-313's photoelectric yield is WD01's. Its size effect y1 (WD01 eq. 13)
+needs the photon attenuation length, l_a = lambda/(4 pi Im(m)) (eq. 14). A
+Q file tabulates Qabs, Qsca and g with no optical constants, so D-313
+refuses one without a sixth column, Im(m).
+
+PAHs have no measured dielectric function. Li & Draine (2001) build PAH
+cross sections from Drude profiles and a continuum, not from n and k. WD01
+say so and use graphite (p. 8, read in the arXiv text, astro-ph/9907251v4):
+
+    1/l_a = (4 pi / lambda) [ 2/3 Im(m_perp) + 1/3 Im(m_par) ]      (eq. 15)
+
+They take it "from Draine & Lee (1984) and Laor & Draine (1993)", and: "Since
+PAH dielectric functions are not available, we use graphite dielectric
+functions for all carbonaceous grains."
+
+### What was done
+
+  - **tools/qfile_addk.py** appends Im(m) to a five-column Q file, from n,k
+    files with weights.
+      - It reads the header as MOCASSIN does.
+      - It keeps every data record's five columns verbatim.
+      - It adds a header comment saying where the sixth column came from.
+      - It refuses a file whose records do not have exactly five columns.
+  - **dustData/PAHneu_30.cat is rewritten in place** with
+    dustData/grph2-dl.nk (E perpendicular to the c axis, 2/3) and
+    grph1-dl.nk (parallel, 1/3).
+      - These are the weights and the files of tools/mkqfile.py's
+        grph-avg.cat. Which axis is which was checked from k itself:
+        grph2-dl has n = 25.6, k = 10.0 at 100 um, the basal plane's
+        metallic response; grph1-dl has k = 0.07 at 1 um.
+      - The two n,k files share the PAH file's 1,201 wavelengths.
+      - Checked: 36,030 records with five columns verbatim; Im(m) the same
+        in all 30 radius blocks; within 3.5e-4 of grph-avg.cat's column at
+        the wavelengths the two share.
+      - Im(m) is 1.38 at 0.1 um, 0.82 at 0.2 um, 1.31 at 1 um and 7.6 at
+        100 um.
+  - **The PAH species is carbonaceous for the yield**, from its MsurfAtom of
+    12.004: W = 4.4 eV, WD01 eq. 16. It is also carbonaceous for H2
+    formation (its label contains "pah").
+
+### What it rests on
+
+The yield of a grain much smaller than l_a is insensitive to l_a's exact
+value. For a = 5 A, l_e = 10 A and l_a ~ 100 A, y1 is about 10 and
+y0 y1 >= 1, so WD01's min(y0 y1, 1) caps it. The graphite choice is WD01's
+convention, which they state, not a fit.
+
+The other Draine Q files in dustData (Car_90, Sil_21, suvSil_81) still have
+five columns. The carbon one could take the same graphite column; the
+silicates would need astrosilicate's. Not done.
+
+Status: Done. The test of the original test_Problem mixture is in
+DEVLOG-H2 H-036.

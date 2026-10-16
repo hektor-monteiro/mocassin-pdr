@@ -4295,6 +4295,9 @@ end subroutine iterateT
             integer, save :: nProbe = 0     ! D-308 probe
             ! D-126: recomputation of the collisional term at the probe point
             real    :: kTchk, psichk, etachk, xichk, vmchk, collchk
+            ! D-414: the share of the size grid's weight in the bins that hold
+            ! each species' grains, and the species sums of the mean below
+            real    :: wGrid414, fIn414, sAb414, sAbF414
 #ifdef PDR
 #endif
 
@@ -4323,15 +4326,33 @@ end subroutine iterateT
             ! halves of each exchange now come from the same terms, as they
             ! always did without the PDR. (gasDustColl still omits H2: L-9.)
 
+            ! D-414: the mean temperatures, Tdust(nS,0) and Tdust(0,0), are means
+            ! over the bins that hold grains. grainWeight is normalised over the
+            ! whole size grid, and a species occupies only the bins within its
+            ! own size range, so the old sums put the weight of the empty bins
+            ! at T = 0: test_Problem's silicates, alone on its 1e-4 - 5 um grid,
+            ! came out at 1e-6 K and formed no H2 on grains (DEVLOG-H2 H-035).
+            ! Written as ratios to the whole grid's weight, so a species that
+            ! fills the grid gets a factor of exactly 1.
+            ! summed in the loop's own order, so that a species covering every
+            ! bin gets fIn414 = x/x exactly
+            wGrid414 = 0.
+            do ai = 1, nSizes
+               wGrid414 = wGrid414 + grainWeight(ai)
+            end do
+            sAb414 = 0.
+            sAbF414 = 0.
+
             ! calculate absorption integrals for each species
             do nS = 1, nSpeciesPart(nspU)
 
                ! CALCULATE THE GLOBAL INDEX
-               global_nS = dustComPoint(nspU) + nS - 1 
+               global_nS = dustComPoint(nspU) + nS - 1
 
                ! Only proceed with calculations if the grain species actually exists in this cell.
                if (grainAbun(nspU, nS) > 1.e-20) then
 
+               fIn414 = 0.
                do ai = 1, nSizes
 
                   if (grainRadius(ai) >= componentMinRadius(nspU, ns) .and. grainRadius(ai) <= componentMaxRadius(nspU, ns)) then
@@ -4546,17 +4567,29 @@ end subroutine iterateT
                      ! find weighted mean
                      grid%Tdust(nS,0,cellP) = grid%Tdust(nS,0,cellP)+&
                           & grid%Tdust(nS,ai,cellP)*grainWeight(ai)
-                          
+                     fIn414 = fIn414 + grainWeight(ai)
+
                   endif
 
                end do
 
+               ! D-414: this species' mean over its own bins, and its weight in the
+               ! mixture by the grains it has (abundance x its bins' share)
+               if (wGrid414 > 0.) fIn414 = fIn414/wGrid414
+               if (fIn414 > 0.) grid%Tdust(nS,0,cellP) = grid%Tdust(nS,0,cellP)/fIn414
+
                grid%Tdust(0,0,cellP) = grid%Tdust(0,0,cellP)+&
-                    & grid%Tdust(nS,0,cellP)*grainAbun(nspU,nS)
-                    
+                    & grid%Tdust(nS,0,cellP)*grainAbun(nspU,nS)*fIn414
+               sAb414 = sAb414 + grainAbun(nspU,nS)
+               sAbF414 = sAbF414 + grainAbun(nspU,nS)*fIn414
+
                endif ! *** END OF IF for zero grain abundance ***
 
             end do
+
+            ! D-414: a mean over the grains present (sAb414/sAbF414 = 1 exactly
+            ! when every species fills the grid)
+            if (sAbF414 > 0.) grid%Tdust(0,0,cellP) = grid%Tdust(0,0,cellP)*(sAb414/sAbF414)
 
 
           end subroutine getDustT
