@@ -415,6 +415,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-413 | **Every five-column Q dust file failed at start-up since D-313: its test for the optional Im(m) column could not tell five columns from six.** Found by test-running H-035's manual on test_Problem, which stopped at once with "End of file" in dustData/PAHneu_30.cat (ph_mod.f90). A list-directed read of six values takes the sixth from the next record instead of failing, so all four of Draine's Q files here (PAHneu_30, Car_90, Sil_21, suvSil_81) were read as six-column, lost a record and ran off the end; only D-313's own grph-avg.cat (six columns, pn150k's) read right. Fixed: the first data record's columns are counted, and the log says what each Q file holds. A five-column file now meets D-313's intended refusal (no Im(m), so no photoelectric yield). test_Problem, with its PAHs and photoelectric heating on by default, does not run as committed | Done | 2026-10-15 |
 | D-414 | **The mean dust temperature is now a mean over the bins that hold grains (the user: "H2 formation average only over bins that actually contain grains").** getDustT summed each species' T over its own size range against grainWeight normalised over the whole grid, so a species covering part of the grid put the empty bins in at T = 0. test_Problem's silicates alone (0.07-50 um on a 1e-4 - 5 um grid) came out at 2-8e-6 K and formed no H2 on grains (DEVLOG-H2 H-035). Tdust(nS,0) is now renormalised over the species' bins, and Tdust(0,0) weights each species by the grains it has. Every consumer reads it: the chemistry, the level model's H2 formation, the dust-only convergence test and pdrRad.out. Exact where a species fills the grid (all fixtures): before/after at a fixed seed, 21 of 22 outputs byte-identical and summary.out different only in clock times | Done | 2026-10-16 |
 | D-415 | **A PAH Q file can now heat the gas: dustData/PAHneu_30.cat carries Im(m), from graphite as Weingartner & Draine (2001) take it (the user: "How can we obtain the necessary constants for PAH?").** No PAH dielectric function exists. WD01 (p. 8, eq. 15) use 1/l_a = (4pi/lambda)[2/3 Im(m_perp) + 1/3 Im(m_par)] of graphite "for all carbonaceous grains". tools/qfile_addk.py appends that column (dustData/grph2-dl.nk perpendicular 2/3, grph1-dl.nk parallel 1/3, the weights of mkqfile.py's grph-avg.cat). Li & Draine's efficiencies are kept verbatim. The original test_Problem mixture (astrosilicate + PAH) can then run with photoelectric heating | Done | 2026-10-16 |
+| D-416 | **A PREFIX longer than about 90 characters loses the atomic data silently and crashes (found in DEVLOG-H2 H-036).** makeElements (hydro_mod.f90) holds each data path, PREFIX + /share/mocassin/ + the file name, in character(len=128). Past that the path is truncated, `inquire` finds nothing, and that ion's data are skipped without a message. The worker ranks then die at start-up with SIGSEGV. Recorded, not changed: a 512-character variable is a one-line fix, for the user's word. The manual for h2-model (doc/manual-pdr-h2.md) states the limit | Open | 2026-10-16 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39768,7 +39769,12 @@ The temperature per bin, which the dust emission uses, is not touched.
     on 14 ranks, with the binary before (4551160) and after. 21 of 22
     output files are byte-identical. summary.out differs only in its
     "finished at" times.
-  - **Where it should change:** H-035's runs on h2-model (see there).
+  - **Where it should change** (DEVLOG-H2 H-036): test_Problem's
+    silicates alone now sit at 39.5-155 K and form H2 on grains in every
+    cell, where none did. The original astrosilicate + PAH mixture runs at
+    97-423 K. Its shell stays atomic (x(H2) <= 4e-7) because its grains
+    carry 3.4e-23 cm^2 per H, a fiftieth of interstellar. That is the
+    dust's limit, not the mean's.
 
 ### Not changed, for the record
 
@@ -39840,3 +39846,28 @@ silicates would need astrosilicate's. Not done.
 
 Status: Done. The test of the original test_Problem mixture is in
 DEVLOG-H2 H-036.
+
+## D-416 - A long PREFIX truncates the atomic-data paths (2026-10-16)
+
+Found while testing H-036's install into a scratch prefix of 116
+characters. Every worker rank died at start-up with SIGSEGV; rank 0 went
+on. Two runs of one minute separated the causes:
+  - the previous binary at 7 ranks runs;
+  - the new one crashes at 14 ranks as well.
+Rebuilt with a 46-character prefix, the same code runs.
+
+The cause is in makeElements (hydro_mod.f90). `filename` is
+`character(len=128)` and is assigned trim(PREFIX)//'/share/mocassin/'//
+dataFile(elem,ion). The assignment truncates, `inquire(..., exist=)` returns
+false, and the ion's atomic data are skipped with no message. What the
+workers then read uninitialised is not traced.
+
+Every other path built from PREFIX goes straight into an `open`, or is held
+in 200 or 300 characters (pdr_mod's dataDir, h2Dir).
+
+Recorded, not changed. A 512-character `filename`, and a message when a
+listed data file is missing, would fix it. Until then the manual says to
+keep PREFIX under about 90 characters.
+
+Status: Open.
+
