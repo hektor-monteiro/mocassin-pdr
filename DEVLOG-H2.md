@@ -48,6 +48,7 @@ DEVLOG.md and arrives here by merge.
 | H-037 | **Line maps of test_Problem, and a dust temperature per material registered (the user: "log the Dust temperature per material idea for future implementation. Create an artifact for the test_problem run showing the H2 and CO images and profiles like the one created for the other models").** The idea is production's D-417, merged (15c5e69): three designs, the call sites, the test, and the formula's estimate (R_form x1.35-1.73 in the original mixture's dense gas, still atomic). Maps of the three test_Problem runs (silicate + PAH, silicate alone, pn150k's graphite) return their tables within 1.2e-5. test_Problem is a dense ring (8e4, R 0.032-0.123 pc) in a slab (1e4, |z| <= 0.071 pc), so the page (Test Problem Line Maps, https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho) adds face-on and edge-on views, centre cuts, the gas structure and a dust comparison, and replaces the sphere's tests with two exact x <-> y tests. Noise per pixel pair: 1.5-15% in the original-dust runs, 14-75% in the molecular run at the same 1e7 packets. Found: the face-on maps of both original-dust runs are 3.0-5.5% fainter on the y side in the rotational lines (0-0 S(1) 0.945 and 0.948, 95% 0.934-0.958 and 0.938-0.958) while the input is exactly symmetric; cause not tested. H-036's Results and Status, filed above its heading, moved under it | Done | 2026-10-16 |
 | H-038 | **The branch installed for the user's runs (the user: "I will need to run some models using this latest version. Install it so I can use it").** h2-model's 78a74bd (production up to D-417), the 3D flavour, into ~/.local/mocassin_h2 as the manual installs it, after make clean: the worktree's binaries had runs/h036-prefix compiled in, and make does not rebuild for a new PREFIX. Four flavours, h2Test and h2Slab rc 0; the replaced files (the 2026-10-05 programs, the PAH file without Im(m), three Cloudy inputs) kept in runs/_h2prefix_backup_2026-10-17. Result: the installed binary reruns h036b-tp-orig (7 ranks, seed 1001, every data file from the prefix) byte for byte, 24 of 25 outputs, and summary.out but for its clock times, as predicted. Production's ~/.local install (2026-10-05) not touched | Done | 2026-10-17 |
 | H-039 | **The test_Problem page gains gas slices and Hbeta contours (the user: "include slice plots showing the input Hdensity, the Te and Ne so we can evaluate those results as well. Include an option to overlay Hbeta line emission contours on the molecular image plot").** Hbeta per cell is the code's own, from mocassinPlot (HIRecLines(4,2) n_H dV, as output_mod sums it), projected like the H2 and CO lines with the flagged cells left out: 8 x the cells' sum returns lineFlux.out's Hbeta to 1.0000009-1.0000013, as predicted. The page (version 3) adds contours at 0.5-1e-3 of the Hbeta peak on the maps, and slices of the input n_H and the runs' T_e and n_e in any plane, with a cut under each slice and a region table. Found: the flagged cells are exactly the cells at the 30,000 K cap, all in the cavity; n_e/n_H = 3.75e-4 in the original-dust ring and slab is C + Mg + Si + S once ionized; the x <-> y T_e scatter of swapped cells (H-037's 41%) is 0.9% in the slab and 2.6-3.0% in the ring, and 54% in the 1e3 gas, from about 70 pairs, 14-17 of them on opposite sides of 1,000 K (not tested) | Done | 2026-10-17 |
+| H-040 | **Production's D-418 merged and installed (the user: "Proceed with the suggested strategy").** D-418 (188ba92): equilibrium gave the lower INDEX of each level pair the Boltzmann factor, and niII.dat lists 4F9/2 (8393.9 cm-1) before 2D3/2 (1506.9), so below 13.96 K the Ni II rates overflowed and NaN spread from the cooling to T_e, the grains and the chemistry - the crash of the NGC 7009 K1a filtered-star run (iteration 10, SIGSEGV). Merged at bb4f9aa; four flavours, h2Test and h2Slab rc 0; make clean, then the 3D flavour installed into ~/.local/mocassin_h2 (pdr-coupling-v1.1-243-gbb4f9aa), the replaced bin/ kept in runs/_h2prefix_backup_2026-10-17_d418. The installed binary runs the K1a starvation test that crashed (7 ranks) to its end: 0 NaN, 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825). Both K1a models rerun with it, filtered first | Done | 2026-10-17 |
 
 ---
 
@@ -5487,3 +5488,49 @@ Test Problem Line Maps, version 3, published 2026-10-17 10:52
 Done (2026-10-17). Open, besides H-037's:
   - the dusts' T_e differences in the halo and the ring (not attributed);
   - what makes swapped cells of the 1e3 gas differ.
+
+## H-040 - Production's D-418 merged and installed (2026-10-17)
+
+The user (2026-10-17), after D-418's diagnosis and its proposal (fix in
+production, merge into h2-model, install, rerun the K1a models): "Proceed
+with the suggested strategy." Asked whether the bare-star model should be
+rerun as well, so that both K1a models use one binary, they took the
+strategy as proposed, which included it.
+
+**What came in.** D-418 (188ba92, production): the collision rates of a
+level pair now take the Boltzmann factor at the lower-ENERGY level, not
+the lower index. niII.dat lists 4F9/2 (8393.9 cm-1) as level 2 and 2D3/2
+(1506.9 cm-1) as level 3. Below 13.96 K exp(+9909/T) overflowed, the
+unpivoted LU returned NaN, and the NaN spread from coolColl to T_e, the
+grain charge and the chemistry. That is what crashed the NGC 7009 K1a
+filtered-star run (~/Documentos/NGC7009_K1a, iteration 10, SIGSEGV);
+D-418 has the rest. The merge is bb4f9aa, with no conflicts.
+
+**The build and install** (the H-038 procedure):
+  - The four flavours, with PREFIX=$HOME/.local/mocassin_h2, a make clean
+    before each: rc 0 (20:27-20:28). h2Test and h2Slab: rc 0.
+  - The replaced bin/ (78a74bd's, H-038; mocassin md5 67c94c39...) is kept in
+    runs/_h2prefix_backup_2026-10-17_d418/.
+  - `make clean`, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin_h2
+    install`: rc 0, binaries 20:29:23, version string
+    pdr-coupling-v1.1-243-gbb4f9aa, data path in the prefix.
+
+**Check.** The K1a starvation test (runs/starve-test there: LStar 1e-9,
+11^3, the knot's abundances and dust, the PDR from iteration 2) crashed
+with 78a74bd at 7 ranks. With the installed binary at 7 ranks it runs all
+4 iterations to rc 0, with:
+  - 0 "insane eta" (was 168);
+  - 0 "Singular matrix" (was 318,500);
+  - 0 CVODE failures (was 15,825);
+  - 0 [D120] non-finite (was 7);
+  - 0 NaN in grid1.out and pdrGrid.out (was 633 and 1270).
+
+**Next.** Both K1a models are rerun with this binary, the filtered star
+first (runs/rerun_d418.sh, systemd unit k1a-rerun-d418, from 20:30). The
+pre-D-418 bare run is kept as runs/k1a-ps_preD418, the crashed one as
+runs/k1a-ps-filt_crashed_it10. The filtered run passing iteration 9
+without NaN is D-418's attribution test.
+
+### Status
+
+Done (2026-10-17).
