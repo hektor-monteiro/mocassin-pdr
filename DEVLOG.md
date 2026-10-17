@@ -417,6 +417,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-415 | **A PAH Q file can now heat the gas: dustData/PAHneu_30.cat carries Im(m), from graphite as Weingartner & Draine (2001) take it (the user: "How can we obtain the necessary constants for PAH?").** No PAH dielectric function exists. WD01 (p. 8, eq. 15) use 1/l_a = (4pi/lambda)[2/3 Im(m_perp) + 1/3 Im(m_par)] of graphite "for all carbonaceous grains". tools/qfile_addk.py appends that column (dustData/grph2-dl.nk perpendicular 2/3, grph1-dl.nk parallel 1/3, the weights of mkqfile.py's grph-avg.cat). Li & Draine's efficiencies are kept verbatim. The original test_Problem mixture (astrosilicate + PAH) can then run with photoelectric heating | Done | 2026-10-16 |
 | D-416 | **A PREFIX longer than about 90 characters loses the atomic data silently and crashes (found in DEVLOG-H2 H-036).** makeElements (hydro_mod.f90) holds each data path, PREFIX + /share/mocassin/ + the file name, in character(len=128). Past that the path is truncated, `inquire` finds nothing, and that ion's data are skipped without a message. The worker ranks then die at start-up with SIGSEGV. Recorded, not changed: a 512-character variable is a one-line fix, for the user's word. The manual for h2-model (doc/manual-pdr-h2.md) states the limit | Open | 2026-10-16 |
 | D-417 | **A dust temperature per grain material for H2 formation, registered for future development (the user: "log the Dust temperature per material idea for future implementation").** CT02's two channels, silicate and carbonaceous, take one temperature, Tdust(0,0): getDustT's number-weighted mean over every species, which in a mixture is the smallest grains'. In test_Problem the silicates carry 6.8e-11 of that weight against the PAHs' 0.02, so the silicate channel runs at the PAHs' 143.5 K instead of its own ~58 K, where CT02's silicate efficiency is 0.074 against 0.200. From the formula at the cells' own temperatures (not a run): R_form x1.68 (5-95%: 1.35-1.73) in the 384 dense neutral cells, the silicate share of formation 35% -> 60%, x(H2) ~5e-8 -> ~8e-8 (still atomic; the limit is the grain area, H-036). Three designs (number-weighted per material, area-weighted per material, the rate summed over size bins), the call sites and the test are in the body. Not started; no code changed | Deferred | 2026-10-16 |
+| D-418 | **Levels listed out of energy order broke the collision rates, and below 13.96 K made NaN (found by the NGC 7009 K1a filtered-star run; the user: "can we just set a floor for Te? Maybe cosmic background?").** equilibrium (emission_mod.f90) took the lower index of each pair as the lower level. 31 data files list levels out of energy order; niII.dat has 4F9/2 (8393.9 cm-1) as level 2 and 2D3/2 (1506.9 cm-1) as level 3, so the 2-3 rates had detailed balance reversed at every T (x2.7 at 1e4 K) and below 13.96 K exp(+9909/T) overflowed: a -Infinity diagonal in the unpivoted LU, NaN populations, NaN cooling, NaN T_e, then NaN grain charge, chemistry and a SIGSEGV. A starvation test (LStar 1e-9, 11^3, dust + PDR) cooled its cells from 6000 K to 12.19 K and failed there, with and without teFloor 10; with the fix it runs to the end, 0 NaN (was 633 cells), 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825), cells at 3.8-45 K. The Boltzmann factor now goes with the lower-energy level of each pair. Neither a T_e floor (would have to be >= 14 K, an artificial gate) nor a background (cosmic rays are already in, D-193/D-280) was the fix. Four flavours compile. Not yet shown: that the K1a run's five NaN cells failed this way (its rerun is the test) | Accepted | 2026-10-17 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39990,3 +39991,148 @@ By how much is not known: the per-bin temperatures are not written out.
 
 Status: Deferred.
 
+## D-418 - Levels listed out of energy order broke the collision rates, and below 13.96 K made NaN (2026-10-17)
+
+Found by the NGC 7009 K1a model (Konstantinou et al. 2026, in
+~/Documentos/NGC7009_K1a, run with the h2-model install). Its second run,
+the star seen through the nebula's internal shell, crashed with SIGSEGV
+in iteration 10. In iteration 9, five ambient cells (n_H = 100) straight
+behind the knot had absorbed no ionizing photons (photo heating 1.7e-43
+per H), and their T_e, cooling and grain charge were NaN.
+
+The user asked: "can we just set a floor for Te? Maybe cosmic background?"
+Neither one is the fix. The measurements below show why.
+
+### Reproducing it
+
+The reproduction is runs/starve-test in the K1a folder: the knot's
+abundances and dust, the PDR from iteration 2, n_H = 100 on an 11^3 grid,
+and LStar 1e-9, so that every cell gets almost no radiation.
+  - **a** (default teFloor = T_CMB) and **b** (teFloor 10.) both crash
+    (rc=139) with identical counts: 318,500 "Singular matrix in
+    GAUSS_JORDAN", 15,825 CVODE failures, 7 [D120] non-finite dust
+    integrals, 633 NaN cells in grid1.out.
+  - The first printed symptom, "getGrainRecombination: insane eta NaN",
+    is not the first NaN. A copy built with -ffpe-trap=invalid stops first
+    at two NaNs that are already caught:
+    - forLines' ionDenUp = 0/0, which equilibrium tests for, so the ion's
+      lines are set to 0;
+    - setResLineEscapeProb's (1-exp(-2 tau))/(2 tau) at tau = 0, which
+      fails the "> 0" test, so fEscape is set to 0.
+    Past those, the trap lands in lured (the level-population LU) inside
+    thermBalance.
+  - Prints in the debug copy put the first non-finite quantity at
+    **trial step 35 of iterateT, T_e = 12.19 K**: coolColl is NaN; coolFF,
+    coolRec, gasDust and pdrCoolMol are finite. The NaN is in the
+    forbidden lines of **Ni II alone**, and in its level matrix the
+    diagonal of level 2 is -Infinity.
+
+### The cause
+
+niII.dat, from CHIANTI 10.1 (Bautista 2004), orders its levels by
+configuration, not by energy:
+
+    1  3d9 2D5/2          0.0 cm-1
+    2  3d8(3F)4s 4F9/2 8393.9
+    3  3d9 2D3/2       1506.9
+    4  3d8(3F)4s 4F7/2 9330.0
+    5  3d8(3F)4s 4F5/2 10115.7
+
+equilibrium sets up qeff for every pair (i-1, j) with i-1 < j, giving
+i-1 the Boltzmann factor exp((E(i-1)-E(j)) 1.4388/T) and g(i-1).
+  - When E(i-1) > E(j), that exponent is positive: the "excitation" is
+    really a de-excitation multiplied by exp(+dE/kT), and the "de-
+    excitation" lacks its exp(-dE/kT).
+  - Detailed balance is therefore reversed for the pair at EVERY
+    temperature. For Ni II 2-3 (dE = 6887 cm-1 = 9909 K) the error is a
+    factor 2.7 at 1e4 K.
+  - Below 9909/709.78 = **13.96 K** the exponent overflows double
+    precision, the diagonal x(2,2) = -Ne qeff(2,3) becomes -Infinity, and
+    the unpivoted LU returns NaN.
+  - From there NaN spreads: coolColl, the residual and the next trial T_e,
+    so ionBalance and setGrainPotential run at T = NaN ("insane eta"); then
+    the chemistry ("Singular matrix", CVODE failures) and the
+    grid; finally indices computed from NaN give out-of-range writes. That
+    last step is the likely cause of the SIGSEGV, and it also broke the
+    "insane eta" warning cap in a debug build, whose 13 GB log made
+    prterun grow to 52 GB and get killed by the kernel OOM killer
+    (2026-10-17 17:59).
+
+teFloor 10 cannot help, since the overflow starts at 13.96 K. A floor of
+14 K or more would hide it, but only by holding gas that is physically
+colder (about 4 K in this test once fixed) at the floor: an artificial
+gate. Cosmic-ray ionization and heating are already in MOCASSIN's own
+balance (D-193, D-280). They are what set those cells at about 4 K, and
+they cannot hold them above 14 K.
+
+### Every file
+
+A script reads each data file as hydro_mod.f90 does
+(tools/level_order.py, run on the installed data directory; it
+parses the iRats = 0 files). 31 files have at least one
+pair out of energy order. The temperatures below which exp(+dE/kT) would
+overflow are:
+
+| file | pair | dE [cm-1] | overflow below |
+|---|---|---|---|
+| niII.dat | 2 > 3 | 6887.0 | 13.96 K |
+| alviii.dat | 13 > 14 | 4459.4 | 9.04 K |
+| cavii.dat | 16 > 17 | 2464.2 | 5.00 K |
+| feiii.dat | 12 > 13 | 1218.0 | 2.47 K |
+| neiv.dat | 6 > 8 | 938.0 | 1.90 K |
+| the other 26 | | < 270 | < 0.62 K |
+
+Only niII.dat matters for neutral gas above the CMB floor. All 31 had
+their rates reversed for those pairs at every T, mostly over gaps of a few
+to a few hundred cm-1, where exp(dE/kT) is close to 1 in ionized gas.
+
+The A values of the inverted pairs are all zero except one: O II
+2D5/2-2D3/2 (levels 2 and 3, 19.8 cm-1 apart, A = 1.32e-7 s-1). The code
+treats level 3 as the upper one, so this transition gets a negative Eji
+and a negative emissivity of about 1e-7 s-1 x 20 cm-1 per ion. Negligible,
+and **not changed**.
+
+### The change
+
+emission_mod.f90, equilibrium. The Boltzmann factor and the statistical
+weight of the excitation now go with the lower-ENERGY level of each pair.
+For an ordered pair (dE <= 0) the arithmetic is unchanged. Nothing else
+in the solve changes.
+
+The chemistry's neutral-collider rates (pdrNeutralRates, D-363) loop over
+the chemistry atom's own levels, which are energy-ordered, and are left as
+they are.
+
+### Test
+
+The starvation test, with the fix applied in a scratch copy of the same
+source (plus prints that stop the run at the first NaN):
+  - it runs all 4 iterations, rc=0;
+  - 0 NaN in grid1.out and pdrGrid.out (was 633 and 1270);
+  - 0 "Singular matrix" (was 318,500) and 0 CVODE failures (was 15,825):
+    all of them were consequences of the NaN;
+  - 647 active cells at 3.8-45 K (median 3.9 K), with a median thermal
+    residual of 0.6%.
+
+Four flavours compile (3D, 1D, no PDR, Warm).
+
+### Not yet known
+
+  - **Attribution in the K1a run.** Its five cells had no ionizing
+    heating, so they would have cooled toward a few K, through 14 K. That
+    is consistent with this cause but not shown. The rerun of the filtered
+    model is the test: it must pass iteration 9 with no NaN.
+  - **The size of the at-every-T change.** It is not measured. The pairs
+    involved are mostly fine structure or close levels, so the expected
+    effect on lines and cooling in ionized gas is small. The bare-star K1a
+    model is rerun with the same binary so that the two K1a models stay
+    comparable.
+  - **Left as they are**, recorded:
+    - lured/reslv have no pivoting and no zero-pivot guard;
+    - the integrated stop test skips NaN totals silently (the
+      `>= cvTotSig*cHtot` comparison is false for NaN);
+    - the two caught 0/0s above turn into fLineEm = 0 and fEscape = 0
+      rather than into the limits (no ion: no lines; tau = 0: escape = 1);
+    - once a cell is NaN, out-of-range writes follow.
+
+Status: Accepted.

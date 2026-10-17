@@ -1849,11 +1849,26 @@ module emission_mod
           constant = 1.4388463d0
           ! exponential factor
           delTeK = (atomic_data_array(elem,ion)%e(i-1)-atomic_data_array(elem,ion)%e(j))*constant
-          expFac = exp( delTeK/Te )
 
-          atomic_data_array(elem,ion)%qeff(i-1, j) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) * expFac /&
-               &(atomic_data_array(elem,ion)%g(i-1)*sqrTe)
-          atomic_data_array(elem,ion)%qeff(j, i-1) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) / (atomic_data_array(elem,ion)%g(j)*sqrTe)
+          ! D-418: the Boltzmann factor belongs to the LOWER level of the
+          ! pair, which is not always the lower index. 31 data files list
+          ! levels out of energy order; niII.dat has 4F9/2 (8393.9 cm-1) as
+          ! level 2 and 2D3/2 (1506.9 cm-1) as level 3. Taking i-1 as the
+          ! lower level reversed detailed balance for such pairs at every T
+          ! (x2.7 at 1e4 K for Ni II 2-3), and below 13.96 K exp(+9909/T)
+          ! overflowed: a -Infinity diagonal, NaN populations, NaN cooling,
+          ! then NaN T_e in every cell that cooled that far.
+          if (delTeK <= 0.d0) then
+             expFac = exp( delTeK/Te )
+             atomic_data_array(elem,ion)%qeff(i-1, j) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) * expFac /&
+                  &(atomic_data_array(elem,ion)%g(i-1)*sqrTe)
+             atomic_data_array(elem,ion)%qeff(j, i-1) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) / (atomic_data_array(elem,ion)%g(j)*sqrTe)
+          else
+             expFac = exp( -delTeK/Te )
+             atomic_data_array(elem,ion)%qeff(j, i-1) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) * expFac /&
+                  &(atomic_data_array(elem,ion)%g(j)*sqrTe)
+             atomic_data_array(elem,ion)%qeff(i-1, j) = 8.63d-6 * atomic_data_array(elem,ion)%cs(i-1, j) / (atomic_data_array(elem,ion)%g(i-1)*sqrTe)
+          end if
 
        end do
     end do
