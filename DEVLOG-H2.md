@@ -46,6 +46,7 @@ DEVLOG.md and arrives here by merge.
 | H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem). Result: tested as written (runs/h035-testproblem-c): the integrated test passed at 17 iterations, 34 min at 14 ranks; a molecular shell (2,259 cells x(H2) > 0.1, all carbon in CO); hydrogen budget 3.9e-9 over all species; 1-0 S(1) 8.1e-5 Hbeta. Found on the way: production's D-413 (five-column Q files); test_Problem's PAHs are refused and its silicates alone form no H2 (Tdust(0,0) ~1e-6 K from empty size bins, run b), so the manual uses the pn150k fixture's grains; the map tool read lineFluxMol.out's last component block (fixed) | Done | 2026-10-15 |
 | H-036 | **test_Problem's own astrosilicate + PAH dust in a PDR + H2 run, with production's D-414 (the mean dust temperature over the bins that hold grains) and D-415 (Im(m) for the PAH Q file, from graphite as WD01 take it) - the user's decisions after H-035.** Two runs: the original mixture, and run b's silicates alone as the test of D-414 by itself. Result: the original mixture runs (PAH read with Im(m), carbonaceous yield, the integrated test at 17, budget 5.5e-9), and every cell forms H2 on grains (T_dust 97-423 K, was 1e-6 K). But the shell stays atomic, x(H2) <= 4e-7: the grains carry 3.4e-23 cm^2 per H, a fiftieth of interstellar, so R_form = 1.6e-19 against a photodissociation rate of 3.5e-7/s. pn150k's grains (H-035 c) give 1.4e-17 and x(H2) = 0.5. Found: a PREFIX over ~90 characters truncates the atomic-data paths silently (128-character variable) | Done | 2026-10-16 |
 | H-037 | **Line maps of test_Problem, and a dust temperature per material registered (the user: "log the Dust temperature per material idea for future implementation. Create an artifact for the test_problem run showing the H2 and CO images and profiles like the one created for the other models").** The idea is production's D-417, merged (15c5e69): three designs, the call sites, the test, and the formula's estimate (R_form x1.35-1.73 in the original mixture's dense gas, still atomic). Maps of the three test_Problem runs (silicate + PAH, silicate alone, pn150k's graphite) return their tables within 1.2e-5. test_Problem is a dense ring (8e4, R 0.032-0.123 pc) in a slab (1e4, |z| <= 0.071 pc), so the page (Test Problem Line Maps, https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho) adds face-on and edge-on views, centre cuts, the gas structure and a dust comparison, and replaces the sphere's tests with two exact x <-> y tests. Noise per pixel pair: 1.5-15% in the original-dust runs, 14-75% in the molecular run at the same 1e7 packets. Found: the face-on maps of both original-dust runs are 3.0-5.5% fainter on the y side in the rotational lines (0-0 S(1) 0.945 and 0.948, 95% 0.934-0.958 and 0.938-0.958) while the input is exactly symmetric; cause not tested. H-036's Results and Status, filed above its heading, moved under it | Done | 2026-10-16 |
+| H-038 | **The branch installed for the user's runs (the user: "I will need to run some models using this latest version. Install it so I can use it").** h2-model's 78a74bd (production up to D-417), the 3D flavour, into ~/.local/mocassin_h2 as the manual installs it, after make clean: the worktree's binaries had runs/h036-prefix compiled in, and make does not rebuild for a new PREFIX. Four flavours, h2Test and h2Slab rc 0; the replaced files (the 2026-10-05 programs, the PAH file without Im(m), three Cloudy inputs) kept in runs/_h2prefix_backup_2026-10-17. Result: the installed binary reruns h036b-tp-orig (7 ranks, seed 1001, every data file from the prefix) byte for byte, 24 of 25 outputs, and summary.out but for its clock times, as predicted. Production's ~/.local install (2026-10-05) not touched | Done | 2026-10-17 |
 
 ---
 
@@ -5272,3 +5273,99 @@ page. Open:
   - what makes the face-on y side fainter in the original-dust runs;
   - whether lineFluxH2.out should leave out the flagged cells (H-034, the
     user's word).
+
+---
+
+## H-038 - The branch installed for the user's runs (2026-10-17)
+
+The user (2026-10-17): "I will need to run some models using this latest
+version. Install it so I can use it."
+
+**What is installed.** h2-model's HEAD, 78a74bd
+(`pdr-coupling-v1.1-239-g78a74bd`), which holds production up to D-417
+(7020835, merged at 15c5e69). No source, Makefile or data commit has come
+after 901f1e8, the merge of D-414 and D-415 whose binary ran H-036's runs
+and made H-037's maps, so the installed code is the code those runs used.
+
+**Where.** The branch's prefix, `~/.local/mocassin_h2`, in the 3D flavour
+(the one in which the level model runs), as the manual
+(doc/manual-pdr-h2.md, section 2) installs it:
+
+    make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin_h2 install
+
+Production's own install in `~/.local` is not touched: its bin/ is
+3fb58aa-dirty of 2026-10-05, 105 production commits behind, and its
+`share/mocassin` is read by other checkouts' binaries too (D-330, D-388).
+
+**What it replaced:**
+  - bin/: the four programs of d26489e (2026-10-05 08:40, 187 commits
+    behind);
+  - share/mocassin: dustData/PAHneu_30.cat (the file without D-415's
+    Im(m)) and three of the benchmarks' Cloudy inputs
+    (pdr/hiipdr/cloudy/README.md and hiipdr.in, pdr/pn150k/cloudy/
+    150k_PDR.in). data/ and dataPDR/ were already the repository's.
+  - The replaced files are kept in the worktree's
+    runs/_h2prefix_backup_2026-10-17/ (md5: mocassin 351c7c03...,
+    PAHneu_30.cat 309df0fa...).
+
+**The build** (scratchpad h038_install.sh; tracked tree clean, so no
+`-dirty`):
+  - `make clean` first. The worktree's binaries of 2026-10-16 15:23 had
+    runs/h036-prefix compiled in, and make does not rebuild for a new
+    PREFIX (.pdrflag stamps only PDR and PDRGEOM). A plain `make install`
+    would have installed programs that read their data from a run
+    directory.
+  - The four flavours, h2Test and h2Slab: rc 0, no errors (10:01-10:03).
+  - `make clean`, then the install: rc 0, 64 compiles, all with
+    `-DPREFIX="/home/hmonteiro/.local/mocassin_h2"` and
+    `-DRAYTHEIA -DRAYTHEIA_MO`.
+
+**Checks on the install:**
+  - the four installed programs are byte-identical to the worktree's,
+    carry `pdr-coupling-v1.1-239-g78a74bd` and name the prefix in their
+    data paths;
+  - data/, dustData/, dataPDR/, benchmarks/ and examples/ under the prefix
+    are the repository's (`diff -r`: no file differs; PAHneu_30.cat md5
+    0a7018ab...);
+  - SUNDIALS resolves through the rpath (~/software/sundials-7.8.0/lib),
+    with no LD_LIBRARY_PATH;
+  - the prefix is 34 characters, under D-416's ~90.
+
+### The run test (prediction written before the launch, 10:05)
+
+runs/h038-install-check: h036b-tp-orig's input with `pdrDataDir` removed,
+so the binary reads dataPDR (and its h2/) from the prefix by default; the
+installed binary itself, not a copy; 7 ranks and seed 1001 as h036b. The
+code is h036b's (its binary mocassin.h036 is 901f1e8-dirty, with no
+source, Makefile or data commit since) and the data are the same bytes
+(runs/h036-prefix against the repository: no file differs in data/,
+dustData/ or dataPDR/). No output names a path or the version.
+
+Prediction: every output file byte-identical to h036b-tp-orig's but
+summary.out, which differs only in its clock times (as in D-414's
+before/after); run.log differs in its timings. About 25 min (h036b took
+00:25:25 per processor, beside another 7-rank run).
+
+### Results (10:20)
+
+  - rc 0, stopped by the integrated test at iteration 17 as h036b did;
+    00:15:12 per processor, alone on the machine.
+  - It read the prefix: the log's data directories are the prefix's data/
+    and dustData/, the coolants come from its dataPDR/, and with no
+    `pdrDataDir` the level model takes `PREFIX/share/mocassin/dataPDR/h2`
+    (pdr_mod.f90:5271). PAHneu_30.cat is read with 6 columns (Im(m)), as
+    in h036b. No error in the log.
+  - **24 of the 25 output files are byte-identical** to h036b-tp-orig's,
+    lineFluxH2.out, h2Cells.out and h2Pop.bin among them. summary.out
+    differs in 34 lines, all of them the 17 iterations' `finished at`
+    clock times. The prediction holds.
+
+So the installed programs are the ones that made H-036's runs and H-037's
+maps, and they read their data from the prefix.
+
+### Status
+
+Done (2026-10-17): installed in `~/.local/mocassin_h2`; run with
+`mpirun -np 14 $HOME/.local/mocassin_h2/bin/mocassin` (the manual,
+section 5). Not done: production's `~/.local` install (2026-10-05, without
+D-413-D-415) is left as it is, for the user's word.
