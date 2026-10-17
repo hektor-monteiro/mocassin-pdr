@@ -416,6 +416,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-414 | **The mean dust temperature is now a mean over the bins that hold grains (the user: "H2 formation average only over bins that actually contain grains").** getDustT summed each species' T over its own size range against grainWeight normalised over the whole grid, so a species covering part of the grid put the empty bins in at T = 0. test_Problem's silicates alone (0.07-50 um on a 1e-4 - 5 um grid) came out at 2-8e-6 K and formed no H2 on grains (DEVLOG-H2 H-035). Tdust(nS,0) is now renormalised over the species' bins, and Tdust(0,0) weights each species by the grains it has. Every consumer reads it: the chemistry, the level model's H2 formation, the dust-only convergence test and pdrRad.out. Exact where a species fills the grid (all fixtures): before/after at a fixed seed, 21 of 22 outputs byte-identical and summary.out different only in clock times | Done | 2026-10-16 |
 | D-415 | **A PAH Q file can now heat the gas: dustData/PAHneu_30.cat carries Im(m), from graphite as Weingartner & Draine (2001) take it (the user: "How can we obtain the necessary constants for PAH?").** No PAH dielectric function exists. WD01 (p. 8, eq. 15) use 1/l_a = (4pi/lambda)[2/3 Im(m_perp) + 1/3 Im(m_par)] of graphite "for all carbonaceous grains". tools/qfile_addk.py appends that column (dustData/grph2-dl.nk perpendicular 2/3, grph1-dl.nk parallel 1/3, the weights of mkqfile.py's grph-avg.cat). Li & Draine's efficiencies are kept verbatim. The original test_Problem mixture (astrosilicate + PAH) can then run with photoelectric heating | Done | 2026-10-16 |
 | D-416 | **A PREFIX longer than about 90 characters loses the atomic data silently and crashes (found in DEVLOG-H2 H-036).** makeElements (hydro_mod.f90) holds each data path, PREFIX + /share/mocassin/ + the file name, in character(len=128). Past that the path is truncated, `inquire` finds nothing, and that ion's data are skipped without a message. The worker ranks then die at start-up with SIGSEGV. Recorded, not changed: a 512-character variable is a one-line fix, for the user's word. The manual for h2-model (doc/manual-pdr-h2.md) states the limit | Open | 2026-10-16 |
+| D-417 | **A dust temperature per grain material for H2 formation, registered for future development (the user: "log the Dust temperature per material idea for future implementation").** CT02's two channels, silicate and carbonaceous, take one temperature, Tdust(0,0): getDustT's number-weighted mean over every species, which in a mixture is the smallest grains'. In test_Problem the silicates carry 6.8e-11 of that weight against the PAHs' 0.02, so the silicate channel runs at the PAHs' 143.5 K instead of its own ~58 K, where CT02's silicate efficiency is 0.074 against 0.200. From the formula at the cells' own temperatures (not a run): R_form x1.68 (5-95%: 1.35-1.73) in the 384 dense neutral cells, the silicate share of formation 35% -> 60%, x(H2) ~5e-8 -> ~8e-8 (still atomic; the limit is the grain area, H-036). Three designs (number-weighted per material, area-weighted per material, the rate summed over size bins), the call sites and the test are in the body. Not started; no code changed | Deferred | 2026-10-16 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -39781,7 +39782,8 @@ The temperature per bin, which the dust emission uses, is not touched.
 H2 formation uses one T_dust for both of its channels, silicate and carbon.
 In a mixture of two materials, a temperature per material, each a mean over
 its own grains' area, would follow the physics more closely. Not done; the
-user's decision was the occupied-bins mean.
+user's decision was the occupied-bins mean. (Registered for future
+development by the user on 2026-10-16: D-417.)
 
 Status: Done.
 
@@ -39870,4 +39872,121 @@ listed data file is missing, would fix it. Until then the manual says to
 keep PREFIX under about 90 characters.
 
 Status: Open.
+
+## D-417 - A dust temperature per grain material for H2 formation, registered for future development (2026-10-16)
+
+The user: "log the Dust temperature per material idea for future
+implementation."
+
+Registered, not started; no code changed. It was D-414's "not changed, for
+the record" and the first open item of DEVLOG-H2 H-036.
+
+### What the code does now
+
+H2_FORMATION_RATE (source/pdr/h2_form.F90, -DH2FORM_CT02) sums two
+channels:
+
+    R = 1/2 v_th(T_gas) [ sigma_sil eps_sil(T_d) + sigma_gra eps_gra(T_d) ] S(T_gas, T_d)
+
+  - sigma_sil and sigma_gra are this cell's grain area per H by material,
+    measured by measureH2grainArea and classed by isCarbonGrain (D-195).
+  - One temperature, T_d, enters both efficiencies and the sticking
+    coefficient.
+
+T_d is Tdust(0,0), getDustT's number-weighted mean over every species
+(D-414). It reaches H2 formation at three places:
+  - the chemistry: pdrStep, pdr_mod.f90:3323 (with the CMB floor), then
+    CALCULATE_REACTION_RATES;
+  - the H2 seeding: seedMolecules, pdr_mod.f90:2918;
+  - on h2-model, the level model's formation (h2LevelModel's solveCell,
+    pdr_mod.f90:5842-5851 there). It already evaluates the two surfaces
+    apart, wSil and wGra, but both at the one T_d.
+
+The gas-grain energy exchange is not among them: MOCASSIN's own term runs
+per species and size (gasDustColl_d; L-9).
+
+### Why it matters in a mixture
+
+Number weighting hands the mean to the smallest grains. In test_Problem
+(DEVLOG-H2 H-036):
+  - The size grid runs from 1e-4 to 5 um, MRN-like (slope -3.54).
+  - The silicates' bins (0.08-5 um) hold 6.9e-11 of the grid's weight. The
+    PAHs' bins (1e-4 - 1.75e-3 um) hold all of it, to that precision.
+  - With grainAbun 0.98 and 0.02, the silicates carry 6.8e-11 of
+    Tdust(0,0)'s weight and the PAHs 0.02.
+  - So Tdust(0,0) is the PAHs' temperature: 143.5 K, the median over the
+    384 dense neutral cells. The same cells in the silicates-alone run sit
+    at 57.7 K.
+
+CT02's efficiencies, with 3D-PDR's surface energies and FLUX = 1e-10
+monolayers per second:
+
+| T_d [K] | 40 | 58 | 100 | 143.5 | 200 | 300 |
+|---|---|---|---|---|---|---|
+| silicate | 0.368 | 0.198 | 0.100 | 0.074 | 0.061 | 0.051 |
+| carbonaceous | 0.974 | 0.833 | 0.432 | 0.257 | 0.172 | 0.118 |
+
+### What it would change, from the formula (not a run)
+
+Taken in tp-orig's 384 dense neutral cells (n_H = 8e4, x(H) > 0.5 in both
+runs), at each cell's own T_gas:
+  - the silicate channel at the silicates-alone run's T_d of the same cell,
+    its sticking coefficient included;
+  - the PAH channel at Tdust(0,0), as now.
+
+The result:
+  - **R_form rises by a median factor of 1.68** (5-95%: 1.35-1.73).
+  - **The silicate share of the formation rises from 35% to 60%.**
+  - **x(H2) would rise from ~5e-8 to ~8e-8**, since nothing self-shields
+    there and x(H2) follows R_form. The shell stays atomic: its limit is
+    the grain area (H-036).
+
+Two caveats:
+  - tp-sil's T_d is itself a number-weighted mean, so its smallest
+    silicates set it. An area-weighted mean would be colder, which gives a
+    higher silicate efficiency.
+  - The silicates' temperature is borrowed from another run, not computed
+    in tp-orig. The two runs' fields are close (A_V 0.72 and 0.71 in these
+    cells), not equal.
+
+### Three designs
+
+  - **(a) One temperature per material, number-weighted as now.** A
+    single-material model gets today's T_d exactly.
+  - **(b) One temperature per material, weighted by grain area**, the
+    weight the formation rate itself carries.
+  - **(c) The rate summed over the size bins**, each bin at its own
+    temperature and with its own sticking coefficient. CT02's efficiency
+    is not linear in T, so the rate at a mean T is not the mean of the
+    rates. Within CT02 this is the exact form.
+
+(b) and (c) also change single-material models, hiipdr's silicate and
+pn150k's graphite among them, because their T_d is number-weighted today.
+By how much is not known: the per-bin temperatures are not written out.
+
+### Where it would go
+
+  - **h2_form.F90:** take the per-channel temperatures through
+    GLOBAL_MODULE, as D-195 hands over the areas (h2form_xsec_sil and
+    h2form_xsec_gra). A negative value keeps the argument, so a dust-free
+    model is unchanged. Design (c) needs the bins' areas and temperatures
+    instead.
+  - **pdr_mod.f90:** set them per cell where the areas are set, in pdrStep
+    (3286) and seedMolecules (2906). They come from grid%Tdust(nS,ai,cell),
+    with isCarbonGrain deciding the material and the CMB floor applied per
+    channel.
+  - **h2-model's level model:** wSil and wGra, each at its own temperature.
+  - pdrRad.out and the dust-only convergence test can keep the overall
+    mean.
+
+### The test
+
+  - **Exactness first.** With (a), a single-species model at a fixed seed
+    must be byte-identical before and after, as for D-414. H-035's variant
+    c is that model.
+  - **Then tp-orig** (runs/h036b-tp-orig's input on h2-model), against this
+    entry's estimate. In the dense neutral cells: R_form 1.35-1.73 times
+    today's, the silicate share near 60%, and x(H2) still under 1e-6.
+
+Status: Deferred.
 

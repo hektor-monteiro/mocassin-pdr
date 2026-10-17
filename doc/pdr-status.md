@@ -1168,7 +1168,9 @@ and common-mode - but it is not interstellar dust (D-305).
 
 **L-7. No PAH component**, though `PAHneu_30.cat` sits unused in `dustData/`.
 PAHs dominate photoelectric heating in real PDRs. Cloudy's reference has PAHs
-off too, so it is common-mode (D-305).
+off too, so it is common-mode (D-305). Since D-415 the file carries Im(m), so
+a PAH species can heat the gas: test_Problem's astrosilicate + PAH mixture
+runs (DEVLOG-H2 H-036). The fixtures still have no PAH.
 
 **L-8. Stochastic heating is off.** `lgQheat` defaults false. For 0.005 um
 grains in a PDR the equilibrium assumption is wrong for the emitted spectrum.
@@ -1188,6 +1190,17 @@ on both sides.
 table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
 That bin is 26% of grains by number but only 3.2% of the FUV absorption, so
 the FUV impact is small and the far-IR impact is not (D-305).
+
+**L-54. H2 formation applies one dust temperature to both materials** (D-414,
+D-417). CT02's silicate and carbonaceous channels both take Tdust(0,0), a
+number-weighted mean over every species, which in a mixture is the smallest
+grains' temperature. In test_Problem that is the PAHs' 143.5 K, against the
+silicates' own ~58 K; CT02's silicate efficiency is 0.074 at the first and
+0.200 at the second. By the formula, a temperature per material raises
+R_form there by 1.35-1.73 (not a run). The fixtures have one material each;
+an area weighting would change them too, by an amount not yet measured.
+**Registered for future development by the user (2026-10-16, D-417):** the
+three designs, the call sites and the test are there.
 
 **L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
 D-260/D-263/D-266, and not at all since this cycle's changes.
