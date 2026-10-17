@@ -369,6 +369,16 @@ What the maps are:
   - **Where CO is still a trace at the grid's edge,** a CO map's brightness
     follows the boundary of the model. Make the grid reach past the CO
     transition if CO is the point.
+  - **H2 formation applies one dust temperature to every grain material.**
+    In a mixture that is the smallest grains' temperature. With the test
+    problem's own dust, the PAHs' 143.5 K is applied to the silicates too,
+    whose own is about 58 K. With a temperature per material, the formula
+    gives a rate 1.35–1.73 times higher. This is registered for future
+    development (`doc/pdr-status.md`, L-54; production DEVLOG D-417).
+  - **The test problem's face-on maps are fainter on the y side.** With
+    its own dust, the rotational H2 lines are 3–5.5% fainter there than on
+    the x side, although the model is symmetric under x ↔ y. The cause is
+    not known (DEVLOG-H2 H-037).
   - **The open questions are listed in `doc/pdr-status.md`.** The
     development history is in `DEVLOG.md` (the PDR coupling) and
     `DEVLOG-H2.md` (the H2 level model).
