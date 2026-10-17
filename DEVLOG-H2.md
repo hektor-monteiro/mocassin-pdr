@@ -47,6 +47,7 @@ DEVLOG.md and arrives here by merge.
 | H-036 | **test_Problem's own astrosilicate + PAH dust in a PDR + H2 run, with production's D-414 (the mean dust temperature over the bins that hold grains) and D-415 (Im(m) for the PAH Q file, from graphite as WD01 take it) - the user's decisions after H-035.** Two runs: the original mixture, and run b's silicates alone as the test of D-414 by itself. Result: the original mixture runs (PAH read with Im(m), carbonaceous yield, the integrated test at 17, budget 5.5e-9), and every cell forms H2 on grains (T_dust 97-423 K, was 1e-6 K). But the shell stays atomic, x(H2) <= 4e-7: the grains carry 3.4e-23 cm^2 per H, a fiftieth of interstellar, so R_form = 1.6e-19 against a photodissociation rate of 3.5e-7/s. pn150k's grains (H-035 c) give 1.4e-17 and x(H2) = 0.5. Found: a PREFIX over ~90 characters truncates the atomic-data paths silently (128-character variable) | Done | 2026-10-16 |
 | H-037 | **Line maps of test_Problem, and a dust temperature per material registered (the user: "log the Dust temperature per material idea for future implementation. Create an artifact for the test_problem run showing the H2 and CO images and profiles like the one created for the other models").** The idea is production's D-417, merged (15c5e69): three designs, the call sites, the test, and the formula's estimate (R_form x1.35-1.73 in the original mixture's dense gas, still atomic). Maps of the three test_Problem runs (silicate + PAH, silicate alone, pn150k's graphite) return their tables within 1.2e-5. test_Problem is a dense ring (8e4, R 0.032-0.123 pc) in a slab (1e4, |z| <= 0.071 pc), so the page (Test Problem Line Maps, https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho) adds face-on and edge-on views, centre cuts, the gas structure and a dust comparison, and replaces the sphere's tests with two exact x <-> y tests. Noise per pixel pair: 1.5-15% in the original-dust runs, 14-75% in the molecular run at the same 1e7 packets. Found: the face-on maps of both original-dust runs are 3.0-5.5% fainter on the y side in the rotational lines (0-0 S(1) 0.945 and 0.948, 95% 0.934-0.958 and 0.938-0.958) while the input is exactly symmetric; cause not tested. H-036's Results and Status, filed above its heading, moved under it | Done | 2026-10-16 |
 | H-038 | **The branch installed for the user's runs (the user: "I will need to run some models using this latest version. Install it so I can use it").** h2-model's 78a74bd (production up to D-417), the 3D flavour, into ~/.local/mocassin_h2 as the manual installs it, after make clean: the worktree's binaries had runs/h036-prefix compiled in, and make does not rebuild for a new PREFIX. Four flavours, h2Test and h2Slab rc 0; the replaced files (the 2026-10-05 programs, the PAH file without Im(m), three Cloudy inputs) kept in runs/_h2prefix_backup_2026-10-17. Result: the installed binary reruns h036b-tp-orig (7 ranks, seed 1001, every data file from the prefix) byte for byte, 24 of 25 outputs, and summary.out but for its clock times, as predicted. Production's ~/.local install (2026-10-05) not touched | Done | 2026-10-17 |
+| H-039 | **The test_Problem page gains gas slices and Hbeta contours (the user: "include slice plots showing the input Hdensity, the Te and Ne so we can evaluate those results as well. Include an option to overlay Hbeta line emission contours on the molecular image plot").** Hbeta per cell is the code's own, from mocassinPlot (HIRecLines(4,2) n_H dV, as output_mod sums it), projected like the H2 and CO lines with the flagged cells left out: 8 x the cells' sum returns lineFlux.out's Hbeta to 1.0000009-1.0000013, as predicted. The page (version 3) adds contours at 0.5-1e-3 of the Hbeta peak on the maps, and slices of the input n_H and the runs' T_e and n_e in any plane, with a cut under each slice and a region table. Found: the flagged cells are exactly the cells at the 30,000 K cap, all in the cavity; n_e/n_H = 3.75e-4 in the original-dust ring and slab is C + Mg + Si + S once ionized; the x <-> y T_e scatter of swapped cells (H-037's 41%) is 0.9% in the slab and 2.6-3.0% in the ring, and 54% in the 1e3 gas, from about 70 pairs, 14-17 of them on opposite sides of 1,000 K (not tested) | Done | 2026-10-17 |
 
 ---
 
@@ -5249,7 +5250,8 @@ What makes the face-on y side fainter is not tested. Nothing is attributed.
 
 Test Problem Line Maps, version 2, published 2026-10-16 22:43
 (https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho). Version 1 said
-+-14-21% for pn150k's H2 noise; the full range is 14-23%.
++-14-21% for pn150k's H2 noise; the full range is 14-23%. (Version 3,
+2026-10-17, adds gas slices and Hbeta contours: H-039.)
 
   - **What it shows:** for each dust, the 14 lines' maps along z
     (face-on), x and y (edge-on), in log or linear over 2-6 decades, with
@@ -5369,3 +5371,119 @@ Done (2026-10-17): installed in `~/.local/mocassin_h2`; run with
 `mpirun -np 14 $HOME/.local/mocassin_h2/bin/mocassin` (the manual,
 section 5). Not done: production's `~/.local` install (2026-10-05, without
 D-413-D-415) is left as it is, for the user's word.
+
+---
+
+## H-039 - The test_Problem page: gas slices and Hbeta contours (2026-10-17)
+
+The user (2026-10-17): "for the artifact showing the lines for the
+test_problem, include slice plots showing the input Hdensity, the Te and Ne
+so we can evaluate those results as well. Include an option to overlay
+Hbeta line emission contours on the molecular image plot".
+
+**Where the numbers come from.**
+  - n_H: the run's input density file. grid1.out's n_H equals it in every
+    active cell (checked: largest difference 0).
+  - T_e and n_e: grid1.out, the values the run ended with.
+  - Hbeta: the code's own emissivity per cell, from mocassinPlot
+    (plot.in `line 2`: HIRecLines(4,2) n_H dV, the Storey & Hummer table of
+    D-371, the quantity output_mod sums for lineFlux.out). It is projected
+    as tools/h034_maps.py projects the H2 and CO lines, with the flagged
+    cells left out as output_mod leaves them out (line 634).
+  - The flagged cells are exactly the cells at 30,000 K: update_mod.f90
+    clips T_e there and sets lgBlack (lines 900, 930). 3, 3 and 19 in the
+    three runs.
+
+### Hbeta per cell (prediction written before the runs, 10:31)
+
+mocassinPlot, the installed binary (H-038), on 1 rank (every rank writes
+plot.out), in runs/h039-hbeta/<run>: a copy of each run's input with a
+plot.in that asks for Hbeta alone, and links to its output files, so the
+runs' own directories are not written to.
+
+Prediction: for all three runs, 8 x the sum of plot.out over the active
+cells that are not flagged equals lineFlux.out's Hbeta to within 1e-5.
+output_mod sums the same HIRecLines(4,2) n_H dV in single precision and
+skips the flagged cells. The flagged cells' own share is not predicted.
+
+### Results (10:33)
+
+  - mocassinPlot: rc 0, 2-3 s per run.
+  - 8 x the sum over the active cells that are not flagged, against
+    lineFlux.out's Hbeta: 1.0000009 (silicate + PAH), 1.0000010
+    (silicate alone), 1.0000013 (pn150k's grains). The prediction holds.
+  - The flagged cells hold 4.2e-5, 4.2e-5 and 5.9e-4 of the cells' Hbeta.
+    No cell outside the model has any. mocassinPlot's cell volumes
+    (grid4.out) are the maps tool's to 2e-7.
+  - The maps are on the line maps' grid (checked), and each of the three
+    projections returns lineFlux.out's Hbeta by the same ratio.
+
+### What the slices show
+
+The page's region table: volume-weighted medians with 16-84% ranges, over
+each region's cells that are not flagged. The cavity is the 1e3 gas inside
+the ring's inner edge (0.032 pc) within the slab's height; the halo is the
+rest of the 1e3 gas.
+
+| region (cells, volume) | T_e [K] silicate + PAH | T_e silicate alone | T_e pn150k's grains | n_e/n_H silicate + PAH | n_e/n_H pn150k's grains |
+|---|---|---|---|---|---|
+| cavity (53, 0.8%) | 21,100 (19,200-24,400) | 21,100 (19,200-24,400) | 24,800 (22,300-28,500) | 1.21 | 1.21 |
+| ring (384, 7.5%) | 60.3 (53.6-67.0) | 56.0 (50.6-61.5) | 28.3 (16.9-82.9) | 3.75e-4 (to 4.25e-4) | 6.5e-5 (4.0e-5-3.7e-4) |
+| slab (1519, 31.9%) | 29.6 (25.3-34.2) | 27.2 (23.7-31.1) | 26.5 (19.4-36.4) | 3.75e-4 | 2.4e-4 (6.0e-5-3.7e-4) |
+| halo (2705, 59.8%) | 19.3 (18.6-12,700) | 18.2 (17.4-12,700) | 60.9 (48.4-12,600) | 3.78e-4 (to 1.13) | 3.81e-4 (to 1.12) |
+
+  - **The flagged cells are all in the cavity** (3, 3 and 19), beside
+    cells at 19,000-28,500 K.
+  - **Electrons in the neutral gas.** In the original-dust ring and slab,
+    n_e/n_H = 3.75e-4 is C + Mg + Si + S of abunPN150.in (3e-4 + 3e-5 +
+    3e-5 + 1.5e-5), once ionized: there C+ is 99.9% of the carbon and
+    x(H+) <= 3e-5 (84th percentile). In pn150k's ring the median cell has
+    95% of its carbon in CO.
+  - **x <-> y.** The x-z and y-z planes hold the same input gas. In the
+    original-dust runs, swapped cells agree in T_e to 0.9% rms in the slab
+    and 2.6-3.0% in the ring, but differ by 54% in the 1e3 gas. There
+    69-72 pairs (of 2,210) differ by more than 65%, and without them the
+    scatter is 2.3-3.0%. 14-17 of those pairs have one cell above 1,000 K
+    and the other below. In pn150k's run the ring and slab differ by
+    22-25%, the 1e3 gas by 61%. H-037's 41% rms is this.
+  - Not attributed, and not tested: the pn150k grains' warmer halo (61 K
+    against 18-19 K) and colder ring (28 K against 56-60 K); what makes
+    swapped cells of the 1e3 gas land on opposite sides of 1,000 K.
+
+### The page
+
+Test Problem Line Maps, version 3, published 2026-10-17 10:52
+(https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho). Added:
+  - **Hbeta contours** on the map viewer, on by default. They are drawn at
+    0.5, 1e-1, 1e-2 and 1e-3 of the Hbeta map's peak, for the run and
+    projection shown, by marching squares in log I through the pixel
+    centres. The readout gives Hbeta at the pixel, and a legend names the
+    overlays.
+  - **The gas in slices.** The input n_H, T_e and n_e in the x-y, x-z or
+    y-z plane at any cell offset:
+      - log or linear scale, with one colour range across the three runs
+        or the run's own;
+      - the flagged cells outlined;
+      - under each slice, its cut through a selected cell, horizontal or
+        vertical, with the comparison run dashed;
+      - a readout of the cell in both runs;
+      - the region table.
+  - The notes "Reading the slices and the Hbeta contours", and a column
+    "Hbeta map / table" in the runs table.
+  - **Checks:**
+      - no script errors;
+      - a scripted test (hover, click, slider, plane, scale, range, cut
+        direction, the dust from the gas bench, the contour toggle, edge-on
+        contours, the map readout) did what each control should;
+      - light, dark and 400 px rendered and inspected.
+  - **Builders** (scratchpad h037page/): data.py, which now also reads
+    h039-hbeta/<run>/output/plot.out, grid1.out and the density file;
+    build.py. Version 2's are kept as build_v2.py, data_v2.json and
+    tp-maps_v2.html. Every number version 2 had is unchanged in the new
+    data (checked).
+
+### Status
+
+Done (2026-10-17). Open, besides H-037's:
+  - the dusts' T_e differences in the halo and the ring (not attributed);
+  - what makes swapped cells of the 1e3 gas differ.
