@@ -45,6 +45,7 @@ DEVLOG.md and arrives here by merge.
 | H-034 | **Emission-line maps of H2 and CO (the user: "I want to work on generating the emission line maps for H2 and CO lines so I can start doing some scientific tests").** A tool, tools/h034_maps.py, from what every finished run already writes: the level model's populations (h2Pop.bin, h2Cells.out) and the chemistry's escaping coolant emission (pdrLineEm.out). Per line, each cell's emissivity, the octant unfolded, and surface-brightness maps along x, y and z in FITS, each checked against the line's total. Result (11:15): seven runs mapped; every CO map returns lineFluxMol.out within 3e-6 and every H2 map lineFluxH2.out less the flagged cells (lgBlack: MOCASSIN and lineFluxMol.out leave them out, lineFluxH2.out does not; up to 2.9e-4). No orientation in any map (H2 0.993-1.016 at 1x, 0.996-1.000 at 64x). Not noise: at hiipdr's unresolved front cells at one radius differ by orientation (1-0 S(1) axis columns -11% at 3.2 pc; production's D-412), and hiipdr's outer CO scatters per cell by 0.45-0.60 in ln x(CO) at 16x and 64x. Rings: 1-0 S(1) 4.9 pc projected (predicted ~6), CO at the edge in both models, whose CO is under 0.1% of the carbon there | Done | 2026-10-15 |
 | H-035 | **A user manual for a complete PDR + H2 run, from the test_Problem benchmark (the user: "write a small manual to help another user run a complete PDR model including H2 based on the test_problem benchmark setup. Save it in a markdown file").** doc/manual-pdr-h2.md: build and install, the input (test_Problem plus the PDR keywords, autoPackets removed), memory, running, what the run writes, the checks, the maps. Its recipe is test-run as written (runs/h035-testproblem). Result: tested as written (runs/h035-testproblem-c): the integrated test passed at 17 iterations, 34 min at 14 ranks; a molecular shell (2,259 cells x(H2) > 0.1, all carbon in CO); hydrogen budget 3.9e-9 over all species; 1-0 S(1) 8.1e-5 Hbeta. Found on the way: production's D-413 (five-column Q files); test_Problem's PAHs are refused and its silicates alone form no H2 (Tdust(0,0) ~1e-6 K from empty size bins, run b), so the manual uses the pn150k fixture's grains; the map tool read lineFluxMol.out's last component block (fixed) | Done | 2026-10-15 |
 | H-036 | **test_Problem's own astrosilicate + PAH dust in a PDR + H2 run, with production's D-414 (the mean dust temperature over the bins that hold grains) and D-415 (Im(m) for the PAH Q file, from graphite as WD01 take it) - the user's decisions after H-035.** Two runs: the original mixture, and run b's silicates alone as the test of D-414 by itself. Result: the original mixture runs (PAH read with Im(m), carbonaceous yield, the integrated test at 17, budget 5.5e-9), and every cell forms H2 on grains (T_dust 97-423 K, was 1e-6 K). But the shell stays atomic, x(H2) <= 4e-7: the grains carry 3.4e-23 cm^2 per H, a fiftieth of interstellar, so R_form = 1.6e-19 against a photodissociation rate of 3.5e-7/s. pn150k's grains (H-035 c) give 1.4e-17 and x(H2) = 0.5. Found: a PREFIX over ~90 characters truncates the atomic-data paths silently (128-character variable) | Done | 2026-10-16 |
+| H-037 | **Line maps of test_Problem, and a dust temperature per material registered (the user: "log the Dust temperature per material idea for future implementation. Create an artifact for the test_problem run showing the H2 and CO images and profiles like the one created for the other models").** The idea is production's D-417, merged (15c5e69): three designs, the call sites, the test, and the formula's estimate (R_form x1.35-1.73 in the original mixture's dense gas, still atomic). Maps of the three test_Problem runs (silicate + PAH, silicate alone, pn150k's graphite) return their tables within 1.2e-5. test_Problem is a dense ring (8e4, R 0.032-0.123 pc) in a slab (1e4, |z| <= 0.071 pc), so the page (Test Problem Line Maps, https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho) adds face-on and edge-on views, centre cuts, the gas structure and a dust comparison, and replaces the sphere's tests with two exact x <-> y tests. Noise per pixel pair: 1.5-15% in the original-dust runs, 14-75% in the molecular run at the same 1e7 packets. Found: the face-on maps of both original-dust runs are 3.0-5.5% fainter on the y side in the rotational lines (0-0 S(1) 0.945 and 0.948, 95% 0.934-0.958 and 0.938-0.958) while the input is exactly symmetric; cause not tested. H-036's Results and Status, filed above its heading, moved under it | Done | 2026-10-16 |
 
 ---
 
@@ -4998,69 +4999,8 @@ Not done:
   - `make install` was not repeated: the prefix's data were installed on
     2026-10-05, and data/ and dustData/ have not changed since.
   - The open question of Tdust(0,0) above is left for the user's word.
-
-### Results (15:49)
-
-| | tp-orig: astrosilicate + PAH | tp-sil: silicates alone | run b (before D-414) |
-|---|---|---|---|
-| stop | integrated test at 17 (1.64%, O2+) | at 17 (1.76%, O2+) | at 17 (1.73%) |
-| time per processor (7 ranks, two runs at once) | 25:25 | 24:54 | 10:24 (14 ranks) |
-| flagged cells | 3 | 3 | 3 |
-| hydrogen budget, all species | 5.5e-9 | 4.6e-9 | 4.1e-9 |
-| T_dust | 97-423 K | 39.5-155 K | 2-8e-6 K |
-| cells forming H2 on grains | all 4,661 | all 4,661 | none |
-| x(H2), largest | 3.9e-7 | 4.2e-7 | 2.1e-7 |
-| H2 molecules in the grid | 1.57e51 | 1.56e51 | 1.76e50 |
-| 1-0 S(1) / Hbeta | 1.47e-5 | 1.50e-5 | 1.68e-6 |
-| CO 1-0 [erg/s] | 2.5e20 | 2.2e20 | 1.4e19 |
-
-**Why the shell stays atomic,** read in its 384 dense neutral cells
-(n_H = 8e4; medians, h2Cells.out):
-
-| run | T_dust | A_V | R_form [cm^3/s] | photodissociation [1/s] | x(H2) |
-|---|---|---|---|---|---|
-| tp-sil | 57.7 K | 0.72 | 1.60e-19 | 3.5e-7 | 4.8e-8 |
-| tp-orig | 143.5 K | 0.71 | 1.55e-19 | 3.2e-7 | 5.0e-8 |
-| variant c (pn150k's grains) | 40.6 K | 5.15 | 1.43e-17 | 7e-46 | 0.5 |
-
-  - **The balance accounts for it.** R n_H / rate = 1.6e-19 x 8e4 /
-    3.5e-7 = 3.7e-8, against the 4.8e-8 computed.
-  - **The cause is the grains.** test_Problem's carry 3.4e-23 cm^2 of
-    surface per H (2.2e-23 silicate, 1.2e-23 PAH), about a fiftieth of
-    Cazaux & Tielens'. Their A_V per H is a tenth of interstellar. With so
-    little formation, the column cannot build up to self-shield (N(H2) to a
-    cell 4e14 cm^-2, against 3.7e21 in c).
-  - **tp-orig forms H2 at tp-sil's rate with 1.5 times the area.** Reading,
-    not tested apart: its mean T_dust, 143.5 K, is pulled up by the hot
-    PAHs, and H2 formation applies one T_dust to both channels (D-414's
-    "not changed"). A temperature per material would separate them.
-
-**Predictions:**
-  1. tp-sil: T_dust tens of K, met (39.5-155 K). Grain formation in every
-     cell, met. x(H2) at least 1e3 times run b's: missed, it is twice
-     (and the H2 content 9 times). Cells over 0.1: none.
-  2. tp-orig:
-      - 6 columns, a carbonaceous yield (W 4.39 eV) and a run that starts:
-        met.
-      - The PAHs dominate the grain area: missed. They carry 1.2e-23
-        against the silicates' 2.2e-23.
-      - x(H2) > 0.1, and CO 1-0 at least 1e6 times run b's: missed. CO is
-        18 times run b's.
-      - T_dust hotter than the silicates': met.
-  3. Both stop on the test, met. The budget within 1e-7, met.
-
-**For the user:** the code runs test_Problem's astrosilicate + PAH mixture,
-as asked. That dust cannot make the shell molecular around this star.
-pn150k's grains do (H-035's variant c), and the manual now gives both.
-
-### Status
-
-Done (2026-10-16). The manual (doc/manual-pdr-h2.md) is updated: the dust
-section gives both choices with their results, and section 2 gives the
-PREFIX limit. Open, for the user's word:
-  - a T_dust per grain material for H2 formation;
-  - the 128-character path variable;
-  - Im(m) columns for the other Draine Q files.
+    (Decided 2026-10-16: the mean over the bins that hold grains,
+    production's D-414; tested in H-036.)
 
 
 ## H-036 - test_Problem's original dust, after D-414 and D-415 (2026-10-16)
@@ -5134,3 +5074,201 @@ Rebuilt into runs/h036-prefix (46 characters) and relaunched at 15:23
 90 characters loses the atomic data silently and crashes. The manual says
 so. Raising the variable to 512 characters is a one-line fix, for the
 user's word.
+
+### Results (15:49)
+
+| | tp-orig: astrosilicate + PAH | tp-sil: silicates alone | run b (before D-414) |
+|---|---|---|---|
+| stop | integrated test at 17 (1.64%, O2+) | at 17 (1.76%, O2+) | at 17 (1.73%) |
+| time per processor (7 ranks, two runs at once) | 25:25 | 24:54 | 10:24 (14 ranks) |
+| flagged cells | 3 | 3 | 3 |
+| hydrogen budget, all species | 5.5e-9 | 4.6e-9 | 4.1e-9 |
+| T_dust | 97-423 K | 39.5-155 K | 2-8e-6 K |
+| cells forming H2 on grains | all 4,661 | all 4,661 | none |
+| x(H2), largest | 3.9e-7 | 4.2e-7 | 2.1e-7 |
+| H2 molecules in the grid | 1.57e51 | 1.56e51 | 1.76e50 |
+| 1-0 S(1) / Hbeta | 1.47e-5 | 1.50e-5 | 1.68e-6 |
+| CO 1-0 [erg/s] | 2.5e20 | 2.2e20 | 1.4e19 |
+
+**Why the shell stays atomic,** read in its 384 dense neutral cells
+(n_H = 8e4; medians, h2Cells.out):
+
+| run | T_dust | A_V | R_form [cm^3/s] | photodissociation [1/s] | x(H2) |
+|---|---|---|---|---|---|
+| tp-sil | 57.7 K | 0.72 | 1.60e-19 | 3.5e-7 | 4.8e-8 |
+| tp-orig | 143.5 K | 0.71 | 1.55e-19 | 3.2e-7 | 5.0e-8 |
+| variant c (pn150k's grains) | 40.6 K | 5.15 | 1.43e-17 | 7e-46 | 0.5 |
+
+  - **The balance accounts for it.** R n_H / rate = 1.6e-19 x 8e4 /
+    3.5e-7 = 3.7e-8, against the 4.8e-8 computed.
+  - **The cause is the grains.** test_Problem's carry 3.4e-23 cm^2 of
+    surface per H (2.2e-23 silicate, 1.2e-23 PAH), about a fiftieth of
+    Cazaux & Tielens'. Their A_V per H is a tenth of interstellar. With so
+    little formation, the column cannot build up to self-shield (N(H2) to a
+    cell 4e14 cm^-2, against 3.7e21 in c).
+  - **tp-orig forms H2 at tp-sil's rate with 1.5 times the area.** Reading,
+    not tested apart: its mean T_dust, 143.5 K, is pulled up by the hot
+    PAHs, and H2 formation applies one T_dust to both channels (D-414's
+    "not changed"). A temperature per material would separate them.
+
+**Predictions:**
+  1. tp-sil: T_dust tens of K, met (39.5-155 K). Grain formation in every
+     cell, met. x(H2) at least 1e3 times run b's: missed, it is twice
+     (and the H2 content 9 times). Cells over 0.1: none.
+  2. tp-orig:
+      - 6 columns, a carbonaceous yield (W 4.39 eV) and a run that starts:
+        met.
+      - The PAHs dominate the grain area: missed. They carry 1.2e-23
+        against the silicates' 2.2e-23.
+      - x(H2) > 0.1, and CO 1-0 at least 1e6 times run b's: missed. CO is
+        18 times run b's.
+      - T_dust hotter than the silicates': met.
+  3. Both stop on the test, met. The budget within 1e-7, met.
+
+**For the user:** the code runs test_Problem's astrosilicate + PAH mixture,
+as asked. That dust cannot make the shell molecular around this star.
+pn150k's grains do (H-035's variant c), and the manual now gives both.
+
+### Status
+
+Done (2026-10-16). The manual (doc/manual-pdr-h2.md) is updated: the dust
+section gives both choices with their results, and section 2 gives the
+PREFIX limit. Open, for the user's word:
+  - a T_dust per grain material for H2 formation (registered for future
+    development on 2026-10-16: production's D-417, H-037);
+  - the 128-character path variable;
+  - Im(m) columns for the other Draine Q files.
+
+(Moved here on 2026-10-16: the Results and Status above had been filed at
+the end of H-035, above this entry's heading. Their text is unchanged.)
+
+
+## H-037 - Line maps of test_Problem (2026-10-16)
+
+The user: "log the Dust temperature per material idea for future
+implementation. Create an artifact for the test_problem run showing the H2
+and CO images and profiles like the one created for the other models."
+
+The first half is production's D-417, merged here (15c5e69): a dust
+temperature per grain material for H2 formation, registered for future
+development. It records three designs, the call sites (this branch's level
+model among them), the test, and an estimate from the formula: R_form 1.35
+to 1.73 times today's in tp-orig's dense neutral cells, the shell still
+atomic. No code changed.
+
+### The maps
+
+tools/h034_maps.py was run on runs/h036b-tp-orig and runs/h036b-tp-sil.
+runs/h035-testproblem-c already had its maps from H-035, made with the tool
+as it stands. Every map returns its line table:
+  - CO: 0.999996-1.000001 of lineFluxMol.out;
+  - H2: 0.999997-1.000012 of lineFluxH2.out. The flagged cells are left out
+    of the maps and hold under 2e-14 of any line here.
+
+Flagged cells: 3, 3 and 19.
+
+### What the page adds for this model
+
+test_Problem is not spherical. From its density file
+(input/test_gas_21x21x21.dat):
+  - a ring of n_H = 8e4 cm^-3, from R = 0.032 to 0.123 pc from the z axis;
+  - a slab of 1e4 out to the grid's edge, ring and slab both within
+    |z| <= 0.071 pc;
+  - 1e3 in the cavity inside the ring and above and below the slab.
+
+So H-034's page was adapted:
+  - The z maps are the face-on view, the x and y maps edge-on.
+  - Beside the annulus means and the shell emissivities, cuts through each
+    map's centre along both image axes.
+  - The ring and slab are drawn on the maps, and the ring's extent on the
+    profiles.
+  - A "Compare with" choice among the three dusts. The profile's axis spans
+    both curves; CO's differ by 1e10-1e12.
+
+H-034's roundness tests assume a sphere, so two exact tests replace them.
+The input is symmetric under x <-> y: the density and dust files equal
+their own transposes exactly, and the star sits at the centre. The tests:
+  - **Face-on swap:** the z map against itself with x and y swapped, in one
+    quadrant, each pair once. The pixel at (x = b, y = a) is set against
+    (x = a, y = b), with a > b, so the ratio reads y side over x side.
+  - **Edge-on views:** the x view against the y view, pixel by pixel, in
+    one quadrant.
+
+Pixels under 1% of the peak are left out, and a test with fewer than 20
+pairs is not reported.
+
+### What they show
+
+**Noise.** The rms of ln(ratio) per pair:
+
+| run | vibrational H2 | rotational H2 | CO |
+|---|---|---|---|
+| silicate + PAH, silicate alone | 1.5-2.4% | 5.1-8.7% | 5.9-15.3% |
+| pn150k's graphite | 14.8-22.9% | 14.3-20.3% | 34-75% |
+
+At the same 1e7 packets, the molecular run's maps are noise-limited, CO
+above all.
+
+**An offset that is not noise.** In both original-dust runs the face-on
+maps are fainter on the y side than on the x side:
+  - the rotational lines by 3.0-5.5%. 0-0 S(1) is 0.945 in tp-orig and
+    0.948 in tp-sil; the 95% bootstrap intervals over the pairs are
+    0.934-0.958 and 0.938-0.958 (157 pairs, about 90 effective);
+  - the vibrational lines by 0.25-0.74% (tp-sil's interval for 1-0 S(1),
+    0.990-0.998, excludes 1; tp-orig's, 0.994-1.001, does not);
+  - CO by 1-9%, on 24-28 pairs.
+
+The x and y views agree to 0.3% in H2 (1.000-1.003) and 0.9% in CO. In
+pn150k's run the face-on test reports two vibrational lines, 1-0 S(0) and
+2-1 S(1) (64-75 pairs, 1.012-1.033, inside their +-18-23% scatter), and CO
+(0.94-0.96, inside +-40-75%). Its other H2 lines have under 20 pairs.
+
+In tp-orig's cells, set against their swapped partners ((i,j,k) against
+(j,i,k), all 2,211 active pairs; mean ln of x side over y side, and its
+standard error):
+
+| quantity | rms per pair | mean ln |
+|---|---|---|
+| T_gas | 41% | -0.018 +- 0.009 |
+| n_e | 36% | -0.018 +- 0.008 |
+| x(H2) | 18% | +0.005 +- 0.004 |
+| J(FUV) | 3.2% | -0.0022 +- 0.0007 |
+| T_dust | 1.2% | -0.0022 +- 0.0003 |
+
+What makes the face-on y side fainter is not tested. Nothing is attributed.
+
+**Where the light sits** (z maps; half-light radii are 3D):
+
+| run | 1-0 S(1) | rotational lines | CO |
+|---|---|---|---|
+| both original dusts | brightest annulus 0.110 pc, half within 0.117-0.118 | half within 0.20-0.23 pc: the slab and the gas outside the ring | half within 0.08-0.12 pc |
+| pn150k's graphite | the cavity wall, 0.058 pc (H/H2 at 0.057); half within 0.064 | half within 0.067-0.076 | half within 0.10-0.17 pc |
+
+### The page
+
+Test Problem Line Maps, version 2, published 2026-10-16 22:43
+(https://claude.ai/artifact/YUcrUd15ZjRaDzXyStZmho). Version 1 said
++-14-21% for pn150k's H2 noise; the full range is 14-23%.
+
+  - **What it shows:** for each dust, the 14 lines' maps along z
+    (face-on), x and y (edge-on), in log or linear over 2-6 decades, with
+    the pixel readout. Beside each map, its annulus mean, its centre cuts or
+    its shell emissivity, with another dust's for comparison. Below: the
+    line's checks, the two exact tests, the transition radii, a gallery of
+    all 14 lines, every line's normalized profile, the model and the notes.
+  - **How it is built:** in the scratchpad's h037page/:
+      - data.py writes the numbers from the runs' maps_h2co.fits and their
+        cells;
+      - radii.py takes the transition radii with tools/d260_roellig's
+        reader. test_Problem names its composition by multiChemistry, so
+        the reader's element list is taken from that file. Both components
+        name the same file, abunPN150.in;
+      - build.py writes the page (0.79 MB).
+
+### Status
+
+Done (2026-10-16): D-417 logged on production and merged; the maps and the
+page. Open:
+  - what makes the face-on y side fainter in the original-dust runs;
+  - whether lineFluxH2.out should leave out the flagged cells (H-034, the
+    user's word).
