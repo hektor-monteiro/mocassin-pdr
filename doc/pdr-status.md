@@ -1185,6 +1185,17 @@ Since D-352 the grain side of the exchange uses the same MOCASSIN term. D-093's
 substitution of 3D-PDR's heat(11), computed on a fixed 0.1 um grain population,
 is gone, so gas and grain now agree on the energy they exchange, H2 omitted
 on both sides.
+**CLOSED 2026-10-19 (D-420, D-421).** H2 is a collider on both sides
+(D-420, ce32641): n(H2) from the chemistry, BFM's accommodation at the H2
+mass. In the K1a cores the coupling rose x4.83. Then the 4 pi that both
+sums were divided by is gone (D-421, 0568eb0): the gas side is left
+physical per H, and the grain side is divided by pi, its balance's units.
+The cold-cell coupling is now 1.08-1.20 of BFM's rate, from 0.0175 in K1a
+before both fixes.
+  - The K1a cold cores warm from 3.84 / 6.55 K (coldest) to 6.41 / 12.50 K,
+    still well below the dust (16-25 K).
+  - The ionized gas of every dusty model is 2-3.5% cooler.
+  - The other benchmarks, pn150k among them, are not rerun.
 
 **L-10. Bulk-graphite optics on the smallest size bin**, where Draine's own
 table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
