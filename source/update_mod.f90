@@ -1769,10 +1769,22 @@ end subroutine iterateT
                 end do
              end do
 
-             ! factor of fourpi to make up for the lack of fourpi
-             ! in the balance eqns for J
-             gasDustColl_d(:,:)= gasDustColl_d(:,:)/fourpi
-             gasDustColl_g= gasDustColl_g/fourpi
+             ! D-421. Each sum above is the physical exchange rate, n <v> pi a^2
+             ! S times the energy per collision: per grain [erg/s] for _d, per H
+             ! nucleus for _g. Each goes into the units of the balance it
+             ! enters, and the two differ:
+             !   - the gas balance (coolInt in thermBalance) is physical per H:
+             !     photoelHeat_g carries no factor and the PDR cooling enters
+             !     as pdrCool/Hden (D-135);
+             !   - the grain balance in getDustT is physical divided by pi:
+             !     radField = Jste/pi, Jste being the angle-integrated flux
+             !     (D-290), against an emission integral of 4 C_abs B, and
+             !     photoelHeat_d is divided by pi.
+             ! The 4 pi taken off both "to make up for the lack of fourpi in
+             ! the balance eqns for J" left the gas term 4 pi too weak and the
+             ! grain term 4x too weak: in the K1a dust10 run the gas term was
+             ! 0.085-0.087 of the physical BFM rate, against 1/(4 pi) = 0.080.
+             gasDustColl_d(:,:)= gasDustColl_d(:,:)/Pi
 
            end subroutine setDustGasCollHeatCool
 
@@ -4595,9 +4607,10 @@ end subroutine iterateT
                               xichk  = (1.+psichk/2.)*etachk
                            end if
                            vmchk = sqrt((1.1045e-15)*TeUsed/Pi/me)
+                           ! D-421: /Pi, the grain balance's units, as gasDustColl_d
                            collchk = NeUsed*Pi*grainRadius(ai)*grainRadius(ai)*&
                                 & 1.e-8*vmchk*(2.*kTchk*Ryd2erg*xichk + &
-                                & etachk*grainPot(global_nS,ai)*Ryd2erg)/fourPi
+                                & etachk*grainPot(global_nS,ai)*Ryd2erg)/Pi
                            print*, "! [D126] recomputed e- term =", collchk, &
                                 & "  stored gasDustColl_d =", gasDustColl_d(nS,ai), &
                                 & "  ratio =", gasDustColl_d(nS,ai)/max(collchk,1.e-30)
