@@ -49,6 +49,7 @@ DEVLOG.md and arrives here by merge.
 | H-038 | **The branch installed for the user's runs (the user: "I will need to run some models using this latest version. Install it so I can use it").** h2-model's 78a74bd (production up to D-417), the 3D flavour, into ~/.local/mocassin_h2 as the manual installs it, after make clean: the worktree's binaries had runs/h036-prefix compiled in, and make does not rebuild for a new PREFIX. Four flavours, h2Test and h2Slab rc 0; the replaced files (the 2026-10-05 programs, the PAH file without Im(m), three Cloudy inputs) kept in runs/_h2prefix_backup_2026-10-17. Result: the installed binary reruns h036b-tp-orig (7 ranks, seed 1001, every data file from the prefix) byte for byte, 24 of 25 outputs, and summary.out but for its clock times, as predicted. Production's ~/.local install (2026-10-05) not touched | Done | 2026-10-17 |
 | H-039 | **The test_Problem page gains gas slices and Hbeta contours (the user: "include slice plots showing the input Hdensity, the Te and Ne so we can evaluate those results as well. Include an option to overlay Hbeta line emission contours on the molecular image plot").** Hbeta per cell is the code's own, from mocassinPlot (HIRecLines(4,2) n_H dV, as output_mod sums it), projected like the H2 and CO lines with the flagged cells left out: 8 x the cells' sum returns lineFlux.out's Hbeta to 1.0000009-1.0000013, as predicted. The page (version 3) adds contours at 0.5-1e-3 of the Hbeta peak on the maps, and slices of the input n_H and the runs' T_e and n_e in any plane, with a cut under each slice and a region table. Found: the flagged cells are exactly the cells at the 30,000 K cap, all in the cavity; n_e/n_H = 3.75e-4 in the original-dust ring and slab is C + Mg + Si + S once ionized; the x <-> y T_e scatter of swapped cells (H-037's 41%) is 0.9% in the slab and 2.6-3.0% in the ring, and 54% in the 1e3 gas, from about 70 pairs, 14-17 of them on opposite sides of 1,000 K (not tested) | Done | 2026-10-17 |
 | H-040 | **Production's D-418 merged and installed (the user: "Proceed with the suggested strategy").** D-418 (188ba92): equilibrium gave the lower INDEX of each level pair the Boltzmann factor, and niII.dat lists 4F9/2 (8393.9 cm-1) before 2D3/2 (1506.9), so below 13.96 K the Ni II rates overflowed and NaN spread from the cooling to T_e, the grains and the chemistry - the crash of the NGC 7009 K1a filtered-star run (iteration 10, SIGSEGV). Merged at bb4f9aa; four flavours, h2Test and h2Slab rc 0; make clean, then the 3D flavour installed into ~/.local/mocassin_h2 (pdr-coupling-v1.1-243-gbb4f9aa), the replaced bin/ kept in runs/_h2prefix_backup_2026-10-17_d418. The installed binary runs the K1a starvation test that crashed (7 ranks) to its end: 0 NaN, 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825). Both K1a models rerun with it, filtered first | Done | 2026-10-17 |
+| H-041 | **Production's D-419 merged (fa876a9): code changes are planned at extra-high effort and implemented by the `code-executor` subagent at high effort (the user's rule).** The agent definition (`.claude/agents/code-executor.md`) and CLAUDE.md's section "Code changes are planned, then executed" arrive here by the merge, with no conflict; the branch note at the top of this CLAUDE.md is kept. On this branch the executor builds with `PREFIX=$HOME/.local/mocassin_h2` and also builds h2Test and h2Slab, and logs here (H-numbers). No code changed | Done | 2026-10-19 |
 
 ---
 
@@ -5534,3 +5535,31 @@ without NaN is D-418's attribution test.
 ### Status
 
 Done (2026-10-17).
+
+## H-041 - Production's D-419 merged: plan at xhigh, execute with the code-executor (2026-10-19)
+
+The user asked for a "code-executor" subagent that follows a plan exactly,
+does not redesign and flags anything that blocks the plan. The user also
+asked for a CLAUDE.md rule that code changes are planned with extra effort
+and implemented by it at high effort. Both are production's D-419 (83bd0e4),
+merged here at fa876a9.
+
+  - **No conflicts.** The merge added three files' worth of changes:
+    `.claude/agents/code-executor.md` (new), CLAUDE.md's section (28 lines,
+    after Build) and DEVLOG.md's D-419. This CLAUDE.md keeps its branch
+    note at the top.
+  - **What the agent does differently here** follows from this CLAUDE.md
+    and is written into the agent:
+    - it builds with `PREFIX=$HOME/.local/mocassin_h2`, running `make clean`
+      before a PREFIX change;
+    - it builds h2Test and h2Slab as well as the four flavours;
+    - it writes H-numbered entries in this log, and never in DEVLOG.md;
+    - it installs into `~/.local/mocassin_h2` only on the user's go-ahead,
+      quoted in the plan.
+
+No code changed, so nothing was rebuilt. The agent has not yet been used on
+a change.
+
+### Status
+
+Done (2026-10-19).
