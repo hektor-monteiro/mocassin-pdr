@@ -419,7 +419,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-417 | **A dust temperature per grain material for H2 formation, registered for future development (the user: "log the Dust temperature per material idea for future implementation").** CT02's two channels, silicate and carbonaceous, take one temperature, Tdust(0,0): getDustT's number-weighted mean over every species, which in a mixture is the smallest grains'. In test_Problem the silicates carry 6.8e-11 of that weight against the PAHs' 0.02, so the silicate channel runs at the PAHs' 143.5 K instead of its own ~58 K, where CT02's silicate efficiency is 0.074 against 0.200. From the formula at the cells' own temperatures (not a run): R_form x1.68 (5-95%: 1.35-1.73) in the 384 dense neutral cells, the silicate share of formation 35% -> 60%, x(H2) ~5e-8 -> ~8e-8 (still atomic; the limit is the grain area, H-036). Three designs (number-weighted per material, area-weighted per material, the rate summed over size bins), the call sites and the test are in the body. Not started; no code changed | Deferred | 2026-10-16 |
 | D-418 | **Levels listed out of energy order broke the collision rates, and below 13.96 K made NaN (found by the NGC 7009 K1a filtered-star run; the user: "can we just set a floor for Te? Maybe cosmic background?").** equilibrium (emission_mod.f90) took the lower index of each pair as the lower level. 31 data files list levels out of energy order; niII.dat has 4F9/2 (8393.9 cm-1) as level 2 and 2D3/2 (1506.9 cm-1) as level 3, so the 2-3 rates had detailed balance reversed at every T (x2.7 at 1e4 K) and below 13.96 K exp(+9909/T) overflowed: a -Infinity diagonal in the unpivoted LU, NaN populations, NaN cooling, NaN T_e, then NaN grain charge, chemistry and a SIGSEGV. A starvation test (LStar 1e-9, 11^3, dust + PDR) cooled its cells from 6000 K to 12.19 K and failed there, with and without teFloor 10; with the fix it runs to the end, 0 NaN (was 633 cells), 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825), cells at 3.8-45 K. The Boltzmann factor now goes with the lower-energy level of each pair. Neither a T_e floor (would have to be >= 14 K, an artificial gate) nor a background (cosmic rays are already in, D-193/D-280) was the fix. Four flavours compile. Attribution then shown: the K1a filtered rerun, identical but for the fix, passed iteration 9 with no NaN and converged at 15; the K1a bare model moved by at most 0.1% | Accepted | 2026-10-17 |
 | D-419 | **Code changes are planned at extra-high effort and implemented by a `code-executor` subagent at high effort (the user: "Define a reusable 'code-executor' subagent for this project. The 'code-executor' should Follow the provided plan exactly. It should not redesign. It should flag anything that blocks the plan. Create a rule in our CLAUDE.md file that all code changes should be planned with extra effort and the 'code-executor' implements the plan with high effort").** `.claude/agents/code-executor.md` (frontmatter `effort: high`, `model: inherit`, tools Read, Edit, Write, Bash, Monitor) checks the plan's premises against the code before the first edit, follows the steps as written, allows only reported mechanical adaptation, and stops with a report on a false premise, an open choice, a step that breaks the outranking rule, a failed build or verification, or a step reserved for the user. CLAUDE.md's new section "Code changes are planned, then executed": the main session plans in plan mode at `xhigh` (the user's settings already run it there), a plan names file, routine, change and verification for every step and makes every choice, a blocker goes back to planning, and the main session reviews the report and writes the DEVLOG. Scope: `source/`, `source/pdr/`, the Makefile, `tools/`. No code changed | Accepted | 2026-10-19 |
-| D-420 | **H2 becomes a collider in the gas-grain exchange (L-9, found in D-305; the user: "H2 probably isn't a collider in gas-grain heat exchange. This is the most important new change we need ... It needs a test run before it counts as established. Audit the changes already logged and check if this is mentioned already, make a plan for this fix and execute it").** The audit: already logged - D-305 (d) found it (68x below Cloudy's dust cooling at A_V 0.65 on hiipdr), L-9 records it, D-333 put dense knots out of scope until it was fixed, and update_mod.f90 notes it; the K1a report's "NEW" is the symptom, not the defect: k1a-flow-q-dust10's core at 3.84 K and k1a-flow-q-core3.5e5's at 6.55 K against dust at 16-25 K. In those cores He and the residual atoms carry the coupling; H2 adds 3.83x theirs (x4.83 in all). Predicted from the coldest cell's budget: 3.84 -> 4.3-4.9 K, so H2 alone does not close the gap (D-421). Test: the dust10 rerun with only the change, seed 1001, 14 ranks, 30 iterations, against the original | In progress | 2026-10-19 |
+| D-420 | **H2 becomes a collider in the gas-grain exchange (L-9, found in D-305; the user: "H2 probably isn't a collider in gas-grain heat exchange. This is the most important new change we need ... It needs a test run before it counts as established. Audit the changes already logged and check if this is mentioned already, make a plan for this fix and execute it").** The audit: already logged - D-305 (d) found it (68x below Cloudy's dust cooling at A_V 0.65 on hiipdr), L-9 records it, D-333 put dense knots out of scope until it was fixed, and update_mod.f90 notes it; the K1a report's "NEW" is the symptom, not the defect: k1a-flow-q-dust10's core at 3.84 K and k1a-flow-q-core3.5e5's at 6.55 K against dust at 16-25 K. In those cores He and the residual atoms carry the coupling; H2 adds 3.83x theirs (x4.83 in all). Predicted from the coldest cell's budget: 3.84 -> 4.3-4.9 K, so H2 alone does not close the gap (D-421). Test: the dust10 rerun with only the change, seed 1001, 14 ranks, 30 iterations, against the original **Result:** the coupling enters at the designed strength (the cold cells 0.0175 -> 0.0849 of BFM's rate with H2; x4.83 over the atoms, H2 80% of it), the ionized gas does not move (T_e 1.0000, lines within 0.12%), and the coldest cell goes 3.84 -> 4.15 K against dust at 23 K, so H2 alone does not close the anomaly. Two predictions missed and were diagnosed, the code not at fault: the cold core (median 4.92 K against 5.0-5.6) because its CO cooling has slope 4.1 near 4 K, not the 1.4-3 assumed (the budget estimate with 4.1 gives 4.17/4.91 K against 4.15/4.92 measured); H2 0-0 S(1) and S(0) +6% (2% predicted) from two warm transition cells whose unconverged chemistry moved (the new term 0.1-0.2% of their heating) - a hypothesis, no seed pair run. compare.py's atomic-cell ratio is mostly the electron term without grain charge, so only the cold-cell ratio measures the normalisation (D-421) | Done | 2026-10-19 |
 | D-421 | **The gas-grain term was divided by 4 pi in both balances it enters (found planning D-420).** The gas balance is physical per H (photoelHeat_g has no factor; pdrCool/Hden, D-135) and the grain balance physical / pi (radField = Jste/pi, Jste the angle-integrated flux, D-290; emission 4 C_abs B; photoelHeat_d / pi), so the gas term is 4 pi (12.6x) too weak and the grain term 4x. Measured in k1a-flow-q-dust10: the code's gas term is 0.0865 of the physical BFM rate in 58 atomic cells and 0.085 in 49 cold cells, against 1/(4 pi) = 0.080. With D-420 the coldest dust10 cell is predicted at 7.6-14.3 K; the gas-grain share of the ionized gas's cooling rises 0.36% -> ~4.5% (K1a) and 0.63% -> ~8% (hiipdr), so every dusty model moves by a few percent in T_e. The user's choice: both fixes, each tested on its own | In progress | 2026-10-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -40372,9 +40372,129 @@ goes with it as the baseline for D-421.
     - Hbeta and the forbidden lines within 0.5%.
   - **The H2 lines:** within 2%.
 
-### Results
+### Results (2026-10-19, 12:39-12:50)
 
-(to come)
+**What the code-executor did** (Part 1 of the plan, a general-purpose agent
+following .claude/agents/code-executor.md at high effort, because this
+session predates the agent file):
+  - Every premise checked before the first edit. The change is ce32641
+    (update_mod.f90 only, +47 -1), as the plan wrote it; the diff was read.
+  - It was merged into h2-model as 1b5df3e. `--no-edit` gives git's default
+    message without the attribution lines, as fa876a9 had.
+  - Builds, rc=0 in all, error count 0:
+    - production: the four flavours, 11:17:58-11:18:59;
+    - h2-model: the four, then h2Test and h2Slab, by 11:20:57.
+    The mocassin md5 is ac08827f, version pdr-coupling-v1.1-252-g1b5df3e,
+    not -dirty. Nothing installed or pushed, and the K1a folder untouched.
+  - Runs: queue launched 11:21:08, done 12:39:18. Run times ("total run
+    time per processor"): d420-k1a-dust10 00:37:55, d420-hii31 00:40:13.
+  - Two mechanical adaptations, reported:
+    - the liveness check needs `pgrep -x mocassin.d420`, because the binary
+      is named so;
+    - `python3 -I` cannot import numpy here, so compare.py ran with
+      `-P -E`, which computes the same.
+
+**Against the prediction**, d420-k1a-dust10 against k1a-flow-q-dust10:
+
+| item | predicted | measured | |
+|---|---|---|---|
+| health | rc 0, clean, 0 NaN / Singular / CVODE / insane eta / flagged | all 0, 30 iterations each | met |
+| coupling, cold cells, /(atoms+H2) | 0.0175 -> 0.080-0.090 | 0.0175 -> 0.0849 | met |
+| coupling, cold cells, /atoms | x4.83 | 0.0850 -> 0.4103 (x4.83) | met |
+| coupling, atomic cells | 0.0865 within 0.002 | 0.0859 -> 0.0860 | met |
+| cold core median T_e | 4.61 -> 5.0-5.6 K | 4.92 K | **missed** |
+| coldest cell (5082) | 3.84 -> 4.3-4.9 K | 4.15 K | **missed** |
+| T_d median, x(H2) median | 20.40 K within 0.2 K; 0.500 | 20.40 K; 0.500 | met |
+| gas still > 10 K below the dust | yes | 4.15 K against 23.16 K | met |
+| ionized gas T_e ratio | 0.999-1.001 | 1.0000 (16-84%: 0.9991-1.0008) | met |
+| gas-grain share of the ionized gas's cooling | 3.6e-3 | 3.59e-3 -> 3.59e-3 | met |
+| Hbeta and the forbidden lines | within 0.5% | Hbeta 0.9999; extremes He II 4686 0.9991, [S II] 1.0012 | met |
+| H2 1-0 S(1), 2-1 S(1), 0-0 S(2) | within 2% | 0.9991, 0.9972, 1.0057 | met |
+| H2 0-0 S(1), S(0) | within 2% | 1.0577, 1.0590 | **missed** |
+
+d420-hii31: clean on every count (15 iterations, 0 flagged), gas-grain share
+of the ionized gas's cooling 6.28e-3. It is D-421's baseline.
+
+**The executor stopped on the three misses** as verification disagreements,
+as its definition requires, and did not rerun. Neither is a defect in the
+planned code, and the plan is not revised.
+
+**(a) The cold core warmed less than predicted because its cooling is
+steeper than the T^1.4-3 the estimate took.** The coldest cell's budget
+per H [erg/s]:
+
+| | T_e | gas-grain heating | PDR heating | PDR cooling | collisional |
+|---|---|---|---|---|---|
+| base | 3.840 K | 7.78e-29 | 7.005e-28 | 7.445e-28 | 3.17e-29 |
+| d420 | 4.151 K | 3.825e-28 | 7.013e-28 | 1.027e-27 | 5.01e-29 |
+
+  - The gas-grain heating rose x4.92 as designed: x4.83 in the coupling,
+    times the slightly larger T_d - T_e.
+  - The total heating rose x1.39, and the cooling rose with it (x1.39) for
+    T_e x1.081. The cooling's slope there is therefore 4.1-4.4.
+  - The PDR cooling is CO's (8.8e-28 at the table point, against C 1.5e-29
+    and O -4.9e-29 net). The balance reads it from D-215's per-cell table at
+    the cell's T, so 4.1 is the slope of the cooling function the code
+    solves.
+  - The same budget estimate with s = 4.1 gives 4.17 K for the coldest cell
+    and 4.91 K for the median, against 4.15 and 4.92 measured. With s = 3,
+    the top of the range assumed, it gives 4.30 and 5.04 K, the bottom of
+    the ranges predicted. So the miss is the slope assumed, not the
+    coupling.
+  - Not established: why the CO cooling is that steep near 4 K. CO's J = 1
+    and J = 2 levels lie at 5.5 K and 16.6 K, and any background the escape
+    probability includes would also steepen it.
+
+**(b) The 6% in H2 0-0 S(1) and S(0) comes from two warm transition cells
+whose chemistry moved, not from the new term.**
+  - Rebuilt from output/h2Pop.bin, the cell volumes and n(H2):
+    new/base is 1.0575 and 1.0589, as lineFluxH2.out gives.
+  - Cells at 100-200 K give +5.5 of S(1)'s +5.8 points. Two cells give
+    6.3 points, and the rest net -0.5:
+    - (50,2,3), A_V 5.8: T_e 120 -> 150 K, +4.2 points;
+    - (47,2,4): T_e 155 -> 165 K, +2.1 points.
+  - In both the gas is warmer than the dust, so the new term *cools*. It
+    is 0.1-0.2% of their heating: (50,2,3)'s gas-grain cooling went
+    4.2e-27 -> 1.6e-26 against heating near 1.3e-23.
+  - What moved is the chemistry. In (50,2,3) the PDR heating went 9.37e-24
+    -> 1.83e-23, x(H) 0.287 -> 0.182 and x(CO) 9.1e-5 -> 2.4e-4.
+  - Both runs stopped at the 30-iteration cap unconverged (n(CO) 11.4% over
+    the window). The likely reading is that any change sends the
+    unconverged H/H2 transition cells along another trajectory. That is a
+    hypothesis: no run that removes only the change has been read.
+    Consequence: K1a's H2 rotational lines carry at least 6% of trajectory
+    scatter at this iteration count, and the 2% predicted was tighter than
+    the model can hold. The vibrational lines (within 0.3%) come from other
+    cells.
+
+**A limit of compare.py's "atomic cells" ratio.** In those cells the
+rebuilt BFM rate is mostly electrons: 82% of it in K1a, 95% in hiipdr. The
+rebuild leaves out the grain charge (xi, eta) and the ions. That is why
+hiipdr's 32 atomic cells give 0.258 against K1a's 0.086: they are partly
+ionized cells (median x_e 4.4e-2, T_e 3900 K), and cell by cell the ratio
+runs from 4.8 at x_e 2e-3 to 0.17 at x_e 9e-2. So only the cold-cell ratio,
+which is all neutral collisions with xi = eta = 1, is a clean measure of
+the normalisation. There it is 0.085 in K1a and 0.0948 in hiipdr, against
+1/(4 pi) = 0.080.
+
+**What it means.**
+  - H2 is now a collider, at exactly the designed strength: x4.83 in the
+    K1a cores, 80% of the coupling there.
+  - It does not close the cold-gas anomaly, as predicted: 4.15 K against
+    dust at 23 K. The term is still divided by 4 pi (D-421).
+  - The lines of the ionized gas do not move (within 0.12%).
+  - hiipdr also has gas below its dust: 4766 cells with T_e < T_d - 3 K
+    and x(H2) > 0.4, median T_e 10.20 K against T_d 13.47 K. At its
+    density the coupling is too weak to matter even after D-421 (see
+    D-421's revised estimates).
+
+**Not yet known.**
+  - The CO cooling's slope above 4.2 K.
+  - Whether the H2 rotational change is trajectory scatter (no seed pair
+    has been run).
+  - CO as a collider and the energy of H2 formation left on the grain, as
+    recorded in the plan.
+  - L-9 is closed for H2. doc/pdr-status.md is updated after D-421.
 
 ## D-421 - The gas-grain term was divided by 4 pi in both balances it enters (2026-10-19)
 
@@ -40444,6 +40564,34 @@ fixes).
 
 pn150k and the other benchmarks are not rerun here. Every dusty model
 moves, so they are the next measurement.
+
+### Revised estimates after D-420, before the runs (2026-10-19 12:48)
+
+The predictions above stay on record and are judged as written. D-420
+measured two things they did not have:
+  - the cold-core cooling's slope near 4 K, 4.1 rather than 1.4-3;
+  - a cold-cell coupling ratio in hiipdr of 0.0948.
+
+Each cell's own budget is solved again with G proportional to sqrt(T), for
+s = 2.5-4.1. The estimator reproduces D-420 at s = 4.1. Since the slope
+probably falls as the gas warms, the lower half of each range is the more
+likely.
+
+| | from | revised estimate | original prediction |
+|---|---|---|---|
+| dust10 coldest cell (5082) | d420, 4.15 K | 6.3-8.3 K | 7.6-14.3 K |
+| dust10 cold-core median | d420, 4.92 K | 6.9-8.7 K | 8-13 K |
+| core3.5e5 coldest cell (5831) | base, 6.55 K | 9.5-11.3 K | 10.6-14.0 K |
+| core3.5e5 cold-core median | base, 9.19 K | 12.4-14.7 K (+3.2-5.5 K) | up by > 3 K |
+| hiipdr cold molecular gas (4766 cells) | d420, median 10.20 K | unchanged within 0.1 K | none made |
+
+Other points:
+  - The coupling ratio is judged on the cold cells only (see D-420,
+    compare.py's atomic cells): 0.0849 -> 1.0-1.15 in K1a, and 0.0948
+    -> 1.1-1.3 in hiipdr.
+  - K1a's H2 rotational lines carry at least 6% of trajectory scatter at
+    30 iterations (D-420 (b)). A move inside that says nothing about the
+    change.
 
 ### Results
 
