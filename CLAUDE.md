@@ -52,6 +52,34 @@ The chemistry is the **REDUCED network, 33 species**, steady-state
 (`CHEMSTEADY`). The ODE right-hand side is generated C selected at compile
 time, so the `pdrNetwork` keyword can only validate - it cannot switch anything.
 
+## Code changes are planned, then executed
+
+Every code change is planned at extra-high effort and then implemented by the
+`code-executor` subagent (`.claude/agents/code-executor.md`) at high effort.
+That covers anything that changes what is built or computed: `source/`,
+`source/pdr/`, the `Makefile` and `tools/`.
+
+  - **The plan is made at `xhigh` effort**, by the main session in plan mode.
+    The main session holds the discussion and the DEVLOG history. It runs at
+    `xhigh` by the user's settings.
+  - **A plan leaves nothing to design.** For every step it names:
+    - the file and the routine;
+    - the change itself;
+    - how the step is verified (the builds, the test, and the prediction on
+      record before any run).
+    Every choice between alternatives is made in the plan.
+  - **The `code-executor` implements it at `high` effort.** Its definition
+    sets that effort. Hand it the plan file's path, the checkout and branch,
+    and the commit attribution lines. It follows the plan exactly, does not
+    redesign, and stops at anything that blocks the plan.
+  - **A blocker goes back to planning.** The plan is revised at `xhigh` and
+    the revised plan is executed. The executor does not patch around a
+    blocker, and nor does the main session. Each blocker and how it was
+    resolved go in the DEVLOG.
+  - **The main session reviews the report.** It reads the diff and the
+    verification output, checks the runs when they finish, and writes and
+    commits the DEVLOG entry.
+
 ## Running
 
     mpirun -np 14 ./mocassin
