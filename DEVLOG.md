@@ -421,6 +421,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-419 | **Code changes are planned at extra-high effort and implemented by a `code-executor` subagent at high effort (the user: "Define a reusable 'code-executor' subagent for this project. The 'code-executor' should Follow the provided plan exactly. It should not redesign. It should flag anything that blocks the plan. Create a rule in our CLAUDE.md file that all code changes should be planned with extra effort and the 'code-executor' implements the plan with high effort").** `.claude/agents/code-executor.md` (frontmatter `effort: high`, `model: inherit`, tools Read, Edit, Write, Bash, Monitor) checks the plan's premises against the code before the first edit, follows the steps as written, allows only reported mechanical adaptation, and stops with a report on a false premise, an open choice, a step that breaks the outranking rule, a failed build or verification, or a step reserved for the user. CLAUDE.md's new section "Code changes are planned, then executed": the main session plans in plan mode at `xhigh` (the user's settings already run it there), a plan names file, routine, change and verification for every step and makes every choice, a blocker goes back to planning, and the main session reviews the report and writes the DEVLOG. Scope: `source/`, `source/pdr/`, the Makefile, `tools/`. No code changed | Accepted | 2026-10-19 |
 | D-420 | **H2 becomes a collider in the gas-grain exchange (L-9, found in D-305; the user: "H2 probably isn't a collider in gas-grain heat exchange. This is the most important new change we need ... It needs a test run before it counts as established. Audit the changes already logged and check if this is mentioned already, make a plan for this fix and execute it").** The audit: already logged - D-305 (d) found it (68x below Cloudy's dust cooling at A_V 0.65 on hiipdr), L-9 records it, D-333 put dense knots out of scope until it was fixed, and update_mod.f90 notes it; the K1a report's "NEW" is the symptom, not the defect: k1a-flow-q-dust10's core at 3.84 K and k1a-flow-q-core3.5e5's at 6.55 K against dust at 16-25 K. In those cores He and the residual atoms carry the coupling; H2 adds 3.83x theirs (x4.83 in all). Predicted from the coldest cell's budget: 3.84 -> 4.3-4.9 K, so H2 alone does not close the gap (D-421). Test: the dust10 rerun with only the change, seed 1001, 14 ranks, 30 iterations, against the original **Result:** the coupling enters at the designed strength (the cold cells 0.0175 -> 0.0849 of BFM's rate with H2; x4.83 over the atoms, H2 80% of it), the ionized gas does not move (T_e 1.0000, lines within 0.12%), and the coldest cell goes 3.84 -> 4.15 K against dust at 23 K, so H2 alone does not close the anomaly. Two predictions missed and were diagnosed, the code not at fault: the cold core (median 4.92 K against 5.0-5.6) because its CO cooling has slope 4.1 near 4 K, not the 1.4-3 assumed (the budget estimate with 4.1 gives 4.17/4.91 K against 4.15/4.92 measured); H2 0-0 S(1) and S(0) +6% (2% predicted) from two warm transition cells whose unconverged chemistry moved (the new term 0.1-0.2% of their heating) - a hypothesis, no seed pair run. compare.py's atomic-cell ratio is mostly the electron term without grain charge, so only the cold-cell ratio measures the normalisation (D-421) | Done | 2026-10-19 |
 | D-421 | **The gas-grain term was divided by 4 pi in both balances it enters (found planning D-420).** The gas balance is physical per H (photoelHeat_g has no factor; pdrCool/Hden, D-135) and the grain balance physical / pi (radField = Jste/pi, Jste the angle-integrated flux, D-290; emission 4 C_abs B; photoelHeat_d / pi), so the gas term is 4 pi (12.6x) too weak and the grain term 4x. Measured in k1a-flow-q-dust10: the code's gas term is 0.0865 of the physical BFM rate in 58 atomic cells and 0.085 in 49 cold cells, against 1/(4 pi) = 0.080. With D-420 the coldest dust10 cell is predicted at 7.6-14.3 K; the gas-grain share of the ionized gas's cooling rises 0.36% -> ~4.5% (K1a) and 0.63% -> ~8% (hiipdr), so every dusty model moves by a few percent in T_e. The user's choice: both fixes, each tested on its own. **Result:** 0568eb0, merged as 01b782d; the cold-cell coupling is 1.08 (dust10), 1.13 (core3.5e5) and 1.20 (hiipdr) of BFM's rate, and the ionized gas T_e x0.977 (K1a) and x0.966 (hiipdr), with a gas-grain share of 4.3e-2 and 7.5e-2, as predicted. The cold cores warm (dust10 median 4.92 -> 7.16 K, core3.5e5 9.19 -> 13.26 K) but stay well below the dust; the original ranges missed in dust10 and the revised ones held (the slope stays near 4). Half the cold cells get no FUV packet, and where they do, the photoelectric heating dominates and moves with the sample. The H2 0-0 lines missed (dust10 S(2) x13.5): one cell at 955 K held by PDR heating that nothing on the finished model rebuilds. The held value is the previous iteration's (the last T search runs before the last pdrStep), so the excess is at least partly these cells' heating swinging between iterations. The same is already present in 18-22 cells per K1a baseline (before D-420) and in 95-119 per hiipdr run; logged in DEVLOG-H2 H-043, not resolved. Hbeta +2% in hiipdr is a miss, not attributed. The executor was made to hand back before the last two runs ended; the main session finished the waits and compares as planned | Done | 2026-10-19 |
+| D-422 | **Production installed into ~/.local at 874f591 (the user: "update the production install in ~/.local").** The old install was pdr-coupling-v1.1-8-g3fb58aa-dirty (2026-10-05, D-394 plus uncommitted changes), so it lacked the code of D-395 to D-421, D-418's Ni II fix and D-420/D-421's gas-grain term among them. The four flavours rebuilt at 874f591: rc 0 (19:07-19:08); make clean, then the 3D flavour installed with PREFIX=$HOME/.local: rc 0, binaries 19:09:30, pdr-coupling-v1.1-122-g874f591, mocassin md5 d8f88994; the tree cleaned after. data/, dustData/ and dataPDR/ in ~/.local/share/mocassin were already byte-identical to the repository's, so what runs read is unchanged; three older copies of tracked benchmark inputs were overwritten. The old binaries and those three files are kept in runs/_localprefix_backup_2026-10-19_d421/. No run with this binary | Done | 2026-10-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -40842,3 +40843,56 @@ because this was measured on h2-model only.
   - How much of the cold-core T_e is FUV packet sampling. A run with more
     packets, or a seed pair, would say.
   - L-9 is closed in doc/pdr-status.md.
+
+---
+
+## D-422 - Production installed into ~/.local (2026-10-19)
+
+The user (2026-10-19, 19:06), after the h2-model install (DEVLOG-H2 H-044)
+left production's untouched: "update The production install in ~/.local".
+
+**What was there.** ~/.local/bin held pdr-coupling-v1.1-8-g3fb58aa-dirty,
+installed 2026-10-05 08:14: D-394's commit plus changes not committed at the
+time, so its exact source is not known. It lacked the code of D-395 to D-421
+(114 commits; 10 files of source/ and the Makefile, +1837/-452 lines), among
+them D-404, D-418's Ni II overflow fix and D-420/D-421's gas-grain term.
+
+**Looked at before overwriting.**
+  - data/, dustData/ and dataPDR/ in ~/.local/share/mocassin: byte-identical
+    to the repository's (`diff -rq`, 0 differing files, none only on one
+    side). The install copies them again, so what every run reads is
+    unchanged. D-388's warning (any install with the default PREFIX changes
+    what production runs read) is satisfied by this check, not waived.
+  - benchmarks/: three installed files were older copies of tracked inputs
+    (pdr/hiipdr/cloudy/hiipdr.in and README.md, pdr/pn150k/cloudy/
+    150k_PDR.in) and are overwritten with the tracked ones. Two files only
+    in the install (test_Problem/output/dustGrid_before.out, SED_before.out)
+    stay; cp -R removes nothing.
+  - Kept in runs/_localprefix_backup_2026-10-19_d421/: the four old binaries
+    (mocassin md5 4d97f2d3, mocassinWarm 7a903ae1, mocassinOutput 7bfc1c97,
+    mocassinPlot f2b39080) and the three overwritten benchmark files.
+
+**The build and install** (logs in ~/software/mocassin_h2/runs/
+d420-scripts/: prod_build_inst1019.log, prod_install.log):
+  - The four flavours at 874f591, make clean between them: rc 0, 0 errors
+    (19:07:56-19:08:56).
+  - `make clean`, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`:
+    rc 0, 0 errors, binaries 19:09:30, version string
+    pdr-coupling-v1.1-122-g874f591 in all four, the ~/.local data path
+    compiled in.
+  - md5: mocassin d8f88994, mocassinWarm b28f52d1, mocassinOutput d79aa44a,
+    mocassinPlot d8a5784c.
+  - `make clean` afterwards: the tree holds no binaries, as before.
+  - After the install, `diff -rq` of data/, dustData/, dataPDR/ and
+    benchmarks/ against the install: 0 differences beyond the two
+    install-only files.
+
+**Not yet known.** No run has used this binary. D-420 and D-421 were run
+only on h2-model (H-042); production's own code with them has compiled in
+all four flavours but has not run. hiipdr and pn150k with it are the
+pending reruns (D-421, "Recorded, not in this plan"), still the user's
+decision.
+
+### Status
+
+Done (2026-10-19).
