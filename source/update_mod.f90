@@ -1568,6 +1568,9 @@ end subroutine iterateT
           real :: vmean, mcp ! colliding particle mean velocity and mean particle mass
           integer :: nelectrons, istage, ns, na
           integer :: global_ns ! <<-- DECLARE GLOBAL INDEX
+#ifdef PDR
+          real :: nH2coll ! D-420: n(H2) from the chemistry [cm^-3]
+#endif
 
           ! outer shell array
           ss = (/1,1,2,2,3,3,3,3,3,3,4,4,5,5,5,5,5,5,&
@@ -1685,6 +1688,49 @@ end subroutine iterateT
                    end do
                 end if
              end do
+
+#ifdef PDR
+             ! D-420 (L-9, found in D-305). H2 as a collider. The loop above
+             ! runs over atoms and ions, and since D-220 their stages sum to
+             ! elemAvail, the part of each element NOT in molecules, so the
+             ! hydrogen in H2 struck no grain. 3D-PDR's own gas-grain term,
+             ! heat(11), is left out of the PDR heating because this routine
+             ! supplies it (D-131), so in molecular gas only He and the
+             ! residual atoms coupled the gas to the dust: 4.8x short in the
+             ! K1a cores, where the gas fell to 3.8 K against dust at 16-25 K.
+             !
+             ! A neutral, like istage = 1 above (Z = 0, so eta = xi = 1 and no
+             ! ionization energy), with BFM's accommodation 2mM/(m+M)^2 at the
+             ! H2 mass 2 aWeight(1), as Cloudy takes it (GrainCollHeating).
+             ! n(H2) is the chemistry's, the one setLineColliders uses (D-363).
+             nH2coll = 0.
+             if (allocated(grid%H2den)) nH2coll = max(grid%H2den(cellP), 0.)
+             mcp = 2.*aWeight(1)*amu
+             vmean = sqrt(eightkT_pi/mcp)
+             do ns = 1, nSpeciesPart(nspU)
+                global_ns = dustComPoint(nspU) + ns - 1
+                S = 2.*(2.*aWeight(1))*MsurfAtom(global_ns)/&
+                     & (2.*aWeight(1)+MsurfAtom(global_ns))**2
+                do na = 1, nSizes
+                   if (grainRadius(na) >= componentMinRadius(nspU, ns) .and. grainRadius(na) <= componentMaxRadius(nspU, ns)) then
+
+                      gasDustColl_d(ns,na) = gasDustColl_d(ns,na)+&
+                           & nH2coll*&
+                           & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
+                           & S*vmean*(2.*kT*Ryd2erg-&
+                           & 2.*kBoltzmann*grid%Tdust(ns,na,cellP))
+
+                      gasDustColl_g = gasDustColl_g + &
+                           & nH2coll/grid%Hden(cellP)*&
+                           & grainWeight(na)*grainAbun(nspU,ns)*grid%Ndust(cellP)*&
+                           & Pi*grainRadius(na)*grainRadius(na)*1.e-8*&
+                           & S*vmean*(2.*kT*Ryd2erg-2.*kBoltzmann*&
+                           & grid%Tdust(ns,na,cellP))
+
+                   endif
+                end do
+             end do
+#endif
 
              ! add contribution of e- collisions
              vmean = sqrt(eightkT_pi/me)
@@ -4324,7 +4370,7 @@ end subroutine iterateT
             ! photoelHeat_g. The grains lost 5-150x more photoelectric energy
             ! than the gas received at A_V > 0.5 (runs/d350-window). The two
             ! halves of each exchange now come from the same terms, as they
-            ! always did without the PDR. (gasDustColl still omits H2: L-9.)
+            ! always did without the PDR. (H2 has been a collider since D-420.)
 
             ! D-414: the mean temperatures, Tdust(nS,0) and Tdust(0,0), are means
             ! over the bins that hold grains. grainWeight is normalised over the
