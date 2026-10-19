@@ -418,6 +418,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-416 | **A PREFIX longer than about 90 characters loses the atomic data silently and crashes (found in DEVLOG-H2 H-036).** makeElements (hydro_mod.f90) holds each data path, PREFIX + /share/mocassin/ + the file name, in character(len=128). Past that the path is truncated, `inquire` finds nothing, and that ion's data are skipped without a message. The worker ranks then die at start-up with SIGSEGV. Recorded, not changed: a 512-character variable is a one-line fix, for the user's word. The manual for h2-model (doc/manual-pdr-h2.md) states the limit | Open | 2026-10-16 |
 | D-417 | **A dust temperature per grain material for H2 formation, registered for future development (the user: "log the Dust temperature per material idea for future implementation").** CT02's two channels, silicate and carbonaceous, take one temperature, Tdust(0,0): getDustT's number-weighted mean over every species, which in a mixture is the smallest grains'. In test_Problem the silicates carry 6.8e-11 of that weight against the PAHs' 0.02, so the silicate channel runs at the PAHs' 143.5 K instead of its own ~58 K, where CT02's silicate efficiency is 0.074 against 0.200. From the formula at the cells' own temperatures (not a run): R_form x1.68 (5-95%: 1.35-1.73) in the 384 dense neutral cells, the silicate share of formation 35% -> 60%, x(H2) ~5e-8 -> ~8e-8 (still atomic; the limit is the grain area, H-036). Three designs (number-weighted per material, area-weighted per material, the rate summed over size bins), the call sites and the test are in the body. Not started; no code changed | Deferred | 2026-10-16 |
 | D-418 | **Levels listed out of energy order broke the collision rates, and below 13.96 K made NaN (found by the NGC 7009 K1a filtered-star run; the user: "can we just set a floor for Te? Maybe cosmic background?").** equilibrium (emission_mod.f90) took the lower index of each pair as the lower level. 31 data files list levels out of energy order; niII.dat has 4F9/2 (8393.9 cm-1) as level 2 and 2D3/2 (1506.9 cm-1) as level 3, so the 2-3 rates had detailed balance reversed at every T (x2.7 at 1e4 K) and below 13.96 K exp(+9909/T) overflowed: a -Infinity diagonal in the unpivoted LU, NaN populations, NaN cooling, NaN T_e, then NaN grain charge, chemistry and a SIGSEGV. A starvation test (LStar 1e-9, 11^3, dust + PDR) cooled its cells from 6000 K to 12.19 K and failed there, with and without teFloor 10; with the fix it runs to the end, 0 NaN (was 633 cells), 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825), cells at 3.8-45 K. The Boltzmann factor now goes with the lower-energy level of each pair. Neither a T_e floor (would have to be >= 14 K, an artificial gate) nor a background (cosmic rays are already in, D-193/D-280) was the fix. Four flavours compile. Attribution then shown: the K1a filtered rerun, identical but for the fix, passed iteration 9 with no NaN and converged at 15; the K1a bare model moved by at most 0.1% | Accepted | 2026-10-17 |
+| D-419 | **Code changes are planned at extra-high effort and implemented by a `code-executor` subagent at high effort (the user: "Define a reusable 'code-executor' subagent for this project. The 'code-executor' should Follow the provided plan exactly. It should not redesign. It should flag anything that blocks the plan. Create a rule in our CLAUDE.md file that all code changes should be planned with extra effort and the 'code-executor' implements the plan with high effort").** `.claude/agents/code-executor.md` (frontmatter `effort: high`, `model: inherit`, tools Read, Edit, Write, Bash, Monitor) checks the plan's premises against the code before the first edit, follows the steps as written, allows only reported mechanical adaptation, and stops with a report on a false premise, an open choice, a step that breaks the outranking rule, a failed build or verification, or a step reserved for the user. CLAUDE.md's new section "Code changes are planned, then executed": the main session plans in plan mode at `xhigh` (the user's settings already run it there), a plan names file, routine, change and verification for every step and makes every choice, a blocker goes back to planning, and the main session reviews the report and writes the DEVLOG. Scope: `source/`, `source/pdr/`, the Makefile, `tools/`. No code changed | Accepted | 2026-10-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -40169,3 +40170,104 @@ What is still not measured: the change in models whose gas spends time
 below ~100 K with Ni II, Fe III or Ca VII populated. None of the
 benchmarks has been rerun.
 
+## D-419 - Code changes are planned at extra-high effort and implemented by a code-executor subagent at high effort (2026-10-19)
+
+The user asked: "Define a reusable 'code-executor' subagent for this
+project. The 'code-executor' should Follow the provided plan exactly. It
+should not redesign. It should flag anything that blocks the plan. Create a
+rule in our CLAUDE.md file that all code changes should be planned with
+extra effort and the 'code-executor' implements the plan with high effort."
+
+### What was added
+
+  - **`.claude/agents/code-executor.md`**, a project subagent. This is the
+    first file under `.claude/` in git: `.git/info/exclude` ignores only
+    `.claude/worktrees/`. Its frontmatter:
+    - `effort: high`;
+    - `model: inherit` (the session's model);
+    - tools Read, Edit, Write and Bash, plus Monitor for waits on long runs.
+      It cannot spawn agents, publish artifacts or schedule anything.
+    The frontmatter keys are the ones Claude Code 2.1.303 parses for agent
+    definitions (name, description, tools, model, effort, ...; effort takes
+    low, medium, high, max or an integer).
+  - **The agent's instructions:**
+    - Before the first edit, it reads the checkout's CLAUDE.md, checks the
+      starting commit and a clean tree, and checks every file, routine,
+      variable and quoted line the plan names against the code.
+    - It does the steps in order, as written. It adds no steps, refactors
+      or fixes outside the plan. It does not choose between alternatives
+      the plan leaves open.
+    - The only adaptation it may make is mechanical, such as a line number
+      that has moved, and it must report it. Anything that changes what is
+      computed, read or written beyond the plan is a redesign, and it flags
+      it. A compile error in its own new code is part of the step.
+    - **It stops and reports on:**
+      - a false premise;
+      - an ambiguous step or an open choice;
+      - a step that breaks the rule that outranks the others: a hardcoded
+        stand-in, an artificial gate, a second array for one quantity, or
+        a fitted coefficient;
+      - a failed build in any flavour;
+      - a verification that disagrees with the plan's prediction. It must
+        not tune, rerun until it passes, or edit the test.
+      - a step reserved for the user: push, another repository, Cloudy,
+        deleting runs, rebase or forced git, `make install` without the
+        user's go-ahead quoted in the plan;
+      - a run larger than the memory model allows.
+    - It carries the standing rules:
+      - all four flavours with `make clean` between them, plus h2Test,
+        h2Slab and the PREFIX on h2-model;
+      - the rc and time stamp of each build;
+      - `-np 14` under `systemd-run --user`;
+      - condition-loop waits;
+      - `date` before any time is written;
+      - awk's locale;
+      - no push and no `rm -rf`;
+      - commits and DEVLOG entries only where the plan puts them.
+    - Its report gives:
+      - the status;
+      - each step as done, adapted or not done;
+      - the diff stat and the commits;
+      - each build's rc;
+      - each verification with its output quoted, against the prediction;
+      - each blocker with its evidence and the options, without choosing
+        one;
+      - what it noticed and did not act on.
+  - **CLAUDE.md, new section "Code changes are planned, then executed"**
+    (after Build). It covers `source/`, `source/pdr/`, the Makefile and
+    `tools/`:
+    - The main session plans in plan mode at `xhigh`. It holds the
+      discussion and the DEVLOG history, and the user's settings
+      (`modelSettings`, `effortLevel: xhigh`) already run it at `xhigh`.
+    - A plan names, for every step:
+      - the file and the routine;
+      - the change;
+      - the verification, with the prediction on record before any run.
+    - The plan makes every choice.
+    - The executor is handed the plan file's path, the checkout and branch,
+      and the attribution lines.
+    - A blocker goes back to planning at `xhigh`. Neither the executor nor
+      the main session patches around it, and the blocker and its
+      resolution are logged.
+    - The main session reviews the report and the diff, checks the runs
+      when they finish, and writes and commits the DEVLOG entry.
+
+### Choices made here, open to the user
+
+  - **"Extra effort" is read as the `xhigh` level** (extra high). That is
+    one step above the executor's `high` and the level the user's settings
+    already give the main session.
+  - **Planning stays in the main session**, not in a Plan subagent. A
+    subagent starts without the discussion and would have to re-derive it.
+  - **The scope is the code that is built or that computes results.**
+    These are outside it:
+    - DEVLOG and documentation text;
+    - run directories and their inputs;
+    - the scratchpad's artifact page builders.
+
+### What is not yet known
+
+The agent has not been used on a change yet. A session started before the
+file existed may not list it until it is restarted. The rule reaches
+`h2-model` when production is merged in (DEVLOG-H2 H-041). No code changed,
+so the four flavours were not rebuilt.
