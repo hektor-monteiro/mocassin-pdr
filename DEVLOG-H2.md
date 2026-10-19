@@ -50,6 +50,8 @@ DEVLOG.md and arrives here by merge.
 | H-039 | **The test_Problem page gains gas slices and Hbeta contours (the user: "include slice plots showing the input Hdensity, the Te and Ne so we can evaluate those results as well. Include an option to overlay Hbeta line emission contours on the molecular image plot").** Hbeta per cell is the code's own, from mocassinPlot (HIRecLines(4,2) n_H dV, as output_mod sums it), projected like the H2 and CO lines with the flagged cells left out: 8 x the cells' sum returns lineFlux.out's Hbeta to 1.0000009-1.0000013, as predicted. The page (version 3) adds contours at 0.5-1e-3 of the Hbeta peak on the maps, and slices of the input n_H and the runs' T_e and n_e in any plane, with a cut under each slice and a region table. Found: the flagged cells are exactly the cells at the 30,000 K cap, all in the cavity; n_e/n_H = 3.75e-4 in the original-dust ring and slab is C + Mg + Si + S once ionized; the x <-> y T_e scatter of swapped cells (H-037's 41%) is 0.9% in the slab and 2.6-3.0% in the ring, and 54% in the 1e3 gas, from about 70 pairs, 14-17 of them on opposite sides of 1,000 K (not tested) | Done | 2026-10-17 |
 | H-040 | **Production's D-418 merged and installed (the user: "Proceed with the suggested strategy").** D-418 (188ba92): equilibrium gave the lower INDEX of each level pair the Boltzmann factor, and niII.dat lists 4F9/2 (8393.9 cm-1) before 2D3/2 (1506.9), so below 13.96 K the Ni II rates overflowed and NaN spread from the cooling to T_e, the grains and the chemistry - the crash of the NGC 7009 K1a filtered-star run (iteration 10, SIGSEGV). Merged at bb4f9aa; four flavours, h2Test and h2Slab rc 0; make clean, then the 3D flavour installed into ~/.local/mocassin_h2 (pdr-coupling-v1.1-243-gbb4f9aa), the replaced bin/ kept in runs/_h2prefix_backup_2026-10-17_d418. The installed binary runs the K1a starvation test that crashed (7 ranks) to its end: 0 NaN, 0 "Singular matrix" (was 318,500), 0 CVODE failures (was 15,825). Both K1a models rerun with it, filtered first | Done | 2026-10-17 |
 | H-041 | **Production's D-419 merged (fa876a9): code changes are planned at extra-high effort and implemented by the `code-executor` subagent at high effort (the user's rule).** The agent definition (`.claude/agents/code-executor.md`) and CLAUDE.md's section "Code changes are planned, then executed" arrive here by the merge, with no conflict; the branch note at the top of this CLAUDE.md is kept. On this branch the executor builds with `PREFIX=$HOME/.local/mocassin_h2` and also builds h2Test and h2Slab, and logs here (H-numbers). No code changed | Done | 2026-10-19 |
+| H-042 | **Production's D-420 and D-421 merged, built and tested here (the user: "H2 probably isn't a collider in gas-grain heat exchange ... make a plan for this fix and execute it"; scope "Both, tested apart").** Merges 1b5df3e (D-420: H2 a collider in the gas-grain exchange), 01b782d (D-421: the term's 4 pi), 7f8a263 and 1ccd351 (their DEVLOG results). The four flavours, h2Test and h2Slab, rc 0 at both steps (01b782d's mocassin md5 81cfe877). Nothing installed: ~/.local/mocassin_h2 is still bb4f9aa. Runs in runs/d420-* and runs/d421-*, the K1a inputs copied out of the read-only folder. Results in production's DEVLOG: cold-cell coupling 1.08-1.20 of BFM's rate; the K1a cold cores warm but stay well below the dust; the ionized gas 2.3-3.4% cooler in every dusty model | Done | 2026-10-19 |
+| H-043 | **Molecular cells whose held PDR heating swings between iterations (found in H-042's runs).** In 18-23 K1a cells and 95-119 hiipdr cells per run (x(H2) > 0.1), the PDR heating the last temperature search held is over 3x what the written model rebuilds for heat(5..10): cosmic rays, turbulence, the chemistry's 13 tagged reactions, and the levels' three terms. Bulk median 0.97-1.00; cold cells close to 2%. Already in the K1a baselines, before D-420. It carried D-421's H2 line misses: dust10 (51,1,1) at 955 K holds 1.51e-22 per H against a rebuilt -1.73e-22. The held value is the previous iteration's (updateCell runs before pdrStep, and D-404's ion pass has no thermal balance), so the excess is at least partly a swing between iterations, not shown to be a missing term. Code read, and ruled out: damping, skipped cells, the local zeta, double-summed level results, an inconsistent level solve. Not resolved; the decisive record (heat(1:12) per pdrStep per cell) is a code change awaiting a plan and the user's word | Open | 2026-10-19 |
 
 ---
 
@@ -5563,3 +5565,171 @@ a change.
 ### Status
 
 Done (2026-10-19).
+
+## H-042 - Production's D-420 and D-421 merged, built and tested here (2026-10-19)
+
+The user: "H2 probably isn't a collider in gas-grain heat exchange ... make
+a plan for this fix and execute it", and chose "Both, tested apart". The two
+fixes are production's D-420 and D-421. The plan,
+~/.claude/plans/iridescent-stirring-pie.md, was carried out by the
+code-executor (production's D-419) in two parts. The tests ran here, because
+the K1a runs that showed the symptom used this branch's install.
+
+  - **Merges**, all with no conflict:
+    - 1b5df3e: D-420, ce32641, H2 as a collider;
+    - 01b782d: D-421, 0568eb0, the 4 pi;
+    - 7f8a263 and 1ccd351: the DEVLOG results and L-9's closure.
+    The first two carry git's default merge message without the
+    attribution lines, as fa876a9 did.
+  - **Builds.** `runs/d420-scripts/build_h2.sh` ran the four flavours,
+    h2Test and h2Slab with this branch's PREFIX, rc 0 throughout:
+
+    | merge | done by | mocassin md5 | version |
+    |---|---|---|---|
+    | 1b5df3e | 11:20:57 | ac08827f | pdr-coupling-v1.1-252-g1b5df3e |
+    | 01b782d | 12:53:13 | 81cfe877 | pdr-coupling-v1.1-255-g01b782d |
+
+    Neither is -dirty.
+  - **Nothing installed.** ~/.local/mocassin_h2/bin/mocassin is still
+    bb4f9aa (md5 8bbe67d7), the binary the K1a runs used. An install needs
+    the user's word.
+  - **Runs**, in runs/, 14 ranks, seed 1001, through queue.sh under
+    systemd-run:
+    - d420-k1a-dust10 and d420-hii31;
+    - d421-k1a-dust10, d421-k1a-core and d421-hii31.
+    The K1a inputs were copied out of ~/Documentos/NGC7009_K1a/runs, with
+    `convTotals 1.e-6` appended so each run takes 30 iterations as its
+    baseline did. The hiipdr input is H-031's, unchanged. Every run ended
+    with rc 0, a clean exit, and 0 NaN, Singular, CVODE, "insane eta" and
+    flagged cells.
+  - **Results** are in production's DEVLOG, D-420 and D-421:
+    - the cold-cell coupling is 1.08-1.20 of BFM's rate, from 0.0175 in the
+      K1a cores before both fixes;
+    - the K1a cold cores warm (coldest 3.84 -> 6.41 K and 6.55 -> 12.50 K)
+      but stay well below the dust;
+    - the ionized gas is 2.3% (K1a) and 3.4% (hiipdr) cooler.
+    The H2 rotational-line misses come from H-043, which this branch's
+    held H2 heating may be part of.
+  - **For the K1a work:**
+    - every K1a model run with the installed binary predates both fixes;
+    - its report, ~/Documentos/NGC7009_K1a/report/code_issues.md item 2,
+      calls the H2 omission NEW. It was logged at D-305 (L-9). The folder is
+      read only, so the report is not edited.
+  - **Scripts** are in runs/d420-scripts/ (on disk, git-ignored): compare.py,
+    and the analysis scripts stale2.py, heatsplit.py, heatcensus.py,
+    h2vol.py and cell.py.
+
+### Status
+
+Done (2026-10-19).
+
+## H-043 - Molecular cells whose held PDR heating swings between iterations (2026-10-19)
+
+Found while diagnosing H-042's H2 line misses. Measured, with the code read;
+nothing changed.
+
+**What is held.**
+  - pdrStep sets pdrHeatXtra = heat(5) + ... + heat(10)
+    (pdr_mod.f90:4545). On this branch heat(5..7) are the level model's
+    (H-013):
+    - formation, at pdrRate(NRGR) and the kinetic energy per H2 formed;
+    - dissociation;
+    - the net collisional exchange within X, h2CollHeat.
+    heat(8..10) are 3D-PDR's: cosmic rays, turbulence and the chemistry's
+    13 tagged reactions.
+  - The next temperature search adds pdrHeatXtra/Hden to heatInt
+    (update_mod.f90:2449), held at every trial T. thermBudget's column 2 is
+    that addition at the last evaluation.
+
+**The order within an iteration** (iteration_mod.f90):
+  1. h2LevelModel, one sweep (:1043), at the T_e and field the iteration
+     starts with;
+  2. updateCell, the T search (:1261), with the pdrHeatXtra of the previous
+     pdrStep;
+  3. pdrStep (:1986), which sets the next pdrHeatXtra at the new T_e, with
+     h2Heat from step 1.
+D-404's second ionization solve follows, but it returns before the thermal
+balance (update_mod.f90:337-344). The finished model then gets 12 sweeps of
+the level model (:3254, :3283). So the written thermBudget column is
+iteration N-1's pdrStep. pdrGrid.out, h2Cells' 3D-PDR terms (pdrHeatH2) and
+its levels' terms are iteration N's.
+
+**The rebuild** (runs/d420-scripts/heatsplit.py, heatcensus.py). From the
+written model:
+  - heat(8) = 9.4 eV zeta x(H2), with zeta = 5e-17;
+  - heat(9) = 7e-29 per H, at v_turb = 1 km/s;
+  - heat(10) from pdrGrid's abundances and rates_reduced.d at the final T_e,
+    over the 13 reactions tagged in run.log;
+  - heat(5..7) from h2Cells' columns 21-23.
+
+| run | molecular cells | median held/rebuilt | over 3x | over 10x | T_e of those over 3x, median (max) |
+|---|---|---|---|---|---|
+| k1a-flow-q-dust10 (bb4f9aa) | 218 | 0.970 | 18 | 6 | 46.9 K (166.8) |
+| d420-k1a-dust10 | 223 | 0.969 | 18 | 6 | 47.2 K (165.3) |
+| d421-k1a-dust10 | 218 | 0.970 | 23 | 11 | 47.8 K (204.7) |
+| k1a-flow-q-core3.5e5 (bb4f9aa) | 271 | 0.985 | 22 | 8 | 56.5 K (102.1) |
+| d421-k1a-core | 268 | 0.995 | 23 | 7 | 56.1 K (131.9) |
+| d420-hii31 | 13549 | 1.000 | 95 | 44 | 25.1 K (37.5) |
+| d421-hii31 | 13547 | 1.000 | 119 | 56 | 25.1 K (49.7) |
+
+  - In the cells over 3x, the part not rebuilt is 38-80% of all their
+    heating.
+  - In cold, steady cells the rebuild closes to 2%. For example, hiipdr
+    (15,18,12) at 10.6 K: held 7.29e-28, rebuilt 7.29e-28.
+  - (51,1,1) of d421-k1a-dust10 is outside the count, because its rebuilt
+    total is negative. Its numbers, per H:
+    - held 1.51e-22;
+    - cosmic rays 3.7e-28, turbulence 7.0e-29, chemistry 7.3e-27;
+    - the levels -1.73e-22, its H2 line cooling at 955 K;
+    - pumping 1.6e-37 s^-1, and 3D-PDR's photodissociation and pumping
+      heating at the last pdrStep exactly 0.
+  - hiipdr cells at A_V 2.2-2.6 sit at about 11 K or 35-50 K, and swapped
+    between d420 and d421 in both directions.
+
+**Ruled out, by reading the code:**
+  - damping: iterDamp is 0, and it damps abundances only;
+  - pdrStep skipping a cell: it has no return;
+  - a local cosmic-ray rate: ZETALOCAL is pdrZetaMod, the input's;
+  - the level model's per-rank results summed twice: r1Tmp is cleared each
+    sweep (pdr_mod.f90:5412);
+  - an inconsistent level solve. h2Solve is a direct steady-state solve at
+    T (h2_mod.f90:1516), and h2CollHeat uses the same T, colliders and
+    populations. With no pumping, the exchange can return to the gas at
+    most what formation puts in, about 2e-25 per H in (51,1,1).
+
+**The hypothesis from before this entry, now narrowed.** Earlier today the
+excess in (51,1,1) was read as the held H2 term (heat(7)) going stale
+through the T search or flipping sign between passes, like D-166's coolant
+flaw. Against iteration N's state, a consistent level solve cannot give
++1.5e-22 there, so the stale-heat(7) reading would need pumping that
+iteration N does not have. What the two-iteration order leaves open is
+iteration N-1:
+  - its field, in cores where half the cells get no FUV packet (D-421 (b));
+  - its T_e;
+  - its chemistry.
+Any of these could have set a heating that iteration N no longer has. So
+the excess is at least partly the PDR heating swinging between iterations.
+It is not shown to be a missing term.
+
+**What it does.**
+  - It carries D-421's H2 line misses: dust10's 0-0 S(2) x13.5 through
+    (51,1,1), and the core's 0-0 S(1) x1.10 through (39,3,3) and (43,1,4).
+  - D-420's 6% in 0-0 S(1)/S(0) came through warm transition cells that may
+    be the same class.
+  - In the K1a runs, the H2 rotational lines carry this rather than the
+    physics of any one change.
+
+**Not yet known.**
+  - Which term swings, and why.
+  - Whether production has it. There heat(5..7) are 3D-PDR's, and the swing
+    has not been checked.
+  - Whether it settles with more iterations, or is a period-2 cycle.
+
+**The decisive measurement** records, for a list of cells at every pdrStep:
+heat(1:12), h2Heat(1:3), h2Sol, h2Pump, the T_e it was evaluated at, and
+the held value each T search used. That is a code change. It needs a plan
+and the user's word.
+
+### Status
+
+Open (2026-10-19).
