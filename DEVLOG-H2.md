@@ -52,6 +52,7 @@ DEVLOG.md and arrives here by merge.
 | H-041 | **Production's D-419 merged (fa876a9): code changes are planned at extra-high effort and implemented by the `code-executor` subagent at high effort (the user's rule).** The agent definition (`.claude/agents/code-executor.md`) and CLAUDE.md's section "Code changes are planned, then executed" arrive here by the merge, with no conflict; the branch note at the top of this CLAUDE.md is kept. On this branch the executor builds with `PREFIX=$HOME/.local/mocassin_h2` and also builds h2Test and h2Slab, and logs here (H-numbers). No code changed | Done | 2026-10-19 |
 | H-042 | **Production's D-420 and D-421 merged, built and tested here (the user: "H2 probably isn't a collider in gas-grain heat exchange ... make a plan for this fix and execute it"; scope "Both, tested apart").** Merges 1b5df3e (D-420: H2 a collider in the gas-grain exchange), 01b782d (D-421: the term's 4 pi), 7f8a263 and 1ccd351 (their DEVLOG results). The four flavours, h2Test and h2Slab, rc 0 at both steps (01b782d's mocassin md5 81cfe877). Nothing installed: ~/.local/mocassin_h2 is still bb4f9aa. Runs in runs/d420-* and runs/d421-*, the K1a inputs copied out of the read-only folder. Results in production's DEVLOG: cold-cell coupling 1.08-1.20 of BFM's rate; the K1a cold cores warm but stay well below the dust; the ionized gas 2.3-3.4% cooler in every dusty model | Done | 2026-10-19 |
 | H-043 | **Molecular cells whose held PDR heating swings between iterations (found in H-042's runs).** In 18-23 K1a cells and 95-119 hiipdr cells per run (x(H2) > 0.1), the PDR heating the last temperature search held is over 3x what the written model rebuilds for heat(5..10): cosmic rays, turbulence, the chemistry's 13 tagged reactions, and the levels' three terms. Bulk median 0.97-1.00; cold cells close to 2%. Already in the K1a baselines, before D-420. It carried D-421's H2 line misses: dust10 (51,1,1) at 955 K holds 1.51e-22 per H against a rebuilt -1.73e-22. The held value is the previous iteration's (updateCell runs before pdrStep, and D-404's ion pass has no thermal balance), so the excess is at least partly a swing between iterations, not shown to be a missing term. Code read, and ruled out: damping, skipped cells, the local zeta, double-summed level results, an inconsistent level solve. Not resolved; the decisive record (heat(1:12) per pdrStep per cell) is a code change awaiting a plan and the user's word | Open | 2026-10-19 |
+| H-044 | **The D-420/D-421 binary installed into ~/.local/mocassin_h2 (the user: "install the new binary").** The four flavours, h2Test and h2Slab rebuilt at 338c272 with the h2 prefix: rc 0 (18:55-18:57). The replaced bin/ (bb4f9aa's, H-040; mocassin md5 8bbe67d7) is kept in runs/_h2prefix_backup_2026-10-19_d421/. make clean, then the 3D flavour installed: rc 0, binaries 18:57:59, pdr-coupling-v1.1-260-g338c272 (mocassin md5 5179c87e), data path in the prefix. The source is 01b782d's (no diff in source/, Makefile, tools/), and the installed mocassin differs from the binary D-421's runs used (81cfe877) in 29 bytes: 9 in the version string and the 20-byte build-id hash, nothing else. Every K1a run from here on has both fixes; the K1a pages and runs before it have neither. Production's ~/.local (3fb58aa-dirty, 2026-10-05) is not touched | Done | 2026-10-19 |
 
 ---
 
@@ -5733,3 +5734,54 @@ and the user's word.
 ### Status
 
 Open (2026-10-19).
+
+## H-044 - The D-420/D-421 binary installed (2026-10-19)
+
+The user (2026-10-19, 18:54), after H-042's report listed the install as
+their decision: "install the new binary".
+
+**What is installed.** h2-model at 338c272. Its source is 01b782d's, the
+D-421 code merge: `git diff 01b782d HEAD -- source Makefile tools` is
+empty, and the three commits since (7f8a263, 1ccd351, 338c272) carry the
+DEVLOG entries only. So the binary holds D-420 (H2 a gas-grain collider)
+and D-421 (the term in each balance's own units) on top of bb4f9aa's
+D-418.
+
+**The build and install** (the H-038/H-040 procedure, runs/d420-scripts/
+build_h2.sh and install_h2.sh, logs h2_build_inst1019.log and
+h2_install.log):
+  - The four flavours, PREFIX=$HOME/.local/mocassin_h2, make clean before
+    each: rc 0, 0 errors (18:55:52-18:57:22). h2Test and h2Slab: rc 0.
+  - The replaced bin/ (bb4f9aa's, H-040; mocassin md5 8bbe67d7) is kept in
+    runs/_h2prefix_backup_2026-10-19_d421/.
+  - `make clean`, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin_h2
+    install`: rc 0, 0 errors, binaries 18:57:59, version string
+    pdr-coupling-v1.1-260-g338c272 in all four, data path
+    ~/.local/mocassin_h2/share/mocassin/.
+  - md5: mocassin 5179c87e, mocassinWarm d04021e2, mocassinOutput a436f48f,
+    mocassinPlot 28599e41.
+
+**Check.** No new run. The installed mocassin and the binary D-421's runs
+used (runs/d421-*/mocassin.d421, 01b782d, md5 81cfe877, built with the same
+prefix) are the same size, 1,529,216 bytes. `cmp -l` finds 29 differing
+bytes:
+  - 9 in the version string (offset 1,288,669: 260-g338c272 for
+    255-g01b782d);
+  - 20 at offsets 864-883, the SHA-1 of .note.gnu.build-id (0x350 + 16),
+    which hashes the rest.
+Nothing else differs. So the installed code is the code H-042's runs
+tested (d421-k1a-dust10, d421-k1a-core, d421-hii31: rc 0, clean, 0 NaN,
+0 flagged).
+
+**What it means for the K1a work.**
+  - Every K1a run from now on has both fixes. Every K1a run and page before
+    it has neither: the cold cores warm (6.41 and 12.50 K at the coldest)
+    and the ionized gas cools 2-3.5% (D-421).
+  - H-043 is not resolved. The K1a H2 rotational lines stay unconverged.
+
+**Not touched.** Production's install in ~/.local (pdr-coupling-v1.1-8-
+g3fb58aa-dirty, 2026-10-05) has neither fix. Its update was not asked for.
+
+### Status
+
+Done (2026-10-19).
