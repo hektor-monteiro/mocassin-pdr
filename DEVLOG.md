@@ -423,6 +423,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-421 | **The gas-grain term was divided by 4 pi in both balances it enters (found planning D-420).** The gas balance is physical per H (photoelHeat_g has no factor; pdrCool/Hden, D-135) and the grain balance physical / pi (radField = Jste/pi, Jste the angle-integrated flux, D-290; emission 4 C_abs B; photoelHeat_d / pi), so the gas term is 4 pi (12.6x) too weak and the grain term 4x. Measured in k1a-flow-q-dust10: the code's gas term is 0.0865 of the physical BFM rate in 58 atomic cells and 0.085 in 49 cold cells, against 1/(4 pi) = 0.080. With D-420 the coldest dust10 cell is predicted at 7.6-14.3 K; the gas-grain share of the ionized gas's cooling rises 0.36% -> ~4.5% (K1a) and 0.63% -> ~8% (hiipdr), so every dusty model moves by a few percent in T_e. The user's choice: both fixes, each tested on its own. **Result:** 0568eb0, merged as 01b782d; the cold-cell coupling is 1.08 (dust10), 1.13 (core3.5e5) and 1.20 (hiipdr) of BFM's rate, and the ionized gas T_e x0.977 (K1a) and x0.966 (hiipdr), with a gas-grain share of 4.3e-2 and 7.5e-2, as predicted. The cold cores warm (dust10 median 4.92 -> 7.16 K, core3.5e5 9.19 -> 13.26 K) but stay well below the dust; the original ranges missed in dust10 and the revised ones held (the slope stays near 4). Half the cold cells get no FUV packet, and where they do, the photoelectric heating dominates and moves with the sample. The H2 0-0 lines missed (dust10 S(2) x13.5): one cell at 955 K held by PDR heating that nothing on the finished model rebuilds. The held value is the previous iteration's (the last T search runs before the last pdrStep), so the excess is at least partly these cells' heating swinging between iterations. The same is already present in 18-22 cells per K1a baseline (before D-420) and in 95-119 per hiipdr run; logged in DEVLOG-H2 H-043, not resolved. Hbeta +2% in hiipdr is a miss, not attributed. The executor was made to hand back before the last two runs ended; the main session finished the waits and compares as planned | Done | 2026-10-19 |
 | D-422 | **Production installed into ~/.local at 874f591 (the user: "update the production install in ~/.local").** The old install was pdr-coupling-v1.1-8-g3fb58aa-dirty (2026-10-05, D-394 plus uncommitted changes), so it lacked the code of D-395 to D-421, D-418's Ni II fix and D-420/D-421's gas-grain term among them. The four flavours rebuilt at 874f591: rc 0 (19:07-19:08); make clean, then the 3D flavour installed with PREFIX=$HOME/.local: rc 0, binaries 19:09:30, pdr-coupling-v1.1-122-g874f591, mocassin md5 d8f88994; the tree cleaned after. data/, dustData/ and dataPDR/ in ~/.local/share/mocassin were already byte-identical to the repository's, so what runs read is unchanged; three older copies of tracked benchmark inputs were overwritten. The old binaries and those three files are kept in runs/_localprefix_backup_2026-10-19_d421/. No run with this binary | Done | 2026-10-19 |
 | D-423 | **Pushing production to GitHub (hektor-monteiro/mocassin-pdr): what it would do, and why the checkout should not be renamed (the user: "Should I do it?").** origin already points at mocassin-pdr (public, default branch main, last push 2026-09-15). pdr-photoionization tracks origin/main and push.default is upstream, so a plain `git push` fast-forwards main from 0fc4536 (D-284) to 4db7bf2 (D-422): 269 commits, no force, largest blob 2.8 MB, no secrets found. No tag goes unless asked; pdr-coupling-v1.1 is not on the remote. The directory name plays no part in a push. Renaming the checkout would break the h2 worktree's link (repairable), Claude Code's memory for this project (keyed by path), and the ten benchmarks/pdr fixtures, whose pdrDataDir is this checkout's absolute path. Recommended: push, keep the name. Nothing pushed; awaiting the user | Open | 2026-10-20 |
+| D-424 | **README.md rewritten for the current code; the "Notes on Dust Species" section removed (the user: "update the README file of the repository with the current state of the code. Remove the 'Notes on Dust Species' section.").** New sections: current state with the changes that move results (D-413/D-415, D-418, D-420/D-421), how the coupling works (who computes what, the iteration order), the PDR keywords, the convergence test, the PDR fixtures, the PDR outputs, validation highlights and limitations, branches and versions. Corrected: a bare `make` builds only the Makefile's first target, source/interpolation_mod.o, not the programs (the old README's `make clean; make`), so the README names `all`; SUNDIALS needs no env.sh (rpath); the data are read from PREFIX/share/mocassin, not /usr/share/mocassin; every PDR fixture's pdrDataDir is this machine's absolute path. The Makefile's default goal is recorded, not fixed: a code change, for a plan and the user's word | Done | 2026-10-20 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -40952,3 +40953,81 @@ dataPDR).
 ### Status
 
 Open (2026-10-20): nothing pushed, awaiting the user.
+
+---
+
+## D-424 - README.md for the current code (2026-10-20)
+
+The user (2026-10-20): "update the README file of the repository with the
+current state of the code. Remove the 'Notes on Dust Species' section."
+The README had last been edited at D-272 (2026-09-14). A documentation
+change, so not under the plan-then-execute rule (that covers source/,
+source/pdr/, the Makefile and tools/).
+
+**Removed.** "Some Notes on Dust Species": the table of grain species
+(density, sublimation temperature, work function) and its reference list,
+which the README itself marked "need to double check these". Nothing in the
+code reads it; doc/dust.md is the dust documentation and is linked instead.
+
+**Kept.** The opening, MOCASSIN's description, the executables, the
+SUNDIALS build recipe, the test_Problem and dust benchmark instructions, and
+the licence and credits.
+
+**New, each from the code or the log as of D-423:**
+  - Current state: research code, last tag pdr-coupling-v1.1, DEVLOG and
+    doc/pdr-status.md (as of D-410) as the records; the changes that move
+    results: D-420/D-421 (ionized gas 2-3.5% cooler in dusty models, the
+    benchmarks not rerun), D-418, D-413/D-415.
+  - How the coupling works: a table of who computes what (from
+    doc/pdr-status.md section 1, the man page and D-325, D-363, D-376,
+    D-414, D-420), hydrogen conservation by construction (D-220), and the
+    order within an iteration (T search with the last chemistry's terms,
+    pdrStep, D-404's second ion solve).
+  - Building: the three builds with `all`, `make clean` between them,
+    SUNDIALS_DIR (default $(HOME)/software/sundials-7.8.0), PREFIX and the
+    compiled-in data path, `make clean` before a new PREFIX, D-416's length
+    limit, the atomic data's provenance (D-330).
+  - Running: input/input.in, output/ to be made, D-370's memory model, the
+    PDR keywords (the man page's list, shortened), the refused keywords,
+    frontLines, and the stop test (convTotals 0.02, the largest change over
+    cvTotK = 3 iterations, common_mod.f90).
+  - The PDR fixtures in benchmarks/pdr, with two warnings: every fixture's
+    pdrDataDir is an absolute path on this machine, and the 1D fixtures
+    are out of scope (D-338).
+  - The PDR output files, with thermBudget.out's one-iteration lag (H-043,
+    D-421 correction).
+  - Validation highlights from doc/pdr-status.md section 2 (D-304, D-305),
+    marked as measured before D-420/D-421, and four limitations: FUV packet
+    noise in shielded gas (D-421, D-408), fronts thinner than a cell
+    (D-379..D-382), the twelve ray directions (D-410), H2 physics on main
+    being 3D-PDR's.
+  - Branches and versions: main, h2-model (described as work in progress,
+    on the assumption it is pushed, H-045), the tags.
+  - Credits added: CHIANTI (Dere et al. 1997; 10.1, Dere et al. 2023),
+    Stout (Lykins et al. 2015), Weingartner & Draine 2001, Cazaux & Tielens
+    2002, 2004.
+
+**Corrected from the old README.**
+  - `make clean; make` built nothing usable. The Makefile's first target is
+    an object file: `make -n -p` gives `.DEFAULT_GOAL :=
+    source/interpolation_mod.o`, and a dry run builds no executable. The
+    README now names `all` (mocassin, mocassinWarm, mocassinOutput,
+    mocassinPlot). The default goal itself is a Makefile defect, recorded
+    here and not fixed: a code change needs a plan and the user's word.
+  - `source ~/software/sundials-7.8.0/env.sh` is not needed: the binaries
+    carry SUNDIALS' path (-rpath), and only SUNDIALS_DIR matters at build
+    time.
+  - The data are read from PREFIX/share/mocassin (default ~/.local), not
+    /usr/share/mocassin.
+  - `make FCFLAGS=...` set nothing: the Makefile uses FFLAGS. The line is
+    dropped; FC/LD are named instead for non-Debian compilers.
+
+**Not changed.** benchmarks/pdr/README.md still ends with D-064's "Where it
+stands" (a 1.96x temperature offset from the coupling's early weeks); it is
+stale and was not in the request. The man page has no entry for
+thermBudget.out, pdrRad.out, pdrFUVspec.out, pdrCoolSp.out or
+resLineEsc.out, nor for convTotals.
+
+### Status
+
+Done (2026-10-20).
