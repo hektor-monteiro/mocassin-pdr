@@ -422,6 +422,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-420 | **H2 becomes a collider in the gas-grain exchange (L-9, found in D-305; the user: "H2 probably isn't a collider in gas-grain heat exchange. This is the most important new change we need ... It needs a test run before it counts as established. Audit the changes already logged and check if this is mentioned already, make a plan for this fix and execute it").** The audit: already logged - D-305 (d) found it (68x below Cloudy's dust cooling at A_V 0.65 on hiipdr), L-9 records it, D-333 put dense knots out of scope until it was fixed, and update_mod.f90 notes it; the K1a report's "NEW" is the symptom, not the defect: k1a-flow-q-dust10's core at 3.84 K and k1a-flow-q-core3.5e5's at 6.55 K against dust at 16-25 K. In those cores He and the residual atoms carry the coupling; H2 adds 3.83x theirs (x4.83 in all). Predicted from the coldest cell's budget: 3.84 -> 4.3-4.9 K, so H2 alone does not close the gap (D-421). Test: the dust10 rerun with only the change, seed 1001, 14 ranks, 30 iterations, against the original **Result:** the coupling enters at the designed strength (the cold cells 0.0175 -> 0.0849 of BFM's rate with H2; x4.83 over the atoms, H2 80% of it), the ionized gas does not move (T_e 1.0000, lines within 0.12%), and the coldest cell goes 3.84 -> 4.15 K against dust at 23 K, so H2 alone does not close the anomaly. Two predictions missed and were diagnosed, the code not at fault: the cold core (median 4.92 K against 5.0-5.6) because its CO cooling has slope 4.1 near 4 K, not the 1.4-3 assumed (the budget estimate with 4.1 gives 4.17/4.91 K against 4.15/4.92 measured); H2 0-0 S(1) and S(0) +6% (2% predicted) from two warm transition cells whose unconverged chemistry moved (the new term 0.1-0.2% of their heating) - a hypothesis, no seed pair run. compare.py's atomic-cell ratio is mostly the electron term without grain charge, so only the cold-cell ratio measures the normalisation (D-421) | Done | 2026-10-19 |
 | D-421 | **The gas-grain term was divided by 4 pi in both balances it enters (found planning D-420).** The gas balance is physical per H (photoelHeat_g has no factor; pdrCool/Hden, D-135) and the grain balance physical / pi (radField = Jste/pi, Jste the angle-integrated flux, D-290; emission 4 C_abs B; photoelHeat_d / pi), so the gas term is 4 pi (12.6x) too weak and the grain term 4x. Measured in k1a-flow-q-dust10: the code's gas term is 0.0865 of the physical BFM rate in 58 atomic cells and 0.085 in 49 cold cells, against 1/(4 pi) = 0.080. With D-420 the coldest dust10 cell is predicted at 7.6-14.3 K; the gas-grain share of the ionized gas's cooling rises 0.36% -> ~4.5% (K1a) and 0.63% -> ~8% (hiipdr), so every dusty model moves by a few percent in T_e. The user's choice: both fixes, each tested on its own. **Result:** 0568eb0, merged as 01b782d; the cold-cell coupling is 1.08 (dust10), 1.13 (core3.5e5) and 1.20 (hiipdr) of BFM's rate, and the ionized gas T_e x0.977 (K1a) and x0.966 (hiipdr), with a gas-grain share of 4.3e-2 and 7.5e-2, as predicted. The cold cores warm (dust10 median 4.92 -> 7.16 K, core3.5e5 9.19 -> 13.26 K) but stay well below the dust; the original ranges missed in dust10 and the revised ones held (the slope stays near 4). Half the cold cells get no FUV packet, and where they do, the photoelectric heating dominates and moves with the sample. The H2 0-0 lines missed (dust10 S(2) x13.5): one cell at 955 K held by PDR heating that nothing on the finished model rebuilds. The held value is the previous iteration's (the last T search runs before the last pdrStep), so the excess is at least partly these cells' heating swinging between iterations. The same is already present in 18-22 cells per K1a baseline (before D-420) and in 95-119 per hiipdr run; logged in DEVLOG-H2 H-043, not resolved. Hbeta +2% in hiipdr is a miss, not attributed. The executor was made to hand back before the last two runs ended; the main session finished the waits and compares as planned | Done | 2026-10-19 |
 | D-422 | **Production installed into ~/.local at 874f591 (the user: "update the production install in ~/.local").** The old install was pdr-coupling-v1.1-8-g3fb58aa-dirty (2026-10-05, D-394 plus uncommitted changes), so it lacked the code of D-395 to D-421, D-418's Ni II fix and D-420/D-421's gas-grain term among them. The four flavours rebuilt at 874f591: rc 0 (19:07-19:08); make clean, then the 3D flavour installed with PREFIX=$HOME/.local: rc 0, binaries 19:09:30, pdr-coupling-v1.1-122-g874f591, mocassin md5 d8f88994; the tree cleaned after. data/, dustData/ and dataPDR/ in ~/.local/share/mocassin were already byte-identical to the repository's, so what runs read is unchanged; three older copies of tracked benchmark inputs were overwritten. The old binaries and those three files are kept in runs/_localprefix_backup_2026-10-19_d421/. No run with this binary | Done | 2026-10-19 |
+| D-423 | **Pushing production to GitHub (hektor-monteiro/mocassin-pdr): what it would do, and why the checkout should not be renamed (the user: "Should I do it?").** origin already points at mocassin-pdr (public, default branch main, last push 2026-09-15). pdr-photoionization tracks origin/main and push.default is upstream, so a plain `git push` fast-forwards main from 0fc4536 (D-284) to 4db7bf2 (D-422): 269 commits, no force, largest blob 2.8 MB, no secrets found. No tag goes unless asked; pdr-coupling-v1.1 is not on the remote. The directory name plays no part in a push. Renaming the checkout would break the h2 worktree's link (repairable), Claude Code's memory for this project (keyed by path), and the ten benchmarks/pdr fixtures, whose pdrDataDir is this checkout's absolute path. Recommended: push, keep the name. Nothing pushed; awaiting the user | Open | 2026-10-20 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -40896,3 +40897,58 @@ decision.
 ### Status
 
 Done (2026-10-19).
+
+---
+
+## D-423 - Pushing production to GitHub, and why the checkout keeps its name (2026-10-20)
+
+The user (2026-10-20): "I want to push this repository to my github
+repository mocassin-pdr. I tried to rename this local one earlier. Should I
+do it?" Pushing has been off limits in this project by the user's standing
+rule, so this entry records the state and the advice, not a push.
+
+**The remote.** `origin` is already https://github.com/hektor-monteiro/
+mocassin-pdr.git. GitHub's API (read 11:48): public, not a fork, default
+branch main, last push 2026-09-15 11:51 UTC. The remote holds main at
+0fc4536 (D-284) and the tag pdr-coupling-v1.0, nothing else
+(`git ls-remote`).
+
+**What a push would do.**
+  - pdr-photoionization tracks origin/main (branch.*.merge refs/heads/main)
+    and push.default is `upstream`, so a plain `git push` from this branch
+    updates the remote's main. No branch has to be renamed for it.
+  - origin/main is an ancestor of HEAD: a fast-forward of 269 commits, from
+    D-284 to D-422, with no force.
+  - 268 files change, 108 of them new (49 in tools/, 29 in data/, 8 in
+    dataPDR/). The largest blob is 2.8 MB (dustData/PAHneu_30.cat), well
+    under GitHub's limits. A scan of the added lines for tokens, keys and
+    passwords found none.
+  - Everything in it becomes public: DEVLOG.md mentions the NGC 7009 K1a
+    model 32 times and gives one ~/Documentos path, and the commit messages
+    carry Claude session links. That is the user's call; nothing in it is a
+    credential.
+  - No tag goes with a plain push. pdr-coupling-v1.1 (this branch's science
+    tag) and the reverted-work tags are local only. Pushing the release tag
+    on its own would be `git push origin pdr-coupling-v1.1`.
+  - h2-model and the other local branches stay local unless pushed by name.
+  - No credential helper is set, so the push over HTTPS asks for a GitHub
+    token, which is easier in the user's own terminal.
+
+**Why the checkout should keep its name.** The directory name plays no part
+in a push. Renaming ~/software/mocassin_HM_2026_3DPDR would break three
+things that hold its path:
+  - the h2-model worktree: ~/software/mocassin_h2/.git points at
+    .git/worktrees/mocassin_h2 under this path (`git worktree repair` would
+    fix it);
+  - Claude Code's memory for this project, which is keyed by the path;
+  - the ten benchmarks/pdr fixtures, whose input.in sets pdrDataDir to this
+    checkout's dataPDR by absolute path, as do DEVLOG.md (3) and
+    .claude/agents/code-executor.md (1).
+None of the h2 or K1a runs' inputs depend on it (they read the h2 prefix's
+dataPDR).
+
+**Advice given.** Push; keep the name. Optionally push pdr-coupling-v1.1.
+
+### Status
+
+Open (2026-10-20): nothing pushed, awaiting the user.
