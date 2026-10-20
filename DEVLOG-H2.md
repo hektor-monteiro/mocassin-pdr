@@ -53,6 +53,7 @@ DEVLOG.md and arrives here by merge.
 | H-042 | **Production's D-420 and D-421 merged, built and tested here (the user: "H2 probably isn't a collider in gas-grain heat exchange ... make a plan for this fix and execute it"; scope "Both, tested apart").** Merges 1b5df3e (D-420: H2 a collider in the gas-grain exchange), 01b782d (D-421: the term's 4 pi), 7f8a263 and 1ccd351 (their DEVLOG results). The four flavours, h2Test and h2Slab, rc 0 at both steps (01b782d's mocassin md5 81cfe877). Nothing installed: ~/.local/mocassin_h2 is still bb4f9aa. Runs in runs/d420-* and runs/d421-*, the K1a inputs copied out of the read-only folder. Results in production's DEVLOG: cold-cell coupling 1.08-1.20 of BFM's rate; the K1a cold cores warm but stay well below the dust; the ionized gas 2.3-3.4% cooler in every dusty model | Done | 2026-10-19 |
 | H-043 | **Molecular cells whose held PDR heating swings between iterations (found in H-042's runs).** In 18-23 K1a cells and 95-119 hiipdr cells per run (x(H2) > 0.1), the PDR heating the last temperature search held is over 3x what the written model rebuilds for heat(5..10): cosmic rays, turbulence, the chemistry's 13 tagged reactions, and the levels' three terms. Bulk median 0.97-1.00; cold cells close to 2%. Already in the K1a baselines, before D-420. It carried D-421's H2 line misses: dust10 (51,1,1) at 955 K holds 1.51e-22 per H against a rebuilt -1.73e-22. The held value is the previous iteration's (updateCell runs before pdrStep, and D-404's ion pass has no thermal balance), so the excess is at least partly a swing between iterations, not shown to be a missing term. Code read, and ruled out: damping, skipped cells, the local zeta, double-summed level results, an inconsistent level solve. Not resolved; the decisive record (heat(1:12) per pdrStep per cell) is a code change awaiting a plan and the user's word | Open | 2026-10-19 |
 | H-044 | **The D-420/D-421 binary installed into ~/.local/mocassin_h2 (the user: "install the new binary").** The four flavours, h2Test and h2Slab rebuilt at 338c272 with the h2 prefix: rc 0 (18:55-18:57). The replaced bin/ (bb4f9aa's, H-040; mocassin md5 8bbe67d7) is kept in runs/_h2prefix_backup_2026-10-19_d421/. make clean, then the 3D flavour installed: rc 0, binaries 18:57:59, pdr-coupling-v1.1-260-g338c272 (mocassin md5 5179c87e), data path in the prefix. The source is 01b782d's (no diff in source/, Makefile, tools/), and the installed mocassin differs from the binary D-421's runs used (81cfe877) in 29 bytes: 9 in the version string and the 20-byte build-id hash, nothing else. Every K1a run from here on has both fixes; the K1a pages and runs before it have neither. Production's ~/.local (3fb58aa-dirty, 2026-10-05) is not touched | Done | 2026-10-19 |
+| H-045 | **Pushing h2-model to GitHub (the user: "should I push ~/software/mocassin_h2 ?").** The branch is in the same repository, so it would go to hektor-monteiro/mocassin-pdr (public) as its own branch; main stays production's. It has no upstream, so with push.default upstream a plain `git push` fails: `git push -u origin h2-model` creates the branch and sets it. It adds 141 commits over production (H-001 on 2026-09-28 to the D-423 merge): 72 files, 27 of them dataPDR/h2, Cloudy c25.00's data copied unmodified with its zlib notice and sources in dataPDR/h2/README.md; largest blob 1.5 MB; no secrets found; runs/ ignored. Those commits exist on this disk only. Advice: push it after main, as a backup; it is work in progress (H-043 open). Nothing pushed | Open | 2026-10-20 |
 
 ---
 
@@ -5785,3 +5786,39 @@ g3fb58aa-dirty, 2026-10-05) has neither fix. Its update was not asked for.
 ### Status
 
 Done (2026-10-19).
+
+## H-045 - Pushing h2-model to GitHub (2026-10-20)
+
+The user (2026-10-20), after production's D-423: "should I push
+~/software/mocassin_h2 ?"
+
+**What it would be.** ~/software/mocassin_h2 is a worktree of the same
+repository, so its branch would go to hektor-monteiro/mocassin-pdr (public)
+as a branch named h2-model. The remote's main stays production's.
+  - h2-model has no upstream, and push.default is `upstream`, so a plain
+    `git push` from the worktree fails. `git push -u origin h2-model` (from
+    either checkout) creates the remote branch and sets the upstream, after
+    which a plain `git push` from the worktree works.
+  - It holds every production commit (by merge) plus 141 of its own, H-001
+    (e94a1bd, 2026-09-28) to the D-423 merge (bc1b13e). If pushed before
+    main, production's commits go up with it; the order does not matter.
+  - Over production: 72 files, +63,587 lines. New: 27 in dataPDR/h2, 24 in
+    tools/ (5 of them patches of this repository's source), 4 in source/,
+    DEVLOG-H2.md and a doc. Largest blob 1.5 MB
+    (dataPDR/h2/coll_rates_He_ORNL.dat). No tokens, keys or passwords in the
+    added lines. runs/ is ignored.
+  - dataPDR/h2 is Cloudy c25.00's data/h2, copied unmodified, with the
+    original references and Cloudy's zlib notice in dataPDR/h2/README.md
+    (H-001, H-004), which is what that licence asks of a redistribution.
+
+**Advice given.** Push it, after main, as its own branch.
+  - These 141 commits, a month of work and the commits that the K1a runs and
+    the installed binary (H-044) name, exist on this disk only.
+  - It is work in progress (H-043 open; the K1a H2 rotational lines
+    unconverged). DEVLOG-H2.md says so, and the branch is not the default.
+  - DEVLOG-H2.md becomes public with it, K1a results included. That is the
+    user's call.
+
+### Status
+
+Open (2026-10-20): nothing pushed, awaiting the user.
