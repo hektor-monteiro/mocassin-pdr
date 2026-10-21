@@ -41671,3 +41671,15 @@ the user's word. The install would add dataPDR/h2 to ~/.local/share/mocassin.
 ### Status
 
 Done (2026-10-21): tag pdr-coupling-v2.0 created locally, not pushed.
+
+Pushed by the user (GitKraken), checked with `git ls-remote` at 15:14:
+main 53c17eb (the release commit), h2-model fd1d143 (H-046), and the tags
+pdr-coupling-v1.0 to v2.0, v2.0's tag object cc5bd81 as here. GitHub's API
+lists no release object yet (`releases: []`): the tags are there, the
+Releases entries are not. Advice given:
+  - create the v2.0 release from its tag with the notes above (and v1.2's
+    from D-425 if wanted, without marking it latest);
+  - do not merge the "Able to merge" pull request GitHub offers for
+    h2-model. Its only difference from main is H-046 (DEVLOG-H2.md). A merge
+    on GitHub would put a commit on main that this checkout lacks, outside
+    the local merge-after-validation route (CLAUDE.md).
