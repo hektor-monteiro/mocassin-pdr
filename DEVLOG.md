@@ -426,6 +426,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-424 | **README.md rewritten for the current code; the "Notes on Dust Species" section removed (the user: "update the README file of the repository with the current state of the code. Remove the 'Notes on Dust Species' section.").** New sections: current state with the changes that move results (D-413/D-415, D-418, D-420/D-421), how the coupling works (who computes what, the iteration order), the PDR keywords, the convergence test, the PDR fixtures, the PDR outputs, validation highlights and limitations, branches and versions. Corrected: a bare `make` builds only the Makefile's first target, source/interpolation_mod.o, not the programs (the old README's `make clean; make`), so the README names `all`; SUNDIALS needs no env.sh (rpath); the data are read from PREFIX/share/mocassin, not /usr/share/mocassin; every PDR fixture's pdrDataDir is this machine's absolute path. The Makefile's default goal is recorded, not fixed: a code change, for a plan and the user's word | Done | 2026-10-20 |
 | D-425 | **Release `pdr-coupling-v1.2` (the user: "I think this is a good point to create a release of the code").** An annotated tag on the commit that adds this entry: production at D-424 (62c6e53, already on GitHub) plus this entry and the README's release lines, 126 commits after v1.1 (c27e658, D-388), 18 of them changing source or data (D-391..D-393, D-395, D-397, D-398, D-402..D-404, D-406, D-413..D-415, D-418, D-420, D-421). Checked before tagging: no source, Makefile or data change since 874f591, whose four flavours built rc 0 and which is installed in ~/.local (D-422); a fresh clone of the local repository at 62c6e53 built PDR=1 mocassin, mocassin, PDR=1 mocassinWarm and PDR=1 PDRGEOM=3D all, rc 0 and 0 errors each (09:19-09:20), leaving no tracked file changed; the checkout's only untracked files outside runs/ are tools/__pycache__. Release notes in this entry, for the GitHub release. Not done: no benchmark rerun with D-420/D-421 (the notes say the validation figures predate them); no push (the tag and this commit are local); no install. D-423 closed: the user had pushed main, h2-model and pdr-coupling-v1.1 | Done | 2026-10-21 |
 | D-426 | **Should the release be merged to main? No merge is needed (the user: "should the current release be merged to main?").** GitHub's main is this branch: pdr-photoionization tracks origin/main (push.default upstream), so `git push` makes GitHub's main the release commit 584e633, and the tag goes with `git push origin pdr-coupling-v1.2`. The local branch named `main` is another line: the original MOCASSIN fork's main at 0d57a7c (tag 1.1.1, 2026-08-28), with no upstream, kept off mocassin-pdr by D-273. It holds nothing the release lacks (0 commits ahead, 504 behind), so a merge would be a fast-forward that makes it a second name for the PDR line, and a push of it to the core fork would carry the PDR there, which D-273 kept apart. Advice: leave local main as it is. Nothing changed | Advice given | 2026-10-21 |
+| D-427 | **Commit-message audit: references to the user's requests stay in published history; new messages carry technical content only (the user: "audit all commit messages and remove any references of the requests I have made as the user"; then, given the cost, "Only from now on").** 57 of the 804 commits in all refs mention the user. 3 mean a user of the code (9093ce1, b8616c0, 9e27bd0); 54 cite a request, question or decision, the oldest 00d1f18 (2026-09-11, D-232). All 57 are on GitHub. Rewording them would give 484 commits new hashes, move six tags (pdr-coupling-v1.0, v1.1, v1.2 and three reverted-work tags) and need a force-push of main, h2-model and the tags, and would leave about 200 hash references in DEVLOG.md (103), DEVLOG-H2.md (96) and doc/pdr-status.md (3) pointing at old commits, as well as the installed binaries' version strings. Decided: history as published; from this entry on, commit messages state the change and its evidence only; the DEVLOG text keeps its quotes. Audit list in runs/_commit_audit_2026-10-21/. Nothing rewritten | Done | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41227,3 +41228,57 @@ main (this branch) and the tag are pushed. Nothing changed.
 ### Status
 
 Advice given (2026-10-21).
+
+---
+
+## D-427 - Commit-message audit (2026-10-21)
+
+The user (2026-10-21): "I want you to audit all commit messages and remove
+any references of the requests I have made as the user. For example, in
+commit 584e633..., ' (the user: "I think this is a good point to create a
+release of the code") ' should be removed and keep just the relevant
+technical information."
+
+**The audit** (`git log --all`, every message body;
+runs/_commit_audit_2026-10-21/audit_msgs.py, the list in audit_list.txt):
+  - 804 commits in all refs; 57 messages mention the user.
+  - 3 of them mean a user of the code, not a request: 9093ce1 ("exposed CDE
+    option to the user"), b8616c0 ("new-user input mistakes"), 9e27bd0.
+  - 54 cite a request, question, direction or decision, 7 of them with a
+    quotation. The oldest is 00d1f18 (2026-09-11, D-232, "raised by the
+    user"), the newest 515d9b6 (D-426) and the h2-model merge commits.
+  - All 57 are on GitHub: main up to 62c6e53, and h2-model at ff31bc7,
+    which contains 584e633 and 515d9b6, with the tag pdr-coupling-v1.2.
+
+**What rewording them would take.** A message is part of its commit's hash,
+so changing 00d1f18's changes every descendant:
+  - 484 of the 804 commits would get new hashes, on pdr-photoionization,
+    h2-model, d418-level-order and pdr-coupling;
+  - six tags would move: pdr-coupling-v1.0, v1.1 and v1.2 (the releases
+    science results cite) and d341-d342-perray-reverted,
+    d348-raycolumns-removed and d352-zone-and-switches;
+  - GitHub would need a force-push of main, h2-model and the tags, and old
+    hashes stay viewable there until GitHub collects them;
+  - hash references to rewritten commits would point at the old ones: 103
+    in DEVLOG.md (49 commits), 96 in DEVLOG-H2.md (52), 3 in
+    doc/pdr-status.md, and the version strings of the installed binaries
+    and every run log (g874f591, g338c272, ...);
+  - git filter-repo is not installed; git filter-branch (git 2.53) would
+    do it, with a hand-written new message for each of the 54.
+The DEVLOGs quote requests too, in about 312 lines of DEVLOG.md and 93 of
+DEVLOG-H2.md.
+
+**Decided** (the user, choosing between a full rewrite, this, and reviewing
+proposed messages first): "Only from now on", and for the DEVLOGs "Commit
+messages only".
+  - Published history is left as it is; nothing was rewritten.
+  - From this entry on, commit messages state the change, its D/H number
+    and its evidence, with no quotation of or reference to the user's
+    requests or decisions (kept as a standing rule in Claude Code's project
+    memory).
+  - The DEVLOG text keeps its quotes, as the record of why each decision was
+    made.
+
+### Status
+
+Done (2026-10-21).
