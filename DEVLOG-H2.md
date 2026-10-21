@@ -54,6 +54,7 @@ DEVLOG.md and arrives here by merge.
 | H-043 | **Molecular cells whose held PDR heating swings between iterations (found in H-042's runs).** In 18-23 K1a cells and 95-119 hiipdr cells per run (x(H2) > 0.1), the PDR heating the last temperature search held is over 3x what the written model rebuilds for heat(5..10): cosmic rays, turbulence, the chemistry's 13 tagged reactions, and the levels' three terms. Bulk median 0.97-1.00; cold cells close to 2%. Already in the K1a baselines, before D-420. It carried D-421's H2 line misses: dust10 (51,1,1) at 955 K holds 1.51e-22 per H against a rebuilt -1.73e-22. The held value is the previous iteration's (updateCell runs before pdrStep, and D-404's ion pass has no thermal balance), so the excess is at least partly a swing between iterations, not shown to be a missing term. Code read, and ruled out: damping, skipped cells, the local zeta, double-summed level results, an inconsistent level solve. Not resolved; the decisive record (heat(1:12) per pdrStep per cell) is a code change awaiting a plan and the user's word | Open | 2026-10-19 |
 | H-044 | **The D-420/D-421 binary installed into ~/.local/mocassin_h2 (the user: "install the new binary").** The four flavours, h2Test and h2Slab rebuilt at 338c272 with the h2 prefix: rc 0 (18:55-18:57). The replaced bin/ (bb4f9aa's, H-040; mocassin md5 8bbe67d7) is kept in runs/_h2prefix_backup_2026-10-19_d421/. make clean, then the 3D flavour installed: rc 0, binaries 18:57:59, pdr-coupling-v1.1-260-g338c272 (mocassin md5 5179c87e), data path in the prefix. The source is 01b782d's (no diff in source/, Makefile, tools/), and the installed mocassin differs from the binary D-421's runs used (81cfe877) in 29 bytes: 9 in the version string and the 20-byte build-id hash, nothing else. Every K1a run from here on has both fixes; the K1a pages and runs before it have neither. Production's ~/.local (3fb58aa-dirty, 2026-10-05) is not touched | Done | 2026-10-19 |
 | H-045 | **Pushing h2-model to GitHub (the user: "should I push ~/software/mocassin_h2 ?").** The branch is in the same repository, so it would go to hektor-monteiro/mocassin-pdr (public) as its own branch; main stays production's. It has no upstream, so with push.default upstream a plain `git push` fails: `git push -u origin h2-model` creates the branch and sets it. It adds 141 commits over production (H-001 on 2026-09-28 to the D-423 merge): 72 files, 27 of them dataPDR/h2, Cloudy c25.00's data copied unmodified with its zlib notice and sources in dataPDR/h2/README.md; largest blob 1.5 MB; no secrets found; runs/ ignored. Those commits exist on this disk only. Advice: push it after main, as a backup; it is work in progress (H-043 open). Nothing pushed **The user pushed h2-model (3395717) on 2026-10-21; production's release pdr-coupling-v1.2 (D-425) merged here as 1ed9714** | Done 2026-10-21 | 2026-10-20 |
+| H-046 | **This branch merged into production and released as `pdr-coupling-v2.0` (production DEVLOG D-429, D-430); H2 development continues here.** Merge c1ea374 on production, no conflict; four flavours, h2Test and h2Slab rc 0. Release check with the production build: hiipdr 31^3 reproduces this branch's d421-hii31 in every output file but summary.out's clock times; pn150k 41^3 against d405-pn41-d0 (D-418, D-420, D-421 measured there for the first time with the levels in the loop) healthy, ionized T_e x0.996, H2 lines within 0.22%, the cold cell to the dust temperature. The release commit 53c17eb came back here as a fast-forward; CLAUDE.md now carries one note true in both checkouts. Open items carried into the release: H-002, H-021/L-43, H-037, H-043 | Done | 2026-10-21 |
 
 ---
 
@@ -5829,3 +5830,48 @@ went to 3395717 (doc/h2-radiation-molecules, the LaTeX description) at
 production was released as pdr-coupling-v1.2 at 584e633 (D-425), merged
 here as 1ed9714 (DEVLOG.md and README.md only). The H2 model is not part
 of that release; this branch stays work in progress.
+
+---
+
+## H-046 - Merged into production as pdr-coupling-v2.0 (2026-10-21)
+
+Production's DEVLOG D-429 (the merge and its check) and D-430 (the release)
+hold the detail; this is the branch's record of it.
+
+  - **The merge.** On production, `git merge --no-ff h2-model` gave c1ea374
+    with no conflict: production's tree became this branch's, plus D-429's
+    opening. The four flavours, h2Test and h2Slab built rc 0 there
+    (pdr-coupling-v1.2-154-gc1ea374).
+  - **The check, with the production build** (runs in production's
+    runs/_release_v2):
+    - hiipdr 31^3 with d421-hii31's input reproduces it in all 26 output
+      files, apart from summary.out's 15 clock times;
+    - pn150k 41^3 with d405-pn41-d0's input (seed 1001, 18 iterations) is
+      the first run here of D-418, D-420 and D-421:
+      - healthy (3 flagged cells against 2);
+      - ionized median T_e x0.9964; Hbeta +0.49%; forbidden lines -0.8 to
+        -2.7%;
+      - H2 1-0 S(1) 0.9982, 2-1 S(1) 0.9978, 0-0 S(0)-S(2) 0.9981-0.9998;
+      - the one cold-core cell 21.53 -> 24.51 K against dust at 24.43 K;
+      - the level model took 97.7 of the run's 149 minutes.
+    Every predicted range was met.
+  - **The release.** pdr-coupling-v2.0 is on 53c17eb, which carries the
+    README, CLAUDE.md and man page rewritten for the H2 model. It came back
+    to this branch as a fast-forward of `git merge pdr-photoionization`.
+  - **From here.**
+    - H2 work continues on this branch, logged here, and reaches production
+      by merging once validated.
+    - Production is merged in as before.
+    - CLAUDE.md is now the same text on both branches, so the note at its
+      top is no longer branch-specific.
+  - **Open, carried into the release:**
+    - H-002 (the transition zone's H2 abundance);
+    - H-021/L-43 (transition-zone H2 above Cloudy's);
+    - H-037 (test_Problem's x <-> y asymmetry);
+    - H-043 (held PDR heating swinging in some molecular cells).
+  - **Not done:** no push. ~/.local/mocassin_h2 is unchanged (338c272, the
+    same code as the tag).
+
+### Status
+
+Done (2026-10-21).
