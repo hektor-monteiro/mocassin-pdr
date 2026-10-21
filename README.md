@@ -17,12 +17,12 @@ This repository is a fork of the official MOCASSIN repository, https://github.co
 ## Current state
 
 MOCASSIN-PDR is research code under active development. The coupled code runs on 3D grids with
-ray-traced column densities. Its last tagged version is `pdr-coupling-v1.1`, and the default branch has
-moved on from it. The coupling has been compared with Cloudy (c25.00) and with standalone 3D-PDR on the
-models in `benchmarks/pdr/`.
+ray-traced column densities. Its latest release is `pdr-coupling-v1.2` (2026-10-21, DEVLOG D-425), and
+science results should cite a release tag. The coupling has been compared with Cloudy (c25.00) and with
+standalone 3D-PDR on the models in `benchmarks/pdr/`.
 
   - Every design decision, measurement and correction, including the hypotheses that turned out wrong, is
-    recorded in [DEVLOG.md](DEVLOG.md). Its entries run from D-001 to D-423, and the README cites them
+    recorded in [DEVLOG.md](DEVLOG.md). Its entries run from D-001 to D-425, and the README cites them
     by number.
   - What is validated, and what is known to be wrong and by how much, is summarised in
     [doc/pdr-status.md](doc/pdr-status.md). That page was last updated at D-410 (2026-10-15).
@@ -290,10 +290,10 @@ Limitations to know before using the results:
     H2 line spectrum (`lineFluxH2.out`). It is built from Cloudy c25.00's H2 data. The model sets the
     chemistry's H2 photodissociation rate and the H2 heating. Its log is `DEVLOG-H2.md` on that branch.
     It is work in progress.
-  - **Tags**: `pdr-coupling-v1.0` and `pdr-coupling-v1.1` are releases. Reverted work is kept under tags
-    such as `d193-d195-reverted`.
-  - The binaries carry the `git describe` version they were built from, e.g.
-    `pdr-coupling-v1.1-123-g<hash>`.
+  - **Tags**: `pdr-coupling-v1.0`, `pdr-coupling-v1.1` and `pdr-coupling-v1.2` are releases. D-425 has
+    v1.2's release notes. Reverted work is kept under tags such as `d193-d195-reverted`.
+  - The binaries carry the `git describe` version they were built from: `pdr-coupling-v1.2` at the
+    tag, `pdr-coupling-v1.2-<n>-g<hash>` for a later commit.
 
 ## Documentation
 

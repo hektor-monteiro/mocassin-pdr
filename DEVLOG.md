@@ -422,8 +422,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-420 | **H2 becomes a collider in the gas-grain exchange (L-9, found in D-305; the user: "H2 probably isn't a collider in gas-grain heat exchange. This is the most important new change we need ... It needs a test run before it counts as established. Audit the changes already logged and check if this is mentioned already, make a plan for this fix and execute it").** The audit: already logged - D-305 (d) found it (68x below Cloudy's dust cooling at A_V 0.65 on hiipdr), L-9 records it, D-333 put dense knots out of scope until it was fixed, and update_mod.f90 notes it; the K1a report's "NEW" is the symptom, not the defect: k1a-flow-q-dust10's core at 3.84 K and k1a-flow-q-core3.5e5's at 6.55 K against dust at 16-25 K. In those cores He and the residual atoms carry the coupling; H2 adds 3.83x theirs (x4.83 in all). Predicted from the coldest cell's budget: 3.84 -> 4.3-4.9 K, so H2 alone does not close the gap (D-421). Test: the dust10 rerun with only the change, seed 1001, 14 ranks, 30 iterations, against the original **Result:** the coupling enters at the designed strength (the cold cells 0.0175 -> 0.0849 of BFM's rate with H2; x4.83 over the atoms, H2 80% of it), the ionized gas does not move (T_e 1.0000, lines within 0.12%), and the coldest cell goes 3.84 -> 4.15 K against dust at 23 K, so H2 alone does not close the anomaly. Two predictions missed and were diagnosed, the code not at fault: the cold core (median 4.92 K against 5.0-5.6) because its CO cooling has slope 4.1 near 4 K, not the 1.4-3 assumed (the budget estimate with 4.1 gives 4.17/4.91 K against 4.15/4.92 measured); H2 0-0 S(1) and S(0) +6% (2% predicted) from two warm transition cells whose unconverged chemistry moved (the new term 0.1-0.2% of their heating) - a hypothesis, no seed pair run. compare.py's atomic-cell ratio is mostly the electron term without grain charge, so only the cold-cell ratio measures the normalisation (D-421) | Done | 2026-10-19 |
 | D-421 | **The gas-grain term was divided by 4 pi in both balances it enters (found planning D-420).** The gas balance is physical per H (photoelHeat_g has no factor; pdrCool/Hden, D-135) and the grain balance physical / pi (radField = Jste/pi, Jste the angle-integrated flux, D-290; emission 4 C_abs B; photoelHeat_d / pi), so the gas term is 4 pi (12.6x) too weak and the grain term 4x. Measured in k1a-flow-q-dust10: the code's gas term is 0.0865 of the physical BFM rate in 58 atomic cells and 0.085 in 49 cold cells, against 1/(4 pi) = 0.080. With D-420 the coldest dust10 cell is predicted at 7.6-14.3 K; the gas-grain share of the ionized gas's cooling rises 0.36% -> ~4.5% (K1a) and 0.63% -> ~8% (hiipdr), so every dusty model moves by a few percent in T_e. The user's choice: both fixes, each tested on its own. **Result:** 0568eb0, merged as 01b782d; the cold-cell coupling is 1.08 (dust10), 1.13 (core3.5e5) and 1.20 (hiipdr) of BFM's rate, and the ionized gas T_e x0.977 (K1a) and x0.966 (hiipdr), with a gas-grain share of 4.3e-2 and 7.5e-2, as predicted. The cold cores warm (dust10 median 4.92 -> 7.16 K, core3.5e5 9.19 -> 13.26 K) but stay well below the dust; the original ranges missed in dust10 and the revised ones held (the slope stays near 4). Half the cold cells get no FUV packet, and where they do, the photoelectric heating dominates and moves with the sample. The H2 0-0 lines missed (dust10 S(2) x13.5): one cell at 955 K held by PDR heating that nothing on the finished model rebuilds. The held value is the previous iteration's (the last T search runs before the last pdrStep), so the excess is at least partly these cells' heating swinging between iterations. The same is already present in 18-22 cells per K1a baseline (before D-420) and in 95-119 per hiipdr run; logged in DEVLOG-H2 H-043, not resolved. Hbeta +2% in hiipdr is a miss, not attributed. The executor was made to hand back before the last two runs ended; the main session finished the waits and compares as planned | Done | 2026-10-19 |
 | D-422 | **Production installed into ~/.local at 874f591 (the user: "update the production install in ~/.local").** The old install was pdr-coupling-v1.1-8-g3fb58aa-dirty (2026-10-05, D-394 plus uncommitted changes), so it lacked the code of D-395 to D-421, D-418's Ni II fix and D-420/D-421's gas-grain term among them. The four flavours rebuilt at 874f591: rc 0 (19:07-19:08); make clean, then the 3D flavour installed with PREFIX=$HOME/.local: rc 0, binaries 19:09:30, pdr-coupling-v1.1-122-g874f591, mocassin md5 d8f88994; the tree cleaned after. data/, dustData/ and dataPDR/ in ~/.local/share/mocassin were already byte-identical to the repository's, so what runs read is unchanged; three older copies of tracked benchmark inputs were overwritten. The old binaries and those three files are kept in runs/_localprefix_backup_2026-10-19_d421/. No run with this binary | Done | 2026-10-19 |
-| D-423 | **Pushing production to GitHub (hektor-monteiro/mocassin-pdr): what it would do, and why the checkout should not be renamed (the user: "Should I do it?").** origin already points at mocassin-pdr (public, default branch main, last push 2026-09-15). pdr-photoionization tracks origin/main and push.default is upstream, so a plain `git push` fast-forwards main from 0fc4536 (D-284) to 4db7bf2 (D-422): 269 commits, no force, largest blob 2.8 MB, no secrets found. No tag goes unless asked; pdr-coupling-v1.1 is not on the remote. The directory name plays no part in a push. Renaming the checkout would break the h2 worktree's link (repairable), Claude Code's memory for this project (keyed by path), and the ten benchmarks/pdr fixtures, whose pdrDataDir is this checkout's absolute path. Recommended: push, keep the name. Nothing pushed; awaiting the user | Open | 2026-10-20 |
+| D-423 | **Pushing production to GitHub (hektor-monteiro/mocassin-pdr): what it would do, and why the checkout should not be renamed (the user: "Should I do it?").** origin already points at mocassin-pdr (public, default branch main, last push 2026-09-15). pdr-photoionization tracks origin/main and push.default is upstream, so a plain `git push` fast-forwards main from 0fc4536 (D-284) to 4db7bf2 (D-422): 269 commits, no force, largest blob 2.8 MB, no secrets found. No tag goes unless asked; pdr-coupling-v1.1 is not on the remote. The directory name plays no part in a push. Renaming the checkout would break the h2 worktree's link (repairable), Claude Code's memory for this project (keyed by path), and the ten benchmarks/pdr fixtures, whose pdrDataDir is this checkout's absolute path. Recommended: push, keep the name. Nothing pushed; awaiting the user. **The user pushed main (62c6e53), h2-model (3395717) and pdr-coupling-v1.1 on 2026-10-21 (D-425)** | Done 2026-10-21 | 2026-10-20 |
 | D-424 | **README.md rewritten for the current code; the "Notes on Dust Species" section removed (the user: "update the README file of the repository with the current state of the code. Remove the 'Notes on Dust Species' section.").** New sections: current state with the changes that move results (D-413/D-415, D-418, D-420/D-421), how the coupling works (who computes what, the iteration order), the PDR keywords, the convergence test, the PDR fixtures, the PDR outputs, validation highlights and limitations, branches and versions. Corrected: a bare `make` builds only the Makefile's first target, source/interpolation_mod.o, not the programs (the old README's `make clean; make`), so the README names `all`; SUNDIALS needs no env.sh (rpath); the data are read from PREFIX/share/mocassin, not /usr/share/mocassin; every PDR fixture's pdrDataDir is this machine's absolute path. The Makefile's default goal is recorded, not fixed: a code change, for a plan and the user's word | Done | 2026-10-20 |
+| D-425 | **Release `pdr-coupling-v1.2` (the user: "I think this is a good point to create a release of the code").** An annotated tag on the commit that adds this entry: production at D-424 (62c6e53, already on GitHub) plus this entry and the README's release lines, 126 commits after v1.1 (c27e658, D-388), 18 of them changing source or data (D-391..D-393, D-395, D-397, D-398, D-402..D-404, D-406, D-413..D-415, D-418, D-420, D-421). Checked before tagging: no source, Makefile or data change since 874f591, whose four flavours built rc 0 and which is installed in ~/.local (D-422); a fresh clone of the local repository at 62c6e53 built PDR=1 mocassin, mocassin, PDR=1 mocassinWarm and PDR=1 PDRGEOM=3D all, rc 0 and 0 errors each (09:19-09:20), leaving no tracked file changed; the checkout's only untracked files outside runs/ are tools/__pycache__. Release notes in this entry, for the GitHub release. Not done: no benchmark rerun with D-420/D-421 (the notes say the validation figures predate them); no push (the tag and this commit are local); no install. D-423 closed: the user had pushed main, h2-model and pdr-coupling-v1.1 | Done | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -40954,6 +40955,12 @@ dataPDR).
 
 Open (2026-10-20): nothing pushed, awaiting the user.
 
+Done (2026-10-21, found at D-425): the user pushed from their own terminal. The
+remote-tracking reflog has main 0fc4536 -> d2b8c17 at 2026-10-20 11:51 and
+-> 62c6e53 at 2026-10-21 09:15:28, and h2-model -> 3395717 at 09:15:52;
+`git ls-remote` at 09:18 lists main, h2-model, pdr-coupling-v1.0 and
+pdr-coupling-v1.1. The checkout kept its name.
+
 ---
 
 ## D-424 - README.md for the current code (2026-10-20)
@@ -41031,3 +41038,162 @@ resLineEsc.out, nor for convTotals.
 ### Status
 
 Done (2026-10-20).
+
+---
+
+## D-425 - Release pdr-coupling-v1.2 (2026-10-21)
+
+The user (2026-10-21): "I think this is a good point to create a release of
+the code". A release here is an annotated tag that science results cite, as
+pdr-coupling-v1.0 (D-263, D-264) and pdr-coupling-v1.1 (D-388) were, and on
+GitHub a release made from the pushed tag. The name continues that series.
+
+**What is released.** The production branch (pdr-photoionization, GitHub's
+main) at the commit that adds this entry: D-424 (62c6e53, pushed by the user
+this morning) plus this entry and four README lines naming the release. It
+is 126 commits after pdr-coupling-v1.1 (c27e658, 2026-09-28). 18 of them
+change source/, the Makefile or the data:
+  - D-391, D-392: the model-integrated convergence test, which alone stops
+    a run (convTotals, default 0.02);
+  - D-393: the warm start continues the PDR instead of reseeding it;
+  - D-395: electron-impact dissociation of H2+ (reaction 332);
+  - D-397, D-398: shielding columns integrated over the exact path in each
+    cell; a scattering site's first leg runs to the site;
+  - D-402 (three commits), D-403: each network ion its own ionization stage,
+    every channel of the neutral/first-ion balance computed once in both
+    solvers, charge transfer with H at fits for the gas at hand, the
+    temperature floor's default at the CMB;
+  - D-404 (two commits): the second ionBalance solve after the chemistry,
+    kept at the last iteration;
+  - D-406: iterDamp 0 by default, one rounding of H2den for every writer;
+  - D-413, D-414, D-415: five-column Q files load again, the mean dust
+    temperature over the bins that hold grains, PAHneu_30.cat's Im(m);
+  - D-418: levels out of energy order in the collision rates;
+  - D-420, D-421: H2 as a gas-grain collider, and the term in each
+    balance's own units.
+The H2 level model (h2-model) is not part of the release.
+
+**Checked before tagging.**
+  - No change to source/, the Makefile, data/, dataPDR/, dustData/ or man/
+    since 874f591 (`git diff --stat 874f591 HEAD` over those paths is
+    empty). 874f591's four flavours built rc 0 on 2026-10-19 and it is the
+    code installed in ~/.local (D-422).
+  - A fresh `git clone` of the local repository at 62c6e53, in
+    runs/_release_check_v1.2/clone, built each flavour with `make clean`
+    between (runs/_release_check_v1.2/build.log):
+
+        PDR=1 mocassin          rc=0 errors=0 warnings=16 09:19:47
+        mocassin                rc=0 errors=0 warnings=14 09:20:01
+        PDR=1 mocassinWarm      rc=0 errors=0 warnings=16 09:20:24
+        PDR=1 PDRGEOM=3D all    rc=0 errors=0 warnings=16 09:20:49
+
+    The last gives the four executables, version
+    pdr-coupling-v1.1-125-g62c6e53; mocassin md5 2420ca1c, mocassinWarm
+    309ed36b, mocassinOutput 8f89c466, mocassinPlot 7fa1f646. The builds
+    left no tracked file changed.
+  - The checkout's only untracked files outside runs/ are
+    tools/__pycache__/*.pyc, so a build here reads nothing the repository
+    lacks.
+  - This entry's commit changes DEVLOG.md and README.md only, so the clone
+    built the released code.
+
+**Not checked, and said so in the release notes.**
+  - No run. The reference models in benchmarks/pdr/ have not been rerun
+    since D-420/D-421. D-421 measured the new term on hiipdr 31^3 with the
+    h2-model build only (ionized T_e x0.966; Hbeta +2%, not attributed).
+    doc/pdr-status.md's figures (as of D-410) predate both.
+  - The man page still lacks convTotals, iterDamp and the newer PDR
+    outputs (D-424).
+Known defects shipped, each recorded: the Makefile's default goal builds
+one object file (D-424); the fixtures' absolute pdrDataDir (D-423, D-424);
+D-416's PREFIX length; the 1D models out of scope (D-338).
+
+**Release notes** (for the GitHub release's description; the same text is in
+runs/_release_check_v1.2/release-notes.md):
+
+```markdown
+## MOCASSIN-PDR pdr-coupling-v1.2 (2026-10-21)
+
+The production coupling of MOCASSIN and 3D-PDR at DEVLOG D-425. It has 126 commits since
+`pdr-coupling-v1.1` (2026-09-28, D-388), 18 of them changing the source or data files. Science
+results should cite this tag. Each item names its DEVLOG.md entry.
+
+### Changes that move results
+
+- **Gas–grain energy exchange (D-420, D-421).** H2 now collides with the grains. Before,
+  only atoms, ions and electrons did, so in molecular gas almost nothing coupled the gas to
+  the dust. The term also enters each energy balance in that balance's own units. The gas
+  side had been 4π too weak and the grain side 4 times too weak. In dusty models the ionised
+  gas is 2–3.5% cooler.
+- **Ionisation balance (D-402, D-403, D-404):**
+  - Each network ion is its own ionisation stage.
+  - Both solvers carry every channel of the neutral/first-ion balance, each computed once.
+  - Charge transfer with H uses fits made for the gas at hand (He, Mg).
+  - The temperature floor defaults to the CMB.
+  - `ionBalance` is solved a second time after the chemistry, and the final iteration keeps
+    that solve.
+- **Chemistry (D-395).** Electron-impact dissociation of H2+ (reaction 332) is added. It was
+  the network's missing H2+ sink in ionised gas, whose H2+ had been about 90 times Cloudy's.
+- **Shielding columns (D-397, D-398).** The columns are integrated over the exact path through
+  each cell. Before, they were sampled once per cell width. Scattered light's first leg now
+  runs to the scattering site.
+- **Convergence and iteration (D-391, D-392, D-406):**
+  - A run stops on a model-integrated test (`convTotals`, default 0.02). It checks the
+    emission measures, the H0/H2/CO contents and the weighted temperatures over three
+    iterations.
+  - The cell percentage is reported, not tested.
+  - Damping across iterations is off by default (`iterDamp 0`; 0.25 gives the old blend).
+- **Warm start (D-393).** `mocassinWarm` continues the PDR state instead of reseeding it.
+- **Dust (D-413, D-414, D-415):**
+  - Five-column Q files had failed at start-up since D-313; they load again.
+  - The mean dust temperature now averages only the size bins that hold grains.
+  - `PAHneu_30.cat` carries Im(m), taken from graphite as in Weingartner & Draine (2001), so
+    PAHs heat the gas.
+- **Atomic data (D-418).** Levels listed out of energy order broke the collision rates, and
+  below 13.96 K gave NaN and crashed cold models.
+
+### Validation
+
+`doc/pdr-status.md` gives what is validated and what is known to be wrong (as of D-410). Its
+figures were measured before D-420/D-421. The reference models in `benchmarks/pdr/` have not
+been rerun with this release's gas–grain term.
+
+### Known issues
+
+- A bare `make` builds only one object file, because of the Makefile's default goal. Build
+  with `make PDR=1 PDRGEOM=3D all` (see README).
+- The `benchmarks/pdr` fixtures set `pdrDataDir` to an absolute path on the author's machine.
+  Change it, or delete the line, before running them.
+- A `PREFIX` longer than about 90 characters silently loses atomic data and crashes (D-416).
+- The 1D slab flavour builds, but its models are out of scope (D-338).
+- Shielded gas carries FUV packet noise (D-408, D-421). The twelve ray directions put an
+  orientation pattern of up to about 11% into x(H2) at A_V 0.5–1 (D-410).
+- The man page does not yet document `convTotals`, `iterDamp` or the newer PDR output files.
+
+### Building
+
+The four flavours (`PDR=1 PDRGEOM=3D`, `PDR=1`, no PDR, `PDR=1 mocassinWarm`) build from a fresh
+clone of this tag with gfortran/Open MPI and SUNDIALS 7.8.0. Run `make clean` between flavours.
+
+The H2 level model is developed on the `h2-model` branch and is not part of this release.
+```
+
+**To publish (the user's step; nothing pushed here).** From this checkout:
+
+    git push                              # main: the D-425 commit
+    git push origin pdr-coupling-v1.2     # the tag
+
+Then on GitHub, Releases, "Draft a new release": choose the tag
+pdr-coupling-v1.2, title "pdr-coupling-v1.2", paste the notes, publish.
+GitHub attaches the tag's source archives itself.
+
+**Not installed.** ~/.local holds 874f591's build: the same code, reporting
+pdr-coupling-v1.1-122-g874f591. Rebuilt at the tag it would report
+pdr-coupling-v1.2. That is an install, so it waits for the user's word.
+
+**D-423 closed.** The user pushed main, h2-model and pdr-coupling-v1.1 from
+their own terminal (times in D-423's status).
+
+### Status
+
+Done (2026-10-21): tag pdr-coupling-v1.2 created locally, not pushed.
