@@ -1,27 +1,32 @@
 # MOCASSIN-PDR
 
-> **This checkout is the `h2-model` branch** (worktree `~/software/mocassin_h2`,
-> created at D-388 from `pdr-coupling-v1.1`). It develops the H2 level model
-> (DEVLOG D-385, D-387). Production stays on `pdr-photoionization` in
-> `~/software/mocassin_HM_2026_3DPDR`.
->   - **Log in `DEVLOG-H2.md`** (H-numbers, same rules as DEVLOG.md). Do not
->     append to DEVLOG.md here: it is production's, and its entries arrive by
->     merging production in (`git merge pdr-photoionization`), which should be
->     done regularly.
->   - **Install to this branch's own prefix**:
+> **Two checkouts, one rule set.** Production is `pdr-photoionization` in
+> `~/software/mocassin_HM_2026_3DPDR` (GitHub's main). It has included the H2
+> level model since `pdr-coupling-v2.0` (DEVLOG D-429, D-430). H2 development
+> continues on `h2-model` in the worktree `~/software/mocassin_h2`, and reaches
+> production by merging h2-model in once validated. Production reaches h2-model
+> by merging it in regularly (`git merge pdr-photoionization`), never by rebase.
+>   - **Which log.** In production, log in DEVLOG.md (D-numbers). In the h2
+>     worktree, log in `DEVLOG-H2.md` (H-numbers, same rules) and never
+>     append to DEVLOG.md there. On production, DEVLOG-H2.md changes only by
+>     merging h2-model.
+>   - **The h2 worktree installs to its own prefix**:
 >     `make PREFIX=$(HOME)/.local/mocassin_h2 ...` for builds and `install`.
 >     Production's binaries read `~/.local/share/mocassin/data`, and a plain
->     `make install` here would change the data under production runs.
->   - Runs go in this worktree's `runs/`, with `pdrDataDir` pointing at this
->     worktree's `dataPDR`.
->   - The post-processing stage may merge into production once validated. The
->     feedback stage (Solomon rate, H2 heating and cooling) stays here until
->     every benchmark is re-validated, and when merged it is the physics, not
->     a keyword.
+>     `make install` there would change the data under production runs.
+>   - Each checkout's runs go in its own `runs/`, with `pdrDataDir` pointing at
+>     that checkout's `dataPDR`.
+>   - H2 physics is the physics, not a keyword: work on h2-model that changes
+>     what production computes merges only after the benchmarks are re-run.
 
 MOCASSIN (3D Monte Carlo photoionization + dust radiative transfer, Fortran/MPI)
 with 3D-PDR's photodissociation-region chemistry coupled into it. 3D-PDR is
 vendored under `source/pdr/` (44 files) and driven through `source/pdr_mod.f90`.
+The H2 level model (`source/h2_mod.f90`, called from `pdr_mod`'s
+`h2LevelModel`; data in `dataPDR/h2/`, from Cloudy c25.00) solves H2's 302
+X-state levels with UV pumping, shielding and trapping in every cell of the 3D
+build. It sets the chemistry's H2 photodissociation rate and the H2 heating
+every PDR iteration, and writes the H2 lines on the finished model.
 
 ## The rule that outranks the others
 
@@ -56,6 +61,11 @@ Four flavours. **All four must compile before any change is called done.**
     make PDR=1 mocassin                # 1D slab columns
     make mocassin                      # no PDR at all
     make PDR=1 mocassinWarm            # must resume PDR state
+
+After the 3D flavour, `make h2Test h2Slab` must also build: they are the H2
+level model's standalone tests (DEVLOG-H2 H-003, H-005). The level model is
+compiled into the 3D flavour only (`#ifdef RAYTHEIA`); the 1D flavour has a stub
+and keeps the network's single-line H2 photodissociation rate.
 
 `make clean` between flavours - the object tree is shared. SUNDIALS is expected
 at `$(HOME)/software/sundials-7.8.0`, overridable with `SUNDIALS_DIR`.

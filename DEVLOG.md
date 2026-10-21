@@ -428,7 +428,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-426 | **Should the release be merged to main? No merge is needed (the user: "should the current release be merged to main?").** GitHub's main is this branch: pdr-photoionization tracks origin/main (push.default upstream), so `git push` makes GitHub's main the release commit 584e633, and the tag goes with `git push origin pdr-coupling-v1.2`. The local branch named `main` is another line: the original MOCASSIN fork's main at 0d57a7c (tag 1.1.1, 2026-08-28), with no upstream, kept off mocassin-pdr by D-273. It holds nothing the release lacks (0 commits ahead, 504 behind), so a merge would be a fast-forward that makes it a second name for the PDR line, and a push of it to the core fork would carry the PDR there, which D-273 kept apart. Advice: leave local main as it is. Nothing changed | Advice given | 2026-10-21 |
 | D-427 | **Commit-message audit: references to the user's requests stay in published history; new messages carry technical content only (the user: "audit all commit messages and remove any references of the requests I have made as the user"; then, given the cost, "Only from now on").** 57 of the 804 commits in all refs mention the user. 3 mean a user of the code (9093ce1, b8616c0, 9e27bd0); 54 cite a request, question or decision, the oldest 00d1f18 (2026-09-11, D-232). All 57 are on GitHub. Rewording them would give 484 commits new hashes, move six tags (pdr-coupling-v1.0, v1.1, v1.2 and three reverted-work tags) and need a force-push of main, h2-model and the tags, and would leave about 200 hash references in DEVLOG.md (103), DEVLOG-H2.md (96) and doc/pdr-status.md (3) pointing at old commits, as well as the installed binaries' version strings. Decided: history as published; from this entry on, commit messages state the change and its evidence only; the DEVLOG text keeps its quotes. Audit list in runs/_commit_audit_2026-10-21/. Nothing rewritten | Done | 2026-10-21 |
 | D-428 | **Production has no H2 level model (the user: "does production branch have H2 level model?"); it is only on h2-model.** Measured with `git diff pdr-photoionization h2-model -- source Makefile`: the model is four files only on the branch (h2_mod.f90 1,570 lines, h2Lines_mod.f90, h2Test.f90, h2Slab.f90) plus hooks in pdr_mod (+944), iteration_mod, common_mod, grid_mod, output_mod and the Makefile, 3,139 lines in all; production's source has no lineFluxH2. Production's H2 is 3D-PDR's: grain formation (Cazaux & Tielens, H2FORM_CT02), photodissociation H2PDRATE with Federman, Glassgold & Kwan (1979) self-shielding (H2SHIELD1; the Lee et al. 1996 table H2SHIELD2 is commented out) and dust attenuation, the formation, photodissociation and FUV-pumping heating terms (D-384), and H2 as a collider for the line levels (D-363) and the grains (D-420); no H2 level populations, line cooling or line spectrum. Nothing changed | Answered | 2026-10-21 |
-| D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time | In progress | 2026-10-21 |
+| D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time **Result: merge c1ea374, four flavours and h2Test/h2Slab rc 0; rel-hii31 identical to d421-hii31 in every file but summary.out's clock times; rel-pn41 healthy (3 flagged), ionized T_e x0.996, gas-grain share 1.18e-3 -> 1.46e-2, Hbeta +0.49%, forbidden lines -0.8 to -2.7%, H2 lines within 0.22%, the cold cell 21.5 -> 24.5 K at the dust's 24.4; every range met, the byte-identity wording missed for the timestamps** | Done | 2026-10-21 |
+| D-430 | **Release `pdr-coupling-v2.0`: the first with the H2 level model.** Production after D-429's merge, 156 commits after v1.2. README.md rewritten for PDR plus the H2 level model (the model's own section: what it solves and feeds back, where it runs, its checks against Cloudy, the damping-width difference; the H2 executables, outputs, run-time cost, limitations, branches, credits and data licence). CLAUDE.md's h2-model note replaced by one that holds in both checkouts. The man page's H2 entry describes the feedback. Release notes in this entry. Not done: no push; no install | Done | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41467,7 +41468,206 @@ merge reproduces h2-model's tested run exactly. The gate's "any byte
 difference" is read the same way; the plan file records the correction. It
 is not a blocker: nothing the model computes differs.
 
+**rel-pn41 against d405-pn41-d0** (finished 14:21:03, rc=0, 2:28:57;
+the level model 16 calls, 97.7 min). compare.py and lineFlux.out:
+
+| prediction | result | |
+|---|---|---|
+| rc=0, clean, 18 iterations, 0 NaN / singular / CVODE / insane eta | all as predicted | met |
+| flagged cells <= 4 (baseline 2) | 3 | met |
+| ionized gas-grain share 1.18e-3 -> 0.8e-2 to 2.0e-2 | 1.46e-2 | met |
+| ionized median T_e ratio 0.985-0.999 | 0.9964 (16-84%: 0.9862-1.0006) | met |
+| Hbeta within +-0.5% | +0.49% | met |
+| He II 4686 within +-1% | +0.05% | met |
+| [O III] 5008 0.97-1.00; 4363 0.95-1.00 | 0.9873; 0.9731 | met |
+| [N II] 6584 0.97-1.01 | 0.9921 | met |
+| other ionized forbidden lines 0.96-1.01 | 0.9796 ([Ar IV] 4741) to 0.9921 | met |
+| [O I] 6300, [N I], [C I] within +-5% | 0.9894; 0.9844; 0.9854-0.9894 | met |
+| H2 1-0 S(1), 2-1 S(1) within +-5% | 0.9982, 0.9978 | met |
+| H2 0-0 S(0), S(1), S(2) 0.85-1.05 | 0.9985, 0.9998, 0.9981 | met |
+| the cold cell 21.53 K -> 22-25 K | 24.51 K (dust 25.05 -> 24.43 K) | met |
+
+Also measured: [O I] 63 um 0.9928, 146 um 0.9924, 5577 0.9868; [C I] 609 um
+0.9854, 370 um 0.9879; [C II] 158 um 0.9969; x(CO) in the cold cell 1.26e-9
+-> 5.55e-9. The run's last integrated change was 1.552% (T(H0)) at
+iteration 18 (2.217% at 17): under the 2% default, it would have stopped
+there.
+
+Recorded, not predicted: compare.py's gas-grain / BFM ratio in pn150k's 965
+atomic cells went 0.4545 -> 5.6708, x12.48 (4 pi = 12.57). hiipdr's 32
+atomic cells give 7.31 with the same code (rel-hii31), and K1a's shielded
+cells 1.08 (D-421). The reference rate leaves out grain charge. In lit
+atomic gas the grains are positive, and Coulomb focusing multiplies the
+electrons' share (v_e/v_H = 43). The ratio is consistent with that and is
+not taken as a defect. A charge-aware reference has not been computed.
+
+**The gate passes.** rel-hii31 is identical by the project's criterion,
+and rel-pn41's health holds. No physics range was missed, so the tag does
+not wait on the user (the gate's rule). Release: D-430.
+
 ### Status
 
-In progress (2026-10-21): merged (c1ea374), built, rel-hii31 passed;
-rel-pn41 running (started 11:52).
+Done (2026-10-21).
+
+---
+
+## D-430 - Release pdr-coupling-v2.0 (2026-10-21)
+
+The release the user asked for with the merge (D-429): "create a new
+release. Update the README to reflect the fact that the code now includes
+PDR plus H2 detailed level model." Name, check and branch policy are the
+user's choices recorded in D-429. The tag goes on the commit that adds this
+entry. It is production after the merge c1ea374, the D-429 entries, and the
+documentation below: 156 commits after pdr-coupling-v1.2.
+
+**Documentation changed for the release** (documentation, not code):
+  - **README.md:**
+    - Opening and title: PDR plus a detailed H2 level model.
+    - Current state: v2.0; DEVLOG D-001 to D-430, DEVLOG-H2 H-001 to H-045;
+      pdr-status.md does not cover the H2 model.
+    - Recent changes: the H2 model first; the D-420/D-421 item now gives
+      the measured T_e changes (hiipdr x0.966, pn150k x0.996) and says
+      both models have been run.
+    - The ownership table gains the level model; the iteration order gains
+      its sweep before the chemistry and its final solve.
+    - A new section, "The H2 level model": what it solves (X levels,
+      pumping, formation, field, shielding, trapping), what it hands on
+      (H-012, H-013), its outputs and warm start (H-020), where it runs (3D
+      only; skipped for nested grids, planeIonization, no diffuse field; no
+      keyword), its checks (H-003, H-004, H-006, H-024, H-032, H-026), and
+      the damping-width difference from Cloudy (H-005, H-008, H-024, H-026).
+    - Executables: h2Test, h2Slab, tools/h034_maps.py.
+    - Build table: which build has the model.
+    - Running: memory within D-370's formula (the manual's test problem);
+      the level model's share of the run time (hiipdr 22 of 44 min, pn150k
+      100 of 152, from the reference runs).
+    - Output table: lineFluxH2.out, h2Cells.out, h2Pop.bin.
+    - Limitations: "H2 physics on this branch is 3D-PDR's" replaced by
+      transition-zone H2 (H-021, H-023), H-043, the geometry the model
+      skips, H-037.
+    - Branches: main has the model since v2.0, and h2-model continues.
+      Tags and documentation links (DEVLOG-H2, the manual, the LaTeX PDF,
+      dataPDR/h2/README.md).
+    - Credits: Cloudy's H2 data and its zlib licence, Shaw et al. 2005,
+      the data papers (Komasa et al. 2011, Wolniewicz et al. 1998, Abgrall
+      et al. 2000, Lique 2015, Wan et al. 2018, Lee et al., Gerlich 1990),
+      Takahashi & Uehara 2001.
+  - **CLAUDE.md:** the merge brought h2-model's "This checkout is the
+    h2-model branch" note to production. It is replaced by one text that
+    holds in both checkouts, so the merge back cannot conflict:
+    - production has had the model since v2.0;
+    - H2 work continues on h2-model and merges into production once
+      validated;
+    - which log each checkout writes;
+    - the h2 prefix; each checkout's runs/;
+    - H2 physics is not a keyword.
+    The intro names the level model. The Build section adds `make h2Test
+    h2Slab` after the 3D flavour, and says the model is 3D only.
+  - **man/mocassin.1:** the lineFluxH2.out entry loses "(branch h2-model
+    ...)" and "Nothing in it feeds back into the model", which was untrue
+    since H-012. It now says what the model sets every iteration and when it
+    is skipped. It lists h2Cells.out's heating columns, and says mocassinWarm
+    resumes h2Pop.bin.
+
+**Release notes** (for the GitHub release; the same text is in
+runs/_release_v2/release-notes.md):
+
+```markdown
+## MOCASSIN-PDR pdr-coupling-v2.0 (2026-10-21)
+
+The first release with a detailed H2 level model. It is `pdr-coupling-v1.2` plus the `h2-model` branch,
+merged at DEVLOG D-429. It has 156 commits since v1.2, most of them the H2 model's development since
+2026-09-28 (DEVLOG-H2 H-001 to H-045). Science results should cite this tag.
+
+### New: the H2 level model
+
+- **What it solves.** In the 3D build (`PDRGEOM=3D`), H2's 302 rovibrational levels of the ground state
+  X are solved in every cell with gas, on MOCASSIN's Monte Carlo radiation field:
+  - collisions with H, He, ortho- and para-H2 and H+;
+  - ultraviolet pumping through the B, C+, C−, B′, D+ and D− states (1,592 levels, 32,453 lines to X),
+    with the cascade back into X and the Solomon dissociation;
+  - formation on grains into the levels, in Takahashi & Uehara's distribution;
+  - self-shielding with Voigt profiles and line overlap, and photon trapping along the rays.
+- **What it feeds back.** Every PDR iteration it sets the chemistry's H2 photodissociation rate and the
+  H2 heating: formation, dissociation, and collisional exchange within X, which is also H2's line
+  cooling. Results of every 3D PDR model therefore differ from v1.x.
+- **Outputs.** `lineFluxH2.out` (the H2 line spectrum), `h2Cells.out` (per cell) and `h2Pop.bin` (the
+  populations, which `mocassinWarm` resumes).
+- **New files:**
+  - executables `h2Test` and `h2Slab`;
+  - data in `dataPDR/h2/`: Cloudy c25.00's H2 data, copied unmodified under its zlib licence;
+  - documentation: `doc/manual-pdr-h2.md`, `doc/h2-radiation-molecules/main.pdf` and `DEVLOG-H2.md`.
+- **Where it runs.** The 3D build only. It is skipped, and the log says so, for more than one grid or
+  for `planeIonization`. No keyword turns it off.
+- **Cost.** About half to two thirds of a 3D PDR run's time: 22 of hiipdr's 42 minutes, 98 of
+  pn150k's 149.
+
+### Validation
+
+- **The H2 model's own checks** (DEVLOG-H2):
+  - the X-level populations match Cloudy's large H2 model to 0–0.5% (15 one-zone models);
+  - the pumping and Solomon rates match Cloudy's to 1.000 when given Cloudy's populations;
+  - line overlap is within 0.2–1.6% of the exact integral;
+  - hiipdr's H2 lines are packet-converged to +0.8% from 6×10⁶ to 3.84×10⁸ packets.
+- **Against Cloudy's large H2 model:**
+  - hiipdr ortho lines 0.82–0.84, para lines 1.13–1.19;
+  - pn150k ortho lines 0.96–1.17, para lines 1.95–2.72. Most of the para excess is the line width: a
+    line's natural width is its upper level's total decay rate, and Cloudy uses the line's own A.
+- **The release check (D-429)**, with the production build of the merge:
+  - **hiipdr 31³:** reproduces the H2 branch's tested run in every output file, apart from
+    `summary.out`'s clock times.
+  - **pn150k 41³** (seeded, 18 iterations, against its last H2-model run). This is the first
+    measurement there of D-418, D-420 and D-421:
+    - health clean, with 3 flagged cells;
+    - ionised-gas median T_e ×0.996, with the gas–grain share of the cooling 1.2×10⁻³ → 1.5×10⁻²;
+    - Hβ +0.5%; forbidden lines −0.8% to −2.7%; [O I], [N I] and [C I] −0.7% to −1.6%;
+    - H2 lines within 0.25%;
+    - the last integrated change was 1.55%, under the 2% default stop.
+- **Not yet updated:** `doc/pdr-status.md` is as of D-410 and does not cover the H2 model, and the
+  published comparison pages predate D-420/D-421.
+
+### Known issues
+
+- **Transition-zone H2.** Where the gas is partly ionised, H2 is 14–62 times Cloudy's in hiipdr and
+  30–230 times in pn150k (H-021, H-023). Cloudy forms excited H2 there, which electrons destroy before it
+  relaxes.
+- **Molecular cells whose PDR heating swings.** In some molecular cells the PDR heating swings between
+  iterations, so treat the H2 rotational lines they carry as unconverged (H-043).
+- **The test problem's face-on maps** are 3–5.5% fainter on the y side, although the model is symmetric
+  under x ↔ y. The cause is not known (H-037).
+- **Carried from v1.2:**
+  - a bare `make` builds only one object file, so build with `make PDR=1 PDRGEOM=3D all`;
+  - the `benchmarks/pdr` inputs set an absolute `pdrDataDir`;
+  - a `PREFIX` longer than about 90 characters loses atomic data (D-416);
+  - the 1D models are out of scope (D-338);
+  - FUV packet noise in shielded gas (D-408, D-421);
+  - the twelve ray directions (D-410);
+  - the man page does not document `convTotals`, `iterDamp` or the newer PDR outputs.
+
+### Building
+
+At the merge (D-429), all four flavours and `h2Test`/`h2Slab` built with gfortran/Open MPI and SUNDIALS
+7.8.0:
+- `make PDR=1 PDRGEOM=3D all` (with the H2 model);
+- `make PDR=1 all`;
+- `make all`;
+- `make PDR=1 mocassinWarm`.
+
+Run `make clean` between builds. H2 development continues on the `h2-model` branch.
+```
+
+**To publish (the user's step; nothing pushed here).**
+  - In ~/software/mocassin_HM_2026_3DPDR: `git push` (main) and
+    `git push origin pdr-coupling-v2.0`.
+  - In ~/software/mocassin_h2: `git push` (h2-model, after the merge back).
+  - On GitHub, under Releases, "Draft a new release": choose
+    pdr-coupling-v2.0, paste the notes, and publish.
+
+**Not installed.** ~/.local holds 874f591's build (no H2 model), and
+~/.local/mocassin_h2 holds 338c272's (the same code as this tag, reporting
+pdr-coupling-v1.1-260-g338c272). Installing v2.0 into ~/.local waits for
+the user's word. The install would add dataPDR/h2 to ~/.local/share/mocassin.
+
+### Status
+
+Done (2026-10-21): tag pdr-coupling-v2.0 created locally, not pushed.

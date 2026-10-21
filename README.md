@@ -1,10 +1,12 @@
-# MOCASSIN-PDR: Monte Carlo photoionisation and photodissociation-region modelling
+# MOCASSIN-PDR: Monte Carlo photoionisation, photodissociation-region and H2 modelling
 
 **MOCASSIN-PDR** is MOCASSIN with the photodissociation-region chemistry and thermal balance of
-[3D-PDR](https://github.com/itamos-ism/3D-PDR) coupled into it. The Monte Carlo radiation field,
-dust and ionisation structure computed by MOCASSIN drive the chemistry, so that one model follows the
-gas from the H II region through the PDR into the molecular gas. It is not the official MOCASSIN; see
-[Licence and credits](#licence-and-credits).
+[3D-PDR](https://github.com/itamos-ism/3D-PDR) coupled into it, and a detailed level model of H2. The
+Monte Carlo radiation field, dust and ionisation structure computed by MOCASSIN drive the chemistry, so
+that one model follows the gas from the H II region through the PDR into the molecular gas. The H2
+level model solves the rovibrational populations of H2 in every cell from that same field. It sets the
+H2 photodissociation rate and the H2 heating the model runs on, and gives the H2 line spectrum. It is
+not the official MOCASSIN; see [Licence and credits](#licence-and-credits).
 
 **MOCASSIN** is a fully 3D or 2D photoionisation and dust radiative transfer code which employs a Monte Carlo approach to the transfer of radiation through media of arbitrary geometry and density distribution. It was originally developed by Barbara Ercolano (https://mocassin.nebulousresearch.org/publications) for the modelling of photoionised regions like HII regions and planetary nebulae and has since expanded and been applied to a variety of astrophysical problems, including modelling clumpy dusty supernova envelopes, star forming galaxies, protoplanetary disks and inner shell fluorescence emission in the photospheres of stars and disk atmospheres.
 
@@ -17,24 +19,32 @@ This repository is a fork of the official MOCASSIN repository, https://github.co
 ## Current state
 
 MOCASSIN-PDR is research code under active development. The coupled code runs on 3D grids with
-ray-traced column densities. Its latest release is `pdr-coupling-v1.2` (2026-10-21, DEVLOG D-425), and
-science results should cite a release tag. The coupling has been compared with Cloudy (c25.00) and with
+ray-traced column densities. Its latest release is `pdr-coupling-v2.0` (2026-10-21, DEVLOG D-430), the
+first with the H2 level model, and science results should cite a release tag. The coupling has been compared with Cloudy (c25.00) and with
 standalone 3D-PDR on the models in `benchmarks/pdr/`.
 
   - Every design decision, measurement and correction, including the hypotheses that turned out wrong, is
-    recorded in [DEVLOG.md](DEVLOG.md). Its entries run from D-001 to D-425, and the README cites them
-    by number.
+    recorded in [DEVLOG.md](DEVLOG.md), D-001 to D-430. The H2 level model's history is in
+    [DEVLOG-H2.md](DEVLOG-H2.md), H-001 to H-045. The README cites entries by number.
   - What is validated, and what is known to be wrong and by how much, is summarised in
-    [doc/pdr-status.md](doc/pdr-status.md). That page was last updated at D-410 (2026-10-15).
+    [doc/pdr-status.md](doc/pdr-status.md). That page was last updated at D-410 (2026-10-15), and it
+    does not cover the H2 level model; see [The H2 level model](#the-h2-level-model).
 
 Recent changes that move results:
 
+  - **The H2 level model (D-429, v2.0).** In the 3D build, H2's photodissociation rate and heating come
+    from its level populations, not from the network's single-line rate and 3D-PDR's fits. Results of
+    every 3D PDR model differ from v1.x accordingly, and the model now gives the H2 line spectrum. See
+    [The H2 level model](#the-h2-level-model).
   - **Gas–grain energy exchange (D-420, D-421, 2026-10-19).** H2 is now a collider in the exchange.
     Before, only atoms, ions and electrons were, so in molecular gas almost nothing coupled the gas to
     the dust. The term also enters each energy balance in that balance's own units: the gas side had
     been 4π too weak, and the grain side 4 times too weak. In dusty models the ionised gas is now
-    2–3.5% cooler, and shielded molecular gas exchanges heat with the dust at the physical rate. The
-    reference models in `benchmarks/pdr/` have not yet been rerun with this change.
+    cooler: the median T_e is 3.4% lower in hiipdr and 0.4% lower in pn150k. The difference is that
+    gas–grain exchange carries 7.4% of hiipdr's cooling but only 1.5% of pn150k's. Shielded
+    molecular gas now exchanges heat with the dust at the physical rate. Both models have been run
+    with this change and the H2 model (DEVLOG-H2 H-042; D-429). The published comparison pages, and
+    the figures in `doc/pdr-status.md`, predate it.
   - **[Ni II] level order (D-418).** The collision rates took the Boltzmann factor at the wrong level of
     one level pair. Below about 14 K this overflowed and crashed cold models.
   - **Dust Q files (D-413, D-415).** Five-column Q files had failed at start-up since D-313. The PAH
@@ -57,6 +67,7 @@ keyword moves a quantity from one code to the other.
 | Molecular abundances: the REDUCED network, 33 species, steady state | 3D-PDR, solved with CVODE |
 | Columns for self-shielding | 3D-PDR's rays, 12 HEALPix directions per cell (`PDRGEOM=3D`), or a 1D slab |
 | H2 formation on grains | Cazaux & Tielens (2002, 2004), at MOCASSIN's dust temperature |
+| H2 level populations, H2 photodissociation rate, H2 heating | the H2 level model (3D build), on MOCASSIN's field and T_e and the chemistry's densities |
 | CO cooling and line emission | the chemistry's level populations, with escape probabilities along the rays |
 | C I, C II and O I lines and cooling | MOCASSIN's own atoms, with the chemistry's collision rates (H, H+, He, ortho/para-H2) and escape probabilities (D-363) |
 
@@ -69,11 +80,72 @@ Each Monte Carlo iteration runs these steps:
 1. Transfer the stellar and diffuse photon packets through the gas and dust.
 2. In each cell, solve the ionisation balance, the dust temperatures and charge, and the thermal
    balance. The thermal balance uses the chemistry's heating and cooling from the last iteration.
-3. From iteration `pdrStartIter` on, run the chemistry in every active cell on MOCASSIN's field, T_e,
-   electron density and dust temperature. It returns the abundances and its heating and cooling.
-4. Solve the ionisation balance again, after the chemistry (D-404).
+3. From iteration `pdrStartIter` on, in the 3D build, solve the H2 levels in every cell with gas: one
+   sweep, starting from the last populations, on this iteration's field. This gives the chemistry its
+   H2 photodissociation rate and the thermal balance its H2 heating.
+4. Run the chemistry in every active cell on MOCASSIN's field, T_e, electron density and dust
+   temperature. It returns the abundances and its heating and cooling.
+5. Solve the ionisation balance again, after the chemistry (D-404).
 
-The run stops when the model-integrated test passes; see [Convergence](#convergence).
+The run stops when the model-integrated test passes; see [Convergence](#convergence). The H2 levels are
+then solved again on the finished model until the lines settle, and the H2 line spectrum is written.
+
+## The H2 level model
+
+In the 3D build (`PDRGEOM=3D`), H2 is not one species with one photodissociation rate. Its level
+populations are solved in every cell with gas (`source/h2_mod.f90`, driven from `source/pdr_mod.f90`).
+The model is a Fortran re-implementation of the equations and data of Cloudy's large H2 model (Shaw et
+al. 2005). It is not a translation of Cloudy's source, and where it follows one of Cloudy's conventions
+the code says so.
+
+In each cell it solves:
+
+  - **The ground state X.** 302 rovibrational levels, with radiative decay and collisions with H, He,
+    ortho- and para-H2 and H+ (Cloudy c25.00's default data sets).
+  - **Ultraviolet pumping.** Pumping goes through the B, C+, C−, B′, D+ and D− states: 1,592 levels and
+    32,453 lines to X. It includes the cascade back into X and the dissociation from each excited level,
+    the Solomon process.
+  - **Formation on grains.** New molecules enter the levels in Takahashi & Uehara's (2001)
+    distribution, at the rate the chemistry forms H2, split between silicate and carbonaceous grains as
+    the chemistry splits it.
+  - **The field in each pumping line, from MOCASSIN's Monte Carlo field.** The direct part is shielded
+    by the H2 level columns towards the star. The diffuse part comes from the scattering sites, shielded
+    by their own columns.
+  - **Self-shielding and photon trapping.** The Voigt profiles are integrated numerically, with overlap
+    from all the other H2 lines. The fluorescent photons are trapped along the twelve rays.
+
+Every PDR iteration, it hands the rest of the model:
+
+  - **the chemistry's H2 photodissociation rate**, in place of the network's single-line rate (H-012);
+  - **three heating terms for the thermal balance**, in place of 3D-PDR's (H-013): formation,
+    dissociation, and collisional exchange within X. The last of these is also H2's line cooling.
+
+On the finished model it writes `lineFluxH2.out`, `h2Cells.out` and `h2Pop.bin` (see
+[Input and output files](#input-and-output-files)). `mocassinWarm` resumes the populations from
+`h2Pop.bin` (H-020).
+
+**Where it runs.** The model is in the 3D build only. The 1D build keeps the network's single-line rate.
+It skips itself, and says so in the log, when a model has more than one grid, uses `planeIonization`, or
+has no diffuse field. There is no keyword to turn it off.
+
+**Checks** (DEVLOG-H2):
+
+| Test | Result | Entry |
+| :--- | :--- | :--- |
+| X-level populations against Cloudy's large model, 15 one-zone models (T 50–3000 K, n_H 10²–10⁶ cm⁻³) | within 0–0.5% on every level that collisions and decay set | H-003 |
+| Pumping and Solomon rates against Cloudy, given Cloudy's populations, 16 one-zone models (1–10⁴ Habing) | pump rate per level 1.000, Solomon rate 1.000 | H-004 |
+| Line overlap against the exact integral on a 0.05 cm⁻¹ grid | within 0.2–1.6% for N(H2) = 10¹⁷–3×10²⁰ cm⁻² | H-006 |
+| hiipdr, H2 lines against Cloudy's large model, its 40 strongest | ortho 0.82–0.84, para 1.13–1.19 | H-024 |
+| hiipdr, packet count from 6×10⁶ to 3.84×10⁸ | 1-0 S(1) +0.8%, at 0.77 of Cloudy's; no line moves 1% from 16× to 64× | H-032 |
+| pn150k, H2 lines against Cloudy | ortho 0.96–1.17, para 1.95–2.72 | H-024 |
+| hiipdr, H/H2 crossing | A_V 1.40, Cloudy 1.28 | H-024, H-026 |
+
+pn150k's para lines are high mostly because of the line width. The model damps each line by its upper
+level's total decay rate. Cloudy damps it by the line's own A, which is about 20 times smaller in the
+median, so its lines absorb less in their wings and its H2 is pumped and dissociated less (H-005). Run
+with Cloudy's width as a test, pn150k's para lines fall 3.2-fold and its ortho lines 2.2-fold (H-008,
+H-024), and hiipdr's crossing moves to A_V 1.19, past Cloudy's (H-026). The model keeps its width: a
+line's natural width is its upper level's total decay rate (H-008).
 
 ## Executables
 
@@ -83,6 +155,11 @@ The run stops when the model-integrated test passes; see [Convergence](#converge
 - `mocassinOutput`: Runs the output routines using the current grid files in the output subdirectory.
 - `mocassinPlot`: Uses the current grid files in the output/ subdirectory to create 3d-emission maps.
   In a PDR run it also maps the CO lines (the `mol` entry, D-383).
+- `h2Test`, `h2Slab`: standalone tests of the H2 level model, built with `make h2Test h2Slab` after a 3D
+  build. `h2Test` solves the X-state levels for a given temperature and set of collider densities
+  (H-003). `h2Slab` marches the pumping and shielding through a slab (H-005, H-006). Both are compared
+  with Cloudy by the `tools/h00*` scripts. The H2 line maps are made by `tools/h034_maps.py` from a
+  finished run (H-034).
 
 ## Building and installation
 
@@ -99,8 +176,8 @@ There are three builds:
 
 | Command | What it builds |
 | :--- | :--- |
-| `make PDR=1 PDRGEOM=3D all` | The coupled code, with ray-traced columns. Use it for 3D models. |
-| `make PDR=1 all` | The coupled code, with 1D slab columns. |
+| `make PDR=1 PDRGEOM=3D all` | The coupled code, with ray-traced columns and the H2 level model. Use it for 3D models. |
+| `make PDR=1 all` | The coupled code, with 1D slab columns, without the H2 level model. |
 | `make all` | MOCASSIN without the PDR. It needs no extra libraries. |
 
 `all` builds the four executables. Run `make clean` between builds of different kinds, because they
@@ -134,7 +211,8 @@ The binaries read their atomic and dust data from `PREFIX/share/mocassin/`. That
 `PREFIX` defaults to `$(HOME)/.local` on Linux and `/usr/local` on macOS.
 
 `make install` copies the four executables to `PREFIX/bin`. It copies `data/`, `dustData/`, `dataPDR/`
-and `benchmarks/` to `PREFIX/share/mocassin/`, and the man page to `PREFIX/share/man/man1`. In a PDR
+and `benchmarks/` to `PREFIX/share/mocassin/`, and the man page to `PREFIX/share/man/man1`. The H2
+data are in `dataPDR/h2/`. In a PDR
 build:
 ```bash
 make clean
@@ -160,7 +238,13 @@ PDR at `nbins 600`, measured on the development machine (D-370):
 
     memory ≈ (0.47 GB + 38 kB × active cells) × ranks
 
-With 31 GB for the run, that allows about 46,000 active cells at 14 ranks, or 104,000 at 7.
+With 31 GB for the run, that allows about 46,000 active cells at 14 ranks, or 104,000 at 7. The H2 level
+model stays within this. The test problem's 4,661 active cells used 0.61–0.62 GB per rank, against the
+formula's 0.65 (`doc/manual-pdr-h2.md`).
+
+**The H2 level model takes about half of a 3D PDR run's time or more.** In the reference runs it took
+22 of hiipdr's 44 minutes (31³, 15 iterations) and 100 of pn150k's 152 (41³, 18 iterations). The ranks
+share its cells dynamically, so cores of different speeds stay busy (H-011).
 
 ### PDR keywords
 
@@ -247,6 +331,9 @@ PDR runs also write:
 | `resLineEsc.out` | Per cell: the escape fraction of each resonance line. |
 | `convergence.out` | The model-integrated quantities at every iteration. |
 | `frontField.out`, `lineFluxFront.out` | Only with `frontLines`: the [O I] lines with the fronts resolved. |
+| `lineFluxH2.out` | 3D build: the H2 lines above 10⁻⁶ of the strongest, integrated over the grid as optically thin and without dust extinction, in erg/s and relative to Hβ. |
+| `h2Cells.out` | 3D build, per cell: n(H2), T_e, the levels' Solomon rate beside the chemistry's own, the pumping rate, ortho/para, the fraction above 4100 cm⁻¹, the H2 heating terms, and the columns. |
+| `h2Pop.bin` | 3D build: the level populations of every cell (binary; the man page gives the layout). It is the checkpoint `mocassinWarm` resumes from. |
 
 `thermBudget.out` is written by the last temperature solve, which comes before the last chemistry step.
 So its PDR heating column is one iteration older than `pdrGrid.out`. In a cell that is still changing,
@@ -279,25 +366,39 @@ Limitations to know before using the results:
   - **Ray directions.** With 12 rays per cell, hiipdr's x(H2) at A_V 0.5–1 comes out about 11% higher
     in the cells of one symmetry plane than elsewhere, while the model's totals agree within 0.3%
     (D-410). 48 directions remove the pattern at 1.5 times the run time; the default stays at 12.
-  - **H2 physics on this branch** is 3D-PDR's. A full rovibrational level model is under development; see
-    [Branches and versions](#branches-and-versions).
+  - **H2 in the transition zone.** Where the gas is partly ionised, the network makes H2 through H2+, and
+    our H2 there is 14–62 times Cloudy's in hiipdr and 30–230 times in pn150k (H-021, H-023, L-43).
+    Cloudy forms excited H2 there, which electrons destroy before it relaxes (D-389). The level model
+    inherits this abundance from the chemistry.
+  - **Molecular cells whose PDR heating swings.** In some molecular cells, the PDR heating that the last
+    temperature solve held is more than 3 times what the finished model rebuilds. That heating swings
+    between iterations: 95–119 such cells in a hiipdr run. Treat the H2 rotational lines these cells
+    carry as unconverged (H-043, open).
+  - **Geometry the H2 model does not cover.** More than one grid, or `planeIonization`, skips the level
+    model, and such a run takes its H2 photodissociation rate from the network (see
+    [The H2 level model](#the-h2-level-model)).
+  - **An unexplained asymmetry.** In the test problem's face-on maps, the rotational H2 lines are 3–5.5%
+    fainter on the y side than on the x side, although the model is symmetric under x ↔ y. The cause is
+    not known (H-037).
 
 ## Branches and versions
 
-  - **`main`**: the code described here.
-  - **`h2-model`**: development of a full H2 level model. It covers the rovibrational X-state levels,
-    ultraviolet pumping through the excited electronic states, self-shielding with line overlap, and the
-    H2 line spectrum (`lineFluxH2.out`). It is built from Cloudy c25.00's H2 data. The model sets the
-    chemistry's H2 photodissociation rate and the H2 heating. Its log is `DEVLOG-H2.md` on that branch.
-    It is work in progress.
-  - **Tags**: `pdr-coupling-v1.0`, `pdr-coupling-v1.1` and `pdr-coupling-v1.2` are releases. D-425 has
-    v1.2's release notes. Reverted work is kept under tags such as `d193-d195-reverted`.
-  - The binaries carry the `git describe` version they were built from: `pdr-coupling-v1.2` at the
-    tag, `pdr-coupling-v1.2-<n>-g<hash>` for a later commit.
+  - **`main`**: the code described here. It has included the H2 level model since `pdr-coupling-v2.0`.
+  - **`h2-model`**: where the H2 level model is developed. Its log is `DEVLOG-H2.md`. Its work reaches
+    `main` by merging, as it did for v2.0 (D-429).
+  - **Tags**: `pdr-coupling-v1.0`, `v1.1`, `v1.2` and `v2.0` are releases. D-425 has v1.2's release
+    notes and D-430 has v2.0's. Reverted work is kept under tags such as `d193-d195-reverted`.
+  - The binaries carry the `git describe` version they were built from: `pdr-coupling-v2.0` at the
+    tag, `pdr-coupling-v2.0-<n>-g<hash>` for a later commit.
 
 ## Documentation
 
 - [DEVLOG.md](DEVLOG.md): the implementation history, one entry per decision.
+- [DEVLOG-H2.md](DEVLOG-H2.md): the H2 level model's history, in the same form.
+- [doc/manual-pdr-h2.md](doc/manual-pdr-h2.md): a worked PDR + H2 run, from the test problem.
+- [doc/h2-radiation-molecules/main.pdf](doc/h2-radiation-molecules/main.pdf): how the radiation field
+  sets the molecular content, from the field and the dust through the H2 model to the chemistry.
+- [dataPDR/h2/README.md](dataPDR/h2/README.md): the H2 data, their sources and their licence.
 - [doc/pdr-status.md](doc/pdr-status.md): validation status and known limitations.
 - [doc/dust.md](doc/dust.md): the dust input files, the optical data formats and what MOCASSIN computes
   from them.
@@ -319,6 +420,9 @@ MOCASSIN-PDR is distributed under the **GNU General Public License, version 3** 
   can only be distributed under GPL v3.
 - `source/pdr/healpix_types.F90` comes from HEALPix (Górski et al.) and is GPL version 2 or later.
 - **SUNDIALS/CVODE** is BSD-3-Clause. It is linked, not included.
+- The H2 data in `dataPDR/h2/` are copied unmodified from **Cloudy** c25.00 (Copyright (C) 1978-2025
+  Gary J. Ferland and others), under its zlib licence, which is reproduced in
+  [dataPDR/h2/README.md](dataPDR/h2/README.md). The H2 model's code is not Cloudy's.
 
 Work that uses MOCASSIN-PDR should cite:
 
@@ -332,6 +436,12 @@ Work that uses MOCASSIN-PDR should cite:
   ApJS 268, 52) and Stout (Lykins et al. 2015, ApJ 807, 118)
 - Grain photoelectric heating and charging: Weingartner & Draine 2001, ApJS 134, 263
 - H2 formation on grains: Cazaux & Tielens 2002, ApJ 575, L29; 2004, ApJ 604, 222
+- The H2 level model follows Cloudy's large H2 model: Shaw et al. 2005, ApJ 624, 794. Its data:
+  energies of X, Komasa et al. 2011, J. Chem. Theory Comput. 7, 3105; quadrupole A values of X,
+  Wolniewicz, Simbotin & Dalgarno 1998, ApJS 115, 293; the excited electronic states, Abgrall, Roueff &
+  Drira 2000, A&AS 141, 297; collisions with H, Lique 2015, MNRAS 453, 810; with ortho- and para-H2, Wan
+  et al. 2018, ApJ 862, 132; with He, Lee et al. (ORNL); with H+, Gerlich 1990, J. Chem. Phys. 92, 2377.
+  The formation distribution is Takahashi & Uehara 2001, ApJ 561, 843.
 - HEALPix: Górski et al. 2005, ApJ 622, 759
 - SUNDIALS: Hindmarsh et al. 2005, ACM TOMS 31, 363; Gardner et al. 2022, ACM TOMS 48, 31
 
