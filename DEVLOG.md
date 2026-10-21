@@ -430,6 +430,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-428 | **Production has no H2 level model (the user: "does production branch have H2 level model?"); it is only on h2-model.** Measured with `git diff pdr-photoionization h2-model -- source Makefile`: the model is four files only on the branch (h2_mod.f90 1,570 lines, h2Lines_mod.f90, h2Test.f90, h2Slab.f90) plus hooks in pdr_mod (+944), iteration_mod, common_mod, grid_mod, output_mod and the Makefile, 3,139 lines in all; production's source has no lineFluxH2. Production's H2 is 3D-PDR's: grain formation (Cazaux & Tielens, H2FORM_CT02), photodissociation H2PDRATE with Federman, Glassgold & Kwan (1979) self-shielding (H2SHIELD1; the Lee et al. 1996 table H2SHIELD2 is commented out) and dust attenuation, the formation, photodissociation and FUV-pumping heating terms (D-384), and H2 as a collider for the line levels (D-363) and the grains (D-420); no H2 level populations, line cooling or line spectrum. Nothing changed | Answered | 2026-10-21 |
 | D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time **Result: merge c1ea374, four flavours and h2Test/h2Slab rc 0; rel-hii31 identical to d421-hii31 in every file but summary.out's clock times; rel-pn41 healthy (3 flagged), ionized T_e x0.996, gas-grain share 1.18e-3 -> 1.46e-2, Hbeta +0.49%, forbidden lines -0.8 to -2.7%, H2 lines within 0.22%, the cold cell 21.5 -> 24.5 K at the dust's 24.4; every range met, the byte-identity wording missed for the timestamps** | Done | 2026-10-21 |
 | D-430 | **Release `pdr-coupling-v2.0`: the first with the H2 level model.** Production after D-429's merge, 156 commits after v1.2. README.md rewritten for PDR plus the H2 level model (the model's own section: what it solves and feeds back, where it runs, its checks against Cloudy, the damping-width difference; the H2 executables, outputs, run-time cost, limitations, branches, credits and data licence). CLAUDE.md's h2-model note replaced by one that holds in both checkouts. The man page's H2 entry describes the feedback. Release notes in this entry. Not done: no push; no install | Done | 2026-10-21 |
+| D-431 | **doc/pdr-status.md audited and reorganised: section 3 holds only what is open, the new section 4 every closed item (the user: "Audit and revise doc/pdr-status.md and organize it so that all the resolved issues appear in a specific section of CLOSED issues. Keep in 'Known limitations' only what is currently open.").** Each of the 54 items read against the DEVLOG through D-430. 24 were already marked closed. 8 were still listed as open although resolved: L-14 (D-393), L-18 (D-413), L-20 (D-383), L-22 (D-326/D-328, the deep residual being L-3's), L-29 (D-404), L-36 (D-363), L-40 (D-391/D-392, its residual moved to L-52), L-49 (D-406). 3 split into an open and a resolved part under one number: L-4 (the formal solution's 52-130% stays open), L-21 (tools/d196_axis.py still hardcodes 31^3), L-30 (teFloor closed at D-403, two clamps open). 9 new items: open L-55 (H-043), L-56 (the H2 lines against Cloudy by spin: the line width, a divergence), L-57 (H-037), L-58 (where the level model does not run), L-59 (D-416), L-60 (D-424), L-63 (the transport's H I emissivities, D-371); closed L-61 (D-418) and L-62 (D-414). Result: 33 open (7 High, 15 Medium, 11 Low), 33 closed, each section with an index table; the header, section 1 and section 2 brought to v2.0 (the H2 model's checks, the release check); 'What has NOT been checked' revised (done checks moved to section 4); the reproduce section gains h2Test/h2Slab. Item text moved verbatim; nothing else lost (every original line accounted for) | Done | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41683,3 +41684,99 @@ Releases entries are not. Advice given:
     h2-model. Its only difference from main is H-046 (DEVLOG-H2.md). A merge
     on GitHub would put a commit on main that this checkout lacks, outside
     the local merge-after-validation route (CLAUDE.md).
+
+---
+
+## D-431 - doc/pdr-status.md audited: open items only in Known limitations, a section of closed issues (2026-10-21)
+
+The user (2026-10-21): "Audit and revise doc/pdr-status.md and organize it
+so that all the resolved issues appear in a specific section of CLOSED
+issues. Keep in 'Known limitations' only what is currently open."
+Documentation, not code. The page had last been revised at D-410
+(2026-10-15) and did not cover the H2 level model that v2.0 brought into
+production (D-429).
+
+**The audit.** Each of the 54 items (L-1 to L-54) was read in full and
+checked against the DEVLOG through D-430 and DEVLOG-H2 through H-046.
+  - **Already marked closed (24):** L-1, L-2, L-9, L-13, L-23, L-24, L-25,
+    L-27, L-28, L-31 to L-35, L-38, L-39, L-41, L-42, L-44, L-45, and the
+    resolved parts noted inside others. Moved as they were.
+  - **Still listed as open, but resolved (8).** Each gets a closing line
+    "recorded at D-431" with the entry that resolved it:
+    - L-14: the licensing test passed at D-393; the four arrays not in the
+      checkpoint leave no trace after eight iterations, accepted.
+    - L-18: the Q-file path has run in every pn150k model since D-313, and
+      D-413 fixed the five-column files.
+    - L-20: mocassinPlot ran on PDR grids at D-383 (cubes reproduce the
+      line files to 1e-5).
+    - L-22: the cause named and fixed at D-326/D-328. The deep gas's
+      remaining deficit moves with the packets and is L-3's (D-408).
+    - L-29: the sum holds un-enforced in the written model since D-404. The
+      earlier iterations' reliance on the rescale is L-47's.
+    - L-36: only CO is still tabulated, at 0.02 and 0.004 mean |ln|.
+    - L-40: the integrated test sees the H II region since D-391/D-392;
+      what a 2% stop leaves of the relaxation (D-405) moved to L-52.
+    - L-49: the default is undamped since D-406. The field-averaging
+      question it leaves is L-26's.
+  - **Split, one number in both sections (3).** The open part is in
+    section 3 and the resolved part in section 4:
+    - L-4: O-14's four defects are resolved (D-340, D-341, D-348, D-350);
+      the formal solution's 52-130% of chi_dif, unexplained, stays open.
+    - L-21: the five fixture constants are gone; tools/d196_axis.py still
+      hardcodes 31^3 (checked in the tool today).
+    - L-30: teFloor no longer binds (D-403); the chemistry's clamped rate
+      temperature and its CMB grain floor stay open.
+  - **Updated in place.**
+    - L-9 gains D-429's pn150k numbers.
+    - L-12 gains thermBudget's one-iteration lag (D-421 correction).
+    - L-43 no longer says that no production output depends on it: since
+      v2.0 the H2 lines do (H-002).
+    - L-53's patch is on both branches.
+    - L-45 notes that production now runs the code its pairs ran on.
+  - **New items (9).** Numbering continues from L-54.
+    - Open:
+      - L-55, H-043's swinging held PDR heating;
+      - L-56, the H2 lines against Cloudy by spin, mostly the line width
+        (a divergence to report);
+      - L-57, H-037's x <-> y asymmetry;
+      - L-58, where the level model does not run. Its arrays are allocated
+        only after the skip tests (pdr_mod.f90:5256 against :5296), so a
+        skipped run takes the network's rate and 3D-PDR's heating;
+      - L-59, D-416's PREFIX length;
+      - L-60, D-424's default goal;
+      - L-63, the transport's H I emissivities (D-371's "left for its own
+        seeded pair").
+    - Closed: L-61, D-418's level order; L-62, D-414's empty size bins.
+
+**The new page** (1,738 lines; 1,430 before):
+  - The header now gives the status (D-431, v2.0), both reference models,
+    and how the page is organised.
+  - Section 1 adds the H2 level model and the build's h2Test/h2Slab.
+  - Section 2 adds the stop test's row, a note that the Cloudy figures
+    predate D-420/D-421, the H2 model's checks (H-003, H-004, H-006, H-032,
+    H-020) and the release check (D-429).
+  - Section 3, "Known limitations (open)", has an index table and 33
+    items: 7 High (L-3, L-26, L-19, L-37, L-43, L-46, L-55), 15 Medium and
+    11 Low ("bookkeeping, tools and build", a new tier).
+  - Section 4, "Closed issues", has an index table with the closing date
+    and entries, the 33 closed items in number order, and the checks
+    struck through in the old "not checked" list.
+  - Section 5, "What has NOT been checked", is revised: the stale "pn150k
+    on the current code" replaced by the comparison pages not being
+    rebuilt; dense models with the H2 model added.
+  - Section 6 builds the flavours with `all`, adds `make h2Test h2Slab`,
+    and adds the H2 tools.
+  - Sections 1 and 2 keep their numbers, which the DEVLOG cites. Nothing
+    outside the page cites the old sections 4 and 5 (checked).
+
+**How it was checked.** The page was rebuilt by a script that moves each
+item's text verbatim (scratchpad rebuild_status.py), against a saved copy
+of the original (md5 5754c657). Every non-empty line of the original is in
+the new page except the 73 replaced on purpose (the header, section 1, two
+table rows, the split items' moved sentences, L-43's stale sentence, the old
+sections 4 and 5). Section 3 contains no "CLOSED". README.md's pointers to
+the page are updated (section 2, 3, 4; revised at D-431).
+
+### Status
+
+Done (2026-10-21).

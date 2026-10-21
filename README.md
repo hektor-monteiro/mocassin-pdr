@@ -24,11 +24,11 @@ first with the H2 level model, and science results should cite a release tag. Th
 standalone 3D-PDR on the models in `benchmarks/pdr/`.
 
   - Every design decision, measurement and correction, including the hypotheses that turned out wrong, is
-    recorded in [DEVLOG.md](DEVLOG.md), D-001 to D-430. The H2 level model's history is in
+    recorded in [DEVLOG.md](DEVLOG.md), D-001 to D-431. The H2 level model's history is in
     [DEVLOG-H2.md](DEVLOG-H2.md), H-001 to H-045. The README cites entries by number.
   - What is validated, and what is known to be wrong and by how much, is summarised in
-    [doc/pdr-status.md](doc/pdr-status.md). That page was last updated at D-410 (2026-10-15), and it
-    does not cover the H2 level model; see [The H2 level model](#the-h2-level-model).
+    [doc/pdr-status.md](doc/pdr-status.md), revised at D-431 (2026-10-21) for v2.0 and the H2 level
+    model. Its section 3 lists only the open items; section 4 holds the closed ones.
 
 Recent changes that move results:
 
@@ -44,7 +44,7 @@ Recent changes that move results:
     gas–grain exchange carries 7.4% of hiipdr's cooling but only 1.5% of pn150k's. Shielded
     molecular gas now exchanges heat with the dust at the physical rate. Both models have been run
     with this change and the H2 model (DEVLOG-H2 H-042; D-429). The published comparison pages, and
-    the figures in `doc/pdr-status.md`, predate it.
+    the Cloudy figures in `doc/pdr-status.md` section 2, predate it.
   - **[Ni II] level order (D-418).** The collision rates took the Boltzmann factor at the wrong level of
     one level pair. Below about 14 K this overflowed and crashed cold models.
   - **Dust Q files (D-413, D-415).** Five-column Q files had failed at start-up since D-313. The PAH
@@ -341,7 +341,8 @@ the two do not close.
 
 ## Validation and known limitations
 
-The full list, with each figure's source, is in [doc/pdr-status.md](doc/pdr-status.md). Some highlights
+The full list, with each figure's source, is in [doc/pdr-status.md](doc/pdr-status.md): what is validated
+(section 2), what is open (section 3) and what has been closed (section 4). Some highlights
 against Cloudy, on quantities both codes compute:
 
 | Quantity | Agreement | Entry |
