@@ -1,0 +1,233 @@
+% ======================================================================
+\section{Scope, conventions and overview}
+\label{sec:scope}
+% ======================================================================
+
+\subsection{What is described}
+
+MOCASSIN-PDR couples three pieces of physics:
+\begin{enumerate}
+\item \textbf{MOCASSIN} \citep{Ercolano2003,Ercolano2005,Ercolano2008}: a
+  three-dimensional Monte Carlo (MC) code for photoionisation and dust
+  radiative transfer on a Cartesian grid of homogeneous cells. It owns the
+  radiation field at every frequency, the dust (optical properties,
+  temperatures, charge), the ionisation state of every element, the electron
+  density and the gas temperature.
+\item \textbf{3D-PDR} \citep{Bisbas2012}, vendored under
+  \src{source/\allowbreak{}pdr/\allowbreak{}} (upstream commit \texttt{fabcdc6}, imported 2026-08-28;
+  \src{source/\allowbreak{}pdr/\allowbreak{}UPSTREAM.md}): the REDUCED 33-species chemical network solved
+  to steady state, its photoreaction prescriptions, its \Htwo{} formation rate
+  and its escape-probability level-population solver for the coolants. 3D-PDR's
+  own treatment of the radiation field (an external field attenuated along
+  rays to the cloud boundary) and its own thermal balance are not used.
+  MOCASSIN drives the vendored routines through the bridge module
+  \src{source/\allowbreak{}pdr\_mod.f90}.
+\item \textbf{The \Htwo{} level model} of the \texttt{h2-model} branch
+  (\src{source/\allowbreak{}h2\_mod.f90}, driven by \rtn{h2LevelModel} in
+  \src{pdr\_mod.f90}): the 302 rovibrational levels of $\mathrm{H_2}\,X$ in
+  statistical equilibrium under collisions, quadrupole decay, ultraviolet
+  pumping through the excited electronic states, Solomon dissociation and
+  formation on grains. It is a re-implementation from the data and the
+  conventions of Cloudy's large \Htwo{} model \citep{Shaw2005,Ferland2017,Chatzikos2023}.
+  Its Solomon rate is the \Htwo{} photodissociation rate the chemistry uses.
+\end{enumerate}
+By \emph{molecular content} we mean the abundances of the 33 species in every
+cell and, for \Htwo, the populations of its 302 levels. The document follows
+the path by which the MC radiation field determines them, and the feedback of
+the molecules on the field, the ionisation and the temperatures.
+
+The text follows the source tree at \texttt{\textasciitilde/software/mocassin\_h2}
+(git worktree, branch \texttt{h2-model}, HEAD
+\texttt{8fc15120dea2}, 2026-10-15). Every \src{file:\allowbreak{}line} reference is to that
+commit; files are under \src{source/\allowbreak{}} unless a path says otherwise. The
+branch has moved on since (its tip was \texttt{78a74bd} on 2026-10-16). The only
+source change on the path described here is \dlog{D-414} (commit \texttt{df9a626},
+merged into \texttt{h2-model} as \texttt{901f1e8}), which makes the mean grain
+temperature a mean over the size bins that hold grains
+(Section~\ref{sec:Td}); it changes nothing where every grain species fills the
+size grid, as in all the fixtures. \dlog{D-417} registers a temperature per
+grain material for \Htwo{} formation for future development, without a code
+change. DEVLOG
+entries are cited as \dlog{D-nnn} (\src{DEVLOG.md}), branch entries as
+\dlog{H-nnn} (\src{DEVLOG-H2.md}) and the limitations of
+\src{doc/\allowbreak{}pdr-status.md} as \dlog{L-nn}. Measured numbers quoted without a
+log entry are read from the run logs of the two production fixtures:
+\texttt{hiipdr}, an H\,\textsc{ii} region and PDR around a 40\,kK star in gas of
+$n_{\mathrm H}=100$\,cm$^{-3}$ with silicate grains on $31^3$ cells
+(\src{runs/\allowbreak{}d405-hii31-d0/\allowbreak{}run.log}), and \texttt{pn150k}, a 150\,kK planetary
+nebula with $n_{\mathrm H}=10^3$\,cm$^{-3}$ and graphite grains on $41^3$ cells
+(\src{runs/\allowbreak{}d405-pn41-d0/\allowbreak{}run.log}). Both are uniform spheres around one
+source, computed in one octant (\kw{symmetricXYZ}).
+
+\paragraph{Build flavour.} The description is of the ray-traced build,
+\begin{center}\verb|make PDR=1 PDRGEOM=3D mocassin|\end{center}
+which compiles with the flags
+\begin{center}\small\ttfamily
+-DPDR -DRAYTHEIA -DRAYTHEIA\_MO\\
+-DTHERMALBALANCE -DREDUCED -DH2FORM\_CT02 -DCHEMSTEADY -DCHEMRETRY\\
+-DFORCECONVERGENCE -DNGACCEL -DNGCYCLE -DNGRELAX -DILLINOIS -DREBRACKET -DSOBOLEV
+\end{center}
+(\src{Makefile:\allowbreak{}82--89}): the first line selects the ray-traced
+geometry, the others are fixed for every PDR build. Of the fixed flags,
+\kw{-DREDUCED}, \kw{-DH2FORM\_CT02}, \kw{-DCHEMSTEADY}, \kw{-DCHEMRETRY} and
+\kw{-DSOBOLEV} change what the coupled code computes (the network, the \Htwo{}
+formation rate, the steady-state integration and the escape-probability
+form); \kw{-DTHERMALBALANCE}, \kw{-DFORCECONVERGENCE}, \kw{-DNGACCEL},
+\kw{-DNGCYCLE}, \kw{-DNGRELAX}, \kw{-DILLINOIS} and \kw{-DREBRACKET} act only in
+3D-PDR's own iteration and temperature routines, which the bridge does not
+call. Two other PDR flavours exist and are not
+described except where noted: the 1D-slab build (\kw{-DONEDIMENSIONAL}),
+whose chemistry still receives 3D-PDR's prescription
+$\chi_0\,e^{-\gamma \AV}$ on twelve rays and in which the level model is a
+stub that leaves the network's \Htwo{} rate in place
+(\src{pdr\_mod.f90:\allowbreak{}6015--6027}); and the warm start
+(\verb|make PDR=1 mocassinWarm|). The level model also skips plane-parallel
+illumination and nested grids (\src{pdr\_mod.f90:\allowbreak{}5256--5259}), so the
+description applies to one grid illuminated by point sources.
+
+\subsection{Notation and units}
+
+Table~\ref{tab:notation} lists the symbols used in more than one section.
+cgs units are used throughout; frequencies are in rydbergs in the code
+(1\,Ryd $=13.6057$\,eV, $\nu_{1\,\mathrm{Ryd}}=3.28984\times10^{15}$\,Hz).
+$J_\nu$ is the angle-averaged specific intensity (the mean intensity), so that
+$u_\nu=4\pi J_\nu/c$ is the spectral energy density.
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.73\linewidth}@{}}
+\caption{Notation and units.}\label{tab:notation}\\
+\toprule
+Symbol & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Symbol & Meaning \\
+\midrule
+\endhead
+$n_{\mathrm H}$ & density of hydrogen nuclei, \rtn{grid\%Hden} [cm$^{-3}$] \\
+$x_i = n_i/n_{\mathrm H}$ & fractional abundance of species $i$, \rtn{grid\%pdrAbun} [dimensionless] \\
+$J_\nu$ & mean intensity [erg\,s$^{-1}$\,cm$^{-2}$\,Hz$^{-1}$\,sr$^{-1}$] \\
+$k$, $\nu_k$, $\Delta\nu_k$ & index, tabulated frequency and width of a bin of the MC frequency grid
+            (\rtn{nuArray}, \rtn{widFlx}) \\
+$\Jste_k$ & MC estimator of the \emph{total} field in bin $k$,
+            $4\pi\int_{\mathrm{bin}\,k} J_\nu\,\dd\nu$ [erg\,s$^{-1}$\,cm$^{-2}$], \rtn{grid\%Jste} \\
+$\Jdif_k$ & the part of $\Jste_k$ carried by scattered or re-emitted packets, \rtn{grid\%Jdif} [same units] \\
+$\uD$ & $8.94\times10^{-14}$\,erg\,cm$^{-3}$, the 6--13.6\,eV energy density of the
+        \citet{Draine1978} interstellar field (\src{constants\_mod.f90:\allowbreak{}29});
+        $c\,\uD=2.68\times10^{-3}$\,erg\,s$^{-1}$\,cm$^{-2}$ \\
+$\chi$ & band-integrated (6--13.6\,eV) field in Draine units, a dimensionless energy density,
+         $\chi = \sum_{k\in\mathrm{FUV}} \Jste_k/(c\,\uD)$; $\chi=1$ is $G_0=1.69$ in
+         Habing units of the same band (Section~\ref{sec:bands}) \\
+$\chi_0$ & geometrically diluted, unattenuated field of the sources, same units (Equation~\ref{eq:chi0}) \\
+$\chiD,\ \chiF$ & direct (never scattered or re-emitted) and diffuse parts of $\chi$ \\
+$s_{\mathrm D}$ & share of the Draine field's 6--13.6\,eV energy in the Lyman--Werner (LW) window 11.2--13.6\,eV \\
+$f_{\mathrm{dir}},\ f_{\mathrm{dif}}$ & LW window factors of the direct and diffuse parts (Section~\ref{sec:window}) \\
+$\eta_{lu}$ & photon occupation number at the line $l\to u$, $J_\nu c^2/(2h\nu^3)$ [dimensionless] \\
+$\kappa^{\mathrm{abs}}_\nu,\ \kappa^{\mathrm{sca}}_\nu$ & dust absorption and scattering coefficients
+         [cm$^{-1}$], \rtn{absOpac}, \rtn{scaOpac}; $\kappa_V$ their sum at 5500\,\AA \\
+$\AV$ & visual extinction [mag]; $1.0857 = 2.5\log_{10}e$ mag per unit optical depth (\rtn{magPerTau}) \\
+$\RFUV$ & ratio of the band-mean FUV dust extinction coefficient to $\kappa_V$, per cell (Section~\ref{sec:dust}) \\
+$N_X$ & column density of species $X$ [cm$^{-2}$]; $N_l$ the column of \Htwo{} in level $l$ \\
+$b$ & Doppler parameter, $b^2 = 2kT/m_{\mathrm{H_2}} + v_{\mathrm{turb}}^2$ [cm\,s$^{-1}$] \\
+$\tau_0,\ a$ & line-centre optical depth and Voigt damping parameter of an \Htwo{} line \\
+$S(\tau_0,a)$, $W(\tau_0,a)$ & single-line self-shielding function (profile-weighted transmission of a continuum in a Voigt line) and its integral over $\tau_0$ (curve of growth) \\
+$k_{\mathrm{Sol}}$ & Solomon photodissociation rate per \Htwo{} molecule [s$^{-1}$], \rtn{grid\%h2Sol} \\
+$R_{\mathrm{f}}$ & \Htwo{} grain formation coefficient [cm$^3$\,s$^{-1}$]; formation rate per volume $R_{\mathrm f}\,n_{\mathrm H}\,n(\mathrm H)$ [cm$^{-3}$\,s$^{-1}$] \\
+$\zeta$ & cosmic-ray ionisation rate, \kw{pdrZeta} [s$^{-1}$] \\
+$T_e$, $T_d$ & gas (electron) temperature and mean grain temperature [K]; $T_{\mathrm{CMB}}=2.725$\,K \\
+\bottomrule
+\end{longtable}
+
+\subsection{Who owns what}
+\label{sec:ownership}
+
+The coupling is designed so that every quantity has a single writer
+(\src{CLAUDE.md}, ``one reality per quantity''). Table~\ref{tab:owner}
+lists the quantities that lie on the path from the field to the molecules.
+
+\begin{longtable}{@{}L{0.26\linewidth}L{0.16\linewidth}L{0.25\linewidth}L{0.24\linewidth}@{}}
+\caption{Ownership of the quantities on the path from the radiation field to the molecular content.}\label{tab:owner}\\
+\toprule
+Quantity & Owner & Written in & Read by \\
+\midrule
+\endfirsthead
+\toprule
+Quantity & Owner & Written in & Read by \\
+\midrule
+\endhead
+$J_\nu$ in every bin (total and diffuse) & MOCASSIN MC & \rtn{pathSegment}, \src{photon\_mod.f90:\allowbreak{}1900--1924, 2236--2250} & everything below \\
+dust opacity, albedo, $T_d$ & MOCASSIN & \src{dust\_mod.f90}, \rtn{getDustT} (\src{update\_mod.f90}) & $\RFUV$, \Htwo{} formation, level model \\
+$T_e$ & MOCASSIN \rtn{thermBalance} & \src{update\_mod.f90:\allowbreak{}1734} & chemistry, level model \\
+ionisation stages of H, He, C, O, Mg (and all other elements), $n_e$ & MOCASSIN \rtn{ionBalance} & \src{update\_mod.f90:\allowbreak{}2527} & imposed on the chemistry \\
+atom photoionisation and recombination rates of H, He, C, O, Mg; \Htwo{}$\to$\Htwo$^+$ & MOCASSIN & \src{update\_mod.f90:\allowbreak{}2840--2878} & chemistry (replace network channels) \\
+$\AV$ and the source-ward columns $N(\mathrm{H_2}), N(\mathrm C), N(\mathrm{CO})$ & bridge geometry & \rtn{computeAVradial}, \src{pdr\_mod.f90:\allowbreak{}1859} & chemistry \\
+scattering sites and their two-leg columns & bridge geometry & \rtn{traceDiffuseSites}, \src{pdr\_mod.f90:\allowbreak{}2136} & chemistry, level model \\
+\Htwo{} level populations, $k_{\mathrm{Sol}}$, \Htwo{} heating & level model & \rtn{h2LevelModel}, \src{pdr\_mod.f90:\allowbreak{}5201} & chemistry, thermal balance \\
+abundances of the 33 species & chemistry & \rtn{pdrStep}, \src{pdr\_mod.f90:\allowbreak{}3180} & MOCASSIN, level model, columns \\
+fraction of each element not in molecules (\rtn{elemAvail}) & chemistry & \rtn{setElemAvail}, \src{pdr\_mod.f90:\allowbreak{}5120} & \rtn{ionBalance} \\
+$n(\mathrm{H_2})$ for the gas opacity (\rtn{H2den}) & chemistry & \src{pdr\_mod.f90:\allowbreak{}4573} & \rtn{addOpacity} \\
+cooling by CO & chemistry (3D-PDR level populations, tabulated in $T$) & \rtn{pdrStep} & \rtn{thermBalance} \\
+cooling by \Cp, C, O & MOCASSIN's own atoms, with the chemistry's neutral colliders and escape probabilities (\dlog{D-363}) & \src{emission\_mod.f90:\allowbreak{}1861--1887} & \rtn{thermBalance}, line fluxes \\
+heating terms MOCASSIN lacks (\rtn{pdrHeatXtra}) & chemistry and level model & \src{pdr\_mod.f90:\allowbreak{}4499--4546} & \rtn{thermBalance} \\
+\bottomrule
+\end{longtable}
+
+\subsection{Overview of the chain}
+
+Figure~\ref{fig:chain} shows the chain inside one MC iteration. The field
+reaches the molecules through five channels:
+(i) directly, through the photodissociation and photoionisation rates, which
+read the local MC field (Sections~\ref{sec:field} and \ref{sec:photorates});
+(ii) through the gas temperature, which sets the rate coefficients, the
+collisional excitation of \Htwo{} and, through the thermal speed and the
+sticking of H atoms, the \Htwo{} formation rate;
+(iii) through the dust temperature, which sets the efficiency of \Htwo{}
+formation on grains (Section~\ref{sec:Td});
+(iv) through MOCASSIN's ionisation balance, which fixes the \Cp/C ratio and
+the electron density the chemistry works with; and
+(v) through the molecules themselves, whose columns, integrated along the
+paths the photons took, shield the \Htwo{} and CO lines at the next
+iteration (Section~\ref{sec:geometry}).
+The molecules act back on the transfer only through the \Htwo{} photoionisation
+continuum and, indirectly, through the ionisation and energy balances
+(Section~\ref{sec:feedback}); no molecular line opacity enters the MC transfer.
+
+\begin{figure}[tbp]
+\centering
+\small
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{1. MC transfer} (\rtn{energyPacketDriver}): $\Jste_k$, $\Jdif_k$ in every cell and bin;
+dust temperatures; packets flagged as never scattered (direct) or scattered/re-emitted (diffuse)}}\\[2pt]
+$\Big\downarrow$\\[2pt]
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{2. Dust and geometry} (\rtn{dustPerCell}, \rtn{computeAVdust}):
+$\RFUV$, $\AV/N_{\mathrm H}$, grain area per H;
+exact rays to the sources: $\AV$ and $N(\mathrm{H_2})$, $N(\mathrm C)$, $N(\mathrm{CO})$ of iteration $n-1$'s abundances;
+snapshot of the scattering emissivity for the diffuse walk; $\chi$, $\chi_0$}}\\[2pt]
+$\Big\downarrow$\\[2pt]
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{3. \Htwo{} level model} (\rtn{h2LevelModel}, one sweep): per line
+$\eta = \eta_{\mathrm{dir}}\langle S\rangle_{\mathrm{dir}}\mathcal O_{\mathrm{dir}}+\eta_{\mathrm{dif}}\langle S\rangle_{\mathrm{dif}}$;
+Voigt self-shielding with level columns, line overlap, trapping;
+302-level statistical equilibrium at $T_e^{(n-1)}$ $\Rightarrow$ $k_{\mathrm{Sol}}$, \Htwo{} heating}}\\[2pt]
+$\Big\downarrow$\\[2pt]
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{4. MOCASSIN cell update} (\rtn{updateCell}): ionisation and $T_e$ of every cell,
+with the chemistry's channels of iteration $n-1$;
+stores the photoionisation and recombination rates of H, He, C, O, Mg and the \Htwo{} photoionisation rate}}\\[2pt]
+$\Big\downarrow$\\[2pt]
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{5. Chemistry} (\rtn{pdrStep}): rays $=$ direct beam $+$ scattering sites, all at $\AV=0$;
+generic photorates $\alpha\chi$; CO with \citet{vanDishoeckBlack1988} shielding and window factor;
+\Htwo{} photodissociation $=k_{\mathrm{Sol}}$; MOCASSIN's ionisation imposed;
+CVODE to steady state; CO cooling table; heating terms}}\\[2pt]
+$\Big\downarrow$\\[2pt]
+\fbox{\parbox{0.86\linewidth}{\centering
+\textbf{6. Feedback} (\rtn{pdrToMocassin}, \rtn{rescaleIonToAvail}): fraction of each element in molecules
+$\rightarrow$ ion stages; $n(\mathrm{H_2})\rightarrow$ gas opacity; coolants and heating $\rightarrow$ next $T_e$;
+new abundances $\rightarrow$ next iteration's shielding columns; second ionisation solve (kept at the end)}}
+\caption{The chain from the radiation field to the molecular content inside one MC iteration $n$ of the
+\texttt{h2-model} branch (3D build), in the order of execution. Inputs marked ``iteration $n-1$'' or
+with the superscript $(n-1)$ are one iteration old (Section~\ref{sec:lags}); the lags vanish at a fixed
+point of the iteration. The steps and their line numbers are listed in Table~\ref{tab:steps}.}
+\label{fig:chain}
+\end{figure}

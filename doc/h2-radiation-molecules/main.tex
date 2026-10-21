@@ -1,0 +1,133 @@
+% How the radiation field sets the molecular content in MOCASSIN-PDR,
+% branch h2-model (commit 8fc1512, 2026-10-15).
+%
+% Build:  pdflatex main && bibtex main && pdflatex main && pdflatex main
+% Only standard LaTeX packages are used (no TikZ, siunitx or enumitem), so
+% the document compiles on a minimal TeX Live installation.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{textcomp}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{microtype}
+\usepackage{booktabs,longtable,array}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage[round,sort]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=green!35!black,urlcolor=blue!60!black]{hyperref}
+\usepackage{url}
+
+% ---------------------------------------------------------------- macros
+% Code names are typeset in typewriter and may break after an underscore,
+% a colon or a slash (the latter two are marked in the text with \allowbreak).
+\newcommand{\brkus}{\textunderscore\allowbreak}
+\DeclareRobustCommand{\src}[1]{\texttt{\let\_\brkus #1}}   % file:line, with \_ escaped
+\DeclareRobustCommand{\rtn}[1]{\texttt{\let\_\brkus #1}}   % routine or variable name
+\DeclareRobustCommand{\kw}[1]{\texttt{\let\_\brkus #1}}    % input keyword or compile flag
+\newcommand{\dlog}[1]{\textsf{#1}}         % DEVLOG entry (D-nnn, H-nnn, L-nn)
+\newcommand{\Htwo}{H\ensuremath{_2}}
+\newcommand{\Hp}{H\ensuremath{^+}}
+\newcommand{\Cp}{C\ensuremath{^+}}
+\newcommand{\unit}[1]{\,\mathrm{#1}}
+\newcommand{\chiD}{\chi_{\mathrm{dir}}}
+\newcommand{\chiF}{\chi_{\mathrm{dif}}}
+\newcommand{\Jste}{J^{\mathrm{ste}}}
+\newcommand{\Jdif}{J^{\mathrm{dif}}}
+\newcommand{\uD}{u_{\mathrm{D}}}
+\newcommand{\RFUV}{R_{\mathrm{FUV}}}
+\newcommand{\AV}{A_{V}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\note}[1]{\par\smallskip\noindent\fbox{\parbox{0.96\linewidth}{\small #1}}\par\smallskip}
+
+\setlength{\parskip}{0.35em}
+\setlength{\emergencystretch}{3em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.15}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small MOCASSIN-PDR, branch \texttt{h2-model}}
+\rhead{\small Radiation field $\rightarrow$ molecular content}
+\cfoot{\thepage}
+
+\hypersetup{pdftitle={How the radiation field sets the molecular content in MOCASSIN-PDR (h2-model branch)},
+            pdfauthor={Compiled from the MOCASSIN-PDR source tree}}
+
+\title{How the radiation field sets the molecular content\\ in MOCASSIN-PDR\\[6pt]
+\large The \texttt{h2-model} branch: physics, prescriptions, numerical strategy\\ and code locations}
+\author{Compiled from the source tree of MOCASSIN-PDR\\
+\small branch \texttt{h2-model}, commit \texttt{8fc1512} (2026-10-15),
+worktree \texttt{\textasciitilde/software/mocassin\_h2}\\
+\small (document prepared with Claude Code from a reading of the source; no run was made for it)}
+\date{16 October 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+This document describes, process by process, how the radiation field computed by
+MOCASSIN's three-dimensional Monte Carlo (MC) photoionisation and dust radiative
+transfer determines the molecular content of a model in the \texttt{h2-model} branch
+of MOCASSIN-PDR, in which that transfer is coupled to the 33-species REDUCED
+steady-state chemistry of 3D-PDR and to a 302-level model of the ground electronic
+state of \Htwo{} whose Solomon photodissociation rate replaces the network's
+single-line prescription. The photorates are evaluated on each cell's own MC field:
+its never-scattered part arrives along the straight lines from the sources, its
+scattered part is distributed over scattering sites by the formal solution of the
+transfer equation, and the dust attenuation, already in the MC field, is not applied
+again. The absorption in the \Htwo{} and CO lines, which the MC does not transport,
+is applied through column densities integrated along those paths, source-ward for the
+direct beam and through each site for the diffuse light; the level model shields each
+of its 32\,453 lines of the Lyman, Werner, $B'$--$X$ and $D$--$X$ systems with Voigt
+profiles averaged through the cell's own column, with line overlap, trapping and
+formation pumping. For every step the document gives the physics, the prescription
+with its reference, the numerical strategy and the file and line of the
+implementation, in the order in which the code executes them: the MC estimator of the
+field and its direct and diffuse parts; the dust quantities and the ray geometry; the
+\Htwo{} level model; the photoreaction rates; the steady-state chemical solve; and the
+feedback of the molecules on MOCASSIN's opacity, ionisation and thermal balance.
+Measured numbers from the project's logs size the main approximations: on the
+H\,\textsc{ii}-region fixture the scattered field carries 75--100\% of the FUV field
+beyond $\AV\approx0.5$; the \Htwo{} lines and the H/\Htwo{} transition are converged
+at the default packet count, while the carbon transition and CO are not; and the
+damping width adopted for the \Htwo{} lines moves the transition by 0.1--0.2\,mag.
+The physical assumptions are collected in Section~\ref{sec:assumptions} and the known
+limitations, including several found while preparing this document, in
+Section~\ref{sec:limitations}. Appendix~\ref{app:index} is an index of code locations.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\input{sections/sec01_scope}
+\input{sections/sec02_iteration}
+\input{sections/sec03_field}
+\input{sections/sec04_dust}
+\input{sections/sec05_geometry}
+\input{sections/sec06_h2model}
+\input{sections/sec07_photorates}
+\input{sections/sec08_chemistry}
+\input{sections/sec09_feedback}
+\input{sections/sec10_convergence}
+\input{sections/sec11_assumptions}
+\input{sections/sec12_limitations}
+
+\appendix
+\input{sections/appA_index}
+\input{sections/appB_keywords}
+\input{sections/appC_data}
+
+\clearpage
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

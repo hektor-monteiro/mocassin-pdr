@@ -1,0 +1,52 @@
+% ======================================================================
+\section{Input keywords and defaults on this path}
+\label{app:keywords}
+% ======================================================================
+
+Keywords are read in \rtn{readInput} (\src{set\_input\_mod.f90}); defaults are
+set there or in \src{common\_mod.f90}. Retired keywords that once selected
+ownership or prescriptions are of two kinds (\src{set\_input\_mod.f90:\allowbreak{}731--757};
+the reason for each is printed by \rtn{retiredKeyword}, \src{:\allowbreak{}1101--1172}).
+Those whose choice is settled or whose value the model now measures
+(\kw{pdrAVfac}, \kw{pdrUVfac}, \kw{pdrAllCells}, \kw{pdrCoolFeedback},
+\kw{pdrHealpix}, \kw{pdrCoupleIter}, \kw{pdrChemIter}, \ldots) are still parsed
+and ignored with a message, so old inputs run. Those that selected alternative
+physics or stood in for what MOCASSIN knows (\kw{pdrZoneLimit},
+\kw{pdrFUVmode}, \kw{pdrDustModel}, \kw{pdrOwnDust}, \kw{pdrPEfromPDR},
+\kw{pdrMetallicity}, \kw{pdrGrainRadius}, \ldots) are refused and the run stops.
+
+\begin{longtable}{@{}L{0.16\linewidth}L{0.15\linewidth}L{0.40\linewidth}L{0.20\linewidth}@{}}
+\caption{Input keywords on the path from the field to the molecules.}\label{tab:keywords}\\
+\toprule
+Keyword & Default & Effect & Read / default \\
+\midrule
+\endfirsthead
+\toprule
+Keyword & Default & Effect & Read / default \\
+\midrule
+\endhead
+\kw{pdr} & off & switches the coupling on & \src{set\_input:\allowbreak{}638} \\
+\kw{pdrNetwork} & \texttt{reduced} & validated against the compiled network; cannot switch it & \src{set\_input:\allowbreak{}645}; \src{common:\allowbreak{}889} \\
+\kw{pdrDataDir} & install prefix & directory of \src{dataPDR} (network, coolants, \src{h2/\allowbreak{}}) & \src{set\_input:\allowbreak{}648} \\
+\kw{pdrStartIter} & 1 & first MC iteration with the PDR coupling & \src{set\_input:\allowbreak{}654}; \src{common:\allowbreak{}893} \\
+\kw{pdrZeta} & $10^{-16}$\,s$^{-1}$ & cosmic-ray ionisation rate per \Htwo{} (uniform), in the network, in MOCASSIN's ion balance and in the cosmic-ray heating & \src{set\_input:\allowbreak{}651}; \src{common:\allowbreak{}902} \\
+\kw{pdrEndTime} & $10^{7}$\,yr & first integration span; steady state extends it up to 128$\times$ & \src{set\_input:\allowbreak{}670}; \src{common:\allowbreak{}903} \\
+\kw{pdrVturb} & 1\,km\,s$^{-1}$ & microturbulence in $b$ (\Htwo{} lines, coolant lines); velocity of the turbulent heating & \src{set\_input:\allowbreak{}673}; \src{common:\allowbreak{}907} \\
+\kw{pdrTmin}, \kw{pdrTmax} & 1\,K, $2\times10^4$\,K & clamp of the chemistry's gas temperature (\src{pdr\_mod.f90:\allowbreak{}3346}) and range of the CO cooling table (\src{:\allowbreak{}2720}); the vendored routines' own lower bound is raised to $T_{\mathrm{CMB}}$ (\src{:\allowbreak{}364}) & \src{set\_input:\allowbreak{}676, 679}; \src{common:\allowbreak{}908--909} \\
+\kw{pdrCoolants} & none & coolant data files (fixtures: \src{12co.dat 12c+.dat 12c.dat 16o.dat}); CO is tabulated, the atoms' collision rates and escape probabilities go to MOCASSIN's own atoms & \src{set\_input:\allowbreak{}757} \\
+\kw{iterDamp} & 0 & damping of abundances, ion stages and temperature across iterations & \src{set\_input:\allowbreak{}700}; \src{common:\allowbreak{}1193} \\
+\kw{teFloor} & 2.725\,K & floor of MOCASSIN's $T_e$ & \src{set\_input:\allowbreak{}691}; \src{common:\allowbreak{}1278} \\
+\kw{convTotals} & 0.02 & integrated stop test & \src{set\_input:\allowbreak{}468}; \src{common:\allowbreak{}816} \\
+\kw{maxIterateMC} & 30 & maximum number of MC iterations (its second number is reported, not used to stop) & \src{set\_input:\allowbreak{}413}; \src{:\allowbreak{}75} \\
+\kw{nPhotons} & input & packets per iteration; sets the MC noise of every photorate (Section~\ref{sec:mcnoise}) & \src{set\_input:\allowbreak{}422} \\
+\kw{randomSeed} & $-1$ (clock) & a non-negative seed makes a run repeatable at fixed rank count & \src{set\_input:\allowbreak{}403}; \src{common:\allowbreak{}734} \\
+\kw{pathStretch} & off & composite path-length biasing \citep{Baes2016} & \src{set\_input:\allowbreak{}719}; \src{common:\allowbreak{}1102} \\
+\kw{isotropic\allowbreak{}Scattering} & off & isotropic instead of Henyey--Greenstein dust scattering & \src{set\_input:\allowbreak{}173}; \src{:\allowbreak{}40} \\
+\kw{quantumHeat\allowbreak{}Grain} & off & stochastic heating of small grains (emitted spectrum only) & \src{set\_input:\allowbreak{}200} \\
+\kw{symmetricXYZ} & off & octant symmetry; mirrors in the walks & \src{set\_input:\allowbreak{}359} \\
+\kw{nbins} & 600 & frequency bins of the MC field & \src{set\_input:\allowbreak{}77, 350} \\
+\bottomrule
+\end{longtable}
+
+There is no keyword for the \Htwo{} level model: in the 3D build it always
+runs, and its Solomon rate always replaces the network's (\dlog{H-012}).

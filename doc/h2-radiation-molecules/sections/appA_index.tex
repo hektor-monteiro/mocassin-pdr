@@ -1,0 +1,113 @@
+% ======================================================================
+\section{Index of code locations}
+\label{app:index}
+% ======================================================================
+
+Files are under \src{source/\allowbreak{}} of the \texttt{h2-model} worktree at commit
+\texttt{8fc1512}; \src{pdr/\allowbreak{}} is the vendored 3D-PDR. A range is the whole
+routine unless the process column names a part of it.
+
+\begin{longtable}{@{}L{0.39\linewidth}L{0.25\linewidth}L{0.30\linewidth}@{}}
+\caption{Index of code locations.}\label{tab:index}\\
+\toprule
+Process & Routine & File:lines \\
+\midrule
+\endfirsthead
+\toprule
+Process & Routine & File:lines \\
+\midrule
+\endhead
+\multicolumn{3}{@{}l}{\emph{Iteration and transfer}}\\
+MC iteration, PDR block & \rtn{iterateMC} & \src{iteration\_mod.f90:\allowbreak{}56--3345} \\
+packet transport & \rtn{energyPacketDriver}, \rtn{pathSegment} & \src{photon\_mod.f90:\allowbreak{}37--3575, 1249--3344} \\
+path-length estimator ($\Jste$, $\Jdif$) & \rtn{pathSegment} & \src{photon\_mod.f90:\allowbreak{}1900--1924, 2236--2250} \\
+scattering, re-flag of the packet as diffuse & \rtn{pathSegment} & \src{photon\_mod.f90:\allowbreak{}2025--2035, 2154--2165} \\
+absorption by dust or gas & \rtn{pathSegment} & \src{photon\_mod.f90:\allowbreak{}2050--2103} \\
+$\Jdif$ always accumulated in PDR runs & \rtn{readInput} & \src{set\_input\_mod.f90:\allowbreak{}775--778} \\
+estimator units, octant & \rtn{iterateMC} & \src{iteration\_mod.f90:\allowbreak{}924, 940} \\
+FUV band, LW window, Draine unit, $V$ band & constants & \src{constants\_mod.f90:\allowbreak{}16--35} \\
+FUV and $V$ bin indices & \rtn{setContinuum} & \src{continuum\_mod.f90:\allowbreak{}92--95} \\
+\multicolumn{3}{@{}l}{\emph{Dust}}\\
+grain area per H by material & \rtn{measureH2grainArea} & \src{pdr\_mod.f90:\allowbreak{}1266--1338} \\
+material from the grain label & \rtn{isCarbonGrain}, \rtn{isSilicateGrain} & \src{pdr\_mod.f90:\allowbreak{}1228--1247, 1341--1360} \\
+$\RFUV$, $\AV/N_{\mathrm H}$, area per cell & \rtn{dustPerCell} & \src{pdr\_mod.f90:\allowbreak{}1363--1436} \\
+model-wide fallbacks, own extinction curve & \rtn{calibratePDRdust} & \src{pdr\_mod.f90:\allowbreak{}1439--1662} \\
+grain LW albedo & \rtn{grainAlbedoLW} & \src{update\_mod.f90:\allowbreak{}4658--4673} \\
+grain temperatures; their mean & \rtn{getDustT} & \src{update\_mod.f90:\allowbreak{}4282--4562; 4546--4555} \\
+size weights of the distribution & \rtn{makeDustXsec} & \src{ph\_mod.f90:\allowbreak{}999--1012} \\
+grain attenuation factor, extinction curve & \rtn{SCATTER}, \rtn{XLAMBDA} & \src{pdr/\allowbreak{}shield.F90:\allowbreak{}449--497, 525--549} \\
+\multicolumn{3}{@{}l}{\emph{Geometry}}\\
+exact ray--cell traversal & \rtn{rayCells} & \src{pdr\_mod.f90:\allowbreak{}1710--1833} \\
+source-ward $\AV$ and columns & \rtn{computeAVradial} & \src{pdr\_mod.f90:\allowbreak{}1859--2015} \\
+dispatch, plane-parallel case & \rtn{computeAVdust} & \src{pdr\_mod.f90:\allowbreak{}2410--2523} \\
+diffuse snapshot & \rtn{snapDiffuseSources} & \src{pdr\_mod.f90:\allowbreak{}2082--2121} \\
+scattering sites, two-leg columns & \rtn{traceDiffuseSites} & \src{pdr\_mod.f90:\allowbreak{}2136--2276} \\
+Draine LW share & \rtn{draineWindowShare} & \src{pdr\_mod.f90:\allowbreak{}2288--2314} \\
+line-escape rays & \rtn{traceLineRays} & \src{pdr\_mod.f90:\allowbreak{}2327--2376} \\
+$\chi$, $\chi_0$ & \rtn{mocassinToPDR} & \src{pdr\_mod.f90:\allowbreak{}2538--2677} \\
+\multicolumn{3}{@{}l}{\emph{\Htwo{} level model}}\\
+driver, sweeps, MPI scheduling & \rtn{h2LevelModel} & \src{pdr\_mod.f90:\allowbreak{}5201--6014} \\
+source-ward level columns & \rtn{starColumns} & \src{pdr\_mod.f90:\allowbreak{}5621--5659} \\
+per-cell solution & \rtn{solveCell} & \src{pdr\_mod.f90:\allowbreak{}5665--5954} \\
+warm-start populations & \rtn{h2PopResume} & \src{pdr\_mod.f90:\allowbreak{}5961--6012} \\
+1D-build stub & \rtn{h2LevelModel} & \src{pdr\_mod.f90:\allowbreak{}6015--6027} \\
+$X$ levels, $A$ values, collision tables & \rtn{h2ReadX} & \src{h2\_mod.f90:\allowbreak{}206--334} \\
+excited states, lines, dissociation & \rtn{h2ReadElec} & \src{h2\_mod.f90:\allowbreak{}366--516} \\
+UV pumping, Solomon rate, trapping & \rtn{h2PumpRates} & \src{h2\_mod.f90:\allowbreak{}540--572} \\
+formation distribution & \rtn{h2FormDist} & \src{h2\_mod.f90:\allowbreak{}589--639} \\
+collision-table interpolation & \rtn{tabRate} & \src{h2\_mod.f90:\allowbreak{}642--660} \\
+Voigt function & \rtn{h2Voigt} & \src{h2\_mod.f90:\allowbreak{}664--686} \\
+$S$, $W$, absorption quantiles & \rtn{shieldQuad}, \rtn{shieldTable} & \src{h2\_mod.f90:\allowbreak{}692--760} \\
+shielding look-up, cell average & \rtn{h2Shield}, \rtn{tabShieldJ}, \rtn{h2ShieldJ} & \src{h2\_mod.f90:\allowbreak{}768--866} \\
+direct-path shielding (prepare/evaluate) & \rtn{h2LineShieldPrep}, \rtn{h2LineShieldEval} & \src{h2\_mod.f90:\allowbreak{}876--907} \\
+Cloudy's FGK79 fit (comparison only) & \rtn{h2ShieldFederman} & \src{h2\_mod.f90:\allowbreak{}915--934} \\
+line overlap & \rtn{lineOverlap} & \src{h2\_mod.f90:\allowbreak{}1018--1289} \\
+line parameters $\sigma$, $a$ & \rtn{h2LineParams} & \src{h2\_mod.f90:\allowbreak{}1328--1336} \\
+escape probabilities & \rtn{h2LineEscape} & \src{h2\_mod.f90:\allowbreak{}1344--1361} \\
+collisional and radiative rates & \rtn{h2CollRad} & \src{h2\_mod.f90:\allowbreak{}1369--1415} \\
+collisional heating & \rtn{h2CollHeat} & \src{h2\_mod.f90:\allowbreak{}1425--1448} \\
+statistical equilibrium & \rtn{balance}, \rtn{h2Solve}, \rtn{gaussSolve} & \src{h2\_mod.f90:\allowbreak{}1456--1568} \\
+outputs & \rtn{h2Lines\_mod} & \src{h2Lines\_mod.f90} \\
+\multicolumn{3}{@{}l}{\emph{Chemistry}}\\
+network set-up, linked elements, replaced channels & \rtn{initPDRnetwork} & \src{pdr\_mod.f90:\allowbreak{}243--948} \\
+atoms of each element per species & \rtn{initPDRnetwork} & \src{pdr\_mod.f90:\allowbreak{}585--603} \\
+first-visit seed & \rtn{seedAbunFromMocassin} & \src{pdr\_mod.f90:\allowbreak{}3123--3157} \\
+first-iteration molecular seed & \rtn{seedMolecules} & \src{pdr\_mod.f90:\allowbreak{}2855--3023} \\
+one cell of chemistry & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3180--4580} \\
+rays: $\chiD$, $\chiF$, sites, window factors & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3383--3455} \\
+imposition before the solve & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3503--3584} \\
+columns handed over & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3593--3628} \\
+rate coefficients & \rtn{CALCULATE\_REACTION\_RATES} & \src{pdr/\allowbreak{}calc\_reac\_rates.F90}; call \src{pdr\_mod.f90:\allowbreak{}3692} \\
+MOCASSIN's atomic rates into the network & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3706--3722} \\
+\Htwo{} photodissociation $=k_{\mathrm{Sol}}$ & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3736} \\
+charge transfer coefficients & \rtn{pdrCtCoef} & \src{common\_mod.f90:\allowbreak{}1383--1436} \\
+\Htwo{} formation rate & \rtn{H2\_FORMATION\_RATE} & \src{pdr/\allowbreak{}h2\_form.F90:\allowbreak{}9--134} \\
+\Htwo, CO, C\,\textsc{i} photorates and shielding & \rtn{H2PDRATE}, \rtn{COPDRATE}, \rtn{CIPDRATE}, \rtn{COSHIELD}, \rtn{SCATTER}, \rtn{LBAR} & \src{pdr/\allowbreak{}shield.F90:\allowbreak{}27--55, 83--106, 132--157, 231--281, 375--416, 449--497, 570--599} \\
+steady-state integration & \rtn{calculate\_abundances} & \src{pdr/\allowbreak{}calculate\_abundances.c}; call \src{pdr\_mod.f90:\allowbreak{}3749} \\
+ODE right-hand side & generated & \src{pdr/\allowbreak{}odes\_reduced.c} \\
+post-solve imposition & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3770--3784, 3801--3804} \\
+channels for \rtn{ionBalance} & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}3924--4054} \\
+coolant level populations, CO table & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}4144--4490} \\
+escape probabilities of the coolant lines & \rtn{escape\_probability} & \src{pdr/\allowbreak{}escape\_probability.F90:\allowbreak{}121--137, 196--233} \\
+heating, \Htwo{} terms from the level model & \rtn{pdrStep} & \src{pdr\_mod.f90:\allowbreak{}4499--4546} \\
+3D-PDR's heating terms & \rtn{CALC\_HEATING} & \src{pdr/\allowbreak{}heatingfunctions.F90:\allowbreak{}7--375} \\
+\multicolumn{3}{@{}l}{\emph{Feedback}}\\
+handback & \rtn{pdrToMocassin}, \rtn{setElemAvail} & \src{pdr\_mod.f90:\allowbreak{}5038--5104, 5120--5144} \\
+hydrogen budget & \rtn{rescaleIonToAvail} & \src{pdr\_mod.f90:\allowbreak{}2764--2803} \\
+molecular locking in the ion solver & \rtn{ionBalance} & \src{update\_mod.f90:\allowbreak{}3130--3134, 3255--3300} \\
+cosmic-ray ionisation in the ion solver & \rtn{ionBalance} & \src{update\_mod.f90:\allowbreak{}2916--2930} \\
+atomic photoionisation for the chemistry & \rtn{updateCell} & \src{update\_mod.f90:\allowbreak{}303--311, 2838--2878} \\
+\Htwo{} continuum opacity & \rtn{addOpacity}, \rtn{yanH2xSec} & \src{ionization\_mod.f90:\allowbreak{}385--472} \\
+thermal balance, temperature search & \rtn{thermBalance}, \rtn{iterateT} & \src{update\_mod.f90:\allowbreak{}1734--2456, 609--1191} \\
+grain photoelectric heating & \rtn{setPhotoelHeatCool} & \src{update\_mod.f90:\allowbreak{}1460--1556} \\
+gas--grain collisional exchange & \rtn{setDustGasColl\allowbreak{}HeatCool} & \src{update\_mod.f90:\allowbreak{}1562--1731} \\
+CO table and look-up & \rtn{initPDRcoolTab}, \rtn{pdrCoolAt} & \src{pdr\_mod.f90:\allowbreak{}2713--2732}; \src{common\_mod.f90:\allowbreak{}1445--1486} \\
+CO cooling added in the balance & \rtn{thermBalance} & \src{update\_mod.f90:\allowbreak{}2232--2249} \\
+C\,\textsc{i}, C\,\textsc{ii}, O\,\textsc{i} atoms with the chemistry's colliders & atom solve; \rtn{pdrNeutralRates} & \src{emission\_mod.f90:\allowbreak{}1861--1887}; \src{common\_mod.f90:\allowbreak{}1489--1635} \\
+extra heating into the thermal balance & \rtn{thermBalance} & \src{update\_mod.f90:\allowbreak{}2391} \\
+second ionisation solve, kept at the end & \rtn{ionSecondSolve}, \rtn{ionKeepSecond} & \src{iteration\_mod.f90:\allowbreak{}3361--3434, 3455--3521} \\
+\multicolumn{3}{@{}l}{\emph{Convergence}}\\
+integrated stop test & \rtn{cvTotalsUpdate} & \src{iteration\_mod.f90:\allowbreak{}3579--3765}; test at \src{:\allowbreak{}3243} \\
+per-cell $x(\mathrm{H_2})$ test & \rtn{iterateMC} & \src{iteration\_mod.f90:\allowbreak{}2484--2512} \\
+\bottomrule
+\end{longtable}

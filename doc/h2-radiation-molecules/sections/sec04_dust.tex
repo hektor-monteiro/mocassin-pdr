@@ -1,0 +1,208 @@
+% ======================================================================
+\section{Dust quantities seen by the chemistry and the level model}
+\label{sec:dust}
+% ======================================================================
+
+MOCASSIN computes the dust absorption and scattering coefficients
+$\kappa^{\mathrm{abs}}_\nu$, $\kappa^{\mathrm{sca}}_\nu$ [cm$^{-1}$] and the
+asymmetry parameter $g_\nu$ of every cell from the grain species and the size
+distribution of the input \citep{Ercolano2005}: per-grain cross sections from
+Mie theory on optical constants \citep{BohrenHuffman1983} or from tabulated
+efficiencies, weighted by each species' number abundance and the size
+distribution and multiplied by the grain number density $N_d$ that follows
+from the dust-to-gas mass ratio (\src{doc/\allowbreak{}dust.md}). It also solves the
+radiative-equilibrium temperature of every species and size in every cell from
+the local MC field. The bridge derives from these, per cell, the quantities
+below. None is an input parameter: they follow the model's own grains
+(\src{CLAUDE.md}, ``no hardcoded values''). Table~\ref{tab:dustfix} gives
+their values on the two fixtures.
+
+\begin{table}[H]
+\centering
+\caption{Dust quantities measured on the two production fixtures (run logs,
+lines \texttt{[D073]}, \texttt{[D109]}, \texttt{[D195]}; values at the
+calibration cell, uniform across each model).}\label{tab:dustfix}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Quantity & \texttt{hiipdr} (silicate) & \texttt{pn150k} (graphite) \\
+\midrule
+$\AV/N_{\mathrm H}$ [mag\,cm$^2$] & $5.18\times10^{-22}$ & $3.58\times10^{-22}$ \\
+$N_{\mathrm H}/\AV$ [cm$^{-2}$\,mag$^{-1}$] & $1.93\times10^{21}$ & $2.79\times10^{21}$ \\
+$\RFUV$ & 4.31 & 2.98 \\
+FUV albedo, energy-weighted over 6--13.6\,eV & 0.45 & 0.37 \\
+FUV asymmetry parameter $g$, scattering-weighted & 0.61 & 0.29 \\
+grain area per H, silicate / carbonaceous [cm$^2$] & $1.02\times10^{-21}$ / 0 & 0 / $5.45\times10^{-22}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{FUV-to-visual extinction ratio and \texorpdfstring{$\AV$}{AV} per H}
+
+\rtn{dustPerCell} (\src{pdr\_mod.f90:\allowbreak{}1363--1436}) computes
+\begin{gather}
+  \kappa_V = \kappa^{\mathrm{abs}}_V + \kappa^{\mathrm{sca}}_V,\qquad
+  \kappa_{\mathrm{FUV}} = \frac{\sum_{k\in\mathrm{FUV}} w_k\,(\kappa^{\mathrm{abs}}_k+\kappa^{\mathrm{sca}}_k)}{\sum_{k\in\mathrm{FUV}} w_k},
+  \nonumber\\
+  \RFUV = \frac{\kappa_{\mathrm{FUV}}}{\kappa_V},\qquad
+  \frac{\AV}{N_{\mathrm H}} = \frac{1.0857\,\kappa_V}{n_{\mathrm H}}\ [\mathrm{mag\,cm^2}],
+  \label{eq:rfuv}
+\end{gather}
+stored as \rtn{grid\%dustRfuv} and \rtn{grid\%dustAVfac}. The weight $w_k$ is the
+fraction of source~1's emitted energy in bin $k$ (the increment of its
+cumulative distribution), so that $\kappa_{\mathrm{FUV}}$ is the mean
+extinction coefficient of the band-integrated field as the source emits it; a
+mean weighted by bin width would over-weight the 912\,\AA{} end of the band,
+where the extinction is steepest. The extinction includes scattering, as in
+the definition of $\AV$, so $e^{-\RFUV\tau_V}$ is the transmission of the
+source's FUV beam with every scattered photon counted as lost.
+
+Two approximations limit what $\RFUV$ represents. It is weighted by the
+spectrum of source~1 for every source, and by the spectrum as emitted, not as
+it arrives: with depth the field is depleted first at the blue end of the band
+(\dlog{D-349}), so the band-mean extinction of the local field is lower than
+$\RFUV\kappa_V$ and $\RFUV$ overstates it increasingly with depth. In the 3D
+build $\RFUV$ does not enter any photorate. It enters the combination of the
+$\AV$ of several sources (Equation~\ref{eq:avradial}, where it cancels for a
+single source), the grey extinction of the diffuse-site weights
+(Section~\ref{sec:sites}), the fallback field $\chi\,e^{-\RFUV\AV/1.0857}$ of a
+cell the MC field did not reach (\src{pdr\_mod.f90:\allowbreak{}3326}), and the seed.
+
+\rtn{calibratePDRdust} (\src{pdr\_mod.f90:\allowbreak{}1439--1662}) runs once, at the
+first PDR iteration. From the cell whose $\AV/N_{\mathrm H}$ is closest to the
+density-weighted mean it derives the model-wide fallbacks for cells without
+dust, \rtn{pdrAVfac} and \rtn{pdrRfuv}, and 3D-PDR's \rtn{UV\_fac}
+$=\RFUV/1.0857$, which the build does not read (it is used only under
+\kw{GRAINRECOMB}, which is not compiled; \src{pdr\_mod.f90:\allowbreak{}3308--3310}).
+It reports the energy-weighted FUV albedo and the scattering-weighted
+asymmetry parameter (Table~\ref{tab:dustfix}), and (\dlog{D-108}) overwrites the
+extinction curve that 3D-PDR's \rtn{XLAMBDA} splines (\rtn{X\_GRID}, the
+\citet{SavageMathis1979} table) with this model's $\kappa(\lambda)/\kappa_V$
+at the bin nearest each tabulated wavelength.
+
+\paragraph{3D-PDR's grain attenuation factor.} \rtn{SCATTER}
+(\src{pdr/\allowbreak{}shield.F90:\allowbreak{}449--497}) is the fit of
+\citet[their eqs.~1a--1d]{WagenblastHartquist1989} to the attenuation of an
+FUV field incident on one side of a plane-parallel slab of absorbing and
+scattering grains, which they derived with the spherical-harmonics method of
+\citet{Flannery1980} for grains of albedo 0.3 and asymmetry parameter 0.8:
+\begin{equation}
+  f_g(\tau_\lambda) = \begin{cases}
+     e^{-0.7514\,\tau_\lambda}, & \tau_\lambda<1,\\[2pt]
+     \sum_{i=1}^{5} a_i\,e^{-k_i\tau_\lambda}, & \tau_\lambda\ge1,
+  \end{cases}
+  \qquad \tau_\lambda = \frac{\AV}{1.086}\,X(\lambda),
+\end{equation}
+with $(a_i)=(2.006,-1.438,0.7364,-0.5076,-0.0592)$,
+$(k_i)=(0.8490,1.013,1.282,2.005,5.832)$ and $X(\lambda)=\tau_\lambda/\tau_V$
+the extinction curve splined by \rtn{XLAMBDA}; the two branches agree at
+$\tau_\lambda=1$ to $2\times10^{-4}$. The field thus falls as
+$e^{-0.75\tau_\lambda}$ to $e^{-0.85\tau_\lambda}$ rather than $e^{-\tau_\lambda}$,
+because forward scattering keeps photons in the beam. The MC transfer does
+this exactly, with the model's own albedo and phase function, which differ
+from 0.3 and 0.8 (Table~\ref{tab:dustfix}). In the 3D build the photorates are
+evaluated at $\AV=0$ (Section~\ref{sec:rays}), where $f_g=1$, so \rtn{SCATTER}
+matters only for the 1D build, the seed (Section~\ref{sec:seed}) and
+diagnostics.
+
+\subsection{Grain area per H nucleus for \texorpdfstring{\Htwo}{H2} formation}
+\label{sec:grainarea}
+
+The formation rate of \citet{CazauxTielens2002,CazauxTielens2004}
+(Section~\ref{sec:formation}) is linear in the geometric grain cross section
+per H nucleus of each material, for which 3D-PDR ships diffuse-ISM constants
+($8.473\times10^{-22}$ and $7.908\times10^{-22}$\,cm$^2$ per H for silicate and
+graphite, \src{pdr/\allowbreak{}h2\_form.F90:\allowbreak{}37--39}). \rtn{measureH2grainArea}
+(\src{pdr\_mod.f90:\allowbreak{}1266--1338}) computes instead, once, the mean
+geometric cross section per grain of each dust component, split by material,
+\begin{equation}
+  \bar\sigma_{\mathrm{mat}} = \sum_{s\in\mathrm{mat}} X_s \sum_{a=a_{\min,s}}^{a_{\max,s}} \pi a^2\, w(a)
+  \quad[\mathrm{cm^2}],
+\end{equation}
+with $X_s$ the number abundance of species $s$ within the component and
+$w(a)=n(a)\Delta a/\sum n(a)\Delta a$ the number fraction of grains in size
+bin $a$, normalised over the whole size grid
+(\src{ph\_mod.f90:\allowbreak{}999--1012}) and summed over the species' own size range.
+This is the same weighting from which the opacity is built, so the area and
+the extinction describe the same grains. Species are classified by their
+label (\rtn{isCarbonGrain}, \rtn{isSilicateGrain},
+\src{pdr\_mod.f90:\allowbreak{}1228--1247, 1341--1360}): carbonaceous if it contains \texttt{graph},
+\texttt{grph}, \texttt{amc}, \texttt{carb}, \texttt{pah}, \texttt{sic},
+\texttt{gr1} or \texttt{gr2}, silicate if it contains \texttt{sil}, \texttt{oliv},
+\texttt{pyr}, \texttt{enst}, \texttt{forst}, \texttt{quartz} or \texttt{oss}; an
+unrecognised label goes to the silicate channel with a warning.
+\rtn{dustPerCell} then stores per cell
+$\sigma^{\mathrm{sil}}_{\mathrm H}=(N_d/n_{\mathrm H})\,\bar\sigma_{\mathrm{sil}}$ and
+$\sigma^{\mathrm{gra}}_{\mathrm H}=(N_d/n_{\mathrm H})\,\bar\sigma_{\mathrm{gra}}$
+[cm$^2$ per H] (\rtn{grid\%dustSigSil}, \rtn{grid\%dustSigGra}); a dust-free cell
+gets zero, not the upstream constant (\dlog{D-195}). On the fixtures the area
+is 1.2 times the upstream silicate constant on \texttt{hiipdr} and 0.69 times
+the graphite one on \texttt{pn150k}, each with no grains of the other material
+(Table~\ref{tab:dustfix}); the formation rate follows linearly. The geometric
+area is the right weight for the collision rate of H atoms with grains; the
+efficiency per unit area is applied at one mean grain temperature
+(Section~\ref{sec:Td}).
+
+\subsection{Grain albedo in the Lyman--Werner band}
+
+Cosmic-ray-induced photoreactions are divided by $1-\omega$
+(Section~\ref{sec:cr}), with $\omega$ the grain albedo at the wavelengths of
+the \Htwo{} Lyman--Werner emission that cosmic rays excite: a photon is then
+scattered on average $1/(1-\omega)$ times before a grain absorbs it, and
+can photodissociate or photoionise at each step. Instead of 3D-PDR's
+constant $\omega=0.42$ (\src{pdr\_mod.f90:\allowbreak{}354}), each cell uses
+(\rtn{grainAlbedoLW}, \src{update\_mod.f90:\allowbreak{}4658--4673}; handed over at
+\src{pdr\_mod.f90:\allowbreak{}3691}, \dlog{D-280})
+\begin{equation}
+  \omega = \frac{\sum_{k\in\mathrm{LW}} \kappa^{\mathrm{sca}}_k\,\Delta\nu_k}
+                {\sum_{k\in\mathrm{LW}} (\kappa^{\mathrm{abs}}_k+\kappa^{\mathrm{sca}}_k)\,\Delta\nu_k},
+\end{equation}
+an average flat in frequency over the window. MOCASSIN's own cosmic-ray-induced
+ionisation of the linked neutrals uses the same $\omega$
+(\src{update\_mod.f90:\allowbreak{}2916--2930}).
+
+\subsection{Dust temperature}
+\label{sec:Td}
+
+MOCASSIN solves the radiative-equilibrium temperature $T_d(s,a)$ of every
+species $s$ and size $a$ in every cell from the local MC field, by equating
+the absorbed power (plus the heating by resonance lines and gas collisions,
+less the photoelectric losses) to $4\pi\int C_{\mathrm{abs}}B_\nu(T_d)\,\dd\nu$; stochastic
+heating is off by default (keyword \kw{quantumHeatGrain}; \dlog{L-8}). The
+chemistry and the level model use one mean temperature per cell,
+\begin{equation}
+  T_d \equiv \rtn{Tdust(0,0,cell)} = \sum_s X_s \sum_{a=a_{\min,s}}^{a_{\max,s}} w(a)\, T_d(s,a)
+\end{equation}
+(\src{update\_mod.f90:\allowbreak{}4546--4555}), floored at $T_{\mathrm{CMB}}=2.725$\,K
+because MOCASSIN transports no cosmic microwave background
+(\src{pdr\_mod.f90:\allowbreak{}3338}; \dlog{L-30}). Three properties of this mean
+matter for the molecules:
+\begin{itemize}
+\item it is weighted by grain \emph{number}, which favours the smallest
+  grains, whereas the formation rate is a sum over grains weighted by
+  \emph{area};
+\item the size weights are those of the whole size grid, not renormalised to
+  a species' size range, so a grid wider than the species' range enters with
+  zero-temperature bins: on \texttt{test\_Problem}'s silicates (0.07--5\,\textmu m
+  on a $10^{-4}$--5\,\textmu m grid) the mean came out at $(2$--$8)\times10^{-6}$\,K
+  and no \Htwo{} formed anywhere (\dlog{H-035}). After \texttt{8fc1512} the user
+  decided this: \dlog{D-414} renormalises each species' mean to its own bins and
+  weights the species by the grains they have, which is exact (byte-identical
+  outputs) where a species fills the grid;
+\item one efficiency $\epsilon(T_d)$ is applied to the area of all sizes, where
+  the grains have a spread of temperatures; since $\epsilon$ is non-linear,
+  $\epsilon(\langle T_d\rangle)\ne\langle\epsilon(T_d)\rangle$.
+\end{itemize}
+The temperature is the second route by which the field acts on \Htwo{}, and
+a steep one. Evaluating the efficiency of Section~\ref{sec:formation} with
+3D-PDR's surface energies: on silicate $\epsilon\approx1$ for
+$6\lesssim T_d\lesssim15$\,K, 0.75 at 25\,K, 0.59 at 30\,K, 0.37 at 40\,K and 0.25
+at 50\,K; on graphite $\epsilon\approx1$ for $10\lesssim T_d\lesssim40$\,K, 0.91 at
+50\,K and 0.43 at 100\,K. Below about 5.5\,K (silicate) and 9\,K (graphite)
+$\epsilon$ collapses, because newly formed \Htwo{} no longer desorbs (the
+term $F_1$ of Section~\ref{sec:formation} exceeds unity); the floor at
+$T_{\mathrm{CMB}}$ does not prevent this. On \texttt{hiipdr}, whose silicate
+grains sit at 26--37\,K in the PDR (\dlog{L-33}), $\dd\ln\epsilon/\dd\ln T_d\approx-1.3$
+to $-1.7$: a 10\% error in $T_d$ is a 13--17\% error in the formation rate,
+and the formation rate sets the depth of the H/\Htwo{} transition together
+with the shielding. The grains of \texttt{pn150k} are 0.92--0.93 of Cloudy's
+temperature through the PDR (\dlog{L-19}), where graphite's efficiency is flat.

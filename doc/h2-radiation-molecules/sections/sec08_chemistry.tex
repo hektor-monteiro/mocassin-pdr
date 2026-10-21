@@ -1,0 +1,185 @@
+% ======================================================================
+\section{The chemical solve}
+\label{sec:chemistry}
+% ======================================================================
+
+\subsection{Network and rate law}
+\label{sec:network}
+
+The network is 3D-PDR's REDUCED network (files
+\src{dataPDR/\allowbreak{}species\_reduced.d} and \src{dataPDR/\allowbreak{}rates\_reduced.d}), in the
+format of the UMIST Database for Astrochemistry. \citet{Bisbas2012}
+introduced its 33 species with 320 reactions drawn from UMIST 2006
+\citep{Woodall2007}; \citet{Bisbas2015} describe the 33-species network then in
+use as a 330-reaction subset of UMIST 2012 \citep{McElroy2013}. The vendored
+file, from upstream commit \texttt{fabcdc6}, has 331 reactions and records
+neither its UMIST release nor the references of its coefficients, so the
+release cannot be determined from the files. It has 33 species,
+\begin{center}
+\small H, H$_2$, H$^+$, H$_2^+$, H$_3^+$, He, He$^+$, C, C$^+$, CH, CH$^+$,
+CH$_2$, CH$_2^+$, CH$_3$, CH$_3^+$, CH$_4$, CH$_4^+$, CH$_5^+$, O, O$^+$, OH,
+OH$^+$, H$_2$O, H$_2$O$^+$, H$_3$O$^+$, O$_2$, O$_2^+$, CO, CO$^+$, HCO$^+$, Mg,
+Mg$^+$, e$^-$,
+\end{center}
+and 332 reactions: 3D-PDR's 331 plus reaction 332,
+$e^-+\mathrm{H_2^+}\to e^-+\mathrm H+\mathrm H^+$ ($2\times10^{-7}e^{-30720/T}$\,cm$^3$\,s$^{-1}$),
+appended in this project because the network had no
+electron-impact dissociation of \Htwo$^+$, Cloudy's main \Htwo$^+$ sink in ionised
+gas (\src{pdr/\allowbreak{}UPSTREAM.md}, \dlog{D-395}); the Arrhenius form is the one of
+Cloudy's \src{mole\_co\_umisthack.dat}, which attributes it to
+\citet{Janev1987}. Of the 332, 28 are photoreactions, 8 cosmic-ray and 15
+cosmic-ray-induced photoreactions (Section~\ref{sec:photorates}), and three
+carry the grain marker \texttt{\#}: grain formation of \Htwo{} (328) and the
+grain-assisted recombinations of He$^+$ and C$^+$ (330, 331). These two have no
+term in the generated right-hand side, so their coefficients are computed but
+unused and 330 reactions act in the solve. The other 278 are two-body reactions:
+ion--molecule, neutral--neutral and charge-transfer reactions, dissociative and
+radiative recombination, radiative association and collisional dissociation.
+The ODE right-hand side is generated C code selected at compile time
+(\src{pdr/\allowbreak{}odes\_reduced.c}, flag \kw{-DREDUCED}); the keyword \kw{pdrNetwork}
+only validates that the requested network is the compiled one.
+
+Two-body coefficients follow the modified Arrhenius form
+\begin{equation}
+  k(T) = \alpha\left(\frac{T}{300\,\mathrm K}\right)^{\beta} e^{-\gamma/T}\quad[\mathrm{cm^3\,s^{-1}}],
+  \label{eq:arrhenius}
+\end{equation}
+with $\gamma$ in K (\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}172--252}). Where a reaction
+has several entries for different temperature ranges, the first whose upper
+limit is above $T$ (else the last) is used and the others are set to zero; a
+fit with $\gamma<0$ is evaluated at the lower limit of its range below it, and one
+with $\gamma<-200$\,K is set to zero there. The chemistry is evaluated at
+MOCASSIN's $T_e$ clamped to [\kw{pdrTmin}, \kw{pdrTmax}] $=[1,\,2\times10^4]$\,K by
+default (\src{pdr\_mod.f90:\allowbreak{}3346}), the range over which the fits are meant to be
+used; MOCASSIN's own floor \kw{teFloor}, 2.725\,K by default, keeps $T_e$ above
+$T_{\mathrm{CMB}}$. The vendored bound $\max(\kw{pdrTmin},T_{\mathrm{CMB}})$
+(\src{:\allowbreak{}364}) is read only by 3D-PDR's own temperature iteration
+(\src{pdr/\allowbreak{}changetemperature.F90}), which the bridge does not call. In terms of fractional abundances $x_i=n_i/n_{\mathrm H}$ the system is
+\begin{equation}
+  \frac{\dd x_i}{\dd t} = \sum_{j,k} k_{jk}\,x_jx_k\,n_{\mathrm H}
+      + \sum_j k_j\,x_j - x_i\Bigl(\sum_j k_{ij}\,x_j\,n_{\mathrm H} + \sum k_i\Bigr),
+  \label{eq:odes}
+\end{equation}
+with two-body coefficients $k_{jk}$, $k_{ij}$ [cm$^3$\,s$^{-1}$] and first-order rates
+$k_j$, $k_i$ [s$^{-1}$] (photoreactions and cosmic rays, Section~\ref{sec:photorates}).
+Grain formation enters as $R_{\mathrm f}\,x(\mathrm H)\,n_{\mathrm H}$ in $\dd x(\mathrm{H_2})/\dd t$
+and twice that as a loss of H. Inside the right-hand side the electron
+abundance is not a free variable: it is the sum of the network's cations plus
+\rtn{xe\_extra}, the electrons of the ions the network has no species for
+(higher stages, other elements), supplied by the bridge (\dlog{D-402};
+\src{pdr/\allowbreak{}odes\_reduced.c:\allowbreak{}58}).
+
+\subsection{Initial conditions and seeding}
+\label{sec:seed}
+
+\paragraph{First visit of a cell.} \rtn{seedAbunFromMocassin}
+(\src{pdr\_mod.f90:\allowbreak{}3123--3157}, \dlog{D-208}): every molecule starts at zero;
+each linked element's neutral and first ion take MOCASSIN's stage-1 and stage-2
+fractions times the element abundance; $x_e=n_e/n_{\mathrm H}$. Nothing is read
+from the network file's dark-cloud defaults.
+
+\paragraph{First PDR iteration.} \rtn{seedMolecules}
+(\src{pdr\_mod.f90:\allowbreak{}2855--3023}, \dlog{D-209}) places a first \Htwo{} and CO
+content so that the first shielding columns are not zero. \Htwo{} comes from the
+balance of grain formation and unshielded photodissociation, with the neutral
+hydrogen of MOCASSIN, $x_{\mathrm n}n_{\mathrm H}$, shared between H and \Htwo:
+\begin{gather}
+  R_{\mathrm f}\,n_{\mathrm H}\,n(\mathrm H) = D\,n(\mathrm{H_2}),\qquad
+  n(\mathrm H)+2n(\mathrm{H_2}) = x_{\mathrm n}n_{\mathrm H}
+  \quad\Longrightarrow\quad
+  x(\mathrm{H_2}) = \frac{R_{\mathrm f}\,x_{\mathrm n}\,n_{\mathrm H}}{D+2R_{\mathrm f}n_{\mathrm H}},\\
+  D = \alpha_{\mathrm{H_2}}\,\chi\;\mathrm{SCATTER}(\AV,1000\,\text{\AA}),
+\end{gather}
+with $\alpha_{\mathrm{H_2}}$ the network's coefficient ($5.18\times10^{-11}$\,s$^{-1}$, read
+from the rate file) and $\chi$ the local MC field of Equation~(\ref{eq:chi});
+$x(\mathrm{H_2})$ is capped at $x_{\mathrm n}/2$. CO follows the ansatz
+$x(\mathrm{CO}) = x(\mathrm C)\,[2x(\mathrm{H_2})/x_{\mathrm n}]$, capped by the oxygen,
+with carbon and oxygen conserved. Steps 4--5 of Table~\ref{tab:steps} are then
+repeated on the seeded abundances. The seed attenuates the already attenuated
+local field $\chi$ once more with \rtn{SCATTER} and ignores self-shielding; it
+only provides the starting point, which the iteration then forgets.
+
+\subsection{Imposition of MOCASSIN's ionisation before the solve}
+\label{sec:impose}
+
+MOCASSIN owns the ionisation state; the chemistry owns what is locked in
+molecules (\dlog{D-153}, \dlog{D-193}, \dlog{D-402};
+\src{pdr\_mod.f90:\allowbreak{}3503--3584}). For each linked element $X$ with abundance
+$A_X$ and molecular content $M_X=\sum_i \nu_{X,i}x_i$ (atoms of $X$ in each
+species, from the species' formulae, \rtn{speciesAtoms}):
+\begin{equation}
+  x(X) = (A_X-M_X)\,\frac{f_1}{\sum_s f_s},\qquad
+  x(X^+) = (A_X-M_X)\,\frac{f_2}{\sum_s f_s},
+\end{equation}
+where $f_s$ are MOCASSIN's stage fractions; what MOCASSIN holds in stages
+above the second stays MOCASSIN's. The electron abundance is set to
+$n_e/n_{\mathrm H}$ from MOCASSIN, and \rtn{xe\_extra} to $x_e$ minus the
+linked first ions (\src{:\allowbreak{}3565--3581}). The imposition fixes the starting
+point of the integration; inside it, the linked atoms are ionised and
+recombined at MOCASSIN's own rates (Section~\ref{sec:linked}), so the solver's
+neutral/ion ratio should stay close to MOCASSIN's, and the remaining
+difference is carried by the network's other channels (charge transfer,
+ion--molecule reactions).
+
+\subsection{Integration to steady state}
+
+\rtn{calculate\_abundances} (\src{pdr/\allowbreak{}calculate\_abundances.c}), called at
+\src{pdr\_mod.f90:\allowbreak{}3749}, integrates Equation~(\ref{eq:odes}) with CVODE from
+SUNDIALS 7.8.0 (\dlog{D-015}; \citealt{Hindmarsh2005,Gardner2022}). The line numbers
+in this list are those of \src{pdr/\allowbreak{}calculate\_abundances.c} unless a file is
+named:
+\begin{itemize}
+\item variable-order backward differentiation formulae (\verb|CV_BDF|, :196),
+  the stiff integrator, with Newton iteration on a dense direct linear solver
+  (\verb|SUNDenseMatrix|, \verb|SUNLinSol_Dense|, :229--238) and CVODE's
+  difference-quotient Jacobian (the analytic Jacobian is not used);
+\item relative and absolute tolerances $10^{-8}$ and $10^{-30}$ on the fractional
+  abundances (set at \src{pdr\_mod.f90:\allowbreak{}369--370}, applied at :212); at most
+  $10^7$ internal steps per output interval (:115);
+\item output times from $10^{-4}$\,yr, multiplied by 10 until
+  \kw{pdrEndTime} (default $10^7$\,yr) (:246, :364);
+\item \kw{CHEMRETRY} (:248--384): a failed integration is restarted from the
+  initial state up to four more times with a forced first step of
+  $10^{-2}$\,s, divided by 100 at each retry;
+\item \kw{CHEMSTEADY} (:387--437): the integration then continues in blocks that
+  each double the elapsed time, at most seven ($128\times$\kw{pdrEndTime},
+  $1.3\times10^9$\,yr by default), until no species above the absolute tolerance
+  changes by more than 1\% over a block;
+\item abundances below the absolute tolerance are set to zero and the
+  electron entry is restored (:440--452).
+\end{itemize}
+The result is meant to be the steady state of the network at fixed
+temperature, field, columns and imposed ionisation; there is no time
+dependence carried between MC iterations. A species that relaxes
+exponentially on a time scale $\tau$ from an offset of order unity passes the 1\%
+test over a doubling once the elapsed time exceeds about $4.6\,\tau$, so species
+that relax more slowly than about $10^8$\,yr cannot pass it by the last block;
+if the seventh block does not pass, the abundances of that time are returned
+without a flag. An
+unchanged abundance vector is counted (\rtn{pdrNstuck},
+\src{pdr\_mod.f90:\allowbreak{}3860}) but not treated as a failure, since it is also the
+signature of a converged cell. The slowest chemical process in molecular gas
+is usually \Htwo{} formation, whose time scale $1/(R_{\mathrm f}n_{\mathrm H})$ is
+$\sim10^7$\,yr at $n_{\mathrm H}=100$\,cm$^{-3}$; where the age of the object is shorter
+the steady state overstates the molecular content
+(Section~\ref{sec:assumptions}).
+
+\subsection{After the solve}
+
+\begin{enumerate}
+\item The solver's own neutral/ion split of each linked element is
+  overwritten with MOCASSIN's stage-1:stage-2 ratio, keeping the solver's
+  total $x(X)+x(X^+)$ (\src{pdr\_mod.f90:\allowbreak{}3770--3784}, \dlog{D-162}); the
+  electron abundance is reset to MOCASSIN's (\src{:\allowbreak{}3801--3804}, \dlog{D-231}).
+  The solver's own ratio is kept for diagnostics (\dlog{D-402}, \dlog{D-404}).
+\item The abundances are stored (\src{:\allowbreak{}3922}) and $n(\mathrm{H_2})=x(\mathrm{H_2})n_{\mathrm H}$
+  is written for MOCASSIN's opacity (\src{:\allowbreak{}4573}).
+\item What the network does to each linked element's $X$ and $X^+$ beyond the
+  channels \rtn{ionBalance} computes itself (photoionisation, cosmic rays,
+  radiative recombination, charge transfer with H) is classified reaction by
+  reaction at the solver's state, as net conversions $X\leftrightarrow X^+$ and
+  as sources and sinks to and from molecules, and stored for MOCASSIN's next
+  ionisation solve (\rtn{pdrIonRate}, \src{:\allowbreak{}3924--4054}, \dlog{D-402}). The
+  classified totals reproduce the right-hand side's own formation and
+  destruction totals to $4\times10^{-16}$ (\dlog{D-402}).
+\end{enumerate}
