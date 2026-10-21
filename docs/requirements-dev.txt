@@ -1,0 +1,4 @@
+# Local-only additions: the fortref tests and the LaTeX conversion.
+-r requirements.txt
+pytest==8.4.2
+pypandoc_binary==1.17
