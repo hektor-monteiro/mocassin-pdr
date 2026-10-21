@@ -425,6 +425,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-423 | **Pushing production to GitHub (hektor-monteiro/mocassin-pdr): what it would do, and why the checkout should not be renamed (the user: "Should I do it?").** origin already points at mocassin-pdr (public, default branch main, last push 2026-09-15). pdr-photoionization tracks origin/main and push.default is upstream, so a plain `git push` fast-forwards main from 0fc4536 (D-284) to 4db7bf2 (D-422): 269 commits, no force, largest blob 2.8 MB, no secrets found. No tag goes unless asked; pdr-coupling-v1.1 is not on the remote. The directory name plays no part in a push. Renaming the checkout would break the h2 worktree's link (repairable), Claude Code's memory for this project (keyed by path), and the ten benchmarks/pdr fixtures, whose pdrDataDir is this checkout's absolute path. Recommended: push, keep the name. Nothing pushed; awaiting the user. **The user pushed main (62c6e53), h2-model (3395717) and pdr-coupling-v1.1 on 2026-10-21 (D-425)** | Done 2026-10-21 | 2026-10-20 |
 | D-424 | **README.md rewritten for the current code; the "Notes on Dust Species" section removed (the user: "update the README file of the repository with the current state of the code. Remove the 'Notes on Dust Species' section.").** New sections: current state with the changes that move results (D-413/D-415, D-418, D-420/D-421), how the coupling works (who computes what, the iteration order), the PDR keywords, the convergence test, the PDR fixtures, the PDR outputs, validation highlights and limitations, branches and versions. Corrected: a bare `make` builds only the Makefile's first target, source/interpolation_mod.o, not the programs (the old README's `make clean; make`), so the README names `all`; SUNDIALS needs no env.sh (rpath); the data are read from PREFIX/share/mocassin, not /usr/share/mocassin; every PDR fixture's pdrDataDir is this machine's absolute path. The Makefile's default goal is recorded, not fixed: a code change, for a plan and the user's word | Done | 2026-10-20 |
 | D-425 | **Release `pdr-coupling-v1.2` (the user: "I think this is a good point to create a release of the code").** An annotated tag on the commit that adds this entry: production at D-424 (62c6e53, already on GitHub) plus this entry and the README's release lines, 126 commits after v1.1 (c27e658, D-388), 18 of them changing source or data (D-391..D-393, D-395, D-397, D-398, D-402..D-404, D-406, D-413..D-415, D-418, D-420, D-421). Checked before tagging: no source, Makefile or data change since 874f591, whose four flavours built rc 0 and which is installed in ~/.local (D-422); a fresh clone of the local repository at 62c6e53 built PDR=1 mocassin, mocassin, PDR=1 mocassinWarm and PDR=1 PDRGEOM=3D all, rc 0 and 0 errors each (09:19-09:20), leaving no tracked file changed; the checkout's only untracked files outside runs/ are tools/__pycache__. Release notes in this entry, for the GitHub release. Not done: no benchmark rerun with D-420/D-421 (the notes say the validation figures predate them); no push (the tag and this commit are local); no install. D-423 closed: the user had pushed main, h2-model and pdr-coupling-v1.1 | Done | 2026-10-21 |
+| D-426 | **Should the release be merged to main? No merge is needed (the user: "should the current release be merged to main?").** GitHub's main is this branch: pdr-photoionization tracks origin/main (push.default upstream), so `git push` makes GitHub's main the release commit 584e633, and the tag goes with `git push origin pdr-coupling-v1.2`. The local branch named `main` is another line: the original MOCASSIN fork's main at 0d57a7c (tag 1.1.1, 2026-08-28), with no upstream, kept off mocassin-pdr by D-273. It holds nothing the release lacks (0 commits ahead, 504 behind), so a merge would be a fast-forward that makes it a second name for the PDR line, and a push of it to the core fork would carry the PDR there, which D-273 kept apart. Advice: leave local main as it is. Nothing changed | Advice given | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41197,3 +41198,32 @@ their own terminal (times in D-423's status).
 ### Status
 
 Done (2026-10-21): tag pdr-coupling-v1.2 created locally, not pushed.
+
+---
+
+## D-426 - Merging the release to main (2026-10-21)
+
+The user (2026-10-21): "should the current release be merged to main?"
+
+**GitHub's main already is the release line.** pdr-photoionization tracks
+origin/main (branch.pdr-photoionization.merge refs/heads/main, push.default
+upstream). origin/main is at 62c6e53 and the branch at 584e633, one commit
+ahead, so `git push` fast-forwards GitHub's main to the release commit.
+`git push origin pdr-coupling-v1.2` sends the tag. No merge is involved.
+
+**The local branch called main is a different line.** It is the original
+MOCASSIN fork's main, 0d57a7c "Merge branch 'dev'" (tag 1.1.1,
+2026-08-28), the point the PDR work branched from. It has no upstream and
+D-273 kept it, with dev, compBias and feature1, off mocassin-pdr. Measured
+against the release (`git rev-list --count`): 0 commits ahead, 504 behind.
+  - So a merge would be a fast-forward: nothing to resolve, but local main
+    would become a second name for the PDR line.
+  - If it were ever pushed to the core fork, it would carry the PDR coupling
+    into the repository D-273 kept separate.
+
+**Advice given.** Leave local main as it is: the release is complete once
+main (this branch) and the tag are pushed. Nothing changed.
+
+### Status
+
+Advice given (2026-10-21).
