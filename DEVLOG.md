@@ -41412,7 +41412,62 @@ health holds. A missed physics range is reported to the user with its
 numbers before any tag, and the tag waits for their word. A failed health
 item or a byte difference is a blocker and goes back to planning.
 
+### Part 1 as executed
+
+**The code-executor** was a general-purpose agent following
+.claude/agents/code-executor.md at high effort: the `code-executor` type is
+not registered in this session, as at D-420/D-421. It handed back while the
+runs were going, after steps 1.1-1.5. The main session took over the wait
+and the compare (1.6), which change no code.
+  - 1.1: every precondition held (both trees clean; one commit in
+    h2-model..pdr-photoionization; no source/data change since 01b782d;
+    nothing running).
+  - 1.2: merge c1ea374 (parents 9600922 and 61815ab), 'ort', no
+    conflict, 91 files, +67,607 -9. `git diff --stat h2-model HEAD` lists
+    DEVLOG.md only; `diff -rq` of the two dataPDR trees is empty.
+  - 1.3 (runs/_release_v2/build.log), 11:08:10-11:09:43:
+
+        PDR=1 mocassinWarm rc=0 errors=0
+        mocassin rc=0 errors=0
+        PDR=1 mocassin rc=0 errors=0
+        PDR=1 PDRGEOM=3D all rc=0 errors=0
+        h2Test h2Slab rc=0
+        mocassin md5 4e4ef962, mocassinWarm 09da991c, mocassinOutput
+        811485c9, mocassinPlot 9d434169, h2Test e198d373, h2Slab ee980359
+        version pdr-coupling-v1.2-154-gc1ea374
+
+    (01b782d's mocassin was 81cfe877; the binaries differ by the
+    compiled-in version and PREFIX strings.)
+  - 1.4: each input differs from its reference in the pdrDataDir line
+    only.
+  - 1.5: launched 11:10:03 as rel-v2-runs.service, 14 ranks.
+
+**rel-hii31 against d421-hii31** (finished 11:52:23, rc=0, 41:59):
+  - 25 of the 26 output files byte-identical; the same file list.
+  - summary.out differs only in its 15 "Iteration n ; finished at hh:mm:ss"
+    clock times (`diff` with those lines removed is empty).
+  - compare.py: health identical (clean, 15 iterations, 0 NaN, 0 singular,
+    0 CVODE failures, 0 insane eta, 0 flagged); every ratio 1.0000, among
+    them Hbeta, [O III] 5008 and 4363, [N II] 6584, H2 1-0 S(1), 2-1 S(1)
+    and 0-0 S(2); the ionized gas's gas-grain share 7.44e-2 in both.
+  - 13 level-model calls, as in the reference.
+
+| prediction | result | |
+|---|---|---|
+| rc=0, clean, 15 iterations | rc=0, clean, 15 | met |
+| all 26 files byte-identical, same list | 25 identical; summary.out differs in its 15 clock times only | missed as written |
+| compare.py 1.0000 throughout | 1.0000 throughout | met |
+| 40-60 min | 41:59 | met |
+
+The prediction missed as written: it did not allow for summary.out's
+wall-clock stamps, which no rerun can reproduce. The project's identity
+tests have always compared summary.out "apart from its timestamps" (DEVLOG-H2
+H-007, H-012, H-013), and by that criterion the production build of the
+merge reproduces h2-model's tested run exactly. The gate's "any byte
+difference" is read the same way; the plan file records the correction. It
+is not a blocker: nothing the model computes differs.
+
 ### Status
 
-In progress (2026-10-21): plan approved; Part 1 (merge, builds, runs) handed
-to the code-executor.
+In progress (2026-10-21): merged (c1ea374), built, rel-hii31 passed;
+rel-pn41 running (started 11:52).
