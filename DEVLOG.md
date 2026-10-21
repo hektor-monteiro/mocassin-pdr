@@ -431,6 +431,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time **Result: merge c1ea374, four flavours and h2Test/h2Slab rc 0; rel-hii31 identical to d421-hii31 in every file but summary.out's clock times; rel-pn41 healthy (3 flagged), ionized T_e x0.996, gas-grain share 1.18e-3 -> 1.46e-2, Hbeta +0.49%, forbidden lines -0.8 to -2.7%, H2 lines within 0.22%, the cold cell 21.5 -> 24.5 K at the dust's 24.4; every range met, the byte-identity wording missed for the timestamps** | Done | 2026-10-21 |
 | D-430 | **Release `pdr-coupling-v2.0`: the first with the H2 level model.** Production after D-429's merge, 156 commits after v1.2. README.md rewritten for PDR plus the H2 level model (the model's own section: what it solves and feeds back, where it runs, its checks against Cloudy, the damping-width difference; the H2 executables, outputs, run-time cost, limitations, branches, credits and data licence). CLAUDE.md's h2-model note replaced by one that holds in both checkouts. The man page's H2 entry describes the feedback. Release notes in this entry. Not done: no push; no install | Done | 2026-10-21 |
 | D-431 | **doc/pdr-status.md audited and reorganised: section 3 holds only what is open, the new section 4 every closed item (the user: "Audit and revise doc/pdr-status.md and organize it so that all the resolved issues appear in a specific section of CLOSED issues. Keep in 'Known limitations' only what is currently open.").** Each of the 54 items read against the DEVLOG through D-430. 24 were already marked closed. 8 were still listed as open although resolved: L-14 (D-393), L-18 (D-413), L-20 (D-383), L-22 (D-326/D-328, the deep residual being L-3's), L-29 (D-404), L-36 (D-363), L-40 (D-391/D-392, its residual moved to L-52), L-49 (D-406). 3 split into an open and a resolved part under one number: L-4 (the formal solution's 52-130% stays open), L-21 (tools/d196_axis.py still hardcodes 31^3), L-30 (teFloor closed at D-403, two clamps open). 9 new items: open L-55 (H-043), L-56 (the H2 lines against Cloudy by spin: the line width, a divergence), L-57 (H-037), L-58 (where the level model does not run), L-59 (D-416), L-60 (D-424), L-63 (the transport's H I emissivities, D-371); closed L-61 (D-418) and L-62 (D-414). Result: 33 open (7 High, 15 Medium, 11 Low), 33 closed, each section with an index table; the header, section 1 and section 2 brought to v2.0 (the H2 model's checks, the release check); 'What has NOT been checked' revised (done checks moved to section 4); the reproduce section gains h2Test/h2Slab. Item text moved verbatim; nothing else lost (every original line accounted for) | Done | 2026-10-21 |
+| D-432 | **A Read the Docs site for the project, planned and opened (the user: "start creating the documentation for the project using readthedocs").** Sphinx + MyST in `docs/` on branch `docs` (worktree ~/software/mocassin_docs); code references resolved at build time from routine names plus a unique text match, no Fortran edits; delivered in increments, the first (MVP) being references, the PDR and H2 physics chapters and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; gas, dust and test_Problem reruns at v2.0 come in later increments | Accepted | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41780,3 +41781,67 @@ the page are updated (section 2, 3, 4; revised at D-431).
 ### Status
 
 Done (2026-10-21).
+
+---
+
+## D-432 - A Read the Docs site for the project (2026-10-21)
+
+The user (2026-10-21): "Now I want to start creating the documentation for
+the project using readthedocs. ... I want the documentation to describe all
+the details and assumptions of the code with direct references to code
+blocks where it is implemented. I also want the documentation to have a
+quickstart section ... show the current results of the benchmarks for gas,
+dust and PDR models. We should adopt the hiipdr and 150kkpn models as the
+pdr benchmarks, including the Cloudy comparisons. It should also have a
+section with a tutorial on how to run a full dust+gas+PDR model based on
+test_problem." The plan was held until the H2 model reached production
+(D-429/D-430) and then made against v2.0. Documentation and its tooling,
+not a change to what the code computes.
+
+**What exists (surveyed 2026-10-21).** No docs tooling (no conf.py,
+mkdocs.yml, .readthedocs.yaml or CI). Prose is in README.md, man/mocassin.1
+(Ercolano 2015, missing 23 of the keywords readInput parses: convTotals,
+teSolver, iterDamp, randomSeed, pathStretch, cvUseH2, ...), doc/dust.md,
+doc/pdr-status.md, doc/manual-pdr-h2.md, the LaTeX report
+doc/h2-radiation-molecules/ and source/pdr/UPSTREAM.md. The release runs
+runs/_release_v2/rel-hii31 and rel-pn41 (binary built at c1ea374,
+source-identical to 53c17eb, 14 ranks, randomSeed 1001, 6e6 packets) are
+the only benchmark runs at v2.0; the Cloudy c25.00 references are
+runs/d396-cloudy-{hii,pn}. Gas (Lexington x4), dust (1D x3, 2D x4) and
+test_Problem have not been run at v2.0. No dust reference solution exists
+in the tree. GitHub cannot display DEVLOG.md (2.4 MB), so the site cannot
+link into it.
+
+**Decided** (the user's answers, 2026-10-21):
+  - Code references are resolved on the docs side: a Sphinx extension
+    (docs/_ext/fortref) finds a routine by `file::host/routine`, optionally
+    narrowed by a unique text match, and links to a source viewer on the
+    site plus a GitHub permalink at the built commit. No markers are added
+    to the Fortran. An unresolved or ambiguous reference fails the build.
+  - Delivered in increments. The MVP: install and running; complete keyword,
+    output and build references generated with build-time checks against
+    readInput, the writers and the Makefile; the PDR coupling and H2 physics
+    chapters, converted from the LaTeX report (which becomes their source;
+    main.tex frozen, main.pdf kept as the v2.0 snapshot); limitations; the
+    hiipdr and pn150k benchmarks against Cloudy from the release runs. Later
+    increments: quickstart and Lexington, the test_Problem PDR+H2 tutorial,
+    the dust benchmarks, the original MOCASSIN physics.
+  - The reruns at v2.0 are made by Claude during execution, seeded, at 14
+    ranks, one at a time and only when no other run is going, in
+    runs/docs-v2.0/, with binaries installed to ~/.local/mocassin_docs.
+  - Dust benchmarks compare with published references: Pascucci et al. 2004
+    for the 2D discs, Ivezic et al. 1997 (DUSTY or the paper's tables) for
+    the 1D spheres.
+  - Living documents (pdr-status.md, dust.md, manual-pdr-h2.md, UPSTREAM.md)
+    are included in the site in place, not copied.
+
+**Working arrangement.** Branch `docs` (from 6d8007c) in the worktree
+~/software/mocassin_docs, touching only new paths (docs/,
+.readthedocs.yaml, later tools/mocread.py) and a freeze note in main.tex.
+Merged into production at the end of each increment. Pushing and connecting
+the Read the Docs project are the user's actions. The plan is
+~/.claude-lac/plans/velvet-rolling-kettle.md.
+
+### Status
+
+Open: increment 1 (MVP) under way.
