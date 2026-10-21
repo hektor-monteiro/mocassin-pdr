@@ -428,6 +428,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-426 | **Should the release be merged to main? No merge is needed (the user: "should the current release be merged to main?").** GitHub's main is this branch: pdr-photoionization tracks origin/main (push.default upstream), so `git push` makes GitHub's main the release commit 584e633, and the tag goes with `git push origin pdr-coupling-v1.2`. The local branch named `main` is another line: the original MOCASSIN fork's main at 0d57a7c (tag 1.1.1, 2026-08-28), with no upstream, kept off mocassin-pdr by D-273. It holds nothing the release lacks (0 commits ahead, 504 behind), so a merge would be a fast-forward that makes it a second name for the PDR line, and a push of it to the core fork would carry the PDR there, which D-273 kept apart. Advice: leave local main as it is. Nothing changed | Advice given | 2026-10-21 |
 | D-427 | **Commit-message audit: references to the user's requests stay in published history; new messages carry technical content only (the user: "audit all commit messages and remove any references of the requests I have made as the user"; then, given the cost, "Only from now on").** 57 of the 804 commits in all refs mention the user. 3 mean a user of the code (9093ce1, b8616c0, 9e27bd0); 54 cite a request, question or decision, the oldest 00d1f18 (2026-09-11, D-232). All 57 are on GitHub. Rewording them would give 484 commits new hashes, move six tags (pdr-coupling-v1.0, v1.1, v1.2 and three reverted-work tags) and need a force-push of main, h2-model and the tags, and would leave about 200 hash references in DEVLOG.md (103), DEVLOG-H2.md (96) and doc/pdr-status.md (3) pointing at old commits, as well as the installed binaries' version strings. Decided: history as published; from this entry on, commit messages state the change and its evidence only; the DEVLOG text keeps its quotes. Audit list in runs/_commit_audit_2026-10-21/. Nothing rewritten | Done | 2026-10-21 |
 | D-428 | **Production has no H2 level model (the user: "does production branch have H2 level model?"); it is only on h2-model.** Measured with `git diff pdr-photoionization h2-model -- source Makefile`: the model is four files only on the branch (h2_mod.f90 1,570 lines, h2Lines_mod.f90, h2Test.f90, h2Slab.f90) plus hooks in pdr_mod (+944), iteration_mod, common_mod, grid_mod, output_mod and the Makefile, 3,139 lines in all; production's source has no lineFluxH2. Production's H2 is 3D-PDR's: grain formation (Cazaux & Tielens, H2FORM_CT02), photodissociation H2PDRATE with Federman, Glassgold & Kwan (1979) self-shielding (H2SHIELD1; the Lee et al. 1996 table H2SHIELD2 is commented out) and dust attenuation, the formation, photodissociation and FUV-pumping heating terms (D-384), and H2 as a collider for the line levels (D-363) and the grains (D-420); no H2 level populations, line cooling or line spectrum. Nothing changed | Answered | 2026-10-21 |
+| D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time | In progress | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41320,3 +41321,98 @@ Branches and versions).
 ### Status
 
 Answered (2026-10-21); nothing changed.
+
+---
+
+## D-429 - h2-model merged into production, the release check for pdr-coupling-v2.0 (2026-10-21)
+
+The user (2026-10-21): "ok, then merge h2-model to the production branch and
+create a new release. Update the README to reflect the fact that the code now
+includes PDR plus H2 detailed level model." Asked for the open choices, the
+user chose: the tag `pdr-coupling-v2.0`; two runs before the tag; h2-model
+kept as the H2 development line (production gets the model at this release,
+later H2 work arrives by further merges). The merge changes what production
+builds and computes, so it was planned in plan mode
+(~/.claude/plans/iridescent-stirring-pie.md) and is executed by the
+code-executor (D-419).
+
+**What is merged** (measured before planning):
+  - Production is an ancestor of h2-model: 149 commits behind, 0 ahead;
+    both trees clean.
+  - 91 files: source/h2_mod.f90 (1,570 lines), h2Lines_mod.f90,
+    h2Test.f90, h2Slab.f90 and hooks in pdr_mod (+944), iteration_mod,
+    common_mod, grid_mod and output_mod (3,139 source lines); the Makefile
+    (PDR_PRE, h2Test, h2Slab); 27 data files of Cloudy c25.00's large H2
+    model in dataPDR/h2 with their provenance and the zlib notice;
+    doc/manual-pdr-h2.md, doc/h2-radiation-molecules (LaTeX and PDF),
+    DEVLOG-H2.md, a man page entry; h0xx tools and patches.
+  - The model is compiled into the 3D build only (`#ifdef RAYTHEIA`; the 1D
+    build has a stub and keeps the network's single-line rate). Every PDR
+    iteration, before pdrStep, it sets the chemistry's H2 photodissociation
+    rate (H-012) and the three H2 heating terms (H-013 step 2b); on the
+    finished model it writes lineFluxH2.out, h2Cells.out and h2Pop.bin,
+    which mocassinWarm resumes (H-020). It skips itself, said in the log,
+    for more than one grid, for planeIonization, or without a diffuse
+    field (pdr_mod.f90:5256 on h2-model).
+  - The source is the tested source: `git diff 01b782d h2-model -- source
+    Makefile data dataPDR dustData` is empty, and 01b782d's 3D binary (md5
+    81cfe877) made DEVLOG-H2 H-042's runs/d421-hii31 (15 fixed iterations,
+    seed 1001, 14 ranks, 43:43, 26 output files).
+  - The data the two builds read are the same: ~/.local/share/mocassin's
+    data and dustData equal ~/.local/mocassin_h2/share/mocassin's
+    (`diff -rq`), and no output file carries the version string.
+  - D-388 kept stage B on the branch "until every benchmark is
+    re-validated". hiipdr and pn150k were re-validated on the branch through
+    D-406/D-408 (H-031, H-032), and hiipdr again at D-421 (H-042). pn150k has
+    not been run with the level model since D-405 (runs/d405-pn41-d0: 18
+    fixed iterations, seed 1001, 2:31:37, 2 flagged cells), so D-418, D-420
+    and D-421 have never been measured on it.
+  - Open on the branch, for the README and the release notes: H-043 (held
+    PDR heating swinging in some molecular cells), H-021/L-43
+    (transition-zone H2 24-665x Cloudy's on pn150k), H-037 (test_Problem's
+    x <-> y asymmetry).
+
+**The release check** (runs in runs/_release_v2, the production 3D build of
+the merge, 14 ranks, one after the other):
+  - rel-hii31: d421-hii31's input with pdrDataDir set to this checkout's
+    dataPDR (which after the merge is h2-model's, file for file);
+  - rel-pn41: d405-pn41-d0's input with the same change (18 fixed
+    iterations, seed 1001, the trimmed abundances, iterDamp 0).
+
+**Predictions, on record before the runs.**
+
+rel-hii31 against d421-hii31: rc=0, clean exit, 15 iterations; all 26
+output files byte-identical, the same file list; compare.py 1.0000
+throughout; 40-60 min. Any difference blocks the release.
+
+rel-pn41 against d405-pn41-d0 (D-418, D-420, D-421 with the level model in
+the loop):
+  - health: rc=0, clean exit, 18 iterations; 0 NaN T_e, 0 "Singular
+    matrix", 0 cvHandleFailure, 0 "insane eta"; flagged cells <= 4
+    (baseline 2);
+  - ionized gas (659 cells, T_e > 5000 K): gas-grain share of the cooling
+    1.18e-3 -> 0.8e-2 to 2.0e-2 (x4 pi, as hiipdr and K1a went x12);
+    median T_e ratio 0.985-0.999 (hiipdr: a share change of 0.069 gave
+    x0.966, so ~0.013 here gives ~x0.993);
+  - Hbeta within +-0.5%, He II 4686 within +-1%; [O III] 5008 0.97-1.00,
+    4363 0.95-1.00; [N II] 6584 0.97-1.01; the other ionized-gas forbidden
+    lines 0.96-1.01; [O I] 6300, [N I], [C I] within +-5%;
+  - H2: 1-0 S(1) and 2-1 S(1) within +-5%; 0-0 S(0), S(1), S(2) 0.85-1.05
+    (hiipdr's D-421 pair gave 0.97; K1a's large misses were single cells,
+    H-043);
+  - the one cold-core cell (21.53 K, dust 25.05 K) moves toward the dust,
+    22-25 K.
+Not predicted, recorded only: compare.py's gas-grain / BFM ratio in
+pn150k's atomic cells. The baseline gives 0.45, against K1a's 0.085, but the
+reference rate ignores grain charge, and Coulomb focusing on charged grains
+matters in lit gas.
+
+**Gate.** The tag goes on if rel-hii31 is byte-identical and rel-pn41's
+health holds. A missed physics range is reported to the user with its
+numbers before any tag, and the tag waits for their word. A failed health
+item or a byte difference is a blocker and goes back to planning.
+
+### Status
+
+In progress (2026-10-21): plan approved; Part 1 (merge, builds, runs) handed
+to the code-executor.
