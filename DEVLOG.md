@@ -427,6 +427,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-425 | **Release `pdr-coupling-v1.2` (the user: "I think this is a good point to create a release of the code").** An annotated tag on the commit that adds this entry: production at D-424 (62c6e53, already on GitHub) plus this entry and the README's release lines, 126 commits after v1.1 (c27e658, D-388), 18 of them changing source or data (D-391..D-393, D-395, D-397, D-398, D-402..D-404, D-406, D-413..D-415, D-418, D-420, D-421). Checked before tagging: no source, Makefile or data change since 874f591, whose four flavours built rc 0 and which is installed in ~/.local (D-422); a fresh clone of the local repository at 62c6e53 built PDR=1 mocassin, mocassin, PDR=1 mocassinWarm and PDR=1 PDRGEOM=3D all, rc 0 and 0 errors each (09:19-09:20), leaving no tracked file changed; the checkout's only untracked files outside runs/ are tools/__pycache__. Release notes in this entry, for the GitHub release. Not done: no benchmark rerun with D-420/D-421 (the notes say the validation figures predate them); no push (the tag and this commit are local); no install. D-423 closed: the user had pushed main, h2-model and pdr-coupling-v1.1 | Done | 2026-10-21 |
 | D-426 | **Should the release be merged to main? No merge is needed (the user: "should the current release be merged to main?").** GitHub's main is this branch: pdr-photoionization tracks origin/main (push.default upstream), so `git push` makes GitHub's main the release commit 584e633, and the tag goes with `git push origin pdr-coupling-v1.2`. The local branch named `main` is another line: the original MOCASSIN fork's main at 0d57a7c (tag 1.1.1, 2026-08-28), with no upstream, kept off mocassin-pdr by D-273. It holds nothing the release lacks (0 commits ahead, 504 behind), so a merge would be a fast-forward that makes it a second name for the PDR line, and a push of it to the core fork would carry the PDR there, which D-273 kept apart. Advice: leave local main as it is. Nothing changed | Advice given | 2026-10-21 |
 | D-427 | **Commit-message audit: references to the user's requests stay in published history; new messages carry technical content only (the user: "audit all commit messages and remove any references of the requests I have made as the user"; then, given the cost, "Only from now on").** 57 of the 804 commits in all refs mention the user. 3 mean a user of the code (9093ce1, b8616c0, 9e27bd0); 54 cite a request, question or decision, the oldest 00d1f18 (2026-09-11, D-232). All 57 are on GitHub. Rewording them would give 484 commits new hashes, move six tags (pdr-coupling-v1.0, v1.1, v1.2 and three reverted-work tags) and need a force-push of main, h2-model and the tags, and would leave about 200 hash references in DEVLOG.md (103), DEVLOG-H2.md (96) and doc/pdr-status.md (3) pointing at old commits, as well as the installed binaries' version strings. Decided: history as published; from this entry on, commit messages state the change and its evidence only; the DEVLOG text keeps its quotes. Audit list in runs/_commit_audit_2026-10-21/. Nothing rewritten | Done | 2026-10-21 |
+| D-428 | **Production has no H2 level model (the user: "does production branch have H2 level model?"); it is only on h2-model.** Measured with `git diff pdr-photoionization h2-model -- source Makefile`: the model is four files only on the branch (h2_mod.f90 1,570 lines, h2Lines_mod.f90, h2Test.f90, h2Slab.f90) plus hooks in pdr_mod (+944), iteration_mod, common_mod, grid_mod, output_mod and the Makefile, 3,139 lines in all; production's source has no lineFluxH2. Production's H2 is 3D-PDR's: grain formation (Cazaux & Tielens, H2FORM_CT02), photodissociation H2PDRATE with Federman, Glassgold & Kwan (1979) self-shielding (H2SHIELD1; the Lee et al. 1996 table H2SHIELD2 is commented out) and dust attenuation, the formation, photodissociation and FUV-pumping heating terms (D-384), and H2 as a collider for the line levels (D-363) and the grains (D-420); no H2 level populations, line cooling or line spectrum. Nothing changed | Answered | 2026-10-21 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41282,3 +41283,40 @@ messages only".
 ### Status
 
 Done (2026-10-21).
+
+---
+
+## D-428 - Production has no H2 level model (2026-10-21)
+
+The user (2026-10-21): "does production branch have H2 level model?"
+
+No. The level model is on h2-model only, as D-388 planned: stage B (the
+model setting the chemistry's H2 photodissociation and the H2 heating)
+stays on the branch until every benchmark is re-validated, and no stage
+was merged into production.
+
+**Measured** (`git diff pdr-photoionization h2-model -- source Makefile`,
+both at today's tips):
+  - four files exist only on the branch: source/h2_mod.f90 (1,570 lines),
+    h2Lines_mod.f90 (169), h2Test.f90 (190), h2Slab.f90 (188);
+  - hooks on the branch: pdr_mod.f90 +944, iteration_mod.f90 +23,
+    common_mod.f90 +20, grid_mod.f90 +10, output_mod.f90 +8, Makefile;
+  - 3,139 lines in all; production's source/ has no lineFluxH2 writer.
+
+**Production's H2 is 3D-PDR's** (source/pdr/, read today):
+  - formation on grains, Cazaux & Tielens (-DH2FORM_CT02), at MOCASSIN's
+    grains and dust temperature (D-414);
+  - photodissociation H2PDRATE (shield.F90): K0 G0 times the Federman,
+    Glassgold & Kwan (1979) self-shielding H2SHIELD1 times dust scattering
+    SCATTER(A_V); the Lee et al. (1996) table H2SHIELD2 is commented out;
+  - heating by formation, photodissociation and FUV pumping (Hollenbach &
+    McKee's 1/(1 + n_cr/n), D-384);
+  - H2 as a collider for the line level populations (D-363) and in the
+    gas-grain exchange (D-420).
+It has no H2 level populations, no H2 line cooling (D-384) and no H2 line
+spectrum. README.md says so ("H2 physics on this branch is 3D-PDR's",
+Branches and versions).
+
+### Status
+
+Answered (2026-10-21); nothing changed.
