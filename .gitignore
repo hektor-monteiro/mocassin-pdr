@@ -54,6 +54,8 @@ pdrSmokeTest
 # extracted from them are in the DEVLOG; the raw logs are not worth versioning.
 runs/
 tools/__pycache__/
+h2Test
+h2Slab
 
 # Python byte code (tools/)
 __pycache__/

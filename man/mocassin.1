@@ -942,6 +942,21 @@ of cells integrated and the median ratio of the H photoabsorption the profile fi
 the cell's own state implies in the cells thick at 912 A (1 when the front is stationary, below
 1 while it is still moving). An estimate beside the model, not its state.
 
+lineFluxH2.out, h2Cells.out, h2Pop.bin (branch h2-model, DEVLOG-H2 H-007; 3D PDR build): the H2
+level model, run on the finished model before the output is written. Nothing in it feeds back
+into the model. Every active cell's 302 rovibrational levels of H2 X are solved with the model's
+own temperature and densities, the Monte Carlo field in the bin of each pumping line (the direct
+part behind the star-ward column, the diffuse part on its scattering sites), line self-shielding
+and overlap from the level columns of the cells on each path, and photon trapping over the twelve
+line rays; the sweeps over the grid are reported in the run log. lineFluxH2.out lists the lines
+above 1e-6 of the strongest, integrated over the grid as optically thin and without dust
+extinction, in erg/s and relative to Hbeta. h2Cells.out has one line per active cell: n(H2), Te,
+the Solomon dissociation rate from the levels and the chemistry's own on the same field and
+columns, the pumping rate, ortho/para, the fraction above 4100 cm-1, then the direct part's two
+rates, the H2 column to the cell and through it, and the diffuse share of the Lyman-Werner field.
+h2Pop.bin holds the level populations of every cell (raw: int32 nCells, nLev; int32 v, J; real64
+E in cm-1; real32 populations per cell). tools/h007_report.py summarises a run.
+
 plot.out
 
 The \fBmocassinPlot\fR driver produces also an output file, containing the luminosities of each individual grid volume element in the required emission lines. This file, named plot.out, is written in a format which should be easily readable into a data visualisation software, such as IDL or PDL. A grid4.out is also written out, containing the volume of each gridcell in [e45 cm3].

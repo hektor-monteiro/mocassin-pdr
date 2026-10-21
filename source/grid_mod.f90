@@ -1446,6 +1446,11 @@ module grid_mod
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeatXtra memory"; stop
                 end if
+                allocate(grid%pdrHeatH2(0:grid%nCells, 1:3), stat = err)   ! H-012
+                if (err /= 0) then
+                   print*, "! setMotherGrid: can't allocate pdrHeatH2 memory"; stop
+                end if
+                grid%pdrHeatH2 = 0.
                 allocate(grid%pdrHeatUsed(0:grid%nCells), stat = err)   ! D-207
                 if (err /= 0) then
                    print*, "! setMotherGrid: can't allocate pdrHeatUsed memory"; stop
@@ -3993,6 +3998,11 @@ end function getVolume
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrHeatXtra memory"; stop
                end if
+               allocate(grid(iG)%pdrHeatH2(0:grid(iG)%nCells, 1:3), stat = err)   ! H-012
+               if (err /= 0) then
+                  print*, "! resetGrid: can't allocate pdrHeatH2 memory"; stop
+               end if
+               grid(iG)%pdrHeatH2 = 0.
                allocate(grid(iG)%pdrHeatUsed(0:grid(iG)%nCells), stat = err)   ! D-207
                if (err /= 0) then
                   print*, "! resetGrid: can't allocate pdrHeatUsed memory"; stop

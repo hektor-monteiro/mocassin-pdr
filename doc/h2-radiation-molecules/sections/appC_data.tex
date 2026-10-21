@@ -1,0 +1,36 @@
+% ======================================================================
+\section{Data files on this path}
+\label{app:data}
+% ======================================================================
+
+The table lists the data files that enter the path from the field to the
+molecules, with the source of their content. For the \Htwo{} files the source
+is the one the file's own header gives, completed where the header is not the
+primary source (Section~\ref{sec:h2data}); \src{dataPDR/\allowbreak{}h2/\allowbreak{}} is a copy of
+Cloudy c25.00's \src{data/\allowbreak{}h2/\allowbreak{}}, unmodified.
+
+\begin{longtable}{@{}L{0.34\linewidth}L{0.62\linewidth}@{}}
+\caption{Data files on the path from the field to the molecules.}\label{tab:datafiles}\\
+\toprule
+File & Content and provenance \\
+\midrule
+\endfirsthead
+\toprule
+File & Content and provenance \\
+\midrule
+\endhead
+\src{dataPDR/\allowbreak{}species\_reduced.d} & the 33 species, initial abundances (unused: seeding is MOCASSIN's) and masses; 3D-PDR \citep{Bisbas2012} \\
+\src{dataPDR/\allowbreak{}rates\_reduced.d} & 332 reactions in UMIST format: number, reactants, products, $\alpha$, $\beta$, $\gamma$, source code, $T_{\min}$, $T_{\max}$, accuracy; 331 from 3D-PDR (a subset of UMIST, \citealt{Woodall2007} or \citealt{McElroy2013}, release not recorded; Section~\ref{sec:network}); reaction 332 added in this project with the coefficient of Cloudy's \src{mole\_co\_umisthack.dat}, attributed there to \citet{Janev1987} \\
+\src{dataPDR/\allowbreak{}12c+.dat}, \src{12c.dat}, \src{16o.dat}, \src{12co.dat} & coolant level data in LAMDA format \citep{Schoier2005}; for \src{16o.dat} and \src{12c.dat} the $^1D$/$^1S\to{}^3P_J$ collision rates are split by $g_J/9$ (\src{pdr/\allowbreak{}UPSTREAM.md}, \dlog{D-285}) \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}energy\_X.dat} & $X$ level energies (302 levels), \citet[their Table~1]{Komasa2011}, compiled by K.~Kaplan \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}transprob\_X.dat} & $X$ electric-quadrupole $A$ values, \citet{Wolniewicz1998}; magnetic-dipole components of 30 $v=1\to0$, $\Delta J=0$ transitions, \citet{PachuckiKomasa2011}, listed separately and summed by the reader \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}coll\_rates\_H\_15.dat} & H\,+\,\Htwo{} de-excitation rate coefficients, reactive channels included, 100--5000\,K, \citet{Lique2015} \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}coll\_rates\_He\_ORNL.dat} & He\,+\,\Htwo{}, 1--$10^4$\,K, the ORNL data set; the header cites ``Lee, T.\ G.\ et al.\ 2007, ApJ, in preparation'', and no published source for the table was identified \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}coll\_rates\_H2ortho\_ORNL.dat}, \src{coll\_rates\_H2para\_ORNL.dat} & $o$-\Htwo{} and $p$-\Htwo\,+\,\Htwo{}, $v=0$, 1--$10^4$\,K, \citet{Wan2018} \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}coll\_rates\_Hp.dat} & \Hp\,+\,\Htwo{} including proton exchange, $v=0$, $J\le9$, 3--6000\,K, \citet{Gerlich1990} \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}energy\_\{state\}.dat}, \src{transprob\_\{state\}.dat}, \src{dissprob\_\{state\}.dat} & excited electronic states $B$, $C^\pm$, $B'$, $D^\pm$: levels, lines to $X$, spontaneous radiative dissociation rates and kinetic energies, \citet{Abgrall2000}, whose line transition probabilities rest on \citet{Abgrall1993} and \citet{Abgrall1994}; the $J=0$ energies of the $\Pi$ components that the files carry as comments are extrapolations by Cloudy's authors and are not read \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}energy\_dissoc.dat} & dissociation energies of the electronic states, \citet{Sharp1970} per the header (which dates it 1971), with values revised in Cloudy in 2002; only the value for $X$, 36\,118.11\,cm$^{-1}$, is used \\
+\src{dataPDR/\allowbreak{}h2/\allowbreak{}README.md} & provenance and Cloudy's licence notice (zlib) \\
+MOCASSIN atomic data (\src{data/\allowbreak{}ph1.dat}, \src{ph2.dat}, \src{radrec.dat}) & photoionisation cross-section fits \citep{Verner1996,VernerYakovlev1995} and radiative recombination fits \citep[and the sources listed at \src{update\_mod.f90:\allowbreak{}4101--4115}]{VernerFerland1996}, used for the linked atoms' rates; the \Htwo{} photoionisation cross section is a fit in the code \citep{Yan1998,Yan2001} \\
+\bottomrule
+\end{longtable}

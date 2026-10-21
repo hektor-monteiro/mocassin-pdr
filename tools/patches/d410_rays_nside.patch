@@ -1,0 +1,219 @@
+--- a/source/pdr_mod.f90
++++ b/source/pdr_mod.f90
+@@ -136,8 +136,11 @@
+     ! the ray, and for every ray k the wkN(k) cells it crosses in order (0
+     ! where the cell is not active) with the ray's length in each (H-025:
+     ! exact, rayCells; they were steps of one length before)
++    ! D-410 diagnostic (L-53): the directions of the scattering sites and of the
++    ! line-escape rays, HEALPix nside = pdrRayNside in RING order (rayDirections)
++    integer, parameter            :: pdrRayNside = 2, nRayDir = 12*pdrRayNside*pdrRayNside
+     integer, allocatable          :: siteCell(:), siteRay(:), siteIst(:), wkCell(:,:)
+-    integer                       :: wkN(0:11) = 0
++    integer                       :: wkN(0:nRayDir-1) = 0
+     double precision, allocatable :: wkLen(:,:)
+ 
+     ! D-397: the cells the ray last traced by rayCells crosses, in order, and
+@@ -149,7 +152,7 @@
+     ! traceLineRays - along each of the twelve HEALPix directions, the cells
+     ! crossed from this one to the edge of the model (lrCell) and the path
+     ! length in each (lrLen, cm), lrN(k) of them on ray k
+-    integer                       :: lrN(0:11) = 0
++    integer                       :: lrN(0:nRayDir-1) = 0
+     integer, allocatable          :: lrCell(:,:)
+     double precision, allocatable :: lrLen(:,:)
+     ! D-377: the MOCASSIN frequency bin of each coolant transition (upper,
+@@ -2133,6 +2136,50 @@
+       !            computeAVradial built independently). -1 unless nStars == 1.
+       !   nUnset   sites whose first leg was never computed (pdrColH2 < 0)
+       !-----------------------------------------------------------------
++      !-----------------------------------------------------------------
++      ! D-410 diagnostic (L-53): the HEALPix nside = pdrRayNside pixel centres
++      ! in RING order, constructed directly. Rings 1 .. nside-1 and
++      ! 3 nside+1 .. 4 nside-1 are the polar caps (4 i pixels at
++      ! phi = (j - 1/2) pi / (2 i)); rings nside .. 3 nside the belt (4 nside
++      ! pixels, every other ring shifted by half a pixel). At nside = 1 this
++      ! is the twelve traceDiffuseSites and traceLineRays built before, in
++      ! the same order and to the last bit.
++      !-----------------------------------------------------------------
++      subroutine rayDirections(vx, vy, vz)
++        implicit none
++        double precision, intent(out) :: vx(0:nRayDir-1), vy(0:nRayDir-1), vz(0:nRayDir-1)
++        integer          :: ir, ip, j, k, nr, ns, s
++        double precision :: zz, ph, sr
++
++        ns = pdrRayNside
++        k  = 0
++        do ir = 1, 4*ns - 1
++           if (ir < ns) then
++              ip = ir;          nr = 4*ip; s = 1
++              zz =  dble(3*ns*ns - ip*ip)/dble(3*ns*ns)
++           else if (ir <= 3*ns) then
++              ip = ns;          nr = 4*ns; s = mod(ir - ns + 1, 2)
++              zz =  dble(4*ns - 2*ir)/dble(3*ns)
++           else
++              ip = 4*ns - ir;   nr = 4*ip; s = 1
++              zz = -dble(3*ns*ns - ip*ip)/dble(3*ns*ns)
++           end if
++           sr = sqrt(max(1.d0 - zz*zz, 0.d0))
++           do j = 1, nr
++              ! the old twelve's expression, so that nside = 1 is them to the last bit
++              ph = (dble(j-1)+0.5d0*dble(s))*pi*0.5d0
++              if (ip > 1) ph = ph/dble(ip)
++              vx(k) = sr*cos(ph); vy(k) = sr*sin(ph); vz(k) = zz
++              k = k + 1
++           end do
++        end do
++        if (k /= nRayDir) then
++           print*, "! rayDirections: ", k, " directions for nside ", ns
++           stop
++        end if
++      end subroutine rayDirections
++
++
+       subroutine traceDiffuseSites(grid, xP, yP, zP, cellP, nSite, wTot, &
+            & aniso, colWalk, avWalk, nUnset)
+         implicit none
+@@ -2142,25 +2189,15 @@
+         double precision, intent(out) :: wTot, aniso, colWalk, avWalk
+ 
+         integer          :: kray, istep, cP, need, nSeg
+-        double precision, save :: vx(0:11), vy(0:11), vz(0:11)
++        double precision, save :: vx(0:nRayDir-1), vy(0:nRayDir-1), vz(0:nRayDir-1)
+         logical, save    :: lgDirs = .false.
+         double precision :: zz, ph, sr, ds, px, py, pz, seg
+         double precision :: x0, y0, z0
+         double precision :: tau, dtau, kext, emis, esc, w, tauV, cH2w
+-        double precision :: cN(3), dN(3), col1(3), wRay(0:11)
++        double precision :: cN(3), dN(3), col1(3), wRay(0:nRayDir-1)
+ 
+         if (.not.lgDirs) then
+-           do kray = 0, 11
+-              if (kray < 4) then
+-                 zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
+-              else if (kray < 8) then
+-                 zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
+-              else
+-                 zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+-              end if
+-              sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+-              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
+-           end do
++           call rayDirections(vx, vy, vz)
+            lgDirs = .true.
+         end if
+ 
+@@ -2169,17 +2206,17 @@
+         wRay = 0.d0
+ 
+         ! D-397: one site per cell a ray crosses (rayCells), at most this many
+-        need = 12*(2*(grid%nx + grid%ny + grid%nz) + 8)
++        need = nRayDir*(2*(grid%nx + grid%ny + grid%nz) + 8)
+         if (allocated(siteW)) then
+            if (size(siteW) < need) deallocate(siteW, siteN, siteCell, siteRay, siteIst, wkCell, wkLen)
+         end if
+         if (.not.allocated(siteW)) allocate(siteW(need), siteN(3,need), siteCell(need), &
+-             & siteRay(need), siteIst(need), wkCell(need/12,0:11), wkLen(need/12,0:11))
++             & siteRay(need), siteIst(need), wkCell(need/nRayDir,0:nRayDir-1), wkLen(need/nRayDir,0:nRayDir-1))
+         wkN = 0
+ 
+         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
+ 
+-        do kray = 0, 11
++        do kray = 0, nRayDir-1
+            tau = 0.d0
+            cN  = 0.d0
+            ! D-397: the cells the ray crosses, each with its exact length.
+@@ -2246,7 +2283,7 @@
+         end do
+ 
+         wTot = sum(wRay)
+-        if (wTot > 0.d0) aniso = maxval(wRay)/(wTot/12.d0)
++        if (wTot > 0.d0) aniso = maxval(wRay)/(wTot/dble(nRayDir))
+ 
+         ! The scale check: the same snapshot, walked from this cell to the
+         ! star, against the columns computeAVradial traced. Since D-397 both
+@@ -2330,23 +2367,13 @@
+         integer, intent(in)         :: xP, yP, zP
+ 
+         integer          :: kray, istep, nstep, n, nSeg
+-        double precision, save :: vx(0:11), vy(0:11), vz(0:11)
++        double precision, save :: vx(0:nRayDir-1), vy(0:nRayDir-1), vz(0:nRayDir-1)
+         logical, save    :: lgDirs = .false.
+         double precision :: zz, ph, sr
+         double precision :: x0, y0, z0
+ 
+         if (.not.lgDirs) then
+-           do kray = 0, 11
+-              if (kray < 4) then
+-                 zz =  2.d0/3.d0; ph = (dble(kray)  +0.5d0)*pi*0.5d0
+-              else if (kray < 8) then
+-                 zz =  0.d0     ; ph =  dble(kray-4)       *pi*0.5d0
+-              else
+-                 zz = -2.d0/3.d0; ph = (dble(kray-8)+0.5d0)*pi*0.5d0
+-              end if
+-              sr = sqrt(max(1.d0 - zz*zz, 0.d0))
+-              vx(kray) = sr*cos(ph); vy(kray) = sr*sin(ph); vz(kray) = zz
+-           end do
++           call rayDirections(vx, vy, vz)
+            lgDirs = .true.
+         end if
+ 
+@@ -2356,11 +2383,11 @@
+         if (allocated(lrCell)) then
+            if (size(lrCell,2) < nstep) deallocate(lrCell, lrLen)
+         end if
+-        if (.not.allocated(lrCell)) allocate(lrCell(0:11,nstep), lrLen(0:11,nstep))
++        if (.not.allocated(lrCell)) allocate(lrCell(0:nRayDir-1,nstep), lrLen(0:nRayDir-1,nstep))
+ 
+         x0 = dble(grid%xAxis(xP)); y0 = dble(grid%yAxis(yP)); z0 = dble(grid%zAxis(zP))
+ 
+-        do kray = 0, 11
++        do kray = 0, nRayDir-1
+            call rayCells(grid, x0, y0, z0, vx(kray), vy(kray), vz(kray), &
+                 & huge(1.d0), lgSymmetricXYZ, nSeg)
+            n = 0
+@@ -3183,7 +3210,7 @@
+         type(grid_type), intent(inout) :: grid
+         integer, intent(in)            :: xP, yP, zP
+ 
+-        integer, parameter :: nraysLoc = 12          ! HEALPix level 0
++        integer, parameter :: nraysLoc = nRayDir     ! D-410 diagnostic: the line rays' count (3D flavour only)
+         integer, parameter :: npart = 1
+         ! D-348: the chemistry's rays are the twelve direct twelfths plus one
+         ! per diffuse scattering site, so the count is only known per cell.
+@@ -3663,7 +3690,7 @@
+         difDiag( 1,iBinD) = difDiag( 1,iBinD) + 1.d0
+         difDiag( 2,iBinD) = difDiag( 2,iBinD) + dble(grid%chiFUV(cellP))
+         difDiag( 3,iBinD) = difDiag( 3,iBinD) + chiDif
+-        difDiag( 4,iBinD) = difDiag( 4,iBinD) + wTotD/12.d0/(dble(c)*dble(uDraine))
++        difDiag( 4,iBinD) = difDiag( 4,iBinD) + wTotD/dble(nRayDir)/(dble(c)*dble(uDraine))
+         difDiag( 5,iBinD) = difDiag( 5,iBinD) + chiDir
+         difDiag( 6,iBinD) = difDiag( 6,iBinD) + chiDir*fDir
+         difDiag( 7,iBinD) = difDiag( 7,iBinD) + chiDif*fDif
+@@ -5282,7 +5309,7 @@
+              & etaDir(h2NT), etaDif(h2NT), eta(h2NT), shDir(h2NT), shDif(h2NT), ovDir(h2NT), &
+              & ovG(h2NT,nGrp), beta(h2NT), pops(h2NX), kdiss(h2NX), pump(h2NX), hDis(h2NX), phi(h2NX), &
+              & phi1(h2NX), phiB(h2NX), Ncol(h2NX), dN(h2NX), cLev(h2NX), dLev(h2NX), Ns(h2NX), &
+-             & N12(h2NX,12), hist(nHb,h2NX,nGrp), thin(h2NX,nGrp), gW(nGrp), gLev(h2NX,nGrp), &
++             & N12(h2NX,nRayDir), hist(nHb,h2NX,nGrp), thin(h2NX,nGrp), gW(nGrp), gLev(h2NX,nGrp), &
+              & bLo(h2NX,nGrp), bHi(h2NX,nGrp), acc(h2NX), wLev(h2NX), &
+              & colStar(h2NX,0:nCel), popTmp(0:nCel,h2NX), popSum(0:nCel,h2NX), r1Tmp(0:nCel,nR1), &
+              & r1Sum(0:nCel,nR1), stat=err)
+@@ -5722,7 +5749,7 @@
+              shDif = 0.d0
+           else if (nSite > 0 .and. wTot > 0.d0) then
+              iSite = 1
+-             do kray = 0, 11
++             do kray = 0, nRayDir-1
+                 cLev = 0.d0
+                 do istep = 1, wkN(kray)
+                    cP = wkCell(istep,kray)
+@@ -5824,7 +5851,7 @@
+           if (lgDif .or. lgDirF) then
+              call traceLineRays(grid(1), i, j, k)
+              N12 = 0.d0
+-             do kray = 0, 11
++             do kray = 0, nRayDir-1
+                 do ipt = 1, lrN(kray)
+                    cP = lrCell(kray,ipt)
+                    if (nH2c(cP) <= 0.d0) cycle

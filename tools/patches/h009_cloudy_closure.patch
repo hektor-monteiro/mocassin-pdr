@@ -1,0 +1,133 @@
+diff --git a/source/h2_mod.f90 b/source/h2_mod.f90
+index a688b6b..065bfa7 100644
+--- a/source/h2_mod.f90
++++ b/source/h2_mod.f90
+@@ -120,6 +120,8 @@ module h2_mod
+     integer, allocatable, public :: h2tU(:), h2tL(:)
+     real(dp), allocatable, public :: h2tA(:), h2tWN(:)  ! [s^-1], [cm^-1]
+     integer, allocatable :: uFirst(:), uLast(:)         ! a level's lines in the list
++    real(dp), public :: h2CloudyF = 0._dp               ! H-009 DIAGNOSTIC: last closure factor
++    integer, public :: h2CloudyFail = 0                 ! H-009 DIAGNOSTIC: solves that fell back
+     real(dp), public :: h2DissX = 0._dp                 ! dissociation energy of X [cm^-1]
+     integer, public :: h2NSkipped = 0                 ! lines read whose levels are not in the model
+ 
+@@ -1237,7 +1239,7 @@ contains
+     !---------------------------------------------------------------------------
+     subroutine h2Solve(T, dens, eta, phi, pops, kdiss, pump, sink, src, beta)
+       real(dp), intent(in) :: T, dens(h2NColl), eta(:), phi(:)
+-      real(dp), intent(out) :: pops(:)
++      real(dp), intent(inout) :: pops(:)              ! H-009 DIAGNOSTIC: in = previous populations
+       real(dp), intent(out), optional :: kdiss(:), pump(:)
+       real(dp), intent(in), optional :: sink(:), src(:), beta(:)
+       real(dp), allocatable :: R(:,:), W(:,:), k(:), pm(:)
+@@ -1253,10 +1255,109 @@ contains
+       if (present(kdiss)) kdiss(1:h2NX) = k
+       if (present(pump)) pump(1:h2NX) = pm
+       if (present(sink)) k = k + sink(1:h2NX)
+-      call balance(R, k, phi, pops, src)
++      ! H-009 DIAGNOSTIC (not to be committed): Cloudy's closure, as H-004's check D
++      if (sum(pops(1:h2NX)) < 0.5_dp .or. sum(pops(1:h2NX)) > 1.5_dp .or. any(pops(1:h2NX) < 0._dp)) &
++           & call balance(R, k, phi, pops, src)
++      call balanceCloudy(R, k, phi, pops)
+       deallocate(R, W, k, pm)
+     end subroutine h2Solve
+ 
++    ! H-009 DIAGNOSTIC: Cloudy's closure of the X levels (mole_h2.cpp,
++    ! atom_leveln.cpp; H-004): a formation source fixed in advance, phi times
++    ! the destruction rate per H2 of the populations given; the H2g Solomon
++    ! rate of those populations added again as a uniform sink on the H2g
++    ! levels (E <= 4100 cm^-1); no sum rule; the 70 lowest levels solved
++    ! together, the rest with all their input scaled by the same factor f as
++    ! the source, f fixed so that the populations add up to 1.
++    subroutine balanceCloudy(R, k, phi, pops)
++      real(dp), intent(in) :: R(:,:), k(:), phi(:)
++      real(dp), intent(inout) :: pops(:)
++      integer, parameter :: nm = 70
++      real(dp), allocatable :: kk(:), S(:), outR(:), x(:)
++      real(dp) :: kg, F, fa, fb, fc, sa, sb, sc, st
++      integer :: n, i, it, side
++      logical :: lgBr
++      n = h2NX
++      allocate(kk(n), S(n), outR(n), x(n))
++      kg = sum(pops(1:n)*k(1:n), mask=(h2E <= 4100._dp))/max(sum(pops(1:n), mask=(h2E <= 4100._dp)), tiny(1._dp))
++      F = sum(pops(1:n)*k(1:n))
++      kk = k(1:n)
++      where (h2E <= 4100._dp) kk = kk + kg
++      S = phi(1:n)*F
++      do i = 1, n
++         outR(i) = sum(R(i, :)) - R(i, i) + kk(i)
++      end do
++      ! as H-004's check D: from f = 1 step toward the root until the sum
++      ! crosses 1 with all populations positive (the sum has a pole beyond
++      ! the root, where the populations turn negative), then refine within
++      ! the bracket (Illinois)
++      fa = 1._dp; call solveF(fa, x); sa = sum(x) - 1._dp
++      st = merge(0.02_dp, -0.02_dp, sa < 0._dp)
++      lgBr = .false.
++      do it = 1, 60
++         fb = fa + st
++         call solveF(fb, x); sb = sum(x) - 1._dp
++         if (any(x < 0._dp) .or. sb*sa > 0._dp .and. abs(sb) > 10._dp*abs(sa) + 1._dp) then
++            st = 0.5_dp*st                     ! past the pole: shorter step from fa
++            if (abs(st) < 1.e-7_dp) exit
++            cycle
++         end if
++         if (sb*sa <= 0._dp) then
++            lgBr = .true.; exit
++         end if
++         fa = fb; sa = sb
++      end do
++      if (lgBr) then
++         side = 0
++         do it = 1, 60
++            fc = (fa*sb - fb*sa)/(sb - sa)
++            call solveF(fc, x); sc = sum(x) - 1._dp
++            if (abs(sc) < 1.e-10_dp) exit
++            if (sc*sb > 0._dp) then
++               fb = fc; sb = sc
++               if (side == -1) sa = 0.5_dp*sa
++               side = -1
++            else
++               fa = fc; sa = sc
++               if (side == 1) sb = 0.5_dp*sb
++               side = 1
++            end if
++         end do
++         fb = fc; sb = sc
++      end if
++      if (lgBr .and. all(x > -1.e-30_dp) .and. abs(sb) < 1.e-6_dp) then
++         pops(1:n) = max(x, 0._dp)
++         h2CloudyF = fb
++      else
++         h2CloudyFail = h2CloudyFail + 1
++         if (h2CloudyFail <= 8) print '(a,es12.4,a,es12.4,a,f9.5,a,i4)', ' H-009 fail: sum-1', sb, ' min x', minval(x), &
++              & ' f', fb, ' at level', minloc(x, 1)
++         call balance(R, k, phi, pops)
++      end if
++      deallocate(kk, S, outR, x)
++    contains
++      subroutine solveF(f, xo)
++        real(dp), intent(in) :: f
++        real(dp), intent(out) :: xo(:)
++        real(dp), allocatable :: M(:,:)
++        integer :: ii, jj
++        allocate(M(n, n))
++        do ii = 1, n
++           do jj = 1, n
++              if (ii <= nm .and. jj <= nm) then
++                 M(ii, jj) = -R(jj, ii)
++              else
++                 M(ii, jj) = -f*R(jj, ii)
++              end if
++           end do
++           M(ii, ii) = outR(ii)
++        end do
++        xo = f*S
++        call gaussSolve(n, M, xo)
++        deallocate(M)
++      end subroutine solveF
++    end subroutine balanceCloudy
++
+     ! Gaussian elimination with partial pivoting, solution returned in b
+     subroutine gaussSolve(n, a, b)
+       integer, intent(in) :: n

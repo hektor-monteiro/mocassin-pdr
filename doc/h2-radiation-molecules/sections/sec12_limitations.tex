@@ -1,0 +1,261 @@
+% ======================================================================
+\section{Known limitations and open issues}
+\label{sec:limitations}
+% ======================================================================
+
+This section lists the limitations that bear on the path from the field to
+the molecules, with the direction of the bias each introduces and its
+measured size where one exists. The first group is recorded in the project's
+own logs. The second group was found while reading the code for this document
+and is not, as far as could be found, recorded in \src{DEVLOG.md},
+\src{DEVLOG-H2.md} or \src{doc/\allowbreak{}pdr-status.md}; its sizes have not been
+measured.
+
+\subsection{Recorded in the project's logs}
+
+\begin{enumerate}
+\item \textbf{Per-cell Monte Carlo noise in the photorates} (\dlog{L-26},
+  \dlog{D-405}, \dlog{H-012}). Every photorate reads its own cell's field, whose
+  per-cell scatter reaches 14--22\% beyond $\AV\sim2$ at the default packet
+  count; the level model's per-line field is noisier than the band integral.
+  Besides scatter, the noise biases cell means through the non-linear rates
+  (estimated $+5\%$ at 22\% scatter) and, at the carbon turn, decides which of
+  two states a cell is in (\dlog{D-405}). An estimator accumulated over
+  iterations is registered for future development (\dlog{D-411}).
+  Section~\ref{sec:mcnoise} gives the numbers.
+\item \textbf{Packet convergence of carbon and CO} (\dlog{D-408}, \dlog{H-032}).
+  At the default $6\times10^6$ packets the \Htwo{} lines and the H/\Htwo{}
+  crossing are converged, but the carbon turn is placed too shallow (C$^+=$C
+  moves by 0.5\,mag on \texttt{hiipdr} up to $3.84\times10^8$ packets, towards
+  Cloudy's), the deep gas is too cold, [C\,\textsc{i}] needs 16--64 times the
+  packets and CO is still moving at 64 times. The stop test does not see this.
+\item \textbf{The twelve-direction quadrature} (\dlog{L-53}, \dlog{D-410}):
+  cells that the grid's symmetry makes equal differ in $n(\mathrm{H_2})$ by up
+  to about 11\% following the ring axis of the twelve directions, independently
+  of the packet count; 48 directions remove the pattern at 1.48 times the run
+  time, moving totals by under 1\%. The twelve were kept by decision, since no
+  line map carries the pattern (CO's abundance and the \Htwo{} density do).
+\item \textbf{Damping width of the \Htwo{} lines} (\dlog{H-008}, \dlog{H-026}).
+  The code damps each line with the upper level's total radiative decay rate
+  (to the bound levels and the continuum of $X$), which is the physical natural
+  width; damping each line
+  with its own $A$, as Cloudy does, narrows the wings, strengthens the
+  shielding and moves the H/\Htwo{} crossing 0.21\,mag shallower on \texttt{hiipdr}
+  (from $\AV=1.396$ to 1.188, Cloudy's being 1.280) and 0.10\,mag shallower on
+  \texttt{pn150k}. Between $\AV=1.05$ and 1.2 on \texttt{hiipdr} the model's
+  photodissociation rate per molecule is 5--7 times Cloudy's. On \texttt{hiipdr}
+  the width accounts for $+0.21$\,mag of the difference between the two codes'
+  crossings and everything else for $-0.09$\,mag (\dlog{H-026}); it is the
+  largest single identified term and should accompany any comparison with
+  Cloudy, which uses the total decay rate for every species but \Htwo{}
+  (\dlog{H-008}).
+\item \textbf{No H\,\textsc{i} Lyman-series shading} of the \Htwo{} band
+  (\src{DEVLOG-H2.md}, \dlog{H-006}, ``What is not yet known''). Neither the MC transfer
+  nor the level model contains it, so pumping and dissociation are
+  overestimated where a large H\,\textsc{i} column lies in front of the molecular
+  gas, and the transition is placed too deep. The hydrogen column between the
+  ionisation front and the H/\Htwo{} crossing is about $1.8\times10^{21}$\,cm$^{-2}$ on
+  \texttt{hiipdr} ($\AV$ 0.48 to 1.40 at $1.93\times10^{21}$\,cm$^{-2}$\,mag$^{-1}$,
+  Table~\ref{tab:dustfix}; \dlog{D-260}, \dlog{H-027}) and at most
+  $1.1\times10^{21}$\,cm$^{-2}$ on \texttt{pn150k} (crossing at $\AV=0.39$,
+  $2.79\times10^{21}$\,cm$^{-2}$\,mag$^{-1}$), part of it molecular. The damping wings
+  of Ly$\beta$, Ly$\gamma$ and Ly$\delta$ alone cover about 4, 1.4 and 0.7\,\AA{} of the
+  912--1110\,\AA{} band at $N(\mathrm{H\,I})=10^{21}$\,cm$^{-2}$, growing as $N^{1/2}$
+  (an estimate, Section~\ref{sec:overlap}). Unmeasured.
+\item \textbf{No cross-pumping and no overlap in trapping} (\dlog{H-006}): a
+  photon absorbed in another line's wing is lost rather than pumping that
+  line, and the escape of each line ignores the others.
+\item \textbf{Electrons are not colliders} of the \Htwo{} levels, and the level
+  model has no destruction other than Solomon (\src{h2\_mod.f90} header); this
+  matters in the partly ionised gas, where \Htwo{} is already 14--230 times
+  Cloudy's for chemical reasons (\dlog{L-43}).
+\item \textbf{C\,\textsc{i} photoionisation without \Htwo-line shielding}
+  (\src{DEVLOG.md}, item 8 of the audit list near line 28742): MOCASSIN's rate
+  replaces \rtn{CIPDRATE}, and MOCASSIN does not transport LW lines, so the
+  rate is overestimated behind the H/\Htwo{} transition; estimated at a few
+  tens of per cent at $\AV\sim3$, with the opposite sign to the deep \Cp{}
+  deficit (\dlog{L-3}).
+\item \textbf{Chlorine is absent from the network}; in Cloudy it carries 25--50\%
+  of the \Htwo{} sink from $\AV=0.26$ on in the PN model, and Cloudy without
+  chlorine turns molecular 0.042\,mag earlier (\dlog{L-46}, \dlog{H-026}). Its
+  absence moves the model's crossing shallower, by about 0.04\,mag on
+  \texttt{pn150k}, partly offsetting there the 0.10\,mag of item~4 (\dlog{L-46}).
+\item \textbf{Silicate formation efficiency}: the per-material Cazaux \& Tielens
+  surface energies of 3D-PDR give 0.50--0.91 of Cloudy's coefficient on
+  \texttt{hiipdr} (\dlog{L-33}, \dlog{H-022}); reported, not tuned.
+\item \textbf{The mean grain temperature can switch formation off}
+  (\dlog{H-035}): the number-weighted mean over the whole size grid counts the
+  bins outside a species' size range at zero temperature; on a grid wider
+  than the grains present this put $T_d$ at $10^{-6}$\,K and no \Htwo{} formed.
+  Fixed after \texttt{8fc1512}: \dlog{D-414} takes the mean over the bins that hold
+  grains (Section~\ref{sec:scope}).
+\item \textbf{Diffuse-site weights} recover 52--130\% of the MC's diffuse field
+  (\dlog{L-4}); the magnitude is the MC's, the directional distribution, and so
+  the columns assigned to the diffuse light, is approximate
+  (Section~\ref{sec:sites}).
+\item \textbf{Unresolved fronts} (\dlog{L-37}, \dlog{D-088}): on uniform grids
+  the ionisation front and the H/\Htwo{} transition are thinner than a cell; the
+  front cells, which carry the warm partly ionised gas through their whole
+  volume, make 92\% of \texttt{hiipdr}'s [O\,\textsc{i}] 63\,\textmu m, 9.3--9.5 times
+  Cloudy's at $31^3$ and 5.5 times at $61^3$. Front-sensitive lines need a
+  resolution check; a sub-cell estimate of [O\,\textsc{i}] 6300\,\AA{} is available
+  offline (\kw{frontLines}).
+\item \textbf{The gas re-emits from the hydrogen and helium spectrum whatever
+  absorbed} (\dlog{L-51}). A packet absorbed by neutral carbon in the PDR is
+  re-emitted, some of the time, as a hydrogen- or helium-ionising photon:
+  1.9\% of \texttt{hiipdr}'s cells per iteration at $\AV=2.15$--2.43 are
+  over-ionised, and their chemistry, solved to steady state on that iteration's
+  ionisation, can lose more than half its \Htwo{} (202 such drops in six
+  iterations at the default packet count, 23 at four times, none at sixteen
+  times).
+\item \textbf{No PAHs or very small grains} (\dlog{L-7}): the photoelectric
+  heating lacks the component that dominates in real PDRs, so the gas is colder
+  than in PDR models with that component at the same field; common-mode with
+  the Cloudy references.
+\item \textbf{Gas--grain collisional coupling omits \Htwo} (\dlog{L-9}): 68
+  times weaker than Cloudy's dust cooling at $\AV=0.65$ on \texttt{pn150k},
+  negligible at $n_{\mathrm H}=10^3$\,cm$^{-3}$ and decisive at high density.
+\item \textbf{The \Htwo{} line emission is computed optically thin and without
+  dust extinction} in \src{lineFluxH2.out} (\src{h2Lines\_mod.f90} header).
+\end{enumerate}
+
+\subsection{Found while preparing this document}
+
+\begin{enumerate}\setcounter{enumi}{17}
+\item \textbf{Formation flux in the level model is tied to the Solomon flux.}
+  \rtn{solveCell} calls \rtn{h2Solve} without a sink or a source
+  (\src{pdr\_mod.f90:\allowbreak{}5904}), so the rate at which new molecules enter the
+  levels in the formation distribution $\phi$ equals the Solomon dissociation
+  rate. The chemistry's actual formation rate, $R_{\mathrm f}n_{\mathrm H}n(\mathrm H)$,
+  balances all destruction (cosmic rays, ion--molecule reactions, Solomon) in
+  steady state. Where the Solomon rate has been shielded away, formation
+  pumping is therefore underestimated. With the network's \Htwo\,+\,CRP channels
+  alone the other destruction is $0.99\,\zeta$, $10^{-16}$\,s$^{-1}$ at the default
+  \kw{pdrZeta}, so this happens where the Solomon rate is shielded below a few
+  $10^{-16}$\,s$^{-1}$ (Section~\ref{sec:balance}). The energy budget is split the same
+  way: the internal energy that newly formed molecules bring to the levels
+  (and that the collisional term returns to the gas) follows the Solomon flux,
+  while the kinetic part of the formation energy (\texttt{heat(5)}) follows the
+  chemistry's formation rate. Both numbers needed for a consistent closure are
+  already available in \rtn{solveCell} ($w_{\mathrm{sil}}+w_{\mathrm{gra}}$,
+  $n(\mathrm H)$, $n(\mathrm{H_2})$): passing the non-Solomon destruction as
+  \rtn{sink}, or the chemistry's formation flux per molecule as \rtn{src}, would
+  make the two agree. A per-cell print of formation flux over Solomon flux
+  would size the effect first.
+\item \textbf{The final output mixes two Solomon rates.} The last
+  \rtn{h2LevelModel(grid,12)} (\src{iteration\_mod.f90:\allowbreak{}3254, 3283}) runs after
+  the last chemistry, which is not re-solved. The written level populations and
+  $k_{\mathrm{Sol}}$ are those of up to twelve sweeps; the written
+  $n(\mathrm{H_2})$ was obtained with the previous one-sweep rate. The size of
+  the difference is printed by the call itself (``Solomon rate against the
+  last call's'').
+\item \textbf{The \Htwo{} collisional heating term is frozen and two
+  iterations old in the temperature search.} $\mathcal{H}_{\mathrm{coll}}$ changes
+  sign and depends steeply on $T$ (it is \Htwo's line cooling where the gas is
+  warmer than the levels), but it enters \rtn{pdrHeatXtra}, which MOCASSIN holds
+  constant in \rtn{iterateT}, and the value used to find $T_e^{(n)}$ was
+  computed by the level model at $T_e^{(n-2)}$ (Section~\ref{sec:lags}).
+  \dlog{H-030} associates this term, together with the damping, with the two
+  derailed iterations at the start of the chemistry. Tabulating it against
+  $T$, as the CO cooling is (\dlog{D-215}), would remove the freeze.
+\item \textbf{Generic photoreactions keep the Draine spectral shape}
+  (Section~\ref{sec:generic}). \dlog{L-24} corrected the LW-window reactions;
+  the other 24 photoreactions still multiply the 6--13.6\,eV band strength by
+  coefficients computed for the Draine shape, although the MC field's shape
+  changes strongly with depth (its LW share falls from 0.30 to 0.008 on
+  \texttt{hiipdr}, \dlog{D-349}). Reactions whose thresholds lie in the window
+  are overestimated at depth, those driven by the 6--11\,eV part underestimated.
+  Folding each reaction's cross section, or a few sub-bands, over the MC field
+  would remove the assumption.
+\item \textbf{The level model's \Htwo{} transmission is not shared.} The
+  per-line \Htwo{} shielding computed in \rtn{solveCell} is exactly what is
+  missing from MOCASSIN's C\,\textsc{i} rate (item~8) and what CO's
+  van Dishoeck \& Black factor approximates for \Htwo{} screening; neither uses
+  it.
+\item \textbf{CO shielding and the chemistry's own \Htwo{} diagnostic} exclude
+  the target cell's own column (\dlog{D-088}); only the level model averages
+  through it. On \texttt{hiipdr}'s grid half a cell can hold $10^{16}$\,cm$^{-2}$ of
+  CO, so CO is under-shielded in the cells of its own transition and the
+  transition is placed up to about half a cell too deep
+  (Section~\ref{sec:avradial}).
+\item \textbf{Several sources are combined by geometry alone.} The effective
+  $\AV$, the source-ward columns, the in-cell chord (\rtn{computeAVradial},
+  \src{pdr\_mod.f90:\allowbreak{}1986}) and the level model's source-ward level columns
+  (\rtn{starColumns}, \src{:\allowbreak{}5651}) weight the sources by $r_s^{-2}$, without
+  their luminosities or their attenuation, and apply the mean column to the
+  summed direct field through non-linear shielding functions. Exact for one
+  source, which is every fixture; untested for several. Weighting each source
+  by its own attenuated direct field, $L_{\mathrm{FUV},s}r_s^{-2}e^{-\RFUV\tau_{V,s}}$,
+  and evaluating the shielding per source would remove it.
+\item \textbf{$\RFUV$ is weighted by the emitted spectrum of source~1}
+  (\src{pdr\_mod.f90:\allowbreak{}1381--1390}). It overstates the band extinction of the
+  local, reddened field at depth, and so the optical depth between the
+  scattering sites and the target; this suppresses distant sites increasingly
+  with depth and is a candidate for the fall with depth of the formal
+  solution's recovery in \dlog{L-4}.
+\item \textbf{The grain temperature is a number-weighted mean applied to an
+  area-weighted rate} (Section~\ref{sec:Td}). Besides the zero-bin trap of
+  item~11, the mean favours the smallest grains and one efficiency
+  $\epsilon(\langle T_d\rangle)$ replaces $\langle\epsilon(T_d)\rangle$ over the sizes. On
+  silicate at 20--50\,K, where $\epsilon$ falls by a factor of 3.6
+  (Section~\ref{sec:Td}), the formation rate depends on how the temperatures
+  of the sizes are spread. Evaluating the rate per size with $\pi a^2$ weights
+  would remove both; a temperature per grain material is registered for
+  future development as \dlog{D-417} (\dlog{L-54}), after the commit described
+  here.
+\item \textbf{No interstellar field at the outer boundary}
+  (Section~\ref{sec:assumptions}, item~6). On \texttt{hiipdr} the source's field
+  is below $\chi=1$ in the outer 40\% of the radius, so the outer PDR is more
+  molecular and colder than the same cloud in the interstellar field.
+\item \textbf{The coolant line escape depends weakly on the sweep order.} The
+  optical depths of the coolant lines read the other cells' level populations
+  as stored on the rank (\src{pdr\_mod.f90:\allowbreak{}4315--4316}), which cells solved
+  earlier on the same rank have already updated
+  (\src{:\allowbreak{}4440--4442}); the shielding columns are snapshots and do not have
+  this dependence.
+\item \textbf{The seed double-attenuates.} \rtn{seedMolecules} multiplies the
+  local, already attenuated $\chi$ by \rtn{SCATTER}$(\AV)$
+  (\src{pdr\_mod.f90:\allowbreak{}2937--2938}; Section~\ref{sec:seed}). It affects only the
+  starting point of the first PDR iteration.
+\item \textbf{The plane-parallel branch includes the near half of the cell in
+  its columns} (\src{pdr\_mod.f90:\allowbreak{}2492--2507}), against \dlog{D-088}'s rule in
+  the point-source branch. The level model does not run in that geometry.
+\item \textbf{Collisional ionisation of hydrogen lacks the electron density.}
+  MOCASSIN adds $2.75\times10^{-16}T^{3/2}(157\,894/T+2)e^{-157\,894/T}$, a rate
+  coefficient in cm$^3$\,s$^{-1}$, to the photoionisation rate in s$^{-1}$ without the
+  factor $n_e$, in its ionisation balance (\src{update\_mod.f90:\allowbreak{}2769--2770})
+  and in the rate handed to the chemistry (\src{:\allowbreak{}2859}). Collisional
+  ionisation is therefore misscaled by a factor $n_e$ (underestimated wherever
+  $n_e>1$\,cm$^{-3}$); with the factor, the term would reach 10\% of a
+  photoionisation rate of $10^{-8}$\,s$^{-1}$ at about $1.5\times10^4$\,K for
+  $n_e=10^4$\,cm$^{-3}$, so hot dense ionised gas is affected and the PDR is not.
+  Inherited from MOCASSIN (Section~\ref{sec:linked}).
+\item \textbf{Two reactions of the rate file are inactive.} The grain-assisted
+  recombinations of He$^+$ and C$^+$ (reactions 330 and 331) have no term in
+  \src{pdr/\allowbreak{}odes\_reduced.c}; their coefficients are computed but unused
+  (Section~\ref{sec:network}).
+\item \textbf{H\,+\,\Htwo{} rates below 100\,K} are those of 100\,K, the first
+  temperature of the \citet{Lique2015} table, which overestimates the reactive
+  ortho--para conversion by H in cold gas, where \Hp{} exchange usually
+  dominates it (Section~\ref{sec:coll}).
+\item \textbf{The \Htwo{} line profile is normalised to its own centre}
+  ($\tau_0H(a,x)/H(a,0)$ with Doppler-core $\tau_0$), overstating the Voigt optical
+  depth by $1/H(a,0)$, at most 3\% for these data (Section~\ref{sec:shield}).
+\item \textbf{Stale or inaccurate comments.} \src{constants\_mod.f90:\allowbreak{}18--20} labels
+  the FUV lower edge 2400\,\AA{} (the value is 6.0\,eV, 2068\,\AA); the comment in
+  \rtn{addOpacity} (\src{ionization\_mod.f90:\allowbreak{}444--453}) describes a power-law
+  \Htwo{} cross section, whereas \rtn{yanH2xSec} is the piecewise fit of
+  \citet{Yan1998}; and the comment of \rtn{draineWindowShare}
+  (\src{pdr\_mod.f90:\allowbreak{}2285--2286}), \dlog{D-349} and \dlog{L-24} give the Draine
+  field's LW share of the continuous band as 0.1516 (0.152), whereas
+  Equation~(\ref{eq:draine}) gives 0.148. The code uses the binned value
+  (0.151--0.164 on the fixtures), consistently with the MC sums, so no result
+  is affected. The comment of \rtn{h2FormDist} (\src{h2\_mod.f90:\allowbreak{}578--579})
+  gives the vibrational distribution as ``their eqs 4-5'' about
+  $E_{vm}=X_{\mathrm{vib}}D$ and the rotational one as ``their eqs 6 and 7'', whereas
+  in \citet{TakahashiUehara2001} the vibrational distribution is eqs.~5--7 (with
+  $E_{vm}=X_{\mathrm{vib}}D+E_{\mathrm{off}}$) and the rotational models are eqs.~12
+  and 13 (the code is right); and \src{update\_mod.f90:\allowbreak{}2621} attributes the
+  collisional-ionisation formula to \citet{DrakeUlrich1980}, which does not
+  contain it (Section~\ref{sec:linked}).
+\end{enumerate}

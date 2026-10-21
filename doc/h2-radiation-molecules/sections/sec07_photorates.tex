@@ -1,0 +1,352 @@
+% ======================================================================
+\section{Reaction rates handed to the chemistry}
+\label{sec:photorates}
+% ======================================================================
+
+The chemistry's rate coefficients are computed per cell in \rtn{pdrStep}
+(\src{pdr\_mod.f90:\allowbreak{}3180--4580}) by 3D-PDR's
+\rtn{CALCULATE\_REACTION\_RATES} (\src{pdr/\allowbreak{}calc\_reac\_rates.F90}), called at
+\src{pdr\_mod.f90:\allowbreak{}3692} with MOCASSIN's inputs, and then partly overwritten
+with rates that MOCASSIN or the level model own. Table~\ref{tab:rateorigin}
+summarises where each radiation-driven rate comes from; reaction numbers are
+those of \src{dataPDR/\allowbreak{}rates\_reduced.d}.
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.15\linewidth}L{0.37\linewidth}L{0.09\linewidth}@{}}
+\caption{Origin of the radiation- and cosmic-ray-driven rates in the 3D build.}\label{tab:rateorigin}\\
+\toprule
+Reaction(s) & Number(s) & Rate used & Section \\
+\midrule
+\endfirsthead
+\toprule
+Reaction(s) & Number(s) & Rate used & Section \\
+\midrule
+\endhead
+\Htwo\,+\,$h\nu\to$\,2H & 329 & the level model's $k_{\mathrm{Sol}}$ & \ref{sec:h2rate} \\
+CO\,+\,$h\nu\to$\,C\,+\,O & 290 & $\alpha_{\mathrm{CO}}\sum_r\chi_rf_r\Theta$ \citep{vanDishoeckBlack1988} & \ref{sec:co} \\
+24 other photoreactions & 266--268, 270--288, 291--292 & $\alpha\chi$ (Draine spectral shape) & \ref{sec:generic} \\
+C, Mg\,+\,$h\nu\to$\,ion\,+\,$e^-$ & 269, 289 & set to zero & \ref{sec:linked} \\
+ionisation of H, He, C, O, Mg & 293, 297, 298, 299, 312 & cosmic-ray (or, Mg, induced-photon) rate plus MOCASSIN's photoionisation rate & \ref{sec:linked} \\
+\Htwo\,+\,CRP\,$\to$\,\Htwo$^+$\,+\,$e^-$ & 296 & cosmic-ray rate plus MOCASSIN's \Htwo{} photoionisation & \ref{sec:linked} \\
+X$^+$\,+\,$e^-\to$\,X\,+\,$h\nu$ (X = H, He, C, O, Mg) & 242--246, 248, 249 & MOCASSIN's total recombination coefficient & \ref{sec:linked} \\
+cosmic-ray ionisation & 293--300 & $\alpha\,\zeta/\zeta_0$ & \ref{sec:cr} \\
+cosmic-ray-induced photoreactions & 301--315 & $\alpha(\zeta/\zeta_0)(T/300)^\beta\gamma/(1-\omega)$ & \ref{sec:cr} \\
+charge transfer with H, \Hp & 156--157, 161--163, 167 & \rtn{pdrCtCoef} & \ref{sec:ct} \\
+H\,+\,H\,(grain)\,$\to$\,\Htwo & 328 & \citet{CazauxTielens2002} & \ref{sec:formation} \\
+\bottomrule
+\end{longtable}
+
+\subsection{The field as a set of rays}
+\label{sec:rays}
+
+3D-PDR evaluates each photoreaction as a sum over rays, each ray $r$ carrying
+a field strength $\chi_r$ (in Draine units), a visual extinction $A_{V,r}$ and
+shielding columns. In the 3D build the bridge builds
+$n_{\mathrm{chem}} = 1 + N_{\mathrm{site}}$ (+1 fallback) rays
+(\src{pdr\_mod.f90:\allowbreak{}3383--3455}, \dlog{D-348}, \dlog{D-350}), which
+represent the local MC field split by the paths its photons took
+(Sections~\ref{sec:split} and \ref{sec:sites}):
+
+\begin{longtable}{@{}L{0.17\linewidth}L{0.20\linewidth}L{0.10\linewidth}L{0.17\linewidth}L{0.24\linewidth}@{}}
+\caption{The rays handed to the chemistry in the 3D build.}\label{tab:rays}\\
+\toprule
+Ray & $\chi_r$ & $A_{V,r}$ & LW factor & Columns $N(\mathrm{H_2}),N(\mathrm{CO})$ \\
+\midrule
+\endfirsthead
+\toprule
+Ray & $\chi_r$ & $A_{V,r}$ & LW factor & Columns $N(\mathrm{H_2}),N(\mathrm{CO})$ \\
+\midrule
+\endhead
+0 (direct) & $\chiD$ & 0 & $f_{\mathrm{dir}}$ & source-ward, Eq.~(\ref{eq:avradial}) \\
+site $j$ & $\chiF\,w_j/\sum w$ & 0 & $f_{\mathrm{dif}}$ & two-leg, Eq.~(\ref{eq:twoleg}) \\
+fallback & $\chiF$ & 0 & $f_{\mathrm{dif}}$ & source-ward (only when $\chiF>0$ and no site exists) \\
+\bottomrule
+\end{longtable}
+
+$A_{V,r}=0$ on every ray (\src{:\allowbreak{}3439}) because the MC field has already been
+attenuated by the dust; applying 3D-PDR's $e^{-\gamma A_V}$ again would count
+the dust twice (\dlog{D-343}, \dlog{D-350}). The C\,\textsc{i} column handed
+over is zero (\src{:\allowbreak{}3627}) because MOCASSIN's opacity already contains the
+C\,\textsc{i} photoionisation continuum; the HD and S columns are zero
+(neither species is in the network). If a source-ward column is missing
+(negative), it falls back to $(\AV/(\AV/N_{\mathrm H}))\,x_X$
+(\src{:\allowbreak{}3458}, \src{:\allowbreak{}3603--3605}); zero is a valid column and is kept
+(\dlog{D-088}). The columns exclude the target cell (Section~\ref{sec:avradial});
+only the level model averages the shielding through the cell's own gas
+(Section~\ref{sec:ownavg}).
+
+\subsection{Generic photoreactions}
+\label{sec:generic}
+
+For every reaction $X+\mathrm{PHOTON}\to\ldots$ without a dedicated treatment,
+3D-PDR's rate is $k=\sum_r\alpha\,\chi_r\,e^{-\gamma A_{V,r}}$ [s$^{-1}$]
+(\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}321--347}), with $\alpha$ the rate in the
+unattenuated Draine field and $\gamma$ the dust-attenuation exponent of the UMIST
+format; with $A_{V,r}=0$,
+\begin{equation}
+  k = \alpha\,(\chiD+\chiF) = \alpha\,\chi ,
+  \label{eq:generic}
+\end{equation}
+the coefficient $\alpha$ of the rate file times the local MC field in the
+6--13.6\,eV band. This applies to the photodissociation and photoionisation of
+H$_2^+$, H$_3^+$, CH, CH$^+$, CH$_2$, CH$_2^+$, CH$_3$, CH$_3^+$, CH$_4$, OH,
+OH$^+$, H$_2$O and O$_2$ (24 of the network's 28 photoreactions). The
+coefficients $\alpha$ were computed for the Draine spectral shape, while the
+MC field reddens with depth: its LW share falls from 0.30 to 0.008 through
+\texttt{hiipdr}'s PDR (\dlog{D-349}). Reactions whose cross sections lie mainly
+above 11.2\,eV are therefore overestimated at depth, and those driven by the
+6--11\,eV part underestimated; none of these reactions is shielded by \Htwo{}
+or CO lines. Rates computed from cross sections folded over the actual field
+would remove the assumption; \citet{Heays2017} provide cross sections for 102
+species for that purpose, and find that their rates for the interstellar field
+agree with earlier compilations to about 30\% in general.
+
+\subsection{\texorpdfstring{\Htwo}{H2} photodissociation: the level model's rate}
+\label{sec:h2rate}
+
+3D-PDR first computes its own rate on the rays (\rtn{H2PDRATE}, \rtn{H2SHIELD1};
+\src{pdr/\allowbreak{}shield.F90:\allowbreak{}27--55, 231--281}; \src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}259--268}),
+\begin{equation}
+  k^{\mathrm{net}}_{\mathrm{H_2}} = \sum_r \alpha_{\mathrm{H_2}}\,\chi_r f_r\,
+     J_{\mathrm{FGK}}(N_{\mathrm{H_2},r})\,\rtn{SCATTER}(0,1000\,\text{\AA}),
+  \qquad \alpha_{\mathrm{H_2}}=5.18\times10^{-11}\unit{s^{-1}},
+\end{equation}
+where $J_{\mathrm{FGK}}=J_D+J_R$ is the single-line self-shielding function of
+\citet[their eqs.~A7--A9]{Federman1979} for one representative line at
+1000\,\AA{} with oscillator strength 0.01, half the \Htwo{} in its lower level, a
+Doppler width $v_{\mathrm{turb}}/\lambda$ and a radiative width of $8\times10^7$\,s$^{-1}$
+(\src{pdr/\allowbreak{}shield.F90:\allowbreak{}46--51, 249--252}). The bridge then replaces it with
+the level model's Solomon rate (\dlog{H-012}):
+\begin{equation}
+  k(\mathrm{H_2}+h\nu\to2\mathrm H) = k_{\mathrm{Sol}}
+  \qquad(\src{pdr\_mod.f90:\allowbreak{}3736}).
+\end{equation}
+The same rate enters 3D-PDR's heating routine, so the chemistry and the
+heating use one \Htwo{} photodissociation rate. The network's own rate is kept
+as a diagnostic (\rtn{h2SolChem}, on the same field split and columns). On
+\texttt{hiipdr} the level model's rate is 2.4--2.6 times the network's in the
+ionised gas, 1.5--1.8 times in cold unshielded gas, and 0.6--0.7 and 0.4--0.6
+times behind source-ward columns of $10^{15}$--$10^{17}$\,cm$^{-2}$ and more
+(\dlog{H-007}). Three things separate them: the level model's rate in the
+unshielded Draine field is 1.23 times $\alpha_{\mathrm{H_2}}$ and the stellar field is
+harder; in warm gas the molecules sit in excited levels that dissociate
+faster; and the network shields one line of fixed radiative width at the near
+face of the cell, whereas the level model averages every line through the cell
+and includes overlap.
+
+\subsection{CO photodissociation}
+\label{sec:co}
+
+\rtn{COPDRATE} (\src{pdr/\allowbreak{}shield.F90:\allowbreak{}83--106}; called at
+\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}283--292}):
+\begin{equation}
+  k_{\mathrm{CO}} = \alpha_{\mathrm{CO}}\sum_r \chi_r\,f_r\;
+     \Theta\bigl(N_{\mathrm{CO},r},N_{\mathrm{H_2},r}\bigr)\;\rtn{SCATTER}(0,\bar\lambda),
+  \qquad \alpha_{\mathrm{CO}} = 2.0\times10^{-10}\unit{s^{-1}},
+\end{equation}
+with $\alpha_{\mathrm{CO}}$ from the rate file (reaction 290). $\Theta$ is the combined
+CO self-shielding and \Htwo{} screening factor for $^{12}$CO of
+\citet[their Table~5]{vanDishoeckBlack1988}, interpolated by a two-dimensional
+cubic spline in $\log_{10}\Theta$ over $(\log_{10}N_{\mathrm{CO}},\log_{10}N_{\mathrm{H_2}})$ and
+clamped at the table edges (\rtn{COSHIELD}, \src{pdr/\allowbreak{}shield.F90:\allowbreak{}375--416}).
+The table spans $N(\mathrm{CO})=10^{13}$--$10^{19}$ and
+$N(\mathrm{H_2})=10^{19}$--$10^{23}$\,cm$^{-2}$ plus the unshielded entries, which 3D-PDR
+places at $10^{12}$ and $10^{18}$\,cm$^{-2}$ (\src{pdr/\allowbreak{}modules.F90:\allowbreak{}353--356},
+\src{pdr/\allowbreak{}allocations.F90:\allowbreak{}9--14}); smaller columns are treated as these.
+$\bar\lambda$ is the mean wavelength of the 33 dissociating bands weighted by
+their contributions to the total rate at the given columns, at which the dust
+attenuation is evaluated (\rtn{LBAR}, their eq.~4,
+\src{pdr/\allowbreak{}shield.F90:\allowbreak{}570--599}):
+\begin{equation}
+  \bar\lambda = \bigl[(5675-200.6\,w) - (571.6-24.09\,w)\,u + (18.22-0.7664\,w)\,u^2\bigr]\ \text{\AA},
+  \label{eq:lbar}
+\end{equation}
+with $u=\log_{10}N_{\mathrm{CO}}$ and $w=\log_{10}N_{\mathrm{H_2}}$ [cm$^{-2}$],
+clamped to 913.6--1076.1\,\AA. With $A_V=0$, $\rtn{SCATTER}=1$ and $\bar\lambda$ has
+no effect. The window factor $f_r$ corrects for the spectral shape of the MC
+field in the LW window (Section~\ref{sec:window}); CO is the one photoreaction
+in this branch that uses it. The columns are those of the chemistry's own
+$n(\mathrm{H_2})$ and $n(\mathrm{CO})$, on the source-ward or two-leg paths, and
+exclude the target cell, so CO is under-shielded in the cells of its own
+transition (Section~\ref{sec:limitations}).
+
+The shielding functions of \citet{vanDishoeckBlack1988} were computed for
+the unmodified Draine field, cool gas ($T\lesssim100$\,K, CO excitation
+temperature 10\,K), Doppler parameters of 1\,km\,s$^{-1}$ for CO and 3\,km\,s$^{-1}$ for \Htwo{}
+and a fixed H\,\textsc{i} column of $5\times10^{20}$\,cm$^{-2}$ (notes to their Table~5).
+\citet{Visser2009} recomputed them from newer spectroscopic data and find an
+unattenuated rate of $2.6\times10^{-10}$\,s$^{-1}$, 30\% above the 2.0$\times10^{-10}$ used
+here, and depth-dependent rates that change by up to a factor of three when
+the excitation temperature or the Doppler width is raised, for temperatures
+above 100\,K. The warm CO of the illuminated PDR is therefore outside the
+conditions of the table, and the \Htwo{} screening uses the chemistry's total
+\Htwo{} column rather than the level model's line-by-line transmission
+(Section~\ref{sec:limitations}).
+
+\subsection{Photoionisation and recombination of the linked atoms}
+\label{sec:linked}
+
+Five elements are \emph{linked}: their neutral and first ion are species of
+the network and stages of MOCASSIN (H, He, C, O, Mg;
+\src{pdr\_mod.f90:\allowbreak{}553--564}). For them the network's own photoionisation is
+replaced by MOCASSIN's, computed on the full MC field with the real cross
+sections (\dlog{D-358}; \src{pdr\_mod.f90:\allowbreak{}3706--3722}; slots found by structure
+at \src{:\allowbreak{}743--801}):
+\begin{itemize}
+\item the network reaction $X+\mathrm{PHOTON}\to X^++e^-$ is set to zero where it
+  exists (C, reaction 269; Mg, 289; the network has none for H, He and O);
+\item MOCASSIN's photoionisation rate from the ground state
+  \begin{equation}
+    \Gamma_X = \sum_k \frac{\Jste_k\,\sigma_X(\nu_k)}{h\nu_k}\quad[\mathrm{s^{-1}}]
+    \label{eq:gammaX}
+  \end{equation}
+  (\src{update\_mod.f90:\allowbreak{}303--311}; outer-shell cross sections of
+  \citealt{Verner1996} and \citealt{VernerYakovlev1995}, \src{ph\_mod.f90:\allowbreak{}473--476})
+  is added to the reaction's first-order cosmic-ray slot $X+\mathrm{CRP}\to X^++e^-$
+  (H, He, C, O: reactions 293, 297, 298, 299), on top of the cosmic rays; Mg has
+  no such reaction and its cosmic-ray-induced photoionisation (312) takes the
+  rate instead;
+\item for hydrogen, MOCASSIN's collisional ionisation term
+  $2.75\times10^{-16}\,T^{3/2}(157\,894/T+2)\,e^{-157\,894/T}$ is added as well
+  (\src{update\_mod.f90:\allowbreak{}2620--2630}, stored at \src{:\allowbreak{}2859}). It has the form of a
+  rate coefficient [cm$^3$\,s$^{-1}$]: at $10^4$\,K it is $6.8\times10^{-16}$, the
+  magnitude of the H\,\textsc{i} collisional ionisation coefficient, but it is added
+  to the photoionisation rate [s$^{-1}$] without the factor $n_e$, here and in
+  MOCASSIN's own ionisation balance (\src{:\allowbreak{}2769--2770}), so collisional
+  ionisation is underestimated by the factor $n_e$. With that factor it would
+  reach 10\% of a photoionisation rate of $10^{-8}$\,s$^{-1}$ at about
+  $1.5\times10^4$\,K for $n_e=10^4$\,cm$^{-3}$; the omission matters in hot, dense
+  ionised gas and not in the PDR. The source comment
+  attributes the formula to \citet{DrakeUlrich1980}; that paper takes its
+  collisional ionisation rates from \citet{Johnson1972} and tabulates
+  $4.88\times10^{-16}$\,cm$^3$\,s$^{-1}$ for the ground level at $10^4$\,K (their
+  Table~3), so the formula's origin is not established
+  (Section~\ref{sec:limitations});
+\item the radiative recombination $X^++e^-\to X+\mathrm{PHOTON}$ takes
+  MOCASSIN's total recombination coefficient (radiative, from the fits of
+  \citealt{VernerFerland1996} and the others listed at
+  \src{update\_mod.f90:\allowbreak{}4101--4115}, plus dielectronic) in the first of its
+  temperature ranges, the other ranges set to zero;
+\item \Htwo{} photoionisation, $\mathrm{H_2}+h\nu\to\mathrm{H_2^+}+e^-$, is
+  added to the slot $\mathrm{H_2}+\mathrm{CRP}\to\mathrm{H_2^+}+e^-$ (296) with
+  $\Gamma_{\mathrm{H_2}}=\sum_{h\nu_k\ge15.4\,\mathrm{eV}}\Jste_k\sigma_{\mathrm{H_2}}(\nu_k)/h\nu_k$
+  and the fit of \citet{Yan1998}, as revised in their erratum \citep{Yan2001},
+  to the cross section (\src{update\_mod.f90:\allowbreak{}2863--2877}; \rtn{yanH2xSec},
+  \src{ionization\_mod.f90:\allowbreak{}385--411}).
+\end{itemize}
+These rates are stored by \rtn{updateCell} at every trial temperature of its
+search, so the chemistry reads those of the temperature it settled on
+(\src{update\_mod.f90:\allowbreak{}2838--2878}). In particular, \textbf{carbon is
+photoionised at MOCASSIN's rate}: the MC field contains dust and C\,\textsc{i}
+continuum absorption but no \Htwo{} line absorption, so the C\,\textsc{i} rate is
+not reduced by the \Htwo{} lines that overlap the C\,\textsc{i} continuum
+(Section~\ref{sec:limitations}). The C\,\textsc{i} treatment of
+\citet{KampBertoldi2000} in 3D-PDR (\rtn{CIPDRATE},
+\src{pdr/\allowbreak{}shield.F90:\allowbreak{}132--157}),
+$k=\alpha\chi\exp[-\gamma\AV-1.1\times10^{-17}N_{\mathrm C}-0.9\,T^{0.27}(N_{\mathrm{H_2}}/1.59\times10^{21})^{0.45}]$,
+is computed with $\AV=0$ and $N_{\mathrm C}=0$, i.e.\ with its \Htwo{} term only,
+and then discarded. (Equation~8 of \citealt{KampBertoldi2000}, which the code
+cites, normalises the \Htwo{} term at $10^{22}$\,cm$^{-2}$, not $1.59\times10^{21}$; the
+vendored term is 2.3 times larger at a given column.) The ionisation balance of
+the linked elements is moreover imposed from MOCASSIN before and after the
+solve (Section~\ref{sec:impose}).
+
+\subsection{Cosmic rays and cosmic-ray-induced photons}
+\label{sec:cr}
+
+The cosmic-ray ionisation rate is the input \kw{pdrZeta} (default
+$10^{-16}$\,s$^{-1}$, \src{common\_mod.f90:\allowbreak{}902}), stored normalised to the
+UMIST reference rate $\zeta_0=1.3\times10^{-17}$\,s$^{-1}$ (\src{pdr\_mod.f90:\allowbreak{}360}),
+and is the same in every cell (3D-PDR's attenuation option \kw{CRATTENUATION}
+is not compiled). Direct cosmic-ray reactions have $k=\alpha\,\zeta/\zeta_0$, with
+$\alpha$ the rate at $\zeta_0$ (\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}353--370}). Reactions
+driven by the ultraviolet photons that the secondary electrons of
+cosmic-ray ionisation excite in \Htwo{} \citep{PrasadTarafdar1983} have
+\begin{equation}
+  k = \alpha\,\frac{\zeta}{\zeta_0}\left(\frac{T}{300\,\mathrm K}\right)^{\beta}\frac{\gamma}{1-\omega}
+  \quad[\mathrm{s^{-1}}]
+  \label{eq:crphot}
+\end{equation}
+(\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}381--401}), the UMIST form of the rate of
+\citet[their eq.~7]{Gredel1989}, $\zeta\,p_M/(1-\omega)$ per molecule: $\alpha=\zeta_0$ for
+all 15 such reactions of the network, $\gamma=p_M$ is the efficiency of the
+photoreaction per ionisation, and $\omega$ the grain albedo, which enters because
+the induced photons are removed by grain absorption, $\sigma_g(1-\omega)$, rather
+than by extinction. That approximation holds when grains dominate the
+absorption of the induced photons, which \citet{Gredel1989} note is the case
+for all molecules except CO; the temperature factor is used only by CO
+($\beta=1.17$, reaction 313). Here $\omega$ is MOCASSIN's grain albedo in the LW
+band (Section~\ref{sec:dust}). The network has 8 \kw{CRP} and 15 \kw{CRPHOT}
+reactions. \citet{Heays2017} find newly calculated cosmic-ray-induced rates
+that differ from the standard values by up to a factor of five.
+
+\subsection{Charge transfer with hydrogen}
+\label{sec:ct}
+
+The charge-transfer reactions of the linked elements with H and \Hp{}
+(reactions 156--157, He$^+$\,+\,H; 161--163, O$^+$\,+\,H and \Hp\,+\,O; 167,
+\Hp\,+\,Mg; the network has none for carbon) use one coefficient per reaction
+in both the chemistry and MOCASSIN's ionisation balance (\rtn{pdrCtCoef},
+\src{common\_mod.f90:\allowbreak{}1383--1436}; \src{pdr\_mod.f90:\allowbreak{}3742--3747}; \dlog{D-403}): the
+network's $\alpha(T/300)^\beta e^{-\gamma/T}$ in its temperature ranges, replaced by the
+fits of \citet{KingdonFerland1996}, $k=a\,t_4^{\,b}(1+c\,e^{d\,t_4})$ with $t_4=T/10^4$\,K,
+inside their ranges for He$^+$\,+\,H (6000--$10^5$\,K) and \Hp\,+\,Mg
+(5000--30\,000\,K) (\src{pdr\_mod.f90:\allowbreak{}848--855}). For oxygen the network's rates
+are fits to \citet{Stancil1999} and are kept. The coefficients are evaluated
+at the cell's own $T_e$, not at the clamped temperature of the other rates.
+
+\subsection{\texorpdfstring{\Htwo}{H2} formation on grains}
+\label{sec:formation}
+
+The reaction $\mathrm H+\mathrm H\to\mathrm{H_2}$ on grains (reaction 328) takes the
+rate of \citet[their eqs.~15--18]{CazauxTielens2002}, whose model
+\citet{CazauxTielens2004} develop in full (\rtn{H2\_FORMATION\_RATE},
+\src{pdr/\allowbreak{}h2\_form.F90:\allowbreak{}9--134}, flag \kw{H2FORM\_CT02}; called at
+\src{pdr/\allowbreak{}calc\_reac\_rates.F90:\allowbreak{}116}):
+\begin{gather}
+  R_{\mathrm f} = \tfrac12\,v_{\mathrm{th}}\,
+     \bigl(\sigma^{\mathrm{sil}}_{\mathrm H}\,\epsilon_{\mathrm{sil}}+\sigma^{\mathrm{gra}}_{\mathrm H}\,\epsilon_{\mathrm{gra}}\bigr)\,
+     S_{\mathrm H}(T,T_d)\quad[\mathrm{cm^3\,s^{-1}}],
+  \label{eq:rform}\\
+  v_{\mathrm{th}} = 1.45\times10^{5}\sqrt{T/100\,\mathrm K}\unit{cm\,s^{-1}},\qquad
+  S_{\mathrm H} = \bigl[1+0.04\sqrt{T+T_d}+0.002\,T+8\times10^{-6}\,T^2\bigr]^{-1},\\
+  \epsilon = \frac{\xi}{1+F_1+F_2},\quad
+  F_1 = \frac{\mu F}{2\nu_{\mathrm{H_2}}e^{-E_{\mathrm{H_2}}/T_d}},\quad
+  F_2 = \frac{\bigl(1+\sqrt{(E_{\mathrm{HC}}-E_{\mathrm S})/(E_{\mathrm{HP}}-E_{\mathrm S})}\bigr)^2}{4}\,e^{-E_{\mathrm S}/T_d},\\
+  \xi = \Bigl[1+\frac{\nu_{\mathrm{HC}}}{2F}\,e^{-1.5E_{\mathrm{HC}}/T_d}
+        \bigl(1+\sqrt{(E_{\mathrm{HC}}-E_{\mathrm S})/(E_{\mathrm{HP}}-E_{\mathrm S})}\bigr)^2\Bigr]^{-1},
+\end{gather}
+with temperatures in K. $v_{\mathrm{th}}$ is the mean speed of H atoms, the factor
+$\frac12$ makes one molecule of two atoms, and $\sigma_{\mathrm H}$ [cm$^2$] is the
+geometric grain cross section per H nucleus. $S_{\mathrm H}$ is the sticking
+coefficient of \citet[eq.~3.7]{HollenbachMcKee1979}, which they take from
+calculations by Burke and Hollenbach; it is 0.58, 0.33 and 0.08 at $T=100$,
+300 and 1000\,K (for $T_d=20$\,K). The recombination efficiency $\epsilon$ is
+limited by three processes \citep{CazauxTielens2002}: $F_1$, newly formed
+molecules that stay on a very cold surface; $F_2$, the evaporation of
+physisorbed atoms before they meet a chemisorbed one, which controls the
+decline above a few tens of K; and $\xi$, the evaporation of chemisorbed atoms at
+several hundred K. The constants are $F=10^{-10}$ monolayers\,s$^{-1}$ (the
+accretion rate), $\mu=0.005$, $\nu_{\mathrm{H_2}}=3\times10^{12}$\,s$^{-1}$,
+$\nu_{\mathrm{HC}}=1.3\times10^{13}$\,s$^{-1}$, $E_{\mathrm{HC}}=3\times10^4$\,K, and
+$(E_{\mathrm S},E_{\mathrm{H_2}},E_{\mathrm{HP}})=(110,320,450)$\,K for silicate and
+$(260,520,800)$\,K for graphite. The functional form and $\mu$ are those of
+\citet{CazauxTielens2002}; the per-material energies are those tabulated by
+\citet[Table~C.1]{Rollig2013} from the work of Cazaux and Tielens, whereas
+\citet[Table~1]{CazauxTielens2002} list $(E_{\mathrm S},E_{\mathrm{HP}},E_{\mathrm{HC}})=(200,600,10^4)$\,K
+for their silicate surface, the values Cloudy uses; \citet{Rollig2013} also
+set the $F_1$ term to zero. With the vendored parameters
+(Equation~\ref{eq:rform} evaluated for this document) $\epsilon_{\mathrm{sil}}$ is
+close to 1 between 6 and 15\,K, 0.90 at 20\,K, 0.25 at 50\,K and 0.10 at 100\,K, and
+$\epsilon_{\mathrm{gra}}$ close to 1 between 10 and 40\,K, 0.43 at 100\,K and 0.12 at 300\,K;
+both fall to zero below about 6 and 9\,K ($F_1$) and above about 800\,K ($\xi$).
+The silicate energies are the main reason why the silicate coefficient is
+0.50--0.91 of Cloudy's on \texttt{hiipdr} (\dlog{L-33}, \dlog{H-022}).
+
+The grain areas per H $\sigma^{\mathrm{sil}}_{\mathrm H}$, $\sigma^{\mathrm{gra}}_{\mathrm H}$ are
+MOCASSIN's (Section~\ref{sec:grainarea}), handed over per cell at
+\src{pdr\_mod.f90:\allowbreak{}3295--3307}; $T_d$ is MOCASSIN's mean grain temperature
+(Section~\ref{sec:Td}), floored at $T_{\mathrm{CMB}}$; the metallicity factor is 1
+(\src{pdr\_mod.f90:\allowbreak{}347}). The formation rate per unit volume is
+$R_{\mathrm f}\,n_{\mathrm H}\,n(\mathrm H)$ [cm$^{-3}$\,s$^{-1}$]. The same function, evaluated
+with one material's area at a time, weights the two formation distributions of
+the level model (Section~\ref{sec:formdist}).

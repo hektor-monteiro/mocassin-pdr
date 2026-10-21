@@ -1,0 +1,102 @@
+% ======================================================================
+\section{The iteration in which the chain runs}
+\label{sec:iteration}
+% ======================================================================
+
+All of the coupling lives inside MOCASSIN's MC iteration, the recursive
+subroutine \rtn{iterateMC} (\src{iteration\_mod.f90:\allowbreak{}56--3345}), which
+advances the iteration counter and calls itself until the stop test of
+Section~\ref{sec:convergence} passes or the maximum number of iterations is
+reached. The PDR part switches on at iteration \kw{pdrStartIter} (default 1,
+\src{common\_mod.f90:\allowbreak{}893}); a larger value lets MOCASSIN first converge an
+ionisation structure, a gas and a dust temperature without molecules. From
+then on every iteration executes the steps of Table~\ref{tab:steps}, in that
+order.
+
+\begin{longtable}{@{}L{0.04\linewidth}L{0.25\linewidth}L{0.25\linewidth}L{0.38\linewidth}@{}}
+\caption{One MC iteration with the PDR coupling active (3D build). Lines are in \src{iteration\_mod.f90} unless stated.}\label{tab:steps}\\
+\toprule
+\# & Step & Location & What it does \\
+\midrule
+\endfirsthead
+\toprule
+\# & Step & Location & What it does \\
+\midrule
+\endhead
+1 & MC transfer & \rtn{energyPacketDriver}, :611--613 (sources), :655--660 (optional diffuse source) & propagates the energy packets of every source; an absorbed packet is re-emitted on the spot by the local gas or dust and followed until it escapes; accumulates $\Jste$ and $\Jdif$ (Section~\ref{sec:field}) \\
+2 & estimator units & :924, :940 & multiplies by $10^{-9}$ (packet luminosity in $10^{36}$\,erg\,s$^{-1}$, cell volume in $10^{45}$\,cm$^3$, path lengths in cm) and divides by 8 for a \kw{symmetricXYZ} octant \\
+3 & dust per cell & \rtn{calibratePDRdust} :986 (first time), \rtn{dustPerCell} :993 & $\RFUV$, $\AV/N_{\mathrm H}$, grain area per H, model-wide fallbacks (Section~\ref{sec:dust}) \\
+4 & columns and $\AV$ & \rtn{computeAVdust} :995 & \rtn{snapDiffuseSources} (snapshot for the diffuse walk), \rtn{computeAVradial} ($\AV$ and source-ward columns) (Section~\ref{sec:geometry}) \\
+5 & field summary & \rtn{mocassinToPDR} :1023 & $\chi$ (local) and $\chi_0$ (geometric, unattenuated) per cell \\
+6 & seed (first PDR iteration only) & :1027--1029, :1037 & \rtn{seedMolecules}, then steps 4--5 again on the seeded abundances, then \rtn{pdrToMocassin} (Section~\ref{sec:seed}) \\
+7 & \Htwo{} level model & \rtn{h2LevelModel(grid,1)} :1043 & one sweep over all cells on this iteration's field (Section~\ref{sec:h2model}) \\
+8 & MOCASSIN cell update & \rtn{updateCell} :1261 & ionisation and thermal balance of every cell; stores the atomic photoionisation and recombination rates the chemistry will use \\
+9 & chemistry & \rtn{pdrStep} :1986, cells dealt round-robin to the ranks (:1980--1986), then \verb|MPI_Allreduce| of abundances, heating, cooling and rates & photorates, steady-state solve, heating and cooling for the thermal balance (Sections~\ref{sec:photorates}--\ref{sec:chemistry}) \\
+10 & handback & \rtn{pdrToMocassin} :2154 & fraction of each element not in molecules (\rtn{elemAvail}) \\
+11 & second ionisation solve & \rtn{ionSecondSolve} called at :2168 (routine :3361--3434); its control pass, before the chemistry, at :1274 & \rtn{ionBalance} solved again on the channels and molecular content this iteration's chemistry left, then put back (\dlog{D-404}); the result is set aside for step 15 \\
+12 & damping, hydrogen budget & :2424 (only if \kw{iterDamp}$>0$; default 0), \rtn{rescaleIonToAvail} :2474 & ion stages rescaled to \rtn{elemAvail} so that $x(\mathrm{H^0})+x(\mathrm{H^+})+2x(\mathrm{H_2})=1$ \\
+13 & stop test & :3243 & integrated-quantity test (\kw{convTotals}, Section~\ref{sec:convergence}) \\
+14 & next iteration & recursive call of \rtn{iterateMC} & the opacity of the next transfer is built from this iteration's ionisation, dust and $n(\mathrm{H_2})$ \\
+15 & finish & \rtn{ionKeepSecond} :3249/:3282 (routine :3455--3521), \rtn{h2LevelModel(grid,\allowbreak{}12)} :3254/:3283, outputs & the last second solve replaces the first in the written model; level model swept to convergence on the final model; \src{h2Cells.out}, \src{lineFluxH2.out}, \src{h2Pop.bin} \\
+\bottomrule
+\end{longtable}
+
+\subsection{What each step reads, and from when}
+\label{sec:lags}
+
+The coupling is a fixed-point iteration in which some inputs are one
+iteration old. Within iteration $n$:
+
+\begin{itemize}
+\item the \textbf{radiation field} used by steps 3--9 is iteration $n$'s,
+  transported through the opacity built from iteration $n-1$'s ionisation,
+  dust and $n(\mathrm{H_2})$;
+\item the \textbf{shielding columns} (steps 4 and 7) are integrated over the
+  abundances left by iteration $n-1$'s chemistry. The snapshot is taken
+  before any cell of iteration $n$ is solved, so the columns do not depend
+  on the rank count or on the order in which the cells are solved;
+\item the \textbf{level model} (step 7) runs before \rtn{updateCell}: it sees
+  iteration $n-1$'s $T_e$, collider abundances and $n(\mathrm{H_2})$, and
+  iteration $n$'s field; the other cells' level populations in its columns
+  are those of its previous sweep (a Jacobi iteration);
+\item \textbf{MOCASSIN's ionisation balance} (step 8) takes the chemistry's
+  channels to and from molecules, and normalises the ion stages to the
+  molecular content, of iteration $n-1$ (\dlog{L-47}); step 11 measures what
+  the delay costs and, at the end of the run, removes it from the written
+  ions;
+\item the \textbf{chemistry} (step 9) sees iteration $n$'s $T_e$, $n_e$,
+  ionisation and atomic rates (step 8), iteration $n$'s field, the step-7
+  Solomon rates and the columns of step 4;
+\item the \textbf{coolant line escape} in step 9 integrates the optical depth
+  over the level populations of the other cells as stored on the rank; these
+  are iteration $n-1$'s except for cells solved earlier in the same sweep on
+  the same rank, so this one input does depend weakly on the order of the
+  sweep and the rank count;
+\item the \textbf{heating terms} that MOCASSIN takes from the chemistry and
+  the level model (\rtn{pdrHeatXtra}) and its \textbf{CO cooling table} enter
+  step 8 as step 9 of iteration $n-1$ left them, and the heating terms are
+  held fixed during the temperature search (Section~\ref{sec:thermal}). The
+  cosmic-ray, turbulent and chemical terms were evaluated at $T_e^{(n-1)}$; the
+  \Htwo{} terms come from the level model of iteration $n-1$, which ran at
+  $T_e^{(n-2)}$.
+\end{itemize}
+
+Inside one iteration the chemistry is solved once per cell: every input of
+the solve is frozen during the iteration, so repeating it would reproduce the
+same answer (\dlog{D-354}, which retired the inner coupling loop after
+finding that a column rescale between passes was the only thing that changed
+and that it oscillated). The damping across iterations (\kw{iterDamp}) is off
+by default (\dlog{D-406}): with it, the written model was a blend of solves
+that trailed the undamped one by three to six iterations and, where a cell
+has two solutions, wrote states no solve gave (\dlog{L-49}).
+
+At a fixed point of the iteration every lagged input equals its current
+value, so the lags determine the path to the solution, not the solution. Two
+things qualify this. First, the MC field is redrawn at every iteration, so
+the fixed point is reached only in a statistical sense: per-cell quantities
+fluctuate about it with the MC noise of Section~\ref{sec:mcnoise}, and
+because the photorates are non-linear in the field and the shielding is
+non-linear in the columns, the noise can bias cell means (\dlog{L-26},
+\dlog{D-408}). Second, the coupled system has cells with two stable states
+(the carbon ionisation turn, \dlog{D-405}), in which the lagged inputs decide
+which state a cell is in at a given iteration.
