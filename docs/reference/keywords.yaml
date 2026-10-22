@@ -884,7 +884,7 @@
     Weight of the previous iteration's temperature in the written one,
     T = (1 − w) T_new + w T_previous. Off by default since D-406, which
     found it damped Monte Carlo noise rather than a cycle.
-  devlog: [D-174, D-406]
+  devlog: [D-406]
 
 - name: cvUseH2
   group: solver
@@ -961,7 +961,6 @@
   description: |
     Follows one cell's chemistry and thermal state across iterations in the
     log. No effect on the model.
-  devlog: [D-150]
 
 - name: pdrSplitField
   group: diagnostics
@@ -972,7 +971,7 @@
   description: |
     Reports the stellar and diffuse parts of the FUV field separately. The
     diffuse field itself is accumulated in every PDR run regardless.
-  devlog: [D-158, D-348]
+  devlog: [D-348]
 
 - name: teProbe
   group: diagnostics

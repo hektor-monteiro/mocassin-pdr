@@ -36,6 +36,7 @@ extensions = [
     'sphinx_design',
     'sphinxcontrib.bibtex',
     'fortref',
+    'mocdocs',      # the keyword, output, build, code-map and changelog pages
 ]
 
 source_suffix = {'.md': 'markdown'}

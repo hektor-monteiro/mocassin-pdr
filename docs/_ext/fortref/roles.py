@@ -238,7 +238,8 @@ class DevlogRole(_LabelRole):
     """{devlog}`D-363`: the decision on the DEVLOG index page."""
 
     kind = 'devlog'
-    what = 'DEVLOG ID (not in the index tables of DEVLOG.md or DEVLOG-H2.md)'
+    what = ('DEVLOG ID (not in the index tables of DEVLOG.md or DEVLOG-H2.md, '
+            'nor in a dated body heading)')
 
     def lookup(self, ident):
         state = self.env.app.fortref
@@ -253,7 +254,12 @@ class DevlogRole(_LabelRole):
 
 LIMITATIONS_SOURCE = 'doc/pdr-status.md'
 DEVLOG_SOURCES = ('DEVLOG.md', 'DEVLOG-H2.md')
-_LIM_LINE = re.compile(r'^\*\*L-(\d+)\.')
+# a line that opens an item: **L-n. Title**, or **L-n (resolved part). for
+# the second part of an item split into an open and a closed one
+_LIM_LINE = re.compile(r'^\*\*L-(\d+)(\.| \()')
+# a dated body heading: ## 2026-09-07b - D-172: title, or D-060/D-061/D-062
+_DATED_HEADING = re.compile(
+    r'^## (\d{4}-\d\d-\d\d)[a-z]? - ((?:[DH]-\d+)(?:\s*/\s*[DH]-\d+)*)\s*[:\-–—]\s*(.+?)\s*$')
 _MD_LINK = re.compile(r'(?<!!)\[([^\]]*)\]\(([^)\s]+)\)')
 
 
@@ -307,8 +313,9 @@ def _repo_relative(target):
 def write_limitations(root, srcdir, docname, github, sha):
     """physics/limitations.md from doc/pdr-status.md: repo-relative links to
     GitHub at the link commit, and a (lim-L-n)= target before each line that
-    opens an item (**L-n.).  An L-number that opens two items (an item split
-    into an open and a closed part) is targeted at its first one.
+    opens an item (**L-n. or **L-n (...)).  An L-number that opens several
+    items (an item split into an open and a closed part) has lim-L-n at its
+    first, which {lim} links to, and lim-L-n-2, lim-L-n-3, ... at the others.
     Returns ({n: title}, [repeated L-numbers])."""
     path = os.path.join(root, LIMITATIONS_SOURCE)
     if not os.path.exists(path):
@@ -333,6 +340,7 @@ def write_limitations(root, srcdir, docname, github, sha):
             n = int(m.group(1))
             if n in titles:
                 repeated.append(n)
+                out.append(f'(lim-L-{n}-{repeated.count(n) + 1})=')
             else:
                 para = []
                 for nxt in lines[i:]:
@@ -382,15 +390,51 @@ def devlog_entries(path):
     return entries
 
 
+def devlog_heading_entries(path):
+    """[(ID, short title, date)] from the dated body headings of a DEVLOG file
+    (## 2026-09-07b - D-172: title); every ID a heading lists
+    (D-060/D-061/D-062) gets that heading."""
+    with open(path, encoding='utf-8') as fh:
+        lines = fh.read().split('\n')
+    entries = []
+    for line in lines:
+        m = _DATED_HEADING.match(line)
+        if m:
+            for ident in re.split(r'\s*/\s*', m.group(2)):
+                entries.append((ident, _plain(m.group(3)), m.group(1)))
+    return entries
+
+
+def devlog_sources(root):
+    """({file name: [(ID, short title, date)]}, [IDs from body headings]):
+    each DEVLOG file's summary table, then the IDs of its dated body headings
+    that are in no summary table (the first heading naming an ID wins)."""
+    tables = {}
+    for name in DEVLOG_SOURCES:
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            tables[name] = devlog_entries(path)
+    known = {e[0] for entries in tables.values() for e in entries}
+    added = []
+    for name in tables:
+        for ident, title, date in devlog_heading_entries(os.path.join(root, name)):
+            if ident not in known:
+                tables[name].append((ident, title, date))
+                known.add(ident)
+                added.append(ident)
+    return tables, added
+
+
 def write_devlog_index(root, srcdir, docname):
-    """developer/devlog-index.md; returns {ID: (title, date)}."""
+    """developer/devlog-index.md; returns ({ID: (title, date)}, [IDs from body
+    headings])."""
     sections = []
     table = {}
+    tables, added = devlog_sources(root)
     for name, label in zip(DEVLOG_SOURCES, ('production, D-numbers', 'H2 model, H-numbers')):
-        path = os.path.join(root, name)
-        if not os.path.exists(path):
+        if name not in tables:
             continue
-        entries = sorted(devlog_entries(path), key=lambda e: int(e[0].split('-')[1]))
+        entries = sorted(tables[name], key=lambda e: int(e[0].split('-')[1]))
         body = [f'## {name} ({label})', '']
         for ident, title, date in entries:
             table[ident] = (title, date)
@@ -405,8 +449,10 @@ def write_devlog_index(root, srcdir, docname):
         '# DEVLOG index',
         '',
         'Every decision in the summary tables of `DEVLOG.md` and `DEVLOG-H2.md`, '
-        'with its short title and date. The full entries are in those files.',
+        'and every one that has a dated body section (`## 2026-09-07b - D-172: ...`) '
+        'but no row there, with its short title and date. The full entries are in '
+        'those files.',
         '',
     ] + sections)
     write_if_changed(os.path.join(srcdir, docname + '.md'), text)
-    return table
+    return table, added

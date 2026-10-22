@@ -365,11 +365,13 @@ def _condition(kind, arg, table):
     return same if kind == 'ifeq' else not same
 
 
-def read_makefile(path, variables):
+def read_makefile(path, variables, rules=None):
     """Evaluate the Makefile's variable assignments and conditionals as make
-    would with `variables` on its command line.  Rules and recipes are
-    skipped and make functions such as $(shell ...) expand to nothing.
-    Returns the raw (unexpanded) variable table."""
+    would with `variables` on its command line.  Recipes are skipped and make
+    functions such as $(shell ...) expand to nothing.  Returns the raw
+    (unexpanded) variable table; if `rules` is a list, each rule in force is
+    appended to it as (targets, prerequisites, prerequisites as written), the
+    first two expanded as make reads them."""
     with open(path, encoding='utf-8', errors='surrogateescape') as fh:
         text = fh.read()
     table = dict(variables)
@@ -412,6 +414,12 @@ def read_makefile(path, variables):
             continue
         m = _ASSIGN.match(s)
         if not m:
+            if rules is not None:
+                cut = _rule_colon(s)
+                if cut is not None:
+                    prereqs = s[cut + 1:].lstrip(':').split(';')[0].replace('|', ' ')
+                    rules.append((_expand(s[:cut], table).split(),
+                                  _expand(prereqs, table).split(), ' '.join(prereqs.split())))
             continue
         name, op, value = m.groups()
         if name in fixed:
@@ -425,6 +433,20 @@ def read_makefile(path, variables):
         elif op == '=':
             table[name] = value
     return table
+
+
+def _rule_colon(line):
+    """Index of the ':' that separates a rule's targets from its
+    prerequisites (outside $(...)), or None if the line is not a rule."""
+    depth = 0
+    for k, ch in enumerate(line):
+        if ch in '({':
+            depth += 1
+        elif ch in ')}':
+            depth -= 1
+        elif ch == ':' and depth == 0:
+            return k
+    return None
 
 
 def expand(table, name):
@@ -459,19 +481,34 @@ def profile_macros(makefile):
     return out
 
 
+# An object named as a prerequisite of a rule (the programs' main units, e.g.
+# `mocassin: ... source/mocassin.o`), and the sources it is compiled from.
+_PREREQ_OBJECT = re.compile(r'^source/(?:pdr/)?[^/%$]+\.o$')
+PREREQ_SUFFIXES = ('.f90', '.F90', '.c')
+
+
 def compiled_files(makefile, repo):
     """Repo-relative paths of the sources whose objects are in the Makefile's
-    build lists (COMPILED_LISTS), over every profile."""
+    build lists (COMPILED_LISTS) or are named as a prerequisite of one of its
+    rules (source/X.o, source/pdr/X.o), over every profile."""
     found = set()
+
+    def add(word, suffixes):
+        stem = word[:-2]
+        for suffix in suffixes:
+            if os.path.isfile(os.path.join(repo, stem + suffix)):
+                found.add(stem + suffix)
+                break
+
     for variables in PROFILE_VARIABLES.values():
-        table = read_makefile(makefile, variables)
+        rules = []
+        table = read_makefile(makefile, variables, rules)
         for name in COMPILED_LISTS:
             for word in expand(table, name).split():
-                if not word.endswith('.o'):
-                    continue
-                stem = word[:-2]
-                for suffix in SOURCE_SUFFIXES:
-                    if os.path.isfile(os.path.join(repo, stem + suffix)):
-                        found.add(stem + suffix)
-                        break
+                if word.endswith('.o'):
+                    add(word, SOURCE_SUFFIXES)
+        for _, prereqs, _ in rules:
+            for word in prereqs:
+                if _PREREQ_OBJECT.match(word):
+                    add(word, PREREQ_SUFFIXES)
     return found

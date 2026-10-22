@@ -92,11 +92,15 @@ def on_builder_inited(app):
                                                 config.fortref_github, sha)
         if repeated:
             logger.info('fortref: L-numbers that open more than one item in '
-                        f'{roles.LIMITATIONS_SOURCE} are targeted at their first: '
+                        f'{roles.LIMITATIONS_SOURCE} ({{lim}} links to the first; the '
+                        'others are lim-L-n-2, ...): '
                         + ', '.join(f'L-{n}' for n in sorted(set(repeated))))
     devlog = {}
     if config.fortref_devlog_page:
-        devlog = roles.write_devlog_index(repo.root, srcdir, config.fortref_devlog_page)
+        devlog, added = roles.write_devlog_index(repo.root, srcdir, config.fortref_devlog_page)
+        if added:
+            logger.info(f'fortref: {len(added)} DEVLOG IDs from dated body headings only: '
+                        + ', '.join(added))
     app.fortref = State(repo, sha, how, lim, devlog)
     logger.info(f'fortref: links name {sha[:12]} ({how}); {len(paths)} referenced files')
 

@@ -39,7 +39,12 @@ def test_compiled_set_is_read_from_the_makefile():
     assert 'source/h2_mod.f90' in compiled             # PDR_PRE
     assert 'source/pdr/calculate_abundances.c' in compiled
     assert 'source/pdr/odes_reduced.c' in compiled
+    # the programs' main units: prerequisites of their Makefile targets
+    for program in ('mocassin', 'mocassinWarm', 'mocassinOutput', 'mocassinPlot',
+                    'h2Test', 'h2Slab', 'pdrSmokeTest'):
+        assert f'source/{program}.f90' in compiled
     for absent in ('source/gaunt.f90', 'source/fluorescence_mod.f90',
+                   'source/mocassinFluorescence.f90',
                    'source/pdr/odes_full.c', 'source/pdr/m_IOAndVisu.F90'):
         assert absent not in compiled
 

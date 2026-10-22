@@ -15,11 +15,7 @@ def check(docsdir, repo_root=None, verbose=False, out=sys.stdout):
     docsdir = os.path.realpath(docsdir)
     repo = resolve.Repo.at(repo_root or os.path.join(docsdir, '..'))
     lim = set(_lim_numbers(repo.root))
-    devlog = set()
-    for name in roles.DEVLOG_SOURCES:
-        path = os.path.join(repo.root, name)
-        if os.path.exists(path):
-            devlog.update(e[0] for e in roles.devlog_entries(path))
+    devlog = {e[0] for entries in roles.devlog_sources(repo.root)[0].values() for e in entries}
     problems, count, paths = [], 0, set()
     exclude = [os.path.join(docsdir, '_build')]
     for page in markdown_pages(docsdir, exclude):
