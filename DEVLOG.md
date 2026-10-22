@@ -432,6 +432,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-430 | **Release `pdr-coupling-v2.0`: the first with the H2 level model.** Production after D-429's merge, 156 commits after v1.2. README.md rewritten for PDR plus the H2 level model (the model's own section: what it solves and feeds back, where it runs, its checks against Cloudy, the damping-width difference; the H2 executables, outputs, run-time cost, limitations, branches, credits and data licence). CLAUDE.md's h2-model note replaced by one that holds in both checkouts. The man page's H2 entry describes the feedback. Release notes in this entry. Not done: no push; no install | Done | 2026-10-21 |
 | D-431 | **doc/pdr-status.md audited and reorganised: section 3 holds only what is open, the new section 4 every closed item (the user: "Audit and revise doc/pdr-status.md and organize it so that all the resolved issues appear in a specific section of CLOSED issues. Keep in 'Known limitations' only what is currently open.").** Each of the 54 items read against the DEVLOG through D-430. 24 were already marked closed. 8 were still listed as open although resolved: L-14 (D-393), L-18 (D-413), L-20 (D-383), L-22 (D-326/D-328, the deep residual being L-3's), L-29 (D-404), L-36 (D-363), L-40 (D-391/D-392, its residual moved to L-52), L-49 (D-406). 3 split into an open and a resolved part under one number: L-4 (the formal solution's 52-130% stays open), L-21 (tools/d196_axis.py still hardcodes 31^3), L-30 (teFloor closed at D-403, two clamps open). 9 new items: open L-55 (H-043), L-56 (the H2 lines against Cloudy by spin: the line width, a divergence), L-57 (H-037), L-58 (where the level model does not run), L-59 (D-416), L-60 (D-424), L-63 (the transport's H I emissivities, D-371); closed L-61 (D-418) and L-62 (D-414). Result: 33 open (7 High, 15 Medium, 11 Low), 33 closed, each section with an index table; the header, section 1 and section 2 brought to v2.0 (the H2 model's checks, the release check); 'What has NOT been checked' revised (done checks moved to section 4); the reproduce section gains h2Test/h2Slab. Item text moved verbatim; nothing else lost (every original line accounted for) | Done | 2026-10-21 |
 | D-432 | **A Read the Docs site for the project, planned and opened (the user: "start creating the documentation for the project using readthedocs").** Sphinx + MyST in `docs/` on branch `docs` (worktree ~/software/mocassin_docs); code references resolved at build time from routine names plus a unique text match, no Fortran edits; delivered in increments, the first (MVP) being references, the PDR and H2 physics chapters and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; gas, dust and test_Problem reruns at v2.0 come in later increments | Accepted | 2026-10-21 |
+| D-433 | **Documentation site, increment 1 (MVP) built on branch `docs` (D-432), ready for Read the Docs.** Sphinx + MyST site with code references resolved at build time (fortref, 1172 references, 66 source files), generated keyword/output/build/changelog/code-map pages checked against the code, the H2 report converted into 14 physics pages and updated for v2.0, and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; two referee reviews applied; strict build clean. The reviews found documentation errors (corrected) and code defects (listed, not fixed) | Accepted | 2026-10-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41845,3 +41846,97 @@ the Read the Docs project are the user's actions. The plan is
 ### Status
 
 Open: increment 1 (MVP) under way.
+
+---
+
+## D-433 - Documentation site, increment 1 (2026-10-22)
+
+D-432's first increment, built on branch `docs` (worktree
+~/software/mocassin_docs, from 6d8007c; commits ad98936, e30428f, 3b9bb3c,
+12a59d5, b077f54, 7645c8e). Documentation and its tooling only: nothing
+under source/, the Makefile, tools/ or dataPDR/ changed. Not pushed and not
+merged into production yet.
+
+**What the site holds.** docs/ (Sphinx 8.2.3, myst-parser 4.0.1, furo;
+.readthedocs.yaml, fail_on_warning):
+  - overview, installation, running, citing, licence;
+  - generated references, each with a build-time completeness check: input
+    keywords (docs/reference/keywords.yaml against every `case` label of
+    readInput: 91 active, 31 retired), output files (outputs.yaml against
+    every `open(... 'output/...')`: 42), build flavours and flags (Makefile),
+    changelog (DEVLOG release notes), code map (every compiled unit);
+  - the H2 report (doc/h2-radiation-molecules, now frozen; main.pdf kept as
+    the v2.0 snapshot) converted into docs/physics/pdr (14 pages), its 446
+    line references turned into routine + text anchors and updated for
+    D-414, D-418, D-420, D-421;
+  - doc/pdr-status.md, doc/dust.md, doc/manual-pdr-h2.md and
+    source/pdr/UPSTREAM.md included in place;
+  - hiipdr and pn150k against Cloudy c25.00 from runs/_release_v2 (reduced by
+    docs/bench/reduce.py to 0.5 MB of CSV/JSON with sha256 provenance; figures
+    drawn at build time by docs/bench/plots.py).
+
+**Checks.** `sphinx-build -W --keep-going` rc 0, 0 warnings (about 9 s
+fresh); `python -m fortref check docs` 1172 references, 0 problems; pytest
+113 passed. reduce.py reproduces the d405 hiipdr page numbers to the %.6g
+rounding (worst 1.06e-6), gives identical CSVs for rel-hii31 and d421-hii31,
+and finds the committed Cloudy inputs' physics commands identical to the
+D-396 runs'.
+
+**Referee reviews** (two agents: PDR/molecules, transfer/photoionisation;
+every major finding checked against the code or DEVLOG before applying).
+Corrected in the pages, among others: the 7.4% gas-grain share is the
+ionised gas's (D-421), not H2's; hiipdr's deeper H/H2 crossing is +0.21 mag
+from the damping width and -0.09 mag from the rest (H-026), not grain
+formation first; pn150k's width test is H-026's stage B (para 0.70-0.93,
+ortho 0.45-0.69 of Cloudy's), not H-008's stage A; hiipdr's last-window
+change, 2.04% (Ne+), is above the default 2%; the ionised gas of both models
+shows low-ionisation excesses (hiipdr x(O+) 1.4-1.6x, x(C+) 1.5-1.8x at
+A_V 0.17-0.31; pn150k [O II] +13-18%, [N II] +10-23%, He II 4686 +24% with
+a smaller, cooler He2+ zone - not explained), and MOCASSIN's A_V is 1-4.5%
+below Cloudy's at fixed radius.
+
+**Code behaviour found while documenting (not fixed; each needs its own
+plan):**
+  - `pdr` without its integer swallows the next input line, which is lost
+    silently (list-directed read, set_input_mod.f90:642-643; agent's
+    gfortran test).
+  - `fillingFactor` < 1 zeroes whole cells at random from an unseeded
+    generator called on every rank before the seeding (grid_mod.f90:1043-1048;
+    photon_mod.f90 seeds later), so ranks may hold different grids and
+    `randomSeed` does not make such runs reproducible.
+  - Secondary ionisation by fast photoelectrons is absent: `secIonP` is set
+    (hydro_mod.f90:345) and never used. A likely contributor to pn150k's low
+    x(H+) and n_e behind the front (0.21-0.48 and 0.36-0.52 of Cloudy's),
+    not measured.
+  - `MdMg`, `MdMh` and `Ndust` exclusivity is checked only when all three are
+    given (set_input_mod.f90:932); the per-cell MdMg/MdMh file is read as
+    three integers and the ratio (grid_mod.f90:1105).
+  - Keywords parsed with no effect: `H0Start`, `NeStart`, `pdrDiagAV`.
+  - `lineFlux.ext` is never written (no program passes outputGas an
+    extinction map).
+  - SED.out's footer labels the total as erg/s x 1e36 while writing
+    totalE*1e-36 of a value already in 1e36 erg/s (output_mod.f90:3457).
+  - With multiChemistry + debug, ionDen.out is closed inside the loop and
+    later writes go to fort.60 (output_mod.f90:1770); with sub-grids,
+    qHeatPss.out's later writes go to fort.89 (iteration_mod.f90:425) and
+    summary.out keeps only the last grid's first-iteration block.
+  - h2Pop.bin is written with the outputs, not the grid files, so a warm
+    start after a crash restarts the H2 populations.
+  - `CC ?= gcc` has no effect (GNU make predefines CC=cc).
+  - The v2.0 release notes (D-430) and README quote hiipdr H2 line ratios
+    from H-019 (ortho 0.82-0.84, para 1.13-1.19); the release run gives
+    ortho 0.71-0.80 and para 0.95-1.09 (pn150k: notes 0.96-1.17/1.95-2.72,
+    run 0.89-1.16/1.65-2.69).
+  - README's "standard test problem (Meudon standard HII region)" describes
+    benchmarks/test_Problem wrongly (it is the dusty ring-and-slab model).
+
+**Not yet done in increment 1:** pushing `docs` and creating the Read the
+Docs project (the user's actions); merging `docs` into production after the
+user has seen the site. Later increments as planned in D-432 (quickstart and
+Lexington, the test_Problem tutorial, dust benchmarks, the original MOCASSIN
+physics).
+
+### Status
+
+Increment 1 built and reviewed; waiting for the push and the Read the Docs
+connection.
