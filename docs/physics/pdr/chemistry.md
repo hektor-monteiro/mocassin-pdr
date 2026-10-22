@@ -4,19 +4,9 @@
 ## Network and rate law
 The network is 3D-PDR’s REDUCED network (files `dataPDR/species_reduced.d` and `dataPDR/rates_reduced.d`), in the format of the UMIST Database for Astrochemistry. {cite:t}`Bisbas2012` introduced its 33 species with 320 reactions drawn from UMIST 2006 {cite:p}`Woodall2007`; {cite:t}`Bisbas2015` describe the 33-species network then in use as a 330-reaction subset of UMIST 2012 {cite:p}`McElroy2013`. The vendored file, from upstream commit `fabcdc6`, has 331 reactions and records neither its UMIST release nor the references of its coefficients, so the release cannot be determined from the files. It has 33 species,
 
-<div class="center">
-
 H, H$_2$, H$^+$, H$_2^+$, H$_3^+$, He, He$^+$, C, C$^+$, CH, CH$^+$, CH$_2$, CH$_2^+$, CH$_3$, CH$_3^+$, CH$_4$, CH$_4^+$, CH$_5^+$, O, O$^+$, OH, OH$^+$, H$_2$O, H$_2$O$^+$, H$_3$O$^+$, O$_2$, O$_2^+$, CO, CO$^+$, HCO$^+$, Mg, Mg$^+$, e$^-$,
 
-</div>
-
-and 332 reactions: 3D-PDR’s 331 plus reaction 332, $e^-+\mathrm{H_2^+}\to e^-+\mathrm H+\mathrm H^+$ ($2\times10^{-7}e^{-30720/T}$ cm$^3$ s$^{-1}$), appended in this project because the network had no electron-impact dissociation of H$_2
-
-```{math}
-^+$, Cloudy’s main H$_2
-```
-
-^+$ sink in ionised gas (`pdr/UPSTREAM.md`, {devlog}`D-395`); the Arrhenius form is the one of Cloudy’s `mole_co_umisthack.dat`, which attributes it to {cite:t}`Janev1987`. Of the 332, 28 are photoreactions, 8 cosmic-ray and 15 cosmic-ray-induced photoreactions ({ref}`sec:photorates`), and three carry the grain marker `#`: grain formation of H$_2$ (328) and the grain-assisted recombinations of He$^+$ and C$^+$ (330, 331). These two have no term in the generated right-hand side, so their coefficients are computed but unused and 330 reactions act in the solve. The other 278 are two-body reactions: ion–molecule, neutral–neutral and charge-transfer reactions, dissociative and radiative recombination, radiative association and collisional dissociation. The ODE right-hand side is generated C code selected at compile time ({src}`pdr/odes_reduced.c`, flag `-DREDUCED`); the keyword `pdrNetwork` only validates that the requested network is the compiled one.
+and 332 reactions: 3D-PDR’s 331 plus reaction 332, $e^-+\mathrm{H_2^+}\to e^-+\mathrm H+\mathrm H^+$ ($2\times10^{-7}e^{-30720/T}$ cm$^3$ s$^{-1}$), appended in this project because the network had no electron-impact dissociation of H$_2^+$, Cloudy’s main H$_2^+$ sink in ionised gas (`pdr/UPSTREAM.md`, {devlog}`D-395`); the Arrhenius form is the one of Cloudy’s `mole_co_umisthack.dat`, which attributes it to {cite:t}`Janev1987`. Of the 332, 28 are photoreactions, 8 cosmic-ray and 15 cosmic-ray-induced photoreactions ({ref}`sec:photorates`), and three carry the grain marker `#`: grain formation of H$_2$ (328) and the grain-assisted recombinations of He$^+$ and C$^+$ (330, 331). These two have no term in the generated right-hand side, so their coefficients are computed but unused and 330 reactions act in the solve. The other 278 are two-body reactions: ion–molecule, neutral–neutral and charge-transfer reactions, dissociative and radiative recombination, radiative association and collisional dissociation. The ODE right-hand side is generated C code selected at compile time ({src}`pdr/odes_reduced.c`, flag `-DREDUCED`); the keyword `pdrNetwork` only validates that the requested network is the compiled one.
 
 Two-body coefficients follow the modified Arrhenius form 
 

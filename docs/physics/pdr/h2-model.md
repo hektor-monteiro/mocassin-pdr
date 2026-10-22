@@ -36,13 +36,13 @@ All data are Cloudy c25.00’s (`dataPDR/h2/`, copied unmodified; provenance in 
   - `coll_rates_Hp.dat`
   - {cite:t}`Gerlich1990`
 * - energies of the rovibrational levels of $B$, $C^+$, $C^-$, $B'$, $D^+$, $D^-$ (1592 levels)
-  - `energy_\{B,C_plus,\ldots\}.dat`
+  - `energy_{B,C_plus,…}.dat`
   - derived from {cite:t}`Abgrall2000` (headers)
 * - transition probabilities of the 32 453 lines to $X$
-  - `transprob_\{\ldots\}.dat`
+  - `transprob_*.dat`
   - {cite:t}`Abgrall2000`, from the band-system calculations of {cite:t}`Abgrall1993` ($B$–$X$, $C$–$X$) and {cite:t}`Abgrall1994` ($B'$–$X$, $D$–$X$)
 * - spontaneous radiative dissociation rate $D_u$ \[s$^{-1}$\] and mean kinetic energy of the atoms \[eV\] per excited level
-  - `dissprob_\{\ldots\}.dat`
+  - `dissprob_*.dat`
   - {cite:t}`Abgrall2000`
 * - dissociation energy of $X$, $D=36\,118.11$ cm$^{-1}$ (4.478 eV; the only value of the file the model uses)
   - `energy_dissoc.dat`
@@ -164,12 +164,13 @@ $$ (eq:aeff)
 \end{align}
 ```
 
- and the total absorption rate $p_l=\sum_u P_{lu}$, with $E^{\mathrm{kin}}_u$ the mean kinetic energy released per dissociation of $u$ (`dissprob_\ldots.dat`). The first step of the fluorescent cascade is $W$; the quadrupole cascade that follows is carried by $A$ in Equation ({eq}`eq:balance`). The Solomon rate per molecule handed to the chemistry is 
+ and the total absorption rate $p_l=\sum_u P_{lu}$, with $E^{\mathrm{kin}}_u$ the mean kinetic energy released per dissociation of $u$ (`dissprob_*.dat`). The first step of the fluorescent cascade is $W$; the quadrupole cascade that follows is carried by $A$ in Equation ({eq}`eq:balance`). The Solomon rate per molecule handed to the chemistry is 
 
 $$
 k_{\mathrm{Sol}} = \sum_l n_l\,k_l
-  \qquad(\text{{src}`pdr_mod.f90::h2LevelModel/solveCell@"r1Tmp(cellP,1) = real(sum(pops*kdiss))"`}).
 $$ (eq:ksol)
+
+({src}`pdr_mod.f90::h2LevelModel/solveCell@"r1Tmp(cellP,1) = real(sum(pops*kdiss))"`).
 
 **Trapping.**
 A photon emitted in a line $t=u\to l'$ that is optically thick is absorbed again close by, by a molecule in $l'$, which it re-excites to the same level $u$. In the escape-probability (“on-the-spot”) approximation the net effect is that the decay rate of the line is reduced to $A_t\beta_t$, and the level’s other decays and its dissociation take its share in $\Gamma^{\mathrm{eff}}_u$. Only lines that end in populated low levels are thick, so trapping closes the decays to $v=0$ and raises the dissociation probability $D_u/\Gamma^{\mathrm{eff}}_u$ in thick gas. It is needed: without it the rate into $v=0$, $J=0$–5 from the excited states was up to 2200 times Cloudy’s in the shielded zones of the slab of {devlog}`H-005` and the Solomon rate 10–20% low; with it the Solomon rate comes within 3–8% of Cloudy’s ({devlog}`H-005`). The total absorption rate $p_l$ counts only the external field. Photons that dust or an overlapping H$_2$ line absorb before they escape are not counted as lost (Cloudy adds such a destruction probability to the escape probability, {cite:t}`Shaw2005`); this slightly overestimates the dissociation probability of levels whose decays are trapped.
@@ -189,7 +190,7 @@ $$ (eq:lineparams)
  where $\sigma_{lu}$ is the line-centre cross section of a pure Doppler profile of Doppler width $\Delta\nu_D=b/\lambda$, $(\pi e^2/m_ec)f_{lu}/(\sqrt\pi\Delta\nu_D)$ written with $A_{ul}$; $N_l$ \[cm$^{-2}$\] is the column of molecules in level $l$; $b=\sqrt{2kT/m_{\mathrm{H_2}}+v_{\mathrm{turb}}^2}$ \[cm s$^{-1}$\] the Doppler parameter of the target cell ({src}`pdr_mod.f90::h2LevelModel/solveCell@"b = sqrt(2.d0*dble(kBoltzmann)*T/mH2g + (dble(pdrVturb)*1.d5)**2)"`; $v_{\mathrm{turb}}$ is `pdrVturb`, default 1 km s$^{-1}$); and $a$ the Voigt damping parameter, the ratio of the Lorentzian half width $\Gamma_u/4\pi$ to $\Delta\nu_D$. $\Gamma_u$ is the total decay rate of the upper level, bound–bound plus bound–free (spontaneous radiative dissociation), i.e. the inverse radiative lifetime; since the lower level of every line is a metastable level of $X$, $\Gamma_u$ is the natural width of the line. With these data $a\le0.03$ for $b\ge1$ km s$^{-1}$ (median 0.006 at 100 K and the default $v_{\mathrm{turb}}$).
 
 **The damping width.**
-$\Gamma_u$ exceeds a line’s own $A_{ul}$ by a factor 20 in the median over the thick lines of the {devlog}`H-005` slab (16–84%: 7.8–157), and the shielding in the damping wings scales as $a^{1/2}$ (Eq. {eq}`eq:Sasym`). Cloudy damps each H$_2$ line with its own $A_{ul}$ (`dampXvel`$\,=A_{ul}\lambda/4\pi$ in `mole_h2_create.cpp` of c25.00, and in its saved damping constants, {devlog}`H-005`), whereas its hydrogenic lines use the lifetime of the upper level (`iso_create.cpp`). The natural width is the physical choice. Cloudy’s lowers the transmission in the damping regime by up to $\sqrt{20}\approx4.5$ (pumped lines behind more than $10^{16}$ cm$^{-2}$ of H$_2$ fall to 0.18–0.41 of their intensity, {devlog}`H-008`) and moves the H/H$_2$ crossing 0.21 mag shallower on `hiipdr` and 0.10 mag on `pn150k` ({devlog}`H-026`; {ref}`sec:limitations`). The same $b$ (the target cell’s) is used for the whole column in front of the cell and along the escape rays; this matters in the Doppler-saturated regime, where $\tau_0\propto b^{-1}$, and not in the damping regime, where the equivalent width in frequency does not depend on $b$.
+$\Gamma_u$ exceeds a line’s own $A_{ul}$ by a factor 20 in the median over the thick lines of the {devlog}`H-005` slab (16–84%: 7.8–157), and the shielding in the damping wings scales as $a^{1/2}$ (Eq. {eq}`eq:Sasym`). Cloudy damps each H$_2$ line with its own $A_{ul}$ (`dampXvel`$\,=A_{ul}\lambda/4\pi$ in `mole_h2_create.cpp` of c25.00, and in its saved damping constants, {devlog}`H-005`), whereas its hydrogenic lines use the lifetime of the upper level (`iso_create.cpp`). The natural width is the physical choice. Cloudy’s lowers the transmission in the damping regime by $\sqrt{20}\approx4.5$ for the median thick line (2.8–12.5 for the 16–84% range) (pumped lines behind more than $10^{16}$ cm$^{-2}$ of H$_2$ fall to 0.18–0.41 of their intensity, {devlog}`H-008`) and moves the H/H$_2$ crossing 0.21 mag shallower on `hiipdr` and 0.10 mag on `pn150k` ({devlog}`H-026`; {ref}`sec:limitations`). The same $b$ (the target cell’s) is used for the whole column in front of the cell and along the escape rays; this matters in the Doppler-saturated regime, where $\tau_0\propto b^{-1}$, and not in the damping regime, where the equivalent width in frequency does not depend on $b$.
 
 **Transmission and curve of growth.**
 The rate at which a molecule behind the column $N_l$ absorbs in the line, relative to the unshielded rate for a continuum flat across the line, and its integral over $\tau_0$ are 

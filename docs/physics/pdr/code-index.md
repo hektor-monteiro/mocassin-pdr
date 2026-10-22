@@ -1,6 +1,6 @@
 (app:index)=
 # Index of code locations
-Files are under `source/` of the `h2-model` worktree at commit `8fc1512`; `pdr/` is the vendored 3D-PDR. A range is the whole routine unless the process column names a part of it.
+Files are under `source/`; links resolve against the commit the site was built from; `pdr/` is the vendored 3D-PDR. A range is the whole routine unless the process column names a part of it.
 
 :::{list-table} Index of code locations.
 :name: tab:index

@@ -26,15 +26,18 @@ The fixture is `benchmarks/pdr/hiipdr`. The run shown is the release run `rel-hi
 
 The H II region agrees. The ionisation front is 0.6% farther out in radius, at the same
 $A_V$ within 0.02 mag. Hβ is 0.93 of Cloudy's; compared like for like, with the same
-emissivity and the H II region's own volume, it is 0.95 ({devlog}`D-371`).
+emissivity and the H II region's own volume, it was 0.95 before the gas–grain correction of {devlog}`D-421` ({devlog}`D-371`).
 
 The PDR is where the two codes differ:
 - **The H/H₂ transition is deeper,** at $A_V$ 1.39 against 1.28.
-  - H₂ forms on the silicates at 0.5–0.9 of Cloudy's rate, set by 3D-PDR's surface
-    energies of {cite:t}`CazauxTielens2004` ({lim}`L-33`).
-  - The level model shields H₂ with the upper level's total decay rate as the damping
-    width, where Cloudy uses each line's own A value. This dissociates more H₂ in the
-    line wings ({lim}`L-56`).
+  - The damping width of the pumping lines accounts for +0.21 mag. The level model
+    damps each line by its upper level's total decay rate; run with Cloudy's width
+    (each line's own A value), the crossing moves to $A_V$ 1.19, past Cloudy's
+    ({devlog}`H-026`, {lim}`L-56`).
+  - The other differences together move it −0.09 mag. Among them the silicate formation
+    coefficient, 0.5–0.9 of Cloudy's from 3D-PDR's per-material surface energies (the
+    tabulation of {cite:t}`Rollig2013`), contributes about +0.04 mag ({devlog}`H-022`,
+    {devlog}`D-394`).
 - **The C⁺/C transition is shallower,** at $A_V$ 2.29 against 2.93. This is mostly the
   packet count: deep in the cloud few FUV packets reach a cell. With 4, 16 and 64 times
   the packets the transition moves to 2.51, 2.72 and 2.80 ({devlog}`D-408`; {lim}`L-3`,
@@ -61,10 +64,14 @@ The PDR is where the two codes differ:
   - the ortho lines (odd $J$) are 0.71–0.80 of Cloudy's;
   - the para lines are 0.95–1.09.
 
-  The ortho/para split comes mostly from the damping width of the pumping lines
-  ({lim}`L-56`, {devlog}`H-008`).
+  The split by spin is the damping width of the pumping lines: run with Cloudy's width,
+  every line falls to about half of Cloudy's, ortho 0.46–0.57 and para 0.50–0.54
+  ({devlog}`H-026`, {lim}`L-56`). The rotational lines carry a further caveat: in
+  95–119 molecular cells per run the PDR heating held by the last temperature solve is
+  more than 3 times what the finished model rebuilds, so treat them as unconverged
+  ({lim}`L-55`).
 - **The PDR's temperature.** The gas is 1.05–1.11 times Cloudy's temperature in the atomic
-  PDR ($A_V$ 0.5–1.0) and 0.80–0.89 times it from $A_V$ 1.3 to 2.2, around 30–40 K.
+  PDR ($A_V$ 0.5–1.0) and 0.80–0.89 times it from $A_V$ 1.3 to 2.2 (20–37 K against Cloudy's 25–42 K).
 - **The deep gas.** Beyond $A_V\approx2$ few FUV packets reach a cell in one iteration,
   so the temperatures and abundances there carry Monte Carlo noise. The percentile bands
   widen accordingly ({lim}`L-26`).

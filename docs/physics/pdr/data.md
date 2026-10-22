@@ -27,7 +27,7 @@ The table lists the data files that enter the path from the field to the molecul
   - $o$-H$_2$ and $p$-H$_2$ + H$_2$, $v=0$, 1–$10^4$ K, {cite:t}`Wan2018`
 * - `dataPDR/h2/coll_rates_Hp.dat`
   - H$^+$ + H$_2$ including proton exchange, $v=0$, $J\le9$, 3–6000 K, {cite:t}`Gerlich1990`
-* - `dataPDR/h2/energy_\{state\}.dat`, `transprob_\{state\}.dat`, `dissprob_\{state\}.dat`
+* - `dataPDR/h2/energy_*.dat`, `transprob_*.dat`, `dissprob_*.dat`
   - excited electronic states $B$, $C^\pm$, $B'$, $D^\pm$: levels, lines to $X$, spontaneous radiative dissociation rates and kinetic energies, {cite:t}`Abgrall2000`, whose line transition probabilities rest on {cite:t}`Abgrall1993` and {cite:t}`Abgrall1994`; the $J=0$ energies of the $\Pi$ components that the files carry as comments are extrapolations by Cloudy’s authors and are not read
 * - `dataPDR/h2/energy_dissoc.dat`
   - dissociation energies of the electronic states, {cite:t}`Sharp1970` per the header (which dates it 1971), with values revised in Cloudy in 2002; only the value for $X$, 36 118.11 cm$^{-1}$, is used

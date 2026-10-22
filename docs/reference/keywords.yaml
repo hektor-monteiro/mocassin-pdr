@@ -224,7 +224,9 @@
     Rescales the gas density so the total gas mass of the grid equals the
     value given, in solar masses (divided by 8 internally with
     `symmetricXYZ`). Give the density shape with `densityFile`, or
-    `Hdensity 1`.
+    `Hdensity 1`. The same factor rescales the grain density when the dust
+    is given by `MdMg` or `MdMh`, and the electron density is reset to
+    n_H.
 
 - name: nstages
   group: gas
@@ -684,10 +686,12 @@
   syntax: "NoSourceSED"
   default: "off"
   build: all
-  status: no-effect
+  status: active
   description: |
-    Stored in the grid files but not used: the code that excluded the
-    source from the SED is commented out in `output_mod`.
+    `SED.out` includes only the radiation escaping from cells that do not
+    hold a source, i.e. the reprocessed emission without the direct
+    starlight. Stored in the grid files, so `mocassinOutput` keeps it.
+  see_also: ['output_mod.f90::writeSED@"if (lgNosource) then"..@"end if"']
 
 - name: frontLines
   group: output
@@ -870,8 +874,8 @@
   build: pdr
   status: active
   description: |
-    Lowest temperature the thermal balance may return. A cell on the floor
-    is flagged and left out of the line emission.
+    Lowest temperature the thermal balance may return. Cells that reach it
+    are counted in the run log; they are not removed from the model.
   devlog: [D-403]
 
 - name: iterDamp

@@ -25,11 +25,11 @@ All of the coupling lives inside MOCASSIN’s MC iteration, the recursive subrou
   - $R_{\mathrm{FUV}}$, $A_{V}/N_{\mathrm H}$, grain area per H, model-wide fallbacks ({ref}`sec:dust`)
 * - 4
   - columns and $A_{V}$
-  - `computeAVdust` {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call dustPerCell(grid(1:nGrids))">`
+  - `computeAVdust` {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call computeAVdust(grid(1:nGrids))"#1>`
   - `snapDiffuseSources` (snapshot for the diffuse walk), `computeAVradial` ($A_{V}$ and source-ward columns) ({ref}`sec:geometry`)
 * - 5
   - field summary
-  - `mocassinToPDR` {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"! the first attempt: mean f_mol 1.0000 in 100.00% of cells.">`
+  - `mocassinToPDR` {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call mocassinToPDR(grid(1:nGrids))"#1>`
   - $\chi$ (local) and $\chi_0$ (geometric, unattenuated) per cell
 * - 6
   - seed (first PDR iteration only)

@@ -16,10 +16,24 @@ python3 -m venv ~/.venvs/mocassin-docs
 ```
 
 `docs/requirements.txt` is what Read the Docs installs; `requirements-dev.txt`
-adds pytest and pypandoc for local work. Two pages are written by the build and
-are not in git: `physics/limitations.md` (from `doc/pdr-status.md`) and
-`developer/devlog-index.md` (from the DEVLOG summary tables). Edit their
-sources, not them.
+adds pytest and pypandoc for local work. These pages are written by the build
+and are not in git; edit their sources, not them:
+
+| Page | Written from | By |
+| :--- | :--- | :--- |
+| `physics/limitations.md` | `doc/pdr-status.md` | fortref |
+| `developer/devlog-index.md` | the DEVLOG index tables and dated headings | fortref |
+| `user-guide/keywords.md` | `reference/keywords.yaml` and `readInput` | mocdocs |
+| `user-guide/outputs.md` | `reference/outputs.yaml` | mocdocs |
+| `user-guide/build-flavours.md` | the `Makefile` | mocdocs |
+| `reference/changelog.md` | the release notes in `DEVLOG.md` | mocdocs |
+| `developer/code-map.md` | the parsed source tree | mocdocs |
+| `benchmarks/_generated/*.svg` | `bench/data/` | `bench/plots.py` |
+
+The keyword and output pages are checked against the code on every build: a
+keyword `readInput` accepts that is missing from `keywords.yaml`, or an output
+file a routine opens that is missing from `outputs.yaml`, fails the build
+(warning type `mocdocs`, subtypes `keywords`, `outputs` and `build`).
 
 To check every reference without building the site, and to run the
 extension's tests:
@@ -150,7 +164,8 @@ three headers differ):
 
 `` {lim}`L-58` `` links to an item of the known limitations, here
 {lim}`L-58`, on the page generated from `doc/pdr-status.md`; each line there
-that opens an item (`**L-n.`) carries the target. `` {devlog}`D-363` `` links
+that opens an item (`**L-n.` or `**L-n (`) carries the target; a number that
+opens a second item (an open item with a closed part) gets `lim-L-n-2`. `` {devlog}`D-363` `` links
 to a decision in the [DEVLOG index](devlog-index.md), with its short title on
 hover: {devlog}`D-363`. An unknown number warns `lim` or `devlog`.
 
