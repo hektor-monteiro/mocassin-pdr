@@ -1,0 +1,13 @@
+_build/
+# written by fortref when the docs are built
+physics/limitations.md
+developer/devlog-index.md
+# written by mocdocs (_ext/mocdocs.py) when the docs are built
+user-guide/keywords.md
+user-guide/outputs.md
+user-guide/build-flavours.md
+developer/code-map.md
+reference/changelog.md
+# drawn from bench/data/ by bench/plots.py when the docs are built
+benchmarks/_generated/
+__pycache__/
