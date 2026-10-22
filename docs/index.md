@@ -131,5 +131,7 @@ developer/writing-docs
 reference/citing
 reference/changelog
 reference/licence
+reference/third-party
+reference/data-sources
 reference/bibliography
 ```

@@ -434,6 +434,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-432 | **A Read the Docs site for the project, planned and opened (the user: "start creating the documentation for the project using readthedocs").** Sphinx + MyST in `docs/` on branch `docs` (worktree ~/software/mocassin_docs); code references resolved at build time from routine names plus a unique text match, no Fortran edits; delivered in increments, the first (MVP) being references, the PDR and H2 physics chapters and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; gas, dust and test_Problem reruns at v2.0 come in later increments | Accepted | 2026-10-21 |
 | D-433 | **Documentation site, increment 1 (MVP) built on branch `docs` (D-432), ready for Read the Docs.** Sphinx + MyST site with code references resolved at build time (fortref, 1172 references, 66 source files), generated keyword/output/build/changelog/code-map pages checked against the code, the H2 report converted into 14 physics pages and updated for v2.0, and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; two referee reviews applied; strict build clean. The reviews found documentation errors (corrected) and code defects (listed, not fixed) | Accepted | 2026-10-22 |
 | D-434 | **Licensing audit of the whole repository (the user: "do a full audit focusing on licensing ... We do not want to use anything irregular").** The combined work is distributable as GPL-3.0-or-later except for Numerical Recipes code: verbatim in the vendored 3D-PDR (spline.F90, solvlevpop.F90 GAUSS_JORDAN, both compiled), dead NR routines in interpolation_mod, and NR heapsort structure in three routines written here. Notice gaps (Cloudy zlib for three translated routines and the Stout data ports, HEALPix in healpix.F90, DUSTY BSD-3, SUNDIALS check_flag, modification notes), Badnell fit files with their copyright line stripped and unused, undeclared D-357 data change, and unclear-rights data. Audit only; nothing changed | Open | 2026-10-22 |
+| D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42028,3 +42029,68 @@ the circulating bhmie.py (no licence stated).
 Open: the remediation needs the user's decisions; the code replacements
 (Numerical Recipes) go through a plan and the code-executor with regression
 runs.
+
+---
+
+## D-435 - Licensing fixes without code changes (2026-10-22)
+
+The user (2026-10-22), after reviewing D-434's drafts: "apply the licensing
+modifications that do not require code changes in all branches of the
+repository as needed. Update any relevant documentation accordingly." Earlier
+answers (2026-10-22): Numerical Recipes code flagged only for now; the Wright
+and Owen dust compilations kept, "I have permission"; unused unclear-rights
+files kept and documented, except Badnell's.
+
+**Applied** (branch `licensing` from ed71814, merged into production and from
+there into h2-model and docs):
+  - `THIRD_PARTY_NOTICES.md` (new): every third-party component, its licence,
+    the notices to keep (Cloudy zlib, HEALPix, SUNDIALS BSD-3), the known
+    licensing issue (the Numerical Recipes routines of D-434), and that the
+    GPL covers the code while the data stay under their providers' terms.
+  - `data/README.md`, `dustData/README.md`, `dataPDR/README.md` (new): per-file
+    sources and terms; Cloudy's notice for the 15 Stout files; DUSTY's BSD-3
+    notice for the 18 files from its library; the Wright and Owen
+    compilations "provided by M. J. Barlow and included with permission"; the
+    wrong enstatite footer and the unverified quartz and olivine sources
+    flagged, not edited; the D-357 and D-395 data changes and the D-285
+    split. Sources are named only where a file or the code states them.
+  - `README.md` (licence and credits, citations, documentation list),
+    `docs/reference/licence.md`, `docs/reference/citing.md`, `docs/conf.py`
+    (copyright line, so the site footer is no longer empty), two new pages
+    (`reference/third-party`, `reference/data-sources`), ten bibliography
+    entries checked against CrossRef or arXiv (CHIANTI 1997 and 10.1, Stout,
+    LAMDA 2020, Porter 2012/2013, DUSTY, RAYTHEIA arXiv:2605.09882, Cloudy 2025
+    arXiv:2508.01102, 3D-PDR v2.0.0).
+  - `source/pdr/UPSTREAM.md`: licence row (GPL-3.0-or-later; MOCASSIN is
+    GPL-2.0-or-later), authors, the eight modified files, the D-357 data row,
+    a section on third-party code inside 3D-PDR.
+  - `dataPDR/h2/README.md` and the README's H2 section: the "not a
+    translation of Cloudy's source" statements now name the three routines
+    that are.
+  - `man/mocassin.1`: AUTHORS and COPYRIGHT sections.
+  - `doc/dust.md`: points to `dustData/README.md`.
+  - Removed: `data/badnell_dr.dat`, `data/badnell_rr.dat` (copyright line
+    stripped, no grant, read by no code), two editor backups (`*.nk~`), and
+    `dust_nk_Nwright.tar.gz`, `dustData_POwen.tar.gz` (duplicates of the
+    extracted directories next to them).
+
+Statements that will only become true with the code changes are worded as
+pending ("still to be added", D-435) rather than as done.
+
+**Not applied (code changes, to be planned and executed):** the modification
+notes on `hydro_mod.f90`, `fluorescence_mod.f90`, `readdata_mod.f90`; headers
+on `h2_mod.f90`, `h2Lines_mod.f90`, `frontLines_mod.f90`, `h2Slab.f90`,
+`h2Test.f90`; the Cloudy notes at `yanH2xSec`, `h2ShieldFederman`,
+`h2FormDist`; the HEALPix notice in `healpix.F90`; the SUNDIALS note at
+`check_flag`; the Numerical Recipes flag comments (and later the
+replacement); the Makefile header and the install of `LICENSE`,
+`THIRD_PARTY_NOTICES.md` and `README.md`. The drafted texts are in D-434's
+review (kept outside the repository).
+
+**Branches.** Production (GitHub `main`), h2-model and docs. `dev` (local,
+not merged, last commit 2026-09-27) and the branches already merged into
+production were left as they are.
+
+### Status
+
+Done for the no-code part; the code part is open.

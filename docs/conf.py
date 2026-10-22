@@ -8,6 +8,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '_ext'))
 
 project = 'MOCASSIN-PDR'
+copyright = ('2025–2026, Hektor Monteiro and contributors. MOCASSIN © Barbara Ercolano; '
+             '3D-PDR © T. G. Bisbas et al. GPL-3.0-or-later')
 
 
 def _short_head():

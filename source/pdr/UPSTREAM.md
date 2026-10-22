@@ -10,7 +10,8 @@ edit here and in the DEV log.
 | Commit | `fabcdc646d7a54ae2ea3ba30bdd1a9f25a92e959` |
 | Date | 2026-08-26 |
 | Imported | 2026-08-28 |
-| Licence | GPL-3.0 (same as MOCASSIN) |
+| Licence | GPL-3.0-or-later (upstream `LICENSE`, identical to this repository's, and `paper/CITATION.cff`); MOCASSIN is GPL-2.0-or-later, and the combined work is distributed under GPL-3.0-or-later |
+| Authors | T. G. Bisbas, Z. Zhu, B. A. L. Gaches, X.-J. Jiang, X. Tang, G. Zhang and contributors; RAYTHEIA (`m_Ray_box.F90`, `m_Mesh.F90`) by Z. Zhu |
 
 Data files (`chemfiles/`) are vendored separately into `dataPDR/` at the repository
 root, following the `data/` and `dustData/` convention.
@@ -28,15 +29,30 @@ re-applied by hand at the next upstream merge.
 | `modules.F90` | `coolfile` widened from `len=50` to `len=200` | D-028 |
 | `modules.F90`, `calculate_abundances.c`, `odes_reduced.c` | per-species formation/destruction rates exported from the ODE right-hand side and re-evaluated at the returned abundances (`odes_reduced.c` via `tools/patch_odes_capture.py`) | D-113 |
 | `modules.F90`, `h2_form.F90` | `h2form_xsec_sil`/`h2form_xsec_gra`: host-measured grain area per H replaces the diffuse-ISM constants when supplied | D-195 |
-| all six files above | one-line modification notice at the top of the file (GPL v3 s.5(a)) | D-272 |
+| the files modified here (`modules.F90`, `read_species.F90`, `read_rates.F90`, `calculate_abundances.c`, `odes_reduced.c`, `h2_form.F90`, `calc_reac_rates.F90`, `escape_probability.F90`) | one-line modification notice at the top of the file (GPL v3 s.5(a)) | D-272, D-350, D-363 |
 | `modules.F90`, `calc_reac_rates.F90` | `ray_lw_factor`: host-supplied per-ray factor on the field driving the four Lyman-Werner-window photoreactions (H2, HD, CO photodissociation; C I photoionization) - the ray's 11.2-13.6 eV share over the Draine field's. Not allocated: factor 1, upstream behaviour. `calc_reac_rates.F90` also gains the modification notice | D-350 |
 | `modules.F90`, `escape_probability.F90` | `escape_beta`: the escape probability of each transition, handed to the host when it allocates the array (MOCASSIN's own C, C+ and O atoms take it). Not allocated: nothing written, upstream behaviour. `escape_probability.F90` also gains the modification notice | D-363 |
 | `modules.F90`, `escape_probability.F90` | `escape_bg`: the host's mean intensity at each transition, used with the CMB as the line background in place of the fixed grain emissivity (`NGRAIN = 2e-12 n x metallicity`). Not allocated: the vendored emissivity, upstream behaviour | D-377 |
 | `dataPDR/rates_reduced.d`, `odes_reduced.c` | reaction 332, e- + H2+ -> e- + H + H+ (2e-7 exp(-30720/T), Janev et al. 1987, as Cloudy's `mole_co_umisthack.dat` has it), appended to the rate file with its three terms (H2+ loss; H and H+ gain) in the generated right-hand side. The network had no electron-impact dissociation of H2+, Cloudy's main H2+ sink in ionized gas | D-395 |
 | `modules.F90`, `odes_reduced.c` | `xe_extra`: electrons per H nucleus from ions the network has no species for (the host's stages above the first ion, and elements it does not carry), added to the sum of the network's own cations where the generated right-hand side builds `x_e`. Zero unless the host sets it: upstream behaviour. `odes_reduced.c` via `tools/patch_odes_xe.py`, re-runnable on any `odes_*.c` | D-402 |
+| `dataPDR/species_reduced.d` | lines 4 and 6 relabelled CH5+ and H2+ (zero-based slots 3 and 5), the order in which the generated `odes_reduced.c` integrates them; labels only | D-258, D-357 |
 | `dataPDR/16o.dat`, `dataPDR/12c.dat` | the `1D`/`1S` -> `3P_J` collision rates split by `g_J/9`; upstream gives each J the whole-term value. Re-apply with `tools/d285_split_3p.py`, which only touches rows still identical across J | D-285 |
 
 Every change except the header notices is marked in place with its DEVLOG ID.
+
+## Third-party code inside the vendored sources
+
+Recorded at DEVLOG D-434 (licensing audit); see `../../THIRD_PARTY_NOTICES.md`:
+- `healpix.F90`: routines from HEALPix `pix_tools.F90` (Copyright (C) 1997-2013
+  K. M. Gorski, E. Hivon et al., GPL-2.0-or-later); the HEALPix notice is not in the
+  upstream file. `healpix_types.F90` keeps its HEALPix header.
+- `heapsort.F90`, `definitions.F90`: taken from the SEREN SPH code (C. P. Batty;
+  Hubber et al. 2011).
+- `calculate_abundances.c`: `check_flag` is the SUNDIALS example helper (BSD-3).
+- **Numerical Recipes**: `spline.F90` (SPLINE, SPLINT, SPLIE2, SPLIN2; "Copied from
+  Numerical Recipes") and `solvlevpop.F90` (GAUSS_JORDAN, GAUSS_JORDAN_writes, NR
+  `gaussj`). Numerical Recipes' licence does not permit redistributing these routines;
+  they are to be replaced by independently written code, and reported upstream.
 
 The defaults preserve upstream behaviour exactly, so the vendored code still
 builds and runs standalone. Otherwise the sources are byte-identical to upstream

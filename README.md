@@ -95,8 +95,9 @@ then solved again on the finished model until the lines settle, and the H2 line 
 In the 3D build (`PDRGEOM=3D`), H2 is not one species with one photodissociation rate. Its level
 populations are solved in every cell with gas (`source/h2_mod.f90`, driven from `source/pdr_mod.f90`).
 The model is a Fortran re-implementation of the equations and data of Cloudy's large H2 model (Shaw et
-al. 2005). It is not a translation of Cloudy's source, and where it follows one of Cloudy's conventions
-the code says so.
+al. 2005); where it follows one of Cloudy's conventions the code says so. Two routines, `h2ShieldFederman`
+and `h2FormDist`, are translated or adapted from Cloudy's source (see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 In each cell it solves:
 
@@ -399,7 +400,11 @@ Limitations to know before using the results:
 - [doc/manual-pdr-h2.md](doc/manual-pdr-h2.md): a worked PDR + H2 run, from the test problem.
 - [doc/h2-radiation-molecules/main.pdf](doc/h2-radiation-molecules/main.pdf): how the radiation field
   sets the molecular content, from the field and the dust through the H2 model to the chemistry.
-- [dataPDR/h2/README.md](dataPDR/h2/README.md): the H2 data, their sources and their licence.
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): every third-party component, its licence and the
+  notices it requires.
+- [data/README.md](data/README.md), [dustData/README.md](dustData/README.md),
+  [dataPDR/README.md](dataPDR/README.md), [dataPDR/h2/README.md](dataPDR/h2/README.md): the sources and
+  terms of the bundled atomic, dust, chemistry and H2 data.
 - [doc/pdr-status.md](doc/pdr-status.md): validation status and known limitations.
 - [doc/dust.md](doc/dust.md): the dust input files, the optical data formats and what MOCASSIN computes
   from them.
@@ -410,39 +415,65 @@ Limitations to know before using the results:
 
 ## Licence and credits
 
-MOCASSIN-PDR is distributed under the **GNU General Public License, version 3** ([LICENSE](LICENSE)).
+MOCASSIN-PDR is distributed under the **GNU General Public License, version 3 or (at your option) any
+later version** ([LICENSE](LICENSE)). The GPL covers the program's code. The data files in `data/`,
+`dustData/` and `dataPDR/` are third-party scientific data redistributed under their providers' terms;
+they are not licensed by the MOCASSIN-PDR authors. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists
+every third-party component and reproduces the notices their licences require, and each data directory
+has a README with the per-file sources.
 
-- **MOCASSIN** is Copyright (C) 2003-2005 Barbara Ercolano and is licensed under GPL version 2 or any
-  later version. This fork starts from R. Wesson's version ([rwesson/mocassin](https://github.com/rwesson/mocassin)).
-  Files changed here keep their original copyright notice and carry a modification note.
-- **3D-PDR** ([itamos-ism/3D-PDR](https://github.com/itamos-ism/3D-PDR)) is GPL version 3. It is
+- **MOCASSIN** is Copyright (C) 2003-2007 Barbara Ercolano, with later changes by Roger Wesson and
+  contributors, and is licensed under GPL version 2 or any later version. This fork starts from
+  R. Wesson's version ([rwesson/mocassin](https://github.com/rwesson/mocassin)). Files changed here keep
+  their original copyright notice and carry a modification note, except three still to get one
+  (`hydro_mod.f90`, `fluorescence_mod.f90`, `readdata_mod.f90`; DEVLOG D-435).
+- **3D-PDR** ([itamos-ism/3D-PDR](https://github.com/itamos-ism/3D-PDR); T. G. Bisbas, Z. Zhu,
+  B. A. L. Gaches, X.-J. Jiang, X. Tang, G. Zhang and contributors) is GPL version 3 or later. It is
   vendored under `source/pdr/`, and the local changes are listed in
-  [source/pdr/UPSTREAM.md](source/pdr/UPSTREAM.md). Because 3D-PDR is GPL v3, the combined program
-  can only be distributed under GPL v3.
-- `source/pdr/healpix_types.F90` comes from HEALPix (Górski et al.) and is GPL version 2 or later.
-- **SUNDIALS/CVODE** is BSD-3-Clause. It is linked, not included.
-- The H2 data in `dataPDR/h2/` are copied unmodified from **Cloudy** c25.00 (Copyright (C) 1978-2025
-  Gary J. Ferland and others), under its zlib licence, which is reproduced in
-  [dataPDR/h2/README.md](dataPDR/h2/README.md). The H2 model's code is not Cloudy's.
+  [source/pdr/UPSTREAM.md](source/pdr/UPSTREAM.md). Because 3D-PDR is GPL v3, the combined program can
+  only be distributed under GPL v3 or later.
+- **HEALPix** (Górski et al.): `source/pdr/healpix.F90` and `source/pdr/healpix_types.F90` contain
+  HEALPix code, GPL version 2 or later.
+- **SUNDIALS/CVODE** is BSD-3-Clause. It is linked, not included, apart from one helper function from
+  its examples in `source/pdr/calculate_abundances.c`.
+- **Cloudy** c25.00 (Copyright (C) 1978-2025 Gary J. Ferland and others; zlib licence): the H2 data in
+  `dataPDR/h2/` are copied unmodified, 15 atomic-data files in `data/` are converted from its Stout
+  database, and three routines are translated or adapted from its source (`yanH2xSec`,
+  `h2ShieldFederman`, `h2FormDist`); the notes marking them as altered in the code are still to be
+  added (DEVLOG D-435). The rest of the H2 level model re-implements
+  the equations and conventions of Cloudy's large H2 model and is this project's code.
+- **Known licensing issue.** Some routines in `source/pdr/spline.F90` and `source/pdr/solvlevpop.F90`
+  (inherited from 3D-PDR), in `source/interpolation_mod.f90` (from MOCASSIN, unused) and three sort
+  routines written here follow *Numerical Recipes*, whose licence does not permit redistributing them.
+  They are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and are to be replaced by
+  independently written code (DEVLOG D-434).
 
 Work that uses MOCASSIN-PDR should cite:
 
 - MOCASSIN: Ercolano et al. 2003, MNRAS 340, 1136; Ercolano, Barlow & Storey 2005, MNRAS 362, 1038;
   Ercolano et al. 2008, ApJS 175, 534
-- 3D-PDR: Bisbas et al. 2012, MNRAS 427, 2100
-- Molecular data, `dataPDR/*.dat` (LAMDA): Schöier et al. 2005, A&A 432, 369, plus the original paper for
-  each molecule used, and the date the database was accessed
-- Reaction rates, `dataPDR/rates_*.d` (UMIST format): McElroy et al. 2013, A&A 550, A36
+- 3D-PDR: Bisbas et al. 2012, MNRAS 427, 2100; 3D-PDR v2.0.0 (Bisbas et al. 2026, software, as its
+  `CITATION.cff` asks, and its JOSS paper once published); RAYTHEIA, the ray tracer of the 3D build:
+  Zhu et al. 2026, arXiv:2605.09882
+- Molecular data, `dataPDR/*.dat` (LAMDA): Schöier et al. 2005, A&A 432, 369; van der Tak et al. 2020,
+  Atoms 8, 15; plus the original paper for each molecule used (the files come from 3D-PDR; the date they
+  were taken from LAMDA is not recorded)
+- Reaction rates, `dataPDR/rates_*.d` (UMIST RATE12 subset): McElroy et al. 2013, A&A 550, A36
 - Atomic data, `data/`: CHIANTI (Dere et al. 1997, A&AS 125, 149; version 10.1, Dere et al. 2023,
-  ApJS 268, 52) and Stout (Lykins et al. 2015, ApJ 807, 118)
+  ApJS 268, 52) and Stout (Lykins et al. 2015, ApJ 807, 118); He I recombination lines, Porter et al.
+  2012, MNRAS 425, L28 and 2013, MNRAS 433, L89
+- Dust optical data, `dustData/`: the papers named in each file and in `dustData/README.md`; DUSTY
+  (Ivezić & Elitzur 1997, MNRAS 287, 799) for the files from its library
 - Grain photoelectric heating and charging: Weingartner & Draine 2001, ApJS 134, 263
 - H2 formation on grains: Cazaux & Tielens 2002, ApJ 575, L29; 2004, ApJ 604, 222
 - The H2 level model follows Cloudy's large H2 model: Shaw et al. 2005, ApJ 624, 794. Its data:
   energies of X, Komasa et al. 2011, J. Chem. Theory Comput. 7, 3105; quadrupole A values of X,
   Wolniewicz, Simbotin & Dalgarno 1998, ApJS 115, 293; the excited electronic states, Abgrall, Roueff &
   Drira 2000, A&AS 141, 297; collisions with H, Lique 2015, MNRAS 453, 810; with ortho- and para-H2, Wan
-  et al. 2018, ApJ 862, 132; with He, Lee et al. (ORNL); with H+, Gerlich 1990, J. Chem. Phys. 92, 2377.
+  et al. 2018, ApJ 862, 132; with He, the ORNL data set distributed with Cloudy; with H+, Gerlich 1990, J. Chem. Phys. 92, 2377.
   The formation distribution is Takahashi & Uehara 2001, ApJ 561, 843.
+- Cloudy, whose H2 model, data and three routines are used: Gunasekera et al. 2025, *The 2025 Release
+  of Cloudy*, arXiv:2508.01102
 - HEALPix: Górski et al. 2005, ApJ 622, 759
 - SUNDIALS: Hindmarsh et al. 2005, ACM TOMS 31, 363; Gardner et al. 2022, ACM TOMS 48, 31
 

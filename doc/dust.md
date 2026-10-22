@@ -210,7 +210,8 @@ The grain materials, their size distribution and the dust-to-gas ratio are input
 MOCASSIN uses whatever `dust_species.dat`, `dust_sizes.dat` and `MdMg` / `MdMh` /
 `Ndust` give it, and `tools/d305_dustaudit.py` prints the extinction curve they
 produce. Properties of a model's dust are therefore choices of its input, not of the
-code. In the PDR benchmark fixtures:
+code. The source of every bundled optical-data file, and the terms it is distributed
+under, are in `dustData/README.md`. In the PDR benchmark fixtures:
 
   - `pn150k` uses MRN graphite alone, as its Cloudy reference does. That mixture gives
     R_V = 4.57 and A(1000A)/A_V = 3.32, against the Milky Way's 3.1 and 2.6–2.8; a
