@@ -79,9 +79,17 @@ bibtex_reference_style = 'author_year'
 # Fortran with cpp lines (fortran-block also sets force on its own blocks).
 highlight_options = {'force': True}
 
-html_theme = 'furo'
+html_theme = 'sphinx_rtd_theme'
 html_title = f'MOCASSIN-PDR {release}'
-html_static_path = []
+html_static_path = ['_static']
+html_css_files = ['custom.css']
+html_theme_options = {
+    'navigation_depth': 4,
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'titles_only': False,
+    'prev_next_buttons_location': 'bottom',
+}
 
 # fortref validates the GitHub blob links itself.
 linkcheck_ignore = [r'https://github\.com/.*/blob/']

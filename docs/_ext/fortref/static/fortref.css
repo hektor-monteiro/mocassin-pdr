@@ -21,3 +21,10 @@ a.fortref-gh:hover { opacity: 1; }
 }
 body[data-theme="dark"] .fortref-badge { border-color: #d29922; color: #d29922; }
 .fortref-broken { text-decoration: underline wavy #c00; }
+
+/* Code links read as links in any theme (sphinx_rtd_theme colours code red). */
+a.fortref-src code.literal, a.fortref-src code.literal span {
+  color: #2980b9; border-color: #c9dbe8; background: #f3f8fc;
+}
+a.fortref-src:hover code.literal { text-decoration: underline; }
+.fortref code.literal { white-space: nowrap; }

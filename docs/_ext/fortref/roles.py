@@ -78,7 +78,8 @@ def _resolve(env, raw, location, max_lines=None, allow_long=False):
 
 
 class SrcRole(SphinxRole):
-    """{src}`ref` or {src}`title <ref>`: the routine's name, linked to the
+    """{src}`ref` or {src}`title <ref>`: the file and lines (or the routine's
+    name, with fortref_display = 'name'), linked to the
     site's source viewer at the resolved lines, with a GitHub permalink."""
 
     def run(self):
@@ -88,7 +89,8 @@ class SrcRole(SphinxRole):
             text = title or raw
             return [nodes.literal(self.rawtext, text, classes=['fortref-broken'])], []
         _record(self.env, self.env.docname, 'src', self.lineno, res)
-        text = title or res.display
+        shown = res.location if self.env.config.fortref_display == 'location' else res.display
+        text = title or shown
         view, gh = _links(res, res.start, res.end, nodes.literal(text, text))
         wrap = nodes.inline(classes=['fortref'])
         wrap += view

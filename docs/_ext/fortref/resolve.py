@@ -128,6 +128,17 @@ class Resolution:
         return 0 if self.start is None else self.end - self.start + 1
 
     @property
+    def location(self):
+        """The file and lines a role shows by default, e.g. pdr_mod.f90:5064–5089:
+        the path under source/ (repo-relative otherwise), then the lines."""
+        rel = self.path[len('source/'):] if self.path.startswith('source/') else self.path
+        if self.start is None:
+            return rel
+        if self.end is None or self.end == self.start:
+            return f'{rel}:{self.start}'
+        return f'{rel}:{self.start}\u2013{self.end}'
+
+    @property
     def display(self):
         """The name a role shows: the scope's last part, else the unit the
         anchor falls in, else the file name."""

@@ -210,6 +210,8 @@ def setup(app):
     app.add_config_value('fortref_github', 'https://github.com/hektor-monteiro/mocassin-pdr', 'env')
     app.add_config_value('fortref_default_profile', '3d', 'env')
     app.add_config_value('fortref_max_lines', resolve.DEFAULT_MAX_LINES, 'env')
+    # what a {src} role shows without a title: 'location' (file:lines) or 'name'
+    app.add_config_value('fortref_display', 'location', 'env')
     app.add_config_value('fortref_allow_unpushed', False, 'env')
     app.add_config_value('fortref_limitations_page', 'physics/limitations', 'env')
     app.add_config_value('fortref_devlog_page', 'developer/devlog-index', 'env')
