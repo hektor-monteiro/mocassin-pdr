@@ -70,9 +70,9 @@ The description is of the ray-traced build, `make PDR=1 PDRGEOM=3D mocassin`, wh
 * - $J^{\mathrm{dif}}_k$
   - the part of $J^{\mathrm{ste}}_k$ carried by scattered or re-emitted packets, `grid%Jdif` \[same units\]
 * - $u_{\mathrm{D}}$
-  - $8.94\times10^{-14}$ erg cm$^{-3}$, the 6–13.6 eV energy density of the {cite:t}`Draine1978` interstellar field ({src}`constants_mod.f90@"real, parameter :: uDraine = 8.94e-14 ! [erg/cm^3]"`); $c\,u_{\mathrm{D}}=2.68\times10^{-3}$ erg s$^{-1}$ cm$^{-2}$
+  - $8.94\times10^{-14}$ erg cm$^{-3}$, the 6–13.6 eV energy density of the {cite:t}`Draine1978` interstellar field ({src}`constants_mod.f90@"real, parameter :: uDraine = 8.94e-14 ! [erg/cm^3]"+0`); $c\,u_{\mathrm{D}}=2.68\times10^{-3}$ erg s$^{-1}$ cm$^{-2}$
 * - $\chi$
-  - band-integrated (6–13.6 eV) field in Draine units, a dimensionless energy density, $\chi = \sum_{k\in\mathrm{FUV}} J^{\mathrm{ste}}_k/(c\,u_{\mathrm{D}})$; $\chi=1$ is $G_0=1.69$ in Habing units of the same band ({ref}`sec:bands`)
+  - band-integrated (6–13.6 eV) field in Draine units, a dimensionless energy density, $\chi = \sum_{k\in\mathrm{FUV}} J^{\mathrm{ste}}_k/(c\,u_{\mathrm{D}})$; $\chi=1$ is $G_0=1.68$–1.69 in Habing units of the same band ($1.6\times10^{-3}$ erg s$^{-1}$ cm$^{-2}$ or $5.29\times10^{-14}$ erg cm$^{-3}$) ({ref}`sec:bands`)
 * - $\chi_0$
   - geometrically diluted, unattenuated field of the sources, same units (Eq. {eq}`eq:chi`)
 * - $\chi_{\mathrm{dir}},\ \chi_{\mathrm{dif}}$

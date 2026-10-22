@@ -6,7 +6,7 @@ to test TORUS-3DPDR:
   sphere of $n_{\mathrm H}=100$ cm⁻³;
 - inner radius $3\times10^{18}$ cm, outer radius $6\times10^{19}$ cm;
 - silicate grains of 0.01–0.30 μm at a dust-to-gas mass ratio of 0.0113;
-- $\zeta=5\times10^{-17}$ s⁻¹.
+- $\zeta=5\times10^{-17}$ s⁻¹ in the UMIST normalisation ($2.3\times10^{-17}$ s⁻¹ per H atom).
 
 MOCASSIN-PDR computes one octant on $31^3$ cells, 15,204 of them active. The Cloudy
 model is matched on the stellar spectrum and luminosity, the abundances, the grain
@@ -24,8 +24,12 @@ The fixture is `benchmarks/pdr/hiipdr`. The run shown is the release run `rel-hi
 | C⁺ = C, $A_V$ | 2.29 | 2.93 |
 | Hβ luminosity | 9.30×10³⁶ erg s⁻¹ | 10.02×10³⁶ erg s⁻¹ |
 
-The H II region agrees. The ionisation front is 0.6% farther out in radius, at the same
-$A_V$ within 0.02 mag. Hβ is 0.93 of Cloudy's; compared like for like, with the same
+The ionisation front and Hβ agree: the front is 0.6% farther out in radius, at the same
+$A_V$ within 0.02 mag. Through the H II region the low-ionisation stages are more
+abundant than Cloudy's ($x(\mathrm O^+)$ 1.4–1.6 times and $x(\mathrm C^+)$ 1.5–1.8 times at
+$A_V$ 0.17–0.31, where $x(\mathrm O^{2+})$ is 0.84–0.97 times; C II] 2326 Å 1.16 times),
+while $T_e$ agrees within ±6%. The line table does not yet include the H II region's
+forbidden lines. Hβ is 0.93 of Cloudy's; compared like for like, with the same
 emissivity and the H II region's own volume, it was 0.95 before the gas–grain correction of {devlog}`D-421` ({devlog}`D-371`).
 
 The PDR is where the two codes differ:

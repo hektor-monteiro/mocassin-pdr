@@ -29,7 +29,14 @@ Every quantity is defined in each model's `PROVENANCE.json` (`docs/bench/data/<m
 The conventions that matter:
 - $n_{\mathrm H}=n(\mathrm H)+n(\mathrm H^+)+2n(\mathrm{H_2})$ in both codes;
 - Cloudy's H₂ counts H₂ and H₂*;
-- the ionisation front is the smallest $A_V$ of the cells with $x(\mathrm H^+)<0.3$.
+- in the tables, a front is where the binned medians first cross ($x(\mathrm H^+)=x(\mathrm H^0)$
+  for the ionisation front); $A_\mathrm{front}$, the smallest $A_V$ of the cells with
+  $x(\mathrm H^+)<0.3$ and the dotted line in the figures, places the bins.
+
+At fixed radius MOCASSIN's $A_V$ is lower than Cloudy's: by 1–4% in `hiipdr` (mostly a
+constant 0.02–0.03 mag offset from the cell discretisation of the inner cavity) and by
+3–4.5% in `pn150k`. Offsets measured in $A_V$ and in radius therefore differ, and the
+profiles, compared at equal $A_V$, carry this shift.
 
 Cells MOCASSIN flags and leaves out of the line emission (`lgBlack`, for example a cell
 whose temperature reached the floor) are excluded from the statistics and counted on each page.
@@ -49,10 +56,10 @@ The MOCASSIN results are the release runs of `pdr-coupling-v2.0` ({devlog}`D-429
   `pn150k`'s abundance file with the trace elements set to zero.
 - **Convergence.** At the end the largest change of the model-integrated quantities over
   the last three iterations was:
-  - 2.0% in `hiipdr` (Ne⁺ emission measure);
-  - 1.6% in `pn150k` (the H⁰-weighted temperature);
-
-  against the default stopping tolerance of 2%.
+  - 2.04% in `hiipdr` (the Ne⁺ emission measure; 2.35% and 2.60% in the two iterations
+    before), just above the default stopping tolerance of 2%, so at the default the run
+    would not yet have stopped;
+  - 1.55% in `pn150k` (the H⁰-weighted temperature), within it.
 
 The Cloudy models are the {devlog}`D-396` runs of Cloudy c25.00. The committed inputs
 match the physics commands of those runs exactly; `reduce.py --check-cloudy` verifies
@@ -73,11 +80,12 @@ MOCASSIN, rebuilds them from committed data:
 To reproduce a run, build the release and run the committed input:
 
 ```bash
+cp -r docs/bench/inputs/rel-hii31 /tmp/rel-hii31-input   # before checking out: v2.0 has no docs/
 git checkout pdr-coupling-v2.0
-make clean && make PDR=1 PDRGEOM=3D all
-mkdir -p myrun/output && cp -r docs/bench/inputs/rel-hii31 myrun/input
-# delete the pdrDataDir line, or point it at your dataPDR/
-cd myrun && mpirun -np 14 ../mocassin
+make clean && make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin-v2.0 install
+mkdir -p myrun/output && cp -r /tmp/rel-hii31-input myrun/input
+# delete the pdrDataDir line from myrun/input/input.in
+cd myrun && mpirun -np 14 $HOME/.local/mocassin-v2.0/bin/mocassin
 ```
 
 With the same seed, rank count, compiler and machine the run reproduces the published

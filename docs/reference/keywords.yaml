@@ -30,7 +30,8 @@
     Number of cell centres along the x axis of the (mother) grid. It can
     instead be given in the first row of the density, `Ndust`, `MdMg` or
     `MdMh` file as `# nx ny nz`, in which case the three keywords can be
-    omitted.
+    omitted. An automatically generated full grid (no `symmetricXYZ`) needs
+    odd nx, ny and nz.
 
 - name: ny
   group: geometry
@@ -53,12 +54,13 @@
 - name: Rin
   group: geometry
   syntax: "Rin <r_cm>"
-  default: "-1 (no inner cavity)"
+  default: 'none: required (`Rin 0` for no cavity)'
   build: all
   status: active
   description: |
-    Inner radius of the gas distribution, in cm. Cells closer to the source
-    are inactive (empty).
+    Inner radius of the gas distribution, in cm, measured from the grid
+    origin: cells whose centres are closer are inactive. Required; give 0 for
+    no cavity.
 
 - name: Rout
   group: geometry
@@ -67,9 +69,9 @@
   build: all
   status: active
   description: |
-    Outer radius of the gas distribution, in cm: cells farther than `Rout`
-    from the source are inactive (no limit if `Rout` ≤ 0). With
-    `planeIonization` it is reset to the grid's extent.
+    Outer radius of the gas distribution, in cm, measured from the grid
+    origin: cells farther than `Rout` are inactive (no limit if `Rout` ≤ 0).
+    Ignored with `planeIonization`.
 
 - name: edges
   group: geometry
@@ -78,9 +80,10 @@
   build: all
   status: active
   description: |
-    Extent of the x, y and z axes, in cm, for automatically generated grids.
-    Must be given when the grid is not read from a file and `Rout` does not
-    set it.
+    The largest x, y and z axis values, in cm, of an automatically generated
+    grid: the axes run from 0 (`symmetricXYZ`) or from −edge to +edge.
+    Required unless the grid comes from a `densityFile` or an `Ndust` file
+    (`Rout` does not set it).
 
 - name: symmetricXYZ
   group: geometry
@@ -133,11 +136,11 @@
   build: all
   status: active
   description: |
-    Position of the single ionising source as fractions of the largest
-    x, y and z axis values (`setStarPosition` multiplies them by the axis
-    ends and snaps the source to the nearest cell). The default (0, 0, 0)
-    is the grid origin: the centre of a full grid, the corner of a
-    `symmetricXYZ` octant.
+    Position of the single ionising source as fractions of the largest x, y
+    and z axis values. `setStarPosition` multiplies them by the axis ends,
+    keeps that exact position and assigns the source to the cell whose centre
+    is nearest. The default (0, 0, 0) is the grid origin: the centre of a full
+    grid, the corner of a `symmetricXYZ` octant.
 
 - name: fillingFactor
   group: geometry
@@ -146,8 +149,12 @@
   build: all
   status: active
   description: |
-    Volume filling factor of the gas (and dust), between 0 and 1.
-
+    If f < 1, each cell's gas density is set to zero with probability 1 − f: a
+    random whole-cell porosity, not a sub-cell filling factor, and
+    emissivities are not scaled. The draw is made on every MPI rank from an
+    unseeded generator, so the ranks can hold different grids and the run is
+    not reproducible even with `randomSeed`: use it only with one rank until
+    this is fixed.
 # ------------------------------------------------------------ gas content
 - name: Hdensity
   group: gas
@@ -165,9 +172,9 @@
   build: all
   status: active
   description: |
-    Parameters passed to the analytical density law coded in `grid_mod`.
-    Editing that routine is needed for any law other than the one coded
-    there.
+    Parameters p1, p2, p3 of the analytical density law coded in `grid_mod`,
+    n_H(r) = p3 (r/p1)^p2 exp[−½(r/p1)²] with r from the grid origin (the law
+    of Clegg et al. 1987). Editing that routine is needed for any other law.
 
 - name: densityFile
   group: gas
@@ -176,10 +183,10 @@
   build: all
   status: active
   description: |
-    Cell-by-cell density: four to six columns, x, y, z (cm) and n_H
-    (cm⁻³). With `multiChemistry` the fifth column is the index of the
-    abundance file of each cell. The first row may be `# nx ny nz`. Axes
-    need not be evenly spaced.
+    Cell-by-cell density: four columns, x, y, z (cm) and n_H (cm⁻³), or five
+    with `multiChemistry`, whose fifth column is the index of each cell's
+    abundance file. Rows run with x slowest and z fastest and cover the whole
+    grid. The first row may be `# nx ny nz`. Axes need not be evenly spaced.
 
 - name: inputNe
   group: gas
@@ -258,8 +265,9 @@
   build: all
   status: active
   description: |
-    Several dust compositions. The component of each cell is the fifth
-    column of the `MdMg`/`MdMh`/`Ndust` file.
+    Several dust compositions. The component of each cell is the fifth column
+    of the `MdMg`/`MdMh`/`Ndust` file. A per-cell `MdMg`/`MdMh`/`Ndust` file
+    is required; with a constant every cell gets component 0.
 
 - name: MdMg
   group: dust
@@ -268,9 +276,12 @@
   build: all
   status: active
   description: |
-    Dust-to-gas mass ratio, constant or per cell (file of x, y, z, ratio; the
-    first row may be `# nx ny nz`). Mutually exclusive with `MdMh` and
-    `Ndust`.
+    The dust-to-gas mass ratio, either constant or per cell. The per-cell file
+    holds i j k (integer cell indices, ignored, with z fastest and x slowest)
+    and the ratio, plus the dust component as a fifth column with
+    `multiDustChemistry`; the first row may be `# nx ny nz`. Give only one of
+    `MdMg`, `MdMh` and `Ndust`: the run stops only when all three are given;
+    otherwise `MdMg`/`MdMh` take precedence and the later of the two wins.
 
 - name: MdMh
   group: dust
@@ -279,7 +290,12 @@
   build: all
   status: active
   description: |
-    Dust-to-hydrogen mass ratio, constant or per cell, as for `MdMg`.
+    The dust-to-hydrogen mass ratio, either constant or per cell. The per-cell
+    file holds i j k (integer cell indices, ignored, with z fastest and x
+    slowest) and the ratio, plus the dust component as a fifth column with
+    `multiDustChemistry`; the first row may be `# nx ny nz`. Give only one of
+    `MdMg`, `MdMh` and `Ndust`: the run stops only when all three are given;
+    otherwise `MdMg`/`MdMh` take precedence and the later of the two wins.
 
 - name: Ndust
   group: dust
@@ -308,7 +324,8 @@
   build: all
   status: active
   description: |
-    Turns off scattering by dust grains (absorption only).
+    Turns off scattering by dust grains (absorption only). (Optical-constant
+    `.nk` species only; tabulated `.cat` efficiencies are used as given.)
 
 - name: isotropicScattering
   group: dust
@@ -338,8 +355,11 @@
   status: active
   description: |
     Stochastic heating (temperature spiking) for grains smaller than
-    `a_max_um`, applied once the grid convergence exceeds
-    `min_convergence` per cent.
+    `a_max_um`, applied once the grid convergence exceeds `min_convergence`
+    per cent. It is applied only to the dust re-emission spectrum — the
+    temperatures used by the gas–grain exchange and H₂ formation are unchanged
+    — and only while the converged-cell percentage exceeds `min_convergence`;
+    PDR runs plateau near 65–80%, so lower it there or the option never acts.
 
 - name: quantumHeatGrainParameters
   group: dust
@@ -361,7 +381,8 @@
   description: |
     Uses the continuous distribution of ellipsoids (CDE) for the absorption
     and scattering efficiencies of grains whose size parameter is below 1,
-    instead of Mie theory.
+    instead of Mie theory. (Optical-constant `.nk` species only; tabulated
+    `.cat` efficiencies are used as given.)
 
 - name: TDust
   group: dust
@@ -377,7 +398,7 @@
 - name: contShape
   group: sources
   syntax: "contShape blackbody | contShape powerlaw <index> | contShape <atmosphere_file>"
-  default: "blackbody"
+  default: 'none: required unless multiPhotoSources'
   build: all
   status: active
   description: |
@@ -422,10 +443,13 @@
   build: all
   status: active
   description: |
-    Several sources anywhere in the grid. The file gives their number, then
-    one line per source: T_eff (K), L (10³⁶ erg s⁻¹), spectrum shape and
-    x, y, z position normalised to the axis lengths. Not to be combined
-    with `TStellar`, `LStar` or `contShape`.
+    Several sources anywhere in the grid. The file gives the number of
+    sources, then one line per source: T_eff (K), L (10³⁶ erg s⁻¹), spectrum
+    shape, x, y, z (fractions of the axis ends), spectrum identifier
+    (`blackbody`, `powerlaw` or the atmosphere type) and a time step (0 except
+    for Starburst99 input); all eight fields are required. `nPhotons` is
+    shared equally among the sources. Not to be combined with `TStellar`,
+    `LStar`, `contShape` or `starPosition`.
 
 - name: diffuseSource
   group: sources
@@ -435,8 +459,10 @@
   status: active
   description: |
     A source distributed through the gas (e.g. radioactive heating): total
-    luminosity, temperature, spectrum shape (as `contShape`), number of
-    packets, and the grid in which it emits (0 = mother grid). Not to be
+    luminosity (10³⁶ erg s⁻¹), temperature, spectrum shape (as `contShape`),
+    number of packets per emitting cell, and the number of grids that emit (0:
+    all; k: grids 1 to k). The luminosity is shared among the cells in
+    proportion to n_H dV (to the grain number in a dust-only model). Not to be
     used with `symmetricXYZ`.
 
 - name: planeIonization
@@ -446,10 +472,11 @@
   build: all
   status: active
   description: |
-    Plane-parallel illumination from the x–z plane: the ionising photon flux
-    (phot s⁻¹ cm⁻²) above `nu0_Ryd`, or the bolometric flux if `nu0_Ryd` is
-    0. Needs `densityFile`. Packets reflect off the y–z and x–y faces. The
-    H2 level model and `frontLines` are skipped in this mode.
+    Plane-parallel illumination from the x–z plane: the photon flux above
+    `nu0_Ryd` (photons cm⁻² s⁻¹), or the bolometric energy flux (erg cm⁻² s⁻¹)
+    if `nu0_Ryd` is 0. Needs `densityFile`. Packets reflect off the y–z and
+    x–y faces, and `symmetricXYZ` is switched off. The H₂ level model and
+    `frontLines` are skipped in this mode.
 
 - name: nuMin
   group: sources
@@ -458,8 +485,9 @@
   build: all
   status: active
   description: |
-    Lower end of the frequency grid, in Ryd. A value above 1.4e-6 Ryd
-    excludes the 5 GHz radio continuum (a warning is printed).
+    Lower end of the frequency grid, in Ryd. A value above 1.4e-6 Ryd excludes
+    the 5 GHz radio continuum (a warning is printed). The default lies above
+    this limit, so the warning is normal.
 
 - name: nuMax
   group: sources
@@ -498,9 +526,11 @@
   build: all
   status: active
   description: |
-    Multiplies the packet number by `factor` whenever the grid convergence
-    improves by less than `increase_threshold` from one iteration to the
-    next, up to `max_packets`.
+    Multiplies the packet number by `factor` whenever the converged-cell
+    percentage rises by less than the fraction `increase_threshold` from one
+    iteration to the next, while it is below 95% and the count below
+    `max_packets` (the last increase can exceed it). In PDR runs the
+    percentage plateaus, so the count grows until the cap.
 
 - name: maxIterateMC
   group: montecarlo
@@ -521,11 +551,10 @@
   build: all
   status: active
   description: |
-    The per-cell relative tolerance (XHILimit) on the quantity each cell is
-    tested on — x(H⁰) for gas models (with x(H₂) in PDR models, see
+    The per-cell relative tolerance (XHILimit) on the quantities each cell is
+    tested on — x(H⁰) and T_e for gas models (and x(H₂) in PDR models, see
     `cvUseH2`), the dust temperature for dust-only models. It is not the
-    fraction of converged cells, which is the second number of
-    `maxIterateMC`.
+    fraction of converged cells, which is the second number of `maxIterateMC`.
   devlog: [D-180]
 
 - name: convTotals
@@ -580,11 +609,12 @@
 - name: NeStart
   group: montecarlo
   syntax: "NeStart <n_e>"
-  default: "0 (from the initial ionisation)"
+  default: unused
   build: all
-  status: active
+  status: no-effect
   description: |
-    Initial electron density guess, in cm⁻³.
+    Parsed but not used: every cell starts with n_e = n_H. Kept so old input
+    files run.
 
 - name: H0Start
   group: montecarlo
@@ -615,9 +645,10 @@
   build: all
   status: active
   description: |
-    Writes the output files (line fluxes, temperatures, ionisation ratios,
-    SED…) at the end of every iteration. Without it they can be produced
-    afterwards from the grid files with `mocassinOutput`.
+    Also writes the gas outputs (`lineFlux.out`, `temperature.out`,
+    `ionratio.out`, …) after every iteration. They are written at the end of
+    every run regardless, and can be rebuilt from the grid files with
+    `mocassinOutput`.
 
 - name: recombinationLines
   group: output
@@ -738,15 +769,16 @@
 # --------------------------------------------------------------------- PDR
 - name: pdr
   group: pdr
-  syntax: "pdr [1 | 0]"
+  syntax: pdr <1 | 0>
   default: "off"
   build: pdr
   status: active
   description: |
-    Turns on the coupled 3D-PDR chemistry (and, in the 3D build, the H₂
-    level model). A bare `pdr` turns it on. Requires dust — without it the
-    FUV field is not transported and the run stops — and is not available
-    in `2D` or `oneD` mode.
+    Turns on the coupled 3D-PDR chemistry (and, in the 3D build, the H₂ level
+    model). Write `pdr 1`: a bare `pdr` turns it on but swallows the following
+    input line, which is then silently ignored (unless `pdr` is the last
+    line). Requires dust — without it the FUV field is not transported and the
+    run stops — and is not available in `2D` or `oneD` mode.
   devlog: [D-019, D-022]
 
 - name: pdrNetwork
@@ -777,7 +809,11 @@
   build: pdr
   status: active
   description: |
-    Cosmic-ray ionisation rate per H, in s⁻¹.
+    Cosmic-ray ionisation rate ζ in the UMIST normalisation, in s⁻¹: every
+    cosmic-ray rate of the network (and MOCASSIN's cosmic-ray ionisation of
+    the linked neutrals) is its coefficient times ζ/1.3×10⁻¹⁷ s⁻¹. ζ is the
+    total ionisation rate of H₂; atomic H is ionised at 0.46ζ
+    (`rates_reduced.d`, reaction 293).
 
 - name: pdrStartIter
   group: pdr
@@ -797,9 +833,10 @@
   build: pdr
   status: active
   description: |
-    Initial integration span of the steady-state chemistry solve. It is not
-    a physical age: the solver extends the integration until the abundances
-    are steady.
+    Initial integration span of the steady-state chemistry solve. It is not a
+    physical age: the solver extends the integration (at most seven doublings,
+    128 × `pdrEndTime`) until no species changes by more than 1% over a
+    doubling.
 
 - name: pdrVturb
   group: pdr
@@ -809,7 +846,9 @@
   status: active
   description: |
     Turbulent velocity used in the line widths of the chemistry's shielding
-    and coolant escape probabilities and of the H₂ level model.
+    and coolant escape probabilities and of the H₂ level model. It also sets
+    the turbulent heating rate (∝ v³) the thermal balance takes from the
+    chemistry.
 
 - name: pdrTmin
   group: pdr
@@ -819,7 +858,8 @@
   status: active
   description: |
     Lower limit of the temperature at which the chemistry's rates are
-    evaluated. The gas temperature itself is MOCASSIN's.
+    evaluated. The gas temperature itself is MOCASSIN's. It also bounds the
+    CO-cooling table; 3D-PDR's own minimum is max(`pdrTmin`, T_CMB).
 
 - name: pdrTmax
   group: pdr
@@ -829,7 +869,7 @@
   status: active
   description: |
     Upper limit of the temperature at which the chemistry's rates are
-    evaluated.
+    evaluated. It also bounds the CO-cooling table.
 
 - name: pdrCoolants
   group: pdr
@@ -838,10 +878,11 @@
   build: pdr
   status: active
   description: |
-    LAMDA-format coolant files, e.g.
-    `4 "12c+.dat" "12c.dat" "16o.dat" "12co.dat"`. Atomic coolants are
-    solved with MOCASSIN's own atoms using the chemistry's colliders and
-    escape probabilities; CO is cooled from a table.
+    LAMDA-format coolant files, e.g. `4 "12c+.dat" "12c.dat" "16o.dat"
+    "12co.dat"`. Atomic coolants are solved with MOCASSIN's own atoms using
+    the chemistry's colliders and escape probabilities; CO is cooled from a
+    table. Without it the model has no CO cooling; the benchmarks use the four
+    files above.
   devlog: [D-363]
 
 - name: initH0
@@ -857,14 +898,16 @@
 # ------------------------------------------------------------ solver controls
 - name: teSolver
   group: solver
-  syntax: "teSolver <0 | 1>"
+  syntax: teSolver <0 | 1 | 2>
   default: "0"
   build: pdr
   status: active
   description: |
-    Temperature search: 0 is MOCASSIN's bracketing search, 1 a
-    Cloudy-shaped search (bracketing with steps capped at 20%, then Brent
-    inside the bracket), kept for comparison.
+    Temperature search. 0: MOCASSIN's search. 1: a Cloudy-shaped search (steps
+    capped at 20%, Illinois-modified regula falsi with bisection fallback,
+    restart on a stalled narrow bracket). 2: as 1, plus Cloudy's requirement
+    that the bracket be narrow relative to T_e. 1 and 2 are kept for
+    comparison.
   devlog: [D-165]
 
 - name: teFloor
@@ -885,8 +928,9 @@
   build: pdr
   status: active
   description: |
-    Weight of the previous iteration's temperature in the written one,
-    T = (1 − w) T_new + w T_previous. Off by default since D-406, which
+    Weight w of the previous iteration's value in the written one, x = (1 − w)
+    x_new + w x_previous, applied to T_e and, in PDR runs from `pdrStartIter`
+    on, to the abundances and ion fractions. Off by default since D-406, which
     found it damped Monte Carlo noise rather than a cycle.
   devlog: [D-406]
 
@@ -920,8 +964,8 @@
   status: active
   description: |
     Solves each element's ionisation balance as a matrix over all stages
-    (default) rather than stage by stage.
-
+    (default) rather than stage by stage. The matrix solver is used in every
+    build; only a PDR build can switch it off.
 # ------------------------------------------------------------- diagnostics
 - name: pdrDiagCool
   group: diagnostics
@@ -930,8 +974,8 @@
   build: pdr
   status: active
   description: |
-    Prints the per-coolant cooling budget at the illuminated face. No effect
-    on the model.
+    Prints the per-coolant cooling budget of every cell solved on rank 0 (up
+    to 4×10⁵ log lines). No effect on the model.
   devlog: [D-060]
 
 - name: pdrDiagRates
@@ -958,13 +1002,13 @@
 
 - name: pdrTrackCell
   group: diagnostics
-  syntax: "pdrTrackCell <cell>"
+  syntax: pdrTrackCell <1 | 0>
   default: "0 (off)"
   build: pdr
   status: active
   description: |
-    Follows one cell's chemistry and thermal state across iterations in the
-    log. No effect on the model.
+    Prints, on rank 0, the state of the first 40 unconverged cells it solves
+    after `pdrStartIter` (the value is only a switch). No effect on the model.
 
 - name: pdrSplitField
   group: diagnostics
@@ -994,7 +1038,8 @@
   build: pdr
   status: active
   description: |
-    At the last iteration, prints every cell whose ionisation balance ends
+    At iteration `maxIterateMC` (so only in a run that reaches it, e.g. with
+    `convTotals 1.e-6`), prints every cell whose ionisation balance ends
     unconverged, and the last steps of the first `n` per rank.
   devlog: [D-277]
 
@@ -1005,6 +1050,7 @@
   build: pdr
   status: active
   description: |
-    At the last iteration, prints the stage 1→2 ionisation and recombination
+    At iteration `maxIterateMC` (so only in a run that reaches it, e.g. with
+    `convTotals 1.e-6`), prints the stage 1→2 ionisation and recombination
     rates of element Z in every cell.
   devlog: [D-280]

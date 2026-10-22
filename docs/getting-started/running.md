@@ -21,7 +21,9 @@ myrun/
 
 {doc}`../user-guide/keywords` lists every keyword `readInput` accepts, with its default
 and the code that reads it. A keyword it does not know is reported in the log and
-ignored. A line starting with `#` is a comment.
+ignored, and a line starting with `#` is a comment. In a build without `PDR=1` every
+PDR keyword is unrecognised and the run proceeds without the chemistry, so check the
+log. Only the first 1000 lines of `input.in` are read.
 
 ## Starting a run
 
@@ -67,14 +69,20 @@ The run stops when the **model-integrated test** passes ({devlog}`D-391`,
 - the H⁰ contents, and in PDR runs the H₂ and CO contents;
 - the temperatures weighted by n_e n(H⁺), n(H⁰) and n(H₂).
 
-Each must have changed by less than `convTotals` (default 0.02) over the last three
-iterations ({src}`iteration_mod.f90::cvTotalsUpdate`). Every iteration's values are in
-`output/convergence.out`. The percentage of converged cells (the second number of
-`maxIterateMC`) is reported, not tested.
+Each must satisfy $|q_n/q_{n-3}-1|\le$ `convTotals` (default 0.02)
+({src}`iteration_mod.f90::cvTotalsUpdate`). A quantity is tested only where it is
+significant at both ends of the window: an ion stage carrying at least 1% of its
+element's ion emission measure, H⁰ and H₂ at least 1% of the hydrogen, CO at least 1%
+of the carbon. The run cannot stop before iteration 4, nor in a PDR run before
+`pdrStartIter`+1. Every iteration's values are in `output/convergence.out`. The
+converged-cell percentage, and `minConvergence` (the second number of
+`maxIterateMC`), are reported, not tested; the percentage still controls `writeGrid`,
+`autoPackets` and `quantumHeatGrain`.
 
 To run a fixed number of iterations, for example to compare two builds, set
 `convTotals 1.e-6` and `maxIterateMC <n> 90.` With `randomSeed`, the same build and
-the same rank count reproduce a run exactly.
+the same rank count reproduce a run exactly (not with `fillingFactor` < 1, whose
+cell mask is drawn unseeded).
 
 ## Warm starts and post-processing
 
@@ -85,7 +93,9 @@ the same rank count reproduce a run exactly.
 | `mocassinPlot` | Writes per-cell line luminosities (`plot.out`, `grid4.out`) for the lines listed in `input/plot.in`, for maps and cubes. In a PDR run it also maps the CO lines. |
 
 The grid files are written when the convergence percentage passes `writeGrid`, and at
-the end. {doc}`../user-guide/outputs` describes every file and the code that writes it.
+the end. `h2Pop.bin` is written with the output files (at the end, or every
+iteration with `output`), not with the grid files, so a warm start after a crash
+restarts the H₂ populations. {doc}`../user-guide/outputs` describes every file and the code that writes it.
 
 ## PDR runs
 

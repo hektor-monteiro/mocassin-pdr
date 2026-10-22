@@ -9,7 +9,7 @@ builds also need the CVODE solver of SUNDIALS.
 | Needed for | Requirement |
 | :--- | :--- |
 | every build | an MPI Fortran compiler (Open MPI with gfortran is what the code is developed with) and GNU make |
-| PDR builds (`PDR=1`) | a C compiler (`gcc` by default, `CC=` to change it) and **SUNDIALS ≥ 7.0** in double precision |
+| PDR builds (`PDR=1`) | a C compiler (`cc` by default, `CC=` to change it) and **SUNDIALS ≥ 7.0** in double precision |
 
 On Debian or Ubuntu:
 
@@ -52,8 +52,13 @@ object tree.
 | `make all` | MOCASSIN without the PDR. It needs no extra libraries. |
 
 `all` builds the four programs `mocassin`, `mocassinWarm`, `mocassinOutput` and
-`mocassinPlot`. After a 3D build, `make h2Test h2Slab` builds the H₂ model's
-standalone tests. {doc}`../user-guide/build-flavours` lists every compile-time flag
+`mocassinPlot`. After a 3D build, `make PDR=1 PDRGEOM=3D h2Test h2Slab` builds the
+H₂ model's standalone tests (repeat the flags, or the next build recompiles every
+object).
+
+The programs read their data from `PREFIX/share/mocassin/` (below), so a build is
+runnable only after `make install` with the same `PREFIX`. A stale installed copy
+from another version is read silently. {doc}`../user-guide/build-flavours` lists every compile-time flag
 and what it selects.
 
 :::{important}
@@ -104,8 +109,14 @@ A PDR run finds them through `pdrDataDir`, which defaults to the installed copy
 
 The binaries print the version they were built from at start-up: `pdr-coupling-v2.0` at
 the tag, `pdr-coupling-v2.0-<n>-g<hash>` for a later commit, with `-dirty` if the tree had
-uncommitted changes. A PDR build also has `pdrSmokeTest`, a one-cell chemistry test:
+uncommitted changes. The string is compiled into the main program's object, so
+build from `make clean` when it must identify the binary; outside a git checkout it
+is empty.
+
+A PDR build also has `pdrSmokeTest`, a one-cell chemistry test. It reads the network
+from `chemfiles/`, a link to `dataPDR/` in the directory it is run from:
 
 ```bash
-make PDR=1 PDRGEOM=3D pdrSmokeTest && ./pdrSmokeTest
+make PDR=1 PDRGEOM=3D pdrSmokeTest
+ln -sfn dataPDR chemfiles && ./pdrSmokeTest
 ```

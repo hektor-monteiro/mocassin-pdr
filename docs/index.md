@@ -7,7 +7,7 @@ photoionisation and dust radiative-transfer code of {cite:t}`Ercolano2003`, with
 additions:
 - the chemistry and thermal balance of [3D-PDR](https://github.com/itamos-ism/3D-PDR)
   {cite:p}`Bisbas2012`;
-- a 302-level model of H₂ solved in every cell;
+- a 302-level model of H₂ solved in every cell (3D build);
 - the feedback of both into the transfer and the thermal balance.
 
 The Monte Carlo radiation field, the dust and the ionisation structure that MOCASSIN
@@ -26,8 +26,7 @@ release tag ({doc}`reference/citing`).
 - **Getting started.** {doc}`getting-started/install` covers the three builds, SUNDIALS
   and where the data are read from. {doc}`getting-started/running` covers the run
   directory, MPI and memory, warm starts and convergence.
-- **User guide.** The complete references, each generated from the code and checked
-  against it on every build:
+- **User guide.** The complete references, generated from data files whose completeness (every keyword `readInput` accepts, every file the code opens in `output/`) is checked against the code on every build; the defaults and descriptions are written by hand:
   - {doc}`every input keyword <user-guide/keywords>`;
   - {doc}`every output file <user-guide/outputs>`;
   - {doc}`the build flavours <user-guide/build-flavours>`;
@@ -60,7 +59,7 @@ keyword moves a quantity from one code to the other.
 | Gas temperature: one thermal balance per cell | MOCASSIN, with the chemistry's heating and cooling terms in it |
 | Gas–grain heat exchange: atoms, ions, electrons and H₂ | MOCASSIN |
 | Molecular abundances: the REDUCED network, 33 species, steady state | 3D-PDR, solved with CVODE |
-| Columns for self-shielding | rays: 12 HEALPix directions per cell (3D build), or a 1D slab |
+| Columns for self-shielding | the source-ward ray for the direct beam, and twelve HEALPix directions through the scattering sites for the diffuse field (3D build); a 1D slab otherwise |
 | H₂ formation on grains | {cite:t}`CazauxTielens2002`, at MOCASSIN's dust temperatures |
 | H₂ level populations, photodissociation rate and heating | the H₂ level model (3D build) |
 | CO cooling and line emission | the chemistry's level populations, with escape probabilities along the rays |
@@ -68,11 +67,12 @@ keyword moves a quantity from one code to the other.
 
 Each Monte Carlo iteration:
 1. transfers the stellar and diffuse packets through gas and dust;
-2. solves each cell's ionisation, dust temperatures and charge, and thermal balance;
-3. solves the H₂ levels in every cell with gas (3D build), from iteration `pdrStartIter`
-   on;
+2. from `pdrStartIter` on, derives the dust quantities, $A_V$ and the shielding
+   columns, and (3D build) solves the H₂ levels in every cell with gas on this field;
+3. solves each cell's ionisation, dust temperatures and charge, and thermal balance;
 4. runs the chemistry in every active cell;
-5. solves the ionisation balance again.
+5. solves the ionisation balance a second time on the new molecular content, as a
+   measurement; that solve replaces the first only in the final model.
 
 The run stops when the model-integrated convergence test passes (`convTotals`).
 {doc}`physics/pdr/iteration` gives the full order and the lags.
