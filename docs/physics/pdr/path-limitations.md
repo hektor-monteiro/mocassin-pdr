@@ -32,7 +32,7 @@ This section lists the limitations that bear on the path from the field to the m
 
 14. **The gas re-emits from the hydrogen and helium spectrum whatever absorbed** ({lim}`L-51`). A packet absorbed by neutral carbon in the PDR is re-emitted, some of the time, as a hydrogen- or helium-ionising photon: 1.9% of `hiipdr`’s cells per iteration at $A_{V}=2.15$–2.43 are over-ionised, and their chemistry, solved to steady state on that iteration’s ionisation, can lose more than half its H$_2$ (202 such drops in six iterations at the default packet count, 23 at four times, none at sixteen times).
 
-15. **No PAHs or very small grains** ({lim}`L-7`): the photoelectric heating lacks the component that dominates in real PDRs, so the gas is colder than in PDR models with that component at the same field; common-mode with the Cloudy references.
+15. **No PAHs or very small grains in the benchmark fixtures** ({lim}`L-7`). The dust is an input, and PAHs can be included as a species; the fixtures, like their Cloudy references, have none, so their photoelectric heating lacks the component that dominates in real PDRs and their gas is colder than in PDR models with that component at the same field.
 
 16. **Closed in v2.0. Gas–grain collisional coupling** ({lim}`L-9`, closed by {devlog}`D-420` and {devlog}`D-421`): before v2.0 H$_2$ was not a collider in the exchange, and the term entered the energy balances $4\pi$ too weak (the gas side) and 4 times too weak (the grain side). H$_2$ now collides with the grains with the accommodation $2mM/(m+M)^2$ at $m=m_{\mathrm{H_2}}$, and each balance receives the term in its own units ({ref}`sec:thermal`).
 

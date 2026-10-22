@@ -688,30 +688,39 @@ never allocated, so such a run takes the network's single-line H2
 photodissociation rate and 3D-PDR's H2 heating, and writes no H2 line
 spectrum. The 1D flavour has no level model at all.
 
-**L-5. The gas phase is not depleted for what is locked in grains.** The model
-carries C/H = 2.690e-4 in the gas *and* 2.92e-4 in graphite - about twice
+**L-5. The pn150k fixture's gas phase is not depleted for what its grains lock
+up.** MOCASSIN takes the gas-phase abundances of the abundance file as given and
+does not subtract the grains' share; that is the input's job. The fixture's
+input carries C/H = 2.690e-4 in the gas *and* 2.92e-4 in graphite - about twice
 solar carbon. Cloudy's reference does exactly the same ("Depletion/Grains-1:
 -100.00%"), so no comparison is affected, but neither model is physical in
-absolute abundance (D-305).
+absolute abundance; depleted gas-phase abundances in the input fix it (D-305).
 
-**L-6. The extinction curve is not a Milky Way curve.** Graphite-only MRN
-gives R_V = 4.57 against 3.1 and A(1000A)/A_V = 3.32 against 2.6-2.8, with
-N_H/A_V 47% above the ISM value. Deliberate, shared with the Cloudy reference,
-and common-mode - but it is not interstellar dust (D-305).
+**L-6. The pn150k fixture's extinction curve is not a Milky Way curve.** The
+extinction curve follows from the grains the input specifies. The fixture's
+input is MRN graphite alone, which gives R_V = 4.57 against 3.1 and
+A(1000A)/A_V = 3.32 against 2.6-2.8, with N_H/A_V 47% above the ISM value.
+Deliberate, shared with the Cloudy reference, and common-mode - but it is not
+interstellar dust; a silicate + carbonaceous mixture in the input gives a Milky
+Way curve (D-305).
 
-**L-7. No PAH component**, though `PAHneu_30.cat` sits unused in `dustData/`.
-PAHs dominate photoelectric heating in real PDRs. Cloudy's reference has PAHs
-off too, so it is common-mode (D-305). Since D-415 the file carries Im(m), so
+**L-7. The PDR fixtures have no PAH component.** PAHs are an input species
+like any other (`dustData/PAHneu_30.cat`); the fixtures, like their Cloudy
+references, do not include them, so it is common-mode (D-305). PAHs dominate
+photoelectric heating in real PDRs, so models meant to be realistic should
+include them. Since D-415 the file carries Im(m), so
 a PAH species can heat the gas: test_Problem's astrosilicate + PAH mixture
 runs (DEVLOG-H2 H-036). The fixtures still have no PAH.
 
-**L-8. Stochastic heating is off.** `lgQheat` defaults false. For 0.005 um
+**L-8. Stochastic heating is off by default.** It is switched on with the
+`quantumHeatGrain` keyword (`lgQheat` defaults false). For 0.005 um
 grains in a PDR the equilibrium assumption is wrong for the emitted spectrum.
 D-306 showed it cannot explain the dust-temperature excess (which was L-2),
 so this is a fidelity gap rather than a live error (D-305, D-306).
 
-**L-10. Bulk-graphite optics on the smallest size bin**, where Draine's own
-table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
+**L-10. The pn150k fixture applies bulk-graphite optics to its smallest size
+bin** (an input choice: the optical data come from the species file), where
+Draine's own table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
 That bin is 26% of grains by number but only 3.2% of the FUV absorption, so
 the FUV impact is small and the far-IR impact is not (D-305).
 

@@ -204,13 +204,27 @@ model, and it never called `setGrainYield`. Both are fixed.
     and prints the extinction curve the model produces (R_V, A(1000A)/A_V,
     N_H/A_V).
 
+## What the inputs decide
+
+The grain materials, their size distribution and the dust-to-gas ratio are inputs:
+MOCASSIN uses whatever `dust_species.dat`, `dust_sizes.dat` and `MdMg` / `MdMh` /
+`Ndust` give it, and `tools/d305_dustaudit.py` prints the extinction curve they
+produce. Properties of a model's dust are therefore choices of its input, not of the
+code. In the PDR benchmark fixtures:
+
+  - `pn150k` uses MRN graphite alone, as its Cloudy reference does. That mixture gives
+    R_V = 4.57 and A(1000A)/A_V = 3.32, against the Milky Way's 3.1 and 2.6–2.8; a
+    Milky-Way-like curve needs silicate and carbonaceous species together in
+    `dust_species.dat`.
+  - MOCASSIN takes the gas-phase abundances of the abundance file as given and does
+    not subtract what the grains lock up, so the abundance file should hold depleted
+    gas-phase values. `pn150k`, like its Cloudy reference, uses undepleted ones, so its
+    carbon is counted twice (in the gas and in the graphite); comparisons between the
+    two codes are unaffected.
+  - Neither fixture contains PAHs. `dustData/PAHneu_30.cat` can be added as a species;
+    it carries Im(m) since D-415, so PAHs heat the gas photoelectrically.
+
 ## Known limitations
 
-  - The model is graphite-only unless silicate is added, giving R_V = 4.57 and
-    A(1000A)/A_V = 3.32 against the Milky Way's 3.1 and 2.6–2.8.
-  - The gas phase is not depleted for what is locked in grains, so carbon is
-    counted twice. Cloudy's reference model does the same, so comparisons are
-    unaffected, but absolute abundances are not physical.
-  - Gas–grain collisional coupling omits H2.
   - `getQs` caps the Mie size parameter at 100, which for a 0.25 um grain bites
     above 5.8 Ryd.

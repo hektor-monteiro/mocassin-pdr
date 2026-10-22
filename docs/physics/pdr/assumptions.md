@@ -56,7 +56,7 @@ The assumptions below are made, explicitly or implicitly, on the path from the f
 
 23. **Extinction ratio** $R_{\mathrm{FUV}}$ weighted by source 1’s emitted spectrum; it overstates the band extinction of the reddened local field at depth, which matters only for the diffuse-site weights ({ref}`sec:dust`).
 
-24. **Photoelectric heating** from the model’s grains alone: no PAHs or very small grains ({lim}`L-7`), so the heating is lower than PDR models with the {cite:t}`BakesTielens1994` prescription would have at the same field, and the gas colder ({ref}`sec:thermal`).
+24. **Photoelectric heating** from the grains the input specifies, and from nothing else: 3D-PDR's PAH prescription is not used. PAHs and very small grains contribute only if the input includes them as species. The benchmark fixtures have none ({lim}`L-7`), so their heating is lower than PDR models with the {cite:t}`BakesTielens1994` prescription would have at the same field, and their gas colder ({ref}`sec:thermal`).
 
 ## Ownership and coupling
 
