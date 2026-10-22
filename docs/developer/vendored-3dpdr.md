@@ -1,3 +1,2 @@
-# The vendored 3D-PDR
-
-Being written.
+```{include} ../../source/pdr/UPSTREAM.md
+```

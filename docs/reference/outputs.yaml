@@ -1,0 +1,414 @@
+# Output files of MOCASSIN-PDR, all written to output/ (which must exist
+# before the run). The generator writes user-guide/outputs.md from this file.
+# Its check collects every uncommented `open(... file='output/...')` that
+# writes, in source/*.f90, and fails the build if a file is missing here.
+#
+# Fields:
+#   name         file name in output/
+#   group        grid | results | iteration | pdr | h2 | plot
+#   writer       fortref reference to the statement that opens it
+#   when         when it is written
+#   build        all | pdr | pdr3d
+#   read_by      optional: which program reads it back
+#   description  MyST Markdown, may describe the columns
+
+# ------------------------------------------------------------ grid files
+- name: grid0.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/grid0.out\""'
+  when: "with the grid files (see `writeGrid`), and at the end"
+  build: all
+  read_by: "mocassinWarm, mocassinOutput, mocassinPlot (resetGrid)"
+  description: |
+    Grid geometry: the number of grids; per grid nx, ny, nz, the number of
+    active cells, the mother-grid pointer and R_out; the x, y and z axes
+    (cm); then one record per cell: active-cell index (0 = inactive),
+    converged flag, and the `lgBlack` flag (cell left out of the line
+    emission).
+
+- name: grid1.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/grid1.out\""'
+  when: "with the grid files"
+  build: all
+  read_by: "resetGrid"
+  description: |
+    One record per cell: T_e (K), n_e and n_H (cm⁻³), and with
+    `multiChemistry` the abundance-set index.
+
+- name: grid2.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/grid2.out\""'
+  when: "with the grid files"
+  build: all
+  read_by: "resetGrid"
+  description: |
+    Ionic fractions: for every cell, one record per element present, with
+    the fractions of stages 1 to min(Z+1, nstages).
+
+- name: grid3.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/grid3.out\""'
+  when: "with the grid files"
+  build: all
+  read_by: "resetGrid"
+  description: |
+    The model's switches and parameters (one value per line with its name),
+    so a warm start and the post-processing programs rebuild the same
+    model.
+
+- name: dustGrid.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/dustGrid.out\""'
+  when: "with the grid files, in models with dust"
+  build: all
+  read_by: "resetGrid"
+  description: |
+    Per cell: the grain number density (and the dust-component index with
+    `multiDustChemistry`), then the temperature of every species and size
+    (index 0 is the mean). Ends with the total dust mass.
+
+- name: photoSource.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/photoSource.out\""'
+  when: "with the grid files"
+  build: all
+  read_by: "resetGrid"
+  description: |
+    The number of sources, then for each its spectrum shape, temperature,
+    luminosity, packets and position (as fractions of the axes).
+
+- name: resLineEsc.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/resLineEsc.out\""'
+  when: "with the grid files, in models with gas and dust"
+  build: all
+  read_by: "mocassinOutput (readResLineEsc)"
+  description: |
+    Escape probabilities of the resonance lines, so the line fluxes can be
+    rebuilt after the run.
+
+- name: frontField.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/frontField.out\""'
+  when: "with the grid files, with `frontLines`"
+  build: all
+  read_by: "mocassinOutput (writeFrontLines)"
+  description: |
+    The field and opacity of the cells an ionisation front crosses, for the
+    sub-cell [O I] estimate.
+
+- name: echo.out
+  group: grid
+  writer: 'grid_mod.f90::setMotherGrid@"file=\"output/echo.out\""'
+  when: "at set-up, with `echo`"
+  build: all
+  description: |
+    The volume of the grid illuminated between the two light-echo
+    ellipsoids.
+
+# ------------------------------------------------------- PDR grid files
+- name: pdrGrid.out
+  group: pdr
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/pdrGrid.out\""'
+  when: "with the grid files, with `pdr`"
+  build: pdr
+  read_by: "mocassinWarm (resumes the chemistry)"
+  description: |
+    Format v2 (a header line, then two records per cell): χ (the FUV field
+    in Draine units), A_V,eff, the PDR cooling and heating
+    (erg cm⁻³ s⁻¹) and the grain photoelectric heating; then the abundances
+    per H of the network's species, in the order of the species file.
+
+- name: pdrCoolSp.out
+  group: pdr
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/pdrCoolSp.out\""'
+  when: "with the grid files, with `pdr`"
+  build: pdr
+  description: |
+    Cooling of each `pdrCoolants` coolant per cell (erg cm⁻³ s⁻¹).
+
+- name: pdrLineEm.out
+  group: pdr
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/pdrLineEm.out\""'
+  when: "with the grid files, with `pdr`"
+  build: pdr
+  read_by: "resetGrid"
+  description: |
+    Two records per cell: the emissivity of every coolant transition, and
+    its escape probability.
+
+- name: pdrRad.out
+  group: pdr
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/pdrRad.out\""'
+  when: "with the grid files, with `pdr`"
+  build: pdr
+  description: |
+    Per cell: A_V,eff; the fraction of re-emitted energy that escapes as
+    lines; the mean-intensity sums above 1 Ryd, 0.44–1 Ryd, 0.01–0.44 Ryd
+    and below 0.01 Ryd; and the mean grain temperature (K).
+
+- name: thermBudget.out
+  group: pdr
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/thermBudget.out\""'
+  when: "with the grid files, with `pdr`"
+  build: pdr
+  description: |
+    The thermal budget of every cell: heating (photoionisation,
+    photoelectric, PDR) and cooling (collisional lines, recombination,
+    free–free, gas–grain, PDR), H − C and T_e, then the photoionisation
+    heating per element and six grain terms. The column names are in the
+    header.
+
+- name: pdrFUV.out
+  group: pdr
+  writer: 'output_mod.f90::writeFUVField@"file=\"output/pdrFUV.out\""'
+  when: "at the end of the run, with `pdr`"
+  build: pdr
+  description: |
+    The FUV field diagnostic: the FUV band, L_FUV and L_bol in the header,
+    then χ per cell.
+
+- name: pdrFUVspec.out
+  group: pdr
+  writer: 'output_mod.f90::writeFUVField@"file=\"output/pdrFUVspec.out\""'
+  when: "at the end of the run, with `pdr`"
+  build: pdr
+  description: |
+    The FUV spectrum averaged over log-spaced radial shells, stellar and
+    diffuse parts.
+
+- name: pdrReacRates.out
+  group: pdr
+  writer: 'pdr_mod.f90::writeReactionRates@"file=''output/pdrReacRates.out''"'
+  when: "every iteration, with `pdrDiagRates 2`"
+  build: pdr
+  description: |
+    Every reaction's volume rate in one cell per 0.1 dex of A_V, with the
+    chemistry solver's state and the state MOCASSIN re-imposes. Read with
+    `tools/d356_channels.py`.
+
+# -------------------------------------------------------------- H2 model
+- name: h2Cells.out
+  group: h2
+  writer: 'h2Lines_mod.f90::writeH2Lines@"file=''output/h2Cells.out''"'
+  when: "at the end of the run"
+  build: pdr3d
+  description: |
+    The H₂ level model per active cell: position, n(H₂), T_e, the Solomon
+    rates from the level model and from the chemistry, the pumping rate,
+    the ortho/para ratio, the column of H₂ to and through the cell, the
+    diffuse share of the Lyman–Werner field, grain-formation terms and the
+    H₂ heating terms. The header names every column.
+
+- name: h2Pop.bin
+  group: h2
+  writer: 'h2Lines_mod.f90::writeH2Lines@"file=''output/h2Pop.bin''"'
+  when: "at the end of the run"
+  build: pdr3d
+  read_by: "mocassinWarm (h2PopResume)"
+  description: |
+    The populations of H₂'s 302 X levels in every cell (binary stream).
+
+- name: lineFluxH2.out
+  group: h2
+  writer: 'h2Lines_mod.f90::writeH2Lines@"file=''output/lineFluxH2.out''"'
+  when: "at the end of the run"
+  build: pdr3d
+  description: |
+    The rovibrational lines of H₂ integrated over the grid (optically thin,
+    no dust extinction), above 10⁻⁶ of the strongest: label, v and J of the
+    upper and lower levels, wavelength (µm), E_up/k (K), luminosity
+    (erg s⁻¹) and the ratio to Hβ.
+
+# ---------------------------------------------------------------- results
+- name: lineFlux.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFlux.out''"'
+  when: "at the end (each iteration with `output`); also from mocassinOutput"
+  build: all
+  description: |
+    The emission-line luminosities relative to Hβ, with the absolute Hβ
+    luminosity (10³⁶ erg s⁻¹).
+
+- name: lineFlux-slit.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFlux-slit.out''"'
+  when: "as lineFlux.out, with `slit`"
+  build: all
+  description: |
+    As `lineFlux.out` for the cells under the slit.
+
+- name: lineFlux.ext
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFlux.ext''"'
+  when: "only when outputGas is given an extinction map; no program passes one in this version"
+  build: all
+  description: |
+    The line fluxes corrected with an extinction map read by `outputGas`.
+    Not produced by `mocassin`, `mocassinWarm` or `mocassinOutput`.
+
+- name: lineFlux-slit.ext
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFlux-slit.ext''"'
+  when: "as lineFlux.ext, with `slit`"
+  build: all
+  description: |
+    As `lineFlux.ext` for the cells under the slit.
+
+- name: lineFluxMol.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFluxMol.out''"'
+  when: "as lineFlux.out, with `pdr`"
+  build: all
+  description: |
+    The coolant lines (fine-structure and CO rotational lines) integrated
+    over the grid.
+
+- name: lineFluxMol-slit.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/lineFluxMol-slit.out''"'
+  when: "as lineFluxMol.out, with `slit`"
+  build: all
+  description: |
+    As `lineFluxMol.out` for the cells under the slit.
+
+- name: lineFluxFront.out
+  group: results
+  writer: 'frontLines_mod.f90::writeFrontLines@"file=''output/lineFluxFront.out''"'
+  when: "after the line table, with `frontLines`"
+  build: all
+  description: |
+    [O I] 6300, 6363 and 5577 Å with the front cells resolved by a sub-cell
+    profile, beside `lineFlux.out`, which is not changed.
+
+- name: temperature.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/temperature.out''"'
+  when: "as lineFlux.out"
+  build: all
+  description: |
+    Mean electron temperature of every ion, weighted by n_e n_ion dV.
+
+- name: ionratio.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/ionratio.out''"'
+  when: "as lineFlux.out"
+  build: all
+  description: |
+    Mean ionic fractions of every element, weighted by volume and by n_e.
+
+- name: ionDen.out
+  group: results
+  writer: 'output_mod.f90::outputGas@"file=''output/ionDen.out''"'
+  when: "as lineFlux.out"
+  build: all
+  description: |
+    Ionic fractions per cell: i, j, k, element, stage, fraction.
+
+- name: summary.out
+  group: iteration
+  writer: 'iteration_mod.f90::iterateMC@"position=''rewind'', file=''output/summary.out''"'
+  when: "every iteration, appended"
+  build: all
+  description: |
+    The iteration log: packets, convergence, timing and the integrated
+    quantities of each Monte Carlo iteration.
+
+- name: SED.out
+  group: results
+  writer: 'output_mod.f90::writeSED@"file=''output/SED.out''"'
+  when: "at the end"
+  build: all
+  description: |
+    The spectral energy distribution of the escaping radiation, over all
+    directions and at each `inclination`.
+
+- name: equivalentTau.out
+  group: results
+  writer: 'output_mod.f90::writeSED@"file=''output/equivalentTau.out''"'
+  when: "at the end, with `getEquivalentTau`"
+  build: all
+  description: |
+    The equivalent optical depth per frequency and the source SED.
+
+- name: contCube.out
+  group: results
+  writer: 'output_mod.f90::writeContCube@"file=''output/contCube.out''"'
+  when: "at the end, with `continuumCube`"
+  build: all
+  description: |
+    A 3D cube of the escaping continuum in the band given.
+
+- name: tauNu.out
+  group: results
+  writer: 'output_mod.f90::writeTauNu@"file=''output/tauNu.out''"'
+  when: "at the end"
+  build: all
+  description: |
+    Optical depth against frequency from the grid origin to the edge along
+    +x (direction 1, 0, 0).
+
+# ---------------------------------------------------- per-iteration files
+- name: convergence.out
+  group: iteration
+  writer: 'iteration_mod.f90::cvTotalsUpdate@"file=''output/convergence.out''"'
+  when: "every iteration (rewritten)"
+  build: all
+  description: |
+    The model-integrated convergence test (`convTotals`): per iteration the
+    percentage of converged cells, the worst relative change, and every
+    tested quantity — emission measures n_e n_i dV of the significant ion
+    stages, the H⁰ (H₂, CO) contents, and the weighted temperatures (−1 =
+    not significant).
+
+- name: thermalBalance.out
+  group: iteration
+  writer: 'iteration_mod.f90::iterateMC@"file=\"output/thermalBalance.out\""'
+  when: "every iteration, with `traceHeating`"
+  build: all
+  description: |
+    The heating and cooling channels of every cell (large).
+
+- name: qHeatPss.out
+  group: iteration
+  writer: 'iteration_mod.f90::iterateMC@"file=''output/qHeatPss.out''"'
+  when: "with `quantumHeatGrainParameters ... .true.`"
+  build: all
+  description: |
+    The temperature probability distributions of the stochastically heated
+    grains in every cell (very large).
+
+- name: planeIonDistribution.out
+  group: iteration
+  writer: 'iteration_mod.f90::iterateMC@"file=\"output/planeIonDistribution.out\""'
+  when: "with `planeIonization`"
+  build: all
+  description: |
+    Where the plane-parallel packets entered the grid.
+
+# ---------------------------------------------------------- mocassinPlot
+- name: grid4.out
+  group: plot
+  writer: 'mocassinPlot.f90@"file=''output/grid4.out''"'
+  when: "by mocassinPlot"
+  build: all
+  description: |
+    The emissivity of each line listed in `plot.in`, per cell.
+
+- name: plot.out
+  group: plot
+  writer: 'mocassinPlot.f90@"file=''output/plot.out''"'
+  when: "by mocassinPlot"
+  build: all
+  description: |
+    Per cell, the luminosity of each line listed in `plot.in`, for maps and
+    cubes.
+
+- name: slitMask.out
+  group: plot
+  writer: 'mocassinPlot.f90@"file=''output/slitMask.out''"'
+  when: "by mocassinPlot, with `slit`"
+  build: all
+  description: |
+    Which cells fall under the slit.

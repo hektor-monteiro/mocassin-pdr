@@ -1,0 +1,112 @@
+# The benchmark pages' sources: which runs and references docs/bench/reduce.py reads (stage A), and what
+# it writes to docs/bench/data/<product>/ for docs/bench/plots.py (stage B, on Read the Docs).
+#
+# Run and Cloudy paths are relative to the runs root, $MOCASSIN_RUNS (default meta.runs_root_default);
+# an absolute path is used as it is. Repository paths (inputs, fixtures, committed Cloudy inputs) are
+# relative to the repository root. Every value under [run.*] that a run's own files also state
+# (version, iterations, run_time, seed, ranks) is checked against them by reduce.py, which stops on a
+# mismatch.
+
+[meta]
+schema = 1
+title = "MOCASSIN-PDR benchmarks against Cloudy c25.00: hiipdr and pn150k"
+release = "pdr-coupling-v2.0"
+release_commit = "53c17eb"
+# The release runs were built at c1ea374 (the h2-model merge, DEVLOG D-429). source/, the Makefile and
+# dataPDR/ are the same at the release commit: `git diff --quiet c1ea374 53c17eb -- source Makefile
+# dataPDR` returns 0 (checked 2026-10-21).
+built_from = "c1ea374"
+built_from_check = "git diff --quiet c1ea374 53c17eb -- source Makefile dataPDR: rc 0"
+runs_root_env = "MOCASSIN_RUNS"
+runs_root_default = "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs"
+data = "docs/bench/data"
+
+# ---------------------------------------------------------------------------------------------- runs
+# Both built by runs/_release_v2/build.sh (`make PDR=1 PDRGEOM=3D all`, the 3D flavour with the H2
+# level model, after the other three flavours; build.log: every flavour rc=0) and run one after the
+# other by runs/_release_v2/queue.sh on 14 ranks.
+
+[run.rel-hii31]
+path = "_release_v2/rel-hii31"
+inputs = "docs/bench/inputs/rel-hii31"
+fixture = "benchmarks/pdr/hiipdr/input"
+build_log = "_release_v2/build.log"
+version = "pdr-coupling-v1.2-154-gc1ea374"     # build.log "version" line; run.log line 1
+binary_md5 = "4e4ef9622f7f677a44912f26c6bf0472" # mocassin.rel; build.log "mocassin md5 4e4ef962"
+build = "make PDR=1 PDRGEOM=3D all"
+launch = "mpirun --mca osc ^ucx -np 14 ./mocassin.rel"
+ranks = 14
+seed = 1001
+grid = "31^3, symmetricXYZ octant"
+nphotons = 6000000
+max_iterations = 15                              # input.in maxIterateMC 15 90.
+iterations = 15                                  # run.log: 15 "finished at" summaries
+run_time = "00:41:59"                            # run.log "total run time per processor 00:41:59 (HMS)"
+date = "2026-10-21"                              # runs/_release_v2/DONE_all "done 2026-10-21 14:21:03"
+
+[run.rel-pn41]
+path = "_release_v2/rel-pn41"
+inputs = "docs/bench/inputs/rel-pn41"
+fixture = "benchmarks/pdr/pn150k/input"
+build_log = "_release_v2/build.log"
+version = "pdr-coupling-v1.2-154-gc1ea374"
+binary_md5 = "4e4ef9622f7f677a44912f26c6bf0472"
+build = "make PDR=1 PDRGEOM=3D all"
+launch = "mpirun --mca osc ^ucx -np 14 ./mocassin.rel"
+ranks = 14
+seed = 1001
+grid = "41^3, symmetricXYZ octant"
+nphotons = 6000000
+max_iterations = 18                              # input.in maxIterateMC 18 90.
+iterations = 18                                  # run.log: 18 "finished at" summaries
+run_time = "02:28:57"                            # run.log "total run time per processor 02:28:57 (HMS)"
+date = "2026-10-21"
+
+# ---------------------------------------------------------------------------------------- references
+# Cloudy c25.00 (~/software/cloudy-c25.00), DEVLOG D-396: MOCASSIN's 1 km/s turbulence and Cloudy's
+# large H2 model. `prefix` is the save-file prefix of the run; `input` the committed input, which
+# `reduce.py --check-cloudy` compares with the run's own (`run_input`). rin_cm is the inner radius of
+# the Cloudy input (its `radius` command), from which the radius of a zone is rin_cm + depth.
+
+[ref.cloudy-hii]
+code = "Cloudy c25.00"
+prefix = "d396-cloudy-hii/hiipdr"
+run_input = "d396-cloudy-hii/hiipdr.in"
+input = "benchmarks/pdr/hiipdr/cloudy/hiipdr.in"
+rin_cm = 3.0e18                                  # radius 18.4771 (log cm); MOCASSIN Rin 30.e17
+devlog = "D-396"
+
+[ref.cloudy-pn]
+code = "Cloudy c25.00"
+prefix = "d396-cloudy-pn/150k"
+run_input = "d396-cloudy-pn/150k.in"
+input = "benchmarks/pdr/pn150k/cloudy/150k_PDR.in"
+rin_cm = 1.0e16                                  # radius = 16.000 (log cm); MOCASSIN Rin 1.0e16
+devlog = "D-396"
+
+# The standalone 3D-PDR model of Bisbas et al. (2015) section 5.4, for the hiipdr overlay. A 3D-PDR
+# slab starts at A_V = 0 at its own lit face; it is drawn at A_V = A_front + A_V,ref
+# (tools/d260_roellig.py read_ref, D-257). Stage A does not reduce it yet.
+[ref.3dpdr-sec54]
+code = "3D-PDR (standalone, upstream fabcdc6)"
+path = "benchmarks/pdr/baseline3dpdr/sec54.pdr.fin"
+alignment = "A_V = A_front + A_V,ref"
+
+# ------------------------------------------------------------------------------------------ products
+# lineset selects the matched line list of the published page: "hii" (hiipdr against Cloudy) or "pn"
+# (150kK PN against Cloudy). h2_top is the number of Cloudy's strongest H2 lines matched (H-009).
+
+[product.hiipdr]
+title = "hiipdr (Bisbas et al. 2015, section 5.4)"
+run = "rel-hii31"
+cloudy = "cloudy-hii"
+reference = "3dpdr-sec54"
+lineset = "hii"
+h2_top = 40
+
+[product.pn150k]
+title = "150 kK planetary nebula (pn150k)"
+run = "rel-pn41"
+cloudy = "cloudy-pn"
+lineset = "pn"
+h2_top = 40

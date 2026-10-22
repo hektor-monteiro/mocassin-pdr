@@ -40,10 +40,15 @@ extensions = [
 
 source_suffix = {'.md': 'markdown'}
 root_doc = 'index'
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '_ext']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '_ext', 'bench',
+                    'benchmarks/_*.md']  # fragments, included by their pages
 
 myst_enable_extensions = ['dollarmath', 'amsmath', 'colon_fence', 'deflist',
                           'attrs_inline', 'substitution']
+
+# Tables, figures and equations are numbered; {numref} and {eq} use the numbers.
+numfig = True
+math_numfig = True
 
 # The report's macros (doc/h2-radiation-molecules/main.tex), for MathJax.
 mathjax3_config = {
@@ -81,3 +86,17 @@ html_static_path = []
 linkcheck_ignore = [r'https://github\.com/.*/blob/']
 
 fortref_github = 'https://github.com/hektor-monteiro/mocassin-pdr'
+
+
+# ------------------------------------------------------------- benchmarks
+# The benchmark figures are drawn from the committed reduced data
+# (docs/bench/data/, written locally by docs/bench/reduce.py) every time the
+# site is built: Read the Docs cannot run MOCASSIN, but it can plot.
+def _draw_benchmark_figures(app):
+    here = os.path.dirname(os.path.abspath(__file__))
+    out = os.path.join(here, 'benchmarks', '_generated')
+    subprocess.run([sys.executable, os.path.join(here, 'bench', 'plots.py'), out], check=True)
+
+
+def setup(app):
+    app.connect('builder-inited', _draw_benchmark_figures)

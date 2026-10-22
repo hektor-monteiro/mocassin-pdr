@@ -1,3 +1,2 @@
-# Dust inputs
-
-Being written.
+```{include} ../../doc/dust.md
+```

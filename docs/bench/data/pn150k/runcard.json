@@ -1,0 +1,197 @@
+{
+ "manifest": {
+  "path": "_release_v2/rel-pn41",
+  "inputs": "docs/bench/inputs/rel-pn41",
+  "fixture": "benchmarks/pdr/pn150k/input",
+  "build_log": "_release_v2/build.log",
+  "version": "pdr-coupling-v1.2-154-gc1ea374",
+  "binary_md5": "4e4ef9622f7f677a44912f26c6bf0472",
+  "build": "make PDR=1 PDRGEOM=3D all",
+  "launch": "mpirun --mca osc ^ucx -np 14 ./mocassin.rel",
+  "ranks": 14,
+  "seed": 1001,
+  "grid": "41^3, symmetricXYZ octant",
+  "nphotons": 6000000,
+  "max_iterations": 18,
+  "iterations": 18,
+  "run_time": "02:28:57",
+  "date": "2026-10-21"
+ },
+ "measured": {
+  "version": "pdr-coupling-v1.2-154-gc1ea374",
+  "seed": 1001,
+  "ranks": 14,
+  "iterations": 18,
+  "run_time": "02:28:57"
+ },
+ "build_log_version": "pdr-coupling-v1.2-154-gc1ea374",
+ "mismatch": {},
+ "inputs_identical_to_run": true,
+ "trail": [
+  {
+   "it": 1,
+   "finished_at": "11:53:51",
+   "cells_converged_pct": 0.0,
+   "worst_change_pct": null,
+   "worst_quantity": null
+  },
+  {
+   "it": 2,
+   "finished_at": "11:58:45",
+   "cells_converged_pct": 0.0,
+   "worst_change_pct": null,
+   "worst_quantity": null
+  },
+  {
+   "it": 3,
+   "finished_at": "12:00:49",
+   "cells_converged_pct": 74.8106,
+   "worst_change_pct": null,
+   "worst_quantity": null
+  },
+  {
+   "it": 4,
+   "finished_at": "12:07:45",
+   "cells_converged_pct": 0.353267,
+   "worst_change_pct": 411.676,
+   "worst_quantity": "n(H0)"
+  },
+  {
+   "it": 5,
+   "finished_at": "12:17:36",
+   "cells_converged_pct": 0.737622,
+   "worst_change_pct": 253.254,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 6,
+   "finished_at": "12:27:58",
+   "cells_converged_pct": 6.75447,
+   "worst_change_pct": 129.742,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 7,
+   "finished_at": "12:36:35",
+   "cells_converged_pct": 50.3052,
+   "worst_change_pct": 791.15,
+   "worst_quantity": "n(H2)"
+  },
+  {
+   "it": 8,
+   "finished_at": "12:44:03",
+   "cells_converged_pct": 68.4575,
+   "worst_change_pct": 92.373,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 9,
+   "finished_at": "12:51:22",
+   "cells_converged_pct": 76.2689,
+   "worst_change_pct": 33.126,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 10,
+   "finished_at": "12:59:25",
+   "cells_converged_pct": 78.7248,
+   "worst_change_pct": 17.033,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 11,
+   "finished_at": "13:09:02",
+   "cells_converged_pct": 79.3438,
+   "worst_change_pct": 9.507,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 12,
+   "finished_at": "13:18:37",
+   "cells_converged_pct": 79.2477,
+   "worst_change_pct": 5.532,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 13,
+   "finished_at": "13:28:35",
+   "cells_converged_pct": 78.7927,
+   "worst_change_pct": 3.325,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 14,
+   "finished_at": "13:36:49",
+   "cells_converged_pct": 79.2081,
+   "worst_change_pct": 2.25,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 15,
+   "finished_at": "13:44:09",
+   "cells_converged_pct": 79.3127,
+   "worst_change_pct": 1.226,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 16,
+   "finished_at": "13:51:39",
+   "cells_converged_pct": 79.2703,
+   "worst_change_pct": 0.622,
+   "worst_quantity": "He2+"
+  },
+  {
+   "it": 17,
+   "finished_at": "13:58:59",
+   "cells_converged_pct": 80.1634,
+   "worst_change_pct": 2.217,
+   "worst_quantity": "T(H0)"
+  },
+  {
+   "it": 18,
+   "finished_at": "14:06:21",
+   "cells_converged_pct": 79.389,
+   "worst_change_pct": 1.552,
+   "worst_quantity": "T(H0)"
+  }
+ ],
+ "verdict": [
+  "NOT CONVERGED after  18 iterations: T(H0) changed   1.552% over the last window (limit  0.00%)",
+  "converged cells  79.39% (minConvergence  90.00%, reported only - D-392)"
+ ],
+ "cells": {
+  "active": 35384,
+  "flagged": 3,
+  "flagged_av": [
+   0.163212,
+   0.240345,
+   0.272936
+  ],
+  "used": 35381,
+  "av_min": 0.00838307,
+  "av_max": 0.662263,
+  "a_front": 0.134862,
+  "r_min_pc": 0.0151651,
+  "r_max_pc": 0.606605
+ },
+ "h2_model": true,
+ "product": "pn150k",
+ "title": "150 kK planetary nebula (pn150k)",
+ "run": "rel-pn41",
+ "release": "pdr-coupling-v2.0",
+ "release_commit": "53c17eb",
+ "built_from": "c1ea374",
+ "built_from_check": "git diff --quiet c1ea374 53c17eb -- source Makefile dataPDR: rc 0",
+ "cloudy": {
+  "code": "Cloudy c25.00",
+  "prefix": "d396-cloudy-pn/150k",
+  "run_input": "d396-cloudy-pn/150k.in",
+  "input": "benchmarks/pdr/pn150k/cloudy/150k_PDR.in",
+  "rin_cm": 1e+16,
+  "devlog": "D-396",
+  "zones": 640,
+  "name": "cloudy-pn"
+ },
+ "model_label": "MOCASSIN-PDR pdr-coupling-v2.0",
+ "cloudy_label": "Cloudy c25.00"
+}
