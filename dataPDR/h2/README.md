@@ -1,4 +1,4 @@
-# H2 data (branch h2-model)
+# H2 data
 
 Copied unmodified from Cloudy c25.00 (`data/h2/`), the data set of its
 large H2 model (Shaw et al. 2005, ApJ 624, 794). The original references are
@@ -42,7 +42,12 @@ licence (zlib) applies to its distribution:
     3. This notice may not be removed or altered from any source distribution.
 
 MOCASSIN-PDR's H2 model (source/h2_mod.f90) is a re-implementation in
-Fortran from Cloudy's equations and these data, not a translation of its
-source; where it follows a Cloudy convention (linear interpolation in T held
-at the table ends, g-bar estimates for same-spin pairs without data) the code
-says so.
+Fortran from Cloudy's equations and these data; where it follows a Cloudy
+convention (linear interpolation in T held at the table ends, g-bar estimates
+for same-spin pairs without data) the code says so. Two of its routines are
+translated or adapted from Cloudy's source:
+h2ShieldFederman (from shieldFederman, rt_continuum_shield_fcn.cpp) and
+h2FormDist (from mole_h2_create.cpp); so is yanH2xSec in
+source/ionization_mod.f90 (from Yan_H2_CS, mole_h2_etc.cpp). The notice above
+applies to them, and notes marking them as altered are to be added in the
+code (DEVLOG D-435).

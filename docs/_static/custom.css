@@ -1,0 +1,13 @@
+/* MOCASSIN-PDR: small adjustments to the Read the Docs theme. */
+
+/* Wrap long cells instead of scrolling the table sideways: the keyword,
+   output and physics tables hold sentences, not single values. */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+}
+
+/* A little more room for equations and the wider tables. */
+.wy-nav-content {
+    max-width: 1000px;
+}

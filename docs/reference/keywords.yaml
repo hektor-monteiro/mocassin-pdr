@@ -1,0 +1,1056 @@
+# Input keywords of MOCASSIN-PDR (input/input.in), one entry per keyword that
+# readInput (source/set_input_mod.f90) accepts and acts on.
+#
+# The generator writes user-guide/keywords.md from this file. Its check parses
+# every `case (...)` label of readInput and fails the build if a keyword is
+# neither here nor among the retired keywords (those are generated from
+# retiredKeyword and are not listed here). The anchor of each keyword's
+# `case` block is found by the generator, not written here.
+#
+# Fields:
+#   name         keyword exactly as readInput matches it (case-sensitive)
+#   group        geometry | gas | dust | sources | montecarlo | output |
+#                pdr | solver | diagnostics
+#   syntax       the input line, arguments in <angle brackets>
+#   default      what the model does when the keyword is absent
+#   build        all | pdr   (pdr: parsed only in PDR builds, #ifdef PDR)
+#   status       active | no-effect | unavailable
+#   description  MyST Markdown
+#   devlog       optional list of DEVLOG IDs
+#   see_also     optional list of fortref references to the code that uses it
+
+# ----------------------------------------------------------------- geometry
+- name: nx
+  group: geometry
+  syntax: "nx <n>"
+  default: "30"
+  build: all
+  status: active
+  description: |
+    Number of cell centres along the x axis of the (mother) grid. It can
+    instead be given in the first row of the density, `Ndust`, `MdMg` or
+    `MdMh` file as `# nx ny nz`, in which case the three keywords can be
+    omitted. An automatically generated full grid (no `symmetricXYZ`) needs
+    odd nx, ny and nz.
+
+- name: ny
+  group: geometry
+  syntax: "ny <n>"
+  default: "30"
+  build: all
+  status: active
+  description: |
+    Number of cell centres along the y axis. See `nx`.
+
+- name: nz
+  group: geometry
+  syntax: "nz <n>"
+  default: "30"
+  build: all
+  status: active
+  description: |
+    Number of cell centres along the z axis. See `nx`.
+
+- name: Rin
+  group: geometry
+  syntax: "Rin <r_cm>"
+  default: 'none: required (`Rin 0` for no cavity)'
+  build: all
+  status: active
+  description: |
+    Inner radius of the gas distribution, in cm, measured from the grid
+    origin: cells whose centres are closer are inactive. Required; give 0 for
+    no cavity.
+
+- name: Rout
+  group: geometry
+  syntax: "Rout <r_cm>"
+  default: "0 (taken from the grid)"
+  build: all
+  status: active
+  description: |
+    Outer radius of the gas distribution, in cm, measured from the grid
+    origin: cells farther than `Rout` are inactive (no limit if `Rout` ≤ 0).
+    Ignored with `planeIonization`.
+
+- name: edges
+  group: geometry
+  syntax: "edges <x_cm> <y_cm> <z_cm>"
+  default: "-1 -1 -1 (unset)"
+  build: all
+  status: active
+  description: |
+    The largest x, y and z axis values, in cm, of an automatically generated
+    grid: the axes run from 0 (`symmetricXYZ`) or from −edge to +edge.
+    Required unless the grid comes from a `densityFile` or an `Ndust` file
+    (`Rout` does not set it).
+
+- name: symmetricXYZ
+  group: geometry
+  syntax: "symmetricXYZ"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    The model is symmetric about the x, y and z planes: the source sits in a
+    corner of the grid and only one octant is computed; the outputs account
+    for the symmetry. Do not combine with `diffuseSource`. Cells on the
+    symmetry planes are partial volumes.
+
+- name: 2D
+  group: geometry
+  syntax: "2D"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Axisymmetric mode: the model is rotationally symmetric about the z
+    axis, only the x–z plane of cells is stored (the y axis mirrors x).
+    Not supported with `pdr` (the run stops).
+
+- name: oneD
+  group: geometry
+  syntax: "oneD"
+  default: "off"
+  build: all
+  status: unavailable
+  description: |
+    The one-dimensional mode of the original code. It is not available: the
+    keyword stops the run with an error.
+
+- name: multiGrids
+  group: geometry
+  syntax: "multiGrids <n_grids> <grid_list_file>"
+  default: "1 grid"
+  build: all
+  status: active
+  description: |
+    Nested grids: `n_grids` is the total number of grids (mother plus
+    sub-grids) and the list file describes each sub-grid. The H2 level
+    model and `frontLines` are skipped when there is more than one grid.
+
+- name: starPosition
+  group: geometry
+  syntax: "starPosition <x> <y> <z>"
+  default: "0 0 0 (the grid origin)"
+  build: all
+  status: active
+  description: |
+    Position of the single ionising source as fractions of the largest x, y
+    and z axis values. `setStarPosition` multiplies them by the axis ends,
+    keeps that exact position and assigns the source to the cell whose centre
+    is nearest. The default (0, 0, 0) is the grid origin: the centre of a full
+    grid, the corner of a `symmetricXYZ` octant.
+
+- name: fillingFactor
+  group: geometry
+  syntax: "fillingFactor <f>"
+  default: "1"
+  build: all
+  status: active
+  description: |
+    If f < 1, each cell's gas density is set to zero with probability 1 − f: a
+    random whole-cell porosity, not a sub-cell filling factor, and
+    emissivities are not scaled. The draw is made on every MPI rank from an
+    unseeded generator, so the ranks can hold different grids and the run is
+    not reproducible even with `randomSeed`: use it only with one rank until
+    this is fixed.
+# ------------------------------------------------------------ gas content
+- name: Hdensity
+  group: gas
+  syntax: "Hdensity <n_H>"
+  default: "none: one of Hdensity, densityLaw or densityFile is required"
+  build: all
+  status: active
+  description: |
+    Constant hydrogen number density, in cm⁻³, in every active cell.
+
+- name: densityLaw
+  group: gas
+  syntax: "densityLaw <p1> <p2> <p3>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Parameters p1, p2, p3 of the analytical density law coded in `grid_mod`,
+    n_H(r) = p3 (r/p1)^p2 exp[−½(r/p1)²] with r from the grid origin (the law
+    of Clegg et al. 1987). Editing that routine is needed for any other law.
+
+- name: densityFile
+  group: gas
+  syntax: "densityFile <file>"
+  default: "none"
+  build: all
+  status: active
+  description: |
+    Cell-by-cell density: four columns, x, y, z (cm) and n_H (cm⁻³), or five
+    with `multiChemistry`, whose fifth column is the index of each cell's
+    abundance file. Rows run with x slowest and z fastest and cover the whole
+    grid. The first row may be `# nx ny nz`. Axes need not be evenly spaced.
+
+- name: inputNe
+  group: gas
+  syntax: "inputNe"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    The density given (by `Hdensity`, `densityLaw` or `densityFile`) is the
+    electron density; n_H is recomputed from it every iteration from the
+    local ionisation state.
+
+- name: nebComposition
+  group: gas
+  syntax: "nebComposition <abundance_file | noGas>"
+  default: "required when there is gas and no multiChemistry"
+  build: all
+  status: active
+  description: |
+    File of 30 abundances by number relative to H, Z = 1 to 30 in order.
+    Elements set to zero are excluded from the whole calculation, which
+    saves memory. `noGas` makes a dust-only model. Do not combine with
+    `multiChemistry`.
+
+- name: multiChemistry
+  group: gas
+  syntax: "multiChemistry <n> <abundance_file_1> ... <abundance_file_n>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Chemically inhomogeneous model with `n` abundance sets. Requires
+    `densityFile`, whose fifth column gives each cell's set (1 to n).
+
+- name: gasMass
+  group: gas
+  syntax: "gasMass <M_sun>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Rescales the gas density so the total gas mass of the grid equals the
+    value given, in solar masses (divided by 8 internally with
+    `symmetricXYZ`). Give the density shape with `densityFile`, or
+    `Hdensity 1`. The same factor rescales the grain density when the dust
+    is given by `MdMg` or `MdMh`, and the electron density is reset to
+    n_H.
+
+- name: nstages
+  group: gas
+  syntax: "nstages <n>"
+  default: "7"
+  build: all
+  status: active
+  description: |
+    Number of ionisation stages per element (at most 10). The keyword is
+    lower case: readInput matches keywords case-sensitively, and the
+    spelling `nStages` given in older manuals is not recognised.
+
+# --------------------------------------------------------------------- dust
+- name: dustFile
+  group: dust
+  syntax: "dustFile <species_file> <sizes_file>"
+  default: "none (no dust)"
+  build: all
+  status: active
+  description: |
+    The grain-species file (materials, their optical-constant or Q files,
+    and abundance fractions) and the grain-size file. See
+    [Dust inputs](dust-inputs). Dust is required by `pdr`.
+
+- name: multiDustChemistry
+  group: dust
+  syntax: "multiDustChemistry <n> <species_file_1> ... <species_file_n> <sizes_file>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Several dust compositions. The component of each cell is the fifth column
+    of the `MdMg`/`MdMh`/`Ndust` file. A per-cell `MdMg`/`MdMh`/`Ndust` file
+    is required; with a constant every cell gets component 0.
+
+- name: MdMg
+  group: dust
+  syntax: "MdMg constant <ratio>  |  MdMg file <file>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    The dust-to-gas mass ratio, either constant or per cell. The per-cell file
+    holds i j k (integer cell indices, ignored, with z fastest and x slowest)
+    and the ratio, plus the dust component as a fifth column with
+    `multiDustChemistry`; the first row may be `# nx ny nz`. Give only one of
+    `MdMg`, `MdMh` and `Ndust`: the run stops only when all three are given;
+    otherwise `MdMg`/`MdMh` take precedence and the later of the two wins.
+
+- name: MdMh
+  group: dust
+  syntax: "MdMh constant <ratio>  |  MdMh file <file>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    The dust-to-hydrogen mass ratio, either constant or per cell. The per-cell
+    file holds i j k (integer cell indices, ignored, with z fastest and x
+    slowest) and the ratio, plus the dust component as a fifth column with
+    `multiDustChemistry`; the first row may be `# nx ny nz`. Give only one of
+    `MdMg`, `MdMh` and `Ndust`: the run stops only when all three are given;
+    otherwise `MdMg`/`MdMh` take precedence and the later of the two wins.
+
+- name: Ndust
+  group: dust
+  syntax: "Ndust constant <n_d>  |  Ndust file <file>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Grain number density in cm⁻³, constant or per cell, as for `MdMg`.
+
+- name: dustMass
+  group: dust
+  syntax: "dustMass <M_sun>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Rescales the grain densities so the total dust mass equals the value
+    given, in solar masses. Not allowed together with `MdMg`/`MdMh` when
+    `gasMass` is also given.
+
+- name: noScattering
+  group: dust
+  syntax: "noScattering"
+  default: "scattering on"
+  build: all
+  status: active
+  description: |
+    Turns off scattering by dust grains (absorption only). (Optical-constant
+    `.nk` species only; tabulated `.cat` efficiencies are used as given.)
+
+- name: isotropicScattering
+  group: dust
+  syntax: "isotropicScattering"
+  default: "Henyey-Greenstein"
+  build: all
+  status: active
+  description: |
+    Scatters isotropically instead of with the Henyey–Greenstein phase
+    function, whose asymmetry parameter comes from the Mie calculation.
+
+- name: noPhotoelectric
+  group: dust
+  syntax: "noPhotoelectric"
+  default: "on"
+  build: all
+  status: active
+  description: |
+    Switches off grain charging, photoelectric emission and the gas–grain
+    collisional exchange.
+
+- name: quantumHeatGrain
+  group: dust
+  syntax: "quantumHeatGrain <a_max_um> <min_convergence>"
+  default: "off (1e-3, 99 when on)"
+  build: all
+  status: active
+  description: |
+    Stochastic heating (temperature spiking) for grains smaller than
+    `a_max_um`, applied once the grid convergence exceeds `min_convergence`
+    per cent. It is applied only to the dust re-emission spectrum — the
+    temperatures used by the gas–grain exchange and H₂ formation are unchanged
+    — and only while the converged-cell percentage exceeds `min_convergence`;
+    PDR runs plateau near 65–80%, so lower it there or the option never acts.
+
+- name: quantumHeatGrainParameters
+  group: dust
+  syntax: "quantumHeatGrainParameters <T_max> <n_T_bins> <write_pss>"
+  default: "700 300 .false."
+  build: all
+  status: active
+  description: |
+    Internal parameters of the stochastic heating: the top of the
+    temperature mesh (K), the number of temperature bins, and whether to
+    write every probability distribution to `qHeatPss.out` (very large).
+
+- name: CDE
+  group: dust
+  syntax: "CDE"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Uses the continuous distribution of ellipsoids (CDE) for the absorption
+    and scattering efficiencies of grains whose size parameter is below 1,
+    instead of Mie theory. (Optical-constant `.nk` species only; tabulated
+    `.cat` efficiencies are used as given.)
+
+- name: TDust
+  group: dust
+  syntax: "TDust <T_K>"
+  default: "off (radiative equilibrium)"
+  build: all
+  status: active
+  description: |
+    Forces every grain temperature to the value given instead of solving the
+    grain energy balance.
+
+# ---------------------------------------------------------------- sources
+- name: contShape
+  group: sources
+  syntax: "contShape blackbody | contShape powerlaw <index> | contShape <atmosphere_file>"
+  default: 'none: required unless multiPhotoSources'
+  build: all
+  status: active
+  description: |
+    Spectrum of the single ionising source: a Planck function at `TStellar`,
+    a power law F_ν ∝ ν^(−index) (use `LStar`, not `LPhot`), or a model
+    atmosphere file of wavelength (Å) and Eddington flux
+    (erg cm⁻² s⁻¹ Å⁻¹ sr⁻¹) without header.
+
+- name: TStellar
+  group: sources
+  syntax: "TStellar <T_K>"
+  default: "required for a point source"
+  build: all
+  status: active
+  description: |
+    Effective temperature of the ionising source, in K.
+
+- name: LStar
+  group: sources
+  syntax: "LStar <L_1e36_erg_s>"
+  default: "required unless LPhot is given"
+  build: all
+  status: active
+  description: |
+    Bolometric luminosity of the source, in units of 10³⁶ erg s⁻¹. Q(H⁰)
+    follows from it and the spectrum.
+
+- name: LPhot
+  group: sources
+  syntax: "LPhot <Q_1e36_s>"
+  default: "required unless LStar is given"
+  build: all
+  status: active
+  description: |
+    Hydrogen-ionising photon rate Q(H⁰) of the source, in units of
+    10³⁶ s⁻¹. `LStar` is derived from it.
+
+- name: multiPhotoSources
+  group: sources
+  syntax: "multiPhotoSources <sources_file>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Several sources anywhere in the grid. The file gives the number of
+    sources, then one line per source: T_eff (K), L (10³⁶ erg s⁻¹), spectrum
+    shape, x, y, z (fractions of the axis ends), spectrum identifier
+    (`blackbody`, `powerlaw` or the atmosphere type) and a time step (0 except
+    for Starburst99 input); all eight fields are required. `nPhotons` is
+    shared equally among the sources. Not to be combined with `TStellar`,
+    `LStar`, `contShape` or `starPosition`.
+
+- name: diffuseSource
+  group: sources
+  syntax: "diffuseSource <L_1e36_erg_s> <T_K> <shape> <n_packets> <grid_index>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    A source distributed through the gas (e.g. radioactive heating): total
+    luminosity (10³⁶ erg s⁻¹), temperature, spectrum shape (as `contShape`),
+    number of packets per emitting cell, and the number of grids that emit (0:
+    all; k: grids 1 to k). The luminosity is shared among the cells in
+    proportion to n_H dV (to the grain number in a dust-only model). Not to be
+    used with `symmetricXYZ`.
+
+- name: planeIonization
+  group: sources
+  syntax: "planeIonization <flux> <nu0_Ryd>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Plane-parallel illumination from the x–z plane: the photon flux above
+    `nu0_Ryd` (photons cm⁻² s⁻¹), or the bolometric energy flux (erg cm⁻² s⁻¹)
+    if `nu0_Ryd` is 0. Needs `densityFile`. Packets reflect off the y–z and
+    x–y faces, and `symmetricXYZ` is switched off. The H₂ level model and
+    `frontLines` are skipped in this mode.
+
+- name: nuMin
+  group: sources
+  syntax: "nuMin <nu_Ryd>"
+  default: "1.001e-5"
+  build: all
+  status: active
+  description: |
+    Lower end of the frequency grid, in Ryd. A value above 1.4e-6 Ryd excludes
+    the 5 GHz radio continuum (a warning is printed). The default lies above
+    this limit, so the warning is normal.
+
+- name: nuMax
+  group: sources
+  syntax: "nuMax <nu_Ryd>"
+  default: "15"
+  build: all
+  status: active
+  description: |
+    Upper end of the frequency grid, in Ryd.
+
+- name: nbins
+  group: sources
+  syntax: "nbins <n>"
+  default: "600"
+  build: all
+  status: active
+  description: |
+    Number of points of the frequency grid. Memory per rank grows with it
+    (the measured memory model is for `nbins 600`).
+
+# ------------------------------------------------------- Monte Carlo, convergence
+- name: nPhotons
+  group: montecarlo
+  syntax: "nPhotons <n>"
+  default: "required (unless diffuseSource supplies packets)"
+  build: all
+  status: active
+  description: |
+    Number of energy packets per Monte Carlo iteration. Scientific notation
+    is accepted.
+
+- name: autoPackets
+  group: montecarlo
+  syntax: "autoPackets <increase_threshold> <factor> <max_packets>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Multiplies the packet number by `factor` whenever the converged-cell
+    percentage rises by less than the fraction `increase_threshold` from one
+    iteration to the next, while it is below 95% and the count below
+    `max_packets` (the last increase can exceed it). In PDR runs the
+    percentage plateaus, so the count grows until the cap.
+
+- name: maxIterateMC
+  group: montecarlo
+  syntax: "maxIterateMC <n_max> <min_convergence_percent>"
+  default: "30 90"
+  build: all
+  status: active
+  description: |
+    Maximum number of Monte Carlo iterations. The second number is the
+    percentage of converged cells; since D-392 it is only reported against,
+    and the model-integrated test (`convTotals`) decides when the run stops.
+  devlog: [D-392]
+
+- name: convLimit
+  group: montecarlo
+  syntax: "convLimit <tol>"
+  default: "0.05"
+  build: all
+  status: active
+  description: |
+    The per-cell relative tolerance (XHILimit) on the quantities each cell is
+    tested on — x(H⁰) and T_e for gas models (and x(H₂) in PDR models, see
+    `cvUseH2`), the dust temperature for dust-only models. It is not the
+    fraction of converged cells, which is the second number of `maxIterateMC`.
+  devlog: [D-180]
+
+- name: convTotals
+  group: montecarlo
+  syntax: "convTotals <tol>"
+  default: "0.02"
+  build: all
+  status: active
+  description: |
+    Tolerance of the model-integrated convergence test that stops the run:
+    the largest relative change, over the last three iterations, of the
+    emission measures of every significant ion stage, the H⁰ (and in PDR
+    builds H₂ and CO) contents, and the temperatures weighted by
+    n_e n(H⁺), n(H⁰) and n(H₂). Reported each iteration in
+    `convergence.out`. A tiny value (e.g. `1e-6`) makes the run use every
+    iteration of `maxIterateMC`.
+  devlog: [D-391, D-392]
+
+- name: randomSeed
+  group: montecarlo
+  syntax: "randomSeed <seed>"
+  default: "-1 (seeded from the clock)"
+  build: all
+  status: active
+  description: |
+    A non-negative seed makes the Monte Carlo repeatable for the same rank
+    count and build. Negative or absent seeds from the clock.
+  devlog: [D-334]
+
+- name: pathStretch
+  group: montecarlo
+  syntax: "pathStretch <xi>"
+  default: "off"
+  build: pdr
+  status: active
+  description: |
+    Composite biasing of the interaction depth (Baes et al. 2016): a
+    fraction `xi` (0 < xi ≤ 1) of packets is drawn from the analog
+    exponential and the rest from a stretched one, with weights bounded by
+    1/xi. Numerics only; off by default until validated on the fixtures.
+  devlog: [D-238]
+
+- name: TeStart
+  group: montecarlo
+  syntax: "TeStart <T_K>"
+  default: "10000"
+  build: all
+  status: active
+  description: |
+    Initial electron temperature of every cell.
+
+- name: NeStart
+  group: montecarlo
+  syntax: "NeStart <n_e>"
+  default: unused
+  build: all
+  status: no-effect
+  description: |
+    Parsed but not used: every cell starts with n_e = n_H. Kept so old input
+    files run.
+
+- name: H0Start
+  group: montecarlo
+  syntax: "H0Start <x>"
+  default: "3e-5"
+  build: all
+  status: no-effect
+  description: |
+    Parsed but not used by any routine: the initial neutral fraction is set
+    by `initH0` (PDR builds), and in other builds is the same 1e-5 constant.
+    Kept so old input files run.
+
+- name: writeGrid
+  group: montecarlo
+  syntax: "writeGrid <percent>"
+  default: "0"
+  build: all
+  status: active
+  description: |
+    Grid convergence percentage above which the grid files (`grid*.out`,
+    and the PDR checkpoint) are written each iteration.
+
+# ------------------------------------------------------------------ output
+- name: output
+  group: output
+  syntax: "output"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Also writes the gas outputs (`lineFlux.out`, `temperature.out`,
+    `ionratio.out`, …) after every iteration. They are written at the end of
+    every run regardless, and can be rebuilt from the grid files with
+    `mocassinOutput`.
+
+- name: recombinationLines
+  group: output
+  syntax: "recombinationLines"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Adds the recombination-line intensities of the abundant ions to
+    `lineFlux.out`.
+
+- name: slit
+  group: output
+  syntax: "slit <axis> <d1_cm> <d2_cm>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Integrates `lineFlux.out`, `temperature.out` and `ionratio.out` along
+    `axis` (`x`, `y` or `z`) over the cells under a slit of the given sizes
+    along the other two axes. Writes `lineFlux-slit.out`.
+
+- name: inclination
+  group: output
+  syntax: "inclination <n> <theta_1> <phi_1> [<theta_2> <phi_2>]"
+  default: "0 (SED over all directions only)"
+  build: all
+  status: active
+  description: |
+    Up to two viewing directions (radians; θ = 0 is the z axis, φ = −1
+    drops the φ dependence) at which `SED.out` is also computed.
+
+- name: continuumCube
+  group: output
+  syntax: "continuumCube <lambda_1_um> <lambda_2_um>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Writes `contCube.out`, a 3D cube of the escaping continuum between the
+    two wavelengths, in the `inclination` direction or over all directions.
+
+- name: getEquivalentTau
+  group: output
+  syntax: "getEquivalentTau"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Computes the equivalent optical depth (Ercolano et al. 2007) and writes
+    `equivalentTau.out`; useful with several or diffuse sources.
+
+- name: echo
+  group: output
+  syntax: "echo <t1_days> <t2_days> <T_K>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Light-echo geometry: `SED.out` is integrated only over cells between the
+    ellipsoids of light-travel times t1 and t2 (light days), opening along
+    z; use with `inclination 1 0.0 -1`. Writes `echo.out`.
+
+- name: NoSourceSED
+  group: output
+  syntax: "NoSourceSED"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    `SED.out` includes only the radiation escaping from cells that do not
+    hold a source, i.e. the reprocessed emission without the direct
+    starlight. Stored in the grid files, so `mocassinOutput` keeps it.
+  see_also: ['output_mod.f90::writeSED@"if (lgNosource) then"..@"end if"']
+
+- name: frontLines
+  group: output
+  syntax: "frontLines"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    A post-processing estimate of [O I] 6300, 6363 and 5577 Å with the
+    cells an ionisation front crosses resolved by a sub-cell profile.
+    Writes `frontField.out` with the grid files and, after convergence,
+    `lineFluxFront.out`; `lineFlux.out` is not changed. Needs one source
+    and a single 3D grid.
+  devlog: [D-381, D-382]
+
+- name: traceHeating
+  group: output
+  syntax: "traceHeating"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Writes the heating and cooling channels of every cell to
+    `thermalBalance.out` (can be very large).
+
+- name: talk
+  group: output
+  syntax: "talk"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Verbose log output.
+
+- name: debug
+  group: output
+  syntax: "debug"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    Debugging mode: computes extra quantities, which costs time and memory.
+
+# --------------------------------------------------------------------- PDR
+- name: pdr
+  group: pdr
+  syntax: pdr <1 | 0>
+  default: "off"
+  build: pdr
+  status: active
+  description: |
+    Turns on the coupled 3D-PDR chemistry (and, in the 3D build, the H₂ level
+    model). Write `pdr 1`: a bare `pdr` turns it on but swallows the following
+    input line, which is then silently ignored (unless `pdr` is the last
+    line). Requires dust — without it the FUV field is not transported and the
+    run stops — and is not available in `2D` or `oneD` mode.
+  devlog: [D-019, D-022]
+
+- name: pdrNetwork
+  group: pdr
+  syntax: "pdrNetwork <name>"
+  default: "reduced"
+  build: pdr
+  status: active
+  description: |
+    Name of the chemical network. The ODE system is compiled in (the
+    33-species REDUCED network), so this only validates: a different name
+    is a fatal error.
+
+- name: pdrDataDir
+  group: pdr
+  syntax: "pdrDataDir <path>"
+  default: "PREFIX/share/mocassin/dataPDR"
+  build: pdr
+  status: active
+  description: |
+    Directory of the species, rate and coolant files (and `h2/`, the H₂
+    data). Best omitted, so the installed data are used.
+
+- name: pdrZeta
+  group: pdr
+  syntax: "pdrZeta <zeta_per_s>"
+  default: "1e-16"
+  build: pdr
+  status: active
+  description: |
+    Cosmic-ray ionisation rate ζ in the UMIST normalisation, in s⁻¹: every
+    cosmic-ray rate of the network (and MOCASSIN's cosmic-ray ionisation of
+    the linked neutrals) is its coefficient times ζ/1.3×10⁻¹⁷ s⁻¹. ζ is the
+    total ionisation rate of H₂; atomic H is ionised at 0.46ζ
+    (`rates_reduced.d`, reaction 293).
+
+- name: pdrStartIter
+  group: pdr
+  syntax: "pdrStartIter <n>"
+  default: "1"
+  build: pdr
+  status: active
+  description: |
+    First Monte Carlo iteration at which the chemistry runs; the earlier
+    iterations converge the photoionisation alone.
+  devlog: [D-062]
+
+- name: pdrEndTime
+  group: pdr
+  syntax: "pdrEndTime <years>"
+  default: "1e7"
+  build: pdr
+  status: active
+  description: |
+    Initial integration span of the steady-state chemistry solve. It is not a
+    physical age: the solver extends the integration (at most seven doublings,
+    128 × `pdrEndTime`) until no species changes by more than 1% over a
+    doubling.
+
+- name: pdrVturb
+  group: pdr
+  syntax: "pdrVturb <km_s>"
+  default: "1"
+  build: pdr
+  status: active
+  description: |
+    Turbulent velocity used in the line widths of the chemistry's shielding
+    and coolant escape probabilities and of the H₂ level model. It also sets
+    the turbulent heating rate (∝ v³) the thermal balance takes from the
+    chemistry.
+
+- name: pdrTmin
+  group: pdr
+  syntax: "pdrTmin <T_K>"
+  default: "1"
+  build: pdr
+  status: active
+  description: |
+    Lower limit of the temperature at which the chemistry's rates are
+    evaluated. The gas temperature itself is MOCASSIN's. It also bounds the
+    CO-cooling table; 3D-PDR's own minimum is max(`pdrTmin`, T_CMB).
+
+- name: pdrTmax
+  group: pdr
+  syntax: "pdrTmax <T_K>"
+  default: "2e4"
+  build: pdr
+  status: active
+  description: |
+    Upper limit of the temperature at which the chemistry's rates are
+    evaluated. It also bounds the CO-cooling table.
+
+- name: pdrCoolants
+  group: pdr
+  syntax: "pdrCoolants <n> <file_1> ... <file_n>"
+  default: "none"
+  build: pdr
+  status: active
+  description: |
+    LAMDA-format coolant files, e.g. `4 "12c+.dat" "12c.dat" "16o.dat"
+    "12co.dat"`. Atomic coolants are solved with MOCASSIN's own atoms using
+    the chemistry's colliders and escape probabilities; CO is cooled from a
+    table. Without it the model has no CO cooling; the benchmarks use the four
+    files above.
+  devlog: [D-363]
+
+- name: initH0
+  group: pdr
+  syntax: "initH0 <x>"
+  default: "1e-5"
+  build: pdr
+  status: active
+  description: |
+    Neutral hydrogen fraction every cell starts from.
+  devlog: [D-160]
+
+# ------------------------------------------------------------ solver controls
+- name: teSolver
+  group: solver
+  syntax: teSolver <0 | 1 | 2>
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    Temperature search. 0: MOCASSIN's search. 1: a Cloudy-shaped search (steps
+    capped at 20%, Illinois-modified regula falsi with bisection fallback,
+    restart on a stalled narrow bracket). 2: as 1, plus Cloudy's requirement
+    that the bracket be narrow relative to T_e. 1 and 2 are kept for
+    comparison.
+  devlog: [D-165]
+
+- name: teFloor
+  group: solver
+  syntax: "teFloor <T_K>"
+  default: "2.725 (the CMB)"
+  build: pdr
+  status: active
+  description: |
+    Lowest temperature the thermal balance may return. Cells that reach it
+    are counted in the run log; they are not removed from the model.
+  devlog: [D-403]
+
+- name: iterDamp
+  group: solver
+  syntax: "iterDamp <w>"
+  default: "0 (undamped)"
+  build: pdr
+  status: active
+  description: |
+    Weight w of the previous iteration's value in the written one, x = (1 − w)
+    x_new + w x_previous, applied to T_e and, in PDR runs from `pdrStartIter`
+    on, to the abundances and ion fractions. Off by default since D-406, which
+    found it damped Monte Carlo noise rather than a cycle.
+  devlog: [D-406]
+
+- name: cvUseH2
+  group: solver
+  syntax: "cvUseH2 <1 | 0>"
+  default: "1"
+  build: pdr
+  status: active
+  description: |
+    1: the per-cell convergence test requires both x(H⁰) and x(H₂) to have
+    settled; 0: x(H⁰) alone.
+  devlog: [D-179]
+
+- name: cvH2floor
+  group: solver
+  syntax: "cvH2floor <x>"
+  default: "1e-5"
+  build: pdr
+  status: active
+  description: |
+    Molecular fraction below which the x(H₂) part of the per-cell test is
+    not applied.
+  devlog: [D-179]
+
+- name: ionMatrix
+  group: solver
+  syntax: "ionMatrix <.true. | .false.>"
+  default: ".true."
+  build: pdr
+  status: active
+  description: |
+    Solves each element's ionisation balance as a matrix over all stages
+    (default) rather than stage by stage. The matrix solver is used in every
+    build; only a PDR build can switch it off.
+# ------------------------------------------------------------- diagnostics
+- name: pdrDiagCool
+  group: diagnostics
+  syntax: "pdrDiagCool <n>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    Prints the per-coolant cooling budget of every cell solved on rank 0 (up
+    to 4×10⁵ log lines). No effect on the model.
+  devlog: [D-060]
+
+- name: pdrDiagRates
+  group: diagnostics
+  syntax: "pdrDiagRates <0 | 1 | 2>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    1 prints the chemistry's exported formation and loss rates; 2 also
+    writes `pdrReacRates.out`, every reaction's volume rate for one cell per
+    0.1 dex of A_V, rewritten each iteration. No effect on the model.
+  devlog: [D-113, D-356]
+
+- name: pdrDiagAV
+  group: diagnostics
+  syntax: "pdrDiagAV <A_V>"
+  default: "1"
+  build: pdr
+  status: no-effect
+  description: |
+    Parsed but no longer read: the rate diagnostics now sample every 0.1 dex
+    of A_V.
+
+- name: pdrTrackCell
+  group: diagnostics
+  syntax: pdrTrackCell <1 | 0>
+  default: "0 (off)"
+  build: pdr
+  status: active
+  description: |
+    Prints, on rank 0, the state of the first 40 unconverged cells it solves
+    after `pdrStartIter` (the value is only a switch). No effect on the model.
+
+- name: pdrSplitField
+  group: diagnostics
+  syntax: "pdrSplitField <0 | 1>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    Reports the stellar and diffuse parts of the FUV field separately. The
+    diffuse field itself is accumulated in every PDR run regardless.
+  devlog: [D-348]
+
+- name: teProbe
+  group: diagnostics
+  syntax: "teProbe <n>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    Prints the temperature searches of the first `n` cells solved on rank 0.
+    No effect on the model.
+
+- name: ionBalProbe
+  group: diagnostics
+  syntax: "ionBalProbe <n>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    At iteration `maxIterateMC` (so only in a run that reaches it, e.g. with
+    `convTotals 1.e-6`), prints every cell whose ionisation balance ends
+    unconverged, and the last steps of the first `n` per rank.
+  devlog: [D-277]
+
+- name: ionRateProbe
+  group: diagnostics
+  syntax: "ionRateProbe <Z>"
+  default: "0"
+  build: pdr
+  status: active
+  description: |
+    At iteration `maxIterateMC` (so only in a run that reaches it, e.g. with
+    `convTotals 1.e-6`), prints the stage 1→2 ionisation and recombination
+    rates of element Z in every cell.
+  devlog: [D-280]

@@ -1,0 +1,724 @@
+"""mocdocs: the reference pages of the MOCASSIN-PDR site that are generated
+from the repository every time the docs are built, each with a check that
+fails the build when the page and the code disagree.
+
+  user-guide/keywords.md        docs/reference/keywords.yaml, checked against
+                                the case labels of set_input_mod.f90::readInput;
+                                retired keywords from retiredKeyword
+  user-guide/outputs.md         docs/reference/outputs.yaml, checked against the
+                                open(file='output/...') statements of the code
+  user-guide/build-flavours.md  the Makefile (targets, PDR flags, defaults)
+  developer/code-map.md         fortref's parser over the compiled files
+  reference/changelog.md        DEVLOG.md's release notes
+
+The first four are written at builder-inited before fortref scans the pages
+for the files they cite (priority 400), so their references count in its
+choice of the link commit; the changelog after it (priority 600), since its
+repository links name that commit.  A failed check is a warning of type
+mocdocs, subtype keywords, outputs or build.
+"""
+
+import os
+import re
+
+import yaml
+from sphinx.util import logging
+
+from fortref import cpp, markdown_pages, parser, resolve, roles
+
+logger = logging.getLogger(__name__)
+
+KEYWORDS_PAGE = 'user-guide/keywords'
+OUTPUTS_PAGE = 'user-guide/outputs'
+BUILD_PAGE = 'user-guide/build-flavours'
+CODE_MAP_PAGE = 'developer/code-map'
+CHANGELOG_PAGE = 'reference/changelog'
+
+KEYWORDS_YAML = 'docs/reference/keywords.yaml'
+OUTPUTS_YAML = 'docs/reference/outputs.yaml'
+SET_INPUT = 'source/set_input_mod.f90'
+PLOT_SOURCE = 'source/mocassinPlot.f90'
+
+KEYWORD_GROUPS = [
+    ('geometry', 'Geometry and grid'),
+    ('gas', 'Gas density and composition'),
+    ('dust', 'Dust'),
+    ('sources', 'Sources and frequency grid'),
+    ('montecarlo', 'Monte Carlo and convergence'),
+    ('output', 'Output'),
+    ('pdr', 'PDR chemistry'),
+    ('solver', 'Solver controls (PDR builds)'),
+    ('diagnostics', 'Diagnostics (PDR builds)'),
+]
+KEYWORD_BUILDS = {'all': 'all builds', 'pdr': 'PDR builds only'}
+KEYWORD_STATUS = {'active': None,
+                  'no-effect': 'Parsed but has no effect.',
+                  'unavailable': 'Not available; stops the run.'}
+
+OUTPUT_GROUPS = [
+    ('grid', 'Grid files (checkpoints)'),
+    ('pdr', 'PDR grid files'),
+    ('h2', 'H₂ level model'),
+    ('results', 'Results'),
+    ('iteration', 'Per-iteration files'),
+    ('plot', 'mocassinPlot'),
+]
+OUTPUT_BUILDS = {'all': 'all builds', 'pdr': 'PDR builds', 'pdr3d': '3D PDR build'}
+
+BUILDS = [
+    ('make PDR=1 PDRGEOM=3D all', 'the coupled code, with ray-traced columns and the H₂ level model'),
+    ('make PDR=1 all', 'the coupled code, with 1D slab columns and no H₂ level model'),
+    ('make all', 'MOCASSIN without PDR'),
+]
+TARGETS = ('all', 'new', 'clean', 'install', 'uninstall', 'h2Test', 'h2Slab', 'pdrSmokeTest')
+_ITERATION_OPTIONS = ('3D-PDR iteration and temperature-search options '
+                      '(routines not called by the coupling)')
+FLAG_MEANINGS = {
+    'PDR': 'builds the coupling',
+    'RAYTHEIA': 'ray-traced 3D columns',
+    'RAYTHEIA_MO': "MOCASSIN's own ray tracer",
+    'ONEDIMENSIONAL': '1D slab columns',
+    'THERMALBALANCE': '3D-PDR thermal-balance code paths (not called by the coupling)',
+    'REDUCED': 'the 33-species reduced network',
+    'H2FORM_CT02': 'Cazaux & Tielens H2 formation',
+    'CHEMSTEADY': 'integrate the chemistry to steady state',
+    'CHEMRETRY': 'retry failed chemistry integrations',
+    'FORCECONVERGENCE': _ITERATION_OPTIONS,
+    'NGACCEL': _ITERATION_OPTIONS,
+    'NGCYCLE': _ITERATION_OPTIONS,
+    'NGRELAX': _ITERATION_OPTIONS,
+    'ILLINOIS': _ITERATION_OPTIONS,
+    'REBRACKET': _ITERATION_OPTIONS,
+    'SOBOLEV': 'net-rate (Sobolev) form of the escape-probability level populations',
+}
+# -D macros of every build: not PDR options
+COMMON_MACROS = ('PREFIX', 'VERSION')
+
+RELEASE_NOTES = {'pdr-coupling-v1.0': 'D-263', 'pdr-coupling-v1.1': 'D-388',
+                 'pdr-coupling-v1.2': 'D-425', 'pdr-coupling-v2.0': 'D-430'}
+_RELEASE_HEADING = re.compile(r'^## MOCASSIN-PDR (pdr-coupling-v[\d.]+) \((\d{4}-\d\d-\d\d)\)')
+_FENCE = re.compile(r'^\s*(`{3,}|~{3,})(.*)$')
+
+_STRING = re.compile(r'"((?:[^"]|"")*)"|\'((?:[^\']|\'\')*)\'')
+_SELECT = re.compile(r'^select\s*(?:case|type|rank)\b', re.I)
+_END_SELECT = re.compile(r'^end\s*select\b', re.I)
+_CASE = re.compile(r'^case\b', re.I)
+_CASE_DEFAULT = re.compile(r'^case\s+default\b', re.I)
+_RETIRED_CALL = re.compile(r'\bcall\s+retiredKeyword\s*\(\s*keyword\s*,\s*\.(true|false)\.\s*\)', re.I)
+_IFDEF_PDR = re.compile(r'^\s*#\s*ifdef\s+PDR\s*$')
+_OPEN_OUTPUT = re.compile(r'''\bopen\s*\(.*?\bfile\s*=\s*(['"])output/([^'"]+)\1''', re.I)
+
+
+# ---------------------------------------------------------------- helpers
+
+def _header(sources):
+    return (f'% Generated by mocdocs from {sources} when the docs are built; '
+            'edit the sources, not this page.')
+
+
+def _code(text):
+    """`text` as an inline code span, whatever backticks it holds."""
+    runs = [len(r) for r in re.findall(r'`+', text)]
+    fence = '`' * (max(runs, default=0) + 1)
+    pad = ' ' if text.startswith('`') or text.endswith('`') else ''
+    return f'{fence}{pad}{text}{pad}{fence}'
+
+
+def _ref_text(text):
+    """A string as fortref's grammar quotes it."""
+    return text.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def _strings(text):
+    """The contents of the Fortran string literals in text, in order."""
+    out = []
+    for m in _STRING.finditer(text):
+        if m.group(1) is not None:
+            out.append(m.group(1).replace('""', '"'))
+        else:
+            out.append(m.group(2).replace("''", "'"))
+    return out
+
+
+def _code_part(line):
+    """A source line without its trailing ! comment (outside strings)."""
+    quote = None
+    for k, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in ('"', "'"):
+            quote = ch
+        elif ch == '!':
+            return line[:k].strip()
+    return line.strip()
+
+
+def _unit_named(model, name):
+    found = [u for u in model.units if u.name.lower() == name.lower()]
+    return found[0] if len(found) == 1 else None
+
+
+def _select_cases(model, unit, selector):
+    """[(stmt index, [labels])] of the top-level case statements of the
+    `select case (<selector>)` construct in unit (case default left out), or
+    None if the unit has no such construct or more than one."""
+    want = re.compile(r'^select\s*case\s*\(\s*' + selector + r'\s*\)\s*$', re.I)
+    opens = [i for i, st in enumerate(model.stmts)
+             if unit.start <= st.first <= unit.end and want.match(st.masked)]
+    if len(opens) != 1 or opens[0] not in model.closer:
+        return None
+    start, stop = opens[0], model.closer[opens[0]]
+    cases, depth = [], 0
+    for i in range(start + 1, stop):
+        m = model.stmts[i].masked
+        if _SELECT.match(m):
+            depth += 1
+        elif _END_SELECT.match(m):
+            depth -= 1
+        elif depth == 0 and _CASE.match(m) and not _CASE_DEFAULT.match(m):
+            text = model.stmts[i].text
+            inner = text[text.index('(') + 1:text.rindex(')')] if '(' in text else ''
+            cases.append((i, _strings(inner)))
+    return cases
+
+
+def _branch(model, idx):
+    """Statement indices of the case branch opened by statement idx."""
+    end = model.sibling.get(idx, idx + 1)
+    return range(idx + 1, end)
+
+
+def _label_line(model, stmt, label):
+    """The physical line of stmt that holds the label in quotes."""
+    for n in range(stmt.first, stmt.last + 1):
+        line = model.lines[n - 1]
+        if model.active[n - 1] and (f'"{label}"' in line or f"'{label}'" in line):
+            return n
+    return stmt.first
+
+
+def _load_yaml(root, rel):
+    with open(os.path.join(root, rel), encoding='utf-8') as fh:
+        return yaml.safe_load(fh) or []
+
+
+# ---------------------------------------------------------------- keywords
+
+class Label:
+    """A case label of readInput's keyword select."""
+
+    def __init__(self, name, line, code, pdr, retired):
+        self.name, self.line, self.code, self.pdr, self.retired = name, line, code, pdr, retired
+
+
+def readinput_labels(repo):
+    """({label: Label}, {retired label: reason}, [(subtype, message)]).
+
+    The labels of every top-level case of readInput's `select case
+    (keyword)`, read under the 3D and the plain build (so a label in either
+    branch of an #ifdef counts); `pdr` is whether the label's line lies inside
+    an #ifdef PDR ... #endif of readInput; `retired` is 'ignored' or 'refused'
+    when the branch calls retiredKeyword(keyword, .false. | .true.).  The
+    reasons are the `why = ...` strings of retiredKeyword's select."""
+    labels, problems = {}, []
+    for profile in ('3d', 'plain'):
+        model = repo.model(SET_INPUT, profile)
+        unit = _unit_named(model, 'readInput')
+        cases = _select_cases(model, unit, 'keyword') if unit else None
+        if cases is None:
+            return {}, {}, [('keywords', f'{SET_INPUT} [{profile}]: no single readInput '
+                                         'with one `select case (keyword)`')]
+        pdr_blocks = [(i + 1, model.cpp_closer[i] + 1) for i, line in enumerate(model.lines)
+                      if unit.start <= i + 1 <= unit.end and _IFDEF_PDR.match(line)
+                      and i in model.cpp_closer]
+        for idx, names in cases:
+            stmt = model.stmts[idx]
+            retired = None
+            for j in _branch(model, idx):
+                m = _RETIRED_CALL.search(model.stmts[j].text)
+                if m:
+                    retired = 'refused' if m.group(1).lower() == 'true' else 'ignored'
+            for name in names:
+                n = _label_line(model, stmt, name)
+                if name in labels:
+                    if labels[name].line != n:
+                        problems.append(('keywords', f'readInput has two case labels "{name}" '
+                                                     f'({SET_INPUT}:{labels[name].line} and :{n})'))
+                    continue
+                pdr = any(a <= n <= b for a, b in pdr_blocks)
+                labels[name] = Label(name, n, _code_part(model.lines[n - 1]), pdr, retired)
+    reasons, default = {}, ''
+    model = repo.model(SET_INPUT, '3d')
+    unit = _unit_named(model, 'retiredKeyword')
+    cases = _select_cases(model, unit, r'trim\s*\(\s*kw\s*\)') if unit else None
+    if cases is None:
+        problems.append(('keywords', f'{SET_INPUT}: no retiredKeyword with one '
+                                     '`select case (trim(kw))`'))
+    else:
+        for idx, names in cases:
+            for j in _branch(model, idx):
+                text = model.stmts[j].text
+                if re.match(r'^why\s*=', text, re.I):
+                    for name in names:
+                        reasons[name] = ''.join(_strings(text))
+        default_case = [i for i, st in enumerate(model.stmts)
+                        if unit.start <= st.first <= unit.end and _CASE_DEFAULT.match(st.masked)]
+        for idx in default_case[:1]:
+            for j in _branch(model, idx):
+                if re.match(r'^why\s*=', model.stmts[j].text, re.I):
+                    default = ''.join(_strings(model.stmts[j].text))
+    retired = {name: reasons.get(name, default) for name, lab in labels.items() if lab.retired}
+    return labels, retired, problems
+
+
+def keywords_page(repo):
+    """(Markdown, [(subtype, message)]) of user-guide/keywords.md."""
+    entries = _load_yaml(repo.root, KEYWORDS_YAML)
+    labels, reasons, problems = readinput_labels(repo)
+    names = [e.get('name') for e in entries]
+    for e in entries:
+        name = e.get('name')
+        if e.get('group') not in dict(KEYWORD_GROUPS):
+            problems.append(('keywords', f'{KEYWORDS_YAML}: {name}: unknown group {e.get("group")!r}'))
+        if e.get('build') not in KEYWORD_BUILDS:
+            problems.append(('keywords', f'{KEYWORDS_YAML}: {name}: unknown build {e.get("build")!r}'))
+        if e.get('status') not in KEYWORD_STATUS:
+            problems.append(('keywords', f'{KEYWORDS_YAML}: {name}: unknown status {e.get("status")!r}'))
+        lab = labels.get(name)
+        if lab is None:
+            problems.append(('keywords', f'{KEYWORDS_YAML}: {name} is not a case label of '
+                                         f'readInput ({SET_INPUT})'))
+            continue
+        if lab.pdr != (e.get('build') == 'pdr'):
+            where = 'inside' if lab.pdr else 'outside'
+            problems.append(('keywords', f'{KEYWORDS_YAML}: {name} has build: {e.get("build")}, but '
+                                         f'its case label ({SET_INPUT}:{lab.line}) is {where} '
+                                         '#ifdef PDR'))
+    for name, lab in sorted(labels.items(), key=lambda t: t[1].line):
+        if not lab.retired and name not in names:
+            problems.append(('keywords', f'readInput accepts "{name}" ({SET_INPUT}:{lab.line}) '
+                                         f'but {KEYWORDS_YAML} has no entry for it'))
+
+    out = [_header(f'{KEYWORDS_YAML} and {SET_INPUT}'), '', '# Input keywords', '',
+           'A model is described in `input/input.in`, one keyword per line, followed by '
+           'its arguments. `readInput` matches each keyword case-sensitively. An unknown '
+           'keyword is reported in the log ("unrecognised keyword") and ignored, and a line '
+           'whose first word starts with `#` is a comment. Keywords marked *PDR builds only* '
+           'are parsed only in a build with `PDR=1`: other builds report them as unrecognised '
+           'and ignore them.', '']
+    for group, heading in KEYWORD_GROUPS:
+        out += [f'## {heading}', '']
+        for e in entries:
+            if e.get('group') != group:
+                continue
+            out += _keyword(e, labels.get(e.get('name')))
+    out += _retired_section(labels, reasons)
+    return '\n'.join(out).rstrip('\n') + '\n', problems
+
+
+def _keyword(e, lab):
+    name = e['name']
+    lines = [f'(kw-{name})=', f'### {_code(name)}', '',
+             f'**Syntax:** {_code(str(e.get("syntax", name)))}\\',
+             f'**Default:** {e.get("default", "")}\\',
+             f'**Build:** {KEYWORD_BUILDS.get(e.get("build"), e.get("build"))}', '']
+    note = KEYWORD_STATUS.get(e.get('status'))
+    if note:
+        lines += [':::{warning}', note, ':::', '']
+    lines += [str(e.get('description', '')).strip(), '']
+    meta = []
+    if lab is not None:
+        ref = f'set_input_mod.f90::readInput@"{_ref_text(lab.code)}"'
+        meta.append(f'**Parsed at:** {{src}}`{lab.code} <{ref}>`')
+    if e.get('devlog'):
+        meta.append('**DEVLOG:** ' + ', '.join(f'{{devlog}}`{d}`' for d in e['devlog']))
+    if e.get('see_also'):
+        meta.append('**See also:** ' + ', '.join(f'{{src}}`{s}`' for s in e['see_also']))
+    if meta:
+        lines += ['\\\n'.join(meta), '']
+    return lines
+
+
+def _retired_section(labels, reasons):
+    retired = sorted((lab for lab in labels.values() if lab.retired), key=lambda lab: lab.line)
+    out = ['## Retired keywords', '',
+           'These keywords are still parsed, so old input files run, but they no longer '
+           'set anything. An *ignored* keyword is reported in the log with the reason and '
+           'the run continues; a *refused* one stops the run, because running on would '
+           'silently not do what the input asks.']
+    plain = [lab.name for lab in retired if not lab.pdr]
+    if plain and len(plain) < len(retired):
+        out[-1] += (' All but ' + ', '.join(_code(n) for n in plain) + ' are parsed only in '
+                    'PDR builds; other builds report them as unrecognised keywords.')
+    out += ['', '| Keyword | What happens | Reason |', '|---|---|---|']
+    for lab in retired:
+        out.append(f'| {_code(lab.name)} | {lab.retired} | '
+                   f'{roles.md_escape(reasons.get(lab.name, ""))} |')
+    out.append('')
+    return out
+
+
+# ---------------------------------------------------------------- outputs
+
+def output_opens(repo):
+    """{file name: [(path, line)]}: every open(... file='output/<name>' ...)
+    statement (continuations joined, comments left out) of the compiled
+    Fortran files and mocassinPlot.f90, under no cpp profile."""
+    found = {}
+    paths = sorted(p for p in repo.compiled | {PLOT_SOURCE}
+                   if parser.language_of(p) == 'fortran' and os.path.exists(os.path.join(repo.root, p)))
+    for path in paths:
+        lines, _ = repo.read(path)
+        clines = [ln[:-1] if ln.endswith('\r') else ln for ln in lines]
+        directive = cpp.evaluate(clines, {}).directive
+        for st in parser._statements(clines, [True] * len(clines), directive):
+            for m in _OPEN_OUTPUT.finditer(st.text):
+                found.setdefault(m.group(2), []).append((path, st.first))
+    return found
+
+
+def outputs_page(repo):
+    """(Markdown, [(subtype, message)]) of user-guide/outputs.md."""
+    entries = _load_yaml(repo.root, OUTPUTS_YAML)
+    opens = output_opens(repo)
+    names = [e.get('name') for e in entries]
+    problems = []
+    for e in entries:
+        if e.get('group') not in dict(OUTPUT_GROUPS):
+            problems.append(('outputs', f'{OUTPUTS_YAML}: {e.get("name")}: unknown group '
+                                        f'{e.get("group")!r}'))
+        if e.get('build') not in OUTPUT_BUILDS:
+            problems.append(('outputs', f'{OUTPUTS_YAML}: {e.get("name")}: unknown build '
+                                        f'{e.get("build")!r}'))
+        if e.get('name') not in opens:
+            problems.append(('outputs', f'{OUTPUTS_YAML}: {e.get("name")} is opened by no '
+                                        'open(file=\'output/...\') statement of the compiled code'))
+    for name in sorted(opens):
+        if name not in names:
+            where = ', '.join(f'{p}:{n}' for p, n in opens[name])
+            problems.append(('outputs', f'output/{name} is opened at {where} but {OUTPUTS_YAML} '
+                                        'has no entry for it'))
+
+    out = [_header(f'{OUTPUTS_YAML} and the open statements of the code'), '',
+           '# Output files', '',
+           'Every file is written to `output/` under the directory the program runs in. '
+           'MOCASSIN does not create that directory: `readInput` stops the run if it does not '
+           'exist. The grid files are checkpoints: `mocassinWarm` resumes a run from them, and '
+           '`mocassinOutput` and `mocassinPlot` rebuild the results from them.', '']
+    for group, heading in OUTPUT_GROUPS:
+        out += [f'## {heading}', '']
+        for e in entries:
+            if e.get('group') != group:
+                continue
+            name = e['name']
+            target = re.sub(r'[.-]', '_', name)
+            out += [f'(out-{target})=', f'### {_code(name)}', '']
+            meta = [f'**Written by:** {{src}}`{e.get("writer", "")}`',
+                    f'**When:** {e.get("when", "")}',
+                    f'**Build:** {OUTPUT_BUILDS.get(e.get("build"), e.get("build"))}']
+            if e.get('read_by'):
+                meta.append(f'**Read by:** {e["read_by"]}')
+            out += ['\\\n'.join(meta), '', str(e.get('description', '')).strip(), '']
+    return '\n'.join(out).rstrip('\n') + '\n', problems
+
+
+# ---------------------------------------------------------------- build flavours
+
+def _dmacros(words):
+    return [w[2:].partition('=')[0] for w in words if w.startswith('-D') and len(w) > 2]
+
+
+def build_page(repo):
+    """(Markdown, [(subtype, message)]) of user-guide/build-flavours.md."""
+    makefile = repo.makefile
+    problems = []
+    rules = []
+    plain = cpp.read_makefile(makefile, cpp.PROFILE_VARIABLES['plain'], rules)
+    prereqs = {}
+    for targets, _, raw in rules:
+        for t in targets:
+            prereqs.setdefault(t, raw)
+
+    # the PDR flags: -D macros of the 3D and 1D builds that the plain one lacks,
+    # in the order the Makefile gives them
+    order, origin = [], {}
+    for profile in ('3d', '1d'):
+        table = cpp.read_makefile(makefile, cpp.PROFILE_VARIABLES[profile])
+        for var in ('FFLAGS', 'PDRFLAGS'):
+            for name in _dmacros(cpp._split(cpp.expand(table, var))):
+                if name not in order:
+                    order.append(name)
+                origin.setdefault(name, var)
+    macros = repo.macros
+    flags = [f for f in order if f not in macros['plain'] and f not in COMMON_MACROS]
+    pdr1 = cpp.read_makefile(makefile, cpp.PROFILE_VARIABLES['1d'])
+    geom_default = pdr1.get('PDRGEOM', '')
+    for f in flags:
+        if f not in FLAG_MEANINGS:
+            problems.append(('build', f'the Makefile sets -D{f} for PDR builds, but mocdocs '
+                                      'has no meaning for it (FLAG_MEANINGS)'))
+    for f in FLAG_MEANINGS:
+        if f not in flags:
+            problems.append(('build', f'-D{f} has a meaning in mocdocs (FLAG_MEANINGS) but the '
+                                      'Makefile does not set it'))
+    for t in TARGETS:
+        if t not in prereqs:
+            problems.append(('build', f'the Makefile has no rule for the target {t}'))
+
+    out = [_header('the Makefile'), '', '# Build flavours', '',
+           'Three builds of the same tree. Run `make clean` between them: the object files and '
+           'module files are shared, and a build with other flags or another `PREFIX` must not '
+           'reuse them.', '',
+           '| Command | Builds |', '|---|---|']
+    out += [f'| {_code(cmd)} | {what} |' for cmd, what in BUILDS]
+    out += ['', 'The H₂ level model is compiled only with `PDRGEOM=3D`; the 1D build has a stub '
+            'and keeps the network\'s single-line H₂ photodissociation rate.', '',
+            '## Targets', '']
+    for t in TARGETS:
+        if t in prereqs:
+            dep = _code(prereqs[t]) if prereqs[t] else 'no prerequisites'
+            out.append(f'- {_code("make " + t)}: {dep}')
+    users = ', '.join(_code(t) for t in _compiled_with(makefile, 'PDRFLAGS'))
+    out += ['', '## PDR preprocessor flags', '',
+            f'`PDR=1` adds `-DPDR` to `FFLAGS`, which every file is compiled with. The other '
+            f'flags are in `PDRFLAGS`, which only the rules for {users} pass to the compiler. '
+            f'`PDRGEOM=3D` adds the ray-tracing pair; any other value (the default is '
+            f'`{geom_default}`) adds `-DONEDIMENSIONAL` instead.', '',
+            '| Flag | Set when | Meaning |', '|---|---|---|']
+    in3d, in1d = set(macros['3d']), set(macros['1d'])
+    for f in flags:
+        if f in in3d and f in in1d:
+            when = '`PDR=1`'
+        elif f in in3d:
+            when = '`PDR=1 PDRGEOM=3D`'
+        else:
+            when = f'`PDR=1`, `PDRGEOM` not `3D` (default `{geom_default}`)'
+        meaning = FLAG_MEANINGS.get(f, '')
+        out.append(f'| {_code(f)} | {when} ({_code(origin[f])}) | {roles.md_escape(meaning)} |')
+    out += ['', '## Defaults', '']
+    sundials = plain.get('SUNDIALS_DIR', '')
+    pdr_lib = cpp.expand(pdr1, 'PDR_LIB')
+    only_pdr = cpp.expand(plain, 'PDR_LIB') == '' and 'sundials' in pdr_lib
+    out.append(f'- **SUNDIALS:** `SUNDIALS_DIR` defaults to {_code(sundials)}'
+               + (' and is used only by PDR builds (the CVODE chemistry solver; the binaries '
+                  'find the library through an rpath).' if only_pdr else '.')
+               + ' Override it on the command line: `make SUNDIALS_DIR=... PDR=1 ...`.')
+    darwin = cpp.read_makefile(makefile, {'OS': 'Darwin'}).get('PREFIX', '')
+    other = cpp.read_makefile(makefile, {'OS': 'Linux'}).get('PREFIX', '')
+    out.append(f'- **PREFIX:** {_code(darwin)} on macOS, {_code(other)} elsewhere. It is compiled in '
+               '(`-DPREFIX`): the programs read their atomic and PDR data from '
+               '`PREFIX/share/mocassin`, which `make install` fills. Run `make clean` before '
+               'building with another `PREFIX`.')
+    cc = plain.get('CC', '')
+    out.append(f'- **C compiler:** the Makefile has `CC ?= {cc}` for the PDR C sources. GNU '
+               'make defines `CC` itself (as `cc`), so `?=` leaves it unchanged; to choose the '
+               f'compiler, pass it: `make CC={cc} ...`.')
+    out.append('- **Between builds:** `make clean` runs '
+               + _code(_recipe(makefile, 'clean')) + '.')
+    out.append('')
+    return '\n'.join(out), problems
+
+
+def _compiled_with(makefile, var):
+    """The object targets whose recipes use $(var), as written."""
+    with open(makefile, encoding='utf-8', errors='surrogateescape') as fh:
+        lines = fh.read().split('\n')
+    out, targets = [], []
+    for line in lines:
+        if line.startswith('\t'):
+            if f'$({var})' in line:
+                out += [t for t in targets if t.endswith('.o') and t not in out]
+            continue
+        m = re.match(r'^([^\s:=#][^:=]*):(?!=)', line)
+        targets = m.group(1).split() if m else ([] if line.strip() else targets)
+    return out
+
+
+def _recipe(makefile, target):
+    """The first recipe line of a rule, as written."""
+    with open(makefile, encoding='utf-8', errors='surrogateescape') as fh:
+        lines = fh.read().split('\n')
+    for i, line in enumerate(lines):
+        if re.match(rf'^{re.escape(target)}\s*:(?!=)', line):
+            for nxt in lines[i + 1:]:
+                if nxt.startswith('\t'):
+                    return nxt.strip()
+                if nxt.strip() and not nxt.startswith('#'):
+                    break
+    return ''
+
+
+# ---------------------------------------------------------------- code map
+
+def code_map_page(repo, cited):
+    """Markdown of developer/code-map.md: every program unit of the compiled
+    files, and of the other source files the pages cite."""
+    files = sorted(p for p in repo.compiled | set(cited) if parser.language_of(p) != 'text')
+    out = [_header('the Makefile and the sources (fortref\'s parser)'), '', '# Code map', '',
+           'Every program unit of the files the Makefile compiles, as the site\'s code links '
+           'read them, with the builds it exists in: `3d` is `make PDR=1 PDRGEOM=3D`, `1d` '
+           '`make PDR=1` and `plain` `make`. Files outside the build that pages of this site '
+           'cite are listed too, marked *not compiled*. Each name links to the unit in the '
+           'source viewer.', '']
+    for path in files:
+        rows = {}
+        for profile in cpp.PROFILES:
+            for u in repo.model(path, profile).units:
+                key = (u.qualname, u.start, u.end)
+                rows.setdefault(key, [u.kind, []])[1].append(profile)
+        kinds = {}
+        for kind, _ in rows.values():
+            kinds[kind] = kinds.get(kind, 0) + 1
+        count = f'{len(rows)} unit' + ('s' if len(rows) != 1 else '')
+        if kinds:
+            count += ': ' + ', '.join(f'{n} {k}' + ('s' if n != 1 else '')
+                                      for k, n in sorted(kinds.items(), key=lambda t: (-t[1], t[0])))
+        compiled = path in repo.compiled
+        out += [f'## {_code(path)}', '',
+                ('' if compiled else '**not compiled** · ') + f'{{src}}`{path}` · {count}.', '']
+        if not rows:
+            continue
+        out += ['| Unit | Kind | Lines | Builds |', '|---|---|---|---|']
+        for (qualname, start, end), (kind, profiles) in sorted(rows.items(), key=lambda t: t[0][1]):
+            if all(qualname.split('/')):
+                suffix = '' if profiles[0] == '3d' else f' [{profiles[0]}]'
+                name = f'{{src}}`{qualname} <{path}::{qualname}{suffix}>`'
+            else:
+                name = _code(qualname or '(unnamed)')
+            out.append(f'| {name} | {kind} | {start}–{end} | {", ".join(profiles)} |')
+        out.append('')
+    return '\n'.join(out).rstrip('\n') + '\n'
+
+
+# ---------------------------------------------------------------- changelog
+
+def release_sections(path):
+    """[(tag, date, body)] of DEVLOG.md's release-notes sections: from a
+    '## MOCASSIN-PDR <tag> (<date>)' heading to the next '## ' heading, or,
+    when the heading stands inside a fenced block (the notes quoted for the
+    GitHub release), to the end of that block."""
+    with open(path, encoding='utf-8') as fh:
+        lines = fh.read().split('\n')
+    out = []
+    fence = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _RELEASE_HEADING.match(line)
+        if m:
+            body, j = [], i + 1
+            while j < len(lines):
+                f = _FENCE.match(lines[j])
+                if fence is not None:
+                    if f and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) \
+                            and not f.group(2).strip():
+                        break
+                elif lines[j].startswith('## '):
+                    break
+                body.append(lines[j])
+                j += 1
+            out.append((m.group(1), m.group(2), '\n'.join(body).strip('\n')))
+            i = j
+            continue
+        f = _FENCE.match(line)
+        if f:
+            if fence is None:
+                fence = f.group(1)
+            elif f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) \
+                    and not f.group(2).strip():
+                fence = None
+        i += 1
+    return out
+
+
+def _version(tag):
+    return tuple(int(x) for x in re.findall(r'\d+', tag))
+
+
+def changelog_page(root, github, sha):
+    """Markdown of reference/changelog.md: the release notes, newest first;
+    repo-relative links point at GitHub at the link commit."""
+    sections = {tag: (date, body) for tag, date, body in
+                release_sections(os.path.join(root, 'DEVLOG.md'))}
+    tags = sorted(set(RELEASE_NOTES) | set(sections), key=_version, reverse=True)
+
+    def link(m):
+        target = m.group(2)
+        if re.match(r'^[a-z][a-z0-9+.-]*:', target, re.I) or target.startswith(('#', '/')):
+            return m.group(0)
+        path, _, frag = target.partition('#')
+        norm = os.path.normpath(path)
+        if norm.startswith('..'):
+            return m.group(0)
+        return f'[{m.group(1)}]({github.rstrip("/")}/blob/{sha}/{norm}' + \
+               (f'#{frag}' if frag else '') + ')'
+
+    out = [_header('DEVLOG.md'), '', '# Changelog', '',
+           'The release notes of each tagged release, newest first, as recorded in '
+           '`DEVLOG.md`.', '']
+    for tag in tags:
+        if tag in sections:
+            date, body = sections[tag]
+            out += [f'## {tag} ({date})', '', roles._MD_LINK.sub(link, body), '']
+        else:
+            out += [f'## {tag}', '',
+                    f'Release notes: see DEVLOG {{devlog}}`{RELEASE_NOTES[tag]}`.', '']
+    return '\n'.join(out).rstrip('\n') + '\n'
+
+
+# ---------------------------------------------------------------- Sphinx
+
+def _write(app, docname, text):
+    roles.write_if_changed(os.path.join(str(app.srcdir), docname + '.md'), text)
+
+
+def _warn(problems):
+    for subtype, message in problems:
+        logger.warning(message, type='mocdocs', subtype=subtype)
+
+
+def on_builder_inited(app):
+    repo = resolve.Repo.at(app.config.fortref_repo_root or os.path.join(app.confdir, '..'))
+    for docname, make in ((KEYWORDS_PAGE, keywords_page), (OUTPUTS_PAGE, outputs_page),
+                          (BUILD_PAGE, build_page)):
+        text, problems = make(repo)
+        _write(app, docname, text)
+        _warn(problems)
+    _write(app, CODE_MAP_PAGE, code_map_page(repo, cited_paths(app, repo)))
+
+
+def cited_paths(app, repo):
+    """The repo-relative files the pages cite ({src}, fortran-block), the
+    code map's own references left out."""
+    srcdir = str(app.srcdir)
+    own = os.path.realpath(os.path.join(srcdir, CODE_MAP_PAGE + '.md'))
+    paths = set()
+    for page in markdown_pages(srcdir, (app.outdir, app.doctreedir)):
+        if os.path.realpath(page) == own:
+            continue
+        with open(page, encoding='utf-8', errors='replace') as fh:
+            found = resolve.scan_markdown(fh.read())
+        for kind, content, _, _ in found:
+            if kind not in ('src', 'fortran-block'):
+                continue
+            try:
+                rel = repo.locate(resolve.parse_ref(resolve.split_title(content)[1]).path)
+            except resolve.RefSyntaxError:
+                continue
+            if rel:
+                paths.add(rel)
+    return paths
+
+
+def on_builder_inited_after_fortref(app):
+    state = app.fortref
+    _write(app, CHANGELOG_PAGE, changelog_page(state.repo.root, app.config.fortref_github,
+                                               state.sha))
+
+
+def setup(app):
+    app.setup_extension('fortref')
+    app.connect('builder-inited', on_builder_inited, priority=400)
+    app.connect('builder-inited', on_builder_inited_after_fortref, priority=600)
+    return {'version': '1.0', 'parallel_read_safe': True, 'parallel_write_safe': True}

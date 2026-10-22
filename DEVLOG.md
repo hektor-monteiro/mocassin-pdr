@@ -431,6 +431,10 @@ reasoning that led to the wrong turn is part of the history.
 | D-429 | **h2-model merged into production for pdr-coupling-v2.0 (the user: "merge h2-model to the production branch and create a new release"; tag v2.0, two runs before the tag, h2-model kept as the H2 development line).** Production is an ancestor of h2-model (149 commits behind, 0 ahead); the merge brings the H2 level model (h2_mod and its hooks, 3D build only), Cloudy c25.00's H2 data in dataPDR/h2, h2Test/h2Slab, the manual, the LaTeX description and DEVLOG-H2.md. The source equals 01b782d's, whose hiipdr run is H-042's d421-hii31. Release check, predictions on record: rel-hii31 must reproduce d421-hii31 byte for byte in all 26 files; rel-pn41, a seeded pair with d405-pn41-d0, measures D-418/D-420/D-421 on pn150k with the level model for the first time **Result: merge c1ea374, four flavours and h2Test/h2Slab rc 0; rel-hii31 identical to d421-hii31 in every file but summary.out's clock times; rel-pn41 healthy (3 flagged), ionized T_e x0.996, gas-grain share 1.18e-3 -> 1.46e-2, Hbeta +0.49%, forbidden lines -0.8 to -2.7%, H2 lines within 0.22%, the cold cell 21.5 -> 24.5 K at the dust's 24.4; every range met, the byte-identity wording missed for the timestamps** | Done | 2026-10-21 |
 | D-430 | **Release `pdr-coupling-v2.0`: the first with the H2 level model.** Production after D-429's merge, 156 commits after v1.2. README.md rewritten for PDR plus the H2 level model (the model's own section: what it solves and feeds back, where it runs, its checks against Cloudy, the damping-width difference; the H2 executables, outputs, run-time cost, limitations, branches, credits and data licence). CLAUDE.md's h2-model note replaced by one that holds in both checkouts. The man page's H2 entry describes the feedback. Release notes in this entry. Not done: no push; no install | Done | 2026-10-21 |
 | D-431 | **doc/pdr-status.md audited and reorganised: section 3 holds only what is open, the new section 4 every closed item (the user: "Audit and revise doc/pdr-status.md and organize it so that all the resolved issues appear in a specific section of CLOSED issues. Keep in 'Known limitations' only what is currently open.").** Each of the 54 items read against the DEVLOG through D-430. 24 were already marked closed. 8 were still listed as open although resolved: L-14 (D-393), L-18 (D-413), L-20 (D-383), L-22 (D-326/D-328, the deep residual being L-3's), L-29 (D-404), L-36 (D-363), L-40 (D-391/D-392, its residual moved to L-52), L-49 (D-406). 3 split into an open and a resolved part under one number: L-4 (the formal solution's 52-130% stays open), L-21 (tools/d196_axis.py still hardcodes 31^3), L-30 (teFloor closed at D-403, two clamps open). 9 new items: open L-55 (H-043), L-56 (the H2 lines against Cloudy by spin: the line width, a divergence), L-57 (H-037), L-58 (where the level model does not run), L-59 (D-416), L-60 (D-424), L-63 (the transport's H I emissivities, D-371); closed L-61 (D-418) and L-62 (D-414). Result: 33 open (7 High, 15 Medium, 11 Low), 33 closed, each section with an index table; the header, section 1 and section 2 brought to v2.0 (the H2 model's checks, the release check); 'What has NOT been checked' revised (done checks moved to section 4); the reproduce section gains h2Test/h2Slab. Item text moved verbatim; nothing else lost (every original line accounted for) | Done | 2026-10-21 |
+| D-432 | **A Read the Docs site for the project, planned and opened (the user: "start creating the documentation for the project using readthedocs").** Sphinx + MyST in `docs/` on branch `docs` (worktree ~/software/mocassin_docs); code references resolved at build time from routine names plus a unique text match, no Fortran edits; delivered in increments, the first (MVP) being references, the PDR and H2 physics chapters and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; gas, dust and test_Problem reruns at v2.0 come in later increments | Accepted | 2026-10-21 |
+| D-433 | **Documentation site, increment 1 (MVP) built on branch `docs` (D-432), ready for Read the Docs.** Sphinx + MyST site with code references resolved at build time (fortref, 1172 references, 66 source files), generated keyword/output/build/changelog/code-map pages checked against the code, the H2 report converted into 14 physics pages and updated for v2.0, and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; two referee reviews applied; strict build clean. The reviews found documentation errors (corrected) and code defects (listed, not fixed) | Accepted | 2026-10-22 |
+| D-434 | **Licensing audit of the whole repository (the user: "do a full audit focusing on licensing ... We do not want to use anything irregular").** The combined work is distributable as GPL-3.0-or-later except for Numerical Recipes code: verbatim in the vendored 3D-PDR (spline.F90, solvlevpop.F90 GAUSS_JORDAN, both compiled), dead NR routines in interpolation_mod, and NR heapsort structure in three routines written here. Notice gaps (Cloudy zlib for three translated routines and the Stout data ports, HEALPix in healpix.F90, DUSTY BSD-3, SUNDIALS check_flag, modification notes), Badnell fit files with their copyright line stripped and unused, undeclared D-357 data change, and unclear-rights data. Audit only; nothing changed | Open | 2026-10-22 |
+| D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -41780,3 +41784,313 @@ the page are updated (section 2, 3, 4; revised at D-431).
 ### Status
 
 Done (2026-10-21).
+
+---
+
+## D-432 - A Read the Docs site for the project (2026-10-21)
+
+The user (2026-10-21): "Now I want to start creating the documentation for
+the project using readthedocs. ... I want the documentation to describe all
+the details and assumptions of the code with direct references to code
+blocks where it is implemented. I also want the documentation to have a
+quickstart section ... show the current results of the benchmarks for gas,
+dust and PDR models. We should adopt the hiipdr and 150kkpn models as the
+pdr benchmarks, including the Cloudy comparisons. It should also have a
+section with a tutorial on how to run a full dust+gas+PDR model based on
+test_problem." The plan was held until the H2 model reached production
+(D-429/D-430) and then made against v2.0. Documentation and its tooling,
+not a change to what the code computes.
+
+**What exists (surveyed 2026-10-21).** No docs tooling (no conf.py,
+mkdocs.yml, .readthedocs.yaml or CI). Prose is in README.md, man/mocassin.1
+(Ercolano 2015, missing 23 of the keywords readInput parses: convTotals,
+teSolver, iterDamp, randomSeed, pathStretch, cvUseH2, ...), doc/dust.md,
+doc/pdr-status.md, doc/manual-pdr-h2.md, the LaTeX report
+doc/h2-radiation-molecules/ and source/pdr/UPSTREAM.md. The release runs
+runs/_release_v2/rel-hii31 and rel-pn41 (binary built at c1ea374,
+source-identical to 53c17eb, 14 ranks, randomSeed 1001, 6e6 packets) are
+the only benchmark runs at v2.0; the Cloudy c25.00 references are
+runs/d396-cloudy-{hii,pn}. Gas (Lexington x4), dust (1D x3, 2D x4) and
+test_Problem have not been run at v2.0. No dust reference solution exists
+in the tree. GitHub cannot display DEVLOG.md (2.4 MB), so the site cannot
+link into it.
+
+**Decided** (the user's answers, 2026-10-21):
+  - Code references are resolved on the docs side: a Sphinx extension
+    (docs/_ext/fortref) finds a routine by `file::host/routine`, optionally
+    narrowed by a unique text match, and links to a source viewer on the
+    site plus a GitHub permalink at the built commit. No markers are added
+    to the Fortran. An unresolved or ambiguous reference fails the build.
+  - Delivered in increments. The MVP: install and running; complete keyword,
+    output and build references generated with build-time checks against
+    readInput, the writers and the Makefile; the PDR coupling and H2 physics
+    chapters, converted from the LaTeX report (which becomes their source;
+    main.tex frozen, main.pdf kept as the v2.0 snapshot); limitations; the
+    hiipdr and pn150k benchmarks against Cloudy from the release runs. Later
+    increments: quickstart and Lexington, the test_Problem PDR+H2 tutorial,
+    the dust benchmarks, the original MOCASSIN physics.
+  - The reruns at v2.0 are made by Claude during execution, seeded, at 14
+    ranks, one at a time and only when no other run is going, in
+    runs/docs-v2.0/, with binaries installed to ~/.local/mocassin_docs.
+  - Dust benchmarks compare with published references: Pascucci et al. 2004
+    for the 2D discs, Ivezic et al. 1997 (DUSTY or the paper's tables) for
+    the 1D spheres.
+  - Living documents (pdr-status.md, dust.md, manual-pdr-h2.md, UPSTREAM.md)
+    are included in the site in place, not copied.
+
+**Working arrangement.** Branch `docs` (from 6d8007c) in the worktree
+~/software/mocassin_docs, touching only new paths (docs/,
+.readthedocs.yaml, later tools/mocread.py) and a freeze note in main.tex.
+Merged into production at the end of each increment. Pushing and connecting
+the Read the Docs project are the user's actions. The plan is
+~/.claude-lac/plans/velvet-rolling-kettle.md.
+
+### Status
+
+Open: increment 1 (MVP) under way.
+
+---
+
+## D-433 - Documentation site, increment 1 (2026-10-22)
+
+D-432's first increment, built on branch `docs` (worktree
+~/software/mocassin_docs, from 6d8007c; commits ad98936, e30428f, 3b9bb3c,
+12a59d5, b077f54, 7645c8e). Documentation and its tooling only: nothing
+under source/, the Makefile, tools/ or dataPDR/ changed. Not pushed and not
+merged into production yet.
+
+**What the site holds.** docs/ (Sphinx 8.2.3, myst-parser 4.0.1, furo;
+.readthedocs.yaml, fail_on_warning):
+  - overview, installation, running, citing, licence;
+  - generated references, each with a build-time completeness check: input
+    keywords (docs/reference/keywords.yaml against every `case` label of
+    readInput: 91 active, 31 retired), output files (outputs.yaml against
+    every `open(... 'output/...')`: 42), build flavours and flags (Makefile),
+    changelog (DEVLOG release notes), code map (every compiled unit);
+  - the H2 report (doc/h2-radiation-molecules, now frozen; main.pdf kept as
+    the v2.0 snapshot) converted into docs/physics/pdr (14 pages), its 446
+    line references turned into routine + text anchors and updated for
+    D-414, D-418, D-420, D-421;
+  - doc/pdr-status.md, doc/dust.md, doc/manual-pdr-h2.md and
+    source/pdr/UPSTREAM.md included in place;
+  - hiipdr and pn150k against Cloudy c25.00 from runs/_release_v2 (reduced by
+    docs/bench/reduce.py to 0.5 MB of CSV/JSON with sha256 provenance; figures
+    drawn at build time by docs/bench/plots.py).
+
+**Checks.** `sphinx-build -W --keep-going` rc 0, 0 warnings (about 9 s
+fresh); `python -m fortref check docs` 1172 references, 0 problems; pytest
+113 passed. reduce.py reproduces the d405 hiipdr page numbers to the %.6g
+rounding (worst 1.06e-6), gives identical CSVs for rel-hii31 and d421-hii31,
+and finds the committed Cloudy inputs' physics commands identical to the
+D-396 runs'.
+
+**Referee reviews** (two agents: PDR/molecules, transfer/photoionisation;
+every major finding checked against the code or DEVLOG before applying).
+Corrected in the pages, among others: the 7.4% gas-grain share is the
+ionised gas's (D-421), not H2's; hiipdr's deeper H/H2 crossing is +0.21 mag
+from the damping width and -0.09 mag from the rest (H-026), not grain
+formation first; pn150k's width test is H-026's stage B (para 0.70-0.93,
+ortho 0.45-0.69 of Cloudy's), not H-008's stage A; hiipdr's last-window
+change, 2.04% (Ne+), is above the default 2%; the ionised gas of both models
+shows low-ionisation excesses (hiipdr x(O+) 1.4-1.6x, x(C+) 1.5-1.8x at
+A_V 0.17-0.31; pn150k [O II] +13-18%, [N II] +10-23%, He II 4686 +24% with
+a smaller, cooler He2+ zone - not explained), and MOCASSIN's A_V is 1-4.5%
+below Cloudy's at fixed radius.
+
+**Code behaviour found while documenting (not fixed; each needs its own
+plan):**
+  - `pdr` without its integer swallows the next input line, which is lost
+    silently (list-directed read, set_input_mod.f90:642-643; agent's
+    gfortran test).
+  - `fillingFactor` < 1 zeroes whole cells at random from an unseeded
+    generator called on every rank before the seeding (grid_mod.f90:1043-1048;
+    photon_mod.f90 seeds later), so ranks may hold different grids and
+    `randomSeed` does not make such runs reproducible.
+  - Secondary ionisation by fast photoelectrons is absent: `secIonP` is set
+    (hydro_mod.f90:345) and never used. A likely contributor to pn150k's low
+    x(H+) and n_e behind the front (0.21-0.48 and 0.36-0.52 of Cloudy's),
+    not measured.
+  - `MdMg`, `MdMh` and `Ndust` exclusivity is checked only when all three are
+    given (set_input_mod.f90:932); the per-cell MdMg/MdMh file is read as
+    three integers and the ratio (grid_mod.f90:1105).
+  - Keywords parsed with no effect: `H0Start`, `NeStart`, `pdrDiagAV`.
+  - `lineFlux.ext` is never written (no program passes outputGas an
+    extinction map).
+  - SED.out's footer labels the total as erg/s x 1e36 while writing
+    totalE*1e-36 of a value already in 1e36 erg/s (output_mod.f90:3457).
+  - With multiChemistry + debug, ionDen.out is closed inside the loop and
+    later writes go to fort.60 (output_mod.f90:1770); with sub-grids,
+    qHeatPss.out's later writes go to fort.89 (iteration_mod.f90:425) and
+    summary.out keeps only the last grid's first-iteration block.
+  - h2Pop.bin is written with the outputs, not the grid files, so a warm
+    start after a crash restarts the H2 populations.
+  - `CC ?= gcc` has no effect (GNU make predefines CC=cc).
+  - The v2.0 release notes (D-430) and README quote hiipdr H2 line ratios
+    from H-019 (ortho 0.82-0.84, para 1.13-1.19); the release run gives
+    ortho 0.71-0.80 and para 0.95-1.09 (pn150k: notes 0.96-1.17/1.95-2.72,
+    run 0.89-1.16/1.65-2.69).
+  - README's "standard test problem (Meudon standard HII region)" describes
+    benchmarks/test_Problem wrongly (it is the dusty ring-and-slab model).
+
+**Not yet done in increment 1:** pushing `docs` and creating the Read the
+Docs project (the user's actions); merging `docs` into production after the
+user has seen the site. Later increments as planned in D-432 (quickstart and
+Lexington, the test_Problem tutorial, dust benchmarks, the original MOCASSIN
+physics).
+
+### Status
+
+Increment 1 built and reviewed; waiting for the push and the Read the Docs
+connection.
+
+---
+
+## D-434 - Licensing audit (2026-10-22)
+
+The user (2026-10-22): "now do a full audit focusing on licensing. Check that
+all the code is properly credited and flag any use that is inconsistent with
+the original licences. We do not want to use anything irregular."
+
+Three read-only audits (code provenance; bundled data; licence texts and
+compatibility), each finding then checked by the main session against the
+files. Upstreams compared: rwesson/mocassin @50c0706 and this fork's import
+38aca36, 3D-PDR @fabcdc6, Cloudy c25.00 (~/software/cloudy-c25.00),
+HEALPix pix_tools.F90, DUSTY's Lib_nk, the providers' terms pages. Not a
+legal opinion. Nothing was changed.
+
+**Compatibility.** MOCASSIN (GPL-2.0-or-later, stated only in mocassin.f90's
+header; upstream has no LICENSE file), HEALPix (GPL-2.0-or-later), 3D-PDR
+(GPL-3.0-or-later; its LICENSE is byte-identical to ours), Cloudy (zlib) and
+SUNDIALS (BSD-3, linked) combine as GPL-3.0-or-later. LICENSE is the
+unmodified GPL v3 text. No non-commercial or no-redistribution term was
+found anywhere except Numerical Recipes.
+
+**Licence conflicts (must be fixed).**
+  1. Numerical Recipes, whose licence forbids redistributing source or
+     executables that contain it, so it cannot be conveyed under the GPL:
+     - source/pdr/spline.F90: "Copied from Numerical Recipes" (SPLINE,
+       SPLINT, SPLIE2, SPLIN2, hunt), NR's comments kept word for word;
+       compiled, used for H2 and CO shielding (shield.F90). Inherited from
+       3D-PDR.
+     - source/pdr/solvlevpop.F90: GAUSS_JORDAN is NR gaussj (header says so,
+       NR's variables IPIV/INDXR/INDXC/PIVINV); compiled, every coolant
+       level-population solve. GAUSS_JORDAN_writes: never called. Inherited.
+     - source/interpolation_mod.f90 polint/spline/splint: NR-derived, compiled,
+       never called (MOCASSIN upstream).
+     - Written in this project with NR's heapsort structure: cvSortD
+       (iteration_mod.f90, D-196), indexSort (h2_mod.f90), heapSortIdx
+       (pdr_mod.f90).
+     D-271's licence check missed these.
+  2. data/badnell_dr.dat, badnell_rr.dat: N. R. Badnell's fits from Cloudy's
+     copies, "(C)20230512 N. R. BADNELL" line stripped, no grant to
+     redistribute; brought in by the D-330 sync and read by nothing in
+     source/.
+
+**Notice and attribution gaps (compatible licences, obligations unmet).**
+  - Cloudy (zlib): yanH2xSec (ionization_mod.f90, "Ported from Cloudy c25's
+    Yan_H2_CS"), h2ShieldFederman (h2_mod.f90; Cloudy's shieldFederman line for
+    line, its literals 0.66666 and 0.78540) and h2FormDist (adapted from
+    mole_h2_create.cpp) carry no zlib notice, and README, licence.md, h2_mod's
+    header and dataPDR/h2/README.md say the H2 code is "not Cloudy's"; the 15
+    Stout ports in data/ are marked but the notice is not reproduced.
+  - HEALPix: source/pdr/healpix.F90 holds pix_tools.F90 routines with the
+    copyright header removed (already upstream); credited nowhere.
+  - DUSTY (BSD-3, (C)2016 Z. Ivezic): about 17 dustData/*.nk files from Lib_nk,
+    no notice.
+  - SUNDIALS (BSD-3): calculate_abundances.c's check_flag is the SUNDIALS
+    example helper, no notice.
+  - Modification notes missing: hydro_mod.f90, fluorescence_mod.f90,
+    readdata_mod.f90 (R. Wesson's, no header), the Makefile, man/mocassin.1.
+  - UPSTREAM.md: "GPL-3.0 (same as MOCASSIN)" (MOCASSIN is GPL-2.0-or-later),
+    "six files" (eight), and the D-357 swap in dataPDR/species_reduced.d (H2+
+    and CH5+ lines exchanged) is not declared.
+  - Uncredited: SEREN (heapsort.F90, definitions.F90), Storey & Hummer 1995
+    (hdatx/hlinex), EQUIB (probable, luSlv), Starburst99 spectra in
+    examples/multistars.tar.gz, HeIrecLines.dat (fits to Porter et al. from
+    PyNeb), dust optical-data sources (no dustData README; enstatite files carry
+    crSil's Jaeger 1994 footer over 5,330 rows of other data).
+  - Citations: 3D-PDR asks for its JOSS paper; RAYTHEIA (Zhu et al. 2026) is
+    compiled into the 3D build and not cited; Cloudy's current release paper.
+  - Docs: no copyright line (the live footer reads "(C) Copyright ."); make
+    install does not install LICENSE.
+
+**Unclear rights (decisions for the user).** dust_nk_Nwright.tar.gz and
+dustData_POwen.tar.gz (private compilations "provided by Dr. Mike Barlow",
+publication permission unrecorded, stored up to three times with editor
+backups); dustData/H2Oice-15-200um-Curtisetal2005.txt (an OSA-copyright table
+transcribed whole, unused); benchmarks/test_Problem/input/200000_7.00__He (a
+stellar spectrum of unknown origin, unused); the unused UMIST full/medium
+networks (UDfA states no licence); data.chianty-7/ and data.chianty-10/ (old
+CHIANTI sets, unused, undocumented); accessories/compare_Mie_CDE.py's copy of
+the circulating bhmie.py (no licence stated).
+
+### Status
+
+Open: the remediation needs the user's decisions; the code replacements
+(Numerical Recipes) go through a plan and the code-executor with regression
+runs.
+
+---
+
+## D-435 - Licensing fixes without code changes (2026-10-22)
+
+The user (2026-10-22), after reviewing D-434's drafts: "apply the licensing
+modifications that do not require code changes in all branches of the
+repository as needed. Update any relevant documentation accordingly." Earlier
+answers (2026-10-22): Numerical Recipes code flagged only for now; the Wright
+and Owen dust compilations kept, "I have permission"; unused unclear-rights
+files kept and documented, except Badnell's.
+
+**Applied** (branch `licensing` from ed71814, merged into production and from
+there into h2-model and docs):
+  - `THIRD_PARTY_NOTICES.md` (new): every third-party component, its licence,
+    the notices to keep (Cloudy zlib, HEALPix, SUNDIALS BSD-3), the known
+    licensing issue (the Numerical Recipes routines of D-434), and that the
+    GPL covers the code while the data stay under their providers' terms.
+  - `data/README.md`, `dustData/README.md`, `dataPDR/README.md` (new): per-file
+    sources and terms; Cloudy's notice for the 15 Stout files; DUSTY's BSD-3
+    notice for the 18 files from its library; the Wright and Owen
+    compilations "provided by M. J. Barlow and included with permission"; the
+    wrong enstatite footer and the unverified quartz and olivine sources
+    flagged, not edited; the D-357 and D-395 data changes and the D-285
+    split. Sources are named only where a file or the code states them.
+  - `README.md` (licence and credits, citations, documentation list),
+    `docs/reference/licence.md`, `docs/reference/citing.md`, `docs/conf.py`
+    (copyright line, so the site footer is no longer empty), two new pages
+    (`reference/third-party`, `reference/data-sources`), ten bibliography
+    entries checked against CrossRef or arXiv (CHIANTI 1997 and 10.1, Stout,
+    LAMDA 2020, Porter 2012/2013, DUSTY, RAYTHEIA arXiv:2605.09882, Cloudy 2025
+    arXiv:2508.01102, 3D-PDR v2.0.0).
+  - `source/pdr/UPSTREAM.md`: licence row (GPL-3.0-or-later; MOCASSIN is
+    GPL-2.0-or-later), authors, the eight modified files, the D-357 data row,
+    a section on third-party code inside 3D-PDR.
+  - `dataPDR/h2/README.md` and the README's H2 section: the "not a
+    translation of Cloudy's source" statements now name the three routines
+    that are.
+  - `man/mocassin.1`: AUTHORS and COPYRIGHT sections.
+  - `doc/dust.md`: points to `dustData/README.md`.
+  - Removed: `data/badnell_dr.dat`, `data/badnell_rr.dat` (copyright line
+    stripped, no grant, read by no code), two editor backups (`*.nk~`), and
+    `dust_nk_Nwright.tar.gz`, `dustData_POwen.tar.gz` (duplicates of the
+    extracted directories next to them).
+
+Statements that will only become true with the code changes are worded as
+pending ("still to be added", D-435) rather than as done.
+
+**Not applied (code changes, to be planned and executed):** the modification
+notes on `hydro_mod.f90`, `fluorescence_mod.f90`, `readdata_mod.f90`; headers
+on `h2_mod.f90`, `h2Lines_mod.f90`, `frontLines_mod.f90`, `h2Slab.f90`,
+`h2Test.f90`; the Cloudy notes at `yanH2xSec`, `h2ShieldFederman`,
+`h2FormDist`; the HEALPix notice in `healpix.F90`; the SUNDIALS note at
+`check_flag`; the Numerical Recipes flag comments (and later the
+replacement); the Makefile header and the install of `LICENSE`,
+`THIRD_PARTY_NOTICES.md` and `README.md`. The drafted texts are in D-434's
+review (kept outside the repository).
+
+**Branches.** Production (GitHub `main`), h2-model and docs. `dev` (local,
+not merged, last commit 2026-09-27) and the branches already merged into
+production were left as they are.
+
+### Status
+
+Done for the no-code part; the code part is open.

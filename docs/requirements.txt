@@ -1,0 +1,13 @@
+# Runtime requirements of the documentation build (local venv and Read the Docs).
+# Exact pins; every version here has wheels for Python 3.12 (RTD) and 3.13.
+sphinx==8.2.3
+myst-parser==4.0.1
+sphinx-rtd-theme==3.1.0
+sphinxcontrib-jquery==4.1
+sphinx-copybutton==0.5.2
+sphinx-design==0.6.1
+sphinxcontrib-bibtex==2.6.5
+numpy==2.3.5
+matplotlib==3.10.8
+pygments==2.19.2
+pyyaml==6.0.3
