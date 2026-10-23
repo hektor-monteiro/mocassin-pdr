@@ -32,7 +32,7 @@
   "sha256": "2160c748584749ae8272d79af7d9f7697b2ec5808ded1f19ce761cb9b633edd5"
  },
  "script": {
-  "lexington.py": "6e5524640815f23570508f4e7ce32e9b63f62a490c262e23a1dd0dff1b632d0e",
+  "lexington.py": "c46b98686f86fee53341ac0cfb61086faa3a93278724e7b80c9560fb28688d8c",
   "mocread.py": "427b9363f29cba38348696fe8b2e5a5abd78ac4f60f8bbded8a2574763b43516"
  },
  "files_read": {

@@ -15,10 +15,14 @@ one. Writes to DIR (default docs/bench/data/lexington):
     summary.csv         per model: rows compared, in range, median |dex|, the same for MOCASSIN 2003 on
                         the same rows, and Hbeta over the codes' median
     printed_median.csv  rows whose printed median differs from the codes' median by more than 5%
+    <M>_page.csv, summary_page.csv, printed_median_page.csv
+                        the same three as the page shows them ({csv-table})
     PROVENANCE.json     sha256 of every file read, each run's version line, the md5 of meta.binary, the date
 
-<M>.csv, summary.csv and printed_median.csv are written with %.4g, matches.csv with %.6g. --check
-reduces again into a temporary directory and compares every CSV with DIR's byte for byte.
+<M>.csv, summary.csv and printed_median.csv are written with %.4g, matches.csv with %.6g. The page tables
+print a number with %.0f from 1000 up and %.3g below, a range as lo – hi, |dex| and Hbeta over the median
+with %.3f, the printed values as printed, and – where there is no value. --check reduces again into a
+temporary directory and compares every CSV with DIR's byte for byte.
 """
 import argparse
 import csv
@@ -44,6 +48,9 @@ CODES = ['GF', 'HN', 'DP', 'TK', 'PH', 'RS', 'RR']
 MODELS = ['HII40', 'HII20', 'PN150', 'PN75']
 COLUMNS = ['row', 'id', 'display', 'value', 'median', 'lo', 'hi', 'n', 'in_range', 'dex', 'median_printed',
            'moc2003'] + CODES
+PAGE_COLUMNS = ['Line or quantity', 'MOCASSIN-PDR', "Codes' median", "Codes' range", 'In range', 'log(M/median)',
+                'MOCASSIN 2003', 'Printed median']
+NA = '–'                                       # the page's placeholder for no value
 READ = {}                                      # label -> sha256 of every file read
 
 
@@ -81,6 +88,13 @@ def g(v, fmt='%.4g'):
     if isinstance(v, (int, np.integer)):
         return str(int(v))
     return fmt % v if np.isfinite(v) else ''
+
+
+def fmt(v):
+    """a number as the page prints it: %.0f from 1000 up, %.3g below, empty when missing"""
+    if v is None:
+        return ''
+    return f'{v:.0f}' if abs(v) >= 1000 else f'{v:.3g}'
 
 
 def write_csv(path, header, rows, fmt='%.4g'):
@@ -154,7 +168,7 @@ def stats(v, codes):
 
 
 def reduce_model(model, run, ids, ref, out):
-    rows, comp = [], []
+    rows, comp, page = [], [], []
     for r in ref:
         spec = ids[r['id']]
         if spec['kind'] == 'skip':
@@ -165,9 +179,15 @@ def reduce_model(model, run, ids, ref, out):
         be = num(r['BE3D'])
         rows.append([int(r['row']), r['id'], spec['display'], v, med, lo, hi, n, inr, dex, num(r['Med']), be]
                     + [num(r[c]) for c in CODES])
-        if med is not None:
+        as_printed = [r['BE3D'].strip() or NA, r['Med'].strip() or NA]
+        if med is None:
+            page.append([spec['display'], fmt(v), NA, NA, NA, NA] + as_printed)
+        else:
+            page.append([spec['display'], fmt(v), fmt(med), f'{fmt(lo)} – {fmt(hi)}', 'yes' if inr else 'no',
+                         f'{dex:+.2f}'] + as_printed)
             comp.append((r, spec, v, med, lo, hi, inr, dex, be))
     write_csv(os.path.join(out, f'{model}.csv'), COLUMNS, rows)
+    write_csv(os.path.join(out, f'{model}_page.csv'), PAGE_COLUMNS, page)
 
     # MOCASSIN 2003 (BE 3-D) on the same rows, the same way
     be = [(lo <= b <= hi, abs(np.log10(b / med))) for r, s, v, med, lo, hi, inr, dex, b in comp
@@ -177,10 +197,12 @@ def reduce_model(model, run, ids, ref, out):
                float(np.median([abs(c[7]) for c in comp if c[7] is not None])),
                sum(bool(x[0]) for x in be), float(np.median([x[1] for x in be])) if be else None,
                hb[0] if hb else None]
-    printed = [[model, int(r['row']), r['id'], s['display'], num(r['Med']), med]
-               for r, s, v, med, lo, hi, inr, dex, b in comp
-               if num(r['Med']) is not None and abs(num(r['Med']) / med - 1) > 0.05]
-    return summary, printed
+    printed, printed_page = [], []
+    for r, s, v, med, lo, hi, inr, dex, b in comp:
+        if num(r['Med']) is not None and abs(num(r['Med']) / med - 1) > 0.05:
+            printed.append([model, int(r['row']), r['id'], s['display'], num(r['Med']), med])
+            printed_page.append([model, s['display'], r['Med'].strip(), fmt(med)])
+    return summary, printed, printed_page
 
 
 def reduce_all(conf, runs, out):
@@ -191,12 +213,13 @@ def reduce_all(conf, runs, out):
     refpath = os.path.join(REPO, conf['meta']['reference'])
     with open(src(refpath)) as f:
         ref = list(csv.DictReader(f))
-    summary, printed, matches, card = [], [], [], {}
+    summary, printed, printed_page, matches, card = [], [], [], [], {}
     for model in MODELS:
         run = Run(model, runs[model])
-        s, p = reduce_model(model, run, ids, [r for r in ref if r['model'] == model], out)
+        s, p, pp = reduce_model(model, run, ids, [r for r in ref if r['model'] == model], out)
         summary.append(s)
         printed += p
+        printed_page += pp
         matches += run.matches
         log = os.path.join(runs[model], 'run.log')
         card[model] = {'run': label(runs[model]),
@@ -207,6 +230,13 @@ def reduce_all(conf, runs, out):
                                                  'moc2003_median_abs_dex', 'hbeta_over_median'], summary)
     write_csv(os.path.join(out, 'printed_median.csv'), ['model', 'row', 'id', 'display', 'median_printed', 'median'],
               printed)
+    write_csv(os.path.join(out, 'summary_page.csv'),
+              ['Model', 'Compared', "In the codes' range", 'Median |log(M/median)|', 'MOCASSIN 2003 in range',
+               'MOCASSIN 2003 median |log|', 'Hβ / median'],
+              [[m, str(c), str(i), f'{d:.3f}', str(bi), f'{bd:.3f}', f'{hb:.3f}']
+               for m, c, i, d, bi, bd, hb in summary])
+    write_csv(os.path.join(out, 'printed_median_page.csv'), ['Model', 'Line or quantity', 'Printed median',
+                                                             "Codes' median"], printed_page)
     with open(os.path.join(out, 'PROVENANCE.json'), 'w') as f:
         binary = os.path.join(RUNS, conf['meta']['binary'])
         json.dump({'generated': time.strftime('%Y-%m-%d'), 'runs_root': RUNS, 'runs': card,
