@@ -93,8 +93,10 @@ html_theme_options = {
     'prev_next_buttons_location': 'bottom',
 }
 
-# fortref validates the GitHub blob links itself.
-linkcheck_ignore = [r'https://github\.com/.*/blob/']
+# fortref validates the GitHub blob links itself. The bibliography's DOIs are checked against
+# CrossRef by docs/scripts/check_bib.py; the publishers' sites refuse the link checker (403 from
+# OUP, A&A, ACS and AIP, 405 from ADS for the AAS journals), so linkcheck skips them.
+linkcheck_ignore = [r'https://github\.com/.*/blob/', r'https://doi\.org/']
 
 fortref_github = 'https://github.com/hektor-monteiro/mocassin-pdr'
 
