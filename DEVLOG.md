@@ -436,7 +436,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-434 | **Licensing audit of the whole repository (the user: "do a full audit focusing on licensing ... We do not want to use anything irregular").** The combined work is distributable as GPL-3.0-or-later except for Numerical Recipes code: verbatim in the vendored 3D-PDR (spline.F90, solvlevpop.F90 GAUSS_JORDAN, both compiled), dead NR routines in interpolation_mod, and NR heapsort structure in three routines written here. Notice gaps (Cloudy zlib for three translated routines and the Stout data ports, HEALPix in healpix.F90, DUSTY BSD-3, SUNDIALS check_flag, modification notes), Badnell fit files with their copyright line stripped and unused, undeclared D-357 data change, and unclear-rights data. Audit only; nothing changed | Open | 2026-10-22 |
 | D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
 | D-436 | **Licensing notices in source files, comments only (the user: "proceed with modification notes and headers in eight source files, then with the Cloudy notes at the three translated routines, and HEALPix's and SUNDIALS' notices in their files").** Modification notes on hydro_mod, fluorescence_mod, readdata_mod; GPL headers on h2_mod, h2Lines_mod, frontLines_mod, h2Slab, h2Test; Cloudy notes at yanH2xSec, h2ShieldFederman, h2FormDist; HEALPix notice restored in healpix.F90; SUNDIALS notice at check_flag. Comment-only (93 lines added, 4 removed), all four flavours and h2Test/h2Slab build; the docs statements made current | Accepted | 2026-10-22 |
-| D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) | In progress | 2026-10-23 |
+| D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) **Result:** quickstart, Python-reader and Lexington pages built and reviewed; the Lexington fixtures stopped unconverged at their 10-iteration cap under D-391's test, so the cap is 60 (the user's choice); converged runs give 20/28, 12/21, 36/47, 21/37 values in the codes' range (MOCASSIN 2003: 20, 15, 42, 27); the quickstart found the PDR-build crash fixed at D-438; README, H2 manual and the D-430 release notes corrected; linkcheck clean, DOIs checked | Done | 2026-10-23 |
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -41618,8 +41618,10 @@ merged at DEVLOG D-429. It has 156 commits since v1.2, most of them the H2 model
   - line overlap is within 0.2–1.6% of the exact integral;
   - hiipdr's H2 lines are packet-converged to +0.8% from 6×10⁶ to 3.84×10⁸ packets.
 - **Against Cloudy's large H2 model:**
-  - hiipdr ortho lines 0.82–0.84, para lines 1.13–1.19;
-  - pn150k ortho lines 0.96–1.17, para lines 1.95–2.72. Most of the para excess is the line width: a
+  - hiipdr ortho lines 0.82–0.84, para lines 1.13–1.19 (corrected at D-437: these are H-024's runs;
+    the release run rel-hii31 gives ortho 0.71–0.80, para 0.95–1.09);
+  - pn150k ortho lines 0.96–1.17, para lines 1.95–2.72 (corrected at D-437: H-024's runs; the release
+    run rel-pn41 gives ortho 0.89–1.16, para 1.65–2.69). Most of the para excess is the line width: a
     line's natural width is its upper level's total decay rate, and Cloudy uses the line's own A.
 - **The release check (D-429)**, with the production build of the merge:
   - **hiipdr 31³:** reproduces the H2 branch's tested run in every output file, apart from
@@ -42231,9 +42233,161 @@ leftovers), "proceed as suggested". Plan
   - hiipdr21: 6-10 min at 14 ranks, 15-30 min at 4; about 0.65 GB per rank
     (D-370); 5 to 7 iterations.
 
+### Results (2026-10-23)
+
+**Part E (code-executor, worktree ~/software/mocassin_docs, branch docs).**
+  - `tools/mocread.py` and `tools/tests/test_mocread.py` (8597d1f): the
+    reader's arrays equal reduce.py's read_run on rel-hii31 exactly (Te, n_e,
+    n_H, x(H+), x(O2+), A_V, lgBlack).
+  - `examples/quickstart/` (6123bfa), with hii40 and hiipdr21 inputs and two
+    plot scripts. Revision 5 (ba0b6d7) gave hiipdr21's T_e panel a log axis.
+  - `docs/bench/lexref.py` and the reference CSV (c7ee498): rows 32/25/50/42,
+    spot values as printed, MC935.tex sha256 enforced.
+  - `docs/bench/lexington.py` (586d07b), the strip plots (ba19e6f), the
+    page tables (f3225fb) and `docs/scripts/check_bib.py` (087e7cd, b9c0fb6).
+  - Blockers, each resolved by a plan revision:
+    - Revision 1: E4's expected PN150 [O I] 63 um was written to two
+      figures (0.0011) against a 1% tolerance. The run gave 0.001144, which
+      is the file's own value; the planning error was in the expectation.
+    - Revision 2: check_bib needed LaTeX decoding, HTML stripping of
+      CrossRef titles, a fallback to the DOI handle API for a DOI registered
+      outside CrossRef (AmanatidesWoo1987), and a reviewed-exceptions file.
+      The reviewed exception is CrossRef's broken record for
+      IvezicElitzur1997 ('Ivezi' and a no-break space).
+  - The fortref golden tests had gone stale twice, because D-436 and D-438
+    moved lines and neither plan ran the pytest suite. The main session
+    updated them after checking that each moved extent is byte-identical
+    (3ca4b18, 968329d). Plans that touch source/ should run
+    `pytest docs/_ext/fortref/tests` from now on.
+
+**Builds and runs.**
+  - Builds: plain pdr-coupling-v2.0-26-gb9c0fb6 (md5 5eda221d) and 3D
+    pdr-coupling-v2.0-32-g39795dd (after D-438, md5 ff20a3e1), installed in
+    ~/.local/mocassin_docs (the user's go-ahead: the plan).
+  - Since v2.0, source/, the Makefile and dataPDR/ differ only in comments,
+    apart from D-438.
+  - **Lexington, first runs (the fixtures as they were).** At the cap of 10
+    iterations (HII20: 20), HII40, PN150 and PN75 stopped NOT converged
+    under D-391's integrated test. The last three-iteration changes were
+    S+ 12.7%, O3+ 35.8% and He2+ 5.4%. HII20 converged at 19.
+  - Against D-376's runs, every value was within 0.05 dex except PN75's
+    high-ionisation lines (He II 4686 +0.27 dex, [O IV] 25.9 um +0.24).
+    D-376's PN75 had stopped at iteration 3 on the share of converged cells,
+    with He2+ still growing.
+  - With the cap at 60, the runs converge at 18, 20 and 13 iterations
+    (28-42 s). PN150's lines move by up to 0.12 dex and HII40's [O I] by
+    0.16 dex.
+  - The user, asked whether to raise the cap in the fixtures, in the docs
+    runs only, or to publish the capped runs: "Raise cap in fixtures". So
+    benchmarks/gas/*/input.in and examples/quickstart/hii40 carry
+    maxIterateMC 60 (5d0ec2c). The reruns are byte-identical to the cap-60
+    test runs.
+  - **Lexington results** (plain build, 14 ranks, seed 1001): HII40, HII20,
+    PN150 and PN75 converged at 18, 19, 20 and 13 iterations in 29, 19, 41
+    and 14 s.
+
+    | | HII40 | HII20 | PN150 | PN75 |
+    | :--- | :--- | :--- | :--- | :--- |
+    | values inside the independent codes' range | 20 of 28 | 12 of 21 | 36 of 47 | 21 of 37 |
+    | median abs(log ratio) to the codes' median | 0.035 | 0.063 | 0.059 | 0.080 |
+    | MOCASSIN 2003, in range | 20 | 15 | 42 | 27 |
+    | MOCASSIN 2003, median abs(log ratio) | 0.039 | 0.064 | 0.034 | 0.049 |
+    | Hbeta / median | 0.981 | 1.010 | 0.998 | 1.007 |
+
+  - Predictions:
+    - Every run took under a minute, as predicted.
+    - "Hbeta inside the range in all four" failed for HII40: 2.011 against
+      the codes' lowest, 2.02, 0.45% outside.
+    - The D-376 outliers persist as predicted, except PN150's <T>, now
+      inside the range.
+  - **Findings on the page.**
+    - **Sulphur:** sits one stage too high ([S III] low, [S IV] high). In
+      PN75 MOCASSIN 2003 shared the pattern; in HII40 and HII20 it is new.
+      Not explained.
+    - **HII20's [O I] 6300 (x5.5):** the fixture's gas reaches past the
+      front, so 117 cells are mostly neutral and the front is unresolved
+      inside cells of 7.9e17 cm (L-37).
+    - **C II 1335:** the shortfall is the line's recombination part. HII40
+      with `recombinationLines` gives 0.073 more, 0.078 in all, against a
+      median of 0.082. All grid and temperature files are byte-identical;
+      lineFlux.out only gains tables (runs/docs-v2.0/test-cii1335).
+    - **PN150:** has no neutral cell (lowest x(H+) 0.56), because the
+      fixture's Rout lies at the codes' front. This explains [O I] 63 um at
+      0.0010 against 0.007-0.049.
+    - **Si II] 2335+:** the window sums five components. The 2335.1+2335.3
+      pair alone is inside the range in both nebulae and close to MOCASSIN
+      2003.
+  - **Quickstart runs.** The first ones exposed D-438.
+    - With the fixed binary: HII40 converged at 17 iterations, 45 s at 4
+      ranks and 30 s at 14. Its outputs are byte-identical to the plain
+      build's lex-HII40 run at 14 ranks.
+    - hiipdr21 stopped at its 7-iteration cap NOT converged (T(H2) 50.8%),
+      in 9:18 at 4 ranks and 5:20 at 14. The prediction was 15-30 and
+      6-10 min; it ran faster.
+    - The fixed binary's hiipdr21 run is byte-identical to the pre-fix
+      binary's in every output except summary.out's clock times.
+    - The HII40 example, copied from the installed share/doc and run with
+      the installed binary, reproduces the page's numbers byte for byte.
+
+**Pages** (b4016e3 and earlier):
+  - getting-started/quickstart, user-guide/python and benchmarks/lexington
+    are new;
+  - the index, the benchmarks index and the toctrees are updated;
+  - Pequignot2001 and Ferland1995 are added to the bibliography.
+
+A referee agent (photoionisation codes) reviewed the three pages and found
+6 major and about 25 minor points; each was checked against the runs and
+the code before it was applied. The major ones:
+  - the comparison with MOCASSIN 2003 was not stated;
+  - the PN75 sulphur pattern was shared with 2003;
+  - the edges/Rout mechanism was wrong for PN150 and the cause of HII20's
+    [O I] was available;
+  - C II 1335 is an output choice;
+  - convergence was overstated: the integrated test skips ions under 1% of
+    their element;
+  - the release tag's crash (D-438) had to be stated in the quickstart.
+
+lgBlack had been described as set by the temperature floor, here and on
+the benchmarks index. In fact it is set when the thermal balance is not
+reached, when T reaches 30,000 K, or when the ionisation balance fails
+(update_mod.f90:927, 930, 1005).
+
+**Fixes from increment 1.**
+  - README (8faf9cb): test_Problem described as the dusty 200 kK model; the
+    H2 line ratios of H-024 shown beside the release runs'; links to the
+    site and the quickstart.
+  - doc/manual-pdr-h2.md: written for a v2.0 checkout of main and the
+    default PREFIX.
+  - **D-430's release notes (erratum, this commit):** each H2 line-ratio
+    figure is marked as H-024's, with the release runs' values beside it.
+    The generated changelog page shows the correction.
+  - **Linkcheck:** every link passes except doi.org links, which publishers
+    refuse with 403 or 405. Those are now skipped (d9145c6), since
+    check_bib.py checks them against CrossRef.
+  - **check_bib.py:** 81 entries: 65 ok, 1 reviewed, 12 without DOI, and 3
+    titles that CrossRef shortens or combines (Hindmarsh2005,
+    TielensHollenbach1985, Rollig2013). The bib is right for all three.
+
+**Checks.**
+  - `sphinx-build -W` in the docs venv and in a fresh venv from
+    docs/requirements.txt: the only warning is fortref.unpushed, until the
+    push.
+  - fortref check: 1176 references.
+  - pytest: 119 passed.
+  - `lexington.py --check`: identical.
+
+**Not done.**
+  - The push (the user).
+  - A GitHub release or tag that includes D-438: v2.0 itself crashes on
+    models without `pdr`, which the quickstart page states.
+  - The PN150 fixture's Rout. Testing [O I] 63 um needs gas past the front.
+  - Later increments: the test_Problem tutorial, the dust benchmarks
+    (p0tau1 also segfaults on the plain build, D-438) and the original
+    MOCASSIN physics.
+
 ### Status
 
-In progress.
+Done.
 
 ---
 
