@@ -23,6 +23,7 @@ runs_root_env = "MOCASSIN_RUNS"
 runs_root_default = "/home/hmonteiro/software/mocassin_docs/runs"
 reference = "docs/bench/ref/lexington2003.csv"
 build = "make mocassin"
+binary = "docs-v2.0/bin/mocassin.plain"           # relative to the runs root
 ranks = 14
 seed = 1001
 
