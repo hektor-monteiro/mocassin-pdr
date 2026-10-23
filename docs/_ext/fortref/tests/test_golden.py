@@ -43,7 +43,7 @@ GOLDEN = {
     'update_mod.f90::updateCell/forLines':
         ('source/update_mod.f90', 2519, 2583, 'update_mod/updateCell/forLines'),
     'emission_mod.f90::updateCell/forLines': ('FAIL', 'scope'),
-    'h2_mod.f90::h2Solve': ('source/h2_mod.f90', 1516, 1533, 'h2_mod/h2Solve'),
+    'h2_mod.f90::h2Solve': ('source/h2_mod.f90', 1536, 1553, 'h2_mod/h2Solve'),
     'vector_mod.f90::mult': ('source/vector_mod.f90', 139, 147, 'vector_mod/mult'),   # typed function
     # text anchors and their extents
     'set_input_mod.f90::readInput@"case (\\"convTotals\\")"':
@@ -67,7 +67,7 @@ GOLDEN = {
     # C
     'pdr/calculate_abundances.c::calculate_abundances_':
         ('source/pdr/calculate_abundances.c', 68, 508, 'calculate_abundances_'),
-    'pdr/calculate_abundances.c::check_flag': ('source/pdr/calculate_abundances.c', 600, 633, 'check_flag'),
+    'pdr/calculate_abundances.c::check_flag': ('source/pdr/calculate_abundances.c', 604, 637, 'check_flag'),
     # other files
     'Makefile@"PDRFLAGS ="': ('Makefile', 87, 89, None),
     'doc/pdr-status.md@"**L-37."': ('doc/pdr-status.md', 337, 375, None),
