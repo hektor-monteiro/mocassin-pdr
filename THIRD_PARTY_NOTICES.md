@@ -32,8 +32,7 @@ Copyright (C) 2003-2007 Barbara Ercolano; later changes by Roger Wesson and
 contributors. GNU General Public License, version 2 or any later version (the grant
 is in the header of `source/mocassin.f90`). This fork starts from
 [rwesson/mocassin](https://github.com/rwesson/mocassin). Files modified here keep
-their original notices; a modification line is still to be added to `source/hydro_mod.f90`,
-`source/fluorescence_mod.f90` and `source/readdata_mod.f90` (DEVLOG D-435).
+their original notices and carry a modification line.
 
 MOCASSIN itself contains code from other authors, credited in the files:
 - `BHmie` (`source/ph_mod.f90`): Bohren & Huffman (1983), *Absorption and Scattering
@@ -64,8 +63,8 @@ includes RAYTHEIA (Z. Zhu; `m_Ray_box.F90`, `m_Mesh.F90`). 3D-PDR itself contain
 
 ### HEALPix
 
-`source/pdr/healpix.F90` (routines from `pix_tools.F90`; its own copy of this notice was
-removed upstream and is still to be restored, DEVLOG D-435) and `source/pdr/healpix_types.F90`:
+`source/pdr/healpix.F90` (routines from `pix_tools.F90`; its copy of this notice, which
+upstream had dropped, was restored at DEVLOG D-436) and `source/pdr/healpix_types.F90`:
 
 ```text
 Copyright (C) 1997-2013 Krzysztof M. Gorski, Eric Hivon,
@@ -90,7 +89,7 @@ of data files come from Cloudy (see `data/README.md` and `dataPDR/h2/README.md`)
   `rt_continuum_shield_fcn.cpp`;
 - `h2FormDist` (`source/h2_mod.f90`), adapted from `mole_h2_create.cpp`.
 
-They are altered versions of Cloudy's code; the notes marking them in the routines themselves are still to be added (DEVLOG D-435). The rest of the H₂ level
+They are altered versions of Cloudy's code, each marked as such, with Cloudy's copyright, in a note above the routine. The rest of the H₂ level
 model re-implements the equations and conventions of Cloudy's large H₂ model
 (Shaw et al. 2005) and is this project's code. Cloudy's licence:
 

@@ -425,8 +425,7 @@ has a README with the per-file sources.
 - **MOCASSIN** is Copyright (C) 2003-2007 Barbara Ercolano, with later changes by Roger Wesson and
   contributors, and is licensed under GPL version 2 or any later version. This fork starts from
   R. Wesson's version ([rwesson/mocassin](https://github.com/rwesson/mocassin)). Files changed here keep
-  their original copyright notice and carry a modification note, except three still to get one
-  (`hydro_mod.f90`, `fluorescence_mod.f90`, `readdata_mod.f90`; DEVLOG D-435).
+  their original copyright notice and carry a modification note.
 - **3D-PDR** ([itamos-ism/3D-PDR](https://github.com/itamos-ism/3D-PDR); T. G. Bisbas, Z. Zhu,
   B. A. L. Gaches, X.-J. Jiang, X. Tang, G. Zhang and contributors) is GPL version 3 or later. It is
   vendored under `source/pdr/`, and the local changes are listed in
@@ -439,8 +438,7 @@ has a README with the per-file sources.
 - **Cloudy** c25.00 (Copyright (C) 1978-2025 Gary J. Ferland and others; zlib licence): the H2 data in
   `dataPDR/h2/` are copied unmodified, 15 atomic-data files in `data/` are converted from its Stout
   database, and three routines are translated or adapted from its source (`yanH2xSec`,
-  `h2ShieldFederman`, `h2FormDist`); the notes marking them as altered in the code are still to be
-  added (DEVLOG D-435). The rest of the H2 level model re-implements
+  `h2ShieldFederman`, `h2FormDist`), each marked as altered in a note above the routine. The rest of the H2 level model re-implements
   the equations and conventions of Cloudy's large H2 model and is this project's code.
 - **Known licensing issue.** Some routines in `source/pdr/spline.F90` and `source/pdr/solvlevpop.F90`
   (inherited from 3D-PDR), in `source/interpolation_mod.f90` (from MOCASSIN, unused) and three sort

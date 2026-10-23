@@ -49,5 +49,4 @@ translated or adapted from Cloudy's source:
 h2ShieldFederman (from shieldFederman, rt_continuum_shield_fcn.cpp) and
 h2FormDist (from mole_h2_create.cpp); so is yanH2xSec in
 source/ionization_mod.f90 (from Yan_H2_CS, mole_h2_etc.cpp). The notice above
-applies to them, and notes marking them as altered are to be added in the
-code (DEVLOG D-435).
+applies to them, and a note above each marks it as altered (DEVLOG D-436).
