@@ -52,6 +52,7 @@ def main():
 
     fig, axs = plt.subplots(3, 1, figsize=(6.4, 8), sharex=True)
     axs[0].scatter(av[k], g.Te[m][k], s=2)
+    axs[0].set_yscale('log')
     axs[0].set_ylabel(r'$T_e$ [K]')
     for y, lab in ((n_hp, r'H$^+$'), (n_h, 'H'), (2 * n_h2, r'2 H$_2$')):
         axs[1].scatter(av[k], (y / n_tot)[k], s=2, label=lab)
