@@ -382,6 +382,11 @@ module ionization_mod
     ! Returns cm^2. Zero below the 15.4 eV threshold: H2 absorption in the
     ! 13.6-15.4 eV window is line opacity in the higher electronic bands, not a
     ! continuum, and Cloudy treats it that way too (D-139).
+    !
+    ! Translated from Cloudy c25.00, source/mole_h2_etc.cpp, Yan_H2_CS. Copyright
+    ! (C) 1978-2025 Gary J. Ferland and others; zlib licence, reproduced in
+    ! THIRD_PARTY_NOTICES.md. Altered for MOCASSIN-PDR by H. Monteiro, 2026: this
+    ! is not Cloudy's original code.
     function yanH2xSec(nu) result(xsec)
       implicit none
       real, intent(in) :: nu      ! photon energy [Ryd]

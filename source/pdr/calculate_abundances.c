@@ -596,6 +596,10 @@ int calculate_abundances_(realtype *abundance, realtype *rate, realtype *density
     opt == 2 means the called function allocates memory,
              so check if a NULL pointer has been returned
 
+ check_flag is the helper from the SUNDIALS examples.
+ Copyright (c) 2002-2025, Lawrence Livermore National Security and Southern
+ Methodist University. BSD 3-Clause License, reproduced in THIRD_PARTY_NOTICES.md.
+
 -----------------------------------------------------------------------*/
 static int check_flag(void *flagvalue, char *funcname, int opt)
 {

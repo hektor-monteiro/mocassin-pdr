@@ -1,3 +1,12 @@
+! Copyright (C) 2026 Hektor Monteiro
+! Part of MOCASSIN-PDR.
+!
+! This program is free software: you can redistribute it and/or modify it
+! under the terms of the GNU General Public License as published by the Free
+! Software Foundation, either version 3 of the License, or (at your option)
+! any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+! General Public License (LICENSE) for details.
+!
 !===============================================================================
 ! D-382: the [O I] optical lines of the cells an ionization front crosses,
 ! from a sub-cell profile - a post-processing estimate, written to

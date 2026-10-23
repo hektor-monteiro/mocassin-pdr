@@ -1,3 +1,7 @@
+! From MOCASSIN (R. Wesson; GPL version 2 or later).
+! Modified 2025-2026 by Hektor Monteiro for MOCASSIN-PDR; the changes are
+! recorded in the git history and in DEVLOG.md.
+!
 module readdata_mod
 use common_mod
 

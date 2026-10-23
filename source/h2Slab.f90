@@ -1,3 +1,12 @@
+! Copyright (C) 2026 Hektor Monteiro
+! Part of MOCASSIN-PDR.
+!
+! This program is free software: you can redistribute it and/or modify it
+! under the terms of the GNU General Public License as published by the Free
+! Software Foundation, either version 3 of the License, or (at your option)
+! any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+! General Public License (LICENSE) for details.
+!
 ! H-005: test driver - the H2 level model marched through a plane slab lit
 ! from one side, zone by zone, as it will be run on a finished MOCASSIN model:
 ! the gas (T, densities, n(H2)) and the dust-attenuated continuum of every zone
