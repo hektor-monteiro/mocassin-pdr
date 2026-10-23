@@ -435,6 +435,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-433 | **Documentation site, increment 1 (MVP) built on branch `docs` (D-432), ready for Read the Docs.** Sphinx + MyST site with code references resolved at build time (fortref, 1172 references, 66 source files), generated keyword/output/build/changelog/code-map pages checked against the code, the H2 report converted into 14 physics pages and updated for v2.0, and the hiipdr/pn150k benchmarks against Cloudy c25.00 from the v2.0 release runs; two referee reviews applied; strict build clean. The reviews found documentation errors (corrected) and code defects (listed, not fixed) | Accepted | 2026-10-22 |
 | D-434 | **Licensing audit of the whole repository (the user: "do a full audit focusing on licensing ... We do not want to use anything irregular").** The combined work is distributable as GPL-3.0-or-later except for Numerical Recipes code: verbatim in the vendored 3D-PDR (spline.F90, solvlevpop.F90 GAUSS_JORDAN, both compiled), dead NR routines in interpolation_mod, and NR heapsort structure in three routines written here. Notice gaps (Cloudy zlib for three translated routines and the Stout data ports, HEALPix in healpix.F90, DUSTY BSD-3, SUNDIALS check_flag, modification notes), Badnell fit files with their copyright line stripped and unused, undeclared D-357 data change, and unclear-rights data. Audit only; nothing changed | Open | 2026-10-22 |
 | D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
+| D-436 | **Licensing notices in source files, comments only (the user: "proceed with modification notes and headers in eight source files, then with the Cloudy notes at the three translated routines, and HEALPix's and SUNDIALS' notices in their files").** Modification notes on hydro_mod, fluorescence_mod, readdata_mod; GPL headers on h2_mod, h2Lines_mod, frontLines_mod, h2Slab, h2Test; Cloudy notes at yanH2xSec, h2ShieldFederman, h2FormDist; HEALPix notice restored in healpix.F90; SUNDIALS notice at check_flag. Comment-only (93 lines added, 4 removed), all four flavours and h2Test/h2Slab build; the docs statements made current | Accepted | 2026-10-22 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42094,3 +42095,61 @@ production were left as they are.
 ### Status
 
 Done for the no-code part; the code part is open.
+
+---
+
+## D-436 - Licensing notices in source files (2026-10-22)
+
+The user (2026-10-22): "proceed with modification notes and headers in eight
+source files, then with the Cloudy notes at the three translated routines, and
+HEALPix's and SUNDIALS' notices in their files". The code part of D-434/D-435,
+apart from the Makefile and the Numerical Recipes flags and replacement.
+
+Plan `~/.claude-lac/plans/licensing-notices-d436.md`, executed by the
+code-executor in the worktree ~/software/mocassin_notices (branch `notices`
+from fd234a5), commit ce31326:
+  - modification notes on `hydro_mod.f90`, `fluorescence_mod.f90`, and on
+    `readdata_mod.f90` with its origin ("From MOCASSIN (R. Wesson; GPL version 2
+    or later)");
+  - the GPL-3.0-or-later header of `pdr_mod.f90` on `h2_mod.f90`,
+    `h2Lines_mod.f90`, `frontLines_mod.f90`, `h2Slab.f90`, `h2Test.f90`;
+  - Cloudy notes (origin file and function, Cloudy's copyright, zlib, "not
+    Cloudy's original code") above `h2FormDist`, `h2ShieldFederman`
+    (`h2_mod.f90`) and `yanH2xSec` (`ionization_mod.f90`); `h2_mod.f90`'s
+    header no longer says none of it is a translation;
+  - HEALPix's copyright and GPL-2.0-or-later notice restored at the top of
+    `source/pdr/healpix.F90`, with the vendored files' modification line;
+    recorded in `source/pdr/UPSTREAM.md`;
+  - the SUNDIALS BSD-3 notice in `check_flag`'s comment block
+    (`calculate_abundances.c`).
+
+**Verification** (executor's report, diff reviewed here):
+  - Comment-only: every added or removed line of the `.f90`/`.F90` diff is a
+    comment or blank (0 other lines); the C diff is four lines inside the
+    existing `/* */` block. 93 lines added, 4 removed, in 12 files.
+  - Builds rc 0: `make PDR=1 PDRGEOM=3D mocassin`, `h2Test h2Slab`,
+    `make PDR=1 mocassin`, `make mocassin`, `make PDR=1 mocassinWarm`, with
+    `make clean` between (version pdr-coupling-v2.0-16-gce31326). Warnings
+    only in unedited files (iteration_mod, pdr_mod: MPI argument mismatches,
+    as before).
+  - **Planning error, recorded as the blocker it raised.** V3 predicted 0
+    problems from `fortref check` and a clean strict docs build. Both report
+    one `fortref.unpushed` warning: every edited file is cited by the docs, so
+    until the commit is on GitHub no pushed commit has those files as they are
+    here, and the extension refuses to link to a commit GitHub lacks. No
+    anchor became ambiguous or unresolved (no per-reference warning). Resolved
+    by revising V3's expectation: exactly that one warning while unpushed; it
+    disappears once pushed, and Read the Docs builds from the pushed commit.
+    The same holds for production and h2-model after the merge.
+
+The documentation statements that D-435 worded as pending ("still to be
+added") are now written as done: THIRD_PARTY_NOTICES.md, README.md,
+docs/reference/licence.md, dataPDR/h2/README.md.
+
+**Still open from D-434:** the Makefile header and the install of `LICENSE`,
+`THIRD_PARTY_NOTICES.md` and `README.md`; the Numerical Recipes flag comments
+and the replacement of those routines.
+
+### Status
+
+Done.

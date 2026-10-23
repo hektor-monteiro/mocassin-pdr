@@ -1,3 +1,17 @@
+! Modified 2026 by Hektor Monteiro for MOCASSIN-PDR (GPL v3); see UPSTREAM.md.
+!-----------------------------------------------------------------------------
+! Routines from HEALPix pix_tools.F90:
+!  Copyright (C) 1997-2013 Krzysztof M. Gorski, Eric Hivon,
+!                          Benjamin D. Wandelt, Anthony J. Banday,
+!                          Matthias Bartelmann, Hans K. Eriksen,
+!                          Frode K. Hansen, Martin Reinecke
+!  HEALPix is free software; you can redistribute it and/or modify it under
+!  the terms of the GNU General Public License as published by the Free
+!  Software Foundation; either version 2 of the License, or (at your option)
+!  any later version. For more information see http://healpix.sourceforge.net
+! As vendored in 3D-PDR, which had dropped this notice; restored for
+! MOCASSIN-PDR (DEVLOG D-436).
+!-----------------------------------------------------------------------------
 
 !#include "macros.h" 
  subroutine mk_xy2pix

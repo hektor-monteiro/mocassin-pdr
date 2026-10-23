@@ -17,8 +17,7 @@ gives the per-file sources and terms of the bundled data.
   Wesson and contributors, licensed under the GPL, version 2 or any later version. This
   fork starts from R. Wesson's version
   ([rwesson/mocassin](https://github.com/rwesson/mocassin)). Files changed here keep their
-  original copyright notice and carry a modification note, except three still to get one
-  (`hydro_mod.f90`, `fluorescence_mod.f90`, `readdata_mod.f90`).
+  original copyright notice and carry a modification note.
 - **3D-PDR** ([itamos-ism/3D-PDR](https://github.com/itamos-ism/3D-PDR); T. G. Bisbas,
   Z. Zhu, B. A. L. Gaches, X.-J. Jiang, X. Tang, G. Zhang and contributors) is GPL version 3
   or later. It is vendored under `source/pdr/`, with the local changes listed in
@@ -31,8 +30,8 @@ gives the per-file sources and terms of the bundled data.
 - **Cloudy** c25.00 (Copyright (C) 1978–2025 Gary J. Ferland and others; zlib licence): the
   H₂ data in `dataPDR/h2/` are copied unmodified, 15 atomic-data files in `data/` are
   converted from its Stout database, and three routines are translated or adapted from
-  its source (`yanH2xSec`, `h2ShieldFederman`, `h2FormDist`); the notes marking them as altered
-  in the code are still to be added. The
+  its source (`yanH2xSec`, `h2ShieldFederman`, `h2FormDist`), each marked as altered in a note
+  above the routine. The
   rest of the H₂ level model re-implements the equations and conventions of Cloudy's large
   H₂ model and is this project's code.
 - **DUSTY** (BSD-3-Clause, © 2016 Ž. Ivezić): about 18 optical-constant files in

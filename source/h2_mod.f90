@@ -1,3 +1,12 @@
+! Copyright (C) 2026 Hektor Monteiro
+! Part of MOCASSIN-PDR.
+!
+! This program is free software: you can redistribute it and/or modify it
+! under the terms of the GNU General Public License as published by the Free
+! Software Foundation, either version 3 of the License, or (at your option)
+! any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+! General Public License (LICENSE) for details.
+!
 !===============================================================================
 ! H-003: the H2 level model, stage A step 1 - the rovibrational levels of the
 ! electronic ground state X, in statistical equilibrium under collisions and
@@ -16,8 +25,9 @@
 !     change the nuclear spin (mole_h2_coll.cpp GbarRateCoeff);
 !   - statistical weights (2J+1) x 3 for ortho (odd J) and x 1 for para, and
 !     excitation by detailed balance on the levels' own energies.
-! It is a re-implementation from those equations and data, not a translation
-! of Cloudy's source.
+! It is a re-implementation from those equations and data. Two routines are
+! translated or adapted from Cloudy's source and marked below (h2ShieldFederman,
+! h2FormDist); Cloudy's zlib licence is reproduced in THIRD_PARTY_NOTICES.md.
 !
 ! H-004: ultraviolet pumping. The electronic states B, C+, C-, B', D+, D-
 ! (Abgrall, Roueff & Drira 2000) are read with their lines to X and their
@@ -585,6 +595,11 @@ contains
     ! energy the molecule leaves with, by energy conservation:
     ! D - E_dust(v) - E(v,J) averaged over phi. The internal energy E(v,J)
     ! is the populations' own business (formation pumping).
+    !
+    ! Adapted from Cloudy c25.00, source/mole_h2_create.cpp. Copyright (C)
+    ! 1978-2025 Gary J. Ferland and others; zlib licence, reproduced in
+    ! THIRD_PARTY_NOTICES.md. Altered for MOCASSIN-PDR by H. Monteiro, 2026: this
+    ! is not Cloudy's original code.
     !---------------------------------------------------------------------------
     subroutine h2FormDist(surf, phi, eKin, eGrain)
       integer, intent(in) :: surf
@@ -911,6 +926,11 @@ contains
     ! fit of Federman, Glassgold & Kwan 1979 (ApJ 227, 466, appendix) as
     ! rt_continuum_shield_fcn.cpp applies it - Doppler core by their eq. A8,
     ! wings by A6 at sqrt(pi) tau, the sum held at 1.
+    !
+    ! Translated from Cloudy c25.00, source/rt_continuum_shield_fcn.cpp,
+    ! shieldFederman. Copyright (C) 1978-2025 Gary J. Ferland and others; zlib
+    ! licence, reproduced in THIRD_PARTY_NOTICES.md. Altered for MOCASSIN-PDR by
+    ! H. Monteiro, 2026: this is not Cloudy's original code.
     !---------------------------------------------------------------------------
     real(dp) function h2ShieldFederman(tau, a)
       real(dp), intent(in) :: tau, a

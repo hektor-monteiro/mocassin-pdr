@@ -36,6 +36,7 @@ re-applied by hand at the next upstream merge.
 | `dataPDR/rates_reduced.d`, `odes_reduced.c` | reaction 332, e- + H2+ -> e- + H + H+ (2e-7 exp(-30720/T), Janev et al. 1987, as Cloudy's `mole_co_umisthack.dat` has it), appended to the rate file with its three terms (H2+ loss; H and H+ gain) in the generated right-hand side. The network had no electron-impact dissociation of H2+, Cloudy's main H2+ sink in ionized gas | D-395 |
 | `modules.F90`, `odes_reduced.c` | `xe_extra`: electrons per H nucleus from ions the network has no species for (the host's stages above the first ion, and elements it does not carry), added to the sum of the network's own cations where the generated right-hand side builds `x_e`. Zero unless the host sets it: upstream behaviour. `odes_reduced.c` via `tools/patch_odes_xe.py`, re-runnable on any `odes_*.c` | D-402 |
 | `dataPDR/species_reduced.d` | lines 4 and 6 relabelled CH5+ and H2+ (zero-based slots 3 and 5), the order in which the generated `odes_reduced.c` integrates them; labels only | D-258, D-357 |
+| `healpix.F90` | HEALPix's copyright and licence notice restored at the top (upstream had dropped it), with the modification notice | D-434, D-436 |
 | `dataPDR/16o.dat`, `dataPDR/12c.dat` | the `1D`/`1S` -> `3P_J` collision rates split by `g_J/9`; upstream gives each J the whole-term value. Re-apply with `tools/d285_split_3p.py`, which only touches rows still identical across J | D-285 |
 
 Every change except the header notices is marked in place with its DEVLOG ID.
@@ -44,8 +45,9 @@ Every change except the header notices is marked in place with its DEVLOG ID.
 
 Recorded at DEVLOG D-434 (licensing audit); see `../../THIRD_PARTY_NOTICES.md`:
 - `healpix.F90`: routines from HEALPix `pix_tools.F90` (Copyright (C) 1997-2013
-  K. M. Gorski, E. Hivon et al., GPL-2.0-or-later); the HEALPix notice is not in the
-  upstream file. `healpix_types.F90` keeps its HEALPix header.
+  K. M. Gorski, E. Hivon et al., GPL-2.0-or-later); the HEALPix notice, which the
+  upstream file had dropped, is restored here (D-436). `healpix_types.F90` keeps
+  its HEALPix header.
 - `heapsort.F90`, `definitions.F90`: taken from the SEREN SPH code (C. P. Batty;
   Hubber et al. 2011).
 - `calculate_abundances.c`: `check_flag` is the SUNDIALS example helper (BSD-3).
