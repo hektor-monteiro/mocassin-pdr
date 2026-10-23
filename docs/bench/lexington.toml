@@ -1,0 +1,177 @@
+# The Lexington benchmark page's sources: the four Lexington 2000 models run with the current code, and
+# the per-code reference values of Ercolano et al. (2003), Tables 4-7.
+#
+# docs/bench/lexref.py reads the paper's TeX source and writes the reference CSV, mapping every TeX row
+# label to an id through [label]. docs/bench/lexington.py reads the runs (paths relative to the runs
+# root, $MOCASSIN_RUNS, default meta.runs_root_default) and computes, for every id whose kind is not
+# skip, MOCASSIN-PDR's value:
+#
+#   hbeta         Hbeta [erg/s] / scale
+#   te_hplus      temperature.out's T_e of H+, weighted by n_e n(H+) dV: <T[Np Ne]> of the paper
+#   heplus_ratio  ionratio.out's He+ fraction over its H+ fraction: <He+>/<H+> of the paper
+#   hei           lineFlux.out's He I recombination lines with wav in window [A], summed
+#   heii          lineFlux.out's He II recombination lines with wav_air in window [A], summed
+#   line          lineFlux.out's heavy-ion lines in each window [Z, charge, wmin, wmax] (vacuum A), summed;
+#                 ir = [Z, charge, um] is the window um*1e4*(1-0.015) to um*1e4*(1+0.015)
+#   skip          not compared, for the reason given
+#
+# display is the row's label as the paper prints it.
+
+[meta]
+title = "The Lexington 2000 benchmark: MOCASSIN-PDR against the codes of the workshop"
+runs_root_env = "MOCASSIN_RUNS"
+runs_root_default = "/home/hmonteiro/software/mocassin_docs/runs"
+reference = "docs/bench/ref/lexington2003.csv"
+build = "make mocassin"
+ranks = 14
+seed = 1001
+
+[run.HII40]
+path = "docs-v2.0/lex-HII40"
+inputs = "docs/bench/inputs/lex-HII40"
+fixture = "benchmarks/gas/HII40"
+run_time = ""
+
+[run.HII20]
+path = "docs-v2.0/lex-HII20"
+inputs = "docs/bench/inputs/lex-HII20"
+fixture = "benchmarks/gas/HII20"
+run_time = ""
+
+[run.PN150]
+path = "docs-v2.0/lex-PN150"
+inputs = "docs/bench/inputs/lex-PN150"
+fixture = "benchmarks/gas/PN150"
+run_time = ""
+
+[run.PN75]
+path = "docs-v2.0/lex-PN75"
+inputs = "docs/bench/inputs/lex-PN75"
+fixture = "benchmarks/gas/PN75"
+run_time = ""
+
+# --------------------------------------------------------------------------------------------- labels
+# every row label of Tables 4-7, whitespace collapsed (TOML literal strings: no escapes)
+[label]
+'H$\beta$/10$^{37}$ erg/s' = "HBETA_E37"
+'H$\beta$/10$^{36}$ erg/s' = "HBETA_E36"
+'H$_{\beta}$/10$^{35}$ erg/s' = "HBETA_E35"
+'H$_{\beta}$/10$^{34}$ erg/s' = "HBETA_E34"
+'H$\beta$ 4861' = "HBETA_REL"
+'H$_{\beta}$ 4861' = "HBETA_REL"
+'$<$T$[$N$_{\rm p}$N$_{\rm e}]>$/K' = "TE_NPNE"
+'$<$He$^+>/<$H$^+>$' = "HEP_HP"
+'$T_{\rm inner}$/ K' = "T_INNER"
+'$R_{\rm out}$/10$^{19}$cm' = "R_OUT"
+'$R_{\rm out}$/10$^{18}$cm' = "R_OUT"
+'$R_{\rm out}$/10$^{17}$cm' = "R_OUT"
+'10$^3$\,$\times$\,$\Delta$(BC 3645)/$\AA$' = "BC3645"
+'10$^3$\,$\times$\,$\Delta$(BC 3645)/\AA' = "BC3645"
+'$\tau$(1Ryd)' = "TAU1RYD"
+'He~{\sc i} 5876' = "HeI_5876"
+'He~{\sc ii} 4686' = "HeII_4686"
+'C~{\sc ii}$]$ 2325+' = "CII_2325"
+'C~{\sc ii} 1335' = "CII_1335"
+'C~{\sc iii}$]$ 1907+1909' = "CIII_1909"
+'C~{\sc iv} 1549+' = "CIV_1549"
+'$[$N~{\sc i}$]$ 5200+5198' = "NI_5200"
+'$[$N~{\sc ii}$]$ 122.$\mu$m' = "NII_122um"
+'$[$N~{\sc ii}$]$ 6584+6548' = "NII_6584"
+'$[$N~{\sc ii}$]$ 5755' = "NII_5755"
+'N~{\sc iii}$]$ 1749+' = "NIII_1749"
+'$[$N~{\sc iii}$]$ 57.3 $\mu$m' = "NIII_57um"
+'N~{\sc iv}$]$ 1487+' = "NIV_1487"
+'N~{\sc v} 1240+' = "NV_1240"
+'$[$O~{\sc i}$]$ 63.1 $\mu$m' = "OI_63um"
+'$[$O~{\sc i}$]$ 6300+6363' = "OI_6300"
+'$[$O~{\sc ii}$]$ 7320+7330' = "OII_7325"
+'$[$O~{\sc ii}$]$ 3726+3729' = "OII_3727"
+'$[$O~{\sc iii}$]$ 51.8 $\mu$m' = "OIII_52um"
+'$[$O~{\sc iii}$]$ 88.3 $\mu$m' = "OIII_88um"
+'$[$O~{\sc iii}$]$ 5007+4959' = "OIII_5007"
+'$[$O~{\sc iii}$]$ 4363' = "OIII_4363"
+'$[$O~{\sc iv}$]$ 25.9 $\mu$m' = "OIV_26um"
+'O~{\sc iv}$]$ 1403+' = "OIV_1403"
+'O~{\sc v}$]$ 1218+' = "OV_1218"
+'O~{\sc vi} 1034+' = "OVI_1034"
+'$[$Ne~{\sc ii}$]$ 12.8 $\mu$m' = "NeII_12um"
+'$[$Ne~{\sc iii}$]$ 15.5 $\mu$m' = "NeIII_15um"
+'$[$Ne~{\sc iii}$]$ 3869+3968' = "NeIII_3869"
+'$[$Ne~{\sc iv}$]$ 2423+' = "NeIV_2423"
+'$[$Ne~{\sc v}$]$ 3426+3346' = "NeV_3426"
+'$[$Ne~{\sc v}$]$ 24.2 $\mu$m' = "NeV_24um"
+'$[$Ne~{\sc vi}$]$ 7.63 $\mu$m' = "NeVI_7um"
+'Mg~{\sc ii} 2798+' = "MgII_2798"
+'$[$Mg~{\sc iv}$]$ 4.49 $\mu$m' = "MgIV_4um"
+'$[$Mg~{\sc v}$]$ 5.61 $\mu$m' = "MgV_5um"
+'$[$Si~{\sc ii}$]$ 34.8 $\mu$m' = "SiII_35um"
+'Si~{\sc ii}$]$ 2335+' = "SiII_2335"
+'Si~{\sc iii}$]$ 1892+' = "SiIII_1892"
+'Si~{\sc iv} 1397+' = "SiIV_1397"
+'$[$S~{\sc ii}$]$ 6716+6731' = "SII_6720"
+'$[$S~{\sc ii}$]$ 4068+4076' = "SII_4072"
+'$[$S~{\sc ii}$]$ 4069+4076' = "SII_4072"
+'$[$S~{\sc iii}$]$ 18.7 $\mu$m' = "SIII_19um"
+'$[$S~{\sc iii}$]$ 33.6 $\mu$m' = "SIII_33um"
+'$[$S~{\sc iii}$]$ 9532+9069' = "SIII_9532"
+'$[$S~{\sc iv}$]$ 10.5 $\mu$m' = "SIV_10um"
+
+# ------------------------------------------------------------------------------------------------ ids
+[id]
+HBETA_E37 = { kind = "hbeta", scale = 1e37, display = "Hβ/10³⁷ erg/s" }
+HBETA_E36 = { kind = "hbeta", scale = 1e36, display = "Hβ/10³⁶ erg/s" }
+HBETA_E35 = { kind = "hbeta", scale = 1e35, display = "Hβ/10³⁵ erg/s" }
+HBETA_E34 = { kind = "hbeta", scale = 1e34, display = "Hβ/10³⁴ erg/s" }
+HBETA_REL = { kind = "skip", reason = "the normalisation", display = "Hβ 4861" }
+TE_NPNE = { kind = "te_hplus", display = "⟨T[NₚNₑ]⟩/K" }
+HEP_HP = { kind = "heplus_ratio", display = "⟨He⁺⟩/⟨H⁺⟩" }
+T_INNER = { kind = "skip", reason = "needs a definition the outputs do not fix: the inner-edge cell", display = "T_inner/K" }
+R_OUT = { kind = "skip", reason = "needs a definition the outputs do not fix: the front radius", display = "R_out" }
+BC3645 = { kind = "skip", reason = "needs a definition the outputs do not fix: the continuum jump", display = "10³ × Δ(BC 3645)/Å" }
+TAU1RYD = { kind = "skip", reason = "needs a definition the outputs do not fix: the ray", display = "τ(1Ryd)" }
+HeI_5876 = { kind = "hei", window = [5874, 5878], display = "He I 5876" }
+HeII_4686 = { kind = "heii", window = [4684, 4688], display = "He II 4686" }
+CII_2325 = { kind = "line", windows = [[6, 1, 2320, 2331]], display = "C II] 2325+" }
+CII_1335 = { kind = "line", windows = [[6, 1, 1333, 1337]], display = "C II 1335" }
+CIII_1909 = { kind = "line", windows = [[6, 2, 1905, 1911]], display = "C III] 1907+1909" }
+CIV_1549 = { kind = "line", windows = [[6, 3, 1546, 1552]], display = "C IV 1549+" }
+NI_5200 = { kind = "line", windows = [[7, 0, 5196, 5203]], display = "[N I] 5200+5198" }
+NII_122um = { kind = "line", ir = [7, 1, 121.8], display = "[N II] 122 µm" }
+NII_6584 = { kind = "line", windows = [[7, 1, 6546, 6550], [7, 1, 6582, 6587]], display = "[N II] 6584+6548" }
+NII_5755 = { kind = "line", windows = [[7, 1, 5752, 5759]], display = "[N II] 5755" }
+NIII_1749 = { kind = "line", windows = [[7, 2, 1744, 1755]], display = "N III] 1749+" }
+NIII_57um = { kind = "line", ir = [7, 2, 57.3], display = "[N III] 57.3 µm" }
+NIV_1487 = { kind = "line", windows = [[7, 3, 1482, 1488]], display = "N IV] 1487+" }
+NV_1240 = { kind = "line", windows = [[7, 4, 1237, 1244]], display = "N V 1240+" }
+OI_63um = { kind = "line", ir = [8, 0, 63.2], display = "[O I] 63.1 µm" }
+OI_6300 = { kind = "line", windows = [[8, 0, 6298, 6304], [8, 0, 6361, 6367]], display = "[O I] 6300+6363" }
+OII_7325 = { kind = "line", windows = [[8, 1, 7317, 7334]], display = "[O II] 7320+7330" }
+OII_3727 = { kind = "line", windows = [[8, 1, 3724, 3731]], display = "[O II] 3726+3729" }
+OIII_52um = { kind = "line", ir = [8, 2, 51.8], display = "[O III] 51.8 µm" }
+OIII_88um = { kind = "line", ir = [8, 2, 88.3], display = "[O III] 88.3 µm" }
+OIII_5007 = { kind = "line", windows = [[8, 2, 4957, 4962], [8, 2, 5005, 5010]], display = "[O III] 5007+4959" }
+OIII_4363 = { kind = "line", windows = [[8, 2, 4361, 4366]], display = "[O III] 4363" }
+OIV_26um = { kind = "line", ir = [8, 3, 25.9], display = "[O IV] 25.9 µm" }
+OIV_1403 = { kind = "line", windows = [[8, 3, 1397, 1410]], display = "O IV] 1403+" }
+OV_1218 = { kind = "line", windows = [[8, 4, 1213, 1220]], display = "O V] 1218+" }
+OVI_1034 = { kind = "line", windows = [[8, 5, 1030, 1040]], display = "O VI 1034+" }
+NeII_12um = { kind = "line", ir = [10, 1, 12.81], display = "[Ne II] 12.8 µm" }
+NeIII_15um = { kind = "line", ir = [10, 2, 15.55], display = "[Ne III] 15.5 µm" }
+NeIII_3869 = { kind = "line", windows = [[10, 2, 3866, 3871], [10, 2, 3965, 3970]], display = "[Ne III] 3869+3968" }
+NeIV_2423 = { kind = "line", windows = [[10, 3, 2420, 2426]], display = "[Ne IV] 2423+" }
+NeV_3426 = { kind = "line", windows = [[10, 4, 3343, 3348], [10, 4, 3424, 3429]], display = "[Ne V] 3426+3346" }
+NeV_24um = { kind = "line", ir = [10, 4, 24.3], display = "[Ne V] 24.2 µm" }
+NeVI_7um = { kind = "line", ir = [10, 5, 7.65], display = "[Ne VI] 7.63 µm" }
+MgII_2798 = { kind = "line", windows = [[12, 1, 2795, 2805]], display = "Mg II 2798+" }
+MgIV_4um = { kind = "line", ir = [12, 3, 4.49], display = "[Mg IV] 4.49 µm" }
+MgV_5um = { kind = "line", ir = [12, 4, 5.61], display = "[Mg V] 5.61 µm" }
+SiII_35um = { kind = "line", ir = [14, 1, 34.8], display = "[Si II] 34.8 µm" }
+SiII_2335 = { kind = "line", windows = [[14, 1, 2320, 2352]], display = "Si II] 2335+" }
+SiIII_1892 = { kind = "line", windows = [[14, 2, 1880, 1895]], display = "Si III] 1892+" }
+SiIV_1397 = { kind = "line", windows = [[14, 3, 1390, 1405]], display = "Si IV 1397+" }
+SII_6720 = { kind = "line", windows = [[16, 1, 6714, 6734]], display = "[S II] 6716+6731" }
+SII_4072 = { kind = "line", windows = [[16, 1, 4066, 4078]], display = "[S II] 4069+4076" }
+SIII_19um = { kind = "line", ir = [16, 2, 18.71], display = "[S III] 18.7 µm" }
+SIII_33um = { kind = "line", ir = [16, 2, 33.48], display = "[S III] 33.6 µm" }
+SIII_9532 = { kind = "line", windows = [[16, 2, 9066, 9076], [16, 2, 9528, 9538]], display = "[S III] 9532+9069" }
+SIV_10um = { kind = "line", ir = [16, 3, 10.51], display = "[S IV] 10.5 µm" }
