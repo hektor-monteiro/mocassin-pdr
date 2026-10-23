@@ -436,6 +436,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-434 | **Licensing audit of the whole repository (the user: "do a full audit focusing on licensing ... We do not want to use anything irregular").** The combined work is distributable as GPL-3.0-or-later except for Numerical Recipes code: verbatim in the vendored 3D-PDR (spline.F90, solvlevpop.F90 GAUSS_JORDAN, both compiled), dead NR routines in interpolation_mod, and NR heapsort structure in three routines written here. Notice gaps (Cloudy zlib for three translated routines and the Stout data ports, HEALPix in healpix.F90, DUSTY BSD-3, SUNDIALS check_flag, modification notes), Badnell fit files with their copyright line stripped and unused, undeclared D-357 data change, and unclear-rights data. Audit only; nothing changed | Open | 2026-10-22 |
 | D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
 | D-436 | **Licensing notices in source files, comments only (the user: "proceed with modification notes and headers in eight source files, then with the Cloudy notes at the three translated routines, and HEALPix's and SUNDIALS' notices in their files").** Modification notes on hydro_mod, fluorescence_mod, readdata_mod; GPL headers on h2_mod, h2Lines_mod, frontLines_mod, h2Slab, h2Test; Cloudy notes at yanH2xSec, h2ShieldFederman, h2FormDist; HEALPix notice restored in healpix.F90; SUNDIALS notice at check_flag. Comment-only (93 lines added, 4 removed), all four flavours and h2Test/h2Slab build; the docs statements made current | Accepted | 2026-10-22 |
+| D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) | In progress | 2026-10-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42153,3 +42154,82 @@ and the replacement of those routines.
 ### Status
 
 Done.
+
+---
+
+## D-437 - Documentation site, increment 2 (2026-10-23)
+
+The user (2026-10-23): "lets go back to the documentation plan. What are the
+next steps?", then, on the answer (plan increment 2 and fold in increment 1's
+leftovers), "proceed as suggested". Plan
+`~/.claude-lac/plans/velvet-rolling-kettle.md` (increment 2), approved
+2026-10-23. Worktree ~/software/mocassin_docs, branch `docs`, from f4d8bf1.
+
+**What increment 2 delivers** (D-432's plan):
+  - a quickstart page: two small models a new user runs in minutes, with
+    `examples/quickstart/` inputs and plot scripts (HII40, the Lexington
+    standard H II region, 13^3; hiipdr21, hiipdr at 21^3 with 2e6 packets and
+    at most 7 iterations), both on the 3D build, run with 4 ranks;
+  - `tools/mocread.py`: a numpy-only reader for grid0-2, lineFlux,
+    temperature, ionratio, SED, pdrGrid and convergence (one grid, 3D,
+    gfortran list-directed output, no lgDebug, one composition), with tests
+    checking it against docs/bench/reduce.py on rel-hii31;
+  - the Lexington page: HII40, HII20, PN150, PN75 rerun at v2.0 on the plain
+    build (14 ranks, randomSeed 1001), compared with the codes of Ercolano et
+    al. 2003 Tables 4-7;
+  - increment 1's leftovers: linkcheck, a CrossRef DOI check of the
+    bibliography (docs/scripts/check_bib.py), and the documentation errors
+    D-433 found (README's test_Problem description, the H2 line ratios in
+    README and the D-430 release notes, doc/manual-pdr-h2.md still written for
+    h2-model).
+
+**Findings from planning:**
+  - `dev_bench/lex/lex.json` (D-270) cannot serve as the reference. It was
+    parsed by pdftotext from a PDF no longer on disk, holds only medians,
+    ranges and MOCASSIN 2003, and 18 of its medians differ from the printed
+    ones by more than 5%. The arXiv source of Ercolano et al. 2003
+    (astro-ph/0209378, MC935.tex, sha256 c977fc89...0248ef) has Tables 4-7 as
+    TeX with every code's value: GF (Cloudy), HN (Ion), DP (Nebu), TK (XStar),
+    PH (Harrington), RS (Mappings), RR (Nebula; H II regions only), MOCASSIN
+    2003 3-D and 1-D (BE), and the printed median. Rows: HII40 32, HII20 25,
+    PN150 50, PN75 42.
+  - The printed median includes MOCASSIN 2003 3-D: HII40 [O III] 5007+4959
+    has the seven codes' median 2.20, 2.185 with BE's 1.64, printed 2.18. The
+    paper says so (BE 1-D was left out "to avoid bias in the median"). For
+    MOCASSIN-PDR the comparison median and range are recomputed from the
+    independent codes only; the printed median is shown beside them. Printed
+    typos already known (D-270): PN150 C III] 0.174, O IV] 2.30, PN75 [S II]
+    6716+6731 .0020; also PN150 BE 1-D He I 5876 "1.06".
+  - Definitions (the paper's section 4, from Ferland et al. 1995):
+    <T[Np Ne]> = int Ne Np Te dV / int Ne Np dV, which is temperature.out's
+    (1,2) row and summary.out's T(H+) (rel-hii31: 8659.71777 in both);
+    <He+>/<H+> = (n_H/n_He) int Ne N(He+) dV / int Ne Np dV, which is the ratio
+    of ionratio.out's He (stage 2) and H (stage 2) rows: both are element
+    fractions weighted by n_e n_H dV (Harrington), so their ratio is the
+    definition exactly. D-270's script used the He+ row alone, which omits the
+    factor 1/<H+>.
+  - lineFlux.out lines carry vacuum wavelengths. The code writes lines the
+    D-270 list did not compare: C II 1335, Mg II 2798, [Mg IV] 4.49 um,
+    [Mg V] 5.61 um, [Si II] 34.8 um, Si II] 2335+, Si III] 1892+, Si IV 1397+
+    (PN150 d376 run). They are compared now.
+  - Not compared: T_inner, R_out, Delta(BC 3645) and tau(1 Ryd), whose values
+    depend on a definition the outputs do not fix (inner-edge cell, front
+    radius, continuum jump, ray).
+  - pdrGrid.out's A_V,eff column equals pdrRad.out's first column
+    (rel-hii31: max |difference| 0).
+
+**Predictions on record** (before any run):
+  - Lexington: each run under a minute at 14 ranks; Hbeta inside the codes'
+    range in all four (as at D-371); D-376's outliers persist (HII20 [O I]
+    6300 high, PN150 [O I] 63 um and C III] low, [S III] low in HII40, HII20
+    and PN75, PN75 [S IV] high, PN150 <T> just below the range). Every value is
+    compared with d376-lex/*/new; a change above 0.05 dex is traced to a
+    DEVLOG entry before it is published.
+  - HII40 on the 3D build (no `pdr` keyword) gives lineFlux.out, grid1.out
+    and grid2.out byte-identical to the plain build's, same input and seed.
+  - hiipdr21: 6-10 min at 14 ranks, 15-30 min at 4; about 0.65 GB per rank
+    (D-370); 5 to 7 iterations.
+
+### Status
+
+In progress.
