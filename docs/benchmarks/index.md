@@ -38,8 +38,8 @@ constant 0.02–0.03 mag offset from the cell discretisation of the inner cavity
 3–4.5% in `pn150k`. Offsets measured in $A_V$ and in radius therefore differ, and the
 profiles, compared at equal $A_V$, carry this shift.
 
-Cells MOCASSIN flags and leaves out of the line emission (`lgBlack`, for example a cell
-whose temperature reached the floor) are excluded from the statistics and counted on each page.
+Cells MOCASSIN flags and leaves out of the line emission (`lgBlack`: a cell whose thermal
+balance was not reached or reached 30,000 K, or whose ionisation balance failed) are excluded from the statistics and counted on each page.
 
 ## The runs
 

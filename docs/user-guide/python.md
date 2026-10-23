@@ -28,10 +28,10 @@ $ python3 tools/mocread.py my_model
 | :--- | :--- | :--- |
 | `composition(run)` | `input/input.in` and its `nebComposition` file | the elements switched on, symbol → abundance by number relative to H |
 | `read_grid(run)` | `output/grid0.out`, `grid1.out`, `grid2.out` | a `Grid`: axes, flags, $T_e$, $n_e$, $n_{\mathrm H}$, ionic fractions |
-| `read_lines(run)` | `output/lineFlux.out`, the totals block | a `Lines`: H$\beta$ and every line relative to H$\beta$ |
+| `read_lines(run)` | `output/lineFlux.out`, the totals block | a `Lines`: H$\beta$ and the H I, He I, He II and heavy-ion forbidden lines relative to H$\beta$ (not the heavy-element recombination tables that `recombinationLines` adds) |
 | `mean_te(run)` | `output/temperature.out`, totals block | the mean temperature of each ion, weighted by $n_e\,n_\mathrm{ion}\,dV$ |
 | `ion_fractions(run)` | `output/ionratio.out`, totals block | the mean fraction of each element in each stage, weighted by $n_e\,n_{\mathrm H}\,dV$ |
-| `read_sed(run)` | `output/SED.out` | frequency (Ryd), wavelength (µm) and the angle-integrated SED (Jy pc²) |
+| `read_sed(run)` | `output/SED.out` | frequency (Ryd), wavelength (µm) and the SED summed over all directions, as $F_\nu D^2$ (Jy pc²) |
 | `read_pdr(run, grid)` | `output/pdrGrid.out` (PDR runs) | a `PDR`: the FUV field, $A_V$, the chemistry's heating and cooling, and the abundances of its 33 species |
 | `read_convergence(run)` | `output/convergence.out` | the names of the model-integrated quantities and their values per iteration |
 
@@ -40,19 +40,22 @@ $ python3 tools/mocread.py my_model
 - **Ion stages are named by charge.** `g.frac('O', 2)` is the fraction of oxygen in O²⁺; 0 is
   the neutral atom. MOCASSIN's own files count stages from 1, and every function converts them.
   `mocread.ion_label('O', 2)` gives `'O2+'`.
-- **Arrays have the grid's shape**, `(nx, ny, nz)`, with `g.x`, `g.y` and `g.z` the cell
-  centres in cm. Every grid point is written, inactive ones as zeros.
+- **Arrays have the grid's shape**, `(nx, ny, nz)`, with `g.x`, `g.y` and `g.z` the grid's axis
+  points in cm (`grid0.out`). Cell walls lie midway between them, so the first and last cells along an
+  axis are half cells. Every grid point is written, inactive ones as zeros.
 - **`g.mask`** selects the cells the line tables count: active, and not flagged by the code
-  (`lgBlack`, for example a cell that reached the temperature floor). Use it for any statistic
-  over the model: `g.Te[g.mask]`.
+  (`lgBlack`: a cell whose thermal balance was not reached or reached 30,000 K, or whose ionisation
+  balance failed). Select cells with it, as in `g.Te[g.mask]`; note that a plain mean over cells is
+  not weighted by volume, and mocread does not provide the cell volumes.
 - **`g.r`** is the distance from the grid origin in cm, which is the star's position in a
   symmetric model.
 - **Lines** are summed over a wavelength window: `l.sum('O', 2, 4957, 5010)` is
   [O III] 4959+5007 relative to H$\beta$, and `l.matches(...)` lists the transitions it summed.
-  Heavy-ion wavelengths in `lineFlux.out` are in vacuum. `l.hbeta` is H$\beta$ in erg s⁻¹.
+  Heavy-ion wavelengths in `lineFlux.out` are in vacuum, He I wavelengths in air. `l.hbeta` is
+  H$\beta$ in erg s⁻¹.
 - **`ion_fractions`** follows `ionratio.out`, whose header reads `<ion>/<H+>` but whose values are
-  each element's fractions (Harrington's definition). The ratio
-  `f[('He', 1)] / f[('H', 1)]` is the Lexington benchmarks' $\langle\mathrm{He^+}\rangle/\langle\mathrm{H^+}\rangle$.
+  each element's fractions (Harrington's definition). With `f = mocread.ion_fractions(run)`, the
+  ratio `f[('He', 1)] / f[('H', 1)]` is the Lexington benchmarks' $\langle\mathrm{He^+}\rangle/\langle\mathrm{H^+}\rangle$.
 - **PDR abundances** are per H nucleus, as the chemistry computes them:
   `p.abundance('CO')`. The species and their order are `mocread.REDUCED_SPECIES`.
 

@@ -8,7 +8,15 @@ Both come with the code, in `examples/quickstart/`.
 
 The 3D build runs both models: it is MOCASSIN with the PDR chemistry and the H₂ level model,
 and without the `pdr` keyword it is MOCASSIN alone. It needs SUNDIALS ({doc}`install` covers
-it and the other builds). From your checkout:
+it and the other builds).
+
+:::{important}
+Use a checkout of `main` from 2026-10-23 or later (commit `6d05ce1`, {devlog}`D-438`). In release
+`pdr-coupling-v2.0` itself, the PDR builds crash on any model without the `pdr` keyword, such as
+the first model below.
+:::
+
+From your checkout:
 
 ```bash
 make clean
@@ -18,11 +26,12 @@ make PDR=1 PDRGEOM=3D install        # PREFIX defaults to $HOME/.local
 This puts `mocassin` in `$HOME/.local/bin`, the data under `$HOME/.local/share/mocassin/`, and
 the examples under `$HOME/.local/share/doc/mocassin/examples/`. The commands below assume that
 `$HOME/.local/bin` is on your `PATH`. For the plots you need Python 3 with numpy and matplotlib.
+The times quoted below were measured on a 14-core workstation.
 
 ## 2. A photoionised nebula: HII40
 
 HII40 is the standard H II region of the Lexington benchmarks: a 40,000 K star ionising a uniform
-sphere of hydrogen at 100 cm⁻³, with no dust. Copy it, make the output directory (MOCASSIN does
+sphere of gas with 100 hydrogen atoms per cm³ and no dust. Copy it, make the output directory (MOCASSIN does
 not create it), and run it on 4 cores:
 
 ```bash
@@ -34,8 +43,9 @@ mpirun -np 4 mocassin > run.log 2>&1
 
 It takes 45 seconds on 4 cores (30 seconds on 14). The input is `input/input.in`, one
 keyword per line, with the abundances in `input/abunHII40.in`; {doc}`../user-guide/keywords`
-explains each keyword. The run stops when the model has converged, and the last lines of
-`run.log` say so:
+explains each keyword. Open MPI needs as many slots as ranks: on a machine with fewer than 4 cores,
+lower `-np`. The run stops when the model has converged, and `run.log` ends by saying so (lines
+abridged):
 
 ```text
  ! iterateMC: [talk] convergence reached after           17  iterations. & Finishing up ...
@@ -44,8 +54,13 @@ total run time per processor  00:00:45 (HMS)
  ! MoCaSSin: end simulation reached - clean exit -
 ```
 
+The log also warns that "the FUV field is NOT valid" because there is no dust: the PDR build
+writes the FUV field for every model, and the warning only matters for PDR models. If Open MPI
+warns that its one-sided component failed, `mpirun --mca osc ^ucx ...` keeps that harmless
+message out of the log.
+
 `output/` now holds the model: the grid with each cell's temperature, density and ionisation
-(`grid0.out` to `grid3.out`), the line luminosities (`lineFlux.out`), the mean temperatures and
+(`grid0.out` to `grid2.out`) and the model's parameters (`grid3.out`), the line luminosities (`lineFlux.out`), the mean temperatures and
 ionisation fractions (`temperature.out`, `ionratio.out`) and the spectrum that leaves the nebula
 (`SED.out`). {doc}`../user-guide/outputs` describes every file.
 
@@ -78,15 +93,19 @@ star:
 python3 /path/to/mocassin-pdr/examples/quickstart/plot_hii40.py .
 ```
 
+Run the scripts from your checkout, as here: they load `tools/mocread.py` from it, and the copies
+`make install` puts under `share/doc` cannot find it.
+
 ```{figure} _figures/qs-hii40.png
 :name: fig-qs-hii40
 :alt: Electron temperature and the ionisation fractions of oxygen and carbon in each cell of HII40 against the distance from the star.
 :width: 90%
 
-HII40, made by `plot_hii40.py` from the run above (4 ranks). Each dot is one cell. Hydrogen is
-ionised out to the edge of the model at 4.7 pc, its Strömgren radius; O²⁺ and C²⁺ give way to O⁺
-and C⁺ from about 3.8 and 4.1 pc, as the harder photons are used up, and the gas heats outward as
-the remaining radiation hardens.
+HII40, made by `plot_hii40.py` from the run above (4 ranks). Each dot is one cell. The model's outer
+radius, 4.7 pc, is set at the Strömgren radius, so hydrogen is ionised throughout. O²⁺ and C²⁺ give
+way to O⁺ and C⁺ from about 3.8 and 4.1 pc, as the harder photons are used up. The temperature falls
+from 7,450 to 7,200 K out to about 2 pc and then rises to 9,500 K, as the radiation that is left
+hardens.
 ```
 
 The script also prints H$\beta$ and four strong lines relative to it:
@@ -99,8 +118,9 @@ Hbeta: 2.012e+37 erg/s
 [S II] 6716+6731   I/Hbeta = 0.1598
 ```
 
-These are the numbers the {doc}`Lexington benchmark <../benchmarks/lexington>` compares with seven
-other photoionisation codes.
+The {doc}`Lexington benchmark <../benchmarks/lexington>` compares these lines and others with seven
+other photoionisation codes (there from a 14-rank run, so they differ from these in the third
+digit).
 
 ## 3. A nebula with dust and its PDR: hiipdr21
 
@@ -118,8 +138,8 @@ mkdir -p output
 mpirun -np 4 mocassin > run.log 2>&1
 ```
 
-It takes about 9 minutes on 4 cores (5 minutes on 14) and about 0.65 GB of memory per rank
-({doc}`running` explains how memory grows with the grid). Then plot the gas temperature, the
+It takes about 9 minutes on 4 cores (5 minutes on 14). By the memory formula on {doc}`running`,
+it needs about 0.65 GB per rank. Then plot the gas temperature, the
 hydrogen and the carbon of every cell against the visual extinction $A_V$ from the star:
 
 ```bash
@@ -133,17 +153,17 @@ python3 /path/to/mocassin-pdr/examples/quickstart/plot_hiipdr21.py .
 
 hiipdr21, made by `plot_hiipdr21.py` from the run above (4 ranks). Each dot is one cell. From the
 star outward: the ionised gas at 8,000–9,500 K, the ionisation front at $A_V\approx0.5$, then
-neutral atomic gas at 40–50 K, hydrogen turning molecular from $A_V\approx1.2$ as the gas cools,
-and carbon turning neutral at $A_V\approx2$, with CO still a trace ($\sim10^{-7}$ per H) at the
+neutral atomic gas at 40–50 K, hydrogen turning molecular from $A_V\approx1.2$ as the far-UV is
+shielded, and carbon turning neutral at $A_V\approx2.3$, with CO still a trace ($\sim10^{-7}$ per H) at the
 edge of this small model. The temperature axis is logarithmic: the neutral gas is at tens of kelvin.
 ```
 
 **This model is not converged.** It stops at its cap of 7 iterations, and `run.log` says
 `NOT CONVERGED`: after only four passes of the chemistry, the molecular gas is still changing from
 one iteration to the next. That is the price of a ten-minute run. A model for science runs until
-the integrated test passes ({ref}`convergence <running-convergence>`); the
-{doc}`hiipdr benchmark <../benchmarks/hiipdr>` shows the same model at $31^3$ and 15 iterations,
-against Cloudy.
+the integrated test passes ({ref}`convergence <running-convergence>`). The
+{doc}`hiipdr benchmark <../benchmarks/hiipdr>` shows the same model at $31^3$ against Cloudy; it ran a
+fixed 15 iterations, and its last change, 2.04%, was just above the default 2% limit.
 
 ## Next steps
 
