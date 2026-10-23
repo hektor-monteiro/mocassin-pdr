@@ -52,6 +52,7 @@ module output_mod
         integer      :: iG, i, j, k, ifreq, iS, cellP, ios, yTop
         real         :: fFUV
         real         :: dx, dy, dz
+        real         :: hdW
         ! Double precision throughout the arithmetic: in cgs, 4*pi*r^2*c is
         ! ~4e47 for r ~ 1e18 cm, which overflows a 4-byte real (max ~3.4e38)
         ! and silently yields Inf, then chiThin = 0. MOCASSIN's grid arrays are
@@ -215,9 +216,13 @@ module output_mod
                        end do
                     end if
 
+                    ! D-438: Hden is allocated only with gas (grid_mod setMotherGrid/
+                    ! resetGrid); a gas-free model reaches this routine and must not read it.
+                    hdW = 0.
+                    if (lgGas) hdW = grid(iG)%Hden(cellP)
                     write(96,'(4(1x,i5),3(1x,es13.6),1x,es13.6,9(1x,es13.6))') &
                          & iG, i, j, k, grid(iG)%xAxis(i), grid(iG)%yAxis(j), &
-                         & grid(iG)%zAxis(k), rr, grid(iG)%Hden(cellP), chi, chiThin, &
+                         & grid(iG)%zAxis(k), rr, hdW, chi, chiThin, &
                          & merge(chi/chiThin, 0.d0, chiThin > 0.d0), Fbol, FbolThin, &
                          & merge(Fbol/FbolThin, 0.d0, FbolThin > 0.d0), &
                          & dble(getVolume(grid(iG),i,j,k))*1.d45, chiDif
