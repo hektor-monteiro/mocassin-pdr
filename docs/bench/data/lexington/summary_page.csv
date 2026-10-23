@@ -1,0 +1,5 @@
+Model,Compared,In the codes' range,Median |log(M/median)|,MOCASSIN 2003 in range,MOCASSIN 2003 median |log|,Hβ / median
+HII40,28,20,0.035,20,0.039,0.981
+HII20,21,12,0.063,15,0.064,1.010
+PN150,47,36,0.059,42,0.034,0.998
+PN75,37,21,0.080,27,0.049,1.007

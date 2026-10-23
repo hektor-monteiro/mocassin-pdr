@@ -1,0 +1,57 @@
+{
+ "generated": "2026-10-23",
+ "runs_root": "/home/hmonteiro/software/mocassin_docs/runs",
+ "runs": {
+  "HII40": {
+   "run": "runs:docs-v2.0/lex-HII40",
+   "version": "MOCASSIN version pdr-coupling-v2.0-26-gb9c0fb6"
+  },
+  "HII20": {
+   "run": "runs:docs-v2.0/lex-HII20",
+   "version": "MOCASSIN version pdr-coupling-v2.0-26-gb9c0fb6"
+  },
+  "PN150": {
+   "run": "runs:docs-v2.0/lex-PN150",
+   "version": "MOCASSIN version pdr-coupling-v2.0-26-gb9c0fb6"
+  },
+  "PN75": {
+   "run": "runs:docs-v2.0/lex-PN75",
+   "version": "MOCASSIN version pdr-coupling-v2.0-26-gb9c0fb6"
+  }
+ },
+ "binary": {
+  "path": "runs:docs-v2.0/bin/mocassin.plain",
+  "md5": "5eda221d73a9fb0626ff5f39d6b533db"
+ },
+ "toml": {
+  "path": "repo:docs/bench/lexington.toml",
+  "sha256": "038c69fedbec92515eaeed5dc860d6aea16201e0557bc6e1771fa7832c34c65e"
+ },
+ "reference": {
+  "path": "repo:docs/bench/ref/lexington2003.csv",
+  "sha256": "2160c748584749ae8272d79af7d9f7697b2ec5808ded1f19ce761cb9b633edd5"
+ },
+ "script": {
+  "lexington.py": "c46b98686f86fee53341ac0cfb61086faa3a93278724e7b80c9560fb28688d8c",
+  "mocread.py": "427b9363f29cba38348696fe8b2e5a5abd78ac4f60f8bbded8a2574763b43516"
+ },
+ "files_read": {
+  "repo:docs/bench/ref/lexington2003.csv": "2160c748584749ae8272d79af7d9f7697b2ec5808ded1f19ce761cb9b633edd5",
+  "runs:docs-v2.0/lex-HII20/output/ionratio.out": "7bd0d495d0fe992bede8f4be8e1712f4ffbda9d8e68020a58e6de1d159734131",
+  "runs:docs-v2.0/lex-HII20/output/lineFlux.out": "d5693e900e7763a9f8725fe0fb8239fc39954baeea8921b18e3561bf95b67194",
+  "runs:docs-v2.0/lex-HII20/output/temperature.out": "cb11f2d86ddae483f05b27d76b3ea9e8a6f92ea16a3abdf6602b896bebda453a",
+  "runs:docs-v2.0/lex-HII20/run.log": "798272cfd23b8e15c207e0a1ce1580fe1cd0ce3bc3ea7e1f4ac8fd49fd41fdba",
+  "runs:docs-v2.0/lex-HII40/output/ionratio.out": "4931359a5e1383f35631f14ab52979fd6cd55eb75028a15fa7e28149ffe5b523",
+  "runs:docs-v2.0/lex-HII40/output/lineFlux.out": "414adb9d0335dd529c3328ae697e981cb84606582690453fb7f5c5fd0f5334bd",
+  "runs:docs-v2.0/lex-HII40/output/temperature.out": "d10b6756d5651582f92deb4a7edc1e5f187c9016d26a948a364f41015394b9b5",
+  "runs:docs-v2.0/lex-HII40/run.log": "b1c9d45c867cf6a6f95901f3c3af10372869329433aa04ff1cd0f896cd79b4f6",
+  "runs:docs-v2.0/lex-PN150/output/ionratio.out": "42629c6589ae1a01cdd2b28fa5e547f70a492f47da3c82db7e774de72dc858f6",
+  "runs:docs-v2.0/lex-PN150/output/lineFlux.out": "6fbd4a46e833dff08a3d219c7ebc0978f9e94a46ad0a9eae2f4cd4b0619ac0b1",
+  "runs:docs-v2.0/lex-PN150/output/temperature.out": "beb971fe83996f1baab8d748493ccfa0e441e4c639f285b8ccf41618014e166f",
+  "runs:docs-v2.0/lex-PN150/run.log": "e77c3f648a43b90dda303435ef38779295300942fded71e8197a077559eba340",
+  "runs:docs-v2.0/lex-PN75/output/ionratio.out": "c124cecbfd9115f1b43d0773a2eca4889e5de0fc1ea40fad44dd6933a06b3390",
+  "runs:docs-v2.0/lex-PN75/output/lineFlux.out": "33dd26aeffb49975febc6817e281785811965f853cfbb07f2ea0127d1e5aa2e9",
+  "runs:docs-v2.0/lex-PN75/output/temperature.out": "b0f153dde4bdc3712050f4e728d310e6efe0183a77a0b7fe5f9749a4f98868ba",
+  "runs:docs-v2.0/lex-PN75/run.log": "94b72c6817580db4f418d5113ade0e05a23798c94d0551353e123b3078a1f680"
+ }
+}

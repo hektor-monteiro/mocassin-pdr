@@ -1,0 +1,27 @@
+TStellar 40000.
+contShape blackbody
+LPhot 4.26e13
+symmetricXYZ
+Hdensity 100.
+nebComposition "input/abunV1.in"
+TeStart 8000.
+maxIterateMC 7 90.
+nPhotons 2000000
+nx 21
+ny 21
+nz 21
+nbins 600
+nuMax 15.
+nuMin 1.001e-5
+Rin 30.e17
+Rout 6.0e19
+edges 6.0e19 6.0e19 6.0e19
+convLimit 0.10
+dustFile 'input/dust_species.dat' 'input/dust_sizes.dat'
+MdMg constant 0.011295
+pdr 1
+pdrNetwork "reduced"
+pdrZeta 5.0e-17
+pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
+pdrStartIter 4
+randomSeed 1001

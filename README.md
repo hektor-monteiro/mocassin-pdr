@@ -136,9 +136,9 @@ has no diffuse field. There is no keyword to turn it off.
 | X-level populations against Cloudy's large model, 15 one-zone models (T 50–3000 K, n_H 10²–10⁶ cm⁻³) | within 0–0.5% on every level that collisions and decay set | H-003 |
 | Pumping and Solomon rates against Cloudy, given Cloudy's populations, 16 one-zone models (1–10⁴ Habing) | pump rate per level 1.000, Solomon rate 1.000 | H-004 |
 | Line overlap against the exact integral on a 0.05 cm⁻¹ grid | within 0.2–1.6% for N(H2) = 10¹⁷–3×10²⁰ cm⁻² | H-006 |
-| hiipdr, H2 lines against Cloudy's large model, its 40 strongest | ortho 0.82–0.84, para 1.13–1.19 | H-024 |
+| hiipdr, H2 lines against Cloudy's large model, its 40 strongest | ortho 0.82–0.84, para 1.13–1.19; in the v2.0 release run ortho 0.71–0.80, para 0.95–1.09 | H-024; D-433 |
 | hiipdr, packet count from 6×10⁶ to 3.84×10⁸ | 1-0 S(1) +0.8%, at 0.77 of Cloudy's; no line moves 1% from 16× to 64× | H-032 |
-| pn150k, H2 lines against Cloudy | ortho 0.96–1.17, para 1.95–2.72 | H-024 |
+| pn150k, H2 lines against Cloudy | ortho 0.96–1.17, para 1.95–2.72; in the v2.0 release run ortho 0.89–1.16, para 1.65–2.69 | H-024; D-433 |
 | hiipdr, H/H2 crossing | A_V 1.40, Cloudy 1.28 | H-024, H-026 |
 
 pn150k's para lines are high mostly because of the line width. The model damps each line by its upper
@@ -282,14 +282,16 @@ reported, not tested.
 
 ### Photoionisation and dust
 
-To run the standard test problem (Meudon standard HII region), navigate to `benchmarks/test_Problem`:
+`benchmarks/test_Problem` is a dusty model: a 200 kK star of 7×10³⁷ erg/s at the centre of a 21³ octant,
+with gas and grain densities read from files (10³ and 10⁴ cm⁻³, and a box-shaped region of 8×10⁴ cm⁻³).
+To run it:
 ```bash
 cd benchmarks/test_Problem
 mkdir -p output/
 mpirun -np 1 ../../mocassin
 ```
 - The Lexington benchmarks (Ercolano et al. 2003) are in `benchmarks/gas/`: HII20, HII40, PN75 and
-  PN150.
+  PN150. Their results with the current code are on the documentation site's Lexington page.
 - 1D and 2D dust benchmarks are in `benchmarks/dust/1D` and `benchmarks/dust/2D`. Copy the input file
   you need to `input/input.in`, then run MOCASSIN.
 
@@ -395,6 +397,9 @@ Limitations to know before using the results:
 
 ## Documentation
 
+- [mocassin-pdr.readthedocs.io](https://mocassin-pdr.readthedocs.io): the documentation site, with a
+  [quickstart](https://mocassin-pdr.readthedocs.io/en/latest/getting-started/quickstart.html) that runs
+  two small models and plots them.
 - [DEVLOG.md](DEVLOG.md): the implementation history, one entry per decision.
 - [DEVLOG-H2.md](DEVLOG-H2.md): the H2 level model's history, in the same form.
 - [doc/manual-pdr-h2.md](doc/manual-pdr-h2.md): a worked PDR + H2 run, from the test problem.

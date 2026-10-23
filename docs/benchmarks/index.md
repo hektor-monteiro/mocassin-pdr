@@ -1,15 +1,15 @@
 # Benchmarks
 
-The benchmark pages compare MOCASSIN-PDR with independent codes on fixed models. These
-pages hold the two PDR models:
+The benchmark pages compare MOCASSIN-PDR with independent codes on fixed models:
 
 | Model | What it is | Reference |
 | :--- | :--- | :--- |
+| {doc}`lexington` | The four photoionised nebulae of the Lexington 2000 workshop, two H II regions and two planetary nebulae, gas only, $13^3$ cells each | the seven codes of {cite:t}`Ercolano2003`, Tables 4–7 |
 | {doc}`hiipdr` | The H II region and PDR of {cite:t}`Bisbas2015`, §5.4: a 40 kK star in gas of $n_{\mathrm H}=100$ cm⁻³ with silicate grains, $31^3$ cells | Cloudy c25.00, and standalone 3D-PDR |
 | {doc}`pn150k` | A 150 kK planetary nebula, $n_{\mathrm H}=10^3$ cm⁻³, MRN graphite grains, $41^3$ cells | Cloudy c25.00 |
 
-Gas-only (the Lexington models of {cite:t}`Ercolano2003`) and dust-only benchmarks will
-be added once they have been rerun with this release.
+The dust-only benchmarks will be added once they have been rerun with this release. The rest
+of this page describes the two PDR models; {doc}`lexington` describes its own method and runs.
 
 ## What is compared
 
@@ -38,8 +38,8 @@ constant 0.02–0.03 mag offset from the cell discretisation of the inner cavity
 3–4.5% in `pn150k`. Offsets measured in $A_V$ and in radius therefore differ, and the
 profiles, compared at equal $A_V$, carry this shift.
 
-Cells MOCASSIN flags and leaves out of the line emission (`lgBlack`, for example a cell
-whose temperature reached the floor) are excluded from the statistics and counted on each page.
+Cells MOCASSIN flags and leaves out of the line emission (`lgBlack`: a cell whose thermal
+balance was not reached or reached 30,000 K, or whose ionisation balance failed) are excluded from the statistics and counted on each page.
 
 ## The runs
 
