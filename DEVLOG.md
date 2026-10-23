@@ -437,6 +437,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-435 | **Licensing fixes that need no code change, applied (the user: "apply the licensing modifications that do not require code changes in all branches of the repository as needed. Update any relevant documentation accordingly").** THIRD_PARTY_NOTICES.md and READMEs for data/, dustData/ and dataPDR/ (sources, terms, the Cloudy, HEALPix, SUNDIALS and DUSTY notices); README, man page, UPSTREAM.md, dataPDR/h2/README.md and the docs licence and citing pages corrected; two new docs pages; Badnell's fit files, two editor backups and two duplicate tarballs removed. The in-code notices, the Numerical Recipes replacement and the install of LICENSE wait for a code plan | Accepted | 2026-10-22 |
 | D-436 | **Licensing notices in source files, comments only (the user: "proceed with modification notes and headers in eight source files, then with the Cloudy notes at the three translated routines, and HEALPix's and SUNDIALS' notices in their files").** Modification notes on hydro_mod, fluorescence_mod, readdata_mod; GPL headers on h2_mod, h2Lines_mod, frontLines_mod, h2Slab, h2Test; Cloudy notes at yanH2xSec, h2ShieldFederman, h2FormDist; HEALPix notice restored in healpix.F90; SUNDIALS notice at check_flag. Comment-only (93 lines added, 4 removed), all four flavours and h2Test/h2Slab build; the docs statements made current | Accepted | 2026-10-22 |
 | D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) | In progress | 2026-10-23 |
+| D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42233,3 +42234,87 @@ leftovers), "proceed as suggested". Plan
 ### Status
 
 In progress.
+
+---
+
+## D-438 - PDR builds crashed on models without `pdr` (2026-10-23)
+
+Found at D-437 step R4: the quickstart's HII40 (the Lexington standard H II
+region: gas, no dust, no `pdr` keyword) on the 3D PDR build
+(pdr-coupling-v2.0-26-gb9c0fb6) segfaulted within 2 s at 4 and 14 ranks
+(rc 139), after iteration 1's transfer. The plain build runs the same input
+cleanly. gdb (2 ranks) stopped in thermBalance <- updateCell <- iterateMC.
+The user (2026-10-23), offered a fix now, documentation-only workarounds or
+dropping the gas model from the quickstart: "Fix it now (Recommended)".
+
+**Cause.** setMotherGrid and resetGrid allocate the PDR arrays (AVeff,
+chiFUV, pdrCoolTref, pdrHeatPE and about 45 more) only `if (lgPDR)`. An
+audit of every access found seven reads on paths a run without `pdr`
+executes, all inside `#ifdef PDR` diagnostics:
+  - U1 ionBalance (D-236): `iB234 = int(grid%AVeff(cellP)/0.5)`, with no
+    condition at all, for every element and stage of every cell: the first
+    crash of every gas run (at -O2 the read was moved and the backtrace
+    pointed at thermBalance);
+  - U2 thermBalance (D-138/D-146 probe): `grid%AVeff(cellP) > 1.0` inside a
+    compound `.and.`, which gfortran need not short-circuit;
+  - U3 iterateT (D-168): pdrCoolTref, with `teProbe` set;
+  - U4 ionBalance (D-234 print): AVeff and chiFUV, with `teProbe` set;
+  - U5 ionBalance (D-169 probe): AVeff, with `teProbe` set and a cell at
+    30,000 K;
+  - U6 getDustT (D-120): pdrHeatPE, at a non-finite dust absorption;
+  - U7 writeFUVField: Hden, allocated only with gas, in a routine every PDR
+    build calls at the end, so a gas-free model would crash there.
+No garbage-value path was found: with `pdr` off, every other piece of
+PDR-build code reduces to what the plain build does.
+
+**Fix** (plan `~/.claude-lac/plans/velvet-rolling-kettle.md`, section D-438;
+code-executor in worktree ~/software/mocassin_fix438, branch fix438 from
+34123f2; commit 6d05ce1, fast-forwarded into production): U1, U2, U3 and U5
+wrapped in `if (lgPDR) then ... end if` (the original conditions unchanged
+inside), U6 made `if (lgPDR) print*`, U7 writes `hdW` (0 without gas,
+`Hden` with it; no `merge()`, which evaluates both arguments). Every changed
+line is inside `#ifdef PDR`, so the plain build's source is unchanged
+(update_mod +128/-110, mostly re-indentation; output_mod +6/-1).
+
+**Verification** (pdr-coupling-v2.0-19-g6d05ce1, PREFIX ~/.local/mocassin_docs,
+14 ranks, runs in runs/d438/):
+  - builds: plain, PDR 1D, PDR mocassinWarm, PDR 3D `all`, h2Test, h2Slab,
+    each rc 0;
+  - T1/T2: HII40 (cap 60, randomSeed 1001) on the 3D and 1D PDR builds:
+    converged at 18 iterations, and lineFlux, grid0-2, temperature,
+    ionratio and SED byte-identical to the plain build's run
+    (mocassin_docs/runs/docs-v2.0/lex-HII40);
+  - T3: hiipdr21 without the pdr keywords (dust and gas): the same seven
+    files byte-identical between the plain and 3D builds;
+  - T4: hiipdr21 with `pdr`: all 24 output files other than summary.out
+    byte-identical to the pre-fix 3D binary's run, summary.out differing
+    only in its clock times;
+  - T6: mocassinOutput on T1 reproduces lineFlux.out byte for byte;
+  - V3: a -O0 -g -fcheck=all build ran HII40 to convergence (17 iterations
+    at 4 ranks) with no runtime error.
+
+**Not tested:** U7's gas-free branch. The dust-only benchmark
+benchmarks/dust/1D/p0tau1 segfaults in iteration 1 (in writeSED, after
+"Qphot = 0" and no escaped packets) on the plain build too, so it is not a
+PDR-build problem; it is likely related to O-31 (the p0tau10 segfault,
+D-280). Its input has no randomSeed, so a byte comparison would also need one.
+
+**Found, not fixed** (each needs its own plan):
+  - `pdr` with more than one grid: sub-grids get no PDR arrays, and sites
+    guarded only by lgPDR would read them for iG > 1; no input check
+    refuses that combination.
+  - mocassinWarm never allocates xHIiterStart/TeIterStart/xH2iterStart;
+    the uses are guarded, so it does not crash, but its warm-start test
+    compares with the previous call rather than the iteration start.
+  - The D-146 print reads bin 465 whatever `nbins` is.
+  - PDR builds write pdrFUV.out and pdrFUVspec.out even without `pdr`.
+  - The idle check `pgrep -x mocassin` does not see renamed binaries
+    (mocassin.3d, mocassin.plain); `pgrep -a mocassin` does.
+
+**Not done:** production's own install (~/.local) and the h2-model branch
+still carry the defect until the user reinstalls and h2-model merges
+production.
+
+### Status
+
+Done.
