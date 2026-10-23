@@ -31,25 +31,29 @@ seed = 1001
 path = "docs-v2.0/lex-HII40"
 inputs = "docs/bench/inputs/lex-HII40"
 fixture = "benchmarks/gas/HII40"
-run_time = ""
+run_time = "00:00:29"                          # run.log "total run time per processor"
+iterations = 18                                 # stopped on the integrated test (D-391)
 
 [run.HII20]
 path = "docs-v2.0/lex-HII20"
 inputs = "docs/bench/inputs/lex-HII20"
 fixture = "benchmarks/gas/HII20"
-run_time = ""
+run_time = "00:00:19"                          # run.log "total run time per processor"
+iterations = 19                                 # stopped on the integrated test (D-391)
 
 [run.PN150]
 path = "docs-v2.0/lex-PN150"
 inputs = "docs/bench/inputs/lex-PN150"
 fixture = "benchmarks/gas/PN150"
-run_time = ""
+run_time = "00:00:41"                          # run.log "total run time per processor"
+iterations = 20                                 # stopped on the integrated test (D-391)
 
 [run.PN75]
 path = "docs-v2.0/lex-PN75"
 inputs = "docs/bench/inputs/lex-PN75"
 fixture = "benchmarks/gas/PN75"
-run_time = ""
+run_time = "00:00:14"                          # run.log "total run time per processor"
+iterations = 13                                 # stopped on the integrated test (D-391)
 
 # --------------------------------------------------------------------------------------------- labels
 # every row label of Tables 4-7, whitespace collapsed (TOML literal strings: no escapes)
