@@ -5914,10 +5914,15 @@ no code of its own since H-046.
     dataPDR/ apart from the two Badnell fit files production removed at
     D-435, which no code reads.
 
-**Not done.**
-  - ~/.local/mocassin_h2 is not reinstalled: it still holds 338c272's
-    binaries, which have the defect. Reinstalling waits for the user's word.
-  - Nothing is pushed.
+**Installed (2026-10-24, the user: "Yes").** `make clean && make PDR=1
+PDRGEOM=3D PREFIX=$HOME/.local/mocassin_h2 install` at 92a17d3: rc 0. The
+binaries report pdr-coupling-v2.0.1-7-g92a17d3, replacing 338c272's, which
+had the defect. Check: the installed quickstart HII40, run with
+~/.local/mocassin_h2/bin/mocassin at 14 ranks, converged at 18 iterations.
+Its lineFlux.out, grid1.out and grid2.out are byte-identical to production's
+documented run.
+
+**Not done:** nothing is pushed.
 
 ### Status
 
