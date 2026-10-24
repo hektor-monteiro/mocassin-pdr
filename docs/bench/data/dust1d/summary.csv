@@ -1,0 +1,10 @@
+tau,curve,id,iterations,stop,cells_pct,L_SED_over_Lstar,L_SED_over_L_e36,r_in_over_Rout_1000,T_in,peak_lam_um,dusty_peak_lam_um,median_abs_dex,max_abs_dex,max_abs_dex_lam_um
+1,MOCASSIN 2005,,,,,,,,,1.7,1.7,0.03589,0.068,140
+1,MOCASSIN-PDR iso,dust-p0tau1-iso,10,converged,95.2,0.9997,0.9998,1,759,1.585,1.7,0.003086,0.06567,0.4401
+1,MOCASSIN-PDR hg,dust-p0tau1-hg,11,converged,96.17,0.9997,0.9998,1,758.9,1.585,1.7,0.02435,0.4555,0.4401
+10,MOCASSIN 2005,,,,,,,,,45,45,0.03258,0.051,399.9
+10,MOCASSIN-PDR iso,dust-p0tau10-iso,30,not converged,93.17,0.9998,0.9998,1,809.3,47.32,45,0.01042,0.07809,9.552
+10,MOCASSIN-PDR hg,dust-p0tau10-hg,30,not converged,93.85,0.9998,0.9998,1,806.9,47.32,45,0.01588,0.2929,1
+100,MOCASSIN 2005,,,,,,,,,70,70,0.02621,0.0935,25
+100,MOCASSIN-PDR iso,dust-p0tau100-iso,30,not converged,91.84,0.9998,0.9998,1,811,70.79,70,0.02869,0.145,6.999
+100,MOCASSIN-PDR hg,dust-p0tau100-hg,30,not converged,91.59,0.9998,0.9998,1,792.1,70.79,70,0.02804,0.1543,6.999
