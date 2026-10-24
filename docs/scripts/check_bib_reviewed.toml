@@ -1,0 +1,6 @@
+# check_bib.py's reviewed exceptions: per bib key, the status the script prints (exactly) and why it was
+# checked by hand and accepted. An entry whose status changes is reported normally again.
+
+[IvezicElitzur1997]
+status = "MISMATCH (author)"
+reason = "CrossRef's record has a broken family name ('Ivezi' and a no-break space; checked 2026-10-23); the author is Ivezić, as in the bib"

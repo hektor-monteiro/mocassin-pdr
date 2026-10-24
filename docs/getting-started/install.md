@@ -107,8 +107,8 @@ A PDR run finds them through `pdrDataDir`, which defaults to the installed copy
 
 ## Checking a build
 
-The binaries print the version they were built from at start-up: `pdr-coupling-v2.0` at
-the tag, `pdr-coupling-v2.0-<n>-g<hash>` for a later commit, with `-dirty` if the tree had
+The binaries print the version they were built from at start-up: `pdr-coupling-v2.0.1` at
+the tag, `pdr-coupling-v2.0.1-<n>-g<hash>` for a later commit, with `-dirty` if the tree had
 uncommitted changes. The string is compiled into the main program's object, so
 build from `make clean` when it must identify the binary; outside a git checkout it
 is empty.

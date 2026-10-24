@@ -15,7 +15,7 @@ computes drive the chemistry. The chemistry's molecules, heating and cooling fee
 into the next iteration.
 
 :::{note}
-These pages describe release `pdr-coupling-v2.0` and the commit they were built from,
+These pages describe release `pdr-coupling-v2.0.1` and the commit they were built from,
 shown at the bottom of every page. MOCASSIN-PDR is research code under active
 development, and it is not the official MOCASSIN. Results for publication should cite a
 release tag ({doc}`reference/citing`).
@@ -23,12 +23,15 @@ release tag ({doc}`reference/citing`).
 
 ## What the site holds
 
-- **Getting started.** {doc}`getting-started/install` covers the three builds, SUNDIALS
-  and where the data are read from. {doc}`getting-started/running` covers the run
-  directory, MPI and memory, warm starts and convergence.
+- **Getting started.** {doc}`getting-started/quickstart` runs two small models, a
+  photoionised nebula and one with dust and a PDR, and plots them.
+  {doc}`getting-started/install` covers the three builds, SUNDIALS and where the data are
+  read from. {doc}`getting-started/running` covers the run directory, MPI and memory, warm
+  starts and convergence.
 - **User guide.** The complete references, generated from data files whose completeness (every keyword `readInput` accepts, every file the code opens in `output/`) is checked against the code on every build; the defaults and descriptions are written by hand:
   - {doc}`every input keyword <user-guide/keywords>`;
-  - {doc}`every output file <user-guide/outputs>`;
+  - {doc}`every output file <user-guide/outputs>`, and {doc}`how to read them in Python
+    <user-guide/python>`;
   - {doc}`the build flavours <user-guide/build-flavours>`;
   - the {doc}`dust inputs <user-guide/dust-inputs>`;
   - a worked {doc}`PDR + H₂ run <user-guide/h2-manual>`.
@@ -37,8 +40,10 @@ release tag ({doc}`reference/citing`).
   model, the rates, the chemistry, the feedback and the convergence. Every process is
   linked to the code block that implements it. {doc}`physics/limitations` lists what is
   known to be wrong, and by how much.
-- **Benchmarks.** The current results against Cloudy c25.00 for the two PDR models,
-  {doc}`benchmarks/hiipdr` and {doc}`benchmarks/pn150k`, with their provenance.
+- **Benchmarks.** The current results, with their provenance: the four
+  {doc}`Lexington photoionisation models <benchmarks/lexington>` against the codes of the
+  workshop, and the two PDR models, {doc}`benchmarks/hiipdr` and {doc}`benchmarks/pn150k`,
+  against Cloudy c25.00.
 - **Developer notes.** The {doc}`code map <developer/code-map>`, the
   {doc}`vendored 3D-PDR <developer/vendored-3dpdr>`, the
   {doc}`decision log <developer/devlog-index>` and {doc}`how these pages are built
@@ -81,6 +86,7 @@ The run stops when the model-integrated convergence test passes (`convTotals`).
 :hidden:
 :caption: Getting started
 
+getting-started/quickstart
 getting-started/install
 getting-started/running
 ```
@@ -91,6 +97,7 @@ getting-started/running
 
 user-guide/keywords
 user-guide/outputs
+user-guide/python
 user-guide/build-flavours
 user-guide/environment
 user-guide/dust-inputs
@@ -110,6 +117,7 @@ physics/limitations
 :caption: Benchmarks
 
 benchmarks/index
+benchmarks/lexington
 benchmarks/hiipdr
 benchmarks/pn150k
 ```

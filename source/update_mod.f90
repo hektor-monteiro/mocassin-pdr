@@ -967,7 +967,11 @@ subroutine iterateT()
           ! coolant computed for it, which separates that ordering effect from
           ! a cell that runs hot with the cooling present.
 #ifdef PDR
-          if (grid%pdrCoolTref(cellP) <= 0.) teNhiNoPdr = teNhiNoPdr + 1
+          ! D-438: pdrCoolTref is allocated only with pdr (grid_mod setMotherGrid/
+          ! resetGrid); a PDR build run without the keyword must not read it.
+          if (lgPDR) then
+             if (grid%pdrCoolTref(cellP) <= 0.) teNhiNoPdr = teNhiNoPdr + 1
+          end if
 #endif
        end if
        if (Tlow > 0. .and. Thigh > 0. .and. TeUsed > 0.) then
@@ -2187,37 +2191,41 @@ end subroutine iterateT
                     ! cell, and from which part of the spectrum. Three
                     ! hypotheses about this balance had been wrong from
                     ! inference; name the contributor before adding opacity.
-                    if (nIonProbe < 20000 .and. heatIonSte > 0. .and. elem == 1 .and. &
-                         & grid%AVeff(cellP) > 1.0 &
-                         & .and. nIterateMC >= 6 .and. taskid == 0) then
-                       nIonProbe = nIonProbe + 1
-                       ! D-158: Jdif now carries the diffuse part alone while
-                       ! Jste carries both, so the difference is the genuinely
-                       ! stellar contribution. That decides whether these
-                       ! photons travelled from the star through tau = 175 per
-                       ! cell, or were emitted locally.
-                       if (pdrSplitField /= 0 .and. ion == 1) &
-                            & print*, "! [D158] cell", cellP, &
-                            & " Jste(both) =", sum(grid%Jste(cellP,IPnuP:highNuP)), &
-                            & " Jdif(diffuse) =", sum(grid%Jdif(cellP,IPnuP:highNuP)), &
-                            & " stellar-only =", &
-                            & sum(grid%Jste(cellP,IPnuP:highNuP)) &
-                            & - sum(grid%Jdif(cellP,IPnuP:highNuP)), &
-                            & " heat =", heatIonSte
-                       ! D-145: with lgDebug the stellar and diffuse fields are
-                       ! kept apart, so this says which one is actually feeding
-                       ! the heating. Without it Jste holds BOTH (photon_mod
-                       ! 1592-1603), which is why every earlier probe here was
-                       ! reading a total field and calling it stellar.
-                       ! D-146: the heating falls with radius as if tau were
-                       ! ~0.9 per cell, while the opacity array holds 9e-17
-                       ! cm^-1 -> tau = 175 per cell. Read the STORED opacity
-                       ! the transport actually uses, at the bin that carries
-                       ! the flux, to see which of the two is real.
-                       print*, "! [D146] cell", cellP, " heat =", heatIonSte, &
-                            & "  stored opacity at 465 =", grid%opacity(cellP,465), &
-                            & "  at IPnuP =", grid%opacity(cellP,IPnuP), &
-                            & "  Jste(465) =", grid%Jste(cellP,465)
+                    ! D-438: AVeff is allocated only with pdr (grid_mod setMotherGrid/
+                    ! resetGrid); a PDR build run without the keyword must not read it.
+                    if (lgPDR) then
+                       if (nIonProbe < 20000 .and. heatIonSte > 0. .and. elem == 1 .and. &
+                            & grid%AVeff(cellP) > 1.0 &
+                            & .and. nIterateMC >= 6 .and. taskid == 0) then
+                          nIonProbe = nIonProbe + 1
+                          ! D-158: Jdif now carries the diffuse part alone while
+                          ! Jste carries both, so the difference is the genuinely
+                          ! stellar contribution. That decides whether these
+                          ! photons travelled from the star through tau = 175 per
+                          ! cell, or were emitted locally.
+                          if (pdrSplitField /= 0 .and. ion == 1) &
+                               & print*, "! [D158] cell", cellP, &
+                               & " Jste(both) =", sum(grid%Jste(cellP,IPnuP:highNuP)), &
+                               & " Jdif(diffuse) =", sum(grid%Jdif(cellP,IPnuP:highNuP)), &
+                               & " stellar-only =", &
+                               & sum(grid%Jste(cellP,IPnuP:highNuP)) &
+                               & - sum(grid%Jdif(cellP,IPnuP:highNuP)), &
+                               & " heat =", heatIonSte
+                          ! D-145: with lgDebug the stellar and diffuse fields are
+                          ! kept apart, so this says which one is actually feeding
+                          ! the heating. Without it Jste holds BOTH (photon_mod
+                          ! 1592-1603), which is why every earlier probe here was
+                          ! reading a total field and calling it stellar.
+                          ! D-146: the heating falls with radius as if tau were
+                          ! ~0.9 per cell, while the opacity array holds 9e-17
+                          ! cm^-1 -> tau = 175 per cell. Read the STORED opacity
+                          ! the transport actually uses, at the bin that carries
+                          ! the flux, to see which of the two is real.
+                          print*, "! [D146] cell", cellP, " heat =", heatIonSte, &
+                               & "  stored opacity at 465 =", grid%opacity(cellP,465), &
+                               & "  at IPnuP =", grid%opacity(cellP,IPnuP), &
+                               & "  Jste(465) =", grid%Jste(cellP,465)
+                       end if
                     end if
 #endif
                     if (lgDebug) &
@@ -3018,70 +3026,74 @@ end subroutine iterateT
                     ! lowest metal threshold - which cannot distinguish photons
                     ! absorbed on the way in from photons never present. The
                     ! depth profile does distinguish them.
-                    iB234 = int(grid%AVeff(cellP)/0.5)
-                    if (iB234 < 0)  iB234 = 0
-                    if (iB234 > 15) iB234 = 15
-                    ! D-237: every rank samples, not only rank 0. Rank 0 owns a
-                    ! fraction of the grid, and D-236's one-cell-per-0.5-mag
-                    ! scheme returned two depth points because of it.
-                    if (teProbe /= 0 .and. nProbe234 < 400 &
-                         & .and. nIterateMC >= 12 .and. ion <= 2 &
-                         & .and. (.not.lgAVsamp234(iB234) .or. cellSamp234 == cellP)) then
-                       if (cellSamp234 /= cellP) then
-                          cellSamp234 = cellP
-                          lgAVsamp234(iB234) = .true.
-                       end if
-                       nProbe234 = nProbe234 + 1
-                       ! D-235: the field and the cross-section this ion
-                       ! actually sees, over its OWN range. phot sits at its
-                       ! 1e-20 initialisation floor for every element while
-                       ! chiFUV - built from the same Jste - reads 0.13 in
-                       ! this cell, so one of the two must be empty.
-                       sumJ234 = 0.; xTh234 = 0.; nnz234 = 0; opac234 = 0.
-                       jLo234 = 0; jHi234 = 0
-                       if (elem > 2) then
-                          jLo234 = elementP(elem, ion, outShell, 1)
-                          jHi234 = min(elementP(elem, ion, outShell, 2) - 1, nbins)
-                          if (jLo234 >= 1 .and. jHi234 >= jLo234) then
-                             do jj234 = jLo234, jHi234
-                                sumJ234 = sumJ234 + grid%Jste(cellP, jj234)
-                                if (grid%Jste(cellP, jj234) > 0.) nnz234 = nnz234 + 1
-                             end do
-                             if (elementP(elem, ion, outShell, 3) >= 1 .and. &
-                                  & elementP(elem, ion, outShell, 3) <= size(xSecArray)) &
-                                  & xTh234 = xSecArray(elementP(elem, ion, outShell, 3))
-                             ! D-237: MOCASSIN's OWN total opacity at this
-                             ! ion's threshold bin, so tau is measured rather
-                             ! than estimated from A_V and a column.
-                             opac234 = grid%opacity(cellP, jLo234)
+                    ! D-438: AVeff and chiFUV are allocated only with pdr (grid_mod setMotherGrid/
+                    ! resetGrid); a PDR build run without the keyword must not read them.
+                    if (lgPDR) then
+                       iB234 = int(grid%AVeff(cellP)/0.5)
+                       if (iB234 < 0)  iB234 = 0
+                       if (iB234 > 15) iB234 = 15
+                       ! D-237: every rank samples, not only rank 0. Rank 0 owns a
+                       ! fraction of the grid, and D-236's one-cell-per-0.5-mag
+                       ! scheme returned two depth points because of it.
+                       if (teProbe /= 0 .and. nProbe234 < 400 &
+                            & .and. nIterateMC >= 12 .and. ion <= 2 &
+                            & .and. (.not.lgAVsamp234(iB234) .or. cellSamp234 == cellP)) then
+                          if (cellSamp234 /= cellP) then
+                             cellSamp234 = cellP
+                             lgAVsamp234(iB234) = .true.
                           end if
+                          nProbe234 = nProbe234 + 1
+                          ! D-235: the field and the cross-section this ion
+                          ! actually sees, over its OWN range. phot sits at its
+                          ! 1e-20 initialisation floor for every element while
+                          ! chiFUV - built from the same Jste - reads 0.13 in
+                          ! this cell, so one of the two must be empty.
+                          sumJ234 = 0.; xTh234 = 0.; nnz234 = 0; opac234 = 0.
+                          jLo234 = 0; jHi234 = 0
+                          if (elem > 2) then
+                             jLo234 = elementP(elem, ion, outShell, 1)
+                             jHi234 = min(elementP(elem, ion, outShell, 2) - 1, nbins)
+                             if (jLo234 >= 1 .and. jHi234 >= jLo234) then
+                                do jj234 = jLo234, jHi234
+                                   sumJ234 = sumJ234 + grid%Jste(cellP, jj234)
+                                   if (grid%Jste(cellP, jj234) > 0.) nnz234 = nnz234 + 1
+                                end do
+                                if (elementP(elem, ion, outShell, 3) >= 1 .and. &
+                                     & elementP(elem, ion, outShell, 3) <= size(xSecArray)) &
+                                     & xTh234 = xSecArray(elementP(elem, ion, outShell, 3))
+                                ! D-237: MOCASSIN's OWN total opacity at this
+                                ! ion's threshold bin, so tau is measured rather
+                                ! than estimated from A_V and a column.
+                                opac234 = grid%opacity(cellP, jLo234)
+                             end if
+                          end if
+                          if (elem == 1 .and. ion == 1) &
+                               & print*, "! [D234] rank", taskid, " cell", cellP, " AV", &
+                               & grid%AVeff(cellP), " Te", TeUsed, " Ne", NeUsed, &
+                               & " nH", grid%Hden(cellP), " chi", grid%chiFUV(cellP)
+                          print '(a,a2,i3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,f7.4,a,es10.3)', &
+                               & " ! [D234]   ", elemLabel(elem), ion, &
+                               & "  up", ionUp(elem,ion), &
+                               & "  phot", dble(nPhotoSte(elem,ion)), &
+                               & "  dn", ionDn(elem,ion), &
+                               & "  Ne*alpha", dble(NeUsed)*dble(alphaTot(elem,ion)), &
+                               & "  chex", dble(chex(elem,ion,1)), &
+                               & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
+                               & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
+                          ! D-238: rank and cell on EVERY line. With 14 ranks
+                          ! writing to one stdout, a [D235] line could attach to
+                          ! another rank's [D234] header - D-237 recorded that as
+                          ! a caveat and D-238's first profile was corrupted by it
+                          ! (deep cells reading shallow cells' values verbatim).
+                          if (elem == 6 .or. elem == 16) &
+                               & print '(a,i3,a,i7,a,a2,i3,a,i5,a,es10.3,a,i5,a,es10.3,a,es10.3)', &
+                               & " ! [D235] rank", taskid, " cell", cellP, "  ", elemLabel(elem), ion, &
+                               & "  binLo", jLo234, &
+                               & "  sum Jste", dble(sumJ234), &
+                               & "  bins with J>0", nnz234, &
+                               & "  xSec(thresh)", dble(xTh234), &
+                               & "  opac(thresh)", dble(opac234)
                        end if
-                       if (elem == 1 .and. ion == 1) &
-                            & print*, "! [D234] rank", taskid, " cell", cellP, " AV", &
-                            & grid%AVeff(cellP), " Te", TeUsed, " Ne", NeUsed, &
-                            & " nH", grid%Hden(cellP), " chi", grid%chiFUV(cellP)
-                       print '(a,a2,i3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,es10.3,a,f7.4,a,es10.3)', &
-                            & " ! [D234]   ", elemLabel(elem), ion, &
-                            & "  up", ionUp(elem,ion), &
-                            & "  phot", dble(nPhotoSte(elem,ion)), &
-                            & "  dn", ionDn(elem,ion), &
-                            & "  Ne*alpha", dble(NeUsed)*dble(alphaTot(elem,ion)), &
-                            & "  chex", dble(chex(elem,ion,1)), &
-                            & "  nu_th", nuArray(elementP(elem,ion,outShell,1)), &
-                            & "  up/dn", ionUp(elem,ion)/max(ionDn(elem,ion),1.d-99)
-                       ! D-238: rank and cell on EVERY line. With 14 ranks
-                       ! writing to one stdout, a [D235] line could attach to
-                       ! another rank's [D234] header - D-237 recorded that as
-                       ! a caveat and D-238's first profile was corrupted by it
-                       ! (deep cells reading shallow cells' values verbatim).
-                       if (elem == 6 .or. elem == 16) &
-                            & print '(a,i3,a,i7,a,a2,i3,a,i5,a,es10.3,a,i5,a,es10.3,a,es10.3)', &
-                            & " ! [D235] rank", taskid, " cell", cellP, "  ", elemLabel(elem), ion, &
-                            & "  binLo", jLo234, &
-                            & "  sum Jste", dble(sumJ234), &
-                            & "  bins with J>0", nnz234, &
-                            & "  xSec(thresh)", dble(xTh234), &
-                            & "  opac(thresh)", dble(opac234)
                     end if
 #endif
 
@@ -3375,21 +3387,25 @@ end subroutine iterateT
                   ! rates were then compared against a hot cell's heating - two
                   ! different cells, which is how the "59 keV per event" came
                   ! about. Everything here must come from one cell, one call.
-                  if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
-                       & nRateProbe < 6 .and. &
-                       & TeUsed >= 29999.) then
-                     nRateProbe = nRateProbe + 1
-                     print*, "! [D169] cell", cellP, " AV", grid%AVeff(cellP), &
-                          & " Te", TeUsed, " x(H+)", grid%ionDen(cellP,elementXref(1),2)
-                     print*, "! [D169]   MOCASSIN up(H0->H+)", ionUp(1,1), &
-                          & "  dn(H+->H0)", ionDn(1,1)
-                     print*, "! [D169]   chemistry src(H+)", chemSrc(min(2,nst)), &
-                          & "  snk(H+)", chemSnk(min(2,nst)), &
-                          & "  src(H0)", chemSrc(1), "  snk(H0)", chemSnk(1)
-                     print*, "! [D169]   up/dn implies x(H+)/x(H0) =", &
-                          & ionUp(1,1)/max(ionDn(1,1),1.d-30), &
-                          & "  availFrac(H)", availFrac(1), &
-                          & "  Ne", NeUsed, "  iLo", iLo, " iHi", iHi
+                  ! D-438: AVeff is allocated only with pdr (grid_mod setMotherGrid/
+                  ! resetGrid); a PDR build run without the keyword must not read it.
+                  if (lgPDR) then
+                     if (teProbe /= 0 .and. elem == 1 .and. taskid == 0 .and. &
+                          & nRateProbe < 6 .and. &
+                          & TeUsed >= 29999.) then
+                        nRateProbe = nRateProbe + 1
+                        print*, "! [D169] cell", cellP, " AV", grid%AVeff(cellP), &
+                             & " Te", TeUsed, " x(H+)", grid%ionDen(cellP,elementXref(1),2)
+                        print*, "! [D169]   MOCASSIN up(H0->H+)", ionUp(1,1), &
+                             & "  dn(H+->H0)", ionDn(1,1)
+                        print*, "! [D169]   chemistry src(H+)", chemSrc(min(2,nst)), &
+                             & "  snk(H+)", chemSnk(min(2,nst)), &
+                             & "  src(H0)", chemSrc(1), "  snk(H0)", chemSnk(1)
+                        print*, "! [D169]   up/dn implies x(H+)/x(H0) =", &
+                             & ionUp(1,1)/max(ionDn(1,1),1.d-30), &
+                             & "  availFrac(H)", availFrac(1), &
+                             & "  Ne", NeUsed, "  iLo", iLo, " iHi", iHi
+                     end if
                   end if
 #endif
 
@@ -4477,7 +4493,9 @@ end subroutine iterateT
                              & " species", nS, " size", ai
                         print*, "! [D120]   dabs =", dabs, "  reslineheat =", reslineheat
 #ifdef PDR
-                        print*, "! [D120]   pdrHeatPE =", grid%pdrHeatPE(cellP)
+                        ! D-438: pdrHeatPE is allocated only with pdr (grid_mod setMotherGrid/
+                        ! resetGrid); a PDR build run without the keyword must not read it.
+                        if (lgPDR) print*, "! [D120]   pdrHeatPE =", grid%pdrHeatPE(cellP)
                         print*, "! [D120]   Ne =", NeUsed
 #endif
                      end if

@@ -61,6 +61,7 @@ runs at 14 ranks:
 
 The ranks share its cells dynamically ({devlog}`H-011`).
 
+(running-convergence)=
 ## Convergence and stopping
 
 The run stops when the **model-integrated test** passes ({devlog}`D-391`,

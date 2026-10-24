@@ -16,6 +16,10 @@ in the style of the published comparison pages (tools/d260_roellig.py, tools/h01
 et al. 2007): one log-log panel against A_V from the star, MOCASSIN's median of the cells in each A_V
 bin (solid) with the 16th-84th percentile band, Cloudy's zones dashed, the radius on the upper axis.
 The SVG is deterministic: fixed hash salt, no date. Needs numpy and matplotlib only.
+
+When docs/bench/data/lexington/summary.csv exists (written by lexington.py), also writes
+OUTDIR/lex_<M>.svg for each Lexington model: every compared row's log10(value/median), the Lexington
+codes' range and values, MOCASSIN 2003 (3-D) and MOCASSIN-PDR.
 """
 import csv
 import json
@@ -293,6 +297,66 @@ PANELS = [('temperatures', temperatures, None), ('ions', ions, None), ('chemistr
           ('h2_solomon', solomon, 'sol_h2'), ('h2_heating', heating, 'h2heat_form')]
 
 
+# --------------------------------------------------------------------------------------- Lexington
+LEX_MODELS = ['HII40', 'HII20', 'PN150', 'PN75']
+LEX_CODES = ['GF', 'HN', 'DP', 'TK', 'PH', 'RS', 'RR']
+LEX_LIM = 0.6
+LEX_PDR = '#0077BB'
+
+
+def lex_points(ax, x, y, **kw):
+    """points at log10(value/median); those beyond +-LEX_LIM as triangles at the limit"""
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    inside = np.abs(y) <= LEX_LIM
+    ax.plot(x[inside], y[inside], ls='none', **kw)
+    for sign, mk in ((1, '^'), (-1, 'v')):
+        s = sign * y > LEX_LIM
+        if s.any():
+            ax.plot(x[s], np.full(s.sum(), sign * LEX_LIM), ls='none', clip_on=False, **dict(kw, marker=mk))
+
+
+def lexington_figures(data_dir, out_dir):
+    """one strip plot per Lexington model, lex_<M>.svg: the compared rows of <M>.csv in table order"""
+    os.makedirs(out_dir, exist_ok=True)
+    for model in LEX_MODELS:
+        with open(os.path.join(data_dir, f'{model}.csv')) as f:
+            rows = [r for r in csv.DictReader(f) if r['median'].strip()]
+        n = len(rows)
+        fig, ax = plt.subplots(figsize=(0.26 * n + 1.2, 3.4))
+        x = np.arange(n)
+        ax.axhline(0., color='k', lw=0.8)
+        for i, r in enumerate(rows):
+            med = num(r['median'])
+            ax.plot([i, i], [np.log10(num(r['lo']) / med), np.log10(num(r['hi']) / med)], color='0.7', lw=3,
+                    solid_capstyle='butt', zorder=1)
+            codes = [num(r[c]) for c in LEX_CODES if r[c].strip()]
+            lex_points(ax, [i] * len(codes), [np.log10(v / med) for v in codes], marker='o', ms=2.5, color='0.45',
+                       zorder=2)
+        be = [(i, np.log10(num(r['moc2003']) / num(r['median']))) for i, r in enumerate(rows)
+              if r['moc2003'].strip() and num(r['moc2003']) > 0]
+        lex_points(ax, [b[0] for b in be], [b[1] for b in be], marker='o', ms=6, mfc='none', mec='k', mew=1.0,
+                   zorder=3)
+        lex_points(ax, x, [np.log10(num(r['value']) / num(r['median'])) for r in rows], marker='D', ms=5,
+                   color=LEX_PDR, zorder=4)
+        ax.set_xlim(-0.7, n - 0.3)
+        ax.set_ylim(-LEX_LIM, LEX_LIM)
+        ax.set_xticks(x)
+        # the labels' super- and subscripts are not in STIXGeneral: the style's serif list as fallback
+        ax.set_xticklabels([r['display'] for r in rows], rotation=90, fontfamily=list(plt.rcParams['font.serif']))
+        ax.set_ylabel(r'$\log_{10}$(value / median)')
+        ax.set_title(model, loc='right', fontsize=11)
+        h = [((Line2D([], [], color='0.7', lw=3), Line2D([], [], ls='none', marker='o', ms=2.5, color='0.45')),
+              'codes (range, values)'),
+             (Line2D([], [], ls='none', marker='o', ms=6, mfc='none', mec='k', mew=1.0), 'MOCASSIN 2003 (3-D)'),
+             (Line2D([], [], ls='none', marker='D', ms=5, color=LEX_PDR), 'MOCASSIN-PDR v2.0')]
+        ax.legend([q[0] for q in h], [q[1] for q in h], loc='lower left', bbox_to_anchor=(0., 1.01), fontsize=8,
+                  ncol=3, borderaxespad=0., handletextpad=0.4, columnspacing=1.0)
+        path = os.path.join(out_dir, f'lex_{model}.svg')
+        fig.savefig(path, format='svg', metadata={'Date': None})
+        plt.close(fig)
+        print('written', path)
+
+
 def main():
     out = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUT
     os.makedirs(out, exist_ok=True)
@@ -308,6 +372,9 @@ def main():
             fig.savefig(path, format='svg', metadata={'Date': None})
             plt.close(fig)
             print('written', path)
+    lex = os.path.join(DATA, 'lexington')
+    if os.path.exists(os.path.join(lex, 'summary.csv')):
+        lexington_figures(lex, out)
 
 
 if __name__ == '__main__':

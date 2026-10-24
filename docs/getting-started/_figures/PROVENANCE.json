@@ -1,0 +1,58 @@
+{
+ "generated": "2026-10-23",
+ "note": "Figures of getting-started/quickstart.md, drawn by the example scripts from runs made with the installed 3D build; runs root /home/hmonteiro/software/mocassin_docs/runs (git-ignored).",
+ "binary": {
+  "path": "runs:docs-v2.0/bin/mocassin.3d",
+  "md5": "ff20a3e128873be07d729ec75e8750c0",
+  "build": "make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin_docs all (and install)"
+ },
+ "figures": {
+  "qs-hii40.png": {
+   "run": "runs:docs-v2.0/qs-hii40-np4",
+   "ranks": 4,
+   "version": "MOCASSIN version pdr-coupling-v2.0-32-g39795dd",
+   "run_time": "total run time per processor  00:00:45 (HMS)",
+   "script": {
+    "path": "repo:examples/quickstart/plot_hii40.py",
+    "sha256": "e0da6cff1a30e1f1881edba9852b37780702f2202a7cf20e18232507d3b76808"
+   },
+   "inputs_sha256": {
+    "abunHII40.in": "d7801c278a98d1dc0d3eba8efdf2153ddd368e13df3f22a45968652845609cfe",
+    "input.in": "6fa5620e70fba76bdb885cf999675076ec46985757cefa472933287723c85a08"
+   },
+   "outputs_read_sha256": {
+    "grid0.out": "538f4b3dfa294eeb8121ad10ed4166b37a583784e7ed80b1f8dc11a91ba41be6",
+    "grid1.out": "245eaa142e60ad62aec04c90dc6701758509aafcbf24804e63255b897fc8cbae",
+    "grid2.out": "6beadcb84f8652ae213572790446b11f4c25fee6e0bbd30fa3529b3bea5341ae",
+    "lineFlux.out": "3e3e36e4c9581483419edf6352e18370f0fd7ac8ed1df82d018ab4da6d3a424e"
+   },
+   "command": "python examples/quickstart/plot_hii40.py runs/docs-v2.0/qs-hii40-np4 --out docs/getting-started/_figures/qs-hii40.png",
+   "png_sha256": "d1c3095aceceb7fa148e65833ba3d6868eccabfbc60370297944a475474e5b8e"
+  },
+  "qs-hiipdr21.png": {
+   "run": "runs:docs-v2.0/qs-hiipdr21-np4",
+   "ranks": 4,
+   "version": "MOCASSIN version pdr-coupling-v2.0-32-g39795dd",
+   "run_time": "total run time per processor  00:09:18 (HMS)",
+   "script": {
+    "path": "repo:examples/quickstart/plot_hiipdr21.py",
+    "sha256": "ba710e65b9f893e71997298cd47c2987e0e4e4dcbebe87023e29d9f707e42ef9"
+   },
+   "inputs_sha256": {
+    "abunV1.in": "e08a0426a326c20e214050acc800ca7c06874d6e1921d29786a22af9b045da16",
+    "dust_sizes.dat": "f502c2a0657e298d779ab3804ade70a0b23e521502241bc56dade554f9e83526",
+    "dust_species.dat": "97b772134a228e3506172348578a3e3caf30ae94f0a3b6c2fa1689504a2a4a20",
+    "input.in": "429c861e8c4dd463f5e841926896dd07f62a5499ab11290ca4ad3e83e71a6323"
+   },
+   "outputs_read_sha256": {
+    "grid0.out": "6a6c5a82374bce722e760c3d54f65d368be0f3ebb50736abed20dff85f2037ec",
+    "grid1.out": "58b155122a586beb8f5119e18141f8075b77bd235b095097b9e76ea36181d354",
+    "grid2.out": "5fc736fa53c760a22c88502b37de022ea3042e5710c1177d7bfebbac5f46add8",
+    "lineFlux.out": "3fceb10db232f7c10992fb15d1ec3ec650652bfbc8c1e8a17af97ee30579360c",
+    "pdrGrid.out": "16134970c190a80d7a1d3204f93c6d32ed761ea9f581a802f630093af977d1dc"
+   },
+   "command": "python examples/quickstart/plot_hiipdr21.py runs/docs-v2.0/qs-hiipdr21-np4 --out docs/getting-started/_figures/qs-hiipdr21.png",
+   "png_sha256": "acdf3925fc0249fafc03293075b63890a50f27cd4e17533fe4d253320a241711"
+  }
+ }
+}

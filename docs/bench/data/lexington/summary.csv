@@ -1,0 +1,5 @@
+model,compared,in_range,median_abs_dex,moc2003_in_range,moc2003_median_abs_dex,hbeta_over_median
+HII40,28,20,0.03505,20,0.03872,0.9812
+HII20,21,12,0.06332,15,0.06446,1.01
+PN150,47,36,0.05921,42,0.03428,0.9977
+PN75,37,21,0.08048,27,0.04909,1.007

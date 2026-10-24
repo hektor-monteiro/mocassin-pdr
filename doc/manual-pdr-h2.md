@@ -17,9 +17,9 @@ than the star can ionize, and its neutral part is the PDR. Whether that
 part becomes molecular depends on the dust (section 3.1).
 
 The input of section 3 was run as written on 2026-10-15 (DEVLOG-H2 H-035),
-with a binary built as in section 2; that prefix's data were already
-installed, so `make install` itself was not repeated for the test. The
-results are under "What the test run gave".
+on branch `h2-model` before the H2 level model was merged into production
+for release `pdr-coupling-v2.0` (DEVLOG D-429). The results are under "What
+the test run gave".
 
 ## 1. What you need
 
@@ -29,16 +29,16 @@ results are under "What the test run gave".
     looks in `$(HOME)/software/sundials-7.8.0`; override it with
     `SUNDIALS_DIR=...`. The path is written into the binary with `-rpath`,
     so `LD_LIBRARY_PATH` is not needed at run time.
-  - **The `h2-model` branch.** The H2 level model lives only there.
-    `pdr-photoionization` has the PDR chemistry without it.
+  - **MOCASSIN-PDR `pdr-coupling-v2.0` or later**, a checkout of `main`. The
+    H2 level model is part of the code since that release.
   - **Python 3 with numpy, astropy and matplotlib**, for the map tool
     (section 8). The checks of section 7 need only Python 3.
 
 ## 2. Build and install
 
-    cd mocassin_h2                       # a checkout of branch h2-model
+    cd mocassin-pdr                      # your checkout
     make clean
-    make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local/mocassin_h2 install
+    make PDR=1 PDRGEOM=3D install        # PREFIX defaults to $HOME/.local
 
   - **`PDRGEOM=3D` is required for H2.** The 3D build traces the chemistry's
     columns along twelve rays from every cell. The 1D build (`PDRGEOM=1D`,
@@ -66,7 +66,7 @@ results are under "What the test run gave".
 ## 3. Set up the model
 
     mkdir -p ~/models/tp-pdr && cd ~/models/tp-pdr
-    cp -r <checkout>/benchmarks/test_Problem/input .     # <checkout>: your mocassin_h2
+    cp -r <checkout>/benchmarks/test_Problem/input .     # <checkout>: your checkout
     mkdir output                         # MOCASSIN does not create it
 
 MOCASSIN reads `input/input.in` relative to the directory it runs in, and
@@ -155,7 +155,7 @@ at the end:
     resLinesTransfer 50.
     symmetricXYZ
     pdr 1
-    pdrDataDir "/home/<you>/.local/mocassin_h2/share/mocassin/dataPDR"
+    pdrDataDir "/home/<you>/.local/share/mocassin/dataPDR"
     pdrNetwork "reduced"
     pdrZeta 5.0e-17
     pdrCoolants 4 "12co.dat" "12c+.dat" "12c.dat" "16o.dat"
@@ -192,7 +192,7 @@ The four changes:
 
 | keyword | what it does | default |
 |---|---|---|
-| `pdr 1` | Switches on the chemistry and its thermal balance in every cell. In a 3D `h2-model` build it also switches on the H2 level model. | off |
+| `pdr 1` | Switches on the chemistry and its thermal balance in every cell. In a 3D build (`PDRGEOM=3D`) it also switches on the H2 level model. | off |
 | `pdrNetwork "reduced"` | Names the network. Only the reduced network (33 species) is compiled in, so this can only check, not choose. | `reduced` |
 | `pdrDataDir "<dir>"` | The rates, species and coolant files. The H2 data are in its `h2/`. | `PREFIX/share/mocassin/dataPDR` |
 | `pdrZeta` | The cosmic-ray ionization rate [s⁻¹]. | 1×10⁻¹⁶ |
@@ -232,7 +232,7 @@ cells fit in 31 GB.
 ## 5. Run
 
     cd ~/models/tp-pdr
-    mpirun -np 14 $HOME/.local/mocassin_h2/bin/mocassin > run.log 2>&1
+    mpirun -np 14 $HOME/.local/bin/mocassin > run.log 2>&1
 
   - **For a long run,** detach it from the terminal, with `nohup ... &` or
     `systemd-run --user`. With `systemd-run`, give the full path of every
@@ -255,7 +255,7 @@ cells fit in 31 GB.
     solves the finished model, the outputs are written, and the log ends
     with `total run time per processor` and
     `! MoCaSSin: end simulation reached - clean exit -`.
-  - **To continue a run,** run `$HOME/.local/mocassin_h2/bin/mocassinWarm`
+  - **To continue a run,** run `$HOME/.local/bin/mocassinWarm`
     in the same directory. It resumes from `output/`: the grid files, the
     chemistry's `pdrGrid.out`, and the H2 populations in `h2Pop.bin`. The
     populations are read when they describe the same grid and levels;
@@ -315,7 +315,7 @@ species:
 
     python3 - <<'EOF'
     import re
-    DATA = '/home/<you>/.local/mocassin_h2/share/mocassin/dataPDR'
+    DATA = '/home/<you>/.local/share/mocassin/dataPDR'
     sp = [l.split(',')[1].strip() for l in open(DATA + '/species_reduced.d') if l.strip()]
     def nh(s):      # hydrogen atoms in a species name such as H3O+ or CH4
         return sum(int(k or 1) for el, k in re.findall(r'(He|Mg|[A-Z])(\d*)', s.rstrip('+-')) if el == 'H')
@@ -335,7 +335,7 @@ number depends on the packets, run it at 4× `nPhotons`.
 
 ## 8. Maps of the H2 and CO lines
 
-    cd mocassin_h2
+    cd mocassin-pdr                      # your checkout
     python3 tools/h034_maps.py ~/models/tp-pdr --png --cubes
 
 This writes, in the run's `output/`:
@@ -384,6 +384,10 @@ What the maps are:
     `DEVLOG-H2.md` (the H2 level model).
 
 ## What the test run gave
+
+These runs predate release `pdr-coupling-v2.0`: they were made on branch
+`h2-model` before it was merged into production, so changes made after
+each run (up to DEVLOG-H2 H-045) are in the code but not in its numbers.
 
 Two runs on 2026-10-15, each with 14 ranks and branch h2-model at
 `pdr-coupling-v1.1-229-geb8e28a` (DEVLOG-H2 H-035):
