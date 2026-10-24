@@ -44,7 +44,8 @@ $ python3 tools/mocread.py my_model
 - **Arrays have the grid's shape**, `(nx, ny, nz)`, with `g.x`, `g.y` and `g.z` the grid's axis
   points in cm (`grid0.out`). Cell walls lie midway between them, so the first and last cells along an
   axis are half cells. Every grid point is written, inactive ones as zeros.
-- **`g.mask`** selects the cells the line tables count: active, and not flagged by the code
+- **`g.mask`** selects the cells `lineFlux.out` and `lineFluxMol.out` count (`lineFluxH2.out` counts the
+  flagged ones too): active, and not flagged by the code
   (`lgBlack`: a cell whose thermal balance was not reached or reached 30,000 K, or whose ionisation
   balance failed). Select cells with it, as in `g.Te[g.mask]`; note that a plain mean over cells is
   not weighted by volume, and mocread does not provide the cell volumes.

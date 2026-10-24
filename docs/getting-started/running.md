@@ -49,7 +49,7 @@ $$
 A `symmetricXYZ` sphere has about 52% of its cube's cells active. The two PDR
 benchmarks fit in 31 GB at 14 ranks: `hiipdr` (31³, 15,204 active cells) and
 `pn150k` (41³, about 35,000). A larger grid needs fewer ranks. The H₂ level model stays
-within this budget: the test problem's 4,661 active cells used 0.61–0.62 GB per rank,
+within this budget: the tutorial's run of the test problem (4,661 active cells) peaked at 0.63 GB per rank,
 against the formula's 0.65.
 
 ### Run time
