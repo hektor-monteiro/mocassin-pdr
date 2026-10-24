@@ -1,0 +1,38 @@
+{
+ "generated": "2026-10-24",
+ "note": "Figures of tutorials/dust-gas-pdr.md, drawn from the run runs/docs-v2.0.1/tutorial-b (runs root /home/hmonteiro/software/mocassin_docs/runs, git-ignored).",
+ "run": {
+  "path": "runs:docs-v2.0.1/tutorial-b",
+  "version": "MOCASSIN version pdr-coupling-v2.0.1",
+  "ranks": 14,
+  "binary": {
+   "path": "~/.local/bin/mocassin",
+   "md5": "1fbd1604b0acfd3daf676a5ac73527f5"
+  },
+  "run_time": "total run time per processor  00:24:10 (HMS)",
+  "inputs_sha256": {
+   "abunPN150.in": "d8b2bbd2c05803b0b342fb381acf41bc05d4d3d5c437c3e97b27cbcf1be59913",
+   "dust_sizes.dat": "6ca7d387a242b1b9cad0ab40e3317ac8d8964ff6bd603b1379c83269114c2756",
+   "dust_species.dat": "c5188d97dd053519e15393c7c6c49c6369125d8fde88fc6a6b4b7b875b4db2e1",
+   "input.in": "6b91ab8716f2f6670ab0e9326d6b0643f67c100ed347e8fd64b4bd55e721cd4a",
+   "test_gas_21x21x21.dat": "a1dee81f01b90c27383dd20ca184f36699261ebe9eab5a7c60f10d7be576a861"
+  }
+ },
+ "figures": {
+  "tutorial-b_slices_xy.png": {
+   "command": "python examples/tutorial/plot_slices.py runs/docs-v2.0.1/tutorial-b --out-prefix docs/tutorials/_figures/tutorial-b_slices",
+   "script_sha256": "850d5b9564fa13bd1a8b6d81a8918eed9bfcb57860b9a0dc7efce6184f4ad710",
+   "png_sha256": "69290e9b8716e61aae94615cce6c3f99096526a2fbaea98aa77ed9efb52f64a8"
+  },
+  "tutorial-b_slices_xz.png": {
+   "command": "(the same command)",
+   "script_sha256": "850d5b9564fa13bd1a8b6d81a8918eed9bfcb57860b9a0dc7efce6184f4ad710",
+   "png_sha256": "6f436b5a5aaa99c46883e318a5c017979bb43bc68b67db4dcd801c2d545b9828"
+  },
+  "tutorial-b_maps.png": {
+   "command": "/home/hmonteiro/miniforge3/bin/python3 tools/h034_maps.py runs/docs-v2.0.1/tutorial-b --png; copied from output/maps_h2co.png",
+   "script_sha256": "90429f44f27fb19ee7895db57929453e118e59e8daf4969f113b16e8bef9eff7",
+   "png_sha256": "e79c1beaa98bb5de18fda70939d758ea5ef3812ac09077ca820fcbdc74cab174"
+  }
+ }
+}

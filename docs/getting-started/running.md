@@ -89,7 +89,7 @@ cell mask is drawn unseeded).
 
 | Program | What it does |
 | :--- | :--- |
-| `mocassinWarm` | Resumes a run from the grid files in `output/` (`grid0`–`grid3.out`, `dustGrid.out` and, in a PDR build, `pdrGrid.out`, `pdrLineEm.out` and `h2Pop.bin`), with the same `input/`. It reads the input first, so the PDR state is restored only when the input still has `pdr`. |
+| `mocassinWarm` | Resumes a run from the grid files in `output/` (`grid0`–`grid3.out`, `dustGrid.out` and, in a PDR build, `pdrGrid.out`, `pdrLineEm.out` and `h2Pop.bin`), with the same `input/`. It reads the input first, so the PDR state is restored only when the input still has `pdr`. The run's parameters, among them `maxIterateMC`, are then read back from `grid3.out`, not from the input; it counts iterations from 1 again ({doc}`../tutorials/dust-gas-pdr` shows an example). |
 | `mocassinOutput` | Rebuilds the output files (`lineFlux.out`, `temperature.out`, `ionratio.out`, …) from the grid files, without iterating. |
 | `mocassinPlot` | Writes per-cell line luminosities (`plot.out`, `grid4.out`) for the lines listed in `input/plot.in`, for maps and cubes. In a PDR run it also maps the CO lines. |
 
@@ -114,5 +114,5 @@ pdrCoolants 4 "12c+.dat" "12c.dat" "16o.dat" "12co.dat"
 
 Omit `pdrDataDir` so the installed `dataPDR/` is used. The benchmark inputs in
 `benchmarks/pdr/` set it to an absolute path on the development machine: delete that line
-or point it at your copy. {doc}`../user-guide/h2-manual` walks through a complete PDR +
-H₂ run.
+or point it at your copy. {doc}`../tutorials/dust-gas-pdr` walks through a complete dust + gas +
+PDR + H₂ run.
