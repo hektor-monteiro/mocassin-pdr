@@ -440,7 +440,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
 | D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start **Result:** tutorials/dust-gas-pdr published from runs at v2.0.1: graphite run converged at 16 iterations in 24 min on 14 ranks, peak 8.8 GB, 2,268 molecular cells, Hbeta 4.67e35, 1-0 S(1)/Hbeta 8.1e-5; own dust atomic (max 2x(H2) 7e-7). Found: mocassinWarm takes maxIterateMC from output/grid3.out and nPhotons from photoSource.out, not input.in, and its converged-cell share is meaningless (D-438) | Done | 2026-10-24 |
-| D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Predictions on record | Open | 2026-10-24 |
+| D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Fixed (c8af00e, bf2e058, bd68ad9): p0tau1 stops on 96.17% of cells at 11 iterations; p0tau10/p0tau100 plateau at 92-94% and reach the 30-iteration cap; totalE/LStar 0.9999-1.0000 in every dust run, HII40 0.401 -> 1.00005, hiipdr21 0.996 -> 1.00000, every other output byte-identical (plan revision 1: summary.out clock lines and PDR-build-only lines/files excluded, D-438's practice) | Done | 2026-10-24 |
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Predictions on record | Open | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
@@ -42869,9 +42869,109 @@ sits in an inactive cell (the Lexington and quickstart HII40 inputs, hiipdr,
 pn150k: Rin > 0). No documentation page plots an SED.out yet. Nothing else
 writeSED computes feeds another output.
 
+**Executed** (code-executor, 2026-10-24; runs/d441/, one at a time):
+  - **Commits:**
+      - c8af00e F1: the snapshots inside `if (lgGas)`, and iterDamp
+        `lgGas .and.`. The D-200 step and its copies were checked and left
+        alone: they are guarded by `lgPDR` inside #ifdef PDR, and the D-179
+        xH2iterStart copy by `allocated(H2den)`.
+      - bf2e058 F2.
+      - bd68ad9 F3.
+      - bef7b13 F4.
+      - 172b0eb: the fortref golden extents. readInput's anchors moved one
+        line byte-identically; the select case and iterateMC grew only by
+        the D-441 lines.
+  - **Builds:** the matrix (plain, PDR 1D, mocassinWarm, 3D all, h2Test
+    h2Slab) gives rc 0 everywhere. The warning counts (14/16/16/20/0) are
+    identical to a pre-fix build of the same matrix.
+  - **Binaries** (runs/d441/bin/, each from `make clean`):
+
+    | Binary | md5 |
+    | :--- | :--- |
+    | mocassin.plain | d73ab516ad975d5c1d13be78870432cc |
+    | mocassin.3d | 53bd4333eb7c768c895659cf6932c924 |
+    | mocassin.dbg | 717de34a007022e8948c5226fb4f6cca |
+    | mocassin.plain.pre | b72d3435cade48b4ee980c23af630451 |
+    | mocassin.3d.pre | 06e83763f610be6ca799a793b5f4d709 |
+    | mocassin.dbg.pre | 2832d1d9bd45dc019289cee338738ccc |
+
+    Post-fix version string: pdr-coupling-v2.0.1-14-gbef7b13.
+  - **pytest:** 121 passed.
+
+**Verification against the predictions** (ratio = totalE/LStar from run.log):
+  - **T1, as predicted.** p0tau1 at 2 ranks, -O0 -g -fcheck=all:
+      - pre-fix: "At line 1147 of file source/iteration_mod.f90 / Fortran
+        runtime error: Index '3106' of dimension 1 of array 'grid' outside
+        of expected range (0:0)", in iteration 1, after writeSED
+        (11.41/38.26);
+      - post-fix: no runtime error, a clean exit, "dust only: converged cells
+        95.30% >= minConvergence 95.00%" after 12 iterations, ratio 0.9994.
+        Six Fortran runtime warnings about array temporaries (getqs's qabs,
+        qsca, ggcos) are a debug-build notice, not a fault.
+  - **T2, partly against the prediction** (plain build, 14 ranks):
+      - p0tau1 stops on the dust-only line at 11 iterations (96.17%), 8.6 s,
+        ratio 0.99986.
+      - **p0tau10 and p0tau100 reach the 30-iteration cap:** "NOT CONVERGED
+        after 30 iterations: converged cells 93.85%" (87 s) and "91.59%"
+        (173 s). The predicted stop on the dust-only line within 30 did not
+        happen.
+
+        The share plateaus. p0tau100 runs 1, 20, 54, 57, 61, 66, 71, 76, 83,
+        85, 89, 91%, then sits at 90.5-92.0% from iteration 12 to 30, with
+        autoPackets at its last step, 1.28e7 packets. Those cells' dust
+        temperatures change by more than convLimit (0.03) from one
+        iteration to the next at that packet count. Whether that is Monte
+        Carlo noise or a slow drift is not established.
+      - Ratios 1.00000 for both.
+  - **T3:** p0tau10 on the 3D build gives the same stop line and ratio as the
+    plain build. SED.out, dustGrid.out, grid0.out, photoSource.out and
+    tauNu.out are byte-identical.
+  - **T4, as predicted.** Quickstart HII40, pre against post on the plain
+    build:
+      - both converged at 18 iterations on the same S+ line;
+      - convergence, grid0-3, ionratio, lineFlux, photoSource, tauNu and
+        temperature are byte-identical;
+      - SED.out: 260 of 600 rows changed and the trailer;
+      - ratio 0.401 -> 1.00005. The old trailer was "[erg/s]:
+        1.23501973E-33 (x 1e36)"; the new one is "[e36 erg/s]: 3076.93481".
+  - **T5, as predicted.** Quickstart hiipdr21, pre against post on the 3D
+    build:
+      - both stop "NOT CONVERGED after 7 iterations: T(H2) changed 55.121%";
+      - the 23 other outputs are byte-identical, h2Pop.bin, pdr* and
+        lineFlux* included;
+      - SED.out: 152 of 600 rows changed;
+      - ratio 0.99639 -> 1.00000. The 0.4% that hiipdr21 lost was its bucket
+        0.
+  - **T6, as predicted.** The four 2D discs, plain build, cap 10: clean
+    exits on the D-441 NOT CONVERGED line.
+
+    | τ | Converged cells | Ratio | Time |
+    | :--- | :--- | :--- | :--- |
+    | 0.1 | 63.0% | 1.00003 | 132 s |
+    | 1 | 65.1% | 0.99999 | 159 s |
+    | 10 | 70.6% | 0.99991 | 178 s |
+    | 100 | 73.0% | 0.99998 | 184 s |
+
+**A blocker, and plan revision 1.** The executor stopped on the plan's
+"every output file byte-identical". The differences were:
+  - T3: grid3.out's `F  lgPDR` line, which only PDR builds write;
+    pdrFUV.out and pdrFUVspec.out, which only PDR builds write; and
+    summary.out's "finished at" clock lines;
+  - T4 and T5: those clock lines only.
+
+I checked these myself: diff shows nothing else. The criterion as written
+could not hold by construction; D-438 already excluded summary.out's clock
+times. Revision 1 defines byte-identity as every file both runs write, minus
+those clock lines and, between plain and PDR builds, the `lgPDR` line, with
+the PDR-only files listed rather than compared. T3, T4 and T5 pass under it
+as run. Nothing was rerun.
+
+**Noticed.** run.log's energy line prints `totalE, LStar(0:1), nphotons`, so
+LStar is its third number, not its second.
+
 ### Status
 
-Open: fixes planned (2026-10-24).
+Done (2026-10-24): fixed in c8af00e, bf2e058 and bd68ad9. Not ported to dev.
 
 ## D-442 - Documentation site, increment 4a: the 1D dust benchmark (2026-10-24)
 
