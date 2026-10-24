@@ -56,6 +56,7 @@ DEVLOG.md and arrives here by merge.
 | H-045 | **Pushing h2-model to GitHub (the user: "should I push ~/software/mocassin_h2 ?").** The branch is in the same repository, so it would go to hektor-monteiro/mocassin-pdr (public) as its own branch; main stays production's. It has no upstream, so with push.default upstream a plain `git push` fails: `git push -u origin h2-model` creates the branch and sets it. It adds 141 commits over production (H-001 on 2026-09-28 to the D-423 merge): 72 files, 27 of them dataPDR/h2, Cloudy c25.00's data copied unmodified with its zlib notice and sources in dataPDR/h2/README.md; largest blob 1.5 MB; no secrets found; runs/ ignored. Those commits exist on this disk only. Advice: push it after main, as a backup; it is work in progress (H-043 open). Nothing pushed **The user pushed h2-model (3395717) on 2026-10-21; production's release pdr-coupling-v1.2 (D-425) merged here as 1ed9714** | Done 2026-10-21 | 2026-10-20 |
 | H-046 | **This branch merged into production and released as `pdr-coupling-v2.0` (production DEVLOG D-429, D-430); H2 development continues here.** Merge c1ea374 on production, no conflict; four flavours, h2Test and h2Slab rc 0. Release check with the production build: hiipdr 31^3 reproduces this branch's d421-hii31 in every output file but summary.out's clock times; pn150k 41^3 against d405-pn41-d0 (D-418, D-420, D-421 measured there for the first time with the levels in the loop) healthy, ionized T_e x0.996, H2 lines within 0.22%, the cold cell to the dust temperature. The release commit 53c17eb came back here as a fast-forward; CLAUDE.md now carries one note true in both checkouts. Open items carried into the release: H-002, H-021/L-43, H-037, H-043 | Done | 2026-10-21 |
 | H-047 | **Production's release `pdr-coupling-v2.0.1` merged into this branch, with the D-438 fix (the user: "Apply the fix also to h2-model branch").** Merge 24e8e6c of production 7fdaa9e (D-432..D-439: documentation, licensing notices, the guards that let PDR builds run models without `pdr`), no conflict; this branch now differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); HII40 on this branch's 3D build converges at 18 iterations, byte-identical to production's plain build | Done | 2026-10-24 |
+| H-048 | **Production's documentation increment 3 (D-440) merged into this branch (the user: "Merge what has been done in h2-model branch").** Merge d26e8f3 of production de586ae (D-440: tutorials/dust-gas-pdr, examples/tutorial, mocread multiChemistry support, h034_maps.py's data-directory fallback), no conflict; no change in source/, Makefile, data/ or dataPDR/, so nothing rebuilt; this branch again differs from production only in DEVLOG-H2.md. ~/.local/mocassin_h2 not reinstalled: its share/doc examples lack examples/tutorial until the next install | Done | 2026-10-24 |
 
 ---
 
@@ -5923,6 +5924,31 @@ Its lineFlux.out, grid1.out and grid2.out are byte-identical to production's
 documented run.
 
 **Not done:** nothing is pushed.
+
+### Status
+
+Done (2026-10-24).
+
+## H-048 - Documentation increment 3 merged in (2026-10-24)
+
+The user (2026-10-24): "Merge what has been done in h2-model branch then
+Proceed to increment 4". What had been done since H-047 is production's
+documentation increment 3 (production DEVLOG D-440).
+
+**The merge.** `git merge --no-ff pdr-photoionization` at 5dbc89e brought in
+9 commits (production 7fdaa9e..de586ae) as merge d26e8f3, with no conflict:
+the tutorial page docs/tutorials/dust-gas-pdr.md and its figures,
+examples/tutorial (the test problem with pn150k's graphite, plot_slices.py,
+check_model.py), tools/mocread.py reading multiChemistry models,
+tools/h034_maps.py finding its data without pdrDataDir, and the README,
+manual-pointer and DEVLOG changes. `git diff 24e8e6c d26e8f3 -- source
+Makefile data dataPDR` is empty, so no build was redone; `git diff
+pdr-photoionization h2-model` again lists only DEVLOG-H2.md.
+
+**Not done:** ~/.local/mocassin_h2 is not reinstalled. Its binaries need
+nothing from this merge, but its share/doc/mocassin/examples has no
+tutorial/ directory until the next `make install` (production's ~/.local
+neither). Nothing is pushed.
 
 ### Status
 
