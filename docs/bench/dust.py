@@ -28,8 +28,10 @@ docs/bench/data/dust1d):
     sed_<id>.csv          lambda [um], s, in increasing lambda
     compare_tau<t>.csv    at DUSTY's points: each curve and its dex, and whether the point is in the statistics
     temperature_<id>.csv  y = r/r_in and T[0,0] of every active cell
-    summary.csv           per tau, MOCASSIN 2005 and each run: iterations, stop, converged cells, L_SED/LStar,
-                          L_SED/L_e36, r_in/(Rout/1000), T_in, peak lambda, median and max |dex|
+    summary.csv           per tau, MOCASSIN 2005, MOCASSIN 2005 renormalised (over its own integral of
+                          y dln(lambda) in ercolano2005_fig1.json, a shape-only comparison) and each run:
+                          iterations, stop, converged cells, L_SED/LStar, L_SED/L_e36, r_in/(Rout/1000),
+                          T_in, peak lambda, median and max |dex|
     summary_page.csv      the same as the page shows it ({csv-table})
     PROVENANCE.json       sha256 of every file read, each run's version line, the md5 of meta.binary, the date
 
@@ -58,10 +60,12 @@ import mocread  # noqa: E402
 
 TOML = os.path.join(HERE, 'dust.toml')
 REF = os.path.join(HERE, 'ref', 'ercolano2005_fig1.csv')
+REF_JSON = os.path.join(HERE, 'ref', 'ercolano2005_fig1.json')
 DEFAULT_OUT = os.path.join(HERE, 'data', 'dust1d')
 IDS = [f'dust-p0tau{t}-{s}' for t in (1, 10, 100) for s in ('iso', 'hg')]
 TAUS = [1, 10, 100]
 DUSTY, MOC2005 = 'DUSTY 2.01', 'MOCASSIN 2005'
+MOC2005_RENORM = 'MOCASSIN 2005, renormalised'
 SCAT = {'isotropic': 'iso', 'henyey-greenstein': 'hg'}
 NU_HZ = 3.28984e15                             # Hz per Ryd
 PC = 3.0857e18                                 # cm
@@ -107,11 +111,16 @@ def g(v, fmt='%.4g'):
     return fmt % v if np.isfinite(v) else ''
 
 
+def field(x):
+    """a text field, quoted when it holds a comma (\"MOCASSIN 2005, renormalised\")"""
+    return '"' + x.replace('"', '""') + '"' if ',' in x or '"' in x else x
+
+
 def write_csv(path, header, rows, fmt='%.4g'):
     with open(path, 'w', newline='') as f:
         f.write(','.join(header) + '\n')
         for r in rows:
-            f.write(','.join(x if isinstance(x, str) else g(x, fmt) for x in r) + '\n')
+            f.write(','.join(field(x) if isinstance(x, str) else g(x, fmt) for x in r) + '\n')
 
 
 def page(v, fmt='%.3g'):
@@ -155,7 +164,9 @@ def read_log(path):
     cells = [float(m.group(1)) for ln in lines
              for m in [re.search(r'Total:\s+(\S+)\s+% converged cells over all grids', ln)] if m]
     rt = [ln.split('processor', 1)[1].split()[0] for ln in lines if ln.startswith('total run time per processor')]
-    return {'version': lines[0].strip(), 'iterations': sum('finished at' in ln for ln in lines),
+    # the first MOCASSIN version line: with many ranks the start-up output interleaves, so not line 1
+    version = next((ln.strip() for ln in lines if 'MOCASSIN version' in ln), None)
+    return {'version': version, 'iterations': sum('finished at' in ln for ln in lines),
             'stop_line': stop[0], 'stop': 'not converged' if 'NOT CONVERGED' in stop[0] else 'converged',
             'cells_pct': cells[-1] if cells else None, 'run_time': rt[-1] if rt else None}
 
@@ -227,6 +238,8 @@ def reduce_all(conf, runs, ids, out):
         curve.setdefault((r['code'], int(r['tau'])), []).append((float(r['lam_um']), float(r['y']),
                                                                   int(r['segment'])))
     curve = {k: np.array(sorted(v)) for k, v in curve.items()}
+    with open(src(REF_JSON)) as f:
+        integral = {(c['code'], c['tau']): c['integral_y_dlnlam'] for c in json.load(f)['curves']}
     done = {i: Run(i, conf['run'][i], runs[i]) for i in ids}
     summary, page_rows, card = [], [], {}
     for i, run in done.items():
@@ -263,6 +276,11 @@ def reduce_all(conf, runs, ids, out):
         summary.append([tau, MOC2005, '', None, '', None, None, None, None, None, mp, dpeak, m, mx, mxl])
         page_rows.append([str(tau), MOC2005, NA, NA, NA, NA, NA, NA, page(mp), page(m, '%.3f'), page(mx, '%.3f'),
                           page(mxl)])
+        # the published curve over its own integral of y dln(lambda) (ercolano2005_fig1.json): its shape alone
+        m, mx, mxl = stats(np.log10(cols[MOC2005] / integral[(MOC2005, tau)] / dusty), lam, use)
+        summary.append([tau, MOC2005_RENORM, '', None, '', None, None, None, None, None, mp, dpeak, m, mx, mxl])
+        page_rows.append([str(tau), MOC2005_RENORM, NA, NA, NA, NA, NA, NA, page(mp), page(m, '%.3f'),
+                          page(mx, '%.3f'), page(mxl)])
         for i in names[1:]:
             run = done[i]
             m, mx, mxl = stats(dex[i], lam, use)
