@@ -348,7 +348,15 @@
     The SED of the escaping radiation. Per bin: ν (Ryd), λ (µm), then F_ν D²
     (Jy pc²) over all directions and at each `inclination`, then the same for
     the packets last emitted in the source cells. symmetricXYZ factors
-    applied. Ends with the total energy radiated.
+    applied. Ends with the total energy radiated, in 10³⁶ erg/s.
+
+    A source in an inactive cell (a central cavity) books the packets that
+    leave without interacting to that cell. They count in the source columns,
+    and in the total unless the SED excludes the sources (lgNosource) or is a
+    light echo (lgEcho). Before D-441 they were left out, so a model with a
+    cavity lost its directly escaping starlight (only 40% of the luminosity
+    reached the file in the quickstart HII40), and the last line was
+    mis-scaled by 10⁻³⁶.
 
 - name: equivalentTau.out
   group: results

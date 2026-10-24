@@ -34,7 +34,7 @@ GOLDEN = {
     'update_mod.f90::thermbalance':
         ('source/update_mod.f90', 1796, 2522, 'update_mod/updateCell/thermBalance'),
     'iteration_mod.f90::iterateMC':
-        ('source/iteration_mod.f90', 56, 3345, 'iteration_mod/MCIterationDriver/iterateMC'),
+        ('source/iteration_mod.f90', 56, 3358, 'iteration_mod/MCIterationDriver/iterateMC'),
     # forLines in three modules: the path decides, the scope suffix must fit
     'emission_mod.f90::forLines':
         ('source/emission_mod.f90', 586, 637, 'emission_mod/emissionDriver/forLines'),
@@ -47,13 +47,13 @@ GOLDEN = {
     'vector_mod.f90::mult': ('source/vector_mod.f90', 139, 147, 'vector_mod/mult'),   # typed function
     # text anchors and their extents
     'set_input_mod.f90::readInput@"case (\\"convTotals\\")"':
-        ('source/set_input_mod.f90', 468, 470, 'set_input_mod/readInput'),
+        ('source/set_input_mod.f90', 469, 471, 'set_input_mod/readInput'),
     'set_input_mod.f90::readInput@"case (\\"convLimit\\")"':
-        ('source/set_input_mod.f90', 462, 464, 'set_input_mod/readInput'),
+        ('source/set_input_mod.f90', 463, 465, 'set_input_mod/readInput'),
     'set_input_mod.f90::readInput@"case (\\"convLimit\\")"..@"XHILimit"':
-        ('source/set_input_mod.f90', 462, 464, 'set_input_mod/readInput'),
+        ('source/set_input_mod.f90', 463, 465, 'set_input_mod/readInput'),
     'set_input_mod.f90::readInput@"case (\\"convTotals\\")"+1':
-        ('source/set_input_mod.f90', 468, 469, 'set_input_mod/readInput'),
+        ('source/set_input_mod.f90', 469, 470, 'set_input_mod/readInput'),
     'iteration_mod.f90::iterateMC@"call h2LevelModel(grid(1:nGrids), 1)"':
         ('source/iteration_mod.f90', 1043, 1045, 'iteration_mod/MCIterationDriver/iterateMC'),
     'update_mod.f90::thermBalance@"do i = 1, 12"#1':
@@ -133,7 +133,7 @@ def test_not_compiled_flag():
 
 def test_long_extent_warns_but_resolves():
     res, w = repo.resolve('set_input_mod.f90::readInput@"select case (keyword)"')
-    assert (res.start, res.end) == (152, 765)
+    assert (res.start, res.end) == (152, 766)
     assert [x[0] for x in w] == ['long-extent']
     res, w = repo.resolve('set_input_mod.f90::readInput@"select case (keyword)"', allow_long=True)
     assert w == []

@@ -1142,13 +1142,17 @@ module iteration_mod
               ! D-155: the state this MC iteration starts from. The convergence
               ! test must compare against THIS, not against the previous
               ! coupling pass - see the note on xHIiterStart in common_mod.
-              if (allocated(grid(iG)%xHIiterStart)) &
-                   & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
-                   & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
-              ! D-173: same snapshot for the temperature.
-              if (allocated(grid(iG)%TeIterStart)) &
-                   & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
-                   & grid(iG)%Te(0:grid(iG)%nCells)
+              ! D-441: ionDen and Te exist only with gas; the snapshots are
+              ! allocated in every model, and a dust-only model crashed here.
+              if (lgGas) then
+                 if (allocated(grid(iG)%xHIiterStart)) &
+                      & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
+                      & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
+                 ! D-173: same snapshot for the temperature.
+                 if (allocated(grid(iG)%TeIterStart)) &
+                      & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
+                      & grid(iG)%Te(0:grid(iG)%nCells)
+              end if
 #ifdef PDR
               ! D-200: and for the two state vectors the bistability actually
               ! lives in - the molecular abundances and the ion fractions.
@@ -2374,7 +2378,7 @@ module iteration_mod
            !
            ! D-406: off by default (iterDamp = 0, common_mod), this and the
            ! D-200 step below; D-405 found no cycle left for them to break.
-           if (iterDamp > 0.) then
+           if (lgGas .and. iterDamp > 0.) then
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%TeIterStart)) cycle
                  do iDum = 1, grid(iG)%nCells
@@ -3256,9 +3260,14 @@ module iteration_mod
               if (taskid==0) then
                  print*, "! iterateMC: [talk] convergence reached after ", &
                       &                           nIterateMC, " iterations. & Finishing up ... "
-                 print '(a,f8.3,a,a,a,f6.2,a)', " ! iterateMC: [talk] integrated quantities"// &
-                      & " converged: largest change over the last window", 100.*cvTotWorst, &
-                      & "% (", trim(cvTotWorstName), "), limit", 100.*convTotals, "%"
+                 if (lgGas) then
+                    print '(a,f8.3,a,a,a,f6.2,a)', " ! iterateMC: [talk] integrated quantities"// &
+                         & " converged: largest change over the last window", 100.*cvTotWorst, &
+                         & "% (", trim(cvTotWorstName), "), limit", 100.*convTotals, "%"
+                 else
+                    print '(a,f7.2,a,f6.2,a)', " ! iterateMC: [talk] dust only: converged cells", &
+                         & totPercent, "% >= minConvergence", minConvergence, "%"
+                 end if
 
                  ! output results at this itearation stage (every 3 iterations)
 
@@ -3302,6 +3311,10 @@ module iteration_mod
                     end if
                     print '(a,f7.2,a,f7.2,a)', " ! iterateMC: [talk] converged cells", totPercent, &
                          & "% (minConvergence", minConvergence, "%, reported only - D-392)"
+                 else
+                    print '(a,i4,a,f7.2,a,f6.2,a)', " ! iterateMC: [talk] NOT CONVERGED after", &
+                         & nIterateMC, " iterations: converged cells", totPercent, &
+                         & "% (minConvergence", minConvergence, "%, dust only - D-441)"
                  end if
 
 #ifdef PDR
@@ -3701,7 +3714,9 @@ module iteration_mod
            cvTotWorst = -1.
            cvTotWorstName = ''
            if (.not.lgGas) then
-              lgCvTotals = .true.      ! nothing integrated to test (dust only)
+              ! dust only; nothing integrated to test, so the cell criterion on
+              ! the dust temperature decides, as in dev and before D-392 (D-441)
+              lgCvTotals = (totPercent >= minConvergence)
            else if (cvTotNit <= cvTotK) then
               lgCvTotals = .false.     ! not testable yet
            else

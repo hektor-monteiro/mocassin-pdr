@@ -3368,6 +3368,17 @@ endif
               enddo ! k
             enddo ! j
           enddo ! i
+
+          ! D-441: bucket 0 holds the packets whose origin cell is inactive,
+          ! which can only be a source in a cavity. The code before ca87ffc
+          ! summed i = 0..nCells. The echo path keeps active cells only, as it
+          ! always did.
+          do imu = 0, nAngleBins
+            Luminosity(freq,imu) = Luminosity(freq,imu) + grid(iG)%escapedPackets(0,freq,imu)
+            sSED(freq,imu) = sSED(freq,imu) + grid(iG)%escapedPackets(0,freq,imu)
+            if (.not.lgEcho .and. .not.lgNosource) &
+                 & SED(freq,imu) = SED(freq,imu) + grid(iG)%escapedPackets(0,freq,imu)
+          end do
         end do ! freq
       end do ! iG
       
@@ -3459,7 +3470,7 @@ endif
   
       ! --- Final Summary Output ---
       write(16,*) ' '
-      write(16,*) 'Total energy radiated out of the nebula [erg/s]:', totalE * 1.0e-36, ' (x 1e36)'
+      write(16,*) 'Total energy radiated out of the nebula [e36 erg/s]:', totalE
       print*, 'Total energy radiated out of the nebula [e36 erg/s]:', totalE, Lstar, nphotons
   
       write(16,*) ' '

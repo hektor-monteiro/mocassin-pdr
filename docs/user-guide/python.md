@@ -32,7 +32,8 @@ $ python3 tools/mocread.py my_model
 | `read_lines(run)` | `output/lineFlux.out`, the totals block | a `Lines`: H$\beta$ and the H I, He I, He II and heavy-ion forbidden lines relative to H$\beta$ (not the heavy-element recombination tables that `recombinationLines` adds) |
 | `mean_te(run)` | `output/temperature.out`, totals block | the mean temperature of each ion, weighted by $n_e\,n_\mathrm{ion}\,dV$ |
 | `ion_fractions(run)` | `output/ionratio.out`, totals block | the mean fraction of each element in each stage, weighted by $n_e\,n_{\mathrm H}\,dV$ |
-| `read_sed(run)` | `output/SED.out` | frequency (Ryd), wavelength (µm) and the SED summed over all directions, as $F_\nu D^2$ (Jy pc²) |
+| `read_sed(run)` | `output/SED.out` | frequency (Ryd), wavelength (µm) and the SED as $F_\nu D^2$ (Jy pc²): summed over all directions (`total`), towards each `inclination` (`views`, `viewpoints`), and the same for the sources' own packets (`star`, `star_views`); `L_e36`, the luminosity the file reports (10³⁶ erg/s; `None` for files written before {devlog}`D-441`) |
+| `read_dust(run)` | `output/grid0.out`, `grid3.out`, `dustGrid.out` | a `Dust`: axes, flags, the grain number density `ndust` and the temperature of every grain species and size, `T[s, a]` (index 0 is the mean, so `T[0, 0]` is a cell's mean dust temperature); it also reads models without gas, which have no `grid1.out` or `grid2.out` |
 | `read_pdr(run, grid)` | `output/pdrGrid.out` (PDR runs) | a `PDR`: the FUV field, $A_V$, the chemistry's heating and cooling, and the abundances of its 33 species |
 | `read_convergence(run)` | `output/convergence.out` | the names of the model-integrated quantities and their values per iteration |
 
@@ -67,6 +68,7 @@ $ python3 tools/mocread.py my_model
 ## Scope
 
 It reads models with **one grid** in **three dimensions**, written by a **gfortran** build without
-`lgDebug`, with one nebular composition or several (`multiChemistry`). A model outside these limits
+`lgDebug`, with one nebular composition or several (`multiChemistry`). A model without gas has no
+`grid1.out` or `grid2.out`: read it with `read_dust` and `read_sed`, not `read_grid`. A model outside these limits
 (sub-grids, a 2D model, files wrapped at 80 columns by ifort) is refused with a message saying which
 limit it hit, rather than read wrongly.

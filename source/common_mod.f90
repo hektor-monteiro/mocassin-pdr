@@ -774,7 +774,7 @@ module common_mod
     real               :: meanField        ! mean ionizing field to be used with plane parallel
                                            ! geometry [erg/sec/cm^2]
     real               :: meanFieldin
-    real               :: minConvergence   ! % of cells passing; reported, no longer stops a run (D-392)
+    real               :: minConvergence   ! % of cells passing; reported in gas models (D-392), stops dust-only runs (D-441)
     real               :: minConvQHeat     ! min convergence level for Qheat routines to run
     real               :: NeStart          ! initial guess at Ne
     real               :: MdMgValue        ! dust-to-gas ratio by mass
