@@ -439,6 +439,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) **Result:** quickstart, Python-reader and Lexington pages built and reviewed; the Lexington fixtures stopped unconverged at their 10-iteration cap under D-391's test, so the cap is 60 (the user's choice); converged runs give 20/28, 12/21, 36/47, 21/37 values in the codes' range (MOCASSIN 2003: 20, 15, 42, 27); the quickstart found the PDR-build crash fixed at D-438; README, H2 manual and the D-430 release notes corrected; linkcheck clean, DOIs checked | Done | 2026-10-23 |
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
+| D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start | In progress | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42587,3 +42588,72 @@ byte-identical to mocassin_docs/runs/docs-v2.0/qs-hii40-np14.
 ### Status
 
 Done.
+
+---
+
+## D-440 - Documentation site, increment 3: the dust + gas + PDR tutorial (2026-10-24)
+
+The user (2026-10-24): "Yes and then proceed with plan", after the two
+reinstalls (D-439, H-047). Increment 3 of D-432 is the tutorial of a full
+dust + gas + PDR model built from benchmarks/test_Problem. Asked where it
+should live, the user chose "Site page; manual points to it". So the tutorial
+becomes a site page with figures, and doc/manual-pdr-h2.md, included in place
+until now (D-432), becomes a pointer to it. Plan
+`~/.claude-lac/plans/velvet-rolling-kettle.md` (increment 3), approved
+2026-10-24.
+
+**Findings from planning** (two exploration agents, read-only):
+  - **The manual's runs predate the release physics.** h035-testproblem-b/c
+    and h036b-tp-orig/sil (in mocassin_h2/runs) were made on h2-model at
+    v1.1-229/232, before D-418, D-420 and D-421. None of their numbers is a
+    v2.0.1 result.
+  - **The density file is not box-shaped.**
+    accessories/Create-Structure.ipynb builds:
+      - a ring of n_H = 8e4 cm^-3 at cylindrical R = 1.2-3.6e17 cm and
+        |z| <= 2e17 cm (384 active cells);
+      - inside a slab of 1e4 cm^-3 at |z| <= 2e17 cm;
+      - a cavity and halo of 1e3 cm^-3.
+
+    There are 4,661 active cells in a 21^3 octant, and Rout = 8e17 cm.
+    "box-shaped" in the manual and in README (written at D-437) is wrong;
+    H-037 had the geometry right.
+  - **multiChemistry is a demonstration only.** test_Problem names
+    abunPN150.in twice: component 1 is the z = 0 plane (441 points),
+    component 2 the rest. The split changes nothing physically; it only
+    splits the line tables. tools/mocread.py refuses multiChemistry, and
+    tools/h034_maps.py exits without pdrDataDir.
+  - **The dust decides whether the PDR turns molecular.**
+      - test_Problem's own dust (astrosilicate + PAH, Ndust file;
+        3.4e-23 cm^2/H of grain area) leaves the PDR atomic (H-036).
+      - pn150k's graphite with MdMg 2.4827e-3 turns it molecular (H-035
+        run c).
+  - **The committed plot.in is stale.** benchmarks/test_Problem/input/plot.in
+    has iLine codes that are wrong from nitrogen on, and its output/ is a
+    pre-PDR legacy run. Neither is used here.
+
+**Predictions on record** (v2.0.1, ~/.local/bin/mocassin, 14 ranks,
+randomSeed 1001):
+  - **R1, pn150k graphite:**
+      - stops on the integrated test within 30 iterations, at about 15-22;
+      - 30-45 min;
+      - peak memory 8.5-10 GB;
+      - 1,500-2,500 points with 2n(H2)/n_H > 0.2;
+      - largest n(CO)/n_H about 3e-4;
+      - largest A_V 9-11;
+      - Hbeta 4.4-4.9e35 erg/s;
+      - 1-0 S(1)/Hbeta within x1.5 of 8.1e-5;
+      - 5-40 flagged points;
+      - hydrogen budget < 1e-8.
+  - **R2, own dust:**
+      - atomic: largest 2n(H2)/n_H < 1e-5;
+      - 12-25 min;
+      - Hbeta 4.6-5.1e35 erg/s.
+  - **R3, warm start of R1 with maxIterateMC 4:**
+      - the log says "[D-393] PDR state resumed";
+      - the H2 populations are resumed;
+      - 4 iterations;
+      - Hbeta and 1-0 S(1) within 5% of R1's.
+
+### Status
+
+In progress.
