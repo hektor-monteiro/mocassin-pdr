@@ -75,7 +75,7 @@ Each must satisfy $|q_n/q_{n-3}-1|\le$ `convTotals` (default 0.02)
 significant at both ends of the window: an ion stage carrying at least 1% of its
 element's ion emission measure, H⁰ and H₂ at least 1% of the hydrogen, CO at least 1%
 of the carbon. The run cannot stop before iteration 4, nor in a PDR run before
-`pdrStartIter`+1. Every iteration's values are in `output/convergence.out`. The
+`pdrStartIter`+1 (a model without gas can, see below). Every iteration's values are in `output/convergence.out`. The
 converged-cell percentage, and `minConvergence` (the second number of
 `maxIterateMC`), are reported, not tested; the percentage still controls `writeGrid`,
 `autoPackets` and `quantumHeatGrain`. A model without gas has nothing integrated to test, and

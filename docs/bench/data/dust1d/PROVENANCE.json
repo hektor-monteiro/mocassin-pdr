@@ -4,7 +4,7 @@
  "runs": {
   "dust-p0tau1-iso": {
    "run": "runs:docs-d442/dust-p0tau1-iso",
-   "version": "2 input file: input/input.in",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
    "stop_line": "! iterateMC: [talk] dust only: converged cells  95.20% >= minConvergence 95.00%",
    "run_time": "00:00:06"
   },
@@ -53,7 +53,7 @@
   "sha256": "185aee4921e4c353859c632681aed33dd4a8d93f59f8e0cd869d40b71613fa45"
  },
  "script": {
-  "dust.py": "aa0b2c592688030dd2c55d4ed56f5b80eb02210b4b41589748d01dc962bc4407",
+  "dust.py": "0ab77c2370d06e7e9fe700b03c05dfc94594a4d589074caf6b450a27235ff1ff",
   "mocread.py": "db0fd88e2ea279469b57a1104dfdc63a84a21aace0d1be2d1cb1e7b7a0b2b06a"
  },
  "files_read": {
@@ -73,6 +73,7 @@
   "repo:docs/bench/inputs/dust-p0tau100-hg/input.in": "578f1f13b4a29f0e5fcd450971f3a6fb4b00c3af72354b0e327b935449d6966b",
   "repo:docs/bench/inputs/dust-p0tau100-iso/input.in": "d7646fbcfa364d232f03b29d3a8c7ca8557b79b70c5918ed18b067a75e0229f1",
   "repo:docs/bench/ref/ercolano2005_fig1.csv": "185aee4921e4c353859c632681aed33dd4a8d93f59f8e0cd869d40b71613fa45",
+  "repo:docs/bench/ref/ercolano2005_fig1.json": "bde28db6fa2a09b6b4204e9e8fe51c5ccc61c139a873f1617dc52ae7644f437d",
   "runs:docs-d442/dust-p0tau1-hg/input/input.in": "2b5e43ce6b4d501cf3197a04c1cd55240dd93a2f61495b465ef0edb5a70229af",
   "runs:docs-d442/dust-p0tau1-hg/input/p0tau1.ndust": "e5f6b17ec3320358a2ffc0724163d1af7eb096dd441de169e984c19da08b727d",
   "runs:docs-d442/dust-p0tau1-hg/input/p0tau1_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",

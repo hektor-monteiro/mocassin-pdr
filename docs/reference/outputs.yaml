@@ -351,10 +351,12 @@
     applied. Ends with the total energy radiated, in 10³⁶ erg/s.
 
     A source in an inactive cell (a central cavity) books the packets that
-    leave without interacting to that cell, and they count in both the total
-    and the source columns. Before D-441 they were left out of both, so a model
-    with a cavity lost its directly escaping starlight (60% of the luminosity
-    in the quickstart HII40), and the last line was mis-scaled by 10⁻³⁶.
+    leave without interacting to that cell. They count in the source columns,
+    and in the total unless the SED excludes the sources (lgNosource) or is a
+    light echo (lgEcho). Before D-441 they were left out, so a model with a
+    cavity lost its directly escaping starlight (only 40% of the luminosity
+    reached the file in the quickstart HII40), and the last line was
+    mis-scaled by 10⁻³⁶.
 
 - name: equivalentTau.out
   group: results

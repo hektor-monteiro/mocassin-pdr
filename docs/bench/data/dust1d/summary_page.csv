@@ -1,10 +1,13 @@
 τ(1 µm),Curve,Iterations,Stop,Converged cells [%],L_SED / L★,L_SED / L_e36,T_in [K],Peak λ [µm],Median |dex|,Max |dex|,at λ [µm]
 1,MOCASSIN 2005,–,–,–,–,–,–,1.7,0.036,0.068,140
+1,"MOCASSIN 2005, renormalised",–,–,–,–,–,–,1.7,0.010,0.054,0.44
 1,MOCASSIN-PDR (isotropic),10,converged,95.2,0.9997,0.9998,759,1.59,0.003,0.066,0.44
 1,MOCASSIN-PDR (henyey-greenstein),11,converged,96.2,0.9997,0.9998,759,1.59,0.024,0.456,0.44
 10,MOCASSIN 2005,–,–,–,–,–,–,45,0.033,0.051,400
+10,"MOCASSIN 2005, renormalised",–,–,–,–,–,–,45,0.013,0.079,9.55
 10,MOCASSIN-PDR (isotropic),30,not converged,93.2,0.9998,0.9998,809,47.3,0.010,0.078,9.55
 10,MOCASSIN-PDR (henyey-greenstein),30,not converged,93.8,0.9998,0.9998,807,47.3,0.016,0.293,1
 100,MOCASSIN 2005,–,–,–,–,–,–,70,0.026,0.094,25
+100,"MOCASSIN 2005, renormalised",–,–,–,–,–,–,70,0.018,0.111,25
 100,MOCASSIN-PDR (isotropic),30,not converged,91.8,0.9998,0.9998,811,70.8,0.029,0.145,7
 100,MOCASSIN-PDR (henyey-greenstein),30,not converged,91.6,0.9998,0.9998,792,70.8,0.028,0.154,7
