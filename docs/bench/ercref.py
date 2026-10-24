@@ -27,9 +27,11 @@ MOCASSIN 2005, (1,0,0) with L2 DUSTY 2.01; line width 10, 40, 80 is tau = 1, 10,
 of each code at tau = 100 are one curve. Points on the bottom or right edge of the frame are where a
 curve was clipped, and are dropped.
 
-Writes docs/bench/ref/ercolano2005_fig1.csv (code, tau, lam_um, y; %.6g, sorted by code, tau, lambda)
+Writes docs/bench/ref/ercolano2005_fig1.csv (code, tau, segment, lam_um, y; %.6g, sorted by code, tau,
+lambda; segment is 1 for a curve drawn as one path, and 1, 2, 3 for the tau = 100 subpaths in lambda order)
 and ercolano2005_fig1.json (where the values come from, the frame, ticks and calibration, the point
-counts and each curve's integral of y over ln lambda by the trapezoid rule). That integral is 1 for a
+counts and each curve's integral of y over ln lambda by the trapezoid rule, across the gaps between
+segments). That integral is 1 for a
 curve normalised as the caption says; DUSTY 2.01's must lie in 0.97-1.02, which checks the calibration.
 MOCASSIN 2005's is reported and not checked: the published curve lies 0.02-0.04 dex below DUSTY's and is
 kept as published. --check extracts again and compares with the committed CSV byte for byte. Needs the
@@ -206,15 +208,17 @@ def extract(ps):
     rows, record = [], []
     for (code, tau) in sorted(cv):
         pts = [q for s in cv[(code, tau)] for q in s]
-        kept = np.array(sorted(q for q in pts if q[1] != fr['y0'] and q[0] != fr['x1']))
+        kept = sorted((x, y, seg) for seg, sub in enumerate(cv[(code, tau)], start=1) for x, y in sub
+                      if y != fr['y0'] and x != fr['x1'])
+        kept = np.array(kept)
         lam = 10 ** ((kept[:, 0] - X1UM) / XDEC)
         y = 10 ** ((kept[:, 1] - Y1) / YDEC)
-        integral = float(np.trapezoid(y, np.log(lam)))
-        rows += [(code, tau, a, b) for a, b in zip(lam, y)]
+        integral = float(np.trapezoid(y, np.log(lam)))      # across the tau = 100 gaps too
+        rows += [(code, tau, int(seg), a, b) for a, b, seg in zip(lam, y, kept[:, 2])]
         record.append({'code': code, 'tau': tau, 'points': len(pts), 'subpaths': [len(s) for s in cv[(code, tau)]],
                        'points_kept': len(kept), 'integral_y_dlnlam': round(integral, 6),
                        'checked': code == 'DUSTY 2.01'})
-    csv = 'code,tau,lam_um,y\n' + ''.join(f'{c},{t},{a:.6g},{b:.6g}\n' for c, t, a, b in rows)
+    csv = 'code,tau,segment,lam_um,y\n' + ''.join(f'{c},{t},{n},{a:.6g},{b:.6g}\n' for c, t, n, a, b in rows)
     return csv, fr, xmaj, ymaj, record
 
 
