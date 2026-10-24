@@ -804,8 +804,8 @@ silently and crashes** (D-416, found in DEVLOG-H2 H-036). `makeElements`
 name, in `character(len=128)`. Past that the path is truncated, `inquire` finds
 nothing, and that ion's data are skipped without a message; the worker ranks
 then die at start-up with SIGSEGV. Recorded, not changed: a longer variable is
-a one-line fix, waiting for a plan (D-419). The README and
-`doc/manual-pdr-h2.md` state the limit.
+a one-line fix, waiting for a plan (D-419). The README, the installation page and
+the tutorial of the documentation site state the limit.
 
 **L-60. A bare `make` builds no executable** (D-424). The Makefile's first
 target is an object file (`.DEFAULT_GOAL := source/interpolation_mod.o`), so

@@ -1,7 +1,8 @@
 """tools/mocread.py against the runs it was written for: the release run rel-hii31 (3D PDR build), read
 identically to docs/bench/reduce.py's read_run, and the Lexington HII40 run of D-376 (plain build).
 The runs root is $MOCASSIN_RUNS (default the production checkout's runs/); a test whose run directory
-is missing is skipped."""
+is missing is skipped. multiChemistry is tested on the test_Problem run h036b-tp-orig of the h2
+worktree and on small synthetic run directories."""
 
 import importlib.util
 import os
@@ -22,6 +23,7 @@ import mocread  # noqa: E402
 RUNS = os.environ.get('MOCASSIN_RUNS', '/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs')
 REL = os.path.join(RUNS, '_release_v2', 'rel-hii31')
 LEX = os.path.join(RUNS, 'd376-lex', 'HII40', 'new')
+TP = '/home/hmonteiro/software/mocassin_h2/runs/h036b-tp-orig'
 
 
 def need(run):
@@ -89,8 +91,54 @@ def test_multigrid_refused(tmp_path):
         mocread.read_grid(str(tmp_path))
 
 
-def test_multichemistry_refused(tmp_path):
+def test_multichemistry_test_problem():
+    need(TP)
+    g = mocread.read_grid(TP)
+    assert g.elements == ['H', 'He', 'C', 'N', 'O', 'Ne', 'Mg', 'Si', 'S']
+    k, c = np.unique(g.abindex, return_counts=True)
+    assert dict(zip(k.tolist(), c.tolist())) == {1: 441, 2: 8820}
+    act = g.active > 0
+    o = sum(g.frac('O', q) for q in range(7))              # grid2.out holds O's charges 0 to 6
+    assert np.abs(o[act] - 1).max() < 1e-5
+    ab = mocread.composition(TP)
+    assert isinstance(ab, dict) and ab['C'] == 3e-4
+
+
+def abundance_file(path, c):
+    vals = [1., 0.1, 0., 0., 0., c] + [0.] * 24             # H, He and C of the 30 elements
+    path.write_text(''.join(f'{v!r}  ! {el}\n' for v, el in zip(vals, mocread.ELEMENTS)))
+
+
+def test_multichemistry_components_differ(tmp_path):
     (tmp_path / 'input').mkdir()
-    (tmp_path / 'input' / 'input.in').write_text('nebComposition "input/abun.in"\nmultiChemistry 1 "x" 1\n')
+    (tmp_path / 'output').mkdir()
+    (tmp_path / 'input' / 'input.in').write_text(
+        'multiChemistry 2 "input/abunA.in" \'input/abunB.in\'\n')
+    abundance_file(tmp_path / 'input' / 'abunA.in', 3e-4)
+    abundance_file(tmp_path / 'input' / 'abunB.in', 1e-4)
+    # a 2 x 2 x 1 grid, all four points active; abFileIndex 1, 2, 2, 1
+    (tmp_path / 'output' / 'grid0.out').write_text(
+        '1\n2 2 1 4 0 1.0E+17\n0. 1.0E+17\n0. 1.0E+17\n0.\n'
+        + ''.join(f'{p} 1 0\n' for p in range(1, 5)))
+    idx = [1, 2, 2, 1]
+    (tmp_path / 'output' / 'grid1.out').write_text(''.join(f'1.0E+4 1.0E+3 1.0E+3 {i}\n' for i in idx))
+    (tmp_path / 'output' / 'grid2.out').write_text(
+        '0. 1.\n0. 1. 0.\n0. 1. 0. 0. 0. 0. 0.\n' * 4)
+    with pytest.raises(ValueError):
+        mocread.composition(str(tmp_path))
+    comps = mocread.compositions(str(tmp_path))
+    assert len(comps) == 2 and [d['C'] for d in comps] == [3e-4, 1e-4]
+    g = mocread.read_grid(str(tmp_path))
+    assert np.array_equal(g.abindex.ravel(), idx)
+    assert np.array_equal(g.abundance('C').ravel(), [3e-4, 1e-4, 1e-4, 3e-4])
+
+
+def test_both_compositions_refused(tmp_path):
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'input' / 'input.in').write_text(
+        'nebComposition "input/abun.in"\nmultiChemistry 1 "input/abun.in"\n')
+    abundance_file(tmp_path / 'input' / 'abun.in', 3e-4)
+    with pytest.raises(ValueError):
+        mocread.compositions(str(tmp_path))
     with pytest.raises(ValueError):
         mocread.composition(str(tmp_path))
