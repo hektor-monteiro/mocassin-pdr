@@ -5,6 +5,9 @@
 # docs/bench/ercref.py reads Fig. 1 (dustybench.ps, vector PostScript) from the arXiv source and writes
 # docs/bench/ref/ercolano2005_fig1.csv. docs/bench/dust.py reads the runs (paths relative to the runs
 # root, $MOCASSIN_RUNS, default meta.runs_root_default) and compares their SEDs with the figure's.
+#
+# Each run's input/ holds docs/bench/inputs/<id>/input.in (the fixture's input.in, randomSeed 1001 and,
+# for scattering = "isotropic", isotropicScattering) and the fixture's other three files.
 
 [meta]
 title = "The 1D dust shells: MOCASSIN-PDR against DUSTY 2.01 and MOCASSIN 2005"
@@ -13,6 +16,8 @@ runs_root_default = "/home/hmonteiro/software/mocassin_docs/runs"
 build = "make PDR=1 PDRGEOM=3D mocassin"
 binary = "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs/d441/bin/mocassin.3d"
 binary_md5 = "53bd4333eb7c768c895659cf6932c924"
+ranks = 14
+seed = 1001
 
 [ref.ercolano2005]
 url = "https://arxiv.org/src/astro-ph/0507050"
@@ -21,3 +26,57 @@ tarball_sha256 = "f73f74817f7d65772c90cbf9992d7b468280dbc47251a47bc4e2601aa1adeb
 member = "dustybench.ps"
 member_sha256 = "641116334901a9f7c6087cffa344b9681065e950cb7f1c421af401bcf599eb8d"
 citation = "Ercolano, Barlow & Storey 2005, MNRAS 362, 1038, Fig. 1"
+
+[run.dust-p0tau1-iso]
+path = "docs-d442/dust-p0tau1-iso"
+inputs = "docs/bench/inputs/dust-p0tau1-iso"
+fixture = "benchmarks/dust/1D/p0tau1"
+tau = 1
+scattering = "isotropic"
+ranks = 14
+seed = 1001
+
+[run.dust-p0tau1-hg]
+path = "docs-d442/dust-p0tau1-hg"
+inputs = "docs/bench/inputs/dust-p0tau1-hg"
+fixture = "benchmarks/dust/1D/p0tau1"
+tau = 1
+scattering = "henyey-greenstein"
+ranks = 14
+seed = 1001
+
+[run.dust-p0tau10-iso]
+path = "docs-d442/dust-p0tau10-iso"
+inputs = "docs/bench/inputs/dust-p0tau10-iso"
+fixture = "benchmarks/dust/1D/p0tau10"
+tau = 10
+scattering = "isotropic"
+ranks = 14
+seed = 1001
+
+[run.dust-p0tau10-hg]
+path = "docs-d442/dust-p0tau10-hg"
+inputs = "docs/bench/inputs/dust-p0tau10-hg"
+fixture = "benchmarks/dust/1D/p0tau10"
+tau = 10
+scattering = "henyey-greenstein"
+ranks = 14
+seed = 1001
+
+[run.dust-p0tau100-iso]
+path = "docs-d442/dust-p0tau100-iso"
+inputs = "docs/bench/inputs/dust-p0tau100-iso"
+fixture = "benchmarks/dust/1D/p0tau100"
+tau = 100
+scattering = "isotropic"
+ranks = 14
+seed = 1001
+
+[run.dust-p0tau100-hg]
+path = "docs-d442/dust-p0tau100-hg"
+inputs = "docs/bench/inputs/dust-p0tau100-hg"
+fixture = "benchmarks/dust/1D/p0tau100"
+tau = 100
+scattering = "henyey-greenstein"
+ranks = 14
+seed = 1001
