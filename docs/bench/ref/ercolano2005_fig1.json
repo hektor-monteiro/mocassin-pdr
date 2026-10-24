@@ -1,0 +1,116 @@
+{
+ "url": "https://arxiv.org/src/astro-ph/0507050",
+ "citation": "Ercolano, Barlow & Storey 2005, MNRAS 362, 1038, Fig. 1",
+ "member": "dustybench.ps",
+ "tarball_sha256": "f73f74817f7d65772c90cbf9992d7b468280dbc47251a47bc4e2601aa1adebdf",
+ "member_sha256": "641116334901a9f7c6087cffa344b9681065e950cb7f1c421af401bcf599eb8d",
+ "frame": {
+  "x0": 2220.0,
+  "x1": 17114.0,
+  "y0": 1408.0,
+  "y1": 11996.0
+ },
+ "major_ticks": {
+  "x": [
+   5718.0,
+   9517.0,
+   13315.0,
+   17114.0
+  ],
+  "y": [
+   1408.0,
+   3526.0,
+   5643.0,
+   7761.0,
+   9878.0,
+   11996.0
+  ]
+ },
+ "formulas": {
+  "lam_um": "10**((x - 5718)/3798.67)",
+  "y": "10**((y - 11996)/2117.6)",
+  "y_meaning": "lambda F_lambda / int F_lambda dlambda"
+ },
+ "attribution": {
+  "MOCASSIN 2005": "rgb (0,0,0), L0 (solid)",
+  "DUSTY 2.01": "rgb (1,0,0), L2 (dashed)",
+  "tau": "line width 10, 40, 80 = tau(1 um) 1, 10, 100"
+ },
+ "clipped": "points with y = frame y0 or x = frame x1 dropped",
+ "integral_check": "DUSTY 2.01 only, in 0.97-1.02",
+ "curves": [
+  {
+   "code": "DUSTY 2.01",
+   "tau": 1,
+   "points": 81,
+   "subpaths": [
+    81
+   ],
+   "points_kept": 79,
+   "integral_y_dlnlam": 0.997449,
+   "checked": true
+  },
+  {
+   "code": "DUSTY 2.01",
+   "tau": 10,
+   "points": 78,
+   "subpaths": [
+    78
+   ],
+   "points_kept": 76,
+   "integral_y_dlnlam": 1.001176,
+   "checked": true
+  },
+  {
+   "code": "DUSTY 2.01",
+   "tau": 100,
+   "points": 58,
+   "subpaths": [
+    15,
+    7,
+    36
+   ],
+   "points_kept": 52,
+   "integral_y_dlnlam": 1.010352,
+   "checked": true
+  },
+  {
+   "code": "MOCASSIN 2005",
+   "tau": 1,
+   "points": 81,
+   "subpaths": [
+    81
+   ],
+   "points_kept": 80,
+   "integral_y_dlnlam": 0.908266,
+   "checked": false
+  },
+  {
+   "code": "MOCASSIN 2005",
+   "tau": 10,
+   "points": 78,
+   "subpaths": [
+    78
+   ],
+   "points_kept": 76,
+   "integral_y_dlnlam": 0.93046,
+   "checked": false
+  },
+  {
+   "code": "MOCASSIN 2005",
+   "tau": 100,
+   "points": 60,
+   "subpaths": [
+    15,
+    7,
+    38
+   ],
+   "points_kept": 55,
+   "integral_y_dlnlam": 0.959924,
+   "checked": false
+  }
+ ],
+ "script": {
+  "ercref.py": "a214bb0c34341b9ce1304c6f20ebc5174b1d7fe3005f6a063c77bc0c64ebdd1b"
+ }
+}

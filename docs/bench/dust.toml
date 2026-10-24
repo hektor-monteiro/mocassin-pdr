@@ -1,0 +1,23 @@
+# The 1D dust benchmark page's sources: the three spherical dust shells of Ivezic et al. (1997) as set up
+# by Ercolano et al. (2005) (benchmarks/dust/1D/p0tau{1,10,100}), run with the current code, and Fig. 1
+# of Ercolano et al. (2005), which overplots MOCASSIN 2005 and DUSTY 2.01.
+#
+# docs/bench/ercref.py reads Fig. 1 (dustybench.ps, vector PostScript) from the arXiv source and writes
+# docs/bench/ref/ercolano2005_fig1.csv. docs/bench/dust.py reads the runs (paths relative to the runs
+# root, $MOCASSIN_RUNS, default meta.runs_root_default) and compares their SEDs with the figure's.
+
+[meta]
+title = "The 1D dust shells: MOCASSIN-PDR against DUSTY 2.01 and MOCASSIN 2005"
+runs_root_env = "MOCASSIN_RUNS"
+runs_root_default = "/home/hmonteiro/software/mocassin_docs/runs"
+build = "make PDR=1 PDRGEOM=3D mocassin"
+binary = "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs/d441/bin/mocassin.3d"
+binary_md5 = "53bd4333eb7c768c895659cf6932c924"
+
+[ref.ercolano2005]
+url = "https://arxiv.org/src/astro-ph/0507050"
+tarball = "docs-d442/ref/astro-ph-0507050.tar.gz"      # relative to the runs root
+tarball_sha256 = "f73f74817f7d65772c90cbf9992d7b468280dbc47251a47bc4e2601aa1adebdf"
+member = "dustybench.ps"
+member_sha256 = "641116334901a9f7c6087cffa344b9681065e950cb7f1c421af401bcf599eb8d"
+citation = "Ercolano, Barlow & Storey 2005, MNRAS 362, 1038, Fig. 1"
