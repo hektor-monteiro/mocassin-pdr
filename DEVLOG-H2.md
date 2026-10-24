@@ -57,6 +57,7 @@ DEVLOG.md and arrives here by merge.
 | H-046 | **This branch merged into production and released as `pdr-coupling-v2.0` (production DEVLOG D-429, D-430); H2 development continues here.** Merge c1ea374 on production, no conflict; four flavours, h2Test and h2Slab rc 0. Release check with the production build: hiipdr 31^3 reproduces this branch's d421-hii31 in every output file but summary.out's clock times; pn150k 41^3 against d405-pn41-d0 (D-418, D-420, D-421 measured there for the first time with the levels in the loop) healthy, ionized T_e x0.996, H2 lines within 0.22%, the cold cell to the dust temperature. The release commit 53c17eb came back here as a fast-forward; CLAUDE.md now carries one note true in both checkouts. Open items carried into the release: H-002, H-021/L-43, H-037, H-043 | Done | 2026-10-21 |
 | H-047 | **Production's release `pdr-coupling-v2.0.1` merged into this branch, with the D-438 fix (the user: "Apply the fix also to h2-model branch").** Merge 24e8e6c of production 7fdaa9e (D-432..D-439: documentation, licensing notices, the guards that let PDR builds run models without `pdr`), no conflict; this branch now differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); HII40 on this branch's 3D build converges at 18 iterations, byte-identical to production's plain build | Done | 2026-10-24 |
 | H-048 | **Production's documentation increment 3 (D-440) merged into this branch (the user: "Merge what has been done in h2-model branch").** Merge d26e8f3 of production de586ae (D-440: tutorials/dust-gas-pdr, examples/tutorial, mocread multiChemistry support, h034_maps.py's data-directory fallback), no conflict; no change in source/, Makefile, data/ or dataPDR/, so nothing rebuilt; this branch again differs from production only in DEVLOG-H2.md. ~/.local/mocassin_h2 not reinstalled: its share/doc examples lack examples/tutorial until the next install | Done | 2026-10-24 |
+| H-049 | **Production's D-441 (dust-only models run; writeSED counts the light escaping from an inactive source cell) and D-442 (the 1D dust benchmark page) merged into this branch (the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** Merge ebeeb9b of production 4135ebb, no conflict; the branch again differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); p0tau10 (fixture + randomSeed 1001) on this branch's 3D build is byte-identical to production's D-441 T3 run in every output but summary.out's clock lines. ~/.local/mocassin_h2 still holds 92a17d3's binaries, without D-441 | Done | 2026-10-24 |
 
 ---
 
@@ -5949,6 +5950,49 @@ pdr-photoionization h2-model` again lists only DEVLOG-H2.md.
 nothing from this merge, but its share/doc/mocassin/examples has no
 tutorial/ directory until the next `make install` (production's ~/.local
 neither). Nothing is pushed.
+
+### Status
+
+Done (2026-10-24).
+
+## H-049 - D-441 and D-442 merged in (2026-10-24)
+
+The user (2026-10-24): "Merge what has been done in h2-model branch then
+Proceed to increment 4". Increment 4a (production DEVLOG D-441, D-442) is done
+and merged into production (4135ebb), and reaches this branch as planned.
+
+**What came in** (production 832e971..4135ebb, merge ebeeb9b, no conflict):
+  - D-441, code:
+      - iterateMC no longer copies gas-only arrays into the iteration-start
+        snapshots of a model without gas, which crashed every dust-only
+        model in iteration 1;
+      - dust-only runs stop on the converged-cell share;
+      - writeSED adds escapedPackets' bucket 0, where a source in an
+        inactive cell books the packets that leave without interacting,
+        and its trailer is in 1e36 erg/s.
+
+    Every output but SED.out is unchanged for gas and PDR runs (production's
+    T4, T5). SED.out changes for every model whose source sits in a cavity.
+  - D-441, fixtures: the 1D dust fixtures allow 30 iterations.
+  - D-442: the 1D dust benchmark page, mocread's read_dust and full
+    read_sed, docs/bench/ercref.py and dust.py.
+  - `git diff pdr-photoionization h2-model` lists only DEVLOG-H2.md.
+
+**Checks** (runs/h049/, PREFIX ~/.local/mocassin_h2):
+  - **Builds:** `make clean` then mocassin, PDR=1 mocassin, PDR=1
+    mocassinWarm and PDR=1 PDRGEOM=3D all, then h2Test h2Slab; each rc 0.
+    The 3D binary (md5 7ac0c9b8a137897c4a88e75d2394a02a) reports
+    pdr-coupling-v2.0.1-40-gebeeb9b.
+  - **Data:** the prefix's dustData/sil-dlee.nk and nuDustRyd.dat are
+    identical to production's.
+  - **p0tau10** (benchmarks/dust/1D fixture + randomSeed 1001, 14 ranks) on
+    that binary stops "NOT CONVERGED after 30 iterations: converged cells
+    93.85%", as production's T3 did. SED.out, dustGrid.out, grid0.out,
+    grid3.out, photoSource.out, tauNu.out, pdrFUV.out and pdrFUVspec.out are
+    byte-identical to T3's; summary.out differs only in its clock lines.
+
+**Not done:** ~/.local/mocassin_h2 is not reinstalled; its binaries are still
+92a17d3's (H-047), without D-441. Nothing is pushed.
 
 ### Status
 
