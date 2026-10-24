@@ -55,6 +55,7 @@ DEVLOG.md and arrives here by merge.
 | H-044 | **The D-420/D-421 binary installed into ~/.local/mocassin_h2 (the user: "install the new binary").** The four flavours, h2Test and h2Slab rebuilt at 338c272 with the h2 prefix: rc 0 (18:55-18:57). The replaced bin/ (bb4f9aa's, H-040; mocassin md5 8bbe67d7) is kept in runs/_h2prefix_backup_2026-10-19_d421/. make clean, then the 3D flavour installed: rc 0, binaries 18:57:59, pdr-coupling-v1.1-260-g338c272 (mocassin md5 5179c87e), data path in the prefix. The source is 01b782d's (no diff in source/, Makefile, tools/), and the installed mocassin differs from the binary D-421's runs used (81cfe877) in 29 bytes: 9 in the version string and the 20-byte build-id hash, nothing else. Every K1a run from here on has both fixes; the K1a pages and runs before it have neither. Production's ~/.local (3fb58aa-dirty, 2026-10-05) is not touched | Done | 2026-10-19 |
 | H-045 | **Pushing h2-model to GitHub (the user: "should I push ~/software/mocassin_h2 ?").** The branch is in the same repository, so it would go to hektor-monteiro/mocassin-pdr (public) as its own branch; main stays production's. It has no upstream, so with push.default upstream a plain `git push` fails: `git push -u origin h2-model` creates the branch and sets it. It adds 141 commits over production (H-001 on 2026-09-28 to the D-423 merge): 72 files, 27 of them dataPDR/h2, Cloudy c25.00's data copied unmodified with its zlib notice and sources in dataPDR/h2/README.md; largest blob 1.5 MB; no secrets found; runs/ ignored. Those commits exist on this disk only. Advice: push it after main, as a backup; it is work in progress (H-043 open). Nothing pushed **The user pushed h2-model (3395717) on 2026-10-21; production's release pdr-coupling-v1.2 (D-425) merged here as 1ed9714** | Done 2026-10-21 | 2026-10-20 |
 | H-046 | **This branch merged into production and released as `pdr-coupling-v2.0` (production DEVLOG D-429, D-430); H2 development continues here.** Merge c1ea374 on production, no conflict; four flavours, h2Test and h2Slab rc 0. Release check with the production build: hiipdr 31^3 reproduces this branch's d421-hii31 in every output file but summary.out's clock times; pn150k 41^3 against d405-pn41-d0 (D-418, D-420, D-421 measured there for the first time with the levels in the loop) healthy, ionized T_e x0.996, H2 lines within 0.22%, the cold cell to the dust temperature. The release commit 53c17eb came back here as a fast-forward; CLAUDE.md now carries one note true in both checkouts. Open items carried into the release: H-002, H-021/L-43, H-037, H-043 | Done | 2026-10-21 |
+| H-047 | **Production's release `pdr-coupling-v2.0.1` merged into this branch, with the D-438 fix (the user: "Apply the fix also to h2-model branch").** Merge 24e8e6c of production 7fdaa9e (D-432..D-439: documentation, licensing notices, the guards that let PDR builds run models without `pdr`), no conflict; this branch now differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); HII40 on this branch's 3D build converges at 18 iterations, byte-identical to production's plain build | Done | 2026-10-24 |
 
 ---
 
@@ -5875,3 +5876,49 @@ hold the detail; this is the branch's record of it.
 ### Status
 
 Done (2026-10-21).
+
+---
+
+## H-047 - Release pdr-coupling-v2.0.1 merged in, with the D-438 fix (2026-10-24)
+
+The user (2026-10-24): "tag a new release (pdr-coupling-v2.0.1) that
+includes the D-438 fix. Apply the fix also to h2-model branch". The release
+is production DEVLOG D-439 (tag on 7fdaa9e).
+
+**The defect.** Production DEVLOG D-438: a PDR build (3D or 1D) segfaulted
+in the first iteration on any model without the `pdr` keyword. Seven
+diagnostics in `update_mod.f90` and `output_mod.f90` read arrays that
+setMotherGrid/resetGrid allocate only with `pdr`, or Hden, which exists only
+with gas. This branch had them too, since they date from D-138 to D-236.
+The fix (6d05ce1) guards each read inside its `#ifdef PDR` block. Nothing a
+`pdr` run computes changes: production's T4 found a hiipdr21 run on the 3D
+build byte-identical in every output to the pre-fix binary's.
+
+**The merge.** `git merge pdr-photoionization` at 723a7e8 brought in 24
+commits (production f4d8bf1..7fdaa9e: D-437's documentation increment, D-438,
+D-439) as merge 24e8e6c, with no conflict. After it, `git diff
+pdr-photoionization h2-model` lists only DEVLOG-H2.md: this branch has had
+no code of its own since H-046.
+
+**Checks** (2026-10-24, PREFIX ~/.local/mocassin_h2, runs/h047/):
+  - `make mocassin`, `make PDR=1 mocassin`, `make PDR=1 mocassinWarm`,
+    `make PDR=1 PDRGEOM=3D all` and `make PDR=1 PDRGEOM=3D h2Test h2Slab`:
+    each rc 0, no errors; the binaries report
+    pdr-coupling-v2.0.1-6-g24e8e6c.
+  - HII40 (benchmarks/gas with maxIterateMC 60, randomSeed 1001, 14 ranks)
+    on this branch's 3D build: converged at 18 iterations, clean exit;
+    lineFlux.out, grid0-2, temperature.out, ionratio.out and SED.out are
+    byte-identical to production's plain-build run
+    (mocassin_docs/runs/docs-v2.0/lex-HII40).
+  - The data installed in ~/.local/mocassin_h2 match the branch's data/ and
+    dataPDR/ apart from the two Badnell fit files production removed at
+    D-435, which no code reads.
+
+**Not done.**
+  - ~/.local/mocassin_h2 is not reinstalled: it still holds 338c272's
+    binaries, which have the defect. Reinstalling waits for the user's word.
+  - Nothing is pushed.
+
+### Status
+
+Done (2026-10-24).
