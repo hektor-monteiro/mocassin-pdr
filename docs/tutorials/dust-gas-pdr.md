@@ -8,9 +8,10 @@ CO lines, and continuing it with a warm start.
 
 The model is MOCASSIN's test problem (`benchmarks/test_Problem`) with a PDR. The run shown was made
 with release `pdr-coupling-v2.0.1`. The tutorial's inputs and scripts (`examples/tutorial/`, and
-the versions of `tools/mocread.py` and `tools/h034_maps.py` it uses) were added after that release
-({devlog}`D-440`), so use a checkout of `main` from 2026-10-24 or later; the code that computes the
-model is the release's. The {doc}`quickstart <../getting-started/quickstart>` is a shorter first look.
+the versions of `tools/mocread.py` and `tools/h034_maps.py` it uses) came after that release
+({devlog}`D-440`), so use release `pdr-coupling-v2.0.2` or later, which has them and computes this
+model as v2.0.1 did (it changes only `SED.out`, and only for a source in an inactive cell,
+{devlog}`D-441`). The {doc}`quickstart <../getting-started/quickstart>` is a shorter first look.
 
 ## 1. The model
 

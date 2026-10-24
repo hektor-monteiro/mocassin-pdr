@@ -15,7 +15,7 @@ computes drive the chemistry. The chemistry's molecules, heating and cooling fee
 into the next iteration.
 
 :::{note}
-These pages describe release `pdr-coupling-v2.0.1` and the commit they were built from,
+These pages describe release `pdr-coupling-v2.0.2` and the commit they were built from,
 shown at the bottom of every page. MOCASSIN-PDR is research code under active
 development, and it is not the official MOCASSIN. Results for publication should cite a
 release tag ({doc}`reference/citing`).

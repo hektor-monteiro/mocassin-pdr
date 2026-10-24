@@ -19,7 +19,7 @@ This repository is a fork of the official MOCASSIN repository, https://github.co
 ## Current state
 
 MOCASSIN-PDR is research code under active development. The coupled code runs on 3D grids with
-ray-traced column densities. Its latest release is `pdr-coupling-v2.0.1` (2026-10-24, DEVLOG D-439), a fix release of
+ray-traced column densities. Its latest release is `pdr-coupling-v2.0.2` (2026-10-24, DEVLOG D-443), a fix release of
 `pdr-coupling-v2.0` (2026-10-21, D-430), the first with the H2 level model, and science results should cite a release tag. The coupling has been compared with Cloudy (c25.00) and with
 standalone 3D-PDR on the models in `benchmarks/pdr/`.
 
@@ -393,8 +393,8 @@ Limitations to know before using the results:
     `main` by merging, as it did for v2.0 (D-429).
   - **Tags**: `pdr-coupling-v1.0`, `v1.1`, `v1.2` and `v2.0` are releases. D-425 has v1.2's release
     notes and D-430 has v2.0's. Reverted work is kept under tags such as `d193-d195-reverted`.
-  - The binaries carry the `git describe` version they were built from: `pdr-coupling-v2.0.1` at the
-    tag, `pdr-coupling-v2.0.1-<n>-g<hash>` for a later commit.
+  - The binaries carry the `git describe` version they were built from: `pdr-coupling-v2.0.2` at the
+    tag, `pdr-coupling-v2.0.2-<n>-g<hash>` for a later commit.
 
 ## Documentation
 

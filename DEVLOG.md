@@ -442,6 +442,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start **Result:** tutorials/dust-gas-pdr published from runs at v2.0.1: graphite run converged at 16 iterations in 24 min on 14 ranks, peak 8.8 GB, 2,268 molecular cells, Hbeta 4.67e35, 1-0 S(1)/Hbeta 8.1e-5; own dust atomic (max 2x(H2) 7e-7). Found: mocassinWarm takes maxIterateMC from output/grid3.out and nPhotons from photoSource.out, not input.in, and its converged-cell share is meaningless (D-438) | Done | 2026-10-24 |
 | D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Fixed (c8af00e, bf2e058, bd68ad9): p0tau1 stops on 96.17% of cells at 11 iterations; p0tau10/p0tau100 plateau at 92-94% and reach the 30-iteration cap; totalE/LStar 0.9999-1.0000 in every dust run, HII40 0.401 -> 1.00005, hiipdr21 0.996 -> 1.00000, every other output byte-identical (plan revision 1: summary.out clock lines and PDR-build-only lines/files excluded, D-438's practice) | Done | 2026-10-24 |
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
+| D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43198,3 +43199,121 @@ D-441 in ~/.local; a release tag; pushes.
 ### Status
 
 Done (2026-10-24).
+
+## D-443 - Release pdr-coupling-v2.0.2 (2026-10-24)
+
+The user (2026-10-24): "make the release tag and proceed to increment 5",
+after D-442's report suggested a v2.0.2 because the SED.out fix changes the
+output of models with a cavity.
+
+**What the release is.** Production at 4135ebb (the merge of D-442's
+documentation increment) plus this entry and the release lines of the README
+and the documentation pages; 29 commits after `pdr-coupling-v2.0.1`. Since
+v2.0.1, `source/` changed only by D-441: four files, 42 lines added and 15
+removed. The Makefile, data/, dustData/ and dataPDR/ are unchanged.
+  - **What runs compute.** Every gas or `pdr` run is byte-identical to
+    v2.0.1's except SED.out, which changes when the source sits in an
+    inactive cell (D-441's T4, T5).
+  - **Dust-only models** now run.
+
+**Checks before tagging** (fresh clone of the local repository at 4135ebb,
+2026-10-24, gfortran/Open MPI, SUNDIALS 7.8.0, in the session scratchpad):
+  - **Builds.** `make clean` then each of `make mocassin`, `make PDR=1
+    mocassin`, `make PDR=1 mocassinWarm` and `make PDR=1 PDRGEOM=3D all`,
+    then `make PDR=1 PDRGEOM=3D h2Test h2Slab`. Each gave rc 0, no error
+    lines, and no tracked file changed. The binaries report
+    pdr-coupling-v2.0.1-29-g4135ebb before the tag: plain md5 24455f55…,
+    3D md5 20796047….
+  - **p0tau10** (the 1D dust fixture + randomSeed 1001, 14 ranks) on the
+    clone's 3D build: "NOT CONVERGED after 30 iterations: converged cells
+    93.85%". Every output is byte-identical to D-441's T3 except
+    summary.out's clock lines.
+  - **Quickstart HII40** on the clone's plain build converged at 18
+    iterations, byte-identical to D-441's T4-post in every output except
+    summary.out's clock lines.
+
+The commit that adds this entry changes only DEVLOG.md, README.md and
+documentation pages: the README's release line and version examples;
+docs/index.md, citing.md and install.md; the tutorial, whose inputs and
+scripts are in this release; the benchmarks index; and dust-1d.md.
+
+**Release notes** (for the GitHub release):
+
+```markdown
+## MOCASSIN-PDR pdr-coupling-v2.0.2 (2026-10-24)
+
+A fix release of `pdr-coupling-v2.0.1`. Models without gas (dust only) crashed in every build; they now
+run. `SED.out` left out the starlight that escapes without interacting whenever the source sits in an
+inactive cell, such as a central cavity; it is now complete. Apart from `SED.out` in such models, every
+output of a gas or PDR run is byte-identical to v2.0.1's. Science results should cite this tag.
+
+### Fixed
+
+- **Dust-only models run** (DEVLOG D-441). Every build crashed in the first iteration of a model with
+  `nebComposition noGas`: a convergence snapshot copied gas arrays that such a model never allocates.
+  All seven `benchmarks/dust` models now run.
+- **Dust-only runs stop on the converged-cell share** (D-441). The model-integrated convergence test
+  (D-391, D-392) has nothing to test without gas and stopped them after one iteration. They now stop
+  when the share of cells whose dust temperature changed by less than `convLimit` reaches the second
+  number of `maxIterateMC`, as original MOCASSIN did. Gas runs are unchanged.
+- **`SED.out` counts the light escaping from an inactive source cell** (D-441). Since a 2025 rewrite
+  of `writeSED`, packets that left a source in a cavity without interacting were missing from the
+  SED, the viewpoint SEDs and the source columns: only 40% of the luminosity reached `SED.out` in the
+  quickstart HII40, 77% in the dust shell p0tau10 and 9% in a 2D dust disc. `SED.out` now accounts for
+  the luminosity to 1e-4 in every model tested. Its last line gives the total in 1e36 erg/s; it was
+  mis-scaled by 1e-36.
+- **The 1D dust fixtures** in `benchmarks/dust/1D/` allow 30 iterations (D-441).
+
+### New
+
+- **A tutorial**: a full dust + gas + PDR + H2 model, the test problem, run, checked, sliced and
+  mapped step by step, with `examples/tutorial/` (inputs, slice and check scripts) (D-440).
+- **The 1D dust benchmark**: the three dust shells of Ivezić et al. (1997), as set up by Ercolano et
+  al. (2005), against DUSTY 2.01 and MOCASSIN 2005; with isotropic scattering the spectra agree with
+  DUSTY to a median 0.003, 0.010 and 0.029 dex at tau(1 um) = 1, 10, 100 (D-442).
+- **`tools/mocread.py`** reads models with several abundance files (`multiChemistry`), dust-only
+  models (`read_dust`), and the whole of `SED.out`: viewpoints, source columns and the total (D-440,
+  D-442).
+- **`tools/h034_maps.py`** finds its data without `pdrDataDir` (D-440).
+
+### Known issues
+
+- Dust-only models at tau(1 um) >= 10 plateau at 91–94% converged cells and reach their iteration
+  cap; the failing cells are in the thin outer shell (D-441, D-442).
+- The 2D dust disc benchmark (Pascucci et al. 2004) runs but has no documentation page: its reference
+  data are offline (D-442).
+- `mocassinWarm` never sets the iteration-start arrays, so its converged-cell share is meaningless,
+  and it reads `maxIterateMC` and `nPhotons` from the previous run's `output/` rather than from
+  `input.in` (D-438, D-440).
+- `pdr` with more than one grid is neither supported nor refused (D-438).
+- The Numerical Recipes routines in the vendored 3D-PDR (`spline.F90`, `solvlevpop.F90`) are to be
+  replaced (`THIRD_PARTY_NOTICES.md`).
+- The open items of `doc/pdr-status.md`.
+
+### Building
+
+At this release all four flavours and `h2Test`/`h2Slab` built from a fresh clone with gfortran/Open MPI
+and SUNDIALS 7.8.0:
+- `make PDR=1 PDRGEOM=3D all` (with the H2 model);
+- `make PDR=1 all`;
+- `make all`;
+- `make PDR=1 mocassinWarm`.
+
+Run `make clean` between builds. The binaries report `pdr-coupling-v2.0.2`.
+```
+
+**To publish (the user's step; nothing pushed here).**
+  - In ~/software/mocassin_HM_2026_3DPDR: `git push` (main), then
+    `git push origin pdr-coupling-v2.0.1 pdr-coupling-v2.0.2`. v2.0.1 is
+    not on GitHub yet either.
+  - On GitHub, Releases, "Draft a new release": choose
+    pdr-coupling-v2.0.2, paste the notes above, and publish. The same can
+    be done for v2.0.1 with D-439's notes.
+  - Read the Docs' `stable` rule, if set, would pick up v2.0.2.
+
+**Not done:** installing in ~/.local (still v2.0.1) and
+~/.local/mocassin_h2 (still 92a17d3), which needs the user's word.
+
+### Status
+
+Done (2026-10-24): tagged on this entry's commit.
