@@ -2,6 +2,9 @@
 """H-034: emission-line maps of H2 and CO from a finished run.
 
     python tools/h034_maps.py <run> [<run> ...] [--h2 "vu Ju vl Jl; ..."] [--co "1-0,2-1,..."] [--cubes] [--png]
+                              [--data DIR]
+
+The data directory (dataPDR) is --data DIR, else input.in's pdrDataDir, else ~/.local/share/mocassin/dataPDR.
 
 Everything comes from what the run already wrote:
 
@@ -177,11 +180,16 @@ def lin_wcs(h, axes, names):
         h['CDELT%d' % n] = (a[1] - a[0]) / PC
 
 
-def main(run, h2sel, cosel, cubes=False, png=False):
+def main(run, h2sel, cosel, cubes=False, png=False, data=None):
     out = os.path.join(run, 'output')
     sym, cool, ddir = read_input(run)
-    if ddir is None:
-        raise SystemExit('%s: no pdrDataDir in input.in' % run)
+    if data is not None:
+        ddir = data
+    elif ddir is None:
+        ddir = os.path.join(os.path.expanduser('~'), '.local', 'share', 'mocassin', 'dataPDR')
+        if not os.path.isdir(ddir):
+            raise SystemExit('%s: set pdrDataDir in input/input.in or pass --data DIR' % run)
+        print('pdrDataDir not set in input.in; using %s' % ddir)
     shape, ax = grid(run)
     nx, ny, nz = shape
     n = nx * ny * nz
@@ -349,7 +357,8 @@ if __name__ == '__main__':
         return default
     h2s = [tuple(int(x) for x in s.split()) for s in opt('--h2', H2_DEFAULT).split(';') if s.strip()]
     cos = [s.strip() for s in opt('--co', CO_DEFAULT).split(',') if s.strip()]
+    data = opt('--data', None)
     cubes, png = '--cubes' in argv, '--png' in argv
     runs = [a for a in argv if not a.startswith('--')]
     for r in runs:
-        main(r.rstrip('/'), h2s, cos, cubes=cubes, png=png)
+        main(r.rstrip('/'), h2s, cos, cubes=cubes, png=png, data=data)
