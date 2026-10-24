@@ -441,7 +441,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
 | D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start **Result:** tutorials/dust-gas-pdr published from runs at v2.0.1: graphite run converged at 16 iterations in 24 min on 14 ranks, peak 8.8 GB, 2,268 molecular cells, Hbeta 4.67e35, 1-0 S(1)/Hbeta 8.1e-5; own dust atomic (max 2x(H2) 7e-7). Found: mocassinWarm takes maxIterateMC from output/grid3.out and nPhotons from photoSource.out, not input.in, and its converged-cell share is meaningless (D-438) | Done | 2026-10-24 |
 | D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Fixed (c8af00e, bf2e058, bd68ad9): p0tau1 stops on 96.17% of cells at 11 iterations; p0tau10/p0tau100 plateau at 92-94% and reach the 30-iteration cap; totalE/LStar 0.9999-1.0000 in every dust run, HII40 0.401 -> 1.00005, hiipdr21 0.996 -> 1.00000, every other output byte-identical (plan revision 1: summary.out clock lines and PDR-build-only lines/files excluded, D-438's practice) | Done | 2026-10-24 |
-| D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Predictions on record | Open | 2026-10-24 |
+| D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43041,6 +43041,160 @@ docs/benchmarks/dust-1d.md.
   - HG against isotropic: differences mostly below 3 um, under 0.05 dex at
     the infrared peak.
 
+**Part X** (2026-10-24). The arXiv source of astro-ph/0507050 was
+downloaded to mocassin_docs/runs/docs-d442/ref/; its sha256 and
+dustybench.ps's matched. Rendered with ghostscript, the figure is one panel
+with log axes (x 0.12-1000 um, y 1e-5-1, "relative flux"), titled tau (1um)=1,
+10, 100. The paper's text adds that "the scattering was assumed to be
+isotropic for all benchmark models", and that the temperatures agreed but are
+"not shown". The figures tempthin/tempthick are NGC 3918's.
+
+**Part E** (code-executor, docs branch):
+  - 52ce96f: mocread `_read_grid0`, `read_dust` (dustGrid.out, grid3.out's
+    dust lines) and `read_sed`'s viewpoint, source and trailer keys.
+  - ef66516: ercref.py with the reference CSV/JSON (committed with the
+    script, as lexref.py's at D-437).
+  - 608b89f: dust.toml, the six inputs and dust.py.
+  - 7c04eb0: plots.py `dust1d_figures`.
+  - 214b3ea/bcd2a68: revision 3.
+  - 98c48b1: revision 4.
+  - d57a740: revision 5.
+
+**Blockers and plan revisions:**
+  - **Revision 2.** The plan's selection rule (colour and >= 7 points) found
+    45 paths, because the text is stroked too; adding "inside the frame
+    within 1 unit" finds the 10 curves. Also, MOCASSIN 2005's curves
+    integrate to 0.908/0.931/0.960, failing the 0.97-1.02 window that
+    DUSTY's 0.997/1.001/1.010 pass. The check now applies to DUSTY alone,
+    since both share the axes, and MOCASSIN 2005 is used as published,
+    never renormalised in the reference.
+  - **Revision 3.** A `segment` column, so the tau = 100 gaps are not
+    bridged in the plots or the interpolation (no statistic changed), and
+    the page prints luminosity ratios with %.4f.
+  - **Revision 4.** The temperature figure gets labelled ticks, and its
+    points are rasterized (1 MB -> 77 kB).
+  - **Revision 5,** after the referee. The version line is found anywhere in
+    run.log: 14 ranks interleave the start-up, and p0tau1-iso's had been
+    read as "2 input file". Also added: a "MOCASSIN 2005, renormalised"
+    row, a shape-only comparison.
+
+**Part R** (runs/docs-d442/, 3D binary 53bd4333, 14 ranks, seed 1001,
+queue 19:03-19:12):
+
+| Shell | Isotropic | HG |
+| :--- | :--- | :--- |
+| p0tau1 | converged at 10 iterations (95.2%), 7 s | converged at 11 (96.2%), 9 s |
+| p0tau10 | NOT CONVERGED at 30 (93.2%), 88 s | NOT CONVERGED at 30 (93.8%), 89 s |
+| p0tau100 | NOT CONVERGED at 30 (91.8%), 176 s | NOT CONVERGED at 30 (91.6%), 174 s |
+
+  - Every run ends with 1.28e7 packets, and totalE/LStar is 1.0000 in all
+    six.
+  - The three HG runs' SED.out, dustGrid.out, grid0.out and tauNu.out are
+    byte-identical to D-441's plain-build T2 runs.
+  - tau(1 um) from tauNu.out: 1.008, 10.07, 101.0.
+
+**Results** (docs/bench/data/dust1d, 12c8b8d, regenerated in a410072), median
+|dex| against DUSTY at its points >= 1e-3 of its peak:
+
+| | tau 1 | tau 10 | tau 100 |
+| :--- | :--- | :--- | :--- |
+| MOCASSIN-PDR isotropic | 0.003 (max 0.066, 0.44 um) | 0.010 (0.078, 9.6 um) | 0.029 (0.145, 7 um) |
+| MOCASSIN-PDR HG | 0.024 (0.456, 0.44 um) | 0.016 (0.293, 1 um) | 0.028 (0.154, 7 um) |
+| MOCASSIN 2005, published | 0.036 | 0.033 | 0.026 |
+| MOCASSIN 2005, renormalised | 0.010 | 0.013 | 0.018 |
+
+  - **L(SED)/LStar** 0.9997-0.9998 (trapezoid); SED.out's own sum 0.9999.
+  - **T in the r_in cell:** 759, 809, 811 K (isotropic).
+  - **HG against isotropic:** up to 0.39 dex brighter below 3 um at tau = 1
+    (0.42 at 0.36 um), and 0.22 at tau = 10 (0.59 at 0.85 um). At tau = 1
+    the dust emission is 0.03-0.06 dex fainter from 12 to 250 um (0.129 of
+    L beyond 8 um, against 0.139). At tau = 10 the infrared differs by up to
+    0.06 dex at 9-16 um; at tau = 100, by up to 0.02 dex.
+  - **Beyond 30 um** MOCASSIN-PDR (isotropic) is fainter than DUSTY by a
+    median 0.023/0.014/0.014 dex.
+  - **At tau = 100** it is brighter by 0.03-0.07 dex at 2.7-6.5 um and
+    0.06-0.11 at 25-35 um, and by up to 0.37 dex below the floor at
+    13.5-16 um. MOCASSIN 2005 is brighter in the same places.
+  - **Not converged:** the failing cells all lie beyond y = 128, 486 and 654
+    (tau 1, 10, 100). They are 11-17% of the cells beyond y = 900; every
+    inner cell has converged.
+
+**Against the predictions:**
+  - **Stop.** p0tau1 stopped on the criterion within 15 iterations
+    (yes). p0tau10 did not stop within 15, and p0tau100 did not stop
+    within 30: both reached the cap (no, as in D-441's T2).
+  - **Run time** under 3 min (yes).
+  - **L(SED)/LStar** within 1% (yes).
+  - **T_in** 700-900 K (yes).
+  - **MOCASSIN 2005** <= 0.05 / <= 0.10 dex (yes).
+  - **Isotropic within 0.03 dex of MOCASSIN 2005's median:** yes at tau 10
+    and 100. At tau 1 the isotropic run is closer to DUSTY than predicted,
+    0.003 against 0.036.
+  - **HG against isotropic:** below 3 um, and under 0.05 dex at the
+    infrared peak (yes). The referee found the tau = 1 dust emission
+    dimmed by up to 0.06 dex.
+
+**Referee** (one agent, dust radiative transfer): 2 major and 11 minor
+findings. Each was verified before it was applied (a410072):
+  - **Major 1: the grid was misdescribed.** The axes double from r_in to a
+    few hundred r_in and are then refined towards Rout. Cell walls lie
+    midway between points, so the r_in cell spans 0.75-1.5 r_in (p0tau1)
+    or 0.5-1.5 r_in.
+    - **The temperature reference.** Ivezic et al. 1997 (arXiv PDF read,
+      section 2.2) fix T1 = 800 K, Y = 1000, p = 0 and 2, tau1 = 1-1000,
+      with isotropic scattering.
+    - **A Mie estimate** (the referee's script, rerun by the main session:
+      Bohren & Huffman on sil-dlee.nk at 0.16 um, 2500 K blackbody, thin
+      equilibrium):
+        - at r_in: 803 K (2.18e14 cm), 798 K (2.20e14), 766 K (2.35e14);
+        - averaged over <1/r^2> of the r_in cell: 764 K (tau 1), 811 K
+          (tau 10), 778 K (tau 100).
+
+      The runs' 759 and 809 K follow the cell geometry. Only at tau = 100
+      is the cell warmer (811 K), which the page attributes to
+      back-warming.
+  - **Major 2:** HG's effect on the tau = 1 dust emission (above).
+  - **Minor:**
+      - the HG maxima apply only within the floor;
+      - MOCASSIN 2005's offset was overstated (only 28-45% of its points
+        lie 0.02-0.04 dex below DUSTY; 35% are above it at tau = 100), so
+        the renormalised row was added;
+      - the tau = 100 paragraph's numbers, its missing 13.5-16 um window,
+        and its hot-dust claim (T > 500 K only within y = 2; tau = 3-7
+        there);
+      - convergence: where the failing cells are, and running.md's
+        "cannot stop before iteration 4" (a dust-only run can);
+      - the energy statement;
+      - the byte-identity scope;
+      - the far-IR deficit;
+      - the N_dust misprint, as a footnote;
+      - the caption's clipping;
+      - the 2D runs' convergence (63-73% at 10 iterations);
+      - outputs.yaml's lgNosource/lgEcho caveat;
+      - the install step in the reproduction block;
+      - the version string in PROVENANCE.
+
+**Pages** (5766241, a410072):
+  - docs/benchmarks/dust-1d.md;
+  - the benchmarks index row and paragraph, and the docs/index.md bullet;
+  - keywords.yaml (maxIterateMC), outputs.yaml (SED.out), running.md and
+    python.md;
+  - IvezicEtAl1997, DraineLee1984 and Pascucci2004 in references.bib.
+    check_bib passes all three; Pascucci's title is a reviewed exception
+    because CrossRef stores the main title only. generated keywords.md and
+    outputs.md come from the YAML.
+
+**Checks** (2026-10-24):
+  - pytest: 125 passed.
+  - ercref.py, dust.py, lexington.py --check and reduce.py --verify:
+    identical.
+  - sphinx-build -W in the docs venv and in a fresh venv from
+    docs/requirements.txt: only `unpushed`.
+  - linkcheck: clean.
+
+**Not done:** the 2D page (waiting for Pascucci's data files); installing
+D-441 in ~/.local; a release tag; pushes.
+
 ### Status
 
-Open: increment 4a under way (2026-10-24).
+Done (2026-10-24).
