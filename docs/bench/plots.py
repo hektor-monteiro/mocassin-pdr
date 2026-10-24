@@ -20,6 +20,10 @@ The SVG is deterministic: fixed hash salt, no date. Needs numpy and matplotlib o
 When docs/bench/data/lexington/summary.csv exists (written by lexington.py), also writes
 OUTDIR/lex_<M>.svg for each Lexington model: every compared row's log10(value/median), the Lexington
 codes' range and values, MOCASSIN 2003 (3-D) and MOCASSIN-PDR.
+
+When docs/bench/data/dust1d/summary.csv exists (written by dust.py), also writes OUTDIR/dust1d_sed.svg (per
+tau, the SEDs against DUSTY 2.01 and MOCASSIN 2005 of docs/bench/ref/ercolano2005_fig1.csv, and their
+log10 ratio to DUSTY) and OUTDIR/dust1d_temperature.svg (the dust temperature against r/r_in).
 """
 import csv
 import json
@@ -357,6 +361,98 @@ def lexington_figures(data_dir, out_dir):
         print('written', path)
 
 
+# ---------------------------------------------------------------------------------------- dust 1D
+DUST_TAUS = [1, 10, 100]
+DUST_REF = os.path.join(HERE, 'ref', 'ercolano2005_fig1.csv')
+DUST_LIM = 0.3
+# (label, colour, line style) of each curve; DUSTY 2.01 is the reference
+DUST_STYLE = {'dusty': ('DUSTY 2.01', 'k', '--'), 'moc2005': ('MOCASSIN 2005', '0.55', '-'),
+              'pdr_iso': ('MOCASSIN-PDR, isotropic', LEX_PDR, '-'),
+              'pdr_hg': ('MOCASSIN-PDR, Henyey-Greenstein', LEX_PDR, ':')}
+DUST_TCOL = {1: '#0077BB', 10: '#CC3311', 100: '#009988'}
+
+
+def dust_csv(path):
+    with open(path) as f:
+        rows = list(csv.DictReader(f))
+    return {k: np.array([num(r[k]) if k not in ('code', 'curve', 'id', 'stop', 'in_stats') else r[k] for r in rows])
+            for k in rows[0]} if rows else {}
+
+
+def dust1d_figures(data_dir, out_dir):
+    """dust1d_sed.svg: per tau, the SEDs (upper) and their log10 ratio to DUSTY 2.01 at its points
+    (lower); dust1d_temperature.svg: T[0,0] against r/r_in of the isotropic runs, T_in marked"""
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(data_dir, 'summary.csv')) as f:
+        summary = list(csv.DictReader(f))
+    ref = dust_csv(DUST_REF)
+    ids = {(int(r['tau']), r['curve'].split()[-1]): r for r in summary if r['id']}
+
+    fig, ax = plt.subplots(2, 3, figsize=(11, 5.2), sharex=True, gridspec_kw={'height_ratios': [3, 1.3]})
+    for c, tau in enumerate(DUST_TAUS):
+        up, lo = ax[0, c], ax[1, c]
+        for code, key in (('DUSTY 2.01', 'dusty'), ('MOCASSIN 2005', 'moc2005')):
+            s = (ref['code'] == code) & (ref['tau'] == tau)
+            _, col, ls = DUST_STYLE[key]
+            up.plot(ref['lam_um'][s], ref['y'][s], color=col, ls=ls, lw=1.3)
+        for sc in ('iso', 'hg'):
+            if (tau, sc) not in ids:
+                continue
+            d = dust_csv(os.path.join(data_dir, f'sed_{ids[(tau, sc)]["id"]}.csv'))
+            _, col, ls = DUST_STYLE[f'pdr_{sc}']
+            up.plot(d['lam_um'], pos(d['s']), color=col, ls=ls, lw=1.5)
+        cmp_path = os.path.join(data_dir, f'compare_tau{tau}.csv')
+        lo.axhline(0., color='k', ls='--', lw=1.0)
+        if os.path.exists(cmp_path):
+            d = dust_csv(cmp_path)
+            for key in ('moc2005', 'pdr_iso', 'pdr_hg'):
+                if 'dex_' + key in d:
+                    _, col, ls = DUST_STYLE[key]
+                    lo.plot(d['lam_um'], d['dex_' + key], color=col, ls=ls, lw=1.3)
+        up.set_xscale('log')
+        up.set_yscale('log')
+        up.set_xlim(0.12, 1000)
+        up.set_ylim(1e-5, 1.5)
+        up.set_title(rf'$\tau(1\,\mu\mathrm{{m}}) = {tau}$', fontsize=11)
+        lo.set_ylim(-DUST_LIM, DUST_LIM)
+        lo.set_xlabel(r'$\lambda$ [$\mu$m]')
+        lo.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+        if c == 0:
+            up.set_ylabel(r'$\lambda F_\lambda / \int F_\lambda\,d\lambda$')
+            lo.set_ylabel(r'$\log_{10}$(curve / DUSTY)')
+    h = [Line2D([], [], color=col, ls=ls, lw=1.5) for _, col, ls in DUST_STYLE.values()]
+    fig.legend(h, [lab for lab, _, _ in DUST_STYLE.values()], loc='upper center', bbox_to_anchor=(0.5, 0.0),
+               ncol=4, fontsize=9)
+    path = os.path.join(out_dir, 'dust1d_sed.svg')
+    fig.savefig(path, format='svg', metadata={'Date': None})
+    plt.close(fig)
+    print('written', path)
+
+    fig, ax = plt.subplots(figsize=(4.6, 4.0))
+    for tau in DUST_TAUS:
+        if (tau, 'iso') not in ids:
+            continue
+        r = ids[(tau, 'iso')]
+        d = dust_csv(os.path.join(data_dir, f'temperature_{r["id"]}.csv'))
+        col = DUST_TCOL[tau]
+        ax.plot(d['y'], d['T_K'], ls='none', marker='o', ms=2.0, color=col, label=rf'$\tau = {tau}$')
+        ax.plot([1.], [num(r['T_in'])], ls='none', marker='o', ms=8, mfc='none', mec=col, mew=1.2)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(r'$y = r / r_\mathrm{in}$')
+    ax.set_ylabel(r'$T_\mathrm{dust}$ [K]')
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+    hs, ls_ = ax.get_legend_handles_labels()
+    hs.append(Line2D([], [], ls='none', marker='o', ms=8, mfc='none', mec='k', mew=1.2))
+    ls_.append(r'$T_\mathrm{in}$ (mean at $r_\mathrm{in}$)')
+    ax.legend(hs, ls_, loc='upper right', fontsize=9)
+    path = os.path.join(out_dir, 'dust1d_temperature.svg')
+    fig.savefig(path, format='svg', metadata={'Date': None})
+    plt.close(fig)
+    print('written', path)
+
+
 def main():
     out = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUT
     os.makedirs(out, exist_ok=True)
@@ -375,6 +471,9 @@ def main():
     lex = os.path.join(DATA, 'lexington')
     if os.path.exists(os.path.join(lex, 'summary.csv')):
         lexington_figures(lex, out)
+    dust = os.path.join(DATA, 'dust1d')
+    if os.path.exists(os.path.join(dust, 'summary.csv')):
+        dust1d_figures(dust, out)
 
 
 if __name__ == '__main__':
