@@ -1,0 +1,3 @@
+This is the model of the dust + gas + PDR tutorial: benchmarks/test_Problem (a 200,000 K star at the centre of a dense ring inside a slab, on a 21^3 octant grid) with pn150k's graphite dust, under which the PDR turns molecular, and the other changes the tutorial explains.
+check_model.py prints how a finished run stopped, its flagged cells, the chemistry's hydrogen budget and the last iteration's convergence, and plot_slices.py draws the gas and PDR state in the x-y and x-z planes through the star.
+The steps to run it with the 3D PDR build, to check it, and to plot its slices and its H2 and CO line maps (tools/h034_maps.py) are on the site's tutorial page: https://mocassin-pdr.readthedocs.io/en/latest/tutorials/dust-gas-pdr.html
