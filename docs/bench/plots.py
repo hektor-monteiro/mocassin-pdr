@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt                                    # noqa: E402
 from matplotlib.lines import Line2D                                # noqa: E402
 from matplotlib.patches import Patch                               # noqa: E402
 from matplotlib.ticker import (LogLocator, NullFormatter, FixedLocator,   # noqa: E402
-                               FixedFormatter, FuncFormatter)
+                               FixedFormatter, FuncFormatter, ScalarFormatter)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -439,20 +439,23 @@ def dust1d_figures(data_dir, out_dir):
         r = ids[(tau, 'iso')]
         d = dust_csv(os.path.join(data_dir, f'temperature_{r["id"]}.csv'))
         col = DUST_TCOL[tau]
-        ax.plot(d['y'], d['T_K'], ls='none', marker='o', ms=2.0, color=col, label=rf'$\tau = {tau}$')
+        ax.plot(d['y'], d['T_K'], ls='none', marker='o', ms=2.0, color=col, label=rf'$\tau = {tau}$',
+                rasterized=True)                     # ~1e4 cells: a bitmap inside the vector figure
         ax.plot([1.], [num(r['T_in'])], ls='none', marker='o', ms=8, mfc='none', mec=col, mew=1.2)
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel(r'$y = r / r_\mathrm{in}$')
     ax.set_ylabel(r'$T_\mathrm{dust}$ [K]')
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}'))
+    ax.yaxis.set_major_locator(FixedLocator([30, 50, 100, 200, 500, 1000]))
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+    ax.yaxis.set_minor_formatter(NullFormatter())
     hs, ls_ = ax.get_legend_handles_labels()
     hs.append(Line2D([], [], ls='none', marker='o', ms=8, mfc='none', mec='k', mew=1.2))
     ls_.append(r'$T_\mathrm{in}$ (mean at $r_\mathrm{in}$)')
     ax.legend(hs, ls_, loc='upper right', fontsize=9)
     path = os.path.join(out_dir, 'dust1d_temperature.svg')
-    fig.savefig(path, format='svg', metadata={'Date': None})
+    fig.savefig(path, format='svg', metadata={'Date': None}, dpi=200)
     plt.close(fig)
     print('written', path)
 
