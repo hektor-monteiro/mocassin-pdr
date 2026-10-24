@@ -42568,10 +42568,21 @@ Run `make clean` between builds. The binaries report `pdr-coupling-v2.0.1`.
   - On Read the Docs, the automation rule for `stable` (`^pdr-coupling-v\d+\.\d+(\.\d+)?$`)
     would now find a tag that contains `docs/`.
 
-**Not installed.** ~/.local still holds 874f591's build (D-430). The
-probes D-438 guarded date from D-138 to D-236, well before v2.0, so a PDR
-build installed there has the same defect. Installing v2.0.1 into ~/.local
-waits for the user's word.
+**Installed (2026-10-24, the user: "Yes", to reinstalling both prefixes).**
+`make clean && make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install` in this
+checkout at the tag: rc 0. ~/.local/bin/mocassin reports pdr-coupling-v2.0.1,
+and ~/.local/share/mocassin gains dataPDR/h2. It replaces 874f591's build,
+which had the D-438 defect: the probes D-438 guarded date from D-138 to D-236.
+The user's *_ori binaries in ~/.local/bin are untouched. The two Badnell fit
+files that D-435 removed stay in ~/.local/share/mocassin/data, because
+`make install` copies and does not delete; no code reads them.
+
+Check: the installed quickstart example HII40, copied from
+~/.local/share/doc and run with ~/.local/bin/mocassin at 14 ranks, converged
+at 18 iterations. Its lineFlux.out, grid1.out and grid2.out are
+byte-identical to mocassin_docs/runs/docs-v2.0/qs-hii40-np14.
+~/.local/mocassin_h2 was reinstalled from h2-model at the same time
+(DEVLOG-H2 H-047).
 
 ### Status
 
