@@ -438,6 +438,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-436 | **Licensing notices in source files, comments only (the user: "proceed with modification notes and headers in eight source files, then with the Cloudy notes at the three translated routines, and HEALPix's and SUNDIALS' notices in their files").** Modification notes on hydro_mod, fluorescence_mod, readdata_mod; GPL headers on h2_mod, h2Lines_mod, frontLines_mod, h2Slab, h2Test; Cloudy notes at yanH2xSec, h2ShieldFederman, h2FormDist; HEALPix notice restored in healpix.F90; SUNDIALS notice at check_flag. Comment-only (93 lines added, 4 removed), all four flavours and h2Test/h2Slab build; the docs statements made current | Accepted | 2026-10-22 |
 | D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) **Result:** quickstart, Python-reader and Lexington pages built and reviewed; the Lexington fixtures stopped unconverged at their 10-iteration cap under D-391's test, so the cap is 60 (the user's choice); converged runs give 20/28, 12/21, 36/47, 21/37 values in the codes' range (MOCASSIN 2003: 20, 15, 42, 27); the quickstart found the PDR-build crash fixed at D-438; README, H2 manual and the D-430 release notes corrected; linkcheck clean, DOIs checked | Done | 2026-10-23 |
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
+| D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42468,6 +42469,109 @@ D-280). Its input has no randomSeed, so a byte comparison would also need one.
 **Not done:** production's own install (~/.local) and the h2-model branch
 still carry the defect until the user reinstalls and h2-model merges
 production.
+
+### Status
+
+Done.
+
+---
+
+## D-439 - Release pdr-coupling-v2.0.1 (2026-10-24)
+
+The user (2026-10-24): "tag a new release (pdr-coupling-v2.0.1) that
+includes the D-438 fix. Apply the fix also to h2-model branch". The h2-model
+part is recorded in DEVLOG-H2.
+
+**What the release is.** Production at 9ec3252 (the merge of D-437's
+documentation increment) plus this entry and the release lines of the README
+and the documentation pages; 41 commits after `pdr-coupling-v2.0`. Since
+v2.0, `source/`, the `Makefile` and `dataPDR/` changed by D-436 (comments
+only) and D-438 (guards inside `#ifdef PDR`); `data/` lost the two unused
+Badnell fit files (D-435). Every `pdr` run computes what v2.0 computed:
+D-438's T4 found a hiipdr21 run byte-identical in every output file to the
+pre-fix binary's.
+
+**Checks before tagging** (fresh clone of the local repository at 9ec3252,
+2026-10-24, gfortran/Open MPI, SUNDIALS 7.8.0): `make mocassin`,
+`make PDR=1 mocassin`, `make PDR=1 mocassinWarm`, `make PDR=1 PDRGEOM=3D all`
+and `make PDR=1 PDRGEOM=3D h2Test h2Slab`, each rc 0 with no errors, leaving
+no tracked file changed. HII40 (benchmarks/gas, randomSeed 1001, 14 ranks)
+on the clone's 3D build converged at 18 iterations with lineFlux.out,
+grid1.out, grid2.out and temperature.out byte-identical to the plain build's
+run (mocassin_docs/runs/docs-v2.0/lex-HII40). The commit that adds this entry
+changes only DEVLOG.md, README.md and documentation pages.
+
+**Release notes** (for the GitHub release):
+
+```markdown
+## MOCASSIN-PDR pdr-coupling-v2.0.1 (2026-10-24)
+
+A fix release of `pdr-coupling-v2.0`. In v2.0 the PDR builds (`PDR=1`, 3D or 1D) crashed in the first
+iteration on any model run without the `pdr` keyword, such as a plain photoionisation model. This
+release fixes that and adds the documentation site. Nothing a `pdr` run computes has changed: a PDR run
+is byte-identical to v2.0's. Science results should cite this tag.
+
+### Fixed
+
+- **PDR builds run models without `pdr` again** (DEVLOG D-438). Seven diagnostic reads of arrays that
+  exist only with `pdr` (or, in one case, only with gas) are now guarded. With `pdr` off, a PDR build
+  gives output byte-identical to the plain build (HII40 on the 3D and 1D builds; a dust and gas model on
+  the 3D build). With `pdr` on, nothing changes.
+- **The Lexington fixtures** in `benchmarks/gas/` allow 60 iterations. At their former cap of 10, three
+  of the four stopped before the model-integrated convergence test (D-391) passed (D-437).
+
+### New
+
+- **The documentation site**, https://mocassin-pdr.readthedocs.io (D-432, D-433, D-437): installation and
+  running, a quickstart, every input keyword and output file (checked against the code at every build),
+  the PDR and H2 physics with links to the code that implements it, the benchmarks with their
+  provenance (now including the Lexington photoionisation models), licensing and data sources.
+- **`examples/quickstart/`**: two small models, HII40 and a 21³ hiipdr, with plot scripts.
+- **`tools/mocread.py`**: a numpy-only reader for the main output files.
+- **Licensing** (D-434 to D-436): `THIRD_PARTY_NOTICES.md`, READMEs for `data/`, `dustData/` and
+  `dataPDR/`, and the required notices in the source files (comments only). The Numerical Recipes
+  routines in the vendored 3D-PDR (`spline.F90`, `solvlevpop.F90`) remain a known issue and are to be
+  replaced.
+
+### Corrected
+
+- The H2 line ratios against Cloudy quoted in v2.0's notes came from earlier runs (DEVLOG-H2 H-024). The
+  v2.0 release runs give hiipdr ortho 0.71–0.80, para 0.95–1.09, and pn150k ortho 0.89–1.16, para
+  1.65–2.69 (D-433, D-437).
+- The README's description of `benchmarks/test_Problem`, and `doc/manual-pdr-h2.md`, now written for
+  `main`.
+
+### Known issues
+
+- The dust-only benchmarks `benchmarks/dust/1D/p0tau1` and `p0tau10` segfault in the first iteration
+  (D-280, D-438).
+- `pdr` with more than one grid is neither supported nor refused (D-438).
+- The open items of `doc/pdr-status.md`.
+
+### Building
+
+At this release all four flavours and `h2Test`/`h2Slab` built from a fresh clone with gfortran/Open MPI
+and SUNDIALS 7.8.0:
+- `make PDR=1 PDRGEOM=3D all` (with the H2 model);
+- `make PDR=1 all`;
+- `make all`;
+- `make PDR=1 mocassinWarm`.
+
+Run `make clean` between builds. The binaries report `pdr-coupling-v2.0.1`.
+```
+
+**To publish (the user's step; nothing pushed here).**
+  - In ~/software/mocassin_HM_2026_3DPDR: `git push` (main) and
+    `git push origin pdr-coupling-v2.0.1`.
+  - On GitHub, under Releases, "Draft a new release": choose
+    pdr-coupling-v2.0.1, paste the notes above, and publish.
+  - On Read the Docs, the automation rule for `stable` (`^pdr-coupling-v\d+\.\d+(\.\d+)?$`)
+    would now find a tag that contains `docs/`.
+
+**Not installed.** ~/.local still holds 874f591's build (D-430). The
+probes D-438 guarded date from D-138 to D-236, well before v2.0, so a PDR
+build installed there has the same defect. Installing v2.0.1 into ~/.local
+waits for the user's word.
 
 ### Status
 

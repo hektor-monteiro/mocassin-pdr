@@ -11,9 +11,9 @@ and without the `pdr` keyword it is MOCASSIN alone. It needs SUNDIALS ({doc}`ins
 it and the other builds).
 
 :::{important}
-Use a checkout of `main` from 2026-10-23 or later (commit `6d05ce1`, {devlog}`D-438`). In release
-`pdr-coupling-v2.0` itself, the PDR builds crash on any model without the `pdr` keyword, such as
-the first model below.
+Use release `pdr-coupling-v2.0.1` or later ({devlog}`D-439`). In `pdr-coupling-v2.0` the PDR
+builds crash on any model without the `pdr` keyword, such as the first model below
+({devlog}`D-438`).
 :::
 
 From your checkout:

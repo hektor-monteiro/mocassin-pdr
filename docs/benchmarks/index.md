@@ -44,7 +44,8 @@ balance was not reached or reached 30,000 K, or whose ionisation balance failed)
 ## The runs
 
 The MOCASSIN results are the release runs of `pdr-coupling-v2.0` ({devlog}`D-429`,
-{devlog}`D-430`):
+{devlog}`D-430`); release `pdr-coupling-v2.0.1` computes exactly the same for a `pdr` run
+({devlog}`D-438`):
 
 - **Build.** The binary was built at commit `c1ea374`, whose `source/`, `Makefile` and
   `dataPDR/` are identical to the release commit `53c17eb`. It is the 3D build,

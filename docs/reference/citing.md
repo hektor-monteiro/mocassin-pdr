@@ -1,7 +1,7 @@
 # Citing MOCASSIN-PDR
 
 Results should cite the **release tag** of the code they were made with
-(`pdr-coupling-v2.0` for this release), so that the code behind them can be recovered
+(`pdr-coupling-v2.0.1` for this release), so that the code behind them can be recovered
 exactly. The binaries print the version they were built from at the top of every run
 log.
 
