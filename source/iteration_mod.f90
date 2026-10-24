@@ -1142,13 +1142,17 @@ module iteration_mod
               ! D-155: the state this MC iteration starts from. The convergence
               ! test must compare against THIS, not against the previous
               ! coupling pass - see the note on xHIiterStart in common_mod.
-              if (allocated(grid(iG)%xHIiterStart)) &
-                   & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
-                   & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
-              ! D-173: same snapshot for the temperature.
-              if (allocated(grid(iG)%TeIterStart)) &
-                   & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
-                   & grid(iG)%Te(0:grid(iG)%nCells)
+              ! D-441: ionDen and Te exist only with gas; the snapshots are
+              ! allocated in every model, and a dust-only model crashed here.
+              if (lgGas) then
+                 if (allocated(grid(iG)%xHIiterStart)) &
+                      & grid(iG)%xHIiterStart(0:grid(iG)%nCells) = &
+                      & grid(iG)%ionDen(0:grid(iG)%nCells, elementXref(1), 1)
+                 ! D-173: same snapshot for the temperature.
+                 if (allocated(grid(iG)%TeIterStart)) &
+                      & grid(iG)%TeIterStart(0:grid(iG)%nCells) = &
+                      & grid(iG)%Te(0:grid(iG)%nCells)
+              end if
 #ifdef PDR
               ! D-200: and for the two state vectors the bistability actually
               ! lives in - the molecular abundances and the ion fractions.
@@ -2374,7 +2378,7 @@ module iteration_mod
            !
            ! D-406: off by default (iterDamp = 0, common_mod), this and the
            ! D-200 step below; D-405 found no cycle left for them to break.
-           if (iterDamp > 0.) then
+           if (lgGas .and. iterDamp > 0.) then
               do iG = 1, nGrids
                  if (.not.allocated(grid(iG)%TeIterStart)) cycle
                  do iDum = 1, grid(iG)%nCells
