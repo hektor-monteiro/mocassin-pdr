@@ -240,8 +240,8 @@ PDR at `nbins 600`, measured on the development machine (D-370):
     memory ≈ (0.47 GB + 38 kB × active cells) × ranks
 
 With 31 GB for the run, that allows about 46,000 active cells at 14 ranks, or 104,000 at 7. The H2 level
-model stays within this. The test problem's 4,661 active cells used 0.61–0.62 GB per rank, against the
-formula's 0.65 (`doc/manual-pdr-h2.md`).
+model stays within this. The tutorial's run of the test problem with the PDR and the H2 model (4,661 active
+cells) peaked at 8.8 GB on 14 ranks, 0.63 GB per rank, against the formula's 0.65 (DEVLOG D-440).
 
 **The H2 level model takes about half of a 3D PDR run's time or more.** In the reference runs it took
 22 of hiipdr's 44 minutes (31³, 15 iterations) and 100 of pn150k's 152 (41³, 18 iterations). The ranks
@@ -283,7 +283,8 @@ reported, not tested.
 ### Photoionisation and dust
 
 `benchmarks/test_Problem` is a dusty model: a 200 kK star of 7×10³⁷ erg/s at the centre of a 21³ octant,
-with gas and grain densities read from files (10³ and 10⁴ cm⁻³, and a box-shaped region of 8×10⁴ cm⁻³).
+with gas and grain densities read from files: a ring of 8×10⁴ cm⁻³ inside a slab of 10⁴ cm⁻³, in a halo of
+10³ cm⁻³. The documentation site's tutorial runs it with the PDR and the H2 model.
 To run it:
 ```bash
 cd benchmarks/test_Problem
@@ -402,7 +403,8 @@ Limitations to know before using the results:
   two small models and plots them.
 - [DEVLOG.md](DEVLOG.md): the implementation history, one entry per decision.
 - [DEVLOG-H2.md](DEVLOG-H2.md): the H2 level model's history, in the same form.
-- [doc/manual-pdr-h2.md](doc/manual-pdr-h2.md): a worked PDR + H2 run, from the test problem.
+- [The tutorial](https://mocassin-pdr.readthedocs.io/en/latest/tutorials/dust-gas-pdr.html): a complete dust + gas + PDR + H2 model, from the test problem, with
+  slices, line maps and a warm start (it replaces `doc/manual-pdr-h2.md`).
 - [doc/h2-radiation-molecules/main.pdf](doc/h2-radiation-molecules/main.pdf): how the radiation field
   sets the molecular content, from the field and the dust through the H2 model to the chemistry.
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): every third-party component, its licence and the

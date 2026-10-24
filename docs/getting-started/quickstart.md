@@ -169,7 +169,7 @@ fixed 15 iterations, and its last change, 2.04%, was just above the default 2% l
 
 - {doc}`../user-guide/keywords` and {doc}`../user-guide/outputs`: every input keyword and output
   file.
-- {doc}`../user-guide/h2-manual`: a full dust + gas + PDR + H₂ model, the test problem, with maps of
-  its H₂ and CO lines.
+- {doc}`../tutorials/dust-gas-pdr`: a full dust + gas + PDR + H₂ model, the test problem, with
+  slices, maps of its H₂ and CO lines, and a warm start.
 - {doc}`running`: ranks and memory, warm starts and convergence.
 - {doc}`../benchmarks/index`: how the code compares with others.

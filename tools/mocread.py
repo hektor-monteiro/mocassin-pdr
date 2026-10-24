@@ -9,12 +9,13 @@
     p = mocread.read_pdr(run, g)        # pdrGrid.out of a PDR build: chiFUV, A_V, the chemistry
 
 Scope. One grid, a 3D model, written by a gfortran build (list-directed output), without lgDebug, with
-one nebular composition (nebComposition, no multiChemistry). Anything else is refused with a message
+its composition given by nebComposition or by multiChemistry. Anything else is refused with a message
 saying which of these it is, rather than read wrongly.
 
 Files, all relative to the run directory:
 
-    input/input.in and its nebComposition file   composition()     the switched-on elements
+    input/input.in and its abundance file(s)     composition()     the switched-on elements
+                                                 compositions()    (one dict per multiChemistry file)
     output/grid0.out, grid1.out, grid2.out       read_grid()       axes, active and lgBlack flags,
                                                                    Te, ne, nH, ion fractions
     output/lineFlux.out                          read_lines()      Hbeta, H I, He I, He II, heavy ions
@@ -61,17 +62,47 @@ def ion_label(el, charge):
 
 
 # -------------------------------------------------------------------------------------- composition
+def _abundance_files(run):
+    """(multiChemistry on, the abundance files) of input/input.in: nebComposition's one file, or
+    multiChemistry's N files (set_input_mod.f90), quoted with " or ' or not at all"""
+    inp = _text(os.path.join(run, 'input', 'input.in'))
+    neb = re.search(r'^\s*nebComposition\s+"?([^"\s]+)"?', inp, re.M)
+    multi = re.search(r'^\s*multiChemistry\s+(\d+)\s+(.*)$', inp, re.M)
+    if neb and multi:
+        raise ValueError('input/input.in has both nebComposition and multiChemistry')
+    if multi:
+        toks = re.findall(r'"([^"]*)"|\'([^\']*)\'|(\S+)', multi.group(2))
+        return True, [''.join(t) for t in toks[:int(multi.group(1))]]
+    if neb:
+        return False, [neb.group(1)]
+    raise ValueError('mocread needs nebComposition or multiChemistry: input/input.in has neither')
+
+
+def _read_abundances(run, path):
+    vals = [float(ln.split()[0]) for ln in _text(os.path.join(run, path)).splitlines() if ln.split()][:30]
+    return {ELEMENTS[i]: v for i, v in enumerate(vals) if v > 1e-12}
+
+
+def _common(comps):
+    """the one composition of a list of them when every one is equal, else None"""
+    return comps[0] if all(c == comps[0] for c in comps[1:]) else None
+
+
+def compositions(run='.'):
+    """one dict per abundance file, in input/input.in's order (index k is grid1.out's abFileIndex k + 1):
+    each holds the elements of that file with abundance (per H) above 1e-12. With nebComposition the
+    list has one dict. An element is on in the model when it is on in any of them (composition_mod.f90)"""
+    return [_read_abundances(run, f) for f in _abundance_files(run)[1]]
+
+
 def composition(run='.'):
     """the switched-on elements and their abundances (per H), in Z order, from input/input.in's
-    nebComposition file; an element is on when its abundance exceeds 1e-12, as in composition_mod.f90"""
-    inp = _text(os.path.join(run, 'input', 'input.in'))
-    if re.search(r'^\s*multiChemistry', inp, re.M):
-        raise ValueError('mocread reads single-composition models: input/input.in has multiChemistry')
-    m = re.search(r'^\s*nebComposition\s+"?([^"\s]+)"?', inp, re.M)
-    if not m:
-        raise ValueError('mocread needs nebComposition: input/input.in has none')
-    vals = [float(ln.split()[0]) for ln in _text(os.path.join(run, m.group(1))).splitlines() if ln.split()][:30]
-    return {ELEMENTS[i]: v for i, v in enumerate(vals) if v > 1e-12}
+    nebComposition file; an element is on when its abundance exceeds 1e-12, as in composition_mod.f90.
+    With multiChemistry, the common composition when every file gives the same one"""
+    c = _common(compositions(run))
+    if c is None:
+        raise ValueError('the abundance components differ: use compositions(run) and Grid.abundance(el)')
+    return c
 
 
 # --------------------------------------------------------------------------------------------- grid
@@ -85,11 +116,14 @@ class Grid:
     Te, ne, nH  grid1.out: T_e [K], n_e and the hydrogen density [cm^-3]
     r           distance from the grid origin [cm], where the star sits in a symmetric model
     mask        active cells that are not flagged black
-    elements    the switched-on elements, in grid2.out's order
-    abundances  their abundances per H
+    elements    the switched-on elements, in grid2.out's order (with multiChemistry, those of any file)
+    components  compositions(run): one dict of abundances per H per abundance file
+    abindex     each point's abundance file, from 1 (grid1.out's abFileIndex; 1 everywhere without
+                multiChemistry)
+    abundances  composition(run), the abundances per H, or None when the components differ
     """
 
-    def __init__(self, run, nx, ny, nz, x, y, z, flags, g1, g2, abundances):
+    def __init__(self, run, nx, ny, nz, x, y, z, flags, g1, g2, elements, components, abindex):
         self.run = run
         self.nx, self.ny, self.nz = nx, ny, nz
         self.x, self.y, self.z = x, y, z
@@ -103,8 +137,10 @@ class Grid:
         X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
         self.r = np.sqrt(X ** 2 + Y ** 2 + Z ** 2)
         self.mask = (self.active > 0) & ~self.black
-        self.elements = list(abundances)
-        self.abundances = abundances
+        self.elements = elements
+        self.components = components
+        self.abindex = abindex
+        self.abundances = _common(components)
         self._g2 = g2
         self._frac = {}
 
@@ -117,6 +153,10 @@ class Grid:
         if not 0 <= charge < a.shape[1]:
             raise ValueError(f'grid2.out holds charges 0 to {a.shape[1] - 1} of {el}, not {charge}')
         return a[:, charge].reshape(self.nx, self.ny, self.nz)
+
+    def abundance(self, el):
+        """the abundance per H of element el (a symbol) per grid point, from the point's abundance file"""
+        return np.array([c.get(el, 0.) for c in self.components])[self.abindex - 1]
 
 
 def read_grid(run='.'):
@@ -135,14 +175,28 @@ def read_grid(run='.'):
     y = np.array(t[7 + nx:7 + nx + ny], float)
     z = np.array(t[7 + nx + ny:off], float)
     flags = np.array(t[off:], int).reshape(n, 3)
+    multi, _ = _abundance_files(run)
+    components = compositions(run)
+    elements = [el for el in ELEMENTS if any(el in c for c in components)]
     g1 = np.loadtxt(os.path.join(out, 'grid1.out'), ndmin=2)
-    if g1.shape[1] != 3:
-        raise ValueError(f'grid1.out has {g1.shape[1]} columns, not 3 (multiChemistry is not supported)')
-    abundances = composition(run)
+    ncol = 4 if multi else 3
+    if g1.shape[1] != ncol:
+        raise ValueError(f'grid1.out has {g1.shape[1]} columns, not {ncol}: '
+                         + ('multiChemistry adds the abundance file index' if multi else 'the model has no multiChemistry'))
+    if multi:
+        if not np.array_equal(g1[:, 3], np.round(g1[:, 3])):
+            raise ValueError("grid1.out's 4th column (the abundance file index) is not integral")
+        ia = g1[flags[:, 0] > 0, 3]
+        if ia.size and (ia.min() < 1 or ia.max() > len(components)):
+            raise ValueError(f"grid1.out's abundance file index runs {ia.min():.0f} to {ia.max():.0f} at active "
+                             f'points, not within 1 to {len(components)}')
+        abindex = g1[:, 3].astype(int).reshape(nx, ny, nz)
+    else:
+        abindex = np.ones((nx, ny, nz), int)
     g2 = _text(os.path.join(out, 'grid2.out')).rstrip('\n').split('\n')
-    if len(g2) != n * len(abundances):
-        raise ValueError(f'grid2.out has {len(g2)} lines, not {n} points x {len(abundances)} elements')
-    return Grid(run, nx, ny, nz, x, y, z, flags, g1, g2, abundances)
+    if len(g2) != n * len(elements):
+        raise ValueError(f'grid2.out has {len(g2)} lines, not {n} points x {len(elements)} elements')
+    return Grid(run, nx, ny, nz, x, y, z, flags, g1, g2, elements, components, abindex)
 
 
 # -------------------------------------------------------------------------------------------- lines

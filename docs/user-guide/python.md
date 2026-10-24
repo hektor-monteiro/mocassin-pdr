@@ -26,7 +26,8 @@ $ python3 tools/mocread.py my_model
 
 | Function | File(s) | Returns |
 | :--- | :--- | :--- |
-| `composition(run)` | `input/input.in` and its `nebComposition` file | the elements switched on, symbol → abundance by number relative to H |
+| `composition(run)` | `input/input.in` and its `nebComposition` (or `multiChemistry`) file(s) | the elements switched on, symbol → abundance by number relative to H; with `multiChemistry`, only when every component is the same |
+| `compositions(run)` | the same | one such dict per abundance file, in file order |
 | `read_grid(run)` | `output/grid0.out`, `grid1.out`, `grid2.out` | a `Grid`: axes, flags, $T_e$, $n_e$, $n_{\mathrm H}$, ionic fractions |
 | `read_lines(run)` | `output/lineFlux.out`, the totals block | a `Lines`: H$\beta$ and the H I, He I, He II and heavy-ion forbidden lines relative to H$\beta$ (not the heavy-element recombination tables that `recombinationLines` adds) |
 | `mean_te(run)` | `output/temperature.out`, totals block | the mean temperature of each ion, weighted by $n_e\,n_\mathrm{ion}\,dV$ |
@@ -43,7 +44,8 @@ $ python3 tools/mocread.py my_model
 - **Arrays have the grid's shape**, `(nx, ny, nz)`, with `g.x`, `g.y` and `g.z` the grid's axis
   points in cm (`grid0.out`). Cell walls lie midway between them, so the first and last cells along an
   axis are half cells. Every grid point is written, inactive ones as zeros.
-- **`g.mask`** selects the cells the line tables count: active, and not flagged by the code
+- **`g.mask`** selects the cells `lineFlux.out` and `lineFluxMol.out` count (`lineFluxH2.out` counts the
+  flagged ones too): active, and not flagged by the code
   (`lgBlack`: a cell whose thermal balance was not reached or reached 30,000 K, or whose ionisation
   balance failed). Select cells with it, as in `g.Te[g.mask]`; note that a plain mean over cells is
   not weighted by volume, and mocread does not provide the cell volumes.
@@ -56,12 +58,15 @@ $ python3 tools/mocread.py my_model
 - **`ion_fractions`** follows `ionratio.out`, whose header reads `<ion>/<H+>` but whose values are
   each element's fractions (Harrington's definition). With `f = mocread.ion_fractions(run)`, the
   ratio `f[('He', 1)] / f[('H', 1)]` is the Lexington benchmarks' $\langle\mathrm{He^+}\rangle/\langle\mathrm{H^+}\rangle$.
+- **Several compositions** (`multiChemistry`): `g.abindex` holds each grid point's abundance file
+  (1 to N, from `grid1.out`), `g.components` the abundances of each file, and `g.abundance('C')` the
+  per-point abundance of carbon. The elements in `grid2.out` are those switched on in any file.
 - **PDR abundances** are per H nucleus, as the chemistry computes them:
   `p.abundance('CO')`. The species and their order are `mocread.REDUCED_SPECIES`.
 
 ## Scope
 
-It reads models with **one grid** in **three dimensions**, written by a **gfortran** build with
-**one nebular composition** and without `lgDebug`. A model outside these limits (sub-grids, a 2D
-model, `multiChemistry`, files wrapped at 80 columns by ifort) is refused with a message saying
-which limit it hit, rather than read wrongly.
+It reads models with **one grid** in **three dimensions**, written by a **gfortran** build without
+`lgDebug`, with one nebular composition or several (`multiChemistry`). A model outside these limits
+(sub-grids, a 2D model, files wrapped at 80 columns by ifort) is refused with a message saying which
+limit it hit, rather than read wrongly.

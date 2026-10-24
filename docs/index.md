@@ -34,7 +34,7 @@ release tag ({doc}`reference/citing`).
     <user-guide/python>`;
   - {doc}`the build flavours <user-guide/build-flavours>`;
   - the {doc}`dust inputs <user-guide/dust-inputs>`;
-  - a worked {doc}`PDR + H₂ run <user-guide/h2-manual>`.
+  - the {doc}`tutorial <tutorials/dust-gas-pdr>`: a complete dust + gas + PDR + H₂ model.
 - **Physics and numerics.** {doc}`physics/pdr/index` follows the radiation field into
   the molecular content: the field and its estimator, the dust, the rays, the H₂ level
   model, the rates, the chemistry, the feedback and the convergence. Every process is
@@ -101,7 +101,13 @@ user-guide/python
 user-guide/build-flavours
 user-guide/environment
 user-guide/dust-inputs
-user-guide/h2-manual
+```
+
+```{toctree}
+:hidden:
+:caption: Tutorials
+
+tutorials/dust-gas-pdr
 ```
 
 ```{toctree}
