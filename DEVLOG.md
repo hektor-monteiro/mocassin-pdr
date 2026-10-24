@@ -440,6 +440,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
 | D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start **Result:** tutorials/dust-gas-pdr published from runs at v2.0.1: graphite run converged at 16 iterations in 24 min on 14 ranks, peak 8.8 GB, 2,268 molecular cells, Hbeta 4.67e35, 1-0 S(1)/Hbeta 8.1e-5; own dust atomic (max 2x(H2) 7e-7). Found: mocassinWarm takes maxIterateMC from output/grid3.out and nPhotons from photoSource.out, not input.in, and its converged-cell share is meaningless (D-438) | Done | 2026-10-24 |
+| D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Predictions on record | Open | 2026-10-24 |
+| D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Predictions on record | Open | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42763,3 +42765,182 @@ after the v2.0.1 tag, so the page asks for main from 2026-10-24.
 ### Status
 
 Done.
+
+## D-441 - Dust-only models crash in every build; writeSED loses light from inactive source cells (2026-10-24)
+
+The user (2026-10-24): "Merge what has been done in h2-model branch then
+Proceed to increment 4" (the merge is H-048). Increment 4 of D-432 is the
+dust benchmarks, and none of them runs: D-280 (O-31) and D-438 recorded that
+benchmarks/dust/1D/p0tau1 and p0tau10 segfault in iteration 1, on the plain
+build too. Planning found the cause and two more defects. Plan
+`~/.claude-lac/plans/velvet-rolling-kettle.md` (increment 4a), approved
+2026-10-24.
+
+**1. The crash** (certain; an exploration agent, read-only).
+  - iterateMC (iteration_mod.f90:1145-1151) copies
+    `ionDen(:, elementXref(1), 1)` into `xHIiterStart` and `Te` into
+    `TeIterStart` at the start of every MC iteration, behind
+    `allocated()` tests on the snapshots. The snapshots are allocated
+    unconditionally in setMotherGrid (grid_mod.f90:1677-1693); ionDen, Te,
+    Ne and Hden only inside `if (lgGas)` (grid_mod.f90:1297-1569). A
+    gas-free model reads an unallocated array.
+  - Introduced by d294814 (D-155) and 0bc0d19 (D-173), both before ecedfab,
+    as D-280 found. dev has no xHIiterStart, and its TeIterStart snapshot is
+    inside `if (lgGas)`: dev runs p0tau10 cleanly (D-281).
+  - Evidence: runs/d438/T5-plain/run.log (p0tau1, plain build 6d05ce1):
+    rank 0 completes writeSED, then every rank segfaults at the same point.
+    The backtrace mapped with nm/addr2line/objdump on
+    runs/d438/bin/mocassin.plain: iterateMC+0x5973, a copy loop reading the
+    grid_type component at +0x658 (ionDen, by declaration order) into +0x138
+    (xHIiterStart); the next loop copies +0x5a8 (Te) into +0x178.
+  - Every benchmarks/dust input (three 1D shells, four 2D discs) is
+    `nebComposition noGas` on one grid and crashes here.
+  - Also unguarded since 0bc0d19: the D-174 iterDamp step (`:2377`), harmless
+    while iterDamp = 0 (the default) and TeIterStart stays 0.
+
+**2. One iteration once past it.** cvTotalsUpdate (`:3703-3704`, D-391)
+sets `lgCvTotals = .true.` for a gas-free model ("nothing integrated to
+test"), and since D-392 the stop test (`:3245`) is `lgCvTotals` alone. dev
+stops on `totPercent >= minConvergence`, the share of cells whose dust
+temperature changed by less than convLimit (update_mod.f90:385-397).
+
+**3. writeSED drops the light that escapes from an inactive source cell.**
+  - escapedPackets is indexed by the packet's origin cell
+    (photon_mod.f90:655-656: `origin(2) = grid%active(...)` of the emitting
+    cell). A star in a cavity sits in an inactive cell, so its packets that
+    escape without interacting (with dust-free gas, every sub-edge packet,
+    which photon_mod sends straight out) are booked to index 0.
+  - ca87ffc ("Reorganized writeSED()", 2025-09-03) sums escapedPackets over
+    active cells only. The code it replaced (the commented copy at
+    output_mod.f90:3101-3108) summed `i = 0, nCells` in the default case.
+    Bucket 0 is now missing from the SED, every viewpoint SED, and sSED.
+    writeContCube still includes the origin cell (output_mod.f90:3522-3530).
+  - The MPI reduction (iteration_mod.f90:794, chunks from index 0) and the
+    symmetricXYZ division (`:941`, i = 0..nCells) include bucket 0, so only
+    the sum in writeSED is missing.
+  - Measured, run.log's "Total energy radiated out of the nebula [e36
+    erg/s]" against LStar:
+      - quickstart HII40 (gas only, Rin 3e18): 1235 of 3077 (40%);
+      - dev p0tau10: 29.3 of 38.26 (77%); dev 2D tau1: 3.63e-4 of 3.91e-3
+        (9%) - dev's writeSED is this branch's apart from D-343;
+      - this branch's p0tau1, iteration 1 before the crash: 11.40 of 38.26;
+      - quickstart hiipdr21 (Rin 3e18, dust, pdr): 3065 of 3077 (99.6%).
+        Why it barely loses anything is not established.
+  - SED.out's trailer writes `totalE*1e-36` labelled "[erg/s] ... (x
+    1e36)", where totalE is already in 1e36 erg/s; the code before ca87ffc
+    wrote `'Total energy radiated out of the nebula [e36 erg/s]:', totalE`.
+
+**The user's decisions** (2026-10-24, asked during planning):
+  - The dust-only stop: "Converged cells", as dev and original MOCASSIN.
+  - writeSED: first "leave it as is and in the comparison pages just sum the
+    stellar sSED for the comparisons". That cannot work: sSED is filled in
+    the same active-cell loop and is zero when the source cell is inactive
+    (dev's p0tau10 SED.out: column 4 is 0 at every wavelength). Told so,
+    the user chose "Fix writeSED after all".
+
+**The fixes** (production, executed by code-executor):
+  - F1: the two snapshot copies inside `if (lgGas)`; the iterDamp step gets
+    dev's `lgGas .and.` back.
+  - F2: gas-free models set `lgCvTotals = (totPercent >= minConvergence)`
+    in cvTotalsUpdate; the stop and cap prints say so for dust-only models;
+    readInput's D-392 message and common_mod's comment updated.
+  - F3: writeSED adds bucket 0 of each grid to Luminosity and sSED, and to
+    SED unless lgEcho or lgNosource (the echo path stays active-cells-only,
+    as before ca87ffc); the trailer is the pre-ca87ffc line.
+  - F4: the 1D dust fixtures' cap goes from `maxIterateMC 10 95.` to
+    `30 95.` (D-437's precedent).
+
+**Predictions on record** (runs/d441/, randomSeed 1001 appended):
+  - T1: p0tau1 on a -O0 -g -fcheck=all build of the pre-fix tree fails in
+    iteration 1 at iteration_mod.f90:1147; the post-fix build runs clean.
+  - T2: p0tau1, p0tau10, p0tau100 (plain build, cap 30) exit cleanly,
+    stopping on the dust-only criterion within 30 iterations; totalE/LStar
+    0.98-1.01.
+  - T3: p0tau10 on the 3D build byte-identical to the plain build.
+  - T4: quickstart HII40, pre against post (plain): every output but
+    SED.out byte-identical; totalE/LStar 0.40 -> 0.98-1.01.
+  - T5: quickstart hiipdr21, pre against post (3D): every output but
+    SED.out byte-identical; totalE/LStar 0.99-1.01.
+  - T6: the four 2D discs (plain, cap 10) exit cleanly; totalE/LStar
+    0.98-1.01.
+
+**What it changes elsewhere.** SED.out changes for every model whose source
+sits in an inactive cell (the Lexington and quickstart HII40 inputs, hiipdr,
+pn150k: Rin > 0). No documentation page plots an SED.out yet. Nothing else
+writeSED computes feeds another output.
+
+### Status
+
+Open: fixes planned (2026-10-24).
+
+## D-442 - Documentation site, increment 4a: the 1D dust benchmark (2026-10-24)
+
+The user (2026-10-24): "Proceed to increment 4". Increment 4 of D-432 is
+the dust benchmarks: Pascucci et al. 2004 for the 2D discs, Ivezic et al.
+1997 for the 1D spheres. Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`
+(increment 4a), approved 2026-10-24; the code it needs is D-441.
+
+**Findings from planning** (two exploration agents, read-only):
+  - **The 1D fixtures are Ercolano et al. 2005's set-up, not Ivezic 1997's.**
+    The benchmark paper is Ivezic, Groenewegen, Men'shchikov & Szczerba
+    1997, MNRAS 291, 121 (not 287, 799, which is the DUSTY scaling paper,
+    IvezicElitzur1997 in references.bib). It uses idealised opacities
+    (q_abs = q_sca = 1 below 1 um, then 1/lambda and 1/lambda^4). The
+    fixtures follow Ercolano, Barlow & Storey 2005 (MNRAS 362, 1038): a
+    10^4 Lsun, 2500 K point source, a uniform shell (p = 0) with Y = 1000,
+    single 0.16 um Draine & Lee silicate (dustData/sil-dlee.nk), tau(1 um) =
+    1, 10, 100, on log-spaced Cartesian octants (16^3, 17^3, 21^3) resolving
+    r_in = Rout/1000.
+  - **Ercolano 2005 Fig. 1 is the like-for-like reference.** dustybench.ps
+    in the arXiv source of astro-ph/0507050 (tarball sha256
+    f73f74817f7d65772c90cbf9992d7b468280dbc47251a47bc4e2601aa1adebdf;
+    dustybench.ps 641116334901a9f7c6087cffa344b9681065e950cb7f1c421af401bcf599eb8d)
+    is one IDL 6.0 panel with 10 stroked paths: MOCASSIN 2005 black solid,
+    DUSTY 2.01 red dashed (the caption), tau = 1, 10, 100 as line widths
+    10, 40, 80 (the text: thicker for the more opaque); the tau = 100
+    curves in three subpaths each (clipped below 1e-5 in the 10 and 18 um
+    features). Log axes, x 0.12-1000 um, y 1e-5-1, as lambda F_lambda /
+    int F_lambda dlambda. The paper gives no numbers on the agreement
+    ("very good").
+  - **Pascucci 2004's data are offline.** The benchmark page (archived
+    2005) points to ftp://ftp.mpia-hd.mpg.de/pub/2Dbenchmark/, which refuses
+    connections; no VizieR or journal supplement. Its figures are vector
+    PostScript too: absolute SEDs only as the five-code mean at 12.5 and
+    77.5 deg, per-code differences from RADICAL, absolute temperatures only
+    at tau = 100.
+  - **Fixture notes for 4b.** Ercolano's Table 2 gives N_dust = 1.20e-7 for
+    tau = 10 against p0tau10.ndust's 1.107e-7; the files give tau ratios of
+    exactly 1:10:100, so the table is likely the typo. The 2D inputs' `Rin
+    1.96e13` (1.31 AU) deactivates the 1.00-1.35 AU cell that holds the
+    inner rim (the density file already zeroes r < 1 AU); their
+    inclinations are 12.49 and 77.35 deg (77.5 deg = 1.3526 rad), and 42.5
+    deg is not computed.
+
+**The user's decisions** (2026-10-24, asked during planning): "1D now, 2D
+later" (the 2D discs run only as checks of D-441; their page waits for the
+data files); "Ercolano's figure only" for the 1D reference (rather than
+building DUSTY): SEDs only, no temperature reference.
+
+**The plan.** ercref.py reads Fig. 1 into docs/bench/ref (calibration from
+the PostScript frame and ticks; each curve must integrate to 1 over ln
+lambda within 0.97-1.02); mocread gains read_dust and viewpoint/stellar
+columns in read_sed; dust.py and plots.py make the comparison; six runs
+(tau 1, 10, 100 with isotropicScattering, DUSTY's assumption, and with the
+default Henyey-Greenstein) on D-441's 3D binary; page
+docs/benchmarks/dust-1d.md.
+
+**Predictions on record** (runs/docs-d442/, 14 ranks, seed 1001):
+  - p0tau1 and p0tau10 stop on the dust-only criterion within 15
+    iterations, p0tau100 within 30; each under 3 min;
+  - L(SED)/LStar 0.99-1.01, agreeing with SED.out's trailer within 1%;
+  - T at the inner edge 700-900 K;
+  - MOCASSIN 2005 against DUSTY: median |dex| <= 0.05 at tau 1 and 10,
+    <= 0.10 at tau 100 (over the points where DUSTY >= 1e-3 of its peak);
+  - MOCASSIN-PDR (isotropic) against DUSTY: median |dex| within 0.03 of
+    MOCASSIN 2005's at each tau;
+  - HG against isotropic: differences mostly below 3 um, under 0.05 dex at
+    the infrared peak.
+
+### Status
+
+Open: increment 4a under way (2026-10-24).
