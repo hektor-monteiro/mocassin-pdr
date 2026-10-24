@@ -78,7 +78,8 @@ of the carbon. The run cannot stop before iteration 4, nor in a PDR run before
 `pdrStartIter`+1. Every iteration's values are in `output/convergence.out`. The
 converged-cell percentage, and `minConvergence` (the second number of
 `maxIterateMC`), are reported, not tested; the percentage still controls `writeGrid`,
-`autoPackets` and `quantumHeatGrain`.
+`autoPackets` and `quantumHeatGrain`. A model without gas has nothing integrated to test, and
+stops when `minConvergence` percent of its cells have converged ({devlog}`D-441`).
 
 To run a fixed number of iterations, for example to compare two builds, set
 `convTotals 1.e-6` and `maxIterateMC <n> 90.` With `randomSeed`, the same build and

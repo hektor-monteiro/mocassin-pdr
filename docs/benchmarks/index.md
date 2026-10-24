@@ -5,11 +5,13 @@ The benchmark pages compare MOCASSIN-PDR with independent codes on fixed models:
 | Model | What it is | Reference |
 | :--- | :--- | :--- |
 | {doc}`lexington` | The four photoionised nebulae of the Lexington 2000 workshop, two H II regions and two planetary nebulae, gas only, $13^3$ cells each | the seven codes of {cite:t}`Ercolano2003`, Tables 4–7 |
+| {doc}`dust-1d` | Three spherical dust shells around a 2,500 K star, dust only (Draine & Lee silicate), $\tau(1\,\mu\mathrm{m})=1$, 10, 100 | DUSTY 2.01 and MOCASSIN 2005, Fig. 1 of {cite:t}`Ercolano2005` |
 | {doc}`hiipdr` | The H II region and PDR of {cite:t}`Bisbas2015`, §5.4: a 40 kK star in gas of $n_{\mathrm H}=100$ cm⁻³ with silicate grains, $31^3$ cells | Cloudy c25.00, and standalone 3D-PDR |
 | {doc}`pn150k` | A 150 kK planetary nebula, $n_{\mathrm H}=10^3$ cm⁻³, MRN graphite grains, $41^3$ cells | Cloudy c25.00 |
 
-The dust-only benchmarks will be added once they have been rerun with this release. The rest
-of this page describes the two PDR models; {doc}`lexington` describes its own method and runs.
+The 2D dust discs of {cite:t}`Pascucci2004` wait for that benchmark's data files ({doc}`dust-1d`
+explains why). The rest of this page describes the two PDR models; {doc}`lexington` and
+{doc}`dust-1d` describe their own method and runs.
 
 ## What is compared
 

@@ -542,7 +542,9 @@
     Maximum number of Monte Carlo iterations. The second number is the
     percentage of converged cells; since D-392 it is only reported against,
     and the model-integrated test (`convTotals`) decides when the run stops.
-  devlog: [D-392]
+    In a model without gas, which has nothing integrated to test, the run
+    stops when that percentage of cells has converged (D-441).
+  devlog: [D-392, D-441]
 
 - name: convLimit
   group: montecarlo

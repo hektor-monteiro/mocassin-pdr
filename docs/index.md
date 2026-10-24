@@ -42,8 +42,8 @@ release tag ({doc}`reference/citing`).
   known to be wrong, and by how much.
 - **Benchmarks.** The current results, with their provenance: the four
   {doc}`Lexington photoionisation models <benchmarks/lexington>` against the codes of the
-  workshop, and the two PDR models, {doc}`benchmarks/hiipdr` and {doc}`benchmarks/pn150k`,
-  against Cloudy c25.00.
+  workshop, the {doc}`dust shells <benchmarks/dust-1d>` against DUSTY, and the two PDR models,
+  {doc}`benchmarks/hiipdr` and {doc}`benchmarks/pn150k`, against Cloudy c25.00.
 - **Developer notes.** The {doc}`code map <developer/code-map>`, the
   {doc}`vendored 3D-PDR <developer/vendored-3dpdr>`, the
   {doc}`decision log <developer/devlog-index>` and {doc}`how these pages are built
@@ -124,6 +124,7 @@ physics/limitations
 
 benchmarks/index
 benchmarks/lexington
+benchmarks/dust-1d
 benchmarks/hiipdr
 benchmarks/pn150k
 ```
