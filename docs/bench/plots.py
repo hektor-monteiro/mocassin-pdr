@@ -392,9 +392,10 @@ def dust1d_figures(data_dir, out_dir):
     for c, tau in enumerate(DUST_TAUS):
         up, lo = ax[0, c], ax[1, c]
         for code, key in (('DUSTY 2.01', 'dusty'), ('MOCASSIN 2005', 'moc2005')):
-            s = (ref['code'] == code) & (ref['tau'] == tau)
             _, col, ls = DUST_STYLE[key]
-            up.plot(ref['lam_um'][s], ref['y'][s], color=col, ls=ls, lw=1.3)
+            for seg in np.unique(ref['segment']):            # each segment of the figure's curve on its own
+                s = (ref['code'] == code) & (ref['tau'] == tau) & (ref['segment'] == seg)
+                up.plot(ref['lam_um'][s], ref['y'][s], color=col, ls=ls, lw=1.3)
         for sc in ('iso', 'hg'):
             if (tau, sc) not in ids:
                 continue
@@ -405,10 +406,13 @@ def dust1d_figures(data_dir, out_dir):
         lo.axhline(0., color='k', ls='--', lw=1.0)
         if os.path.exists(cmp_path):
             d = dust_csv(cmp_path)
+            # DUSTY's points by segment, so that no line crosses a gap of the figure's curves
+            dseg = ref['segment'][(ref['code'] == 'DUSTY 2.01') & (ref['tau'] == tau)]
             for key in ('moc2005', 'pdr_iso', 'pdr_hg'):
                 if 'dex_' + key in d:
                     _, col, ls = DUST_STYLE[key]
-                    lo.plot(d['lam_um'], d['dex_' + key], color=col, ls=ls, lw=1.3)
+                    for seg in np.unique(dseg):
+                        lo.plot(d['lam_um'][dseg == seg], d['dex_' + key][dseg == seg], color=col, ls=ls, lw=1.3)
         up.set_xscale('log')
         up.set_yscale('log')
         up.set_xlim(0.12, 1000)

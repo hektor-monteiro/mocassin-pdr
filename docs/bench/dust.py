@@ -20,7 +20,9 @@ For each run, from SED.out's total column, dustGrid.out, input/input.in and run.
 and the run's version line, iterations ("finished at" lines), stop line, last converged-cell share and
 run time. At each DUSTY 2.01 point of a tau, MOCASSIN 2005 and s are interpolated linearly in
 (log lambda, log s) and compared as log10(curve / DUSTY); the statistics use the points where DUSTY is
-at least 1e-3 of its peak: median |dex|, max |dex| and its lambda. Writes to DIR (default
+at least 1e-3 of its peak: median |dex|, max |dex| and its lambda. MOCASSIN 2005 is interpolated within
+each segment of the figure's curve (tau = 100 is drawn as three), so a DUSTY point in a gap between
+segments has no MOCASSIN 2005 value and is left out of its statistics. Writes to DIR (default
 docs/bench/data/dust1d):
 
     sed_<id>.csv          lambda [um], s, in increasing lambda
@@ -31,9 +33,9 @@ docs/bench/data/dust1d):
     summary_page.csv      the same as the page shows it ({csv-table})
     PROVENANCE.json       sha256 of every file read, each run's version line, the md5 of meta.binary, the date
 
-The CSVs are written with %.4g; the page table prints numbers with %.3g, |dex| with %.3f, and – where
-there is no value. --check reduces again into a temporary directory and compares every CSV with DIR's
-byte for byte.
+The CSVs are written with %.4g; the page table prints numbers with %.3g, L_SED/LStar and L_SED/L_e36
+with %.4f, |dex| with %.3f, and – where there is no value. --check reduces again into a temporary
+directory and compares every CSV with DIR's byte for byte.
 """
 import argparse
 import csv
@@ -69,8 +71,8 @@ READ = {}                                      # label -> sha256 of every file r
 SUMMARY = ['tau', 'curve', 'id', 'iterations', 'stop', 'cells_pct', 'L_SED_over_Lstar', 'L_SED_over_L_e36',
            'r_in_over_Rout_1000', 'T_in', 'peak_lam_um', 'dusty_peak_lam_um', 'median_abs_dex', 'max_abs_dex',
            'max_abs_dex_lam_um']
-PAGE = ['τ(1 µm)', 'Curve', 'Iterations', 'Stop', 'Converged cells [%]', 'L_SED / L★', 'T_in [K]',
-        'Peak λ [µm]', 'Median |dex|', 'Max |dex|', 'at λ [µm]']
+PAGE = ['τ(1 µm)', 'Curve', 'Iterations', 'Stop', 'Converged cells [%]', 'L_SED / L★', 'L_SED / L_e36',
+        'T_in [K]', 'Peak λ [µm]', 'Median |dex|', 'Max |dex|', 'at λ [µm]']
 
 
 def sha256(path):
@@ -222,7 +224,8 @@ def reduce_all(conf, runs, ids, out):
         ref = list(csv.DictReader(f))
     curve = {}
     for r in ref:
-        curve.setdefault((r['code'], int(r['tau'])), []).append((float(r['lam_um']), float(r['y'])))
+        curve.setdefault((r['code'], int(r['tau'])), []).append((float(r['lam_um']), float(r['y']),
+                                                                  int(r['segment'])))
     curve = {k: np.array(sorted(v)) for k, v in curve.items()}
     done = {i: Run(i, conf['run'][i], runs[i]) for i in ids}
     summary, page_rows, card = [], [], {}
@@ -239,7 +242,12 @@ def reduce_all(conf, runs, ids, out):
         lam, dusty = curve[(DUSTY, tau)][:, 0], curve[(DUSTY, tau)][:, 1]
         use = dusty >= FLOOR * dusty.max()
         dpeak = peak(lam, dusty)
-        cols = {MOC2005: loglog(curve[(MOC2005, tau)][:, 0], curve[(MOC2005, tau)][:, 1], lam)}
+        # MOCASSIN 2005 per segment of the figure: nan in the gaps between them
+        moc = curve[(MOC2005, tau)]
+        cols = {MOC2005: np.full(len(lam), np.nan)}
+        for seg in np.unique(moc[:, 2]):
+            v = loglog(moc[moc[:, 2] == seg, 0], moc[moc[:, 2] == seg, 1], lam)
+            cols[MOC2005] = np.where(np.isfinite(v), v, cols[MOC2005])
         for i in here:
             cols[i] = loglog(done[i].lam, done[i].s, lam)
         dex = {k: np.log10(v / dusty) for k, v in cols.items()}
@@ -251,9 +259,9 @@ def reduce_all(conf, runs, ids, out):
         write_csv(os.path.join(out, f'compare_tau{tau}.csv'),
                   hdr + ['dex_' + h for h in hdr[2:]] + ['in_stats'], rows)
         m, mx, mxl = stats(dex[MOC2005], lam, use)
-        mp = peak(*curve[(MOC2005, tau)].T)
+        mp = peak(moc[:, 0], moc[:, 1])
         summary.append([tau, MOC2005, '', None, '', None, None, None, None, None, mp, dpeak, m, mx, mxl])
-        page_rows.append([str(tau), MOC2005, NA, NA, NA, NA, NA, page(mp), page(m, '%.3f'), page(mx, '%.3f'),
+        page_rows.append([str(tau), MOC2005, NA, NA, NA, NA, NA, NA, page(mp), page(m, '%.3f'), page(mx, '%.3f'),
                           page(mxl)])
         for i in names[1:]:
             run = done[i]
@@ -264,7 +272,8 @@ def reduce_all(conf, runs, ids, out):
                             run.log['stop'], run.log['cells_pct'], run.L / run.Lstar, le, run.r_in_ratio, run.T_in,
                             pk, dpeak, m, mx, mxl])
             page_rows.append([str(tau), f'MOCASSIN-PDR ({run.spec["scattering"]})', str(run.log['iterations']),
-                              run.log['stop'], page(run.log['cells_pct']), page(run.L / run.Lstar), page(run.T_in),
+                              run.log['stop'], page(run.log['cells_pct']), page(run.L / run.Lstar, '%.4f'),
+                              page(le, '%.4f'), page(run.T_in),
                               page(pk), page(m, '%.3f'), page(mx, '%.3f'), page(mxl)])
     write_csv(os.path.join(out, 'summary.csv'), SUMMARY, summary)
     write_csv(os.path.join(out, 'summary_page.csv'), PAGE, page_rows)
