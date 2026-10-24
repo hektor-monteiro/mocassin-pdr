@@ -7,6 +7,7 @@
     g = mocread.read_grid(run)          # the grid and the gas: Te, ne, nH, ion fractions
     l = mocread.read_lines(run)         # lineFlux.out: Hbeta and the line ratios
     p = mocread.read_pdr(run, g)        # pdrGrid.out of a PDR build: chiFUV, A_V, the chemistry
+    d = mocread.read_dust(run)          # dustGrid.out: N_dust and the grain temperatures
 
 Scope. One grid, a 3D model, written by a gfortran build (list-directed output), without lgDebug, with
 its composition given by nebComposition or by multiChemistry. Anything else is refused with a message
@@ -21,7 +22,11 @@ Files, all relative to the run directory:
     output/lineFlux.out                          read_lines()      Hbeta, H I, He I, He II, heavy ions
     output/temperature.out                       mean_te()         mean ionic temperatures
     output/ionratio.out                          ion_fractions()   mean ionic fractions
-    output/SED.out                               read_sed()        the emergent SED
+    output/SED.out                               read_sed()        the emergent SED: total, per viewpoint,
+                                                                   the sources' own, and the trailer's
+                                                                   total energy
+    output/grid0.out, grid3.out, dustGrid.out    read_dust()       axes, active flags, N_dust and the grain
+                                                                   temperatures per species and size
     output/pdrGrid.out                           read_pdr()        the PDR state (v2 layout, D-352)
     output/convergence.out                       read_convergence()  the per-iteration totals (D-391)
 
@@ -159,10 +164,10 @@ class Grid:
         return np.array([c.get(el, 0.) for c in self.components])[self.abindex - 1]
 
 
-def read_grid(run='.'):
-    """grid0.out, grid1.out and grid2.out of a run, and its composition"""
-    out = os.path.join(run, 'output')
-    t = _text(os.path.join(out, 'grid0.out')).split()
+def _read_grid0(run):
+    """grid0.out of a run: nx, ny, nz, the axes x, y, z [cm] and the (n, 3) flags active, lgConverged,
+    lgBlack of every point in i, j, k order"""
+    t = _text(os.path.join(run, 'output', 'grid0.out')).split()
     if int(t[0]) != 1:
         raise ValueError(f'multi-grid models are not supported: grid0.out has {t[0]} grids')
     nx, ny, nz = int(t[1]), int(t[2]), int(t[3])
@@ -175,6 +180,14 @@ def read_grid(run='.'):
     y = np.array(t[7 + nx:7 + nx + ny], float)
     z = np.array(t[7 + nx + ny:off], float)
     flags = np.array(t[off:], int).reshape(n, 3)
+    return nx, ny, nz, x, y, z, flags
+
+
+def read_grid(run='.'):
+    """grid0.out, grid1.out and grid2.out of a run, and its composition"""
+    out = os.path.join(run, 'output')
+    nx, ny, nz, x, y, z, flags = _read_grid0(run)
+    n = nx * ny * nz
     multi, _ = _abundance_files(run)
     components = compositions(run)
     elements = [el for el in ELEMENTS if any(el in c for c in components)]
@@ -306,15 +319,117 @@ def ion_fractions(run='.'):
     return _totals(os.path.join(run, 'output', 'ionratio.out'))
 
 
+_SED_TRAILER = 'Total energy radiated out of the nebula [e36 erg/s]:'
+
+
 def read_sed(run='.'):
-    """SED.out: nu [Ryd], lambda [um] and the total F(nu) D^2 [Jy pc^2] (column 3)"""
+    """SED.out (output_mod.f90 writeSED), F(nu) D^2 in [Jy pc^2]:
+
+    nu_ryd, lam_um  nu [Ryd] and lambda [um]
+    total           the SED over all directions (column 3)
+    views           (n, nAngleBins): the SED towards each viewpoint
+    star            the sources' own SED over all directions (sSED)
+    star_views      (n, nAngleBins): the sources' own SED towards each viewpoint
+    viewpoints      [(theta, phi), ...] of header line 2, one per viewpoint (nAngleBins of them)
+    L_e36           the trailer's total energy radiated out of the nebula [1e36 erg/s], or None for the
+                    trailer written before D-441, whose value is mis-scaled ("[erg/s] ... (x 1e36)")
+    """
+    lines = _text(os.path.join(run, 'output', 'SED.out')).splitlines()
+    vals = [float(v) for v in lines[1].split('=', 1)[1].replace(',', ' ').split()]
+    viewpoints = list(zip(vals[0::2], vals[1::2]))
+    nab = len(viewpoints)
+    ncol = 2 + 2 * (nab + 1)
     rows = []
-    for ln in _text(os.path.join(run, 'output', 'SED.out')).splitlines()[3:]:
-        if not ln.strip():
+    k = 3
+    for k in range(3, len(lines)):
+        if not lines[k].strip():
             break
-        rows.append([float(v) for v in ln.split()[:3]])
-    a = np.array(rows, float).reshape(-1, 3)
-    return {'nu_ryd': a[:, 0], 'lam_um': a[:, 1], 'total': a[:, 2]}
+        rows.append([float(v) for v in lines[k].split()])
+    bad = [len(r) for r in rows if len(r) != ncol]
+    if bad:
+        raise ValueError(f'SED.out has rows of {bad[0]} columns, not 2 + 2(nAngleBins + 1) = {ncol} for its '
+                         f'{nab} viewpoints')
+    a = np.array(rows, float).reshape(-1, ncol)
+    L = None
+    for ln in lines[k:]:
+        if _SED_TRAILER in ln:
+            L = float(ln.split(_SED_TRAILER, 1)[1].split()[0])
+            break
+    return {'nu_ryd': a[:, 0], 'lam_um': a[:, 1], 'total': a[:, 2], 'views': a[:, 3:3 + nab],
+            'star': a[:, 3 + nab], 'star_views': a[:, 4 + nab:], 'viewpoints': viewpoints, 'L_e36': L}
+
+
+# --------------------------------------------------------------------------------------------- dust
+class Dust:
+    """dustGrid.out of a run, on grid0.out's grid. Arrays are (nx, ny, nz), like Grid's.
+
+    x, y, z     the axes [cm]
+    active      grid0.out's active-cell index (0 or less outside the nebula)
+    converged   grid0.out's lgConverged
+    mask        active > 0
+    r           distance from the grid origin [cm]
+    ndust       N_dust, the grain number density scale of the point
+    T           (nSpeciesMax+1, nSizes+1, nx, ny, nz) grain temperatures [K]: T[s, a] of species s, size a;
+                index 0 is the mean over that axis, so T[0, 0] is the point's mean dust temperature
+    abindex     each point's dust abundance file, from 1 (1 everywhere without multiDustChemistry)
+    mass_msol   the trailer's total dust mass [Msol]
+    """
+
+    def __init__(self, run, nx, ny, nz, x, y, z, flags, ndust, T, abindex, mass_msol):
+        self.run = run
+        self.nx, self.ny, self.nz = nx, ny, nz
+        self.x, self.y, self.z = x, y, z
+        shape = (nx, ny, nz)
+        self.active = flags[:, 0].reshape(shape)
+        self.converged = flags[:, 1].reshape(shape) > 0
+        self.mask = self.active > 0
+        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+        self.r = np.sqrt(X ** 2 + Y ** 2 + Z ** 2)
+        self.ndust = ndust.reshape(shape)
+        self.T = T.reshape(T.shape[:2] + shape)
+        self.abindex = abindex.reshape(shape)
+        self.mass_msol = mass_msol
+
+
+def _grid3_ints(g3, tail):
+    """the values of grid3.out's line ending in tail"""
+    ln = next((ln for ln in g3.splitlines() if ln.rstrip().endswith(tail)), None)
+    if ln is None:
+        raise ValueError(f'grid3.out has no line ending "{tail}"')
+    return ln.rstrip()[:-len(tail)].split()
+
+
+def read_dust(run='.'):
+    """grid0.out, grid3.out and dustGrid.out of a run (grid_mod.f90 writeGrid): per grid point in i, j, k
+    order a line N_dust [dustAbunIndex, with multiDustChemistry], then nSizes+1 lines of nSpeciesMax+1
+    temperatures; then a blank line and the total dust mass in 1e45 g and in Msol"""
+    out = os.path.join(run, 'output')
+    nx, ny, nz, x, y, z, flags = _read_grid0(run)
+    n = nx * ny * nz
+    g3 = _text(os.path.join(out, 'grid3.out'))
+    nsp, _, nsz = (int(v) for v in _grid3_ints(g3, 'nSpeciesMax, nSpecies, nSizes'))
+    multi = _grid3_ints(g3, 'lgMultiDustChemistry, nDustComponents')[0] == 'T'
+    lines = _text(os.path.join(out, 'dustGrid.out')).rstrip('\n').split('\n')
+    per = 1 + nsz + 1
+    if len(lines) != n * per + 3:
+        raise ValueError(f'dustGrid.out has {len(lines)} lines, not {n} points x (1 + {nsz + 1} sizes) + 3 '
+                         f'(the blank line and the two dust masses) = {n * per + 3}')
+    head = [lines[p * per].split() for p in range(n)]
+    nhead = 2 if multi else 1
+    if any(len(h) != nhead for h in head):
+        raise ValueError(f"dustGrid.out's point lines do not all hold {nhead} value(s): "
+                         + ('N_dust and dustAbunIndex (multiDustChemistry)' if multi else 'N_dust'))
+    ndust = np.array([h[0] for h in head], float)
+    abindex = np.array([h[1] for h in head], int) if multi else np.ones(n, int)
+    t = [lines[p * per + 1 + a].split() for p in range(n) for a in range(nsz + 1)]
+    if any(len(v) != nsp + 1 for v in t):
+        raise ValueError(f"dustGrid.out's temperature lines do not all hold nSpeciesMax + 1 = {nsp + 1} values")
+    T = np.array(t, float).reshape(n, nsz + 1, nsp + 1).transpose(2, 1, 0)
+    tail = 'Total dust mass [Msol]:'
+    if tail not in lines[-1]:
+        raise ValueError(f'dustGrid.out does not end with "{tail}"')
+    mass = float(lines[-1].split(tail, 1)[1].split()[0])
+    return Dust(run, nx, ny, nz, x, y, z, flags, ndust, T, abindex, mass)
 
 
 # ---------------------------------------------------------------------------------------------- PDR

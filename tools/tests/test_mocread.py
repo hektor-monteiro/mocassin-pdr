@@ -2,7 +2,8 @@
 identically to docs/bench/reduce.py's read_run, and the Lexington HII40 run of D-376 (plain build).
 The runs root is $MOCASSIN_RUNS (default the production checkout's runs/); a test whose run directory
 is missing is skipped. multiChemistry is tested on the test_Problem run h036b-tp-orig of the h2
-worktree and on small synthetic run directories."""
+worktree and on small synthetic run directories. read_dust and read_sed are tested on the dev branch's
+dust benchmark runs (1D p0tau10, 2D tau 1, with viewpoints) and on a synthetic multiDustChemistry run."""
 
 import importlib.util
 import os
@@ -24,6 +25,9 @@ RUNS = os.environ.get('MOCASSIN_RUNS', '/home/hmonteiro/software/mocassin_HM_202
 REL = os.path.join(RUNS, '_release_v2', 'rel-hii31')
 LEX = os.path.join(RUNS, 'd376-lex', 'HII40', 'new')
 TP = '/home/hmonteiro/software/mocassin_h2/runs/h036b-tp-orig'
+DEVBENCH = '/home/hmonteiro/software/dev_bench/bench'
+DUST1D = os.path.join(DEVBENCH, 'dust_1D_p0tau10_final')
+DUST2D = os.path.join(DEVBENCH, 'dust_2D_tau1.000_final')
 
 
 def need(run):
@@ -142,3 +146,67 @@ def test_both_compositions_refused(tmp_path):
         mocread.compositions(str(tmp_path))
     with pytest.raises(ValueError):
         mocread.composition(str(tmp_path))
+
+
+def test_read_dust_1d():
+    need(DUST1D)
+    d = mocread.read_dust(DUST1D)
+    assert d.T.shape[2:] == (17, 17, 17) and d.ndust.shape == (17, 17, 17)
+    assert int(d.mask.sum()) == 2665
+    first = np.flatnonzero(d.ndust.ravel() > 0)[0]
+    assert d.T[0, 0].ravel()[first] == pytest.approx(807.44, abs=0.005)
+    assert d.mass_msol == pytest.approx(0.150011882)
+    assert np.all(d.abindex == 1)
+
+
+def test_read_sed_1d_old_trailer():
+    need(DUST1D)
+    s = mocread.read_sed(DUST1D)
+    row = open(os.path.join(DUST1D, 'output', 'SED.out')).read().splitlines()[3]
+    assert len(row.split()) == 4
+    n = len(s['total'])
+    assert s['views'].shape == (n, 0) and s['star_views'].shape == (n, 0)
+    assert np.all(s['star'] == 0)
+    assert s['viewpoints'] == []
+    assert s['L_e36'] is None
+
+
+def test_read_sed_2d_views():
+    need(DUST2D)
+    s = mocread.read_sed(DUST2D)
+    n = len(s['total'])
+    assert s['views'].shape == (n, 2) and s['star_views'].shape == (n, 2)
+    assert len(s['viewpoints']) == 2
+
+
+def dust_run(tmp_path):
+    """a 2 x 1 x 1 grid, both points active, 2 species and 2 sizes, multiDustChemistry"""
+    (tmp_path / 'output').mkdir()
+    (tmp_path / 'output' / 'grid0.out').write_text(
+        '1\n2 1 1 2 0 1.0E+17\n0. 1.0E+17\n0.\n0.\n1 1 0\n2 0 0\n')
+    (tmp_path / 'output' / 'grid3.out').write_text(
+        ' T           2  lgMultiDustChemistry, nDustComponents\n'
+        '           2           3           2  nSpeciesMax, nSpecies, nSizes\n')
+    body = ''
+    for p, (nd, ia) in enumerate(((1.0e-7, 2), (2.0e-7, 1))):
+        body += f'{nd!r} {ia}\n'
+        for a in range(3):
+            body += ' '.join(f'{100. * (p + 1) + 10. * a + s}' for s in range(3)) + '\n'
+    body += '  \n Total dust mass [1.e45 g]:  1.0E-13\n Total dust mass [Msol]:   5.0E-02\n'
+    (tmp_path / 'output' / 'dustGrid.out').write_text(body)
+    return body
+
+
+def test_read_dust_synthetic(tmp_path):
+    body = dust_run(tmp_path)
+    d = mocread.read_dust(str(tmp_path))
+    assert d.T.shape == (3, 3, 2, 1, 1)
+    assert d.T[0, 0, 0, 0, 0] == 100. and d.T[2, 1, 0, 0, 0] == 112. and d.T[1, 2, 1, 0, 0] == 221.
+    assert np.array_equal(d.ndust.ravel(), [1.0e-7, 2.0e-7])
+    assert np.array_equal(d.abindex.ravel(), [2, 1])
+    assert np.array_equal(d.mask.ravel(), [True, True]) and np.array_equal(d.converged.ravel(), [True, False])
+    assert d.mass_msol == 5.0e-2
+    lines = body.split('\n')
+    (tmp_path / 'output' / 'dustGrid.out').write_text('\n'.join(lines[:3] + lines[4:]))
+    with pytest.raises(ValueError, match='lines, not'):
+        mocread.read_dust(str(tmp_path))

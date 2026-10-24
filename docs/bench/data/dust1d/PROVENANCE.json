@@ -1,0 +1,132 @@
+{
+ "generated": "2026-10-24",
+ "runs_root": "/home/hmonteiro/software/mocassin_docs/runs",
+ "runs": {
+  "dust-p0tau1-iso": {
+   "run": "runs:docs-d442/dust-p0tau1-iso",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] dust only: converged cells  95.20% >= minConvergence 95.00%",
+   "run_time": "00:00:06"
+  },
+  "dust-p0tau1-hg": {
+   "run": "runs:docs-d442/dust-p0tau1-hg",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] dust only: converged cells  96.17% >= minConvergence 95.00%",
+   "run_time": "00:00:09"
+  },
+  "dust-p0tau10-iso": {
+   "run": "runs:docs-d442/dust-p0tau10-iso",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] NOT CONVERGED after  30 iterations: converged cells  93.17% (minConvergence 95.00%, dust only - D-441)",
+   "run_time": "00:01:28"
+  },
+  "dust-p0tau10-hg": {
+   "run": "runs:docs-d442/dust-p0tau10-hg",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] NOT CONVERGED after  30 iterations: converged cells  93.85% (minConvergence 95.00%, dust only - D-441)",
+   "run_time": "00:01:27"
+  },
+  "dust-p0tau100-iso": {
+   "run": "runs:docs-d442/dust-p0tau100-iso",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] NOT CONVERGED after  30 iterations: converged cells  91.84% (minConvergence 95.00%, dust only - D-441)",
+   "run_time": "00:02:55"
+  },
+  "dust-p0tau100-hg": {
+   "run": "runs:docs-d442/dust-p0tau100-hg",
+   "version": "MOCASSIN version pdr-coupling-v2.0.1-14-gbef7b13",
+   "stop_line": "! iterateMC: [talk] NOT CONVERGED after  30 iterations: converged cells  91.59% (minConvergence 95.00%, dust only - D-441)",
+   "run_time": "00:02:54"
+  }
+ },
+ "binary": {
+  "path": "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs/d441/bin/mocassin.3d",
+  "md5": "53bd4333eb7c768c895659cf6932c924",
+  "md5_expected": "53bd4333eb7c768c895659cf6932c924"
+ },
+ "toml": {
+  "path": "repo:docs/bench/dust.toml",
+  "sha256": "8fc2d130c6ecbd92a3dc7bdfb0046a78222c1d2edd7d1478a2480e7e1a13b8c1"
+ },
+ "reference": {
+  "path": "repo:docs/bench/ref/ercolano2005_fig1.csv",
+  "sha256": "185aee4921e4c353859c632681aed33dd4a8d93f59f8e0cd869d40b71613fa45"
+ },
+ "script": {
+  "dust.py": "0ab77c2370d06e7e9fe700b03c05dfc94594a4d589074caf6b450a27235ff1ff",
+  "mocread.py": "db0fd88e2ea279469b57a1104dfdc63a84a21aace0d1be2d1cb1e7b7a0b2b06a"
+ },
+ "files_read": {
+  "repo:benchmarks/dust/1D/p0tau1/p0tau1.ndust": "e5f6b17ec3320358a2ffc0724163d1af7eb096dd441de169e984c19da08b727d",
+  "repo:benchmarks/dust/1D/p0tau1/p0tau1_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "repo:benchmarks/dust/1D/p0tau1/p0tau1_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "repo:benchmarks/dust/1D/p0tau10/p0tau10.ndust": "2bd89afec936ed65710376f1c001e2c43faca21fa62e7bf70c90a30e42707153",
+  "repo:benchmarks/dust/1D/p0tau10/p0tau10_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "repo:benchmarks/dust/1D/p0tau10/p0tau10_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "repo:benchmarks/dust/1D/p0tau100/p0tau100.ndust": "2617d4f52b4c2559edd785a70b509e34c62cfd6576bfd52737e340c1c46596b4",
+  "repo:benchmarks/dust/1D/p0tau100/p0tau100_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "repo:benchmarks/dust/1D/p0tau100/p0tau100_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "repo:docs/bench/inputs/dust-p0tau1-hg/input.in": "2b5e43ce6b4d501cf3197a04c1cd55240dd93a2f61495b465ef0edb5a70229af",
+  "repo:docs/bench/inputs/dust-p0tau1-iso/input.in": "02feecfb88179892cdbba729dc7b74fab8a6b624a724b5a16605883963d2bec6",
+  "repo:docs/bench/inputs/dust-p0tau10-hg/input.in": "acf40352655a7e247b38dee2032a5ab899781379640c75a18ae0c36751f000a2",
+  "repo:docs/bench/inputs/dust-p0tau10-iso/input.in": "0c4ad8051cdb96d615182838576f744a8c66f305b9fda45127bcda3655f3576a",
+  "repo:docs/bench/inputs/dust-p0tau100-hg/input.in": "578f1f13b4a29f0e5fcd450971f3a6fb4b00c3af72354b0e327b935449d6966b",
+  "repo:docs/bench/inputs/dust-p0tau100-iso/input.in": "d7646fbcfa364d232f03b29d3a8c7ca8557b79b70c5918ed18b067a75e0229f1",
+  "repo:docs/bench/ref/ercolano2005_fig1.csv": "185aee4921e4c353859c632681aed33dd4a8d93f59f8e0cd869d40b71613fa45",
+  "repo:docs/bench/ref/ercolano2005_fig1.json": "bde28db6fa2a09b6b4204e9e8fe51c5ccc61c139a873f1617dc52ae7644f437d",
+  "runs:docs-d442/dust-p0tau1-hg/input/input.in": "2b5e43ce6b4d501cf3197a04c1cd55240dd93a2f61495b465ef0edb5a70229af",
+  "runs:docs-d442/dust-p0tau1-hg/input/p0tau1.ndust": "e5f6b17ec3320358a2ffc0724163d1af7eb096dd441de169e984c19da08b727d",
+  "runs:docs-d442/dust-p0tau1-hg/input/p0tau1_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau1-hg/input/p0tau1_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau1-hg/output/SED.out": "1996481263a22463a1709149f3106c24a3b37e7b14713c48acb4381081717184",
+  "runs:docs-d442/dust-p0tau1-hg/output/dustGrid.out": "654578edf8a4400d4a976ec72cebbd97c419ec3d3221935baba698eef06ec5b3",
+  "runs:docs-d442/dust-p0tau1-hg/output/grid0.out": "9011f7f2bb0f51b8a26c82543a52846a823c51344d002232286b4e6eb7850733",
+  "runs:docs-d442/dust-p0tau1-hg/output/grid3.out": "eea2277f826f7eab851f471cdb4655f6ae768151a450e48112c81f081a5fd79d",
+  "runs:docs-d442/dust-p0tau1-hg/run.log": "06b44b0d792caedfcc1b8442d573a902d571d6f0162d004cd779d566b3d4153a",
+  "runs:docs-d442/dust-p0tau1-iso/input/input.in": "02feecfb88179892cdbba729dc7b74fab8a6b624a724b5a16605883963d2bec6",
+  "runs:docs-d442/dust-p0tau1-iso/input/p0tau1.ndust": "e5f6b17ec3320358a2ffc0724163d1af7eb096dd441de169e984c19da08b727d",
+  "runs:docs-d442/dust-p0tau1-iso/input/p0tau1_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau1-iso/input/p0tau1_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau1-iso/output/SED.out": "7214f65357f9c89d4c5ee9330e2d871645a3093c48c0260300abd3d4a71107a6",
+  "runs:docs-d442/dust-p0tau1-iso/output/dustGrid.out": "bdc3252d5c76784db54e6a3f5f6f79cbd06f4c9527fc5aa78e2ede7d0107b749",
+  "runs:docs-d442/dust-p0tau1-iso/output/grid0.out": "ef528fea516f6fe1f2e5b4a0cef844d222bf386243b86dd2f0fe44f0e5e66cc8",
+  "runs:docs-d442/dust-p0tau1-iso/output/grid3.out": "eea2277f826f7eab851f471cdb4655f6ae768151a450e48112c81f081a5fd79d",
+  "runs:docs-d442/dust-p0tau1-iso/run.log": "792f1567b4b13af286967101064803f417852c315b5fb5f18e1449d350544355",
+  "runs:docs-d442/dust-p0tau10-hg/input/input.in": "acf40352655a7e247b38dee2032a5ab899781379640c75a18ae0c36751f000a2",
+  "runs:docs-d442/dust-p0tau10-hg/input/p0tau10.ndust": "2bd89afec936ed65710376f1c001e2c43faca21fa62e7bf70c90a30e42707153",
+  "runs:docs-d442/dust-p0tau10-hg/input/p0tau10_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau10-hg/input/p0tau10_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau10-hg/output/SED.out": "a880c64211c0c53a32a525dd1b32f1862da88b85a60fe2321fb18a3b0c889ec1",
+  "runs:docs-d442/dust-p0tau10-hg/output/dustGrid.out": "7d730961b4d6f4f9303dc075f69877f755b88b1ed1964497fe303ed45920dade",
+  "runs:docs-d442/dust-p0tau10-hg/output/grid0.out": "ee9b034ea84d86fc854e0f08fd650391a9499490ac222d45dc3c6d726962eefc",
+  "runs:docs-d442/dust-p0tau10-hg/output/grid3.out": "e801fcd194891f8681d25efbd10a604ac7692889b497c6929f11c8f45b7f8491",
+  "runs:docs-d442/dust-p0tau10-hg/run.log": "eb0c3ba46eb9ff2962a705caad77b0a31bf4563fda8bdb250b63f13f8f5bd2ba",
+  "runs:docs-d442/dust-p0tau10-iso/input/input.in": "0c4ad8051cdb96d615182838576f744a8c66f305b9fda45127bcda3655f3576a",
+  "runs:docs-d442/dust-p0tau10-iso/input/p0tau10.ndust": "2bd89afec936ed65710376f1c001e2c43faca21fa62e7bf70c90a30e42707153",
+  "runs:docs-d442/dust-p0tau10-iso/input/p0tau10_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau10-iso/input/p0tau10_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau10-iso/output/SED.out": "de74a664f16f1f3f3c63694e5c73ace2753279641ccbcd62feab84528de2a980",
+  "runs:docs-d442/dust-p0tau10-iso/output/dustGrid.out": "7332a66c21800dd434f735c5900efba863cc8fc923c7c2aea4c07f84e02af8d1",
+  "runs:docs-d442/dust-p0tau10-iso/output/grid0.out": "660fc01789649a34bb345d075ce7940936e62f4dca0adfe8fdab685db7018317",
+  "runs:docs-d442/dust-p0tau10-iso/output/grid3.out": "e801fcd194891f8681d25efbd10a604ac7692889b497c6929f11c8f45b7f8491",
+  "runs:docs-d442/dust-p0tau10-iso/run.log": "a48422150092ff7b57969a94b1679f7d5227c9d273c318b2aa0e8fce54265cf3",
+  "runs:docs-d442/dust-p0tau100-hg/input/input.in": "578f1f13b4a29f0e5fcd450971f3a6fb4b00c3af72354b0e327b935449d6966b",
+  "runs:docs-d442/dust-p0tau100-hg/input/p0tau100.ndust": "2617d4f52b4c2559edd785a70b509e34c62cfd6576bfd52737e340c1c46596b4",
+  "runs:docs-d442/dust-p0tau100-hg/input/p0tau100_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau100-hg/input/p0tau100_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau100-hg/output/SED.out": "b5a502b398ece875d0c081ef8f5c37a77e444c9ba5272039cfe4b68142d4de2a",
+  "runs:docs-d442/dust-p0tau100-hg/output/dustGrid.out": "1542b4da878bd5df3b18eefa09f43895dec130ce3c0ed39617af9049ae7c26c0",
+  "runs:docs-d442/dust-p0tau100-hg/output/grid0.out": "5cdd72424918039bcd6c0993efb5e1dc8fee89729d5ca7e7b9c648309d2bbc72",
+  "runs:docs-d442/dust-p0tau100-hg/output/grid3.out": "536501d3ea632217ed84bee9c171aee1b8c4078e8e3057e33264f0a31652d425",
+  "runs:docs-d442/dust-p0tau100-hg/run.log": "4942942289fb6d6cc36c387472b7927d94e615f8145558b59210eb206e2d8cd6",
+  "runs:docs-d442/dust-p0tau100-iso/input/input.in": "d7646fbcfa364d232f03b29d3a8c7ca8557b79b70c5918ed18b067a75e0229f1",
+  "runs:docs-d442/dust-p0tau100-iso/input/p0tau100.ndust": "2617d4f52b4c2559edd785a70b509e34c62cfd6576bfd52737e340c1c46596b4",
+  "runs:docs-d442/dust-p0tau100-iso/input/p0tau100_grainsizes.dat": "898dffb7c9295ad6ea69001fee865257b4359aee6673ab43cae80ed9135b6160",
+  "runs:docs-d442/dust-p0tau100-iso/input/p0tau100_grainspecies.dat": "922070c04daffdfe7ca58c0ad44c997b24ed3ca7f8eee771e9c1a11597de3f2d",
+  "runs:docs-d442/dust-p0tau100-iso/output/SED.out": "98d9f72377959fa0a5bf1aab01db29286852a2bd23ee6344fc213ea75c5b89e1",
+  "runs:docs-d442/dust-p0tau100-iso/output/dustGrid.out": "0d0c1c0afe35236ec3dfc399e1a13b90fa3283c295db992367bebe39bc81fe04",
+  "runs:docs-d442/dust-p0tau100-iso/output/grid0.out": "9c5144db989bfd20d5e38218fb9e075d3b68a286f1ad2b10d4bccc967eb894c9",
+  "runs:docs-d442/dust-p0tau100-iso/output/grid3.out": "536501d3ea632217ed84bee9c171aee1b8c4078e8e3057e33264f0a31652d425",
+  "runs:docs-d442/dust-p0tau100-iso/run.log": "32ed20feca3a0f188bd56b482be259fd69cbc5a336846678db5f43e0b001c4b3"
+ }
+}

@@ -4,3 +4,7 @@
 [IvezicElitzur1997]
 status = "MISMATCH (author)"
 reason = "CrossRef's record has a broken family name ('Ivezi' and a no-break space; checked 2026-10-23); the author is Ivezić, as in the bib"
+
+[Pascucci2004]
+status = "TITLE? (0.67)"
+reason = "CrossRef's record holds the main title only; the published title continues 'Benchmark results for disk configurations' (A&A 417, 793; checked 2026-10-24)"
