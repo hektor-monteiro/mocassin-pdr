@@ -439,7 +439,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-437 | **Documentation site, increment 2 opened: quickstart, Python reader, Lexington benchmark, and increment 1's leftovers (the user: "lets go back to the documentation plan. What are the next steps?", then "proceed as suggested").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. Lexington references re-extracted from the TeX source of Ercolano et al. 2003 (per-code values; dev_bench/lex/lex.json, parsed from a PDF, has no per-code columns and 18 medians off by >5%); printed medians include MOCASSIN 2003, so the comparison median and range are recomputed without it. <He+>/<H+> is ionratio.out He+ over H+ (Ferland 1995 definition), not He+ alone. Reruns at v2.0: four Lexington models (plain build) and two quickstart models (3D build) **Result:** quickstart, Python-reader and Lexington pages built and reviewed; the Lexington fixtures stopped unconverged at their 10-iteration cap under D-391's test, so the cap is 60 (the user's choice); converged runs give 20/28, 12/21, 36/47, 21/37 values in the codes' range (MOCASSIN 2003: 20, 15, 42, 27); the quickstart found the PDR-build crash fixed at D-438; README, H2 manual and the D-430 release notes corrected; linkcheck clean, DOIs checked | Done | 2026-10-23 |
 | D-438 | **PDR builds crashed on every model without the `pdr` keyword; fixed (found by D-437's quickstart, the user: "Fix it now").** Seven reads of arrays that setMotherGrid/resetGrid allocate only with `pdr` (AVeff, chiFUV, pdrCoolTref, pdrHeatPE) or only with gas (Hden in writeFUVField) sat on paths a run without `pdr` executes; two (the D-236 probe in ionBalance, the D-138/D-146 probe in thermBalance) ran in every gas run. Each is now behind `lgPDR` (Hden behind `lgGas`), inside its #ifdef PDR block (6d05ce1). HII40 on the 3D and 1D PDR builds now byte-identical to the plain build; dust+gas without `pdr` identical between plain and 3D builds; a `pdr` run byte-identical to the pre-fix binary; -fcheck=all clean. Untested: the gas-free branch (the dust-only p0tau1 segfaults on the plain build as well) | Done | 2026-10-23 |
 | D-439 | **Release `pdr-coupling-v2.0.1` (the user: "tag a new release (pdr-coupling-v2.0.1) that includes the D-438 fix").** A fix release of v2.0: PDR builds run models without `pdr` again (D-438; a `pdr` run byte-identical to v2.0), the documentation site (D-432/D-433/D-437), examples/quickstart and tools/mocread.py, the licensing notices (D-434..D-436, comments only in source), the Lexington fixtures allowed 60 iterations, and the v2.0 notes' H2 line ratios corrected. Checked from a fresh clone of 9ec3252: four flavours, h2Test and h2Slab rc 0; HII40 on its 3D build converges at 18 iterations byte-identical to the plain build. Annotated tag on the commit that adds this entry; not pushed | Done | 2026-10-24 |
-| D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start | In progress | 2026-10-24 |
+| D-440 | **Documentation site, increment 3 opened: the dust + gas + PDR tutorial from benchmarks/test_Problem (the user: "proceed with plan"; on where it lives: "Site page; manual points to it").** Plan `~/.claude-lac/plans/velvet-rolling-kettle.md`. doc/manual-pdr-h2.md's runs predate D-418/D-420/D-421 and it calls the dense gas "box-shaped": the density file is a ring (8e4 cm^-3, R 1.2-3.6e17 cm, |z| <= 2e17 cm) in a slab (1e4) in a halo (1e3). test_Problem's multiChemistry names one file twice (component 1 is the z = 0 plane): mocread will read multiChemistry; h034_maps.py gains a data-directory fallback; examples/tutorial with slices and checks; runs at v2.0.1 with pn150k's graphite (molecular) and with the own dust (atomic), plus a warm start **Result:** tutorials/dust-gas-pdr published from runs at v2.0.1: graphite run converged at 16 iterations in 24 min on 14 ranks, peak 8.8 GB, 2,268 molecular cells, Hbeta 4.67e35, 1-0 S(1)/Hbeta 8.1e-5; own dust atomic (max 2x(H2) 7e-7). Found: mocassinWarm takes maxIterateMC from output/grid3.out and nPhotons from photoSource.out, not input.in, and its converged-cell share is meaningless (D-438) | Done | 2026-10-24 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -42654,6 +42654,112 @@ randomSeed 1001):
       - 4 iterations;
       - Hbeta and 1-0 S(1) within 5% of R1's.
 
+### Results (2026-10-24)
+
+**Part E (code-executor, worktree ~/software/mocassin_docs, branch docs).**
+  - **tools/mocread.py reads multiChemistry models** (a2f92c9):
+      - new: `compositions()`, `Grid.abindex`, `Grid.components` and
+        `Grid.abundance(el)`;
+      - the elements are the union over the abundance files;
+      - `composition()` keeps its contract;
+      - tests: h036b-tp-orig, with abindex {1: 441, 2: 8820}.
+  - **tools/h034_maps.py finds its data without pdrDataDir** (51584fe):
+    `--data`, then pdrDataDir, then ~/.local/share/mocassin/dataPDR. Maps
+    of h035-testproblem-c are unchanged.
+  - **examples/tutorial** (03961cc): the inputs, `plot_slices.py` and
+    `check_model.py`. On the manual's runs the check script reproduces the
+    hydrogen budgets (5.5e-9 and 3.9e-9) and the flagged counts (3, 19).
+  - No blocker.
+
+**Runs** (~/.local/bin/mocassin, pdr-coupling-v2.0.1, md5 1fbd1604, 14
+ranks, randomSeed 1001, mocassin_docs/runs/docs-v2.0.1/):
+  - **R1 tutorial-b (graphite):**
+      - converged on the integrated test at 16 iterations (worst 1.39%),
+        24:10;
+      - memory: the ranks' RSS summed every 10 s, peak 8,604,380 KiB
+        (8.8 GB, 0.63 GB per rank);
+      - 16 flagged points, all cavity cells within 0.03 pc at the 30,000 K
+        ceiling;
+      - hydrogen budget 8.7e-9;
+      - Hbeta 4.668e35 erg/s;
+      - 2,268 points with 2n(H2)/n_H > 0.2;
+      - largest n(CO)/n_H 3.0e-4, largest A_V 10.33;
+      - 1-0 S(1)/Hbeta 8.10e-5, 0-0 S(1)/Hbeta 1.09e-4, CO 1-0 1.35e30
+        erg/s;
+      - H2 sweeps: 154 s in iteration 4, then about 57 s per iteration of
+        about 85 s; the final solve took 170 s.
+
+    Every prediction holds except the time, which was 24 min against
+    30-45 min predicted. The numbers are within 0.5% of h035-testproblem-c
+    (pre-release), so D-418/D-420/D-421 barely move this model.
+  - **R2 tutorial-a (own dust):**
+      - converged at 17 iterations, 16:32;
+      - atomic: largest 2n(H2)/n_H 7.2e-7, largest A_V 1.42, n(CO)/n_H
+        8e-11;
+      - Hbeta 4.903e35 erg/s;
+      - 1-0 S(1)/Hbeta 1.39e-5, 0-0 S(1)/Hbeta 2.8e-8, CO 1-0 2.4e20
+        erg/s;
+      - grain area 2.22e-23 (silicate) + 1.18e-23 (PAH) cm^2/H;
+      - 3 flagged points, budget 6.2e-9.
+
+    Every prediction holds.
+  - **R3 tutorial-b-warm (mocassinWarm on a copy of R1, input.in
+    maxIterateMC set to 4):**
+      - "[D-393] PDR state resumed" and "populations resumed from
+        output/h2Pop.bin", as predicted;
+      - Hbeta x1.001 and 1-0 S(1) x0.961 of R1's, within 5% as predicted;
+      - **but it ran 7 iterations, converging at 1.74%, not 4.** The
+        prediction failed: resetGrid reads maxIterateMC (with the other run
+        parameters) back from output/grid3.out (grid_mod.f90:3566), and the
+        star and nPhotons from output/photoSource.out (3533). Only the
+        input's PDR keywords, convTotals and randomSeed apply.
+  - **R3b tutorial-b-warm4:** grid3.out's cap edited to 4 stops the warm
+    start at 4 iterations, "NOT CONVERGED" (T(H2) 19.0%). T(H2) went 32.1
+    (end of R1), 39.1, 26.6, 32.5, then settled near 32 K. So a
+    continuation has a transient and needs several iterations.
+  - **The warm runs' converged-cell share is meaningless** (neutral 99.5%).
+    The iteration-start arrays are not allocated in resetGrid (D-438,
+    found and not fixed), and the log shows "[D204] iteration start ...
+    mean Te 0.0000E+00". The tutorial says so.
+  - **Maps** (h034_maps.py --png, using the new data-directory fallback):
+    every line's map returns the tables to within 6e-6.
+
+**Pages:**
+  - **New:** tutorials/dust-gas-pdr, with the model, setup, keywords,
+    memory, running, checks, the results table for both runs, slices,
+    maps, the warm start and the limits; figures with PROVENANCE.json.
+  - **Pointers:** user-guide/h2-manual becomes an orphan stub, and
+    doc/manual-pdr-h2.md a pointer.
+  - **README:** describes the ring-in-slab geometry, gives the memory
+    peak of R1 and links the tutorial.
+  - **Other pages:** running.md (the warm-start row, the memory figure);
+    python.md (multiChemistry); the index and quickstart links;
+    pdr-status.md (the PREFIX note).
+
+**Referee review** (PDR/H2), 5 major and 14 minor points, each checked
+before it was applied:
+  - the converged-cell share of a PDR run stays near 30%, not 70-90%;
+  - the warm start's parameters and its converged-cell share (above);
+  - the L-53 claim was contradicted by this run's maps, whose
+    axis-aligned spokes come from the grid's staircase (A_V 8.5 mag along
+    an axis, 6.9 along a diagonal);
+  - the PDR is barely resolved: the ring's second cell gives more than
+    half of 1-0 S(1);
+  - lineFluxH2.out counts flagged cells;
+  - captions corrected: a bipolar ionised cone, diffuse illumination of the
+    slab's faces, CO as a minority carrier outside the ring;
+  - L-57's sign reversed in this run (y side brighter by 4-5%), which is
+    at the noise level.
+
+**Also found while documenting:** the tutorial's inputs and scripts came
+after the v2.0.1 tag, so the page asks for main from 2026-10-24.
+
+**Checks:**
+  - pytest: 121 passed;
+  - fortref: 1192 references, only "unpushed";
+  - `sphinx-build -W` in the docs venv and a fresh venv: only "unpushed";
+  - linkcheck clean.
+
 ### Status
 
-In progress.
+Done.
