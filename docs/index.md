@@ -114,6 +114,7 @@ tutorials/dust-gas-pdr
 :hidden:
 :caption: Physics and numerics
 
+physics/mocassin/index
 physics/pdr/index
 physics/limitations
 ```

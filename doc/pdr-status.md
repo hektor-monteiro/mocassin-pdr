@@ -161,6 +161,9 @@ aesthetics. Resolved items are in section 4.
 | L-64 | Inner-shell photoionisation absorbs but neither ionises nor heats | Medium | D-444 |
 | L-65 | H collisional-excitation cooling charges 1 Ryd per excitation (Ly alpha 4/3 too large) | Medium | D-444 |
 | L-66 | Stages without dielectronic data take oxygen's rate | Medium | D-444 |
+| L-78 | Free-free emission uses another cell's Gaunt factors | Medium | D-444 |
+| L-79 | Resonance-line dust heating is shared between species by number abundance | Medium | D-444 |
+| L-80 | A viewpoint at phi = 0 collects its whole theta band | Medium | D-444 |
 | L-11 | The 1D slabs and `ifront` have not been rerun (out of scope) | Low | D-338 |
 | L-12 | `thermBudget.out`'s cooling columns are bookkeeping, and its PDR heating lags an iteration | Low | D-304, D-421 |
 | L-15 | `getQs` caps the Mie size parameter at 100 | Low | D-305 |
@@ -183,6 +186,13 @@ aesthetics. Resolved items are in section 4.
 | L-75 | `MdMg` with `Ndust` passes the input check; with a file and a constant, the model has no dust | Low | D-444 |
 | L-76 | The photoionisation rate and heating integrals differ at the top bin; Gaunt factors reused within 10% in T | Low | D-444 |
 | L-77 | Dead options and stale comments in the core | Low | D-444 |
+| L-81 | `getDustT`'s 1 K floor applies only with `talk` | Low | D-444 |
+| L-82 | `noScattering` does not reach species read from Q files | Low | D-444 |
+| L-83 | The grain-potential convergence flag is never read | Low | D-444 |
+| L-84 | Without `symmetricXYZ`, an edge cell's volume is twice the region the packets cross | Low | D-444 |
+| L-85 | After a warm start a diffuse source emits nothing | Low | D-444 |
+| L-86 | A packet's weight across a re-emission relies on an unsaved local variable | Low | D-444 |
+| L-87 | `getNu2` never emits into the first and last frequency bins | Low | D-444 |
 
 ### High - affects results now
 
@@ -509,6 +519,10 @@ network's 1.1e-9). Open:
   - the coefficient steps where the data sets join: x2.9 at 6,000 K (He),
     x30 at 5,000 K (Mg). One of pn150k's two flagged cells is at 5,840 K;
   - hiipdr's Mg I 2852 is 0.09 of Cloudy's (0.19 before any transfer).
+  - **A run without `pdr`** (a plain build, or a PDR build without the keyword,
+    as the Lexington models) uses Kingdon & Ferland's He+ + H fit at every
+    temperature below 50,000 K: D-263 removed upstream's cut below 6,000 K, and
+    `pdrCtCoef` replaces the fit only in `pdr` runs (D-444).
 
 **L-51. A packet absorbed by the gas is re-emitted from the hydrogen and
 helium spectrum, whatever absorbed it; in the PDR some come back ionizing**
@@ -736,7 +750,11 @@ default) and runs only from iteration 2. Since D-392 dust+gas and PDR runs stop 
 `convTotals` with a share near 57-72%, and dust-only runs at `minConvergence`, so
 the gate is essentially never passed. In dust+gas runs `setDiffusePDF` still
 calls `qHeat` for a dust term that feeds only the `pdfSrc` diagnostic (since
-D-233), a second call per grain.
+D-233), a second call per grain. Two further faults: `qHeat` picks the enthalpy by
+the first letter of the species label (`S` or `C`), so any other label (e.g.
+`grph-avg`) returns an empty distribution and the grain emits nothing; and
+`getTmin` zeroes the field in the bins it then sums, so it always returns 1 K, and
+it indexes `dustEmIntegral` with the component's local species index.
 
 **L-10. The pn150k fixture applies bulk-graphite optics to its smallest size
 bin** (an input choice: the optical data come from the species file), where
@@ -764,8 +782,11 @@ O I-IV and Ne I-VI, the 2s/2p shells of Mg I-V, and the 2p/2s and 3s shells of
 Si I-IV and S I-IV. The Auger yields (`auger.dat`) and the collisional-ionisation
 fits (`cion.dat`) are read and never used; only H has collisional ionisation.
 No energy is lost (an absorbed packet is re-emitted from the gas emission PDF,
-L-51), but an inner-shell absorption produces no ion and no heat. Inherited from
-upstream MOCASSIN. Effect not measured. Recorded, not changed: it waits for a
+L-51), but an inner-shell absorption produces no ion and no heat. The top stage kept
+(`nstages`, 7 by default) is the same: it adds opacity (`putOpacity` loops to
+`nstages`) while the rates and the heating stop at `nstages`-1. Its edges lie inside
+the grids of PN150 and PN75 (Ne, Mg, Si, S; `nuMax` 24) and pn150k (from F to Zn;
+`nuMax` 30). Inherited from upstream MOCASSIN. Effect not measured. Recorded, not changed: it waits for a
 plan.
 
 **L-65. H collisional-excitation cooling charges 1 Ryd per excitation**
@@ -788,6 +809,44 @@ in `dielectronic`, but the Aldrovandi-Pequignot fallback, then the oxygen
 fallback, refill it, so that channel is never zero (its rates are exponentially
 small at low T, so the divergence it targeted is still gone). Inherited, apart
 from 490f484. Recorded, not changed.
+
+**L-78. Free-free emission uses another cell's Gaunt factors** (D-444). The
+free-free emission coefficients (`free_free` in `emission_mod`) read the shared
+`gauntFF` arrays, which only `BoltGaunt` fills, during the opacity pass of
+`ionizationDriver`; the emission pass never refreshes them, and `BoltGaunt`
+refreshes only when T differs by more than 10% from its last refresh. Each rank
+therefore uses the Gaunt factors of (within 10% of) the last active cell it
+processed in the opacity pass, near the model's outer edge. In hiipdr and pn150k
+those are cold PDR cells, clamped at 316 K, so the ionised gas's free-free
+emission into the diffuse field is low by about 55% in the radio, 45% in the
+far-IR and 6-9% in the optical and UV (from the Gaunt factors at 316 K against
+1-1.5e4 K; not a run). In the H II models it is a few per cent in the radio.
+Energy is conserved, so this redistributes the diffuse continuum. Inherited.
+Recorded, not changed.
+
+**L-79. Resonance-line dust heating is shared between species by number
+abundance** (D-444). `resLineHeating` normalises each grain's share of the
+destroyed line power by its own species' mean absorption cross-section
+(`absOpacSpecies`), so species s absorbs a fraction X_s (its number abundance) of
+the power, whatever its cross-section, instead of its share of the absorption.
+In a single-species model this changes nothing. In test_Problem (astrosilicate
+and PAH) the PAHs get their 2% number share of the Ly alpha power. Effect on the
+temperatures not measured. Inherited. Recorded, not changed.
+
+**L-80. A viewpoint at phi = 0 collects its whole theta band** (D-444). The
+escape booking in `energyPacketRun` and `pathSegment` compares the packet's theta
+and phi bins with the viewpoints through slot 0, whose angles are (0, 0), so a
+viewpoint with phi = 0 (or theta = 0) takes every escaping packet of its theta
+bin at any phi. test_Problem's `inclination 1 1.57 0.` therefore records an
+edge-on band (81-90 deg, both hemispheres) averaged over azimuth: 15.6% of the
+escapes instead of the 1.6% of one bin. `writeSED`'s `SEDratio` divides each
+viewpoint by its own far-infrared share, which hides the over-collection.
+Separately, under `symmetricXYZ` `writeSED` scales the angle-averaged SED by 8
+and the viewpoints by 4, which with `SEDratio` puts a viewpoint's far-infrared
+level at 0.5 of the average by construction (read from the code; no run has
+checked it). The 2D dust discs (phi -1) book their theta bins at all phi, a
+correct azimuthal average. Inherited booking; `SEDratio` from a dev commit of
+2025-09-10 (25b43ff). Recorded, not changed.
 
 ### Low - bookkeeping, tools and build
 
@@ -950,8 +1009,14 @@ affects a fixture or benchmark of this project:
     SED is not affected.
   - **Sub-grids:** the mother-cell tracking in `pathSegment` uses
     `xAxis(i)+xAxis(i+1)/2.` (also y, z) instead of the midpoint;
-    `setStarPosition` rounds a sub-grid star's z against `yAxis`; diffuse-source
-    packets take `posDiff%z` from `zAxis(cellLoc(2))`.
+    `setStarPosition` rounds a sub-grid star's z against `yAxis`; `setSubGrids`
+    sets a sub-grid's dust-component index to `nint(dustAbunIndexTemp*denfac)`,
+    scaled by the density factor. (A third slip listed here at first, the
+    diffuse-source `posDiff%z` from `zAxis(cellLoc(2))`, is harmless: the
+    packet's position is rebuilt from `difSource`.)
+  - **Diffuse-source packets** starting on the outermost axis points (cells with
+    ix = nx, iy = ny or iz = nz) and heading out return from the wall search
+    without being booked to `escapedPackets`.
   - **Plane-parallel illumination:** `R_out` is set to x*y*z/1e20, not a length,
     so every escape-by-radius test never fires (the walls do the work) and
     `pathStretch`'s alpha would go to 0 if the two were combined.
@@ -987,8 +1052,64 @@ inconsistencies, not measured. Inherited. Recorded, not changed.
   - The 2D `Jdif` scaling (debug only) indexes the frequency axis with the line
     counter.
   - `ionTrim` is 1e-8 in the code (D-117) and 1e-12 in its comment (D-115).
+  - `ionratio.out`'s header reads "<ion>/<H+>", while its values are each
+    element's n_e-weighted stage fractions.
+  - The recombination term into the levels of a collisionally excited atom
+    needs a `br` record, and no data file has one, so it never acts.
+  - The two-point branch for collision strengths (extrapolated, where tables of
+    three or more points are clamped) is used only by `piii.dat`, whose two
+    values are equal.
+  - The He I recombination-line comments still cite Benjamin et al. (1999); the
+    coefficients are fits to Porter et al. (2012, 2013).
 
 Inherited, apart from `ionTrim`. Recorded, not changed.
+
+**L-81. `getDustT`'s 1 K floor applies only with `talk`** (D-444). When a grain
+absorbs less than it would emit at 1 K, `locate` returns iT = 0. The branch that
+sets T = 1 K is guarded by `iT<=0 .and. lgTalk`, so without `talk` the code falls
+through to the D-109 test and the interpolation, which read
+`dustEmIntegral(...,0)` outside the array (no bounds checking at -O2). This can
+only happen in a cell that received no packets. Inherited guard. Recorded, not
+changed.
+
+**L-82. `noScattering` does not reach species read from Q files** (D-444). The
+keyword zeroes Qsca only inside `getQs`, which handles the n, k files, so species
+read from tabulated Q files keep their scattering. No fixture uses the keyword.
+Inherited. Recorded, not changed.
+
+**L-83. The grain-potential convergence flag is never read** (D-444).
+`setGrainPotential` sets `lgGCBConv`, and the caller in `iterateT` never tests
+it, so an unconverged grain potential is used as it stands. How often the charge
+balance fails to converge has not been measured. Inherited. Recorded, not
+changed.
+
+**L-84. In grids without `symmetricXYZ`, an edge cell's volume is twice the
+region the packets cross** (D-444). `getVolume` halves the edge cells only under
+`symmetricXYZ`; without it an edge cell gets a full spacing, while `pathSegment`
+ends the transport at the outermost axis point, so packets cross only the inner
+half. The estimator J = sum of path lengths times energy over dV is then low by
+2 in edge cells (4 on edges, 8 at corners), and their ionisation and temperatures
+are computed from that. Under `symmetricXYZ` the two agree since a 2025 rewrite
+(bf233ed, which also corrected upstream's outer cells). Every model of this
+project uses `symmetricXYZ`: Low here, Medium for non-symmetric models.
+Inherited. Recorded, not changed.
+
+**L-85. After a warm start a diffuse source emits nothing** (D-444).
+`mocassinWarm` never calls `setLdiffuse`, and `resetGrid` zeroes `LdiffuseLoc`,
+so the diffuse packets carry zero energy but are still traced. No fixture uses
+`diffuseSource`. Inherited. Recorded, not changed.
+
+**L-86. A packet's weight across a re-emission relies on an unsaved local
+variable** (D-444). `energyPacketRun` reads `enPacket%weight` from its previous
+call when `reRun == 1`, but `enPacket` is a local without SAVE, so its value is
+formally undefined (it works because the driver calls the routine back to back
+from the same frame). Weights differ from 1 only with `pathStretch`
+(dev commit 88c2fa9, 2025; D-238). Recorded, not changed.
+
+**L-87. `getNu2` never emits into the first and last frequency bins** (D-444).
+The bisection returns bins 2 to n-1, so the probability of bin 1 goes to bin 2 and
+that of bin n to bin n-1. Energy is conserved and the shift is negligible.
+Inherited (kept by the bisection rewrite). Recorded, not changed.
 
 ---
 
