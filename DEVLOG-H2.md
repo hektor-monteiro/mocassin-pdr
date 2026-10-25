@@ -58,6 +58,7 @@ DEVLOG.md and arrives here by merge.
 | H-047 | **Production's release `pdr-coupling-v2.0.1` merged into this branch, with the D-438 fix (the user: "Apply the fix also to h2-model branch").** Merge 24e8e6c of production 7fdaa9e (D-432..D-439: documentation, licensing notices, the guards that let PDR builds run models without `pdr`), no conflict; this branch now differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); HII40 on this branch's 3D build converges at 18 iterations, byte-identical to production's plain build | Done | 2026-10-24 |
 | H-048 | **Production's documentation increment 3 (D-440) merged into this branch (the user: "Merge what has been done in h2-model branch").** Merge d26e8f3 of production de586ae (D-440: tutorials/dust-gas-pdr, examples/tutorial, mocread multiChemistry support, h034_maps.py's data-directory fallback), no conflict; no change in source/, Makefile, data/ or dataPDR/, so nothing rebuilt; this branch again differs from production only in DEVLOG-H2.md. ~/.local/mocassin_h2 not reinstalled: its share/doc examples lack examples/tutorial until the next install | Done | 2026-10-24 |
 | H-049 | **Production's D-441 (dust-only models run; writeSED counts the light escaping from an inactive source cell) and D-442 (the 1D dust benchmark page) merged into this branch (the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** Merge ebeeb9b of production 4135ebb, no conflict; the branch again differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); p0tau10 (fixture + randomSeed 1001) on this branch's 3D build is byte-identical to production's D-441 T3 run in every output but summary.out's clock lines. ~/.local/mocassin_h2 still holds 92a17d3's binaries, without D-441 | Done | 2026-10-24 |
+| H-050 | **Production's release `pdr-coupling-v2.0.2` (D-443) and documentation increment 5 (D-444) merged in.** Merge 5a76742 of production 53eab97, no conflict; no change in source/, Makefile, data/ or dataPDR/ since H-049, so nothing rebuilt; the branch again differs from production only in DEVLOG-H2.md. D-444 records 26 defects of the MOCASSIN core as L-64..L-89 (none fixed); they apply to this branch equally. The v2.0.2 tag is on production's a048fc7, an ancestor of this merge | Done | 2026-10-25 |
 
 ---
 
@@ -5997,3 +5998,33 @@ and merged into production (4135ebb), and reaches this branch as planned.
 ### Status
 
 Done (2026-10-24).
+
+## H-050 - Release v2.0.2 and documentation increment 5 merged in (2026-10-25)
+
+What production did after H-049 reaches this branch by merge 5a76742 (production
+53eab97), with no conflict:
+  - D-443: release `pdr-coupling-v2.0.2`, tagged on a048fc7;
+  - D-444: the documentation chapters on the MOCASSIN core
+    (docs/physics/mocassin/), with 26 defects of the core recorded as
+    L-64..L-89 in doc/pdr-status.md, none fixed;
+  - D-444: 25 references in references.bib, and a docs/.gitignore rule that
+    re-includes the chapter directory, which the root rule for the
+    executable `mocassin` hid.
+
+`git diff 0e18054 5a76742 -- source Makefile data dataPDR` is empty, so nothing
+was rebuilt; `git diff pdr-photoionization h2-model` lists only DEVLOG-H2.md.
+
+The defects apply to this branch as much as to production. The ones that touch
+what the H2 work computes are:
+  - L-78: free-free emission above the H and He edges uses another cell's Gaunt
+    factors;
+  - L-88: the resonance-line escape probability samples eight directions;
+  - L-79 and L-89: dust heating and means with several species.
+
+None is fixed here either.
+
+**Not done:** ~/.local/mocassin_h2 is still 92a17d3's (H-047). Nothing is pushed.
+
+### Status
+
+Done (2026-10-25).
