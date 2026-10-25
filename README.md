@@ -401,6 +401,9 @@ Limitations to know before using the results:
 - [mocassin-pdr.readthedocs.io](https://mocassin-pdr.readthedocs.io): the documentation site, with a
   [quickstart](https://mocassin-pdr.readthedocs.io/en/latest/getting-started/quickstart.html) that runs
   two small models and plots them.
+- [The physics of MOCASSIN](https://mocassin-pdr.readthedocs.io/en/latest/physics/mocassin/index.html):
+  the grid, the Monte Carlo transfer, the ionisation and thermal balance, the gas emission and the
+  dust, as the code implements them, with the defects found while writing them.
 - [DEVLOG.md](DEVLOG.md): the implementation history, one entry per decision.
 - [DEVLOG-H2.md](DEVLOG-H2.md): the H2 level model's history, in the same form.
 - [The tutorial](https://mocassin-pdr.readthedocs.io/en/latest/tutorials/dust-gas-pdr.html): a complete dust + gas + PDR + H2 model, from the test problem, with

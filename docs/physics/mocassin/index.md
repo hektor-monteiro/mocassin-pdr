@@ -77,7 +77,8 @@ MOCASSIN carries more than this project uses. Each section of these pages starts
 says which:
 
 - {bdg-success}`used`: the project's benchmarks or PDR models exercise it: the Lexington gas models,
-  the 1D dust shells, `hiipdr`, `pn150k` and the test problem of the tutorial.
+  the 1D dust shells (with Henyey–Greenstein and with isotropic scattering), `hiipdr`, `pn150k` and
+  the test problem of the tutorial.
 - {bdg-warning}`not exercised`: compiled, but not run or tested by this project, so its behaviour
   here is as inherited from MOCASSIN. Examples: sub-grids, the 2D mode, plane-parallel illumination,
   several stars, diffuse sources, light echoes, viewing angles in non-symmetric models, and
@@ -92,15 +93,18 @@ says which:
 
 All four builds compile the whole of MOCASSIN ({doc}`../../user-guide/build-flavours`).
 - **The PDR builds** (`PDR=1`) add the chemistry. When a model has the `pdr` keyword, they also add
-  terms inside MOCASSIN's own routines: the cosmic-ray ionisation, the molecular cooling and the
-  network's charge-exchange coefficients. They also add some solver keywords that a plain build does not accept, and the pages
+  terms inside MOCASSIN's own routines: the H₂ photoionisation opacity; the normalisation of each
+  linked element's stages to the fraction not in molecules (`elemAvail`); the network's sources and
+  sinks in the ionisation matrix, its charge-exchange coefficients and the cosmic-ray ionisation; the
+  neutral colliders and escape probabilities of the C I, C II and O I atoms; H₂ as a collider in the
+  gas–grain exchange; the molecular cooling; and the extra heating (`pdrHeatXtra`). They also add some solver keywords that a plain build does not accept, and the pages
   say where.
 - **Without the `pdr` keyword,** a PDR build computes what the plain build computes
   ({devlog}`D-438`, {devlog}`D-441`).
 
 ## Defects found while writing these pages
 
-Writing these chapters meant reading every routine they describe, and that found twenty-four
+Writing these chapters meant reading every routine they describe, and that found twenty-six
 defects in the inherited code and in this project's. Each was verified and recorded ({devlog}`D-444`).
 Each is described on the page where its process is, and none has been fixed: each fix needs its
 own plan, and the ones that change results need the benchmarks rerun.
@@ -122,14 +126,14 @@ own plan, and the ones that change results need the benchmarks rerun.
 * - {lim}`L-66`
   - Stages without dielectronic data take oxygen's rate
   - Medium
-* - {lim}`L-78`
-  - Free-free emission uses another cell's Gaunt factors
-  - Medium
 * - {lim}`L-79`
   - Resonance-line dust heating is shared between species by number abundance
   - Medium
 * - {lim}`L-80`
   - A viewpoint at $\phi=0$ collects its whole $\theta$ band
+  - Medium
+* - {lim}`L-88`
+  - The resonance lines' escape probability samples only the eight body diagonals
   - Medium
 * - {lim}`L-67`
   - Line cooling counts levels 1–10 of each ion and not Fe II; all are emitted
@@ -164,6 +168,9 @@ own plan, and the ones that change results need the benchmarks rerun.
 * - {lim}`L-77`
   - Dead options and stale comments
   - Low
+* - {lim}`L-78`
+  - Free-free emission above the H and He edges uses another cell's Gaunt factors
+  - Low
 * - {lim}`L-81`
   - `getDustT`'s 1 K floor applies only with `talk`
   - Low
@@ -184,6 +191,9 @@ own plan, and the ones that change results need the benchmarks rerun.
   - Low
 * - {lim}`L-87`
   - `getNu2` never emits into the first and last frequency bins
+  - Low
+* - {lim}`L-89`
+  - Species abundances are used as given: mixture means are right only when they sum to one
   - Low
 :::
 

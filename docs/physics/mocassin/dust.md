@@ -27,7 +27,7 @@ absorption of packets in {doc}`transfer`; and the gas side of the gas–grain te
   - 35 sizes, 0.005–0.25 µm
   - `MdMg constant`
 * - `test_Problem`
-  - silicate as in `hiipdr` (abundance 0.98, 0.07–50 µm) and neutral PAH, `PAHneu_30.cat` {cite:p}`LiDraine2001` (0.02, $10^{-5}$–0.002 µm)
+  - silicate as in `hiipdr` (abundance 0.98, given as 0.07–50 µm, on the grid 0.08–5 µm) and neutral PAH, `PAHneu_30.cat` {cite:p}`LiDraine2001` (0.02, given as $10^{-5}$–0.002 µm, on the grid $10^{-4}$–0.0018 µm)
   - 35 sizes, $10^{-4}$–5 µm
   - `Ndust file`
 * - 1D dust shells
@@ -208,8 +208,9 @@ per grain,
  = 4\sum_k C^{\mathrm{abs}}_{s,a}(\nu_k)\,B_{\nu_k}(T_d)\,\Delta\nu_k \equiv E_{s,a}(T_d).
 ```
 
-$J^{\mathrm{ste}}_k$ is the angle-integrated flux in bin $k$ (erg cm$^{-2}$ s$^{-1}$), equal to
-$4\pi J_\nu\Delta\nu_k$ ({devlog}`D-290`); outside debug mode it holds every packet, stellar and
+$J^{\mathrm{ste}}_k$ is the angle-integrated intensity over bin $k$,
+$4\pi\int_{\mathrm{bin}\,k}J_\nu\,d\nu$ (erg cm$^{-2}$ s$^{-1}$; $c$ times the bin's energy density, as in
+{doc}`../pdr/field`), equal to $4\pi J_\nu\Delta\nu_k$ ({devlog}`D-290`); outside debug mode it holds every packet, stellar and
 diffuse ({src}`photon_mod.f90::pathSegment@"! D-158: Jste holds stellar AND diffuse when lgDebug is"`).
 With the radiation alone the balance is therefore
 $\int C_{\mathrm{abs}}J_\nu\,d\nu=\int C_{\mathrm{abs}}B_\nu(T_d)\,d\nu$
@@ -238,21 +239,28 @@ absorbs less than it would emit at 1 K is set to 1 K only when `talk` is on
 flat-interval test reads the element before the start of the table ({lim}`L-81`).
 
 The species mean $T_d(s)$ and the cell mean $T_d$ are means over the size bins that hold grains
-({devlog}`D-414`, which closed {lim}`L-62`); {ref}`sec:Td` defines them and discusses one
+({devlog}`D-414`, which closed {lim}`L-62`). The cell mean weights each species by $X_sf_s$, with
+$f_s$ the share of the size grid's weight in the species' bins, and is then rescaled by
+$\sum_sX_s/\sum_sX_sf_s$, so it comes out as $\sum_sX_s$ times the mean: a true mean only when the
+abundances sum to one, as they do in every fixture
+({src}`update_mod.f90::updateCell/getDustT@"if (sAbF414 > 0.) grid%Tdust(0,0,cellP) = grid%Tdust(0,0,cellP)*(sAb414/sAbF414)"`;
+{lim}`L-89`). {ref}`sec:Td` defines both means and discusses one
 temperature for both materials in H$_2$ formation ({lim}`L-54`). In a dust-only model a cell has
 converged when its $T_d$ changes by at most `convLimit` between iterations
 ({src}`update_mod.f90::updateCell@"deltaXHI = (grid%Tdust(0,0,cellP) - XOldHI) / XOldHI"`), and
 the run stops when the share of converged cells reaches the second number of `maxIterateMC`
 ({src}`iteration_mod.f90::MCIterationDriver/cvTotalsUpdate@"lgCvTotals = (totPercent >= minConvergence)"`;
-{devlog}`D-441`). `pn150k`'s PDR grains are at 0.92–0.94 of Cloudy's temperature, because the two
-codes put their reprocessed energy at different frequencies ({lim}`L-19`).
+{devlog}`D-441`). `pn150k`'s PDR grains are at 0.92–0.93 of Cloudy's temperature; {lim}`L-19`
+explains the sign of that deficit, not its size, by the two codes putting their reprocessed energy at
+different frequencies.
 
 ### Resonance-line heating
 
 {bdg-success}`used`
 
 Since {devlog}`D-376`, every dust+gas run heats the grains with the resonance lines the dust
-destroys (a keyword no run set had gated it). Each grain takes
+destroys; before, the heating waited for the share of converged cells to reach `resLinesTransfer`,
+which of this project's inputs only `test_Problem` sets ({doc}`emission`). Each grain takes
 ({src}`update_mod.f90::updateCell/resLineHeating@"heat = Gline*grid%Hden(cellP)* &"`)
 
 ```{math}
@@ -262,7 +270,8 @@ H^{\mathrm{res}}_{s,a} = \sum_l \varepsilon_l\,(1-P^{\mathrm{esc}}_l)\,
 ```
 
 with $\varepsilon_l$ the line's emissivity (for Ly$\alpha$ a fit to
-{cite:t}`StoreyHummer1995`) and $P^{\mathrm{esc}}_l$ its escape probability ({doc}`emission`);
+{cite:t}`StoreyHummer1995`) and $P^{\mathrm{esc}}_l$ its escape probability, from optical depths along
+the eight body diagonals only ({doc}`emission`; {lim}`L-88`);
 the code cites {cite:t}`Harrington1988` for the formula. The destroyed power is shared within a
 species by $C^{\mathrm{abs}}$, but between species by number abundance, since each species is
 normalised by its own $\bar C^{\mathrm{abs}}_s$: the mixture absorbs $\sum_s X_s$ times the
@@ -297,8 +306,8 @@ A packet absorbed by grains becomes a `dustEmi` packet with its frequency drawn 
 Before {devlog}`D-233` the distribution was built only without gas, and a dust+gas model re-emitted
 every absorption from the gas's spectrum: about 3.8% of what the dust absorbed came back out above
 13.6 eV ({devlog}`D-232`). The frequency grid that carries the infrared is in {doc}`grid`; a
-dust-only model reads it from `nuDustRyd.dat`, while a dust+gas model takes one point of that file
-({lim}`L-70`).
+dust-only model reads it from `nuDustRyd.dat`, while a dust+gas model takes one point of that file,
+or two when `nuMin` lies below 4.9 GHz ({lim}`L-70`).
 
 ## Stochastic heating
 
@@ -307,7 +316,7 @@ dust-only model reads it from `nuDustRyd.dat`, while a dust+gas model takes one 
 `quantumHeatGrain amin conv` (defaults $10^{-3}$ µm and 99;
 {src}`set_input_mod.f90::readInput@"case(\"quantumHeatGrain\")"`) makes grains smaller than `amin`
 emit from a temperature distribution. `qHeat` ({src}`emission_mod.f90::emissionDriver/qHeat`)
-builds it on `nTbins` temperatures up to `Tmax` (300 and 700 K by default,
+builds it on `nTbins` temperatures up to `Tmax` (by default 300 temperatures up to 700 K; set by
 `quantumHeatGrainParameters`) from transition matrices between enthalpy levels, the method
 {cite:t}`Ercolano2005` take from {cite:t}`GuhathakurtaDraine1989`. It changes the grain's term in
 Eq. {eq}`eq:moc-dustpdf`, not the tabulated $T_d$.
@@ -354,10 +363,14 @@ secant steps from $V=0$,
 
 with $h\nu_{\mathrm{th}}=W_s+\max(eV,0)$, $\Theta=h\nu-W_s$, $\langle v\rangle=(8kT_e/\pi m)^{1/2}$,
 the Coulomb factor $\eta=1-\psi$ for $\psi\le0$ and $e^{-\psi}$ for $\psi>0$, $\psi=ZeV/kT_e$
-($Z=-1$ for electrons), and the yield net of the barrier $\hat Y=Y\min[1,\max(0,1-eV/\Theta)]$. It
-stops at a relative imbalance of 0.5%, with steps of at most 5% of the threshold, and gives up
-after 100 steps
-({src}`update_mod.f90::updateCell/setGrainPotential@"real,parameter       :: errorLim = 0.005, dm = 0.05 ! loop convergence"`);
+($Z=-1$ for electrons), and the yield net of the barrier $\hat Y=Y\min[1,\max(0,1-eV/\Theta)]$.
+The photoemission sum starts one bin above the bin in which the photoelectric heating below starts
+({src}`update_mod.f90::updateCell/getGrainEmission@"call locate( nuArray, thres, ip)"+1`;
+{lim}`L-76`). The solve stops at a relative imbalance of 0.5%, with steps of at most 5% of the
+threshold
+({src}`update_mod.f90::updateCell/setGrainPotential@"real,parameter       :: errorLim = 0.005, dm = 0.05 ! loop convergence"`),
+and gives up after 100 steps
+({src}`update_mod.f90::updateCell@"integer, parameter :: maxIterateGC = 100"`);
 an unconverged potential is used as it is, since the flag is never read ({lim}`L-83`). Photoemission carried a
 spurious $4\pi^2$, a second $4\pi$ on $J^{\mathrm{ste}}$ and $\pi Q_{\mathrm{abs}}$ for
 $Q_{\mathrm{abs}}$, until {devlog}`D-290`
@@ -403,7 +416,8 @@ H^{\mathrm{coll}}_{s,a}=\pi a^2\Bigl\{\sum_{X,i} n_{X,i}S\langle v_X\rangle\bigl
 ```
 
 with $\xi=1-\psi/2$ for $\psi\le0$ and $(1+\psi/2)e^{-\psi}$ for $\psi>0$, and $I_{X,i-1}$ the
-ionisation energy released when an ion is neutralised, zero for a neutral, which was read
+ionisation energy of stage $i-1$, released when the ion recombines by one stage on the grain, zero
+for a neutral, which was read
 uninitialised until {devlog}`D-127`. $S=2mM/(m+M)^2$ for neutrals, with both masses in amu since
 {devlog}`D-129`, and 1 for ions and electrons. The H$_2$ term exists only in the PDR builds
 ({devlog}`D-420`). The gas side keeps only the colliders' thermal energy, $2kT_e\xi-2kT_d\eta$ per
