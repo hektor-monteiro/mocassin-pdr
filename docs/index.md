@@ -35,7 +35,10 @@ release tag ({doc}`reference/citing`).
   - {doc}`the build flavours <user-guide/build-flavours>`;
   - the {doc}`dust inputs <user-guide/dust-inputs>`;
   - the {doc}`tutorial <tutorials/dust-gas-pdr>`: a complete dust + gas + PDR + H₂ model.
-- **Physics and numerics.** {doc}`physics/pdr/index` follows the radiation field into
+- **Physics and numerics.** {doc}`physics/mocassin/index` describes MOCASSIN itself: the grid,
+  the Monte Carlo transfer, the iteration, the ionisation and thermal balance, the gas emission
+  and the dust, with each feature marked by whether this project exercises it.
+  {doc}`physics/pdr/index` follows the radiation field into
   the molecular content: the field and its estimator, the dust, the rays, the H₂ level
   model, the rates, the chemistry, the feedback and the convergence. Every process is
   linked to the code block that implements it. {doc}`physics/limitations` lists what is
@@ -114,6 +117,7 @@ tutorials/dust-gas-pdr
 :hidden:
 :caption: Physics and numerics
 
+physics/mocassin/index
 physics/pdr/index
 physics/limitations
 ```
