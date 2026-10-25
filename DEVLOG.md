@@ -443,7 +443,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Fixed (c8af00e, bf2e058, bd68ad9): p0tau1 stops on 96.17% of cells at 11 iterations; p0tau10/p0tau100 plateau at 92-94% and reach the 30-iteration cap; totalE/LStar 0.9999-1.0000 in every dust run, HII40 0.401 -> 1.00005, hiipdr21 0.996 -> 1.00000, every other output byte-identical (plan revision 1: summary.out clock lines and PDR-build-only lines/files excluded, D-438's practice) | Done | 2026-10-24 |
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
-| D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes | Open | 2026-10-25 |
+| D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43414,6 +43414,91 @@ thermal balance, line emission or full dust treatment. Plan
 
 No source, Makefile or tool changes.
 
+**Part A, the defects** (one verification agent, then the main session, which
+checked each confirmed item in the code). Every survey item was confirmed, plus
+four the agent found (the Boltzmann exponent summed rather than multiplied, Fe II
+emissivities never converted to erg, the stage-1 dielectronic zeroing refilled,
+small integral mismatches). The fourteen items became L-64..L-77 (82eeccc), with
+L-8 and L-63 extended.
+
+**Part W, the pages.** Three writer agents wrote seven chapters; the main session
+wrote index.md, resolved the bibliography and integrated (abd8e6a):
+
+| Page | Words (raw, with anchors) |
+| :--- | :--- |
+| grid | 2,690 |
+| transfer | 2,871 |
+| iteration | 2,103 |
+| ionisation | 2,871 |
+| thermal | 1,971 |
+| emission | 2,435 |
+| dust | 2,964 |
+| index | 1,360 |
+
+  - **Writers' defects.** The writers found more defects in the code. A second
+    verification agent checked thirteen of them; the main session checked the
+    dust writer's five. Ten became L-78..L-87. The top ion stage was folded into
+    L-64, and the plain-build charge exchange into L-48. L-74 got the sub-grid
+    dust index, and its diffuse-source position slip was found harmless.
+  - **Refuted:** an electron-sticking observation of the dust writer (the
+    sticking it pointed at is the ions' energy accommodation).
+  - **Bibliography:** 25 references added, the 20 with a DOI checked against
+    CrossRef. The two later Nussbaumer & Storey papers, whose titles could not
+    be confirmed, are cited through Ercolano 2003. The code's "Harrington,
+    Cohen and Hess (1984)" is Cohen, Harrington & Hess 1984 (ApJ 283, 687).
+  - **Ignore rule:** the root .gitignore's rule for the executable `mocassin`
+    hid the directory; docs/.gitignore re-includes it.
+
+**Part R, two referees.**
+  - **Transfer, grid and dust referee:** 19 minor findings. A sub-agent it
+    launched reviewed iteration.md separately: 11 minor findings, applied by
+    the main session.
+  - **Photoionisation referee:** 4 major and 12 minor findings. The main
+    session checked the major ones in the code; an agent checked and applied
+    the rest (443c1fc).
+  - **What they changed:**
+      - L-64's inner-shell list was wrong. In Verner's convention a 2p-outer
+        ion's 2s cross-section is zero below the 1s edge, so C, N, O and Ne lose
+        nothing below 15 Ryd. Corrected.
+      - L-66 and the top-stage text ignored pn150k's trace elements, all of
+        which are on. Corrected.
+      - L-78's impact was overstated: the stale Gaunt factors only enter the
+        free-free addition above the H and He edges, the tables doing the rest.
+        It moved from Medium to Low. The estimate the verification agent gave,
+        55% in the radio, was wrong, and I had not checked where the
+        coefficients enter.
+      - New: L-88 (the resonance-line escape probability samples only eight
+        directions, Medium) and L-89 (unnormalised species abundances, Low).
+      - Also: the badges (pathStretch not exercised; isotropicScattering used),
+        the He2+ free-free scaling, the Verner outer-shell form, D-366's ln chi
+        values, feedback.md's cooling sentence, and many details.
+  - **One premise refuted:** before D-376, `resLinesTransfer` gated on a
+    converged-cell percentage, not on an iteration number.
+
+**The record:** 26 items, L-64..L-89, six of them Medium:
+  - L-64: inner-shell and top-stage absorption without ionisation or heat;
+  - L-65: H collisional cooling at 1 Ryd per excitation;
+  - L-66: oxygen's dielectronic rates for stages without data;
+  - L-79: resonance-line heating shared by number abundance;
+  - L-80: the phi = 0 viewpoint collecting its theta band;
+  - L-88: resonance-line escape along eight diagonals.
+
+The other twenty are Low. None is fixed; each fix needs its own plan, and those
+that change results need the benchmarks rerun.
+
+**Checks** (2026-10-25):
+  - pytest: 125 passed, after moving the fortref golden extent of L-37's
+    anchor, byte-identical, 26 lines down;
+  - fortref check: 1,786 references, only `unpushed`;
+  - sphinx-build -E -W in the docs venv and in a fresh venv: only `unpushed`;
+  - linkcheck: 305 links, clean;
+  - check_bib: 109 entries, no MISMATCH, the three earlier TITLE?.
+
+**Interruptions.** Two writer agents and both referees were stopped by API usage
+limits and resumed with their context; nothing was lost.
+
+**Not done:** fixes of the recorded defects; the 2D dust page (4b); pushes.
+
 ### Status
 
-Open: increment 5 under way (2026-10-25).
+Done (2026-10-25).
