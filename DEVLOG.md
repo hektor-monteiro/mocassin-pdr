@@ -443,6 +443,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-441 | **Dust-only models crashed in every build, and writeSED loses the light escaping from an inactive source cell; fixes planned (found planning increment 4; the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** (1) iterateMC copies ionDen and Te, allocated only with gas, into the always-allocated xHIiterStart/TeIterStart (iteration_mod.f90:1145-1151; d294814 D-155, 0bc0d19 D-173): every benchmarks/dust input segfaults in iteration 1 (runs/d438 backtrace mapped). (2) Past it, cvTotalsUpdate sets lgCvTotals for gas-free models and D-392 stops on it alone: one iteration. (3) escapedPackets is indexed by origin cell; a source in a cavity books its unscattered escape in bucket 0, which writeSED has skipped since ca87ffc (2025-09-03; the earlier code summed 0..nCells): SED.out carries 40% of LStar for quickstart HII40, 77% for dev's p0tau10, 9% for dev's 2D tau1; its trailer writes totalE*1e-36. The user's decisions: dust-only runs stop on the converged-cell share; writeSED fixed (summing sSED cannot recover the light: it is zero when the source cell is inactive). Fixed (c8af00e, bf2e058, bd68ad9): p0tau1 stops on 96.17% of cells at 11 iterations; p0tau10/p0tau100 plateau at 92-94% and reach the 30-iteration cap; totalE/LStar 0.9999-1.0000 in every dust run, HII40 0.401 -> 1.00005, hiipdr21 0.996 -> 1.00000, every other output byte-identical (plan revision 1: summary.out clock lines and PDR-build-only lines/files excluded, D-438's practice) | Done | 2026-10-24 |
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
+| D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes | Open | 2026-10-25 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43317,3 +43318,102 @@ Run `make clean` between builds. The binaries report `pdr-coupling-v2.0.2`.
 ### Status
 
 Done (2026-10-24): tagged on this entry's commit.
+
+## D-444 - Documentation site, increment 5: the MOCASSIN core physics (2026-10-25)
+
+The user (2026-10-24): "make the release tag and proceed to increment 5" (the
+tag is D-443). Increment 5 of D-432 is "the original MOCASSIN physics". The
+site's physics section covers the PDR coupling and the H2 model, converted
+from the LaTeX report; no page describes MOCASSIN's own grid, ionisation and
+thermal balance, line emission or full dust treatment. Plan
+`~/.claude-lac/plans/velvet-rolling-kettle.md` (increment 5), approved
+2026-10-25.
+
+**Surveys** (three read-only agents, 2026-10-24).
+  - **What exists:**
+      - Several PDR pages already describe parts of the core, framed for
+        the FUV: field.md (packets, interaction depth, HG, the dust/gas
+        split, Baes biasing, Lucy's estimator), pdr/dust.md, iteration.md,
+        convergence.md, feedback.md (thermBalance terms, grain charge) and
+        photorates.md (the photoionisation rate, Verner, recombination,
+        charge transfer). The new chapters link these rather than repeat
+        them.
+      - Data sources are already on reference/data-sources.
+      - man/mocassin.1 (2015) has almost no physics.
+      - The only local MOCASSIN paper source is Ercolano 2005's (D-442).
+  - **The core, mapped:**
+      - the start-up chain in mocassin.f90 and the recursive iterateMC;
+      - the grid (three frequency-grid branches, walls midway, active cells
+        with slot 0 for inactive ones, symmetricXYZ mirrors, sub-grids, 2D,
+        plane-parallel);
+      - the transport (pathSegment, HG or isotropic, re-emission on the
+        spot, pathStretch, escape by origin cell);
+      - the gas microphysics:
+          - Verner cross sections, rates from the outer shell only;
+          - radiative recombination fits, and dielectronic recombination
+            (Nussbaumer & Storey form, Aldrovandi & Pequignot);
+          - Kingdon & Ferland charge exchange, H collisional ionisation;
+          - a chain + matrix solve, the n_e root;
+          - thermBalance terms, the secant/Illinois T solver, black cells;
+          - fb/ff/two-photon continua, transported and reported
+            recombination lines, the n-level CELs, resonance lines;
+      - the dust (BHmie or Q tables, radiative-equilibrium temperatures on
+        a 1 K table, qHeat, grain charge and photoelectric heating).
+
+**Defects the surveys found.**
+  - **Confirmed by reading the code** (the main session), all inherited from
+    upstream MOCASSIN unless Part A finds otherwise:
+      - **Line cooling:** thermBalance sums forbiddenLines over levels
+        1-10 (update_mod.f90:2002-2013), while atoms carry up to 17
+        (nForLevels). Fe II (forbiddenLinesLarge) is not summed. Those
+        lines are emitted and reported, but never cool the gas.
+      - **Free-free opacity:** in addOpacity (ionization_mod.f90:489-513)
+        the computing `else` belongs to `if (i>1)`, so it is computed for
+        frequency bin 1 only.
+      - **The dust+gas frequency grid:** initCartesianGrid's exit test reads
+        `nuArray(i)` rather than the point just read into
+        `nuArray(nuCount)` (grid_mod.f90:306-312), so almost none of
+        nuDustRyd.dat enters the grid.
+  - **To verify (Part A):**
+      - inner-shell photoionisation adds opacity but no ionisation or
+        heating, and the Auger and collisional-ionisation data are read but
+        unused;
+      - missing dielectronic rates take oxygen's;
+      - stochastic heating waits for convPercent > 99;
+      - multiDustChemistry's single gSca;
+      - hg's renormalised direction is never stored;
+      - escape phi is binned with atan;
+      - sub-grid index slips;
+      - plane-parallel R_out is not a length;
+      - fillingFactor's RNG is outside randomSeed;
+      - the MdMg+Ndust check never fires;
+      - the transported and reported H I lines differ in source;
+      - the He I extrapolation below 5000 K;
+      - 1 Ryd for both H Lyman collision lines;
+      - lgCompton is uninitialised;
+      - ionTrim's comment;
+      - the dead options oneD, H0Start, NeStart and lgNeutral.
+
+**The user's decisions** (2026-10-24):
+  - On the defects: "Document and record". The chapters describe what the
+    code does. Each defect is verified and recorded as an L-item (L-64 on)
+    with its evidence, and linked from the chapters. Fixes come later,
+    each with its own plan and benchmark reruns.
+  - On coverage: "All, flagged by status". Every compiled feature is
+    described and tagged Used, Compiled-not-exercised, Dead or Not
+    compiled.
+
+**Plan.**
+  1. Part A: verify the defects (one agent); the main session writes the
+     L-items.
+  2. Part W: three writer agents (grid/transfer/iteration;
+     ionisation/thermal/emission; dust). The main session writes index.md,
+     resolves the bibliography and integrates.
+  3. Part R: two referees.
+  4. Checks, then merges into production and h2-model.
+
+No source, Makefile or tool changes.
+
+### Status
+
+Open: increment 5 under way (2026-10-25).
