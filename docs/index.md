@@ -15,7 +15,7 @@ computes drive the chemistry. The chemistry's molecules, heating and cooling fee
 into the next iteration.
 
 :::{note}
-These pages describe release `pdr-coupling-v2.0.1` and the commit they were built from,
+These pages describe release `pdr-coupling-v2.0.2` and the commit they were built from,
 shown at the bottom of every page. MOCASSIN-PDR is research code under active
 development, and it is not the official MOCASSIN. Results for publication should cite a
 release tag ({doc}`reference/citing`).
@@ -35,7 +35,10 @@ release tag ({doc}`reference/citing`).
   - {doc}`the build flavours <user-guide/build-flavours>`;
   - the {doc}`dust inputs <user-guide/dust-inputs>`;
   - the {doc}`tutorial <tutorials/dust-gas-pdr>`: a complete dust + gas + PDR + H₂ model.
-- **Physics and numerics.** {doc}`physics/pdr/index` follows the radiation field into
+- **Physics and numerics.** {doc}`physics/mocassin/index` describes MOCASSIN itself: the grid,
+  the Monte Carlo transfer, the iteration, the ionisation and thermal balance, the gas emission
+  and the dust, with each feature marked by whether this project exercises it.
+  {doc}`physics/pdr/index` follows the radiation field into
   the molecular content: the field and its estimator, the dust, the rays, the H₂ level
   model, the rates, the chemistry, the feedback and the convergence. Every process is
   linked to the code block that implements it. {doc}`physics/limitations` lists what is
@@ -114,6 +117,7 @@ tutorials/dust-gas-pdr
 :hidden:
 :caption: Physics and numerics
 
+physics/mocassin/index
 physics/pdr/index
 physics/limitations
 ```

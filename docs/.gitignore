@@ -11,3 +11,5 @@ reference/changelog.md
 # drawn from bench/data/ by bench/plots.py when the docs are built
 benchmarks/_generated/
 __pycache__/
+# the root .gitignore ignores the executable `mocassin` by name; the chapter directory is not it
+!physics/mocassin/

@@ -1,0 +1,105 @@
+(sec:moc-emission)=
+# Gas emission
+
+The gas emits in two places in MOCASSIN. In every iteration `emissionDriver` computes each cell's continuum and line emissivities from its ion fractions, $n_e$ and $T_e$, and turns them into the probability distributions from which the transfer draws the frequency of a gas-emitted packet ({src}`emission_mod.f90::emissionDriver`; the draw is described in {doc}`transfer`). At the end of the run `outputGas` recomputes the line emissivities of every cell and integrates them over the volume into the reported line fluxes, mean ionic temperatures and ionic fractions ({src}`output_mod.f90::outputGas`). The two use the same atoms and fits except for the H I recombination lines. The physics follows {cite:t}`Ercolano2003`; the data files and their sources are listed in {doc}`../../reference/data-sources`. Each section opens with its status ({doc}`index`).
+
+(sec:moc-em-cont)=
+## Continuum emission coefficients
+{bdg-success}`used`
+
+`fb_ff` builds the bound–free plus free–free emission coefficients $\gamma_\nu$ of H I, He I and He II per unit $n_e\,n_{\mathrm{ion}}$ ({src}`emission_mod.f90::emissionDriver/fb_ff`). Below the H I, He I and He II thresholds they are interpolated in the tables `gammaHI.dat`, `gammaHeI.dat` and `gammaHeII.dat`, read by `initGammaCont` ({src}`ph_mod.f90::initGammaCont`): 21 temperatures from 10 to 30 000 K, interpolated linearly in $\log T$ and clamped at the table ends ({src}`emission_mod.f90::emissionDriver/fb_ff@"if (TeUsed <= tkGamma(1)) then"`), and log-linearly in frequency between the tabulated edges. From each ground-state threshold upward the bound–free part follows the Milne relation with the ground-state cross section of {doc}`ionisation`,
+
+$$
+\gamma^{\mathrm{fb}}_\nu = 4\pi\,\frac{\omega_i}{\omega_{i+1}}\,C\,h\nu_1\,
+  \frac{\nu^3}{T^{3/2}}\,\sigma(\nu)\,e^{-h(\nu-\nu_0)/kT},
+$$ (eq:moc-milne)
+
+with $\nu$ in Ryd, $C=4.987\times10^{-6}$, the statistical-weight ratio $\omega_i/\omega_{i+1}$ equal to 2, 1/2 and 2 for H I, He I and He II, and $\nu_0$ the threshold ({src}`emission_mod.f90::emissionDriver/fb_ff@"do i = HIPnuP, nbins"`). The He I and He II branches used to start at the top edges of their tables, below their thresholds, where the exponential grew as $T$ fell; a cold cell then re-emitted nearly everything it absorbed at 24.4 eV, until {devlog}`D-226` and {devlog}`D-227` started them at the thresholds ({src}`emission_mod.f90::emissionDriver/fb_ff@"! D-227: a ground-state recombination continuum exists only at and"`). The ground-state continua of the elements from Li to K ($Z=3$–19) are added by the same relation, from each stage's outer-shell cross section and statistical weights ({src}`emission_mod.f90::emissionDriver/fb_ff@"do elem = 3, 19"`); heavier elements have none. Above the H I, He I and He II edges the free–free coefficient
+
+$$
+\gamma^{\mathrm{ff}}_\nu = 4\pi\times5.443\times10^{-39}\,Z^2\,g_{\mathrm{ff}}(\nu,T)\,T^{-1/2}\,e^{-h\nu/kT}\ \mathrm{erg\,cm^3\,s^{-1}\,Hz^{-1}},
+$$ (eq:moc-ffem)
+
+with $Z=1$ for H$^+$ and He$^+$ and $Z=2$ for He$^{2+}$, is added to the bound–free part ({src}`emission_mod.f90::emissionDriver/ffCoeff`, {src}`emission_mod.f90::emissionDriver/free_free`, {src}`emission_mod.f90::emissionDriver/fb_ff@"gammaHI(i) = gammaHI(i)+ffCoeff1(i)"`); for He I and He II it starts at the top of each table, a bin or two below the threshold, where it is the only term. Below the edges the tables carry the whole continuum, free–free included, and no Gaunt array enters. The Gaunt factors $g_{\mathrm{ff}}$ of Eq. ({eq}`eq:moc-ffem`) are not computed for the cell: they are the arrays `BoltGaunt` last filled on that rank, in the opacity pass that precedes the emission pass, i.e. those of the last cell that rank processed there, re-evaluated only when its temperature moved by more than 10% ({lim}`L-78`) ({src}`ionization_mod.f90::BoltGaunt@"if ( abs(1. - TeOld2/TeUsed) > 0.10 ) then"`, {src}`iteration_mod.f90::MCIterationDriver/iterateMC@"& call emissionDriver(grid,k,j,i,iG)"`). The term is a small addition to the recombination continua and the Gaunt factor depends weakly on $T$, so the error is small. The cell's emissivity of each species is $\gamma_\nu$ times $n_e$ and the recombining ion's density, with $n_e$ floored at $10^{-5}$ cm$^{-3}$ ({src}`emission_mod.f90::emissionDriver@"emissionHI = (gammaHI + twoPhotHI) * grids(iG)&"+5`, {src}`emission_mod.f90::emissionDriver@"if (NeUsed < 1.e-5) then"`). The gas emits this free–free continuum but hardly absorbs it ({lim}`L-69`).
+
+(sec:moc-em-2phot)=
+## Two-photon continua
+{bdg-success}`used`
+
+The two-photon decays of H I 2s and He II 2s use the hydrogenic spectral shape $A(y)$, $y=\nu/\nu_{2s}$, times an effective recombination coefficient into 2s fitted in $T$ (`hydro2phot`, {src}`emission_mod.f90::emissionDriver/hydro2phot`). For H I the 2s population is reduced by collisional transfer to 2p, by the factor $[1+n_e\,q_{2s,2p}/A_{2s,1s}]^{-1}$ with $A_{2s,1s}=8.23$ s$^{-1}$ and $q_{2s,2p}$ from $5.31\times10^{-4}$ at 10 000 K to $4.71\times10^{-4}$ cm$^3$ s$^{-1}$ at 20 000 K; He II has no such term. He I 2$^1$S uses the spectrum tabulated in `HeI2phot.dat` (41 points) and $\alpha_{\mathrm{eff}}=6.23\,t_4^{-0.827}$ in the code's units, with no collisional term (`HeI2photSub`, {src}`emission_mod.f90::emissionDriver/HeI2photSub`). {cite:t}`Ercolano2003` give the sources of these data in their Appendix 1.
+
+(sec:moc-em-lyman)=
+## He I 2$^3$S and the He II Lyman lines
+{bdg-success}`used`
+
+Three kinds of line photons that can ionise hydrogen are added to the continuum distributions rather than to the line list, so that they are drawn and transported like continuum packets. The He I 2$^3$S–1$^1$S decay at 19.8 eV (1.4567 Ryd) is put into its frequency bin with the coefficient $27.2\,t_4^{-0.678}$, $t_4$ floored at 0.5 ({src}`emission_mod.f90::emissionDriver/setDiffusePDF@"alpha2tS = 27.2*(T4**(-0.678))"+6`). The He II Lyman lines from $n=2$ to 5 take Ly$\alpha$ (304 Å) from the fit $10^{-0.792\log T+6.01}$ and the other three from the ratios of `r2a0100.dat`, the Case A emissivities of {cite:t}`StoreyHummer1995` at $n_e=100$ cm$^{-3}$ and $10^4$ K ({src}`emission_mod.f90::emissionDriver/setDiffusePDF@"HeIILyman = HeIILymanData"..@"normHeII = normHeII + HeIILyman(i)"`). The H I recombination lines are Case B, so the H I Lyman series other than Ly$\alpha$ is not emitted.
+
+(sec:moc-em-pdf)=
+## The emission distributions
+{bdg-success}`used`
+
+`setDiffusePDF` builds, per cell, the cumulative distribution `recPDF` of the H and He continua over the frequency bins, the line distribution `linePDF` and their split `totalLines`, the fraction of the gas emission carried by lines, which decides whether a gas packet is a line or a continuum photon ({src}`emission_mod.f90::emissionDriver/setDiffusePDF`, {src}`emission_mod.f90::emissionDriver/setDiffusePDF@"grids(iG)%totalLines(cellPUsed) = grids(iG)%totalLines(cellPUsed) / normalize"`). The lines in `linePDF` are the H I lines from upper levels 3–15 to lower levels 2–8, the 34 He I lines, the He II lines from 3–30 to 2–16, every collisionally excited line, and Ly$\alpha$ in a slot of its own since {devlog}`D-376` ({src}`emission_mod.f90::emissionDriver/setDiffusePDF@"if (lineTrLya > 0) then"`); lines that fall outside the frequency grid are dropped ({devlog}`D-296`). Line packets are traced at their own frequency ({devlog}`D-292`, {devlog}`D-307`). The heavy-element continua enter the emissivity and `totalLines` with the H I continuum, but `recPDF` holds only gas emission: since {devlog}`D-233` a packet absorbed by dust is re-emitted from the dust's own spectrum, `dustPDF` ({src}`emission_mod.f90::emissionDriver/setDustPDF`; {devlog}`D-232`; {doc}`dust`), whereas a packet absorbed by the gas is re-emitted from these distributions whatever absorbed it ({lim}`L-51`).
+
+(sec:moc-em-hhe)=
+## Recombination lines of H and He
+{bdg-success}`used`
+
+The **transported** lines, those whose energy the Monte Carlo carries, come from `RecLinesEmission` in `emission_mod` ({src}`emission_mod.f90::emissionDriver/RecLinesEmission`). H I uses the line ratios of `r1b0100.dat`, Case B at $n_e=100$ cm$^{-3}$ and $10^4$ K, for upper levels 3–15 ({src}`readdata_mod.f90::readData@"do iup = 15, 3, -1"`), scaled by H$\beta$ from the fit $10^{-0.870\log T+3.57}$ ({src}`emission_mod.f90::emissionDriver/RecLinesEmission@"Hbeta = 10**(-0.870*log10Te + 3.57)"`), and Ly$\alpha$ from $10^{-0.897\log T+5.05}$, both fits to {cite:t}`StoreyHummer1995`. He II uses the ratios of `r2b0100.dat` (upper levels 3–30, lower 2–16) scaled by the fit to He II 4686 Å, $10^{-0.997\log T+5.16}$ ({src}`emission_mod.f90::emissionDriver/RecLinesEmission@"HeII4686 = 10.**(-.997*log10(TeUsed)+5.16)"`).
+
+The **reported** H I lines are computed differently, by `RecLinesEmission` in `output_mod` ({src}`output_mod.f90::outputGas/RecLinesEmission`): every line from upper levels 3–30 to lower levels 2–8 is interpolated, as its ratio to H$\beta$, in the Case B emissivity table of {cite:t}`StoreyHummer1995` (`e1bx.dat`, read by `hdatx` and interpolated by `hlinex`; {src}`output_mod.f90::hdatx`, {src}`output_mod.f90::hlinex`), and H$\beta$ itself comes from the same table since {devlog}`D-370` and {devlog}`D-371` ({src}`output_mod.f90::outputGas/RecLinesEmission@"call hlinex(4,2,TeUsed,NeUsed,fh)"`). The table spans 300–30 000 K and $n_e=10^2$–$10^{14}$ cm$^{-3}$; evaluations outside it are taken at its edge, because extrapolating the interpolation polynomial into PDR gas had given lines up to $10^{22}$ times H$\beta$ ({src}`output_mod.f90::hlinex@"! D-361: evaluate inside the table's own domain (e1bx.dat: T 300-30000 K,"`; {devlog}`D-360`, {devlog}`D-361`). The transported H$\beta$ is 0.994 and 0.997 of the reported one, emission-measure weighted, in `hiipdr` and `pn150k`, and the transported lines stop at upper level 15 ({lim}`L-63`). Ly$\alpha$, He II and He I use the same code in both places.
+
+The 34 **He I** lines are fits $a\,t_4^{\,b}\,e^{c/t_4}$ at $n_e=10^2$, $10^4$ and $10^6$ cm$^{-3}$ (`HeIrecLines.dat`, read by `readHeIRecLines`; {src}`hydro_mod.f90::readHeIRecLines`), made for this project to the emissivities of {cite:t}`Porter2012,Porter2013`; they are interpolated linearly in $n_e$ between the three densities and take the nearest one outside them. The code's comments still name {cite:t}`Benjamin1999` ({src}`hydro_mod.f90::setPointers@"! read in data from benj skil smit 99"`, {src}`output_mod.f90::outputGas/RecLinesEmission@"! data from Benjamin, Skillman and Smits ApJ514(1999)307 [e-25 ergs*cm^3/s]"`). Below 5000 K every density takes a power law through the lowest-density fit at 5000 and 6000 K (the highest-density one above $10^6$ cm$^{-3}$), which an in-code comment calls wrong, and above 20 000 K the fits are used without a clamp ({src}`output_mod.f90::outputGas/RecLinesEmission@"! conferir extrapola"`; {lim}`L-71`).
+
+(sec:moc-em-heavyrec)=
+## Heavy-element recombination lines
+{bdg-warning}`not exercised`
+
+With `recombinationLines` ({ref}`kw-recombinationLines`; off by default, {src}`common_mod.f90@"logical :: lgRecombination=.false."`) `outputGas` also computes the recombination lines of O II, Mg II 4481 Å, Ne II, C II and N II (3–3 and 3d–4f), by `roii`, `rmgii`, `rneii`, `rcii`, `rnii` and `rnii4f` from `Roii.dat`, `Rneii.dat`, `Rcii.dat`, `Rnii.dat`, `Rniiold.dat` and `Rnii_aeff.dat` (the Mg II line from an inline fit), each routine's header naming its source ({src}`output_mod.f90::roii`, {src}`output_mod.f90::rmgii`, {src}`output_mod.f90::rneii`, {src}`output_mod.f90::rcii`, {src}`output_mod.f90::rnii`, {src}`output_mod.f90::rnii4f`). Each emissivity is relative to H$\beta$, scaled by $n(X^{2+})/n(\mathrm H^+)$, and written to `lineFlux.out`. They are post-processing only: they neither cool the gas nor enter the transported lines. The benchmark fixtures leave the keyword off; a single HII40 run with it showed that the C II 1335 Å shortfall of {doc}`../../benchmarks/lexington` is the missing recombination part ({devlog}`D-437`).
+
+(sec:moc-em-cel)=
+## Collisionally excited lines
+{bdg-success}`used`
+
+`equilibrium` solves the statistical equilibrium of an ion with up to 17 levels (`nForLevels`, {src}`constants_mod.f90@"integer, parameter :: nForLevels = 17 ! number of levels"`) and returns the emissivity of every transition ({src}`emission_mod.f90::equilibrium`). The collisional rate coefficients are
+
+$$
+q_{lu}=\frac{8.63\times10^{-6}\,\Omega_{lu}(T)}{g_l\,T^{1/2}}\,e^{-\Delta E_{ul}/kT},\qquad
+q_{ul}=\frac{8.63\times10^{-6}\,\Omega_{lu}(T)}{g_u\,T^{1/2}}\ \ \mathrm{cm^3\,s^{-1}},
+$$ (eq:moc-qcoll)
+
+with the Boltzmann factor on the excitation out of the level of lower energy, which is not always the lower index: 31 data files list levels out of energy order ({src}`emission_mod.f90::equilibrium@"! D-418: the Boltzmann factor belongs to the LOWER level of the"`; {devlog}`D-418`). The effective collision strengths are interpolated linearly in $\log T$ and held at the table ends ({src}`emission_mod.f90::equilibrium@"call linear_interpolation(atomic_data_array(elem,ion)%logTemp, atomic_data_array(elem,ion)%qq, log10Te, qomInt)"`, {src}`interpolation_mod.f90::linear_interpolation`); a table of one temperature is used as a constant, and one of two temperatures is extrapolated linearly ({src}`emission_mod.f90::equilibrium@"else if (nTemp == 2) then"`). Upstream MOCASSIN used a cubic spline; linear interpolation has been the default since commit 9cbafd3 (2025-06-03). The populations solve
+
+$$
+\sum_{j\ne i}n_j\bigl(n_e q_{ji}+C_{ji}+A_{ji}\beta_{ji}\bigr)-n_i\sum_{j\ne i}\bigl(n_e q_{ij}+C_{ij}+A_{ij}\beta_{ij}\bigr)=-n_e\,\frac{n(X^{+})}{n(X)}\,\alpha_i ,
+\qquad \sum_i n_i=1 ,
+$$ (eq:moc-nlevel)
+
+with $A_{ij}$ zero unless $j<i$, by LU decomposition, the first equation replaced by the normalisation; the emissivity of $u\to l$ is $\epsilon_{ul}=A_{ul}\,\beta_{ul}\,\Delta E_{ul}\,n_u$ per ion ({src}`emission_mod.f90::equilibrium@"fLineEm(i,j) = atomic_data_array(elem,ion)%a(j,i) * bA(j,i) * Eji * n(j)"`). In a plain build the other colliders $C$ are zero and the escape probabilities $\beta$ are 1; the PDR builds supply both for C I, C II and O I from the chemistry ({src}`emission_mod.f90::equilibrium@"! D-363: ONE ATOM PER ION. For an ion the chemistry also carries (C I,"`; {devlog}`D-363`; {doc}`../pdr/feedback`). The emissivities are weighted by the ion's abundance and converted to erg; the same atoms cool the gas ({doc}`thermal`, where levels above 10 are left out, {lim}`L-67`) and give the transported and the reported lines.
+
+The recombination term on the right of Eq. ({eq}`eq:moc-nlevel`) is {bdg-secondary}`dead`: it acts only if a data file ends with a record of radiative and dielectronic fit coefficients ({src}`hydro_mod.f90::makeElements@"read(unit=121,fmt=*,iostat=ios) atomic_data_array(elem,ion)%br"`, {src}`emission_mod.f90::equilibrium@"if (atomic_data_array(elem,ion)%br .le. 0.d0) then"`), and none of the 143 files of `data/` that `data/fileNames.dat` names has one (each ends with its last level record; {lim}`L-77`). Fe II has its own 142-level array (`forbiddenLinesLarge`; {bdg-warning}`not exercised`, Fe being off in every fixture), whose emissivities are never converted to erg ({lim}`L-68`). The atomic data are those of CHIANTI 10.1 {cite:p}`Dere1997,Dere2023`, the Stout database {cite:p}`Lykins2015` and files inherited from MOCASSIN, assigned to ions by `data/fileNames.dat`; {doc}`../../reference/data-sources` lists them ({devlog}`D-330`, {devlog}`D-435`). Which stages are computed is set by `nstages` ({doc}`ionisation`).
+
+(sec:moc-em-res)=
+## Resonance lines
+{bdg-success}`used` (dust + gas runs)
+
+Six resonance lines, H I Ly$\alpha$, C II 1335 Å, C IV 1549 Å, N V 1240 Å, Mg II 2798 Å and Si IV 1397 Å, are listed in `resLines.dat` and read by `initResLines` ({src}`emission_mod.f90::initResLines`). In every iteration of every dust+gas run `setResLineEscapeProb` computes, per cell, the probability that a photon of each line escapes the local dust ({src}`emission_mod.f90::emissionDriver@"if (lgDust .and. nResLines > 0) call setResLineEscapeProb(grids,ig,ix,iy,iz)"`, {src}`emission_mod.f90::setResLineEscapeProb`): the line-centre optical depth is integrated through the ion's gas along 125 directions, the rotations of $(1,1,1)/\sqrt3$ by multiples of $\pi/2$ about the three axes, which cover only the eight body diagonals ({src}`emission_mod.f90::setResLineEscapeProb@"uHat%x = 1./sqrt(3.)"..@"uHat = rotateZ(uHat,real(kdir)*Pi/2.)"`; {lim}`L-88`); each direction's escape probability takes the form the comment attributes to {cite:t}`KwanKrolik1981`, and their mean is combined with the ratio of dust to line opacity as eq. A5 of the paper the comment cites as Harrington, Cohen and Hess (1984), published as {cite:t}`Cohen1984` ({src}`emission_mod.f90::setResLineEscapeProb@"! calculate fEscapeResPhotons according to Harrington, Cohen and Hess (1984) eqn A5"`). When the transfer draws a resonance-line packet, it is destroyed with probability $1-f_{\mathrm{esc}}$ and re-emitted from the cell's dust spectrum; otherwise it travels at the line's frequency ({src}`photon_mod.f90@"! D-376: a resonance line (data/resLines.dat, Lya among"`). `resLineHeating` puts the destroyed energy into the grains' balance ({src}`update_mod.f90::updateCell/resLineHeating`; {doc}`dust`). Before {devlog}`D-376` this ran only once the share of converged cells had reached `resLinesTransfer`, a percentage whose default, 101, is never reached ({src}`set_input_mod.f90::readInput@"resLinesTransfer = 101."`); of this project's inputs only `test_Problem` sets it (50), and every other run carried the resonance lines as optically thin. The keyword is now accepted and ignored ({src}`set_input_mod.f90::readInput@"case(\"resLinesTransfer\")"`). Without dust nothing destroys them. `lineFlux.out` reports each line as emitted and as escaping.
+
+(sec:moc-em-out)=
+## Line fluxes, mean temperatures and ionic fractions
+{bdg-success}`used`
+
+`outputGas` loops over the active cells that are not black ({doc}`thermal`) and integrates every line's emissivity, $\int\epsilon\,n_{\mathrm H}\,\mathrm dV$. `lineFlux.out` gives each line relative to H$\beta$ and H$\beta$ itself in $10^{36}$ erg s$^{-1}$, multiplied by 8 with `symmetricXYZ` (by 2 for a symmetric 2D grid) so that it counts the whole nebula ({src}`output_mod.f90::outputGas@"HbetaVol(iAb) = HbetaVol(iAb)*1.e-16"`, {src}`output_mod.f90::outputGas@"HbetaVol(iAb) = 8.*HbetaVol(iAb)"#2`; {ref}`out-lineFlux_out`). These are analytic emissivities of the converged model, not counts of escaping packets: apart from the resonance lines' escaping column and an optional extinction map, no line is attenuated by the dust. The PDR builds write the coolant transitions to `lineFluxMol.out` ({ref}`out-lineFluxMol_out`).
+
+`temperature.out` gives the mean temperature of every ion,
+
+$$
+T(X^{i}) = \frac{\int T_e\,x_{X,i}\,n_e\,n_{\mathrm H}\,\mathrm dV}{\int x_{X,i}\,n_e\,n_{\mathrm H}\,\mathrm dV},
+$$ (eq:moc-tion)
+
+so that $T(\mathrm H^+)$ is the $\langle T[N_pN_e]\rangle$ of the benchmarks ({src}`output_mod.f90::outputGas@"factor1 = TeUsed*NeUsed*HdenUsed*dV"`; {ref}`out-temperature_out`). `ionratio.out` gives the fraction of each element in each stage weighted by $n_e\,n_{\mathrm H}\,\mathrm dV$, the definition the comment attributes to {cite:t}`Harrington1982`,
+
+$$
+\langle x_{X,i}\rangle = \frac{\int x_{X,i}\,n_e\,n_{\mathrm H}\,\mathrm dV}{\sum_j\int x_{X,j}\,n_e\,n_{\mathrm H}\,\mathrm dV}
+$$ (eq:moc-ionratio)
+
+({src}`output_mod.f90::outputGas@"! the following is the definition given by Harrington et al. 1982"`, {src}`output_mod.f90::outputGas@"ionDenVol(iAb,elem,ion) / denominatorIon(iAb,elem)"`; {ref}`out-ionratio_out`). Its header, “Mean ionic ratio <ion>/<H+>”, names the alternative definition, normalised to $\int x(\mathrm H^+)\,n_e\,n_{\mathrm H}\,\mathrm dV$, which is left commented out beside it; the values are fractions of the element ({lim}`L-77`). The ratio of the He$^+$ and H$^+$ fractions is the $\langle\mathrm{He^+}\rangle/\langle\mathrm{H^+}\rangle$ of {cite:t}`Ferland1995`, as {doc}`../../benchmarks/lexington` uses it.

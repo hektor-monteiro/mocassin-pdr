@@ -74,7 +74,8 @@ comparison of shape alone.
 | Run time, 14 ranks | 7–9 s | 88–89 s | 174–176 s |
 
 - **Build.** The 3D build (`make PDR=1 PDRGEOM=3D mocassin`) of `main` at commit `bef7b13`
-  (`pdr-coupling-v2.0.1-14-gbef7b13`), which has the {devlog}`D-441` fixes below. Without the `pdr`
+  (`pdr-coupling-v2.0.1-14-gbef7b13`), which has the {devlog}`D-441` fixes below; release
+  `pdr-coupling-v2.0.2` computes the same. Without the `pdr`
   keyword it computes what the plain build does. For the three Henyey–Greenstein inputs, its
   `SED.out`, `dustGrid.out`, `grid0.out` and `tauNu.out` are byte-identical to those of the plain
   build's runs in {devlog}`D-441`.
@@ -217,7 +218,7 @@ When the data are found, the fixtures need two changes:
 ## Reproducing
 
 ```bash
-# a checkout of main at bef7b13 or later; the binary reads its data from PREFIX/share/mocassin
+# release pdr-coupling-v2.0.2 or later; the binary reads its data from PREFIX/share/mocassin
 make clean && make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install
 mkdir -p myrun/input myrun/output
 cp benchmarks/dust/1D/p0tau10/* myrun/input/
