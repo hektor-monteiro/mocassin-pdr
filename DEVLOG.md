@@ -43988,3 +43988,73 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
       dust).
     - The change from 0.545 lies in lines 89-108, the range that cannot be
       measured.
+
+### noPhotoelectric result, gas-only map so far, and the forced skip (2026-10-31 17:14-17:30)
+
+  - **noPhotoelectric** (nope-cur, current code with dust): Hbeta 0.4826
+    E36, case-B H recombinations 9.830e47 = 1.162 Q(H). The run with the
+    terms on gave 1.163. The prediction "within 2% of 1.16" held, and the
+    gas-grain hypothesis is discarded.
+  - **The gas-only map:**
+    - line 88 (D-122): Hbeta 0.2142, the original's 0.2141;
+    - line 109 (D-156): Hbeta 0.4861, the current code's 0.4875.
+    So the whole gas-only change is in lines 89-108, the range that cannot be
+    measured, and it has held since. The dusty runs' 3.5 at line 109 is that
+    change plus D-232's leak.
+  - **The leading candidate: D-147** (line 107, f64a5e0), the forced skip
+    removed. Upstream's photon_mod carried a variance reduction:
+
+        if ( i == 1 .and. tauCell > 20.0) then
+           passProb = tauCell+1.0e-6
+           enPacket%weight = enPacket%weight / weightFactor * exp(-passProb)
+        endif
+
+    - A packet that starts a path in a cell thick at its frequency (tau >
+      20) was pushed through it with weight exp(-tau). That weight is zero in
+      single precision above tau ~ 87 (D-146).
+    - A re-emitted packet starts in the cell that absorbed. In the ring's
+      partially ionized skin, tau_912 per cell is ~1e3-1e4, so every
+      Lyman-continuum photon re-emitted there was deleted instead of being
+      absorbed on the spot. The helium continua above 13.6 eV were deleted
+      the same way.
+    - That is case A: alpha_B/alpha_A = 0.62 at 9000 K. With the helium
+      photons also lost, it gives the measured 0.545.
+    - It also accounts for the dusty history. The pooled PDF's ionizing leak
+      (D-232) was born in thick dusty cells and deleted there by the same
+      skip, until D-147 let it through: 8.9 Q(H) at line 109, closed by
+      D-233.
+    - **Status: hypothesis.** Lines 89-108 also hold D-123 (pdrCoupleIter's
+      default 1 -> 5, so five updateCell passes per iteration in the plain
+      build too) and D-127 (IPerg read uninitialised for istage 1). None of
+      them can be run on the benchmark's input. Attribution needs a run that
+      changes only the skip: the original with the block removed, or the
+      current code with it restored. That is a code patch to a clone, so it
+      waits for the user's word.
+  - **The current code's excess is not explained.** It is 1.17 Q(H) without
+    dust, before line transport existed (line 109; D-292 is line 252 and
+    D-307, the default-on, line 273), with the hydrogen recombination fit
+    radRecFit unchanged, Lya counted in totalLines in both versions, and the
+    same H I Lyman-continuum code.
+    - He II's recombination cascade can return ~0.3-0.7 extra H-ionizing
+      photons per He2+ recombination (Balmer continuum >= 13.6 eV, Lya
+      40.8 eV, two-photon). On 7.5e46 recombinations that is 0.03-0.06
+      Q(H).
+    - So the physical ceiling is ~1.03-1.06 Q(H) of H ionizations, less the
+      3.3% that escapes, and the current code is 11-17% above it.
+
+### Pure-hydrogen test (design and predictions, before the runs)
+
+  - **Design:** runs/_d445tp/h-{orig,cur}, the gas-only input with
+    abunH.in for both components:
+    - H 1, He 1e-5 (kept nonzero so the He code paths keep their stages),
+      no metals, no dust;
+    - D-445's binaries, 14 ranks, after the gas-only map (hq.sh).
+    With no helium and no metals, every H-ionizing photon is the star's or
+    H's own Lyman continuum, so case B must close: alpha_B EM = Q(H) minus
+    the escape.
+  - **Predictions (case-B H recombinations / Q(H)):**
+    - current: 0.95-1.00. If it comes out at 1.10 or more, the excess is in
+      the transport or the re-emission itself, not in helium or the metals;
+    - original: 0.55-0.65, case A from the forced skip. The H-only gas is
+      hot (no metal cooling): T_e >= 30 kK cells are lgBlack in the
+      original and drop out of its lineFlux.out, but not out of this sum.
