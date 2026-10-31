@@ -43835,3 +43835,72 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
     - line 405: within 10% of the current 0.483;
     - if 163/164 does not hold the fall, it lies in 109-163 (D-155..D-232)
       and is mapped next.
+
+### Phase 2, results so far (2026-10-31 16:35-16:50)
+
+    line  commit   entry           Hbeta [E36]  case-B H rec. / Q(H)  code/recomputed Hbeta
+    1     f37a67e  original        0.2028       0.52                  0.957
+    68    cd3ad42  D-102           0.2028       0.52                  0.957
+    88    ef98517  D-122           0.2038       0.52                  0.961
+    109   4002ae0  D-156           3.497        8.88                  0.956
+    135   9bae9e4  D-207           1.690        4.27                  0.951
+    163   00d1f18  D-230..D-232    0.3850       0.98                  0.954
+    164   1042e02  D-233           0.4551       1.16                  0.953
+    270   93bc85e  D-305           0.4579       1.16                  0.953
+    539   53eab97  current         0.4828       1.16                  1.006
+
+  - **The current grid is D-233's.**
+    - Ring EM: 3.19e60 at line 164, 3.20e60 now.
+    - Case-B recombinations: 9.79e47 at line 164, 9.83e47 now.
+    - Line 270 is the same.
+  - **The last 6% is D-371** (Hbeta from Storey & Hummer's table in place
+    of the 2530/T^0.833 power law, which runs 4.6-5.2% low; D-370). It is the
+    step in code/recomputed from 0.953 to 1.006 on an unchanged grid, and it
+    is a correct fix.
+  - **The fall from the leak era** (1.69 at line 135) to a photon-conserving
+    grid happens in lines 136-163, before D-233. Candidates (not
+    attributed):
+    - D-216, line 140;
+    - D-222/D-223, lines 155 and 159;
+    - D-224..D-227, line 161 (He I's continuum starting below its
+      threshold).
+  - **D-233 raises the grid's ionization.** It splits the re-emission: dust
+    absorptions go to dustPDF, gas absorptions to a gas-only recPDF. The
+    case-B recombinations go from 0.98 to 1.16 Q(H), and Hbeta x1.18.
+  - **Phase-2 predictions scored:**
+    - 163 above 1.5: wrong (0.385);
+    - 164 below 0.6: held (0.455), but the fall was already there at 163,
+      and D-233 itself moves Hbeta up, not down.
+  - **A code-independent ceiling.** For an ionization-bounded nebula with no
+    dust absorption, case B gives L(Hbeta) = Q(H) h nu(Hbeta)
+    alpha_eff(Hbeta)/alpha_B = 8.46e47 x 4.82e-13 erg = 4.08e35 erg/s
+    (Storey & Hummer at 9000 K, the ring's EM-weighted T_e). Escape lowers it
+    by 0.6% (original) to 3.1% (current); any dust absorption of ionizing
+    photons lowers it further. Against it:
+    - the original: 0.50;
+    - line 163: 0.94;
+    - the current code: 1.18.
+    So the current code makes ~18% more Hbeta than the star's photons allow,
+    and the excess enters at D-233.
+  - **Lines 200, 235 and 405 add little** now that the grid is known to be
+    D-233's from 164 to the end. The map is stopped after line 200.
+
+### Gas-only test (design and predictions, before the runs)
+
+  - **Design:** runs/_d445tp/gas-{orig,cur}, D-445's binaries with their own
+    data, test_Problem's input without the dustFile and Ndust lines (the
+    original resets resLinesTransfer to 101 without dust; the current code
+    ignores it). 14 ranks, one after the other, gasq.sh.
+  - **The question:** are the original's deficit and the current code's
+    excess both in the dust coupling, or is either in the gas physics?
+  - **Predictions:**
+    - Both codes conserve photons without dust: case-B H recombinations
+      0.93-1.02 Q(H).
+    - Hbeta: current 3.8-4.1e35 erg/s; original 3.6-3.9e35 (the power law
+      ~5% low).
+    - So the original's deficit and the current's excess are both dust
+      couplings: the pooled PDF's gas-to-infrared loss in the original, and
+      something D-233's split exposes in the current code.
+  - **What would change the reading:** a current gas-only result near 1.16
+    Q(H) puts the excess in the gas physics (the diffuse field, on-the-spot
+    emission, or the recombination coefficients), not in the dust.
