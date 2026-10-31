@@ -444,7 +444,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
-| D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441); the committed pre-PDR legacy output holds 0.41 LStar | In progress | 2026-10-31 |
+| D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43584,6 +43584,81 @@ and compare the escaped SED in both".
   - **Hbeta:** current over original within 10%. The ionization and atomic
     data changes since (D-402..D-404, D-418) move it.
 
+### Results (2026-10-31)
+
+**The runs.** Both builds gave rc 0 for the plain flavour, with PREFIX
+~/.d445/{o,c}, symlinks to each clone's data (a short path, for D-416's
+128-character limit). runs/_d445tp/{orig,cur}-tp, 14 ranks, the benchmark's
+input byte-identical:
+  - **original:** 13 iterations, stopped at 92.2% converged cells, 6:17.
+    resLinesTransfer 50 was on from iteration 5 (60.0% after iteration 4).
+    83 lgBlack cells.
+  - **current:** 15 iterations (the cap). NOT converged on the integrated
+    test (O3+ 4.65% against 2%); 79.6% converged cells; 18:19. 3 lgBlack
+    cells. autoPackets grew the packets x1.5 per iteration in both.
+  - No NaN, "Singular matrix" or "insane" line in either run.
+
+**The escaped SED** (`sed_compare.py`; figure runs/_d445tp/sed_orig_vs_cur.png):
+
+    [erg/s]                 original      current     current/original
+    total                   1.491e37      6.999e37      4.69
+    total / LStar           0.213         0.9998
+    ionizing <912 A         2.95e35       1.84e36       6.24
+    FUV 6-13.6 eV           1.38e36       5.53e36       4.00
+    NUV 0.21-0.4 um         1.47e36       8.31e36       5.65
+    optical 0.4-1 um        6.45e35       1.74e37      26.9
+    NIR 1-5 um              4.03e35       3.78e36       9.39
+    MIR 5-25 um             3.31e36       1.19e37       3.60
+    FIR 25-1000 um          7.40e36       2.12e37       2.87
+    line spikes / LStar     0.011         0.416
+
+**What makes the difference** (measured unless marked):
+  - **The original drops every line photon.**
+    - Its lineFlux.out gives 0.52 LStar of intrinsic lines, Lya in the H I
+      15->8 row among them, and none of it reaches SED.out. Its spikes are
+      recombination-continuum edges only, 0.011 LStar.
+    - In the current code 0.42 LStar escapes as lines. The rest, Lya's
+      0.16 LStar among it, is absorbed by dust and comes out in the infrared.
+    - Its escaped total is 0.213 LStar. Together with the cavity starlight
+      its writeSED misses (D-441), the drop removes ~0.79 of the luminosity
+      (*inference*: the Monte Carlo drops lines in proportion to each
+      re-emission's line share, so it can drop more than the analytic 0.52).
+  - **The original ionizes less gas.**
+    - Hbeta: 2.028e35 against 4.828e35 erg/s, x0.42. The emission measure
+      sum of n_e n(H+) V is x0.47 (2.12e59 against 4.51e59) on identical
+      densities, cell for cell.
+    - Nearly all of the gap is in the ionized skin of the dense ring (n_H
+      ~8e4, 384 cells): 1.63e59 against 4.00e59. The diffuse 1e3 gas is close
+      (4.86e58 against 5.15e58). The ionized cells' median x(H+) (0.995) and
+      T_e (13,360 and 13,390 K) agree.
+    - So the original's nebular continuum is 2-3x lower at every wavelength,
+      matching Hbeta. Its lines are similar in absolute terms where the gas
+      is neutral or weakly ionized: Mg II 2796 4.2e36 against 5.3e36, [O I]
+      6300 3.4e36 against 4.0e36 erg/s.
+    - **Not known: why.** Candidates, none tested:
+      - D-233: the original's "diffuse" re-emission mixes dust emission into
+        the gas's PDF, so in dense dusty cells gas-absorbed energy can leave
+        as infrared instead of ionizing recombination continuum;
+      - D-290's grain charging;
+      - D-402..D-404's ionization balance;
+      - the atomic and dust data changed since (D-330, D-418, D-415).
+      Each needs its own run to attribute.
+  - **The dust.** The infrared peak sits near 30 um in both, so the grain
+    temperatures are similar. The original's dust radiates a third as much
+    (MIR+FIR 1.07e37 against 3.31e37 erg/s): it never sees the lines.
+
+**Predictions, scored:**
+  - builds: held;
+  - current total 0.999-1.001: held (0.9998);
+  - original total 0.35-0.50: missed (0.213). The line loss is larger, and
+    the original also ionizes less;
+  - line spikes, original <= 0.03 and current 0.3-0.5: held (0.011, 0.416);
+  - bands: MIR x2-6 held (3.60). Optical x5-20 missed (26.9), FIR
+    x1.05-1.5 missed (2.87) and ionizing x0.3-3 missed (6.24), all by the
+    same lower ionization and larger energy loss;
+  - Hbeta within 10%: missed (x2.38).
+
 ### Status
 
-In progress (2026-10-31).
+Done (2026-10-31). Not done: an attribution of the original's lower Hbeta;
+runs/_d445tp (the clones, runs and figure) and ~/.d445 (symlinks) are kept.
