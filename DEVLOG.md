@@ -44145,3 +44145,43 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
     - B: the current code with collisional Lya/Lyb added to the gas
       re-emission spectrum (LyaEmis, D-376's 1216 A slot), on the same
       three inputs.
+
+### Attribution tests A and B (design and predictions, before the runs)
+
+The user (2026-10-31), on the two hypotheses: "lets check both". Plan
+~/.claude/plans/iridescent-stirring-pie.md.
+
+  - **The patches.** Each changes one thing, in a git-ignored clone, for
+    diagnosis only. Production is not touched.
+    - **A** (runs/_d445tp/src-origA, branch d446-testA, on f37a67e):
+      photon_mod pathSegment's forced-skip block removed, exactly D-147's
+      change (f64a5e0).
+    - **B** (runs/_d445tp/src-curB, branch d446-testB, on 53eab97):
+      RecLinesEmission adds the collisional excitation of H I to LyaEmis, the
+      re-emission spectrum's Lya slot. It uses Mathis's Lya + Lyb fit with
+      coolColl's constants and its T_e > 5000 K condition, n(H0) n_e q hcRyd,
+      x 1e25 to HIRecLines' units. Lyb's energy goes into the same slot, the
+      test's simplification of case B. resLineHeating, output_mod's Lya row
+      and the thermal balance are unchanged.
+  - **Builds and runs.**
+    - Plain flavour only, each against D-445's data prefix of the same
+      commit.
+    - Inputs byte-identical to D-446's unpatched runs: test_Problem, gas
+      only, pure H.
+    - A-gas, A-h, A-tp, B-gas, B-h, B-tp, 14 ranks, testq.sh.
+    - Scored with runs/_d445tp/budget.py, which reproduces this entry's
+      tables on the six unpatched runs.
+  - **Predictions** (case-B H recombinations / Q(H); Hbeta in E36):
+
+        run     recB/Q        Hbeta        unpatched twin
+        A-gas   1.15-1.25     0.44-0.50    0.545, 0.214
+        A-h     4.0-5.0       -            1.775
+        A-tp    > 2           > 0.8        0.516, 0.203 (D-232's leak no longer deleted)
+        B-h     0.95-1.10     -            4.612
+        B-gas   0.97-1.05     0.41-0.44    1.174, 0.4875
+        B-tp    0.95-1.04     0.40-0.44    1.163, 0.4828
+
+  - **What would refute each hypothesis:**
+    - A: A-gas staying near 0.545 means D-147 is not the cause.
+    - B: B-h staying well above 1.1 means another cooling channel is missing
+      from the spectrum, or the excess is a transport defect.
