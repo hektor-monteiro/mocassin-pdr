@@ -43908,3 +43908,30 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
   - **What would change the reading:** a current gas-only result near 1.16
     Q(H) puts the excess in the gas physics (the diffuse field, on-the-spot
     emission, or the recombination coefficients), not in the dust.
+
+### The noPhotoelectric test (design and prediction, before the run)
+
+  - **A hypothesis for the current excess** (from reading the code, not
+    measured). Every gas absorption is re-emitted from the gas emissivity:
+    lines totalLines against continuum normHI+normHeI+normHeII, the continuum
+    from recPDF (emission_mod setDiffusePDF). The packet carries the energy
+    the gas absorbed, E_abs. The Lyman-continuum photons re-emitted per cell
+    are then E_abs (j_Lyc/j_tot)/h nu, which is the physical alpha_1 n_e n_p V
+    only when E_abs = j_tot.
+    - The thermal balance also holds two non-radiative terms when
+      lgPhotoelectric is on (the default in both codes): grain photoelectric
+      heating, which raises j_tot, and gas-grain collisional cooling, which
+      lowers it. Then E_abs - j_tot = Lambda_gd - Gamma_PE.
+    - Net cooling to the grains therefore re-emits too much Lyman continuum.
+    - Since D-421 the current code's gas-grain term is 4 pi larger than the
+      original's.
+    - Before D-233 the pooled PDF sent part of that surplus to the dust's
+      infrared, which would explain why the excess appears at D-233.
+  - **Design:** runs/_d445tp/nope-cur, the current binary on test_Problem
+    with dust and `noPhotoelectric` (both terms off, update_mod.f90
+    `if (lgDust .and. lgPhotoelectric)`). 14 ranks, after the gas-only pair
+    (noq.sh).
+  - **Prediction:**
+    - if the hypothesis holds, the case-B H recombinations fall from 1.16 to
+      0.97-1.03 Q(H), and Hbeta to 0.40-0.42 E36;
+    - if it does not, they stay within 2% of 1.16.
