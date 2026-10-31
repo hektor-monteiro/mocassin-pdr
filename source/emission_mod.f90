@@ -20,6 +20,7 @@ module emission_mod
     real                                :: BjumpTemp=0   !
     real                                :: HbetaProb   ! probability of Hbeta
     real                                :: LyaEmis=0.  ! D-376: this cell's Lya, in HIRecLines' units
+    real, parameter                     :: fHaColl = 5./32. ! D-447: Halpha's share of an n=3 collisional excitation (case B, 1.89 of 12.09 eV)
     real                                :: log10Ne     ! log10(Ne) at this cell
     real                                :: log10Te     ! log10(Te) at this cell
     real                                :: sqrTeUsed   ! sqr(Te) at this cell
@@ -490,6 +491,7 @@ module emission_mod
         implicit none
         integer                    :: i, denint, ilow, iup
         real                       :: Hbeta, HeII4686, Lalpha, T4, x1, x2, coeff
+        real                       :: q12H, q13H, collH ! D-447: hICollExc's terms, and their factor
         real, dimension(34) :: HeIRecLines_raw 
         logical, parameter :: DEBUG_THIS_CELL = .true. 
         real, parameter :: MIN_SAFE_TEMP = 5000.0 
@@ -515,6 +517,15 @@ module emission_mod
         ! of pn150k's (D-372).
         Lalpha = 10**(-0.897*log10Te + 5.05)
         LyaEmis = grids(iG)%elemAbun(abFileUsed,1)*ionDenUsed(elementXref(1),2)* NeUsed*Lalpha
+        ! D-447: the collisional excitation of H I that the thermal balance
+        ! cools by (hICollExc) leaves as lines - the n=2 term and 27/32 of
+        ! the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B) - and
+        ! no longer in the shape of the rest of the gas emission (D-446).
+        ! coolColl is erg/s per H; HIRecLines and LyaEmis are 1e-25 of that.
+        call hICollExc(TeUsed, q12H, q13H)
+        collH = hcRyd*ionDenUsed(elementXref(1),1)*NeUsed*1.e25
+        LyaEmis = LyaEmis + collH*(q12H + (1.-fHaColl)*q13H)
+        HIRecLines(3,2) = HIRecLines(3,2) + collH*fHaColl*q13H
 
         HeIIRecLines = HeIIRecLinedata
 
@@ -3088,6 +3099,32 @@ module emission_mod
       line_xSec = 1.681e-4*line%fik/width
 
     end subroutine meanLineOpacity
+
+    ! D-447: the collisional excitation of H I from the ground state, owned
+    ! here and read by updateCell's thermal balance (coolColl), the
+    ! re-emission spectrum (RecLinesEmission, LyaEmis and Halpha), the
+    ! grains' Lya heating (resLineHeating) and the reported lines (output_mod,
+    ! mocassinPlot), so that the energy the gas cools by is the energy it
+    ! emits (D-446: before, it was re-emitted with the shape of the other
+    ! gas emission, part of it Lyman continuum that ionized again).
+    ! Mathis's fit, as upstream's coolColl: the 1s -> n=2 and 1s -> n=3
+    ! terms; times hcRyd n(H0)/n_H n_e they are erg/s per H. Zero below
+    ! 5000 K, as upstream.
+    subroutine hICollExc(Te, q12, q13)
+      implicit none
+      real, intent(in)  :: Te
+      real, intent(out) :: q12, q13
+      real              :: Te4
+
+      if (Te > 5000.) then
+         Te4 = Te/1.e4
+         q12 = 2.47e-8*exp(-118338./Te)*Te4**(-0.228)
+         q13 = 1.32e-8*exp(-140252./Te)*Te4**(-0.460)
+      else
+         q12 = 0.
+         q13 = 0.
+      end if
+    end subroutine hICollExc
 
   end module emission_mod
 

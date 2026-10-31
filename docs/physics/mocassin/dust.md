@@ -270,7 +270,7 @@ H^{\mathrm{res}}_{s,a} = \sum_l \varepsilon_l\,(1-P^{\mathrm{esc}}_l)\,
 ```
 
 with $\varepsilon_l$ the line's emissivity (for Ly$\alpha$ a fit to
-{cite:t}`StoreyHummer1995`) and $P^{\mathrm{esc}}_l$ its escape probability, from optical depths along
+{cite:t}`StoreyHummer1995` plus the collisional excitation of {src}`emission_mod.f90::hICollExc`, {devlog}`D-447`) and $P^{\mathrm{esc}}_l$ its escape probability, from optical depths along
 the eight body diagonals only ({doc}`emission`; {lim}`L-88`);
 the code cites {cite:t}`Harrington1988` for the formula. The destroyed power is shared within a
 species by $C^{\mathrm{abs}}$, but between species by number abundance, since each species is

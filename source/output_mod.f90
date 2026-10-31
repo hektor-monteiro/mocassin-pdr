@@ -2474,6 +2474,7 @@ endif
         real                       :: x1,x2, coeff
         real                       :: hb          ! emissivity of H 4->2
         real                       :: fh          ! emissivity of H
+        real                       :: q12H, q13H, collH ! D-447: hICollExc's terms, and their factor
 
 
         T4 = TeUsed / 10000.
@@ -2552,6 +2553,12 @@ endif
         ! H I 30->8 line alone
         Lalpha = 10**(-0.897*log10Te + 5.05)
         LyaCell = elemAbundanceUsed(1)*ionDenUsed(elementXref(1),2)*NeUsed*Lalpha
+        ! D-447: plus the collisionally excited H I the thermal balance cools
+        ! by (emission_mod hICollExc): Lya, and Halpha's 5/32 of n=3
+        call hICollExc(TeUsed, q12H, q13H)
+        collH = hcRyd*ionDenUsed(elementXref(1),1)*NeUsed*1.e25
+        LyaCell = LyaCell + collH*(q12H + (1.-fHaColl)*q13H)
+        HIRecLines(3,2) = HIRecLines(3,2) + collH*fHaColl*q13H
 
         ! reinitialise HeIIRecLines
         ! file used to be read in here

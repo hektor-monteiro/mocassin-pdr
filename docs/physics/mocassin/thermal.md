@@ -52,7 +52,7 @@ $$
   \bigl[2.47\times10^{-8}\,t_4^{-0.228}\,e^{-118\,338/T}+1.32\times10^{-8}\,t_4^{-0.460}\,e^{-140\,252/T}\bigr],
 $$ (eq:moc-hcoll)
 
-fits the comment attributes to “Mathis” without a reference ({src}`update_mod.f90::updateCell/thermBalance@"ch12 = 2.47e-8"+5`, {src}`update_mod.f90::updateCell/thermBalance@"if (TeUsed > 5000.) then"`). Each excitation is charged 1 Ryd, while the Boltzmann factors use the right thresholds, so the Ly$\alpha$ term is 4/3 and the Ly$\beta$ term 9/8 too large ({lim}`L-65`). It matters where H$^0$ and electrons coexist above 5000 K: ionisation fronts and partly ionised cells. No collisionally excited H I line is emitted.
+fits the comment attributes to “Mathis” without a reference ({src}`emission_mod.f90::hICollExc`). Each excitation is charged 1 Ryd, while the Boltzmann factors use the right thresholds, so the Ly$\alpha$ term is 4/3 and the Ly$\beta$ term 9/8 too large ({lim}`L-65`). It matters where H$^0$ and electrons coexist above 5000 K: ionisation fronts and partly ionised cells. Since {devlog}`D-447` the same terms are also emitted ({src}`emission_mod.f90::emissionDriver/RecLinesEmission@"call hICollExc(TeUsed, q12H, q13H)"`): the $n=2$ term and 27/32 of the $n=3$ term as Ly$\alpha$, 5/32 of the $n=3$ term as H$\alpha$ (Case B), in the re-emission spectrum, the grains' Ly$\alpha$ heating and the reported lines. Before, the energy they cooled was re-emitted with the shape of the remaining gas emission, part of it Lyman continuum that ionized again ({devlog}`D-446`).
 
 (sec:moc-th-cel)=
 ## Collisionally excited lines

@@ -1805,9 +1805,7 @@ end subroutine iterateT
 
             real                   :: betaFF        ! energy loss coeff due to ff rad
             real                   :: betaRec       ! energy loss coeff due to recomb
-            real                   :: ch12, ch13, & ! collision excitation of
-                 & ex12, ex13,&                     ! hydrogen data
-                 & th12, th13                       ! (Mathis, Ly alpha, beta)
+            real                   :: q12H, q13H    ! D-447: H I collisional excitation (emission_mod hICollExc)
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
             real                   :: budL(10)             ! D-217: this call's budget
@@ -1969,25 +1967,12 @@ end subroutine iterateT
             end if
 
             ! collisional excitation of Hydrogen
-            ! Mathis, Ly alpha, beta
-            ch12 = 2.47e-8
-            ch13 = 1.32e-8
-            ex12 = -0.228
-            ex13 = -0.460
-            th12 = 118338.
-            th13 = 140252.
-
-            if (TeUsed > 5000.) then
-
-                coolColl = (ch12*exp(-th12/TeUsed)*Te4**ex12 + &
-                     & ch13*exp(-th13/TeUsed)*Te4**ex13) * &
-                     & hcRyd*grid%ionDen(cellP,elementXref(1),1)*NeUsed
-
-             else
-
-                coolColl = 0.
-
-             end if
+            ! Mathis, Ly alpha, beta. D-447: the fit is emission_mod's
+            ! hICollExc, which the re-emission spectrum, the grains' Lya heating
+            ! and the reported lines also read, so the energy cooled is emitted
+            call hICollExc(TeUsed, q12H, q13H)
+            coolColl = (q12H + q13H) * &
+                 & hcRyd*grid%ionDen(cellP,elementXref(1),1)*NeUsed
 
             if (lgTraceHeating.and.taskid==0) then
                write(57,*) 'Coll exc H: ',coolColl
@@ -4687,6 +4672,7 @@ end subroutine iterateT
             integer             :: imul    ! multiplet counter
 
             integer               :: global_speciesP ! DECLARE GLOBAL INDEX
+            real                  :: q12R, q13R   ! D-447: H I collisional excitation
 
             ! Calculate the correct global index for the species
             global_speciesP = dustComPoint(icompP) + speciesP - 1
@@ -4704,6 +4690,11 @@ end subroutine iterateT
                         Gline = Gline + 10**(-0.897*log10(TeUsed) + 5.05)*grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)&
                              & *1.e-25*ionDenUsed(elementXref(1),2)*&
                              & NeUsed
+                        ! D-447: and the collisionally excited Lya the gas cools
+                        ! by (hICollExc, as emission_mod's LyaEmis), erg/s per H
+                        call hICollExc(TeUsed, q12R, q13R)
+                        Gline = Gline + (q12R + (1.-fHaColl)*q13R)*hcRyd* &
+                             & ionDenUsed(elementXref(1),1)*NeUsed
 
                      else
 

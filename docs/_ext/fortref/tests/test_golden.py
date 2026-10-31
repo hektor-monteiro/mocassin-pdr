@@ -28,20 +28,20 @@ GOLDEN = {
     'pdr/modules.F90::H2PDRATE': ('FAIL', 'scope'),
     'pdr/shield.F90::H2PDRATE': ('source/pdr/shield.F90', 27, 55, 'H2PDRATE'),
     'pdr/shield.F90::H2SHIELD1': ('source/pdr/shield.F90', 231, 281, 'H2SHIELD1'),   # bare END
-    'update_mod.f90::updateCell': ('source/update_mod.f90', 52, 4759, 'update_mod/updateCell'),
+    'update_mod.f90::updateCell': ('source/update_mod.f90', 52, 4750, 'update_mod/updateCell'),
     'update_mod.f90::updateCell/thermBalance':
-        ('source/update_mod.f90', 1796, 2522, 'update_mod/updateCell/thermBalance'),
+        ('source/update_mod.f90', 1796, 2507, 'update_mod/updateCell/thermBalance'),
     'update_mod.f90::thermbalance':
-        ('source/update_mod.f90', 1796, 2522, 'update_mod/updateCell/thermBalance'),
+        ('source/update_mod.f90', 1796, 2507, 'update_mod/updateCell/thermBalance'),
     'iteration_mod.f90::iterateMC':
         ('source/iteration_mod.f90', 56, 3358, 'iteration_mod/MCIterationDriver/iterateMC'),
     # forLines in three modules: the path decides, the scope suffix must fit
     'emission_mod.f90::forLines':
-        ('source/emission_mod.f90', 586, 637, 'emission_mod/emissionDriver/forLines'),
+        ('source/emission_mod.f90', 597, 648, 'emission_mod/emissionDriver/forLines'),
     'output_mod.f90::forLines': ('source/output_mod.f90', 2387, 2459, 'output_mod/outputGas/forLines'),
-    'update_mod.f90::forLines': ('source/update_mod.f90', 2527, 2591, 'update_mod/updateCell/forLines'),
+    'update_mod.f90::forLines': ('source/update_mod.f90', 2512, 2576, 'update_mod/updateCell/forLines'),
     'update_mod.f90::updateCell/forLines':
-        ('source/update_mod.f90', 2527, 2591, 'update_mod/updateCell/forLines'),
+        ('source/update_mod.f90', 2512, 2576, 'update_mod/updateCell/forLines'),
     'emission_mod.f90::updateCell/forLines': ('FAIL', 'scope'),
     'h2_mod.f90::h2Solve': ('source/h2_mod.f90', 1536, 1553, 'h2_mod/h2Solve'),
     'vector_mod.f90::mult': ('source/vector_mod.f90', 139, 147, 'vector_mod/mult'),   # typed function
@@ -57,7 +57,7 @@ GOLDEN = {
     'iteration_mod.f90::iterateMC@"call h2LevelModel(grid(1:nGrids), 1)"':
         ('source/iteration_mod.f90', 1043, 1045, 'iteration_mod/MCIterationDriver/iterateMC'),
     'update_mod.f90::thermBalance@"do i = 1, 12"#1':
-        ('source/update_mod.f90', 1882, 1884, 'update_mod/updateCell/thermBalance'),
+        ('source/update_mod.f90', 1880, 1882, 'update_mod/updateCell/thermBalance'),
     'pdr_mod.f90::h2LevelModel@"subroutine h2PopResume"#1':
         ('source/pdr_mod.f90', 5961, 6012, 'pdr_mod/h2LevelModel/h2PopResume'),
     'pdr_mod.f90::h2LevelModel@"subroutine h2PopResume"': ('FAIL', 'text-ambiguous'),

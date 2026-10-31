@@ -836,6 +836,7 @@ program MoCaSSiNplot
         real                       :: x1,x2, coeff
         real                       :: hb          ! emissivity of H 4->2
         real                       :: fh          ! emissivity of H
+        real                       :: q12H, q13H  ! D-447
 
 
         T4 = TeUsed / 10000.
@@ -870,6 +871,11 @@ program MoCaSSiNplot
 
         ! D-376: Lya is no longer summed into HIRecLines(30,8), which is the
         ! H I 30->8 line alone, as in output_mod (where Lya has its own row)
+
+        ! D-447: plus the collisionally excited Halpha, as output_mod's
+        call hICollExc(TeUsed, q12H, q13H)
+        HIRecLines(3,2) = HIRecLines(3,2) + &
+             & hcRyd*ionDenUsed(elementXref(1),1)*NeUsed*1.e25*fHaColl*q13H
 
         HeIIRecLines = HeIIRecLineData
 
