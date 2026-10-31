@@ -44223,8 +44223,8 @@ Part 1 by the code-executor:
     - The skip also hid two defects: the pooled PDF's ionizing leak (closed
       by D-233) and B.
     - The original's converged-cell count falls to 29% at 15 iterations
-      without it (92% with it): the deleted packets had been holding the
-      skin cells still.
+      without it (92% gas-only with it). Not investigated; one guess is
+      that the deleted packets had been holding the skin cells still.
   - **B is attributed for gas with metals.** With collisional H I excitation
     in the re-emission spectrum, test_Problem conserves photons, with and
     without dust: 0.989 and 0.998 Q(H) recombined plus 3% escaping. That is
