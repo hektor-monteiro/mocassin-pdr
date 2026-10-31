@@ -445,6 +445,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
+| D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it | Open | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43662,3 +43663,108 @@ input byte-identical:
 
 Done (2026-10-31). Not done: an attribution of the original's lower Hbeta;
 runs/_d445tp (the clones, runs and figure) and ~/.d445 (symlinks) are kept.
+
+## D-446 - test_Problem's Hbeta, original against current: the audit (2026-10-31)
+
+The user (2026-10-31), on D-445's Hbeta: "it is very suspicious that  Hβ is
+2.4 times lower on the new version. Audit this." The lower Hbeta is the
+original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
+0.4828.
+
+### Measured from D-445's runs (runs/_d445tp/hb_audit.py)
+
+  - **The line sums are not the cause.**
+    - Each code's lineFlux.out Hbeta was set against a recomputation from its
+      own grid: the case-B Hbeta of every active cell (the Storey & Hummer fit,
+      the same formula for both), eps(T_e) n_e n(H+) dV, with the octant's
+      half-width plane cells and x8 for symmetricXYZ.
+    - Code over recomputed: 0.957 (original) and 1.006 (current). The two
+      codes turn their grids into Hbeta the same way, within 5%.
+    - The original's 83 lgBlack cells, which its outputGas leaves out of the
+      lines, are all in the n_H 1e3 gas (T_e median 329 K, flagged on the T_e
+      or ion balance). They hold 0.036% of its Hbeta.
+  - **The grids differ.** The emission measure, sum of n_e n(H+) dV:
+    - whole sphere: 1.696e60 (original) against 3.612e60 cm^-3 (current),
+      x2.13. D-445's 2.12e59 and 4.51e59 were octant sums (x8 gives these);
+      its ratio stands;
+    - by density class:
+
+          n_H [cm^-3]  cells   EM original    EM current
+          1e3          2758    3.89e59        4.12e59
+          1e4          1519    2.3e55         1.4e51
+          8e4 (ring)    384    1.307e60       3.200e60
+
+      So 99% of the difference is in the ring. No ring cell has x(H+) above 0.5
+      in either run: the ionized skin is unresolved in the first ring cells
+      (4e16 cm; tau_912 of a neutral ring cell is ~2e4). The 1e3 gas differs
+      by 6%. Of its cells, 202 have x(H+) higher by more than 0.1 in the
+      current run, and none lower.
+  - **The photon budget.**
+    - The star: Q(H) = 8.46e47 s^-1 (200 kK blackbody, 70e36 erg/s);
+      Q(>24.6 eV) 6.97e47, Q(>54.4 eV) 3.08e47.
+    - The case-B H recombinations, sum of alpha_B(T_e) n_e n(H+) dV (Draine
+      2011 eq. 14.6), whole sphere:
+      - original 4.36e47 s^-1, 0.52 Q(H);
+      - current 9.83e47 s^-1, 1.16 Q(H).
+    - He+ recombinations: 1.29e47 and 1.76e47. He2+: 7.2e46 and 7.4e46.
+    - **The original's deficit.** Its gas recombines half of the star's
+      H-ionizing photons. Its ionizing SED is 2.95e35 erg/s, ~1e46 photons
+      s^-1 at ~20 eV, so they do not escape either. The other half is
+      absorbed by something other than hydrogen, or leaves the ionizing band
+      on re-emission. Not known which.
+    - **The current code's excess.** It is 16% above Q(H). He II's
+      recombination cascade can give more than one H-ionizing photon per He2+
+      recombination, but not 1.4e47 from 7.4e46 recombinations. Two caveats:
+      - this alpha_B is a fit, not the code's coefficients;
+      - in unresolved skin cells the cell-mean x(H+) and n_e make the sum
+        approximate.
+      So the current code is at, or slightly past, the photon budget. Not
+      known whether the excess is real.
+  - **Ruled out by reading the code:** He II's Lyman lines are not dropped
+    with the original's line photons. setDiffusePDF puts them in the He II
+    diffuse continuum in both codes (emission_mod.f90, HeIILyman).
+  - **The dust data** test_Problem reads are the same in both clones:
+    - astroSilD2003_base.nk is byte-identical;
+    - PAHneu_30.cat only gains D-415's Im(m) column, with the efficiencies
+      verbatim.
+
+### The bisection (design)
+
+  - **runs/_d445tp/bisect/:**
+    - src/, a clone of this repository;
+    - commits.txt, f37a67e then the first-parent chain to 53eab97 (539
+      lines);
+    - bisect.sh, runs/NNN-<hash>/ and results.tsv.
+  - **Each step:**
+    - checks out the commit, runs `make clean`, and builds the plain flavour
+      with PREFIX ~/.d445/b. That prefix's data and dustData are symlinks to
+      src/'s, so each run reads its own commit's data;
+    - runs the benchmark's input unchanged on 14 ranks, under `timeout 3600`;
+    - classes the commit "new" if its Hbeta is above 0.313 E36 (the geometric
+      mean of the two ends);
+    - when a commit does not build or run, tries its neighbours instead.
+  - **Scope.** The test finds the commit where Hbeta crosses the midpoint.
+    If Hbeta moves in several steps, results.tsv shows the plateaus, and a
+    range with an intermediate value is bisected next.
+  - **The run.** systemd-run --user, MemoryMax 24G. About 10 steps, each a
+    12 s build and a 6-20 min run.
+
+### Predictions (on record before the bisection)
+
+  - **The crossing is D-233** (1042e02, line 164 of commits.txt): dust
+    absorptions re-emit from dustPDF, and gas absorptions from a recPDF
+    without the dust term.
+    - The commit before it gives an Hbeta within 15% of the original's
+      0.203 E36; D-233 itself gives above 0.40.
+    - The reasoning: before D-233, part of the gas-absorbed ionizing energy
+      in the ring's dusty skin is re-emitted as dust infrared, from the
+      pooled PDF. That cuts the diffuse Lyman continuum that re-ionizes on
+      the spot, and fits half of Q(H) never recombining in the gas.
+    - Confidence is moderate. D-233's own fixture showed its H II region
+      cooling 0.2-2.6% "and the front does not move".
+  - **If the crossing is elsewhere,** the next candidates are:
+    - D-102 (the ion stages normalised to one);
+    - D-116 (negative dielectronic rates clamped);
+    - the data changes (D-330's CHIANTI set).
+  - **After the crossing,** every bisected commit's Hbeta is within 10% of
+    the current 0.483.
