@@ -44363,3 +44363,93 @@ grids:
       resLineHeating;
     - hiipdr moving beyond MC noise. Then the term matters where the grid
       estimate (1%) says it should not.
+
+### Part 1 (code-executor, 2026-10-31 19:09-19:17)
+
+  - **Commit:** 8d82a56. It holds the four source files, the three docs
+    pages and the two fortref test files: 77 insertions, 36 deletions. The
+    diff is the plan's blocks; the main session read it.
+  - **Builds:** the four flavours and h2Test/h2Slab, rc 0, errors 0
+    (runs/_d447/build.log). `hicollexc` is in the symbol tables of
+    mocassin, mocassinPlot and the plain binary. mocassinPlot sees
+    hcRyd and hICollExc through `use emission_mod`, with no added `use`.
+  - **Goldens moved:**
+
+        unit                                     old          new
+        update_mod updateCell                    52-4759      52-4750
+        thermBalance                             1796-2522    1796-2507
+        emission_mod forLines                    586-637      597-648
+        update_mod forLines                      2527-2591    2512-2576
+        thermBalance@"do i = 1, 12"#1            1882-1884    1880-1882
+
+    Each was checked against the code. The unit snapshot changes only
+    emission_mod, 31 -> 32.
+  - **A defect of the plan, resolved by reordering.** Its docs checks came
+    before the commit, and the fortref extension warns on uncommitted source
+    (`fortref.dirty`, resolve.py:498), which no config silences. So
+    `sphinx-build -W` could not pass there.
+    - The executor ran all three checks again after the commit. pytest: 109
+      passed. sphinx-build -E -W -D fortref_allow_unpushed=1: rc 0, no
+      warnings. fortref check: only `fortref.unpushed`, which is there at
+      baseline because the branch is not pushed.
+    - Future plans put the docs checks after the commit.
+  - **Noted, not changed:**
+    - thermBalance still computes `Te4`, which no longer has a reader
+      (update_mod.f90:1841);
+    - the binaries carry `-dirty` in their version, because they were built
+      before the commit from identical source.
+
+### Results: test_Problem and hiipdr (2026-10-31 19:17-20:11)
+
+**test_Problem** (runs/_d447/tp, plain build), against cur-tp (53eab97) and
+B-tp (test B):
+
+    quantity                  cur-tp      B-tp        tp (D-447)   tp/cur    predicted
+    Hbeta [E36]               0.4828      0.4101      0.4101       0.8495    0.84-0.86   held
+    case-B rec / Q(H)         1.163       0.989       0.989        -         0.98-1.00   held
+    Halpha/Hbeta              2.864       2.863       3.078        1.0746    1.03-1.08   held
+    Lya row/Hbeta             23.44       23.44       52.87        2.256     1.8-2.2     missed (just above)
+    ionized T_e median        13392       13491       13482        1.0067    within 1%   held
+    ionized T_dust median     192.1       192.7       196.2        1.021     up 0-5%     held
+    ring-skin T_dust          290.3       285.9       310.3        1.069
+    SED total / LStar         0.9998      0.9998      0.9998       -         0.999-1.001 held
+    MIR+FIR                   3.315e37    3.798e37    3.791e37     1.143     1.12-1.20   held
+
+  - **Against test B, in the gas:** Hbeta x1.0000, recombinations x1.0005,
+    [O I] 6300 / [N II] 6584 / [O III] 5007 within 0.04%. The two differ
+    only where the plan made them differ:
+    - Halpha, x1.075: 5/32 of the n=3 term;
+    - the reported Lya, x2.26: test B did not change output_mod;
+    - the grains, from resLineHeating:
+      - ring-skin T_dust x1.085 over B-tp;
+      - MIR x1.14 and FIR x0.92 over B-tp, the same total.
+  - **Missed:** the [D376] resonance-line counts were predicted to rise,
+    and fell (166.7e6 drawn against 187.8e6 at iteration 15). The excess
+    Lyman continuum had multiplied the gas re-emissions themselves; fewer
+    absorptions now mean fewer draws, although Lya's share of each is larger.
+  - **Line ratios to Hbeta rise** because Hbeta falls: [O I] 6300 x1.14,
+    [N II] 6584 x1.06, [O III] 5007 x1.17. Their absolute luminosities move
+    by 3% or less.
+
+**hiipdr** (runs/_d447/hii31, 3D build), against rel-hii31:
+
+    quantity                  base         new          new/base   predicted
+    Hbeta [E36]               9.2953       9.2853       0.9989     0.995-1.005    held
+    case-B rec / Q(H)         0.4463       0.4458       0.9989     within 0.5%    held
+    Lya row/Hbeta             23.59        23.84        1.0106     1.00-1.03      held
+    Halpha/Hbeta              2.8965       2.8982       1.0006     1.000-1.003    held
+    ionized T_e median        8472         8487         1.0018     within 0.5%    held
+    ionized T_dust median     56.441       56.440       1.0000     within 0.5%    held
+    [O I] 6300/Hbeta          0.06525      0.06564      1.0059     within noise   held
+    [C II] 158/Hbeta          0.14883      0.14878      0.9997     within 3%      held
+    [O I] 63/Hbeta            0.04894      0.04903      1.0019     within 3%      held
+    H2 1-0 S(1)/Hbeta         6.907e-4     6.919e-4     1.0017     within 3%      held
+
+  - **Health:** rc 0, 15 iterations, 41:25, no NaN / Singular / CVODE /
+    insane_eta, 0 flagged cells.
+  - **The PDR is unchanged within noise.** 799 of the 14,774 cells below
+    50 K moved T_e by more than 1 K (195 by more than 5 K), and the coldest
+    cell went 13.2 -> 25.4 K. d365_noise gives T_gas's per-cell scatter as
+    0.010/0.024/0.055/0.152/0.026 by A_V band, against
+    0.010/0.025/0.057/0.150/0.026 in the base, so the noise is unchanged.
+    A 1-5 K move at 10-50 K is inside it.
