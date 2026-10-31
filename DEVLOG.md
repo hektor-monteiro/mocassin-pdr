@@ -43935,3 +43935,56 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
     - if the hypothesis holds, the case-B H recombinations fall from 1.16 to
       0.97-1.03 Q(H), and Hbeta to 0.40-0.42 E36;
     - if it does not, they stay within 2% of 1.16.
+
+### Gas-only results (2026-10-31 16:54-17:02)
+
+    run                       Hbeta [E36]  case-B H rec./Q(H)  escaping ionizing/Q(H)  iterations
+    original, gas only        0.2141       0.545               0.007                   13 (91.7%)
+    current, gas only         0.4875       1.174               0.033                   15 (O3+ 4.8%, not converged)
+    (with dust, for reference:
+    original                  0.2028       0.516               0.006
+    current                   0.4828       1.163               0.031)
+
+  - **Both predictions failed.** Neither code conserves photons without
+    dust.
+    - The original's deficit and the current code's excess are both in the
+      gas physics: removing the dust moves either by 5% or less.
+    - The pooled PDF of the original and D-233's split are not the cause of
+      either.
+  - **Why line 163 (pre-D-233) looked photon-conserving.** It cannot have
+    been because its gas physics was right. With dust, the pooled PDF sent
+    part of the gas re-emission into the dust's infrared, and that cancelled
+    an excess like the current one. D-233 removed the cancellation, so its
+    1.16 is the gas excess exposed. (Inference: line 163 gas-only is not yet
+    run.)
+  - **The data are not the cause.** No hydrogen data file changed between
+    the clones; the changes are the CHIANTI ion-level files and
+    HeIrecLines.dat.
+  - **The H I Lyman-continuum emissivity is the same code in both**
+    (fb_ff; D-226/D-227 changed only He I and He II).
+  - **A one-parameter reading.** Let f be the Lyman-continuum photons
+    re-emitted per recombination to the ground state, alpha_1 n_e n_p V
+    (f = 1 physical, f = 0 pure case A). Then
+    alpha_B EM/Q = alpha_B/(alpha_A - f alpha_1).
+    - The current code's 1.17 needs f ~ 1.25.
+    - The original's 0.545 is below even f = 0 (0.62 at 9000 K). So the
+      original behaves as case A with ~12% of Q(H) lost as well.
+    - Inference: the mechanism, not identified.
+  - **noPhotoelectric:** without dust there are no photoelectric or
+    gas-grain terms, so the excess cannot come from them. The run
+    (nope-cur) is expected to stay within 2% of 1.16.
+
+### Gas-only map (design and predictions, before the runs)
+
+  - **Design:** bisect/gmap.sh, bisect.sh's step on the gas-only input, at
+    lines 88, 109, 135, 163, 164 and 270 (rows in results-gas.tsv, runs
+    NNN-<hash>-gas). 2-6 min each, after nope-cur.
+  - **Predictions (case-B H recombinations / Q(H)):**
+    - line 88: 0.545 ± 0.02 (the original's);
+    - lines 109 and 135: well below the dusty runs' 8.9 and 4.3, since
+      D-232's leak needs dust; near 1.17 if the gas excess is already
+      there;
+    - lines 163, 164 and 270: 1.17 ± 0.03 (D-233 does nothing without
+      dust).
+    - The change from 0.545 lies in lines 89-108, the range that cannot be
+      measured.
