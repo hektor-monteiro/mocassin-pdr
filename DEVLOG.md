@@ -43873,15 +43873,19 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
       and D-233 itself moves Hbeta up, not down.
   - **A code-independent ceiling.** For an ionization-bounded nebula with no
     dust absorption, case B gives L(Hbeta) = Q(H) h nu(Hbeta)
-    alpha_eff(Hbeta)/alpha_B = 8.46e47 x 4.82e-13 erg = 4.08e35 erg/s
-    (Storey & Hummer at 9000 K, the ring's EM-weighted T_e). Escape lowers it
+    alpha_eff(Hbeta)/alpha_B = 8.46e47 x 4.89e-13 erg = 4.13e35 erg/s
+    (the Storey & Hummer fit over Draine's alpha_B at 9000 K, the ring's
+    EM-weighted T_e; 4.13-4.14e35 for 8860-9140 K). Escape lowers it
     by 0.6% (original) to 3.1% (current); any dust absorption of ionizing
     photons lowers it further. Against it:
-    - the original: 0.50;
-    - line 163: 0.94;
-    - the current code: 1.18.
-    So the current code makes ~18% more Hbeta than the star's photons allow,
-    and the excess enters at D-233.
+    - the original: 0.49;
+    - line 163: 0.93;
+    - line 164 (D-233): 1.10;
+    - the current code: 1.17 (D-371's table adds the last 6%).
+    So the current code makes ~17% more Hbeta than the star's photons allow.
+    The grid's excess enters at D-233. (The commit message of this step
+    quoted 4.08e35 and 0.50/1.18, from a rounded ratio; these are the
+    figures.)
   - **Lines 200, 235 and 405 add little** now that the grid is known to be
     D-233's from 164 to the end. The map is stopped after line 200.
 
