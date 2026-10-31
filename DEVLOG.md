@@ -445,7 +445,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
-| D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it | Open | 2026-10-31 |
+| D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Hypotheses from reading, each pending a patched run: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed, and the current code is ~15% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum (upstream defect). noPhotoelectric changes nothing | Open | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44058,3 +44058,90 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
     - original: 0.55-0.65, case A from the forced skip. The H-only gas is
       hot (no metal cooling): T_e >= 30 kK cells are lgBlack in the
       original and drop out of its lineFlux.out, but not out of this sum.
+
+### Gas-only map and pure-hydrogen results (2026-10-31 17:14-17:42)
+
+**The gas-only map** (results-gas.tsv; case-B H recombinations / Q(H)):
+
+    line  entry      Hbeta [E36]  rec/Q(H)
+    1     original   0.2141       0.545
+    88    D-122      0.2142       (= original)
+    109   D-156      0.4861       1.227
+    135   D-207      0.7036       1.780
+    163   D-230..232 0.4557       1.159
+    164   D-233      0.4557       1.159
+    270   D-305      0.4589       1.167
+    539   current    0.4875       1.174
+
+  - **Predictions scored:**
+    - 163/164/270 at 1.17 ± 0.03: held;
+    - 109 and 135 "well below the dusty 8.9 and 4.3": held. But 135 is
+      itself 1.78: a further gas-only excess between lines 110 and 135, gone
+      by line 163. Not investigated, since it is history.
+  - **The current pure-gas physics has been in place since line 163.** The
+    last step, 0.456 -> 0.488, is D-371's Hbeta table (the grid's
+    recombinations move 1.16 -> 1.17).
+
+**Pure hydrogen** (h-orig, h-cur; He 1e-5, no metals, no dust):
+
+    run        Hbeta [E36]  case-B rec/Q(H)  case-A  escaping/Q(H)  EM-weighted T_e  lgBlack
+    original   0.6953       1.775            2.89    0.002          10,491 K         145
+    current    1.9092       4.612            7.46    0.075           9,705 K          48
+
+  - **Both predictions failed, and the result is the strongest of the
+    audit.**
+    - In pure hydrogen the case-B balance must close at Q(H) minus the
+      escape. Both codes exceed it, the current code by x4.6.
+    - So the excess is in the transport or the re-emission itself, not in
+      helium or the metals.
+  - **The mechanism, found by reading the code (not yet attributed by a
+    run):**
+    - updateCell's thermal balance cools by collisional excitation of H I:
+      `coolColl` starts with Mathis's Lya + Lyb fit (ch12/ch13,
+      update_mod.f90:1971-1990, identical upstream at f37a67e:1289).
+    - The re-emission spectrum has no such term. setDiffusePDF's lines
+      (totalLines = normRec + normFor) carry Lya from the recombination fit
+      only (Lalpha = 10^(-0.897 log T + 5.05), LyaEmis), and no collisional
+      H I line exists anywhere in emission_mod.
+    - The Monte Carlo re-emits every gas absorption's whole energy with the
+      shape of that spectrum. So the energy the thermal balance radiates in
+      collisional Lya is re-emitted in the other channels, in proportion: the
+      Lyman continuum gains a factor E_abs/j_tot. Each extra Lyman-continuum
+      photon ionizes again.
+    - The magnitude fits:
+      - in the ring's partially ionized skin (x(H+) ~ 0.25, T_e ~ 9000 K),
+        collisional Lya is 1.1e-24 n(H0) n_e erg cm^3 s^-1, about 3e-24
+        n_e n_p, against ~1.1e-23 n_e n_p of recombination emission. That
+        is a boost of ~1.2-1.3, and the current code's 1.17 needs f ~ 1.25;
+      - in pure hydrogen, with no metal coolants, it is the main coolant of
+        hot gas, hence x4.6;
+      - it is where the current excess sits: 99% of the emission-measure
+        difference from the original is in the ring's skin.
+  - **Why the original did not show it in test_Problem:** the forced skip
+    (D-147's hypothesis above) deleted the boosted Lyman continuum where it
+    is born, in the thick skin cells. In pure hydrogen the excess outgrows
+    the deletion: 1.78.
+  - **Reading of the whole audit (hypotheses, each needing its own
+    patched run):**
+    1. **The original's low Hbeta:** the forced skip deleted every packet
+       re-emitted in a cell thick at its frequency. The Lyman continuum was
+       lost on the spot, giving case A and more (0.545 Q(H) without dust).
+       D-147 removed it.
+    2. **The current code's Hbeta is ~15% high** for test_Problem (1.17
+       Q(H); a photon-conserving grid would give Hbeta ~ 0.41-0.43 E36).
+       Collisional H I cooling is in the thermal balance and not in the
+       re-emission spectrum. This is an upstream defect that the forced skip
+       had hidden.
+    3. Between the two, D-232's pooled-PDF leak (dust energy re-emitted
+       ionizing) ran free from line 107 to D-233.
+  - **Likely wider reach, not measured:** every model with warm partially
+    ionized or warm neutral gas, i.e. ionization fronts and the PDR's warm
+    atomic layer. There, collisional Lya re-emitted as Lyman continuum is
+    spurious ionizing light, the kind D-232 measured in cold cells.
+  - **Attribution tests proposed (each a code patch, so each needs a plan
+    and the user's word):**
+    - A: f37a67e with only the forced-skip block removed, on test_Problem,
+      gas-only and pure H;
+    - B: the current code with collisional Lya/Lyb added to the gas
+      re-emission spectrum (LyaEmis, D-376's 1216 A slot), on the same
+      three inputs.
