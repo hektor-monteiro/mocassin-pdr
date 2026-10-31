@@ -446,6 +446,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
 | D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
+| D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). Predictions on record for test_Problem (plain), hiipdr and pn150k (3D) | Open | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44273,3 +44274,92 @@ Not done:
   - the gas-only excess of lines 110-135 (history only).
 The clones src-origA/src-curB and the twelve run directories are kept in
 runs/_d445tp.
+
+## D-447 - Collisional excitation of H I emitted as well as cooled (2026-10-31)
+
+The user (2026-10-31), on D-446's proposal to fix test B's defect in
+production: "proceed". Plan ~/.claude/plans/iridescent-stirring-pie.md.
+
+### The defect (D-446)
+
+updateCell's thermal balance cools the gas by collisional excitation of H I:
+coolColl starts with Mathis's Lya + Lyb fit (update_mod.f90:1971-1990).
+Nothing emits it. The re-emission spectrum (emission_mod RecLinesEmission and
+setDiffusePDF), the grains' Lya heating (resLineHeating) and the reported lines
+(output_mod, mocassinPlot) all have recombination Lya only. A gas absorption
+re-emits its whole energy in the shape of what the spectrum contains, so the
+missing channel's energy came out partly as Lyman continuum, which ionized
+again. Test B attributed it: test_Problem's case-B recombinations went from
+1.163 to 0.989 Q(H), and Hbeta from 0.483 to 0.410 E36.
+
+**Collisional over recombination Lya**, estimated offline from the existing
+grids:
+
+| run | collisional / recombination Lya |
+|---|---|
+| hiipdr (rel-hii31) | 0.010 |
+| pn150k (rel-pn41) | 0.48 |
+| test_Problem (cur-tp) | 1.03 |
+
+### Design
+
+  - **One routine owns the fit.** `hICollExc(Te, q12, q13)` in emission_mod
+    returns Mathis's two terms as coolColl writes them: zero below 5000 K,
+    and to be multiplied by hcRyd n(H0)/n_H n_e. coolColl calls it with the
+    same operations in the same order, so the cooling is unchanged to the
+    bit.
+  - **The same energy is emitted, absorbed and reported:**
+    - the re-emission spectrum: LyaEmis, D-376's 1216 A slot and normRec,
+      and HIRecLines(3,2);
+    - resLineHeating's Lya;
+    - output_mod's Lya row and Halpha;
+    - mocassinPlot's Halpha.
+  - **The split, case B:**
+    - the n=2 term goes to Lya;
+    - an n=3 excitation decays through n=2, so 5/32 of its energy (1.89 of
+      12.09 eV) goes to Halpha and 27/32 to Lya;
+    - the 2s share, which would leave as two-photon continuum, is not
+      separated, because the fit gives only the n=2 total.
+  - **Not changed:** the cooling's energy per excitation. L-65 says the fit
+    charges each excitation 1 Ryd, 4/3 too much for Lya. Comparing the fit
+    with standard 1s-2 collision strengths (Upsilon ~ 0.7-0.76 at 1e4 K
+    gives q ~ 2.2-2.4e-13 cm^3/s, against the fit's 1.80e-13 = 0.75-0.83 of
+    that) suggests the coefficient already carries the 3/4. That needs its own
+    check, and this change emits exactly what is cooled.
+  - **No keyword.** Docs anchors, the fortref goldens and the unit snapshot
+    move in the same commit. L-90 goes into doc/pdr-status.md after the runs,
+    with the measurements.
+  - **Runs (runs/_d447):**
+    - test_Problem on the plain build, against cur-tp and B-tp;
+    - hiipdr 31^3 and pn150k 41^3 on the 3D build, against
+      runs/_release_v2/rel-hii31 and rel-pn41. These are valid for the
+      current physics except SED.out (D-441), so no SED comparison is made
+      for them.
+
+### Predictions (on record before the runs)
+
+    quantity                     tp                    hii31                  pn41
+    Hbeta, new/base              0.84-0.86             0.995-1.005            0.95-0.995
+                                 (0.405-0.415 E36)
+    case-B H rec / Q(H)          0.98-1.00             within 0.5% of 0.446   0.5-5% below 0.974
+    Lya row / Hbeta, new/base    1.8-2.2               1.00-1.03              1.35-1.55
+    Halpha / Hbeta, new/base     1.03-1.08             1.000-1.003            1.02-1.06
+    median ionized T_e           within 1%             within 0.5%            within 1%
+    median ionized T_dust        up 0-5%               within 0.5%            up 0-5%
+    [O I] 6300, new/base         -                     within MC noise        0.90-1.02
+    [C II] 158, [O I] 63, H2     -                     within 3%              within 5%
+    SED total / LStar            0.999-1.001           -                      -
+    MIR+FIR, new/base            1.12-1.20             -                      -
+
+  - **Builds and health:**
+    - the four flavours and h2Test/h2Slab build;
+    - fortref check, its pytest and `sphinx-build -W` pass;
+    - all three runs give rc 0, with no NaN, "Singular" or "insane" and no
+      new lgBlack cells;
+    - the [D376] resonance-line counts rise in tp and pn41.
+  - **What would change the reading:**
+    - tp more than 1% away from B-tp's Hbeta and recombinations. Then the
+      change differs from test B in more than the Halpha split and
+      resLineHeating;
+    - hiipdr moving beyond MC noise. Then the term matters where the grid
+      estimate (1%) says it should not.
