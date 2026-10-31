@@ -43768,3 +43768,70 @@ original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
     - the data changes (D-330's CHIANTI set).
   - **After the crossing,** every bisected commit's Hbeta is within 10% of
     the current 0.483.
+
+### Bisection, phase 1 (2026-10-31 15:28-16:40)
+
+**Hbeta is not monotonic along the history** (runs/_d445tp/bisect/results.tsv):
+
+    line  commit   date        entry   Hbeta [E36]  iterations
+    1     f37a67e  2026-08-28  orig.   0.2028       13
+    68    cd3ad42  2026-09-02  D-102   0.2028       13
+    88    ef98517  2026-09-04  D-122   0.2038       13
+    109   4002ae0  2026-09-06  D-156   3.497        15
+    135   9bae9e4  2026-09-09  D-207   1.690        15
+    270   93bc85e  2026-09-22  D-305   0.4579       15
+    539   53eab97  2026-10-30  curr.   0.4828       15
+
+  - **A blocker in the design.** Lines 89-107 cannot be measured with the
+    benchmark's input. From D-123 (line 89, pdrCoupleIter's default 1 -> 5)
+    each MC iteration runs updateCell five times, and the converged-cell test
+    compared the last pass with the one before it (D-155's finding, fixed at
+    line 108). Every cell reads converged, and the run stops after iteration
+    1 on the input's 90%.
+    - The first launch classed line 101 "new" on that one-iteration Hbeta
+      (153 E36, the starting guess's). It was stopped. Steps now count only
+      with at least 10 iterations, and a broken commit is skipped for a
+      neighbour within +-8 lines.
+    - Lines 95, 97-103 and 107 stop after one iteration; 104 and 105 do not
+      build in the plain flavour.
+    - The input cannot hold the runs open: every version rejects a
+      minConvergence above 100, and pdrCoupleIter is parsed only under
+      `#ifdef PDR` in that era. So the plain build keeps 5 passes.
+  - **The first rise is in lines 89-108,** all inside the broken range (line
+    109 changed only the DEVLOG, so it has line 108's code). Not yet
+    attributed within it.
+  - **The rise is not photon-conserving.** Line 109's case-B H recombinations
+    are 7.51e48 s^-1, 8.9 Q(H), and line 135's are 3.61e48, 4.3 Q(H). The
+    ring's EM is 2.57e61 and 8.74e60, against 1.31e60 in the original. The
+    code over its recomputed Hbeta stays at 0.95-0.96. This is the era of
+    D-232's leak: the pooled re-emission PDF returning dust-absorbed energy
+    as ionizing photons.
+  - **D-232's numbers explain why the original's same pooling gave a
+    deficit and not an excess.** The original already pooled gas and dust
+    re-emission in one PDF, with both leaks:
+    - dust-absorbed energy came back ionizing, about 3.8% of it;
+    - gas-absorbed ionizing energy left as infrared.
+    In the original the second dominates: its case-A recombinations are
+    0.84 Q(H), as if the on-the-spot Lyman continuum were lost. Something in
+    lines 89-108 tipped that balance.
+  - **The scored phase-1 prediction:** "the crossing is D-233": wrong as
+    stated. Hbeta first rises 30 lines before D-233, in the broken range, and
+    by far more than the current code's. Whether D-233 is where it comes
+    back down is phase 2.
+
+### Phase 2 (design and predictions, before the runs)
+
+  - **The descent mapped, not bisected:** runs/_d445tp/bisect/map.sh with
+    bisect.sh's step, lines 163, 164, 200, 235 and 405, in that order. Each
+    has 10-25 min per run.
+    - 163/164 is D-233's pair: 00d1f18 (D-230..D-232) and 1042e02 (D-233).
+    - 200 and 235 lie between D-233 and line 270.
+    - 405 is midway from line 270 to the current code.
+  - **Predictions:**
+    - line 163: Hbeta above 1.5 E36, still in the leak era;
+    - line 164 (D-233): it falls to below 0.6, since D-233 closes the pooled
+      PDF in both directions;
+    - lines 200 and 235: within 0.35-0.6;
+    - line 405: within 10% of the current 0.483;
+    - if 163/164 does not hold the fall, it lies in 109-163 (D-155..D-232)
+      and is mapped next.
