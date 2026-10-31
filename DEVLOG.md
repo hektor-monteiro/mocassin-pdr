@@ -444,6 +444,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
+| D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441); the committed pre-PDR legacy output holds 0.41 LStar | In progress | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43502,3 +43503,87 @@ limits and resumed with their context; nothing was lost.
 ### Status
 
 Done (2026-10-25).
+
+---
+
+## D-445 - The original MOCASSIN against the current code on test_Problem: the escaped SED (2026-10-31)
+
+The user (2026-10-31): "now I want to compare the behaviour of the original
+mocassin code before any pdr implementation to the current version on a gas
+plus dust only model. Run the benchmark test_problem with both code versions
+and compare the escaped SED in both".
+
+### Design
+
+  - **The original:** f37a67e (2026-08-28 13:54), the last commit before any
+    PDR work. It is main/tag 1.1.1 (0d57a7c) plus that morning's four dev
+    fixes: carbon dielectronic recombination, the exposed CDE option, the zP
+    cell-advance test, and a missing declaration. The next commit, 76058fb,
+    starts DEVLOG.md, and 5c16814 starts the PDR build.
+  - **The current version:** 53eab97 (v2.0.2 plus documentation), plain
+    flavour (`make mocassin`), the natural build for a model without `pdr`.
+  - **Clones of this repository**, in runs/_d445tp/{src-orig,src-cur}. Each
+    is built with `make PREFIX=<its own prefix> mocassin`, and that prefix's
+    share/mocassin/{data,dustData} are symlinks to the clone's own data. So
+    each version reads its own atomic and dust data.
+    - The data differ: the 148 data/dustData files changed since f37a67e
+      include PAHneu_30.cat (D-415) and the CHIANTI-era atomic data.
+    - Nothing is installed, and production's checkout and binaries are not
+      touched.
+  - **The model:** benchmarks/test_Problem/input, unchanged since f37a67e,
+    copied as it is. It is already gas+dust, with no `pdr`:
+    - 21^3 symmetricXYZ, a 200 kK star, LStar 70e36 erg/s;
+    - astrosilicate plus PAH;
+    - autoPackets from 1e7;
+    - maxIterateMC 15 90, resLinesTransfer 50.
+    The original stops at 90% converged cells; the current code on its
+    integrated test (convTotals 0.02); both are capped at 15 iterations.
+  - **No seed.** The original has no randomSeed keyword, and the inputs stay
+    identical.
+  - **The runs:** 14 ranks each, one after the other.
+  - **The comparison:** runs/_d445tp/sed_compare.py on SED.out's
+    angle-averaged column:
+    - the total against LStar;
+    - band luminosities (ionizing, FUV, NUV, optical, NIR, MIR, FIR);
+    - line spikes, i.e. bins above twice the median of their neighbours;
+    - plus Hbeta and the iteration counts.
+
+**What is known before the runs.**
+  - **The original drops every line photon.** Lines, Lya included, never
+    reach SED.out. The current code traces the thin lines (D-292, D-307) and
+    destroys the resonance lines on the local dust (D-376).
+  - **The original's resLinesTransfer 50** heats the grains and re-injects
+    the destroyed fraction as packets. Under symmetricXYZ they carry 1/8 of
+    it (counted with the whole sphere's packet energy).
+  - **The original's writeSED** loses the light that escapes a source in an
+    inactive cell without interacting (D-441, fixed in v2.0.2). test_Problem's
+    star sits in its cavity.
+  - **A preview from existing outputs**, neither of which is this pair:
+    - the committed legacy benchmarks/test_Problem/output (a pre-PDR run of
+      2026-03-22) puts 0.41 LStar in SED.out;
+    - tutorial-a (v2.0.1, the same model with `pdr` and without autoPackets
+      or resLinesTransfer) puts 0.97 LStar, of which 0.41 is line spikes.
+
+### Predictions (on record before the runs)
+
+  - **Both builds** succeed: rc 0 for the plain flavour of each.
+  - **Totals.** Total escaped over LStar:
+    - original 0.35-0.50: its lines are dropped, and its cavity starlight is
+      missing from SED.out;
+    - current 0.999-1.001 (D-441's accounting).
+  - **Line spikes:**
+    - original: no line spikes beyond the recombination-continuum edges, at
+      most 0.03 LStar;
+    - current: spikes summing to 0.3-0.5 LStar.
+  - **Bands, current over original:**
+    - optical x5-20 (the forbidden lines);
+    - MIR x2-6 (the fine-structure lines, and the dust heated by traced lines
+      and destroyed Lya);
+    - FIR x1.05-1.5;
+    - ionizing x0.3-3 (uncertain).
+  - **Hbeta:** current over original within 10%. The ionization and atomic
+    data changes since (D-402..D-404, D-418) move it.
+
+### Status
+
+In progress (2026-10-31).
