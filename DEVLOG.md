@@ -450,6 +450,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
 | D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
 | D-450 | **The code runs D-449 calls for: `locate` at a table's last entry (L-91), charge transfer above 1+ in hydrogen's balance (L-92), and a re-emission diagnostic (the user: "Then proceed to the needed code runs."; plan approved).** Plan ~/.claude/plans/iridescent-stirring-pie.md, executed by code-executor in three commits, each built in four flavours: A, pdfSrc to 13 columns (line total; photons >= 13.6 eV of H I, metals, He I with 2^3S, He II with Lyman, 2^3S and Lyman alone) written with the gas-absorbed power to output/reemission.out under frontLines; B, `locate` returns n-1 at x == xa(n) (the intercept deleted); C, sum_{i>=2} chex n(X^(i+)) added to hydrogen's upward rate and to the H -> H+ rate handed to the chemistry, the chex fits evaluated before the stage loop. Runs (14 ranks, one queue): tp-L, hii-L, pn-L with binary L, then tp-LC, hii-LC, pn-LC. Results: hiipdr byte-identical with A+B; pn150k's dust 0.129 -> 0.112 Q(H) (Cloudy 0.112), case-B recombinations 0.910 -> 0.929 (locate) -> 0.957 (charge transfer; Cloudy 0.982), Hbeta 0.904 -> 0.950 of Cloudy's; hiipdr unchanged by charge transfer, test_Problem +0.009 Q(H); the diagnostic closes the ionizing budget to 0.997 and puts the Monte Carlo at 1.004-1.012 of the code's emission. test_Problem is clock-seeded, so its byte-identity prediction was void. L-91, L-92 closed; L-93, L-94 opened. | Done | 2026-11-01 |
+| D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -45390,4 +45391,174 @@ Not done:
   - The docs benchmark data and the tutorial's numbers, for the next
     release.
   - The merge into h2-model.
+Nothing is pushed or installed.
+
+## D-451 - The two Cloudy comparison pages rebuilt on the production code (2026-11-01)
+
+The user (2026-11-01), after D-450's results: "we should update the
+hiipdr and pn150kk artifacts with the new results redoing the comparison
+plots with the new version of the code".
+
+### What was published
+
+  - **hiipdr Against Cloudy, page version 32** (artifact version 33,
+    https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx), on
+    `runs/_d450/hii-LC`.
+  - **150 kK PN Against Cloudy, page version 31** (artifact version 31,
+    https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV), on
+    `runs/_d450/pn-LC`.
+  - Both runs are production at pdr-coupling-v2.0.2-32-g5ab5e8d (D-450's
+    commits A+B+C): the same seed (1001), packets, iteration count (15 and
+    18) and 14 ranks as the pages' last models, the h2-model runs
+    `d405-hii31-d0` and `d405-pn41-d0` of 2026-10-13.
+  - **The inputs differ only where they must.** hiipdr: the path to the
+    chemistry's data, `iterDamp 0.` left out (the default since D-406), and
+    `frontLines`, which only writes. pn150k: the path and `frontLines`.
+
+### How the pages were rebuilt (the page conventions)
+
+  - **A new first section per page,** id `current`. It holds a table with
+    one column per step: last version's run, v2.0's release check
+    (`runs/_release_v2/rel-*`, D-429), D-447's run, and D-450's. On pn150k
+    the graphite fix (pn-L) and charge transfer (pn-LC) are separate
+    columns. On hiipdr D-450 is one column, because hii-L is D-447's run
+    byte for byte (D-450).
+  - **What the table and figures carry:**
+    - Cloudy's values beside each row, with Cloudy's case-B recombinations
+      (0.982 Q(H), D-448) on pn150k;
+    - a bullet per change, giving what it is and what it moved;
+    - six Röllig-style pair figures (transition, temperature, carbon, the
+      H2 lines, MOCASSIN's ions, the molecules), with last version's run
+      dotted, now solid and Cloudy dashed;
+    - on pn150k, a link to pn150k Photon Gap for the remaining
+      recombination gap.
+  - **The current-state parts are rebuilt on the new run:**
+    - the meta line and the headline numbers;
+    - the whole-model figures (`whole_*` Cloudy chemistry, ions,
+      temperatures) and their caption, which now names versions 29-31's
+      (hiipdr) or 28-30's (pn) run as history;
+    - the selected depths and the ionized gas matched in radius;
+    - the line table (pn) and "What agrees";
+    - the cost paragraph (pn).
+  - **Every section reference moves down one:** 49 on hiipdr, on both
+    pages "the Nth section" with a regular expression. The new passages
+    are written in the new numbering. The cross-page reference "H2 Lines in
+    MOCASSIN, first section" is restored. A bare ordinal check was run, and
+    only the new section's own "(the first)" and "(the second)" remain.
+  - **Section of record.** The last version's first section (the packet
+    count) keeps its text and gets a rail: its model "was the page's until"
+    the new version.
+  - **The header** gets an "Updated 2026-11-01" note.
+  - **Builders:**
+    - `d450pages/build_hii32.py` and `build_pn31.py`, both starting from
+      `d410pages/`'s published copies;
+    - numbers from `nums23.py` and `nums_d404.py` on the five runs per
+      fixture, plus `recb.json`;
+    - figures from `figs.py pair|whole` and `d402figs.py`.
+
+    All of it is in `runs/_scratchpad_backup_2026-11-01/`, a whole copy of
+    the scratchpad, 809 MB.
+
+### hiipdr: what the production code moves
+
+    quantity                        v31 (h2)   v2.0      +D-447    +D-450 (now)  Cloudy
+    Hbeta [1e36 erg/s]              9.116      9.295     9.285     9.287         10.023
+    case-B H rec [Q(H)]             0.438      0.446     0.446     0.446
+    median T_e, x(H+) > 1/2 [K]     8800       8470      8490      8480
+    T_gas 1 / 2 / 3 pc [K]          9290/8670/8790  8530/8200/8520  ..  8530/8200/8540  9220/8060/8180
+    H/H2 crossing [A_V]             1.395      1.393     1.393     1.393         1.280
+    C+ = C [A_V]                    2.29       2.29      2.29      2.28          2.93
+    1-0 S(1)/Hbeta [1e-4]           7.11       6.91      6.92      6.91          9.24
+    [C II] 158, [O I] 63 / Hbeta    .1540,.0524  .1488,.0489  .1488,.0490  .1487,.0491  .1151,.0066
+    [O I] 6300, C II] 2326 / Hbeta  .0727,.236   .0653,.201   .0656,.201   .0656,.201   .0104,.173
+    largest change, last three it.  1.83%      2.04%     2.01%     1.94%
+    flagged cells                   0          0         0         0
+
+  - **v2.0's gas-grain correction is what moves** (D-420: H2 a collider;
+    D-421: the 4 pi):
+    - the grains cool the ionized gas, most near the star: by 8.2% at
+      1 pc, 5.5% at 2 pc and 2.8% at 3 pc;
+    - the median falls by 3.7% (H-042 measured 3.4% on the same change);
+    - Hbeta rises by 2.0%;
+    - [O I] 6300 falls by 9% and C II] 2326 by 13% (absolute);
+    - [C II] 158 by 1.5% and [O I] 63 by 4.7%;
+    - the H2 lines by 0.7-1.1%;
+    - the PDR gas temperature changes by under 0.6% at every selected depth
+      from A_V 0.70 to 2.90, and the crossing and C+ = C stay where they
+      were.
+  - **D-447 and D-450 are noise here.** Collisional over recombination
+    Lyman alpha is 0.010 (D-447), the silicate comes from an nk file (so the
+    locate fix does not reach it), and charge transfer above 1+ was 3e-4
+    Q(H) in D-449's offline count. Hbeta moves by -0.11% and +0.02%.
+  - **A new divergence, reported:** the ionized gas, which version 31 had
+    0.7% above Cloudy at 1 pc and 6.7-7.7% above at 2-3.3 pc, is now 7.6%
+    below at 1 pc and 1.8-4.7% above further out. Whether Cloudy's own
+    gas-grain exchange at 1 pc matches this has not been measured.
+
+### pn150k: what the production code moves
+
+    quantity                   v30 (h2)  v2.0    +D-447  +D-450 graphite  +charge transfer (now)  Cloudy
+    case-B H rec [Q(H)]        0.969     0.974   0.910   0.929            0.957                   0.982
+    Hbeta / Cloudy's           0.964     0.968   0.904   0.922            0.950                   1
+    H/H2 crossing [A_V]        0.393     0.393   0.391   0.420            0.419                   0.368
+    T_gas A_V 0.20/0.30/0.65   161/46.5/24.7  159/46.6/24.8  154/46.2/24.7  176/48.3/25.6  179/48.4/25.6  172/60.8/36.1
+    1-0 S(1)/Hbeta [1e-4]      9.44      9.42    9.91    10.76            10.39                   8.47
+    [C II] 158, [O I] 63       .197,.263 .196,.261 .207,.278 .217,.277    .211,.267               .337,.175
+    [C I] 609 / Hbeta [1e-4]   1.67      1.65    1.82    1.38             1.34                    2.55
+    CO 2-1 / Hbeta [1e-8]      17.82     17.59   20.09   12.84            12.53                   27.86
+    flagged cells              2         3       6       3                3
+
+  - **v2.0 moves little here:** Hbeta +0.5%, the ionized gas's forbidden
+    lines -0.3 to -2.2%, the PDR not at all.
+  - **D-447** takes 6.6% off Hbeta (the collisional energy was re-emitted
+    partly as Lyman continuum).
+  - **D-450's graphite fix:**
+    - the grains take 0.112 Q(H) (Cloudy 0.112) where they took 0.129;
+    - Hbeta +2.0%;
+    - the FUV reaches deeper: the crossing moves from 0.391 to 0.420 and
+      the gas at A_V 0.20-0.65 is 4-15% warmer;
+    - the H2 lines rise by 9-13% and [C II] 158 by 7%;
+    - [C I] 609 falls by 23% and CO 2-1 by 35%, further from Cloudy.
+  - **D-450's charge transfer:** recombinations 0.929 -> 0.957, Hbeta
+    +3.0%, the H2 lines -3.4 to -3.8%.
+  - **Against Cloudy:**
+    - Hbeta 0.950, which is below version 30's 0.964, because version 30's
+      Hbeta held D-447's Lyman continuum;
+    - the crossing 0.052 mag past Cloudy's, where it was 0.026;
+    - the PDR 0.70-0.80 of Cloudy's temperature at A_V 0.30-0.65;
+    - 1-0 S(1) 1.23x Cloudy's, [O I] 63 1.52x, [C II] 158 0.63x.
+
+    The movement away from Cloudy in the crossing and in [C I] and CO
+    follows the dust's FUV absorption becoming the file's. It is reported,
+    not tuned (CLAUDE.md).
+
+### Corrections made while checking the pages
+
+  - The hiipdr builder's byte-identity assert compared the final run with
+    D-447's. The final run includes charge transfer, so that assert was
+    wrong; it now compares hii-L.
+  - "Four changes since then" became "with corrections of its own, and two
+    fixes have followed (D-447, D-450)": v2.0 is a release, not one change.
+  - The hiipdr input difference was first given as the path and
+    `frontLines` alone. Diffing the inputs showed `iterDamp 0.` too.
+  - The 0.010 collisional/recombination Lyman alpha was cited to D-446. It
+    is D-447's table.
+  - "Where the 40 kK star makes few O2+" was withdrawn as a reason for the
+    small charge transfer on hiipdr: O2+ carries most of the oxygen at
+    1-2 pc. The page now quotes D-449's offline count only.
+  - Cloudy's 0.031 Q(H) is now described as D-449 measured it: hydrogen
+    ionization beyond its photo-, collisional and secondary terms, charge
+    transfer the evident one. It is not a charge-transfer term read from
+    Cloudy.
+  - The "PDR temperature moves under 0.5%" claim was 0.56% at A_V 2.50.
+    The page now prints the computed maximum.
+
+### Not known
+
+  - Why hiipdr's ionized gas at 1 pc now sits 7.6% below Cloudy's (see
+    above): Cloudy's gas-grain heat exchange there has not been compared
+    term by term.
+  - pn150k's remaining 0.025 Q(H) of recombinations (L-90, L-94; pn150k
+    Photon Gap).
+
 Nothing is pushed or installed.
