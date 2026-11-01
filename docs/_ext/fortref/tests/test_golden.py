@@ -28,7 +28,7 @@ GOLDEN = {
     'pdr/modules.F90::H2PDRATE': ('FAIL', 'scope'),
     'pdr/shield.F90::H2PDRATE': ('source/pdr/shield.F90', 27, 55, 'H2PDRATE'),
     'pdr/shield.F90::H2SHIELD1': ('source/pdr/shield.F90', 231, 281, 'H2SHIELD1'),   # bare END
-    'update_mod.f90::updateCell': ('source/update_mod.f90', 52, 4750, 'update_mod/updateCell'),
+    'update_mod.f90::updateCell': ('source/update_mod.f90', 52, 4783, 'update_mod/updateCell'),
     'update_mod.f90::updateCell/thermBalance':
         ('source/update_mod.f90', 1796, 2507, 'update_mod/updateCell/thermBalance'),
     'update_mod.f90::thermbalance':

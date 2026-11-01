@@ -2621,6 +2621,7 @@ end subroutine iterateT
             integer                :: ie402
             double precision       :: nH0402, nHp402, dnChain402
             logical                :: lgChem402(nElements)
+            double precision       :: ctH449   ! D-449: H ionized by X^(i+) + H, i >= 2 [s^-1 per H0]
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -2769,11 +2770,12 @@ end subroutine iterateT
 #endif
             lgChem402 = .false.
 
-            ! calculate the X(i+1)/X(i) ratio
+            ! D-449: the coefficients are evaluated for every element before
+            ! the balances, because hydrogen's (the first) now takes the
+            ! ionization the metals' stages above 1+ make (below)
             do elem = 1, nElements
                 do ion = 1, min(elem, nstages-1)
                     if (.not.lgElementOn(elem)) exit
-
                     chex(elem,ion,1) = chex(elem,ion,1)*(t4**chex(elem,ion,2))*&
                          & (1.+chex(elem,ion,3)*exp(chex(elem,ion,4)*t4))
 
@@ -2784,6 +2786,32 @@ end subroutine iterateT
                     ! UMIST to 5-15% below 1000 K) and removed the only O+
                     ! source in PDR gas (D-261, D-262). The upper cut-off stays.
                     if (TeUsed > 5.e4) chex(elem,ion,1) = 0.
+                end do
+            end do
+
+            ! D-449: X^(i+) + H -> X^((i-1)+) + H+ for i >= 2 ionizes
+            ! hydrogen at sum k n(X^(i+)) per H0. The metals' balances below
+            ! apply it as a recombination; hydrogen's did not take it, so the
+            ! H+ it makes was never counted (L-92). It runs one way (no
+            ! reverse above 1+), so it cannot cycle as the H-O pair did
+            ! (D-402). The neutral/first-ion pairs reach hydrogen through the
+            ! network in a PDR run (D-402, D-403) and not at all in a plain
+            ! build.
+            ctH449 = 0.d0
+            do elem = 2, nElements
+               if (.not.lgElementOn(elem)) cycle
+               do ion = 2, min(elem, nstages-1)
+                  ctH449 = ctH449 + dble(chex(elem,ion,1)) &
+                       & *dble(grid%ionDen(cellP,elementXref(elem),ion+1)) &
+                       & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)) &
+                       & *dble(grid%Hden(cellP))
+               end do
+            end do
+
+            ! calculate the X(i+1)/X(i) ratio
+            do elem = 1, nElements
+                do ion = 1, min(elem, nstages-1)
+                    if (.not.lgElementOn(elem)) exit
 
                     ! find the number of electron in this ion
                     nElec = elem - ion +1
@@ -2820,6 +2848,7 @@ end subroutine iterateT
                        ionUp(elem,ion) = dble(nPhotoSte(elem,ion))+&
                             & dble(collIon)+dble(revRate)
                     end if
+                    if (elem == 1 .and. ion == 1) ionUp(1,1) = ionUp(1,1) + ctH449   ! D-449
                     ionDn(elem,ion) = dble(NeUsed)*dble(alphaTot(elem,ion)) &
                          & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
                          & * dble(grid%ionDen(cellP,elementXref(1),1))
@@ -2909,6 +2938,10 @@ end subroutine iterateT
                           else
                              grid%pdrPhotRate(cellP, iSl358) = nPhotoSte(elem,1) + collIon
                           end if
+                          ! D-449: and the charge-transfer ionization above, so that
+                          ! the chemistry's H+ has the channel ionBalance's has
+                          if (elem == 1) grid%pdrPhotRate(cellP, iSl358) = &
+                               & grid%pdrPhotRate(cellP, iSl358) + real(ctH449)
                           grid%pdrAlphaRec(cellP, iSl358) = alphaTot(elem,1)
                        end if
                        ! H2 -> H2+ on the same field, with the cross section
