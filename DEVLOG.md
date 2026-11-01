@@ -45151,3 +45151,113 @@ needed code runs." The plan was approved as written
     once the field responds, or the grid estimate was wrong.
   - **More balance-not-reached or lgBlack cells in pn-LC:** the term
     interacts with the iteration (L-47, D-402). Report it; do not damp it.
+
+### Results so far: the L runs (locate fix, with the diagnostic)
+
+The code: commits 99f7068 (A), 2755de4 (B), a95f9c7 (C) and 5ab5e8d (a
+docs-only fix of C's ionisation.md anchor). C's `+0`-less anchor ran 113
+lines (fortref.long-extent); the fix narrows it to its line. The main session
+read the source diff: it is the plan's.
+  - All four flavours and h2Test/h2Slab built at A, L and LC.
+  - pytest passed, and fortref check plus sphinx -W pass at 5ab5e8d.
+  - keywords.md and outputs.md are generated from docs/reference/*.yaml, so
+    the plan's text went into those sources.
+  - The D-402 comment in ionBalance ("Hydrogen does NOT take the other side
+    of the metals' charge transfer here") still describes the
+    neutral/first-ion pairs. It now sits beside the D-449 term for the
+    stages above 1+ and should say so; this is left for a later commit.
+
+The queue was launched 11:26:54 (systemd unit d450-runs, 14 ranks).
+
+**tp-L (11:38:52, rc 0, 15 iterations, 11:57):** not byte-identical to
+runs/_d447/tp.
+  - The run differs from iteration 1 at about 1e-4 (convergence.out), and
+    Hbeta is 0.40994 against 0.41013 E36 (-0.05%, noise level);
+    photoSource.out and grid3.out are identical.
+  - The first Balmer-jump print, iteration 1's emission from the starting
+    state, is identical. The runs part in iteration 1's transfer or update.
+  - A contingency run, tp-A (binary A, the diagnostic alone), is queued
+    after the main queue (unit d450-contingency) to separate the diagnostic
+    from the locate fix.
+
+**hii-L (12:18:05, rc 0, 15 iterations):** byte-identical to
+runs/_d447/hii31 in every output file both have, the PDR and H2 files
+included. Only summary.out's time stamps differ. In the 3D build, then,
+neither the diagnostic nor frontLines changes anything, and no other locate
+caller lands on a table's last entry.
+
+**pn-L (14:35:31, rc 0, 18 iterations, 2:17:24) against runs/_d448/pn41f:**
+  - **The fix itself:** absOpac/n_H equals graphite.py's Q-file-as-meant
+    rebuild to 1.00000 (range 1.00000-1.00015) in all 237 bins.
+  - **Health:**
+    - no NaN, Singular, insane or CVODE;
+    - last-iteration ion and Te balance-not-reached 0%;
+    - lgBlack 6 -> 3.
+  - **The budget [Q(H)]:**
+    - dust 0.1293 -> 0.1118 (Cloudy 0.112);
+    - case-B H recombinations 0.9102 -> 0.9292;
+    - net gas return +0.040 -> +0.041, unchanged, as a dust-only change
+      should leave it.
+    - Absorbed: H0 1.5637, He0 0.1118, He+ 0.2628, metals 0.0703, dust
+      scattering 0.0957. Opacity x field 2.2137 against the parts' 2.2160.
+  - **Lines, new/base:**
+    - Hbeta x1.0202;
+    - optical lines relative to Hbeta x0.984-0.995 ([O III] 5007 0.995, [N II]
+      6584 0.989, [O I] 6300 0.986, He II 4686 0.987), so x1.005-1.015
+      absolute;
+    - Halpha/Hbeta 0.999, Lya/Hbeta 0.991;
+    - [C II] 158 x1.071, [O I] 63 x1.016, [O I] 145 x1.014 (absolute);
+    - H2 1-0 S(1) x1.086, 2-1 S(1) x1.083, 0-0 S(0)/S(1)/S(2)
+      x1.105/1.129/1.105.
+  - **Temperatures:**
+    - ionized median T_e x0.996;
+    - median T_dust: ionized 74.50 -> 75.31 K (+1.1%), PDR 26.05 -> 26.49 K
+      (+1.7%).
+  - **SED:** total / LStar 0.9998 in both; MIR (5-25 um) x0.981, FIR
+    (60-200 um) x0.986.
+  - **The re-emission diagnostic (reemission.py):**
+    - the Monte Carlo's ionizing re-emission summed from reemission.out
+      (P_gas V x photons / (continuum + lines)) is 1.1174 Q(H), against the
+      ionizing absorptions minus Q(H), 1.1204: ratio 0.997;
+    - against the code's own emission content (photons x 1e-25 n_H V):
+
+          [Q(H)]       Monte Carlo   code's coefficients   ratio
+          H I          0.6399        0.6298                1.016
+          metals       0.0030        0.0030                1.011
+          He I         0.1153        0.1129                1.022
+          He II        0.3592        0.3587                1.001
+          total        1.1174        1.1043                1.012
+
+    - f = P_gas / (spectrum total x 1e-25 n_H), power-weighted over the
+      ionized cells, is 1.014. By radius:
+      - within 1e17 cm: 0.989, the photoelectric dilution;
+      - 1-3e17 cm: 1.000;
+      - 3-3.6e17 cm: 1.042;
+      - 3.6-4.2e17 cm: 1.016.
+      Line shares there are 0.57-0.63.
+    - he_return.py's offline count on the same grid is 1.074, against the
+      code's 1.104 (H I 0.615/0.630, He I 0.108/0.113, He II 0.349/0.359).
+    - So D-449's "Monte Carlo 1.042 times its coefficients" is 1.028 from
+      the offline replication undercounting the code's emission (its fine
+      frequency grids and the post-update state, against the code's bins
+      and the state the spectrum was built from), and 1.012 that is real.
+      The real part sits at the front, where the gas re-emits up to 4% more
+      than its spectrum's total.
+  - **Prediction scores, L runs:**
+    - tp-L byte-identical: missed (noise-level departure from iteration 1;
+      tp-A pending);
+    - hii-L byte-identical: held;
+    - absOpac against the rebuild: held;
+    - dust share 0.104-0.114: held (0.112);
+    - recombinations 0.920-0.935: held (0.929);
+    - Hbeta x1.010-1.030: held (x1.020);
+    - T_dust -1 to -5%: missed (+1.1%);
+    - [C II] 158 x0.93-1.07: missed at the edge (x1.071);
+    - [O I] 63: held (x1.016);
+    - H2 x0.90-1.25: held (x1.09-1.13);
+    - MIR x0.85-1.00: held (x0.981);
+    - SED within 0.3%: held;
+    - diagnostic closure within 2%: held (0.997);
+    - f 1.02-1.07: missed (1.014). The 1.042 was mostly the offline
+      replication;
+    - health: held.
