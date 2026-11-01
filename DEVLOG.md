@@ -449,6 +449,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
 | D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
 | D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
+| D-450 | **The code runs D-449 calls for: `locate` at a table's last entry (L-91), charge transfer above 1+ in hydrogen's balance (L-92), and a re-emission diagnostic (the user: "Then proceed to the needed code runs."; plan approved).** Plan ~/.claude/plans/iridescent-stirring-pie.md, executed by code-executor in three commits, each built in four flavours: A, pdfSrc to 13 columns (line total; photons >= 13.6 eV of H I, metals, He I with 2^3S, He II with Lyman, 2^3S and Lyman alone) written with the gas-absorbed power to output/reemission.out under frontLines; B, `locate` returns n-1 at x == xa(n) (the intercept deleted); C, sum_{i>=2} chex n(X^(i+)) added to hydrogen's upward rate and to the H -> H+ rate handed to the chemistry, the chex fits evaluated before the stage loop. Runs (14 ranks, one queue): tp-L, hii-L, pn-L with binary L, then tp-LC, hii-LC, pn-LC. Predictions on record. | Open | 2026-11-01 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -45053,3 +45054,100 @@ is now 365-403, checked against the file. The docs build (-W), fortref check
   - then pn150k (and hiipdr as the regression) rerun, with predictions on
     record.
 Nothing is pushed or installed.
+
+## D-450 - `locate` at a table's last entry, charge transfer above 1+ in hydrogen's balance, a re-emission diagnostic: the code runs (2026-11-01)
+
+The user (2026-11-01), in the request D-449 answered: "Then proceed to the
+needed code runs." The plan was approved as written
+(~/.claude/plans/iridescent-stirring-pie.md).
+
+### Design
+
+  - **Three commits, one subject each, each built in all four flavours**
+    (and h2Test/h2Slab). Runs use the binaries after B (A+B, "L") and after
+    C (A+B+C, "LC"), so each run differs from its baseline by one change.
+  - **A, the diagnostic (no physics change).** D-232's pdfSrc grows from 6
+    to 13 columns (common_mod nPdfSrc):
+    - column 7: the gas spectrum's line total (normRec + normFor);
+    - columns 8-13: its photons above 13.6 eV [1e-25 s^-1 per H] from H I,
+      the metals' recombination continua, He I with 2^3S, He II with its
+      Lyman lines, 2^3S alone, and the Lyman lines alone.
+    writeGrid writes them per active cell to output/reemission.out under
+    frontLines, beside the gas-absorbed power of the last iteration's
+    packets, P_gas = sum_bins (opacity - absOpac - scaOpac) x Jste. A gas
+    absorption re-emits P_gas with the shape of (continuum + lines), so the
+    file gives the Monte Carlo's ionizing re-emission cell by cell. That is
+    what D-449's 1.042 needs.
+  - **B, `locate`.** The legacy intercept (x == xa(n) -> 1) is deleted. The
+    binary search then returns n-1, which brackets x between xa(n-1) and
+    xa(n): an interpolating caller takes xa(n)'s value, and a grid-axis
+    lookup's midpoint check picks cell n. No caller can have relied on 1.
+  - **C, charge transfer.** sum over i >= 2 of chex n(X^(i+)) is added to
+    hydrogen's upward rate ionUp(1,1), and to pdrPhotRate(cellP,1), the H
+    -> H+ rate handed to the chemistry (D-358). So both solvers keep one H+
+    (D-402).
+    - The chex fits are evaluated before the stage loop, verbatim, so that
+      hydrogen's balance, the loop's first, can read the metals'
+      coefficients.
+    - Only stages above 1+: they have no reverse, so the term cannot cycle as
+      the H-O pair did at D-402 (He+ + H at D-403 is the precedent).
+    - The neutral/first-ion pairs are unchanged: through the network in a PDR
+      run, absent in a plain build (test_Problem estimate +0.033 Q(H), to stay
+      open under L-92).
+    - No heating term, as for every chex reaction.
+  - **Runs** (14 ranks, one systemd unit, frontLines in every input):
+    - tp-L, hii-L, pn-L with binary L;
+    - then tp-LC, hii-LC, pn-LC with binary LC.
+    Inputs: runs/_d447/tp and runs/_d447/hii31 plus frontLines, and
+    runs/_d448/pn41f. About 6.3 h.
+
+### Predictions (on record before the runs)
+
+  - **Attribution:**
+    - tp-L and hii-L are byte-identical to runs/_d447/tp and
+      runs/_d447/hii31 in every file both have. Neither has a Q-file radius
+      on a table's last entry (tp's PAH stops at 0.002 um, the file at 0.01;
+      hiipdr uses an nk file), no other locate caller is expected to land on
+      a last entry, and frontLines only writes;
+    - pn-L's absOpac/n_H equals graphite.py's Q-file-as-meant rebuild to
+      1.0000 +- 1e-4 in every bin from 1 to 30 Ryd.
+  - **pn-L against runs/_d448/pn41f:**
+    - the dust's share of Q(H) 0.129 -> 0.104-0.114;
+    - case-B H recombinations 0.910 -> 0.920-0.935 Q(H);
+    - Hbeta x1.010-1.030;
+    - ionized median T_dust -1 to -5%;
+    - [C II] 158 and [O I] 63 x0.93-1.07;
+    - H2 1-0 S(1) and 0-0 S(1) x0.90-1.25;
+    - MIR (5-25 um) x0.85-1.00;
+    - SED total / LStar within 0.3%.
+  - **Charge transfer, LC against L:**
+    - tp: case-B recombinations +0.004 to +0.012 Q(H); Hbeta x1.004-1.015;
+    - hii: within Monte Carlo noise (offline 0.0003 Q(H)); Hbeta
+      x0.998-1.003; PDR lines within 1%;
+    - pn: case-B recombinations +0.025 to +0.040 Q(H); Hbeta x1.025-1.045;
+      [O III] 5007 and [N II] 6584 within 3%; [O I] 6300 x0.90-1.10; median
+      ionized T_e within 1%; PDR and H2 lines within 5%.
+  - **pn-LC against Cloudy:** case-B recombinations 0.950-0.975 Q(H)
+    (Cloudy 0.982); Hbeta 0.94-0.97 of Cloudy's (0.904 after D-447).
+  - **The diagnostic (pn-L):**
+    - the ionizing re-emission summed from reemission.out equals the
+      ionizing absorptions minus Q(H) within 2%;
+    - the power-weighted P_gas / (spectrum total x n_H x 1e-25) over the
+      ionized cells is 1.02-1.07, which would account for D-449's 1.042.
+  - **Health:**
+    - rc 0 for all six;
+    - no NaN, Singular, insane or CVODE;
+    - last-iteration ion and Te balance-not-reached at 0%;
+    - lgBlack within the base + 2 (pn41f: 6);
+    - the bases' iteration counts.
+
+**What would change the reading:**
+  - **tp-L or hii-L not identical:** another locate caller lands on a last
+    entry, or the diagnostic perturbs. Commit A's binaries separate the
+    two.
+  - **pn-L's absOpac not matching the rebuild:** the size interpolation has
+    a second fault.
+  - **pn-LC's recombinations rising by under 0.015:** the term is smaller
+    once the field responds, or the grid estimate was wrong.
+  - **More balance-not-reached or lgBlack cells in pn-LC:** the term
+    interacts with the iteration (L-47, D-402). Report it; do not damp it.
