@@ -75,7 +75,7 @@ grain applies above 5.8 Ryd ({lim}`L-15`). The photoelectric yield table is buil
 
 **Tabulated efficiencies (`Q` files).** $Q_{\mathrm{abs}}$, $Q_{\mathrm{sca}}$ and $g$ are mapped
 onto the frequency grid at each tabulated radius, then interpolated linearly in radius; a radius
-outside the table takes the nearest tabulated one, with a warning
+outside the table takes the nearest tabulated one, with a warning; a radius on the table's last entry takes that entry, which until {devlog}`D-449` it did not: `locate` returned the first interval there, and the largest radius was extrapolated from the first two ({lim}`L-91`)
 ({src}`ph_mod.f90::makeDustXsec@"! interpolate over the grain size distribution"`). The path could
 never run before {devlog}`D-313`, which removed a second allocation of two arrays and skips header
 comments until the line with the number of radii parses
