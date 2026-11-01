@@ -447,6 +447,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
 | D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
 | D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
+| D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H) | Open | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44522,3 +44523,126 @@ Not done:
     release-run numbers that predate this;
   - the merge into h2-model.
 Nothing is pushed or installed.
+
+## D-448 - pn150k's ionizing-photon budget against Cloudy: the dust's share (2026-10-31)
+
+The user (2026-10-31), after D-447's report ended "I'd suggest measuring the
+pn150k dust absorption next": "proceed".
+
+### What is known before the runs
+
+  - **The same star.** MOCASSIN's Q(H) (run.log's Qphot x 14 x 1e36) is
+    5.755e46 s^-1, Cloudy's (the sum of its four Q bands) 5.749e46: equal
+    within 0.1%. 73% of it is above 24.6 eV (Cloudy's bands: 1-1.8 Ryd
+    1.54e46, 1.8-4 Ryd 3.02e46, 4-20 Ryd 1.20e46).
+  - **Cloudy's recombinations, counted the way MOCASSIN's are.**
+    runs/_d448/cloudy_budget.py applies D-446's alpha_B fit (hb_audit) to
+    Cloudy's last-iteration zones (runs/d396-cloudy-pn: .ovr's Te, hden, eden
+    and H+ fraction, .rad's radius and dr, shells of 4 pi r^2 dr). It gives
+    5.645e46 s^-1, **0.982 Q(H)**. MOCASSIN's, from runs/_d447/pn41 with the
+    same fit, are 0.910. So 7% of Q(H) is lost in MOCASSIN and not in Cloudy,
+    where D-447 compared Hbeta per photon (0.904).
+  - **What the 7% can be.** Neither code lets ionizing light escape. In the
+    budget Q(H) = case-B H recombinations + dust absorption + the photons
+    helium and the metals absorb and do not give back above 13.6 eV. In
+    Cloudy, dust plus the gas losses are therefore at most 1.8%.
+  - **The dust in the two codes:**
+    - MOCASSIN: graphite (dustData/grph-avg.cat), MRN 0.005-0.25 um, mass
+      ratio 2.483e-3;
+    - Cloudy: ISM graphite, 10 bins over the same range, mass ratio 2.454e-3.
+    The dust's optical depth through the ionized region (Cloudy's Rion
+    3.95e17 cm, N_H 4e20 cm^-2) is ~0.02-0.05 at the photon-weighted ionizing
+    energies, if graphite absorbs 6e-23 to 1.2e-22 cm^2 per H there. A uniform
+    Stromgren sphere loses ~3/4 of that optical depth to dust, so ~1.5-4%.
+  - **Where helium could lose photons in MOCASSIN.** The diffuse field
+    carries H, He I and He II recombination continua, the three two-photon
+    continua, the He II Lyman series (HeIILyman, setDiffusePDF) and He I
+    2^3S's 19.8 eV (the alpha2tS correction). None of these is known to be
+    missing. The MC re-emission is energy-weighted, so a missing or extra
+    channel moves the ionizing photon count (D-446).
+
+### Design
+
+The measurement uses the codes' own diagnostic output, not new code.
+
+  - **MOCASSIN (runs/_d448/pn41f).**
+    - The input is runs/_d447/pn41's plus `frontLines`. D-382's keyword
+      writes frontField.out and lineFluxFront.out and changes nothing
+      computed.
+    - The binary is runs/_d447/bin/mocassin.3d, the one pn41 ran: 8d82a56, no
+      source change since. 14 ranks, the same seed.
+    - frontField.out holds, per cell with x(H+) > 1e-4 and from the Lyman
+      edge up:
+      - the last iteration's Jste, the bin-integrated 4 pi J in erg cm^-2
+        s^-1, stellar plus diffuse when lgDebug is off (photon_mod, D-158);
+      - the opacity its packets saw (gas + dust absorption + dust
+        scattering);
+      - the dust absorption absOpac;
+      - and, in the header, the H0, He0 and He+ cross sections.
+    - Absorbed photons per cell and second: kappa x Jste / (hcRyd nu) x dV,
+      summed over the bins. kappa is absOpac for the dust and n(X) sigma_X
+      for H0, He0 and He+, with the densities from grid1/grid2. The volumes
+      are hb_audit's, x8 for symmetricXYZ.
+  - **Cloudy (runs/_d448/cloudy).**
+    - The input is benchmarks/pdr/pn150k/cloudy/150k_PDR.in with four
+      last-iteration saves added:
+      - `save last ionizing continuum every 0.9 0` (CONI): per zone and
+        cell from 0.9 Ryd, the local photon flux of the incident, OTS and
+        outward fields together (flxcor), with no interaction threshold;
+      - `save last grain opacity` (DUSO): the grains' absorption cross
+        section per H, gv.dstab. It is constant through this model, since
+        the grain abundance has no depth function;
+      - `save last hydrogen ionization` (HYDi): gam1 and Cloudy's own case-B
+        coefficient per zone;
+      - `save last ionization rates helium` (IONR).
+    - Dust absorption per zone: hden x sum over cells >= 0.99946 Ryd of
+      flxcor x dstab, times 4 pi r^2 dr.
+  - **Checks on each normalisation:**
+    - MOCASSIN: the H0 photoionizations from J against Sum alpha_A n_e
+      n(H+) dV;
+    - Cloudy: the incident flux of an inner and a mid-shell zone against
+      Q/(4 pi r^2) (this decides whether flxcor is local or per unit area at
+      the inner face), and gam1 n(H0) against Cloudy's case-A
+      recombinations.
+  - **The order of the runs.** One systemd unit, Cloudy first (~10 min, one
+    core), then MOCASSIN (~2 h 20 min, 14 ranks), so no more than 14
+    processes run at once.
+
+### Predictions (on record before the runs)
+
+  - **Reproduction:**
+    - pn41f's lineFlux.out, SED.out and grid0-3.out are byte-identical to
+      runs/_d447/pn41's (fixed np, and frontLines only writes);
+    - Cloudy's line list (.lines, and the .out's Hbeta) is identical to
+      runs/d396-cloudy-pn's (same binary, 2026-08-18; saves do not change
+      the physics).
+  - **Normalisation:**
+    - MOCASSIN's H0 photoionizations from J are within 5% of its case-A
+      recombinations;
+    - Cloudy's case-B recombinations from its own coefficient are within 3%
+      of the 0.982 above;
+    - Cloudy's flxcor is the local flux.
+  - **The dust's share of Q(H):**
+    - Cloudy 0.5-3%;
+    - MOCASSIN within x0.7-1.5 of Cloudy's;
+    - the two codes' graphite absorption per H at 1-4 Ryd within x0.7-1.4.
+  - **Therefore the 7% is in MOCASSIN's gas, not its dust.** It would be
+    1 - 0.910 - f_dust, about 5-8% of Q(H), against Cloudy's 1 - 0.982 -
+    f_dust, at most 1.5%. This favours a gas-side loss in the re-emission
+    over D-447's "presumably the dust".
+  - **MOCASSIN's absorptions:**
+    - all ionizing absorptions sum to 1.6-2.2 Q(H): the star plus the
+      re-emitted ionizing photons;
+    - of these, H0 takes 50-70%, He0 and He+ together 25-45%, and the dust
+      1-4%.
+  - **Health:** both rc 0. pn41f has 18 iterations, no NaN, Singular or
+    insane, and the same 6 flagged cells as pn41.
+
+**What would change the reading:**
+  - if MOCASSIN's dust share is near 7%, the gap is the dust after all;
+    the cross sections per H then decide whether it is the material or the
+    field;
+  - if neither the dust nor helium's absorption accounts for it, the loss is
+    in the re-emission's photon count. That is the same kind of defect as
+    D-446's, and the next test is the diffuse field's ionizing photons per
+    absorbed one.
