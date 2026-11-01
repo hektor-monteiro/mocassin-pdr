@@ -450,8 +450,9 @@ reasoning that led to the wrong turn is part of the history.
 | D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
 | D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
 | D-450 | **The code runs D-449 calls for: `locate` at a table's last entry (L-91), charge transfer above 1+ in hydrogen's balance (L-92), and a re-emission diagnostic (the user: "Then proceed to the needed code runs."; plan approved).** Plan ~/.claude/plans/iridescent-stirring-pie.md, executed by code-executor in three commits, each built in four flavours: A, pdfSrc to 13 columns (line total; photons >= 13.6 eV of H I, metals, He I with 2^3S, He II with Lyman, 2^3S and Lyman alone) written with the gas-absorbed power to output/reemission.out under frontLines; B, `locate` returns n-1 at x == xa(n) (the intercept deleted); C, sum_{i>=2} chex n(X^(i+)) added to hydrogen's upward rate and to the H -> H+ rate handed to the chemistry, the chex fits evaluated before the stage loop. Runs (14 ranks, one queue): tp-L, hii-L, pn-L with binary L, then tp-LC, hii-LC, pn-LC. Results: hiipdr byte-identical with A+B; pn150k's dust 0.129 -> 0.112 Q(H) (Cloudy 0.112), case-B recombinations 0.910 -> 0.929 (locate) -> 0.957 (charge transfer; Cloudy 0.982), Hbeta 0.904 -> 0.950 of Cloudy's; hiipdr unchanged by charge transfer, test_Problem +0.009 Q(H); the diagnostic closes the ionizing budget to 0.997 and puts the Monte Carlo at 1.004-1.012 of the code's emission. test_Problem is clock-seeded, so its byte-identity prediction was void. L-91, L-92 closed; L-93, L-94 opened. | Done | 2026-11-01 |
-| D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. |
+| D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. | Done | 2026-11-01 |
 | D-452 | **pn150k's escaped SED, MOCASSIN against Cloudy (the user: "I want to see a comparison of cloudy and mocassin for the escaped sed for the pn150kk models"); 150 kK PN Against Cloudy v32 adds it as "The escaped spectrum".** runs/_d450/pn-LC's SED.out against runs/d396-cloudy-pn/150k.cont (total column), both nu L_nu, Cloudy rebinned onto MOCASSIN's bins by energy (runs/_d452/sed.py). MOCASSIN holds 1.000 L*, Cloudy 0.973 (0.027 L* unaccounted, not examined). Nothing above 13.6 eV escapes either. Agree: 1-5 um 1.01, 60-300 um 0.98 (dust continuum 0.97); 0.21-1 um 0.92 ([O III] 5007 0.97, Halpha 0.98, C III] 1909 0.68). Differ: Lya leaves Cloudy at 0.082 L* (its own emergent line list: 0.022; D-291's continuum-attenuated outward lines) and MOCASSIN at 0.004 (it makes 0.244, D-376 destroys it in the grains); 5-60 um MOCASSIN 1.50x (dust continuum 1.67x), +0.149 L* = Cloudy's extra UV-optical 0.116 (0.079 Lya) + its missing 0.027 within 0.006 - the budget reading (Lya heating MOCASSIN's grains instead) is untested. Found on the way: MOCASSIN's SED bin j holds nu_j <= nu < nu_j+1 while widFlx is centred; v31's two doubled percent signs corrected. |
+| D-453 | **Audit of D-445..D-451, and the documentation brought up to date (the user: "Analyse te changes, audit them and update the documentation as needed.").** The code of D-447 and D-450 read against the DEVLOG: hICollExc, the diagnostic's columns, `locate` and charge transfer above 1+ are as described, with no double count in the chemistry. `locate`'s 112 callers audited: besides L-91, the fix also corrects the plane-parallel launch (10% of the slabs' packets per axis started in column 2), the `2D` mapping and a star at coordinate 1.0, and turns getTmin's all-zero-row corner case from 1 K to 2999 K (L-96, Low). One gap: `lineFlux.out`'s resonance-line table still counts recombination Lya only (L-95, Low; pn-LC 23.4 against the row's 35.4 Hbeta). Stale source comments added to L-77. Records fixed: D-451's index row (missing cells, so absent from the devlog index), L-65 (emitted since D-447; its premise in doubt), D-449 cited for D-450's changes, L-92 linked for L-93, and the tutorial's claim that later code computes its model as v2.0.1. Lexington rerun on the current plain build: HII40/HII20/PN75 within 0.7% (HII40 [O I] +1.9%), PN150 Hbeta +0.4% and lines -2.4 to -4.1%, no in-range change. Docs: core chapters, photorates, outputs, benchmark pages (D-451's pn150k shifts), tutorial note. | Done | 2026-11-01 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -45681,4 +45682,282 @@ for the escaped sed for the pn150kk models".
   - Why C III] 1909 escapes at 0.68 of Cloudy's. Its intrinsic ratio has
     not been compared for this entry.
 
+## D-453 - Audit of D-445..D-451, and the documentation brought up to date (2026-11-01)
+
+The user (2026-11-01): "I have made some changes to the code in the last days.
+Analyse te changes, audit them and update the documentation as needed."
+
+### What was audited
+
+Production's 29 commits since documentation increment 5 (53eab97..9319ff7,
+D-445 to D-451):
+  - **The code:** D-447's 8d82a56 and D-450's 99f7068 (A), 2755de4 (B),
+    a95f9c7 (C) and 5ab5e8d. They touch eight files: common_mod,
+    emission_mod, grid_mod, interpolation_mod, iteration_mod, mocassinPlot,
+    output_mod and update_mod.
+  - **The records:** DEVLOG D-445 to D-451, doc/pdr-status.md (L-90 to L-94)
+    and the docs pages these commits edited.
+  - **Spot checks of their numbers** against the run directories.
+
+### The code, as read
+
+  - **D-447, `hICollExc`.**
+    - The routine evaluates coolColl's old expression with the same
+      constants and the same order of operations, so the cooling cannot
+      move.
+    - The emitted terms are in the units of their slot: HIRecLines is
+      already scaled to absolute emissivity at the insertion point, in
+      1e-25 erg s^-1 per H. This holds in emission_mod, output_mod and
+      mocassinPlot.
+    - 5/32 = (1/4 - 1/9)/(1 - 1/9) exactly.
+    - Every other copy of the Lya fit was searched for (`0.897`). One is
+      not covered: outputGas's resonance-line table (`resLinesVol`,
+      `resLinesVolCorr`) still sums recombination Lya alone. In one
+      `lineFlux.out` the table and the Lya row then disagree: pn-LC 23.38
+      against 35.42 Hbeta, tp-LC 23.44 against 52.57, hii-LC 23.59 against
+      23.84. Only the report is affected. Recorded as **L-95** (Low).
+  - **D-450 A, the diagnostic.**
+    - Columns 8-13 are photons per H, in 1e-25 s^-1 units: the emissivity
+      sums divided by hcRyd nu.
+    - Column 8's subtraction is right: emissionHI includes gammaHeavies
+      times n_e, and phHeav449 is that sum.
+    - Column 10 includes the 2^3S `correction`, which setDiffusePDF adds
+      to sumDiffuseHeI before the columns are filled.
+    - Column 7 is filled later in the same routine, after the per-cell
+      zeroing, so the zeroing does not lose it.
+    - pdfSrc is zeroed each iteration on every rank and reassembled by the
+      allreduce, whose count follows nPdfSrc. iterateMC's D-232 budget
+      still reads columns 1-6 explicitly.
+  - **D-450 B, `locate`.** The binary search returns n-1 at x == xa(n), and
+    0 and n outside the table, as before. Its callers were audited (below);
+    D-450's design said that "no caller can have relied on 1", and one did.
+  - **D-450 C, charge transfer.**
+    - chex(elem,ion) is the recombination of stage ion+1 (X^(ion)+ + H),
+      so the term reads ionDen(...,ion+1) for ion >= 2, as it should; the
+      units are s^-1 per H0.
+    - Moving the evaluation loop ahead of the balances changes nothing else:
+      no other read of chex precedes it.
+    - The heavy elements' densities are the previous solve's (ionDen is
+      written after the loop over elements). It runs one way, so it cannot
+      cycle (D-402).
+    - In a PDR run the term also enters the chemistry's H -> H+ CRP slot.
+      pdrStep marks every CRP reaction as MOCASSIN's (rxMoc402), so the net
+      it hands back to ionBalance does not count it again.
+  - **Stale comments left by these changes** (each a source edit, so each
+    waits for a planned change; added to L-77):
+    - ionBalance's D-402 comment ("Hydrogen does NOT take the other side of
+      the metals' charge transfer"), which D-450 noted;
+    - the D-358 comment beside it ("Charge exchange ... left out") and
+      common_mod's pdrPhotRate comment, which now miss hydrogen's charge
+      transfer;
+    - thermBalance's unread `Te4` (D-447 noted it);
+    - common_mod's D-232 comment that dust absorptions sample the pooled
+      spectrum (they have not since D-233);
+    - D-450's source comments and variables are tagged D-449, and
+      reemission.out's header says "reemission v1 (D-449)".
+
+### `locate`'s callers (D-449's open question)
+
+A read-only agent went through every compiled `call locate` (and
+linearMap's callers). The main session checked the four calls that can land
+on a table's last entry by reading the code itself. How each table's last
+entry is built matters:
+  - a gas run's nuArray(nbins) is computed (the top of a stepped log mesh, or
+    an edge plus 0.0003);
+  - a dust-only run's is a nuDustRyd.dat value that no constant passed as x
+    equals;
+  - the axes end at exactly 1.0 Rout, or at the density file's value.
+
+Besides L-91, three callers can land on the last entry, each a defect that
+D-450 B fixed, and one corner case got worse:
+  - **The plane-parallel launch** (photon_mod, `initPhotonPacket`, the x and
+    z lookups):
+    - a launch past the last axis point is clamped onto it, so the lookup
+      returned 1 and the midpoint test then gave column 2. The launch range
+      runs half a spacing past the last point, so on a uniform 5-point axis
+      from 0 that is 10% of the stellar packets per axis;
+    - in the face layer this gave column 2 x1.5 and the last column x0.5 of
+      its direct field, per axis;
+    - v1slab, v2slab and ifront use it (planeIonization, nx = nz = 5) and
+      have not been rerun since L-11's runs, so their next runs differ there;
+    - checked here: the clamp, the midpoint step, the fixtures' inputs.
+  - **The `2D` keyword's mapping** (setMotherGrid and resetGrid):
+    - yAxis = xAxis, so the radius of (x(1) = 0, y(ny)) reproduces x(nx) in
+      most grids. The agent's float32 test found 89% of values, and
+      Pythagorean cells such as (13, 17) on 21 points also hit;
+    - the outermost-radius point was mapped onto cell 2. Not in any fixture.
+  - **A star at a coordinate of 1.0** (setStarPosition): the product
+    1.0 x xA(n) is xA(n), and the star went into cell 2. The fixtures' stars
+    are at the origin.
+  - **`getTmin`, worse** (recorded as **L-96**):
+    - its absorption integral is identically zero: it zeroes radField over
+      bins 1..cutoffP and sums over the same bins;
+    - it reads dustEmIntegral with the species index within its component,
+      where the table (dust_mod) and getDustT use the global one;
+    - a row above zero gives Tmin = 1 K whatever the field. A row that is
+      all zero gave 1 K under the intercept and gives 2999 K now. That is
+      possible only with `quantumHeatGrain` and two or more dust
+      components; neither is in any fixture, and L-8 has stochastic heating
+      effectively off.
+  - **Pre-existing, recorded under L-74:**
+    - the Q-file branch converts wavelength to frequency without reversing,
+      so a Q file must list wavelengths in descending order;
+    - mocassinPlot reverses band files unconditionally;
+    - dustData/dustData_POwen/dustData/zb2mod.nk is not monotonic.
+    All three were checked in the code or the file.
+  - **No caller relies on ns == n** at the top entry itself.
+  - **Fixtures:** none apart from pn150k is reached, which fits hii-L being
+    byte-identical and the Lexington rerun below. tp-L's departure was the
+    clock seed (D-450), not locate.
+  - **A slip in the agent's own report:** it gave the launch fraction as
+    hn/(X + h1 + hn). The range beyond the last point is hn/2 of
+    X + (h1 + hn)/2, which gives the 10% it also quoted.
+
+### The records
+
+  - **D-451's index row lacked its status and date cells.** fortref's
+    devlog index skips a row with fewer than three cells, so D-451 was
+    missing from the generated index and a {devlog}`D-451` link would have
+    failed. Completed ("Done | 2026-11-01").
+    The concurrent D-452 (pn150k's escaped SED) has the same two-cell row.
+    It is left to the session that writes it, which may still have it
+    open.
+  - **L-65** still said "No collisionally excited H I line is emitted".
+    Since D-447 the energy is emitted. D-447 also found the fit's
+    coefficients 0.75-0.83 of the 1s-2 rate from standard collision
+    strengths at 1e4 K, which puts L-65's premise in doubt (L-90 lists it
+    as open). The body now says both.
+  - **L-51** gains D-449's second consequence of the re-emission design:
+    the photoelectric dilution, about 0.010 Q(H) on pn150k, and D-450's
+    f = 0.988 within 1e17 cm.
+  - **The pages D-447 and D-450 edited:**
+    - dust.md cited D-449 for the locate fix and ionisation.md cited it
+      for the charge-transfer change. D-449 found both defects; D-450 made
+      both changes.
+    - ionisation.md linked L-92 (closed) where it meant L-93.
+  - **The tutorial** said that v2.0.2 "or later" computes its model as
+    v2.0.1 did. The later code does not. Its graphite is the same Q file
+    as pn150k's (35 radii, the same dust_sizes.dat), and its largest
+    radius sits on the file's last entry, so L-91 applied to it, and D-447
+    applies to any gas model.
+  - **Numbers checked against the runs:**
+    - Hbeta of rel-pn41, pn41, pn-L and pn-LC give x0.9338, x1.0202 and
+      x1.0305 step by step, and 0.951 of Cloudy's 2.778e34 erg/s.
+    - hiipdr's three runs give x0.9989 and x1.0002.
+    - hii-L is byte-identical to runs/_d447/hii31 in its 25 shared output
+      files, apart from summary.out.
+    - pn41f's grid1.out is identical to pn41's.
+
+### The Lexington models on the current code (design and predictions)
+
+The benchmark page shows plain-build runs of pdr-coupling-v2.0-26-gb9c0fb6.
+D-447 and D-450 C reach every gas model. The models take 14-41 s each, so
+they were rerun rather than estimated.
+  - **Binary:** the plain build of 9319ff7, in runs/d453/bin. Its version
+    reads -dirty from uncommitted docs edits only.
+  - **Inputs:** docs/bench/inputs/lex-*, seed 1001, 14 ranks, one after the
+    other (runs/d453/lexq.sh). data/ is unchanged since b9c0fb6.
+  - **Reduction:** docs/bench/lexington.py --run ... --out runs/d453/lexdata.
+    The committed docs/bench/data are not touched.
+
+Predictions, on record in runs/d453/predictions.txt (19:45) before the runs:
+  - HII40, HII20: Hbeta x0.99-1.01, <T[NpNe]> within 1%;
+  - PN150: Hbeta x0.95-0.99 (D-447 -3 to -7%, D-450 C +2 to +3%), <T>
+    within 1.5%, [O III] 5007 within 3%;
+  - PN75: Hbeta x0.97-1.01;
+  - all: rc 0, no NaN, iteration counts within 3 of 18/19/20/13.
+
+(The directory and the file were made as runs/d452 and "D-452". A concurrent
+entry, pn150k's escaped SED, took D-452 at 19:50, so this one became D-453
+and the directory was renamed.)
+
+### Results (2026-11-01 19:45-19:50)
+
+  - **Health:** all rc 0, no NaN, and the same iterations as the base
+    (18/19/20/13).
+  - **HII40:** Hbeta x1.0000, <T> x0.9999; every compared value within 0.4%,
+    apart from [O I] 6300+6363 (x1.019).
+  - **HII20:** within 0.12% everywhere.
+  - **PN75:** within 0.72% everywhere; Hbeta x1.0005.
+  - **PN150:**
+    - Hbeta x1.0036;
+    - <T[NpNe]> x0.9967 and <He+>/<H+> x1.0019;
+    - Lya/Hbeta 23.36 -> 26.74, the collisional part;
+    - lines relative to Hbeta x0.959-0.976: [O II] 3727 0.959, C II 1335
+      0.964, [N II] 0.964, [Ne II] 12.8 um 0.965, Si II] 0.965, N III]
+      0.965, C III] 0.967;
+    - median |dex| from the codes' median 0.059 -> 0.068.
+  - **No row changes its in-range status** in any model.
+  - **Predictions scored:**
+    - HII40, HII20 and PN75: held;
+    - PN150's Hbeta x0.95-0.99: missed (x1.004);
+    - PN150's <T> within 1.5%: held;
+    - [O III] 5007 within 3%: held;
+    - health and iterations: held.
+    D-447's fall and D-450 C's rise are not separated here: no binary with
+    D-447 alone was built.
+  - **Reading.** On pn150k D-447 took 6.6% off Hbeta, but on PN150 the net of
+    the two changes is +0.4%. The two models differ in grid (41^3 against
+    13^3), dust and the PDR behind the front. Which of these accounts for
+    the difference was not examined.
+
+### The documentation changed
+
+  - doc/pdr-status.md:
+    - L-95 added;
+    - L-65 and L-51 extended;
+    - L-77 extended with the stale comments.
+  - doc/dust.md: Q-file radii in builds before D-450.
+  - physics/mocassin:
+    - index: the page scope now names D-447 and D-450, and a list of the
+      defects found since D-444 (L-90 to L-95);
+    - thermal: L-65's premise and L-90;
+    - emission: L-94 at the 2^3S line, the pdfSrc diagnostic and
+      reemission.out, L-95 at the resonance lines;
+    - ionisation: D-450 and L-93, with the pn150k numbers;
+    - dust: D-450, and the effect of the locate fix.
+  - physics/pdr/photorates: hydrogen's rate for the chemistry, and the
+    charge-transfer section (sec:ct).
+  - reference/outputs.yaml: reemission.out cites D-450, and its columns and
+    units.
+  - benchmarks:
+    - index: a section "Since the release" with D-451's numbers;
+    - hiipdr and pn150k: a pointer to it;
+    - lexington: this entry's rerun.
+  - tutorials/dust-gas-pdr: a note that the later code changes the model.
+  - DEVLOG: D-451's index row.
+  - doc/pdr-status.md, after the caller audit: L-91's closure lists the
+    three other callers, L-96 added, L-74 extended (wavelength order);
+    physics/mocassin/grid (the 2D mapping and the plane-parallel launch) and
+    dust (getTmin) link them.
+  - docs/_ext/fortref/tests/test_golden.py: L-37's extent 365-403 ->
+    367-405, moved by the two new index rows above it, L-95 and L-96 (the
+    body byte-identical).
+
+### Checks
+
+  - The strict build (sphinx-build -E -W, docs venv) is clean, apart from
+    fortref.unpushed, which is allowed: the branch is not pushed.
+  - fortref check: only fortref.unpushed.
+  - pytest (fortref, _ext, tools): 125 passed.
+  - The devlog index now lists D-451 and D-453.
+
+### Status
+
+Done (2026-11-01). No source changed; the Lexington runs used a build of
+production's HEAD.
+Not done:
+  - **Source edits**, each waiting for a planned change:
+    - L-95's resonance-line table;
+    - L-96's getTmin;
+    - the stale comments listed under L-77.
+  - **The benchmark data and the tutorial's numbers** regenerated on the
+    current code (D-450 left them for the next release). The pages now say
+    what changed: D-451's numbers, and this entry's Lexington rerun, which
+    is not committed as data.
+  - **The slabs' rerun** (L-11), which would now also differ by the launch
+    fix.
+  - **Separating D-447's and D-450 C's effects on PN150.**
+  - **The merge into h2-model**, which brings D-447 and D-450 there and so
+    needs the builds.
 Nothing is pushed or installed.

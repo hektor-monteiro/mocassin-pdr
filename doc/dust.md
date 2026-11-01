@@ -101,7 +101,12 @@ Two things to get right when generating:
     9104 um, so the default `--lmax 1e4` exists for a reason; values outside
     the table are clamped, not extrapolated.
   - **Radii should be the model's own.** Pass the same `dust_sizes.dat` the
-    model uses, so MOCASSIN interpolates at its own grid points.
+    model uses, so MOCASSIN interpolates at its own grid points. Builds before
+    D-450 (every release up to `pdr-coupling-v2.0.2`) mishandle the largest
+    radius, which then lands on the file's last entry: the size lookup took
+    the first interval there and extrapolated that radius from the two
+    smallest. For pn150k's graphite the size-weighted absorption at 1 Ryd was
+    1.31 times the file's (L-91).
 
 ### Why you cannot supply one pre-averaged n,k file instead
 

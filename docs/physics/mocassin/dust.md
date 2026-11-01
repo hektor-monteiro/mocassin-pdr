@@ -75,8 +75,8 @@ grain applies above 5.8 Ryd ({lim}`L-15`). The photoelectric yield table is buil
 
 **Tabulated efficiencies (`Q` files).** $Q_{\mathrm{abs}}$, $Q_{\mathrm{sca}}$ and $g$ are mapped
 onto the frequency grid at each tabulated radius, then interpolated linearly in radius; a radius
-outside the table takes the nearest tabulated one, with a warning; a radius on the table's last entry takes that entry, which until {devlog}`D-449` it did not: `locate` returned the first interval there, and the largest radius was extrapolated from the first two ({lim}`L-91`)
-({src}`ph_mod.f90::makeDustXsec@"! interpolate over the grain size distribution"`). The path could
+outside the table takes the nearest tabulated one, with a warning, and a radius on the table's last entry takes that entry
+({src}`ph_mod.f90::makeDustXsec@"! interpolate over the grain size distribution"`). Until {devlog}`D-450` it did not: `locate` returned the first interval there, so the largest radius was extrapolated from the first two. Every Q file written by `tools/mkqfile.py` with the model's own radii met this, `pn150k`'s graphite and the tutorial's among them; in `pn150k` the grains absorbed 0.129 of the star's hydrogen-ionising photons, against 0.112 with the fix ({lim}`L-91`). The path could
 never run before {devlog}`D-313`, which removed a second allocation of two arrays and skips header
 comments until the line with the number of radii parses
 ({src}`ph_mod.f90::makeDustXsec@"! D-313: skip comment lines until NRAD parses, rather than"`). An
@@ -333,7 +333,7 @@ by the first letter of the label, `S` or `C`
 ({src}`emission_mod.f90::emissionDriver/qHeat@"sorc = grainLabel(ns)(1:1)"`); with any other
 (`grph-avg` among them), `qHeat` returns an empty distribution and the grain emits nothing. And
 `getTmin` ({src}`emission_mod.f90::emissionDriver/getTmin`) zeroes the field in the bins it then
-sums, so the distribution's lowest temperature is always 1 K ({lim}`L-8`). {devlog}`D-306` asked whether
+sums, so the distribution's lowest temperature is 1 K whatever the field ({lim}`L-8`); with several dust components it also reads the emission table with the component's own species index, another species' row, and since {devlog}`D-450` a row that is all zero gives 2999 K instead ({lim}`L-96`). {devlog}`D-306` asked whether
 stochastic heating explained `pn150k`'s dust running 7–25% hot against Cloudy and found it did not:
 the excess was the same at every size, and {devlog}`D-309` traced it to the graphite axes.
 

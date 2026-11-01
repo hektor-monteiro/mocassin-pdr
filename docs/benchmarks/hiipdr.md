@@ -13,7 +13,8 @@ model is matched on the stellar spectrum and luminosity, the abundances, the gra
 material and size range, $A_V/N_{\mathrm H}$ and $\zeta$, with 1 km s⁻¹ turbulence.
 
 The fixture is `benchmarks/pdr/hiipdr`. The run shown is the release run `rel-hii31`
-({doc}`index` gives its settings and provenance).
+({doc}`index` gives its settings and provenance). The fixes made since that release leave this model
+unchanged within the Monte Carlo noise ({ref}`sec:bench-since`).
 
 ## Results at a glance
 
