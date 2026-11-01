@@ -44646,3 +44646,54 @@ The measurement uses the codes' own diagnostic output, not new code.
     in the re-emission's photon count. That is the same kind of defect as
     D-446's, and the next test is the diffuse field's ionizing photons per
     absorbed one.
+
+### Results so far: Cloudy (runs/_d448/cloudy, rc 0, 4 min)
+
+  - **Reproduction held.** .ovr, .phy, .gtemp, .heat and .cool are
+    byte-identical to runs/d396-cloudy-pn's. .lines differs only in the echoed
+    input (the comment, the prefix and the added saves), and the .out's Hbeta
+    is the same.
+  - **Where the saved flux sits.** `save ionizing continuum every` writes a
+    zone's field after the zone is done, so it is the field at r + dr, the
+    next zone's position:
+    - the incident photons at zone 1 are 0.924 of Q/(4 pi r^2) at the zone's
+      mid radius, and 0.998 of it at r + dr;
+    - zones 2, 11 and 30 give 0.998, 0.997 and 0.992 at r + dr;
+    - dr/r is 0.039 in the inner zones, falling to 0.009 at the front.
+    It is the local flux, not flux per unit area of the inner face (zone 93,
+    at 2e17 cm, gives 0.70 of Q/(4 pi r^2): attenuation, not a factor 400).
+    The dust is therefore bracketed: the zone's own saved field
+    underestimates it, the previous zone's overestimates it, and the mean is
+    the estimate.
+  - **Cloudy's grains absorb 0.112 Q(H)** (0.109 with each zone's own saved
+    field, 0.116 with the previous zone's). By band:
+    - 1-1.8 Ryd: 0.055;
+    - 1.8-4 Ryd: 0.048;
+    - above 4 Ryd: 0.007.
+    Half of it lies within 1.7e17 cm, 90% within 2.9e17 cm (Rion 3.95e17).
+  - **Cloudy's own counts:**
+    - H photoionizations from 1s (gam1 n(H0), the HYDi save): 1.002 Q(H);
+    - case-B recombinations with its own coefficient (RadRec_caseB): 0.995;
+    - D-446's alpha_B fit gives 0.982 on the same zones, so the
+      fit-to-Cloudy difference is 1.3%;
+    - He ionizations, all channels (IONR): He0 0.100, He+ 0.197 Q(H).
+  - **Cloudy's grain absorption per H [cm^2]:** 1 Ryd 7.61e-22, 1.8 Ryd
+    3.61e-22, 4 Ryd 1.99e-22, 10 Ryd 5.55e-23, 20 Ryd 1.29e-23.
+  - **What this overturns.** Cloudy's budget is 0.982 recombined = 1 - 0.112
+    to dust + 0.094. **Helium is a net source of H-ionizing photons, not a
+    sink.** A He++ recombination gives back more than one: He II Lya, the
+    two-photon continuum, of which more than one photon can ionize H, and
+    the Balmer continuum above 13.6 eV. Cloudy's absorptions sum to 1.41
+    Q(H) (H 1.002, dust 0.112, He0 0.100, He+ 0.197), so the diffuse field
+    returns 0.41 Q(H) for helium's 0.30 absorbed.
+    So D-447's "9% of Q(H) is absorbed by something other than hydrogen and
+    not returned", and this entry's bound "dust plus the gas losses are at
+    most 1.8%", both treated helium as neutral, and both are wrong.
+  - **Prediction scores so far:**
+    - Cloudy reproduction: held.
+    - Cloudy's own case-B within 3% of 0.982: held (+1.3%).
+    - flxcor is the local flux: held, at r + dr.
+    - Cloudy's dust 0.5-3% of Q(H): missed (0.112).
+    - "The 7% is in MOCASSIN's gas, not its dust": its premise is gone. It
+      is now a question of which of the two, MOCASSIN's dust or helium's
+      return, differs from Cloudy, and by how much. pn41f decides.
