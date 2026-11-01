@@ -303,6 +303,7 @@ module common_mod
 
     ! derived types
 
+    integer, parameter :: nPdfSrc = 13   ! D-232, D-449: columns of grid%pdfSrc
     type grid_type             ! derived grid type
 
         character(len=50) :: composition            ! chemical composition
@@ -415,6 +416,15 @@ module common_mod
         ! gas part above 24.6 eV, (cell,6) the dust part above 24.6 eV. Dust
         ! absorptions currently sample the pooled spectrum (photon_mod:1914), so
         ! this says how much of the ionizing diffuse field each side supplies.
+        ! D-449: (cell,7) the line total (normRec + normFor) the gas spectrum
+        ! also holds; then photons >= 13.6 eV [1e-25 s^-1 per H, the spectrum's
+        ! units over hcRyd nu] of (cell,8) H I (recombination continuum and
+        ! two-photon), (cell,9) the heavy elements' recombination continua,
+        ! (cell,10) He I (with the 2^3S line), (cell,11) He II (with the
+        ! Lyman lines), (cell,12) the 2^3S line alone, (cell,13) the He II
+        ! Lyman lines alone. A gas absorption re-emits its power with the
+        ! shape of (cell,1) + (cell,7); grid_mod writeGrid writes them with
+        ! the gas-absorbed power to output/reemission.out (frontLines).
         real, allocatable :: pdfSrc(:,:)
 
 #ifdef PDR

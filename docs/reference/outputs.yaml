@@ -102,6 +102,18 @@
     absorption part, from the Lyman edge up, in every cell with x(H⁺) > 10⁻⁴,
     plus the H⁰, He⁰ and He⁺ cross sections, for the sub-cell [O I] estimate.
 
+- name: reemission.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/reemission.out\""..@"end if"'
+  when: "with the grid files, with `frontLines`"
+  build: all
+  read_by: nothing in the code (runs/_d450 analysis)
+  description: |
+    Per active cell, the power the gas absorbed from this iteration's packets
+    beside the spectrum it re-emitted it with: its continuum and line totals and
+    its photons above 13.6 eV by emitter (H I, the heavy elements, He I with 2³S,
+    He II with its Lyman lines) ({devlog}`D-449`).
+
 - name: echo.out
   group: grid
   writer: 'grid_mod.f90::setMotherGrid@"file=''output/echo.out''"'

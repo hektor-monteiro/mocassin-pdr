@@ -670,6 +670,7 @@ module emission_mod
         real              :: ionTot243, gasTot243     ! D-243
         real              :: ionHI243, ionHeI243, ionHeII243   ! D-244
         real              :: lineAcc                   ! D-296: running line PDF sum
+        real              :: phLy449, phHeav449   ! D-449: He II Lyman, heavy-element photons >= 13.6 eV
 
         cShapeLoc = 'blackbody'
         call locate(nuArray, 1.45673, j2TsP)
@@ -712,10 +713,12 @@ module emission_mod
             HeIILyman(i) = HeIILyman(i)*HeIILyman(4)
         end do
 
+        phLy449 = 0.
         do i = 1, NHeIILyman
             call locate(NuArray, HeIILymanNu(i), NuP)
             sumDiffuseHeII(NuP) = sumDiffuseHeII(NuP) + HeIILyman(i)
             normHeII = normHeII + HeIILyman(i)
+            phLy449 = phLy449 + HeIILyman(i)/(hcRyd*nuArray(NuP))   ! D-449
         end do
 
         if (lgDust) then
@@ -792,6 +795,21 @@ module emission_mod
                    & + sum(sumDiffuseHeII(HlevNuP(1):nbins))
               if (lgDust) grids(iG)%pdfSrc(cellPUsed,4) = &
                    & sum(sumDiffuseDust(HlevNuP(1):nbins))
+              ! D-449: the photons above 13.6 eV, by emitter (units: common_mod)
+              phHeav449 = 0.
+              do i = HlevNuP(1), nbins
+                 phHeav449 = phHeav449 + real(diffuse_scale*widFlx(i)*gammaHeavies(i)*NeUsed) &
+                      & /(hcRyd*nuArray(i))
+              end do
+              grids(iG)%pdfSrc(cellPUsed,9) = phHeav449
+              grids(iG)%pdfSrc(cellPUsed,8) = sum(sumDiffuseHI(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins))) - phHeav449
+              grids(iG)%pdfSrc(cellPUsed,10) = sum(sumDiffuseHeI(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins)))
+              grids(iG)%pdfSrc(cellPUsed,11) = sum(sumDiffuseHeII(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins)))
+              grids(iG)%pdfSrc(cellPUsed,12) = correction/(hcRyd*nuArray(j2TsP))
+              grids(iG)%pdfSrc(cellPUsed,13) = phLy449
            end if
            if (HeIlevNuP(1) > 0) then
               grids(iG)%pdfSrc(cellPUsed,5) = &
@@ -908,6 +926,7 @@ module emission_mod
         end do
 
         grids(iG)%totalLines(cellPUsed) = normRec + normFor
+        if (allocated(grids(iG)%pdfSrc)) grids(iG)%pdfSrc(cellPUsed,7) = normRec + normFor   ! D-449
 
         ! D-233: gas terms only, with or without dust - the dust's own emission
         ! is sampled from dustPDF by the packets the dust actually absorbed.

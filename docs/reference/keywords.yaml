@@ -735,7 +735,7 @@
   description: |
     A post-processing estimate of [O I] 6300, 6363 and 5577 Å with the
     cells an ionisation front crosses resolved by a sub-cell profile.
-    Writes `frontField.out` with the grid files and, after convergence,
+    Writes `frontField.out` and `reemission.out` with the grid files and, after convergence,
     `lineFluxFront.out`; `lineFlux.out` is not changed. Needs one source
     and a single 3D grid.
   devlog: [D-381, D-382]

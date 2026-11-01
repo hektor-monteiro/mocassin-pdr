@@ -489,7 +489,7 @@ module iteration_mod
                  ! plain sum reassembles it, exactly as for recPDF above.
                  if (allocated(grid(iG)%pdfSrc)) &
                       & call mpi_allreduce(MPI_IN_PLACE, grid(iG)%pdfSrc, &
-                      & (grid(iG)%nCells+1)*6, mpi_real, mpi_sum, mpi_comm_world, ierr)
+                      & (grid(iG)%nCells+1)*nPdfSrc, mpi_real, mpi_sum, mpi_comm_world, ierr)
 
                  if (allocated(grid(iG)%linePDF)) then
                     size =  (grid(iG)%nCells+1)*nLinesPDF
