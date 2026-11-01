@@ -112,7 +112,11 @@
     Per active cell, the power the gas absorbed from this iteration's packets
     beside the spectrum it re-emitted it with: its continuum and line totals and
     its photons above 13.6 eV by emitter (H I, the heavy elements, He I with 2³S,
-    He II with its Lyman lines) ({devlog}`D-449`).
+    He II with its Lyman lines) ({devlog}`D-450`). Columns: grid, i, j, k, cell,
+    n_H [cm⁻³], T_e [K], the gas-absorbed power [erg cm⁻³ s⁻¹], then `pdfSrc`'s
+    13 columns, in 10⁻²⁵ erg s⁻¹ per H (1-7) and 10⁻²⁵ photons s⁻¹ per H (8-13),
+    listed in the file's header and at `common_mod`'s `pdfSrc`. The header calls
+    the format "reemission v1 (D-449)", the entry that called for it.
 
 - name: echo.out
   group: grid

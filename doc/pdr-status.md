@@ -197,6 +197,8 @@ aesthetics. Resolved items are in section 4.
 | L-87 | `getNu2` never emits into the first and last frequency bins | Low | D-444 |
 | L-78 | Free-free emission above the H and He edges uses another cell's Gaunt factors | Low | D-444 |
 | L-89 | Species abundances are used as given: mixture means are right only when they sum to one | Low | D-444 |
+| L-95 | `lineFlux.out`'s resonance-line table counts recombination Ly alpha only | Low | D-453 |
+| L-96 | `getTmin`'s absorption integral is always zero, and it reads the emission table with the component's species index | Low | D-453 |
 
 ### High - affects results now
 
@@ -575,6 +577,15 @@ per iteration at 6e6 and 2.4e7, at 24 and 26 times their median. Its He+
 events fall by a factor of 2.7, and the drops of half the H2 go from 9 to
 0.
 
+**D-449, a second consequence of the same design.** A gas absorption
+re-emits only the power the gas absorbed, in the shape of a spectrum whose
+total also holds the photoelectric heating, less the gas-grain cooling. Every
+component is therefore scaled by f = P_ion / (P_ion + PE - gas-dust),
+ionizing photons included. On pn150k f is 0.991 power-weighted and 0.926
+within 1e17 cm, about 0.010 Q(H) of hydrogen-ionizing photons not
+re-emitted. D-450's `reemission.out` measured f = 0.988 within 1e17 cm, on a
+run with D-450's two fixes.
+
 **L-52. T(H0) in the stop test is the ionization front's hot cells**
 (D-405). The temperature weighted by neutral hydrogen, one of the integrated
 quantities of D-391's test, is carried by the cells above 3,000 K: 72% of
@@ -802,8 +813,12 @@ coefficients (2.47e-8 and 1.32e-8 cm^3 s^-1, bare rates) by `hcRyd`, 1 Ryd,
 while their Boltzmann factors use the right thresholds (118,338 K = 0.75 Ryd and
 140,252 K = 0.889 Ryd). The Ly alpha term is therefore 4/3 too large and the
 Ly beta term 9/8. It acts wherever H0 and electrons coexist above 5,000 K:
-ionisation fronts and partly ionised cells. No collisionally excited H I line is
-emitted. Inherited. Effect not measured. Recorded, not changed.
+ionisation fronts and partly ionised cells. Inherited. Effect not measured.
+Recorded, not changed. Since D-447 the same energy is also emitted, as Ly alpha
+and H alpha (L-90), so whatever this term charges the gas leaves as light. The
+premise itself is in doubt: at 1e4 K the fit's coefficients are 0.75-0.83 of
+the 1s-2 rate from standard collision strengths (Upsilon 0.7-0.76), which
+suggests that they already carry the 3/4 (D-447). Not settled.
 
 **L-66. Stages without dielectronic data take oxygen's rate** (D-444).
 `calcAlpha` sets `diRec(elem,ion) = diRec(8,ion)` wherever the rate is still
@@ -1073,6 +1088,17 @@ affects a fixture or benchmark of this project:
   - **`fillingFactor`:** its `random_number` draws happen before any seeding, so
     they are outside `randomSeed`; with gfortran's fixed default state every rank
     builds the same grid.
+  - **Input files in the wrong wavelength order** (D-453):
+    - **Q files:** the Q-file branch of `makeDustXsec` converts wavelength to
+      frequency without reversing the order, whatever its comment says. A Q
+      file must therefore list wavelengths in descending order, as the
+      shipped ones do. Otherwise `linearMap` gets a descending axis, and its
+      binary search assumes an ascending one.
+    - **Band files:** `mocassinPlot`'s band files are reversed
+      unconditionally, so they must list wavelengths in ascending order.
+    - **`zb2mod.nk`:** `dustData/dustData_POwen/dustData/zb2mod.nk` is not
+      monotonic. It restarts at 0.04008 um after 0.049995 um. No fixture
+      uses it.
 
 Inherited (the `pathStretch` use of `R_out` came with 917d42f on dev, 2025).
 Recorded, not changed.
@@ -1114,7 +1140,22 @@ Small numerical inconsistencies, not measured. Inherited. Recorded, not changed.
   - The He I recombination-line comments still cite Benjamin et al. (1999); the
     coefficients are fits to Porter et al. (2012, 2013).
 
-Inherited, apart from `ionTrim`. Recorded, not changed.
+Inherited, apart from `ionTrim`. Recorded, not changed. Left by this
+project's changes since (D-453):
+  - `ionBalance`'s D-402 comment says hydrogen does not take the metals'
+    charge transfer. Since D-450 that holds only for the neutral/first-ion
+    pairs (L-93), and it sits beside the term for the stages above 1+.
+  - `common_mod`'s comment on `pdrPhotRate` lists photoionisation and, for H,
+    collisional ionisation, and `ionBalance`'s D-358 comment where it is filled
+    says charge exchange is left out; since D-450 hydrogen's column also
+    carries that charge transfer.
+  - `thermBalance` still computes `Te4`, which has had no reader since D-447.
+  - `common_mod`'s D-232 comment on `pdfSrc` says dust absorptions sample the
+    pooled spectrum; they have sampled the dust's own since D-233.
+  - D-450's three commits tag their source comments and variables D-449 (the
+    entry that found the defects), and `reemission.out`'s header says
+    "reemission v1 (D-449)"; the change is D-450's.
+Each is a source edit, so each waits for the next planned change.
 
 **L-81. `getDustT`'s 1 K floor applies only with `talk`** (D-444). When a grain
 absorbs less than it would emit at 1 K, `locate` returns iT = 0. The branch that
@@ -1170,6 +1211,38 @@ abundances times their weighted mean, and `resLineHeating` (L-79) gives the
 mixture that sum times the destroyed power. Every fixture's abundances sum to one
 (test_Problem 0.98 + 0.02), so no result here is affected. Inherited. Recorded,
 not changed.
+
+**L-95. `lineFlux.out`'s resonance-line table counts recombination Ly alpha
+only** (D-453). D-447 added the collisionally excited Ly alpha to the
+re-emission spectrum, to the grains' Ly alpha heating and to the reported Ly
+alpha row (L-90). `outputGas`'s table "Resonance Lines Attenuated by dust
+absorption" still sums the recombination fit alone, for both its columns
+(`resLinesVol` and `resLinesVolCorr`). So in a dust+gas run the two Ly alpha
+numbers of one `lineFlux.out` disagree. Against Hbeta, row and table give:
+  - pn-LC (D-450): 35.42 and 23.38;
+  - tp-LC: 52.57 and 23.44;
+  - hii-LC: 23.84 and 23.59.
+The table's escaping column carries the same omission. Nothing computed reads
+the table. Recorded, not changed.
+
+**L-96. `getTmin`'s absorption integral is always zero, and it reads the
+emission table with the component's species index** (D-453). `getTmin`
+(`emission_mod`) gives stochastic heating its lowest temperature. It zeroes
+the field over bins 1 to `cutoffP` and then integrates the absorption over
+those same bins, so the integral is 0. It then locates 0 in
+`dustEmIntegral(nS,ai,:)`:
+  - **Index mismatch.** `nS` is the species' index within its dust
+    component. The table is indexed by the global species, as `getDustT`
+    uses it (`global_nS`). So with `multiDustChemistry`, every component
+    after the first reads another species' row.
+  - **What it returns.** A row above zero gives iT = 0, and Tmin = 1 K
+    whatever the field. A row that is all zero is possible for a grain size
+    outside that other species' range. Since D-450's `locate` fix such a
+    row gives n-1, so Tmin = 2999 K, where it gave 1 K before. So `qHeat`'s
+    temperature ladder would start above the grain's equilibrium.
+Stochastic heating needs `quantumHeatGrain` and is in practice off (L-8),
+and no fixture has more than one dust component. Inherited, apart from the
+2999 K. Recorded, not changed.
 
 ---
 
@@ -2108,6 +2181,28 @@ Q(H) of the ionizing photons, from 0.129 (Cloudy 0.112); case-B
 recombinations 0.910 -> 0.929 Q(H), Hbeta x1.020, H2 lines x1.09-1.13,
 [C II] 158 x1.07, T_dust +1.1% (ionized) and +1.7% (PDR). hiipdr is
 byte-identical (no other `locate` caller lands on a last entry there).
+D-453 audited every compiled caller of `locate`. Three others can pass
+their table's last entry in a normal run. In each, the old result was a
+defect that the fix removes:
+  - **The plane-parallel launch** (`photon_mod`, `initPhotonPacket`). A launch
+    position past the last x or z axis point is clamped onto it, so the
+    lookup took the first interval and the packet started in column 2
+    instead of the last. The launch range runs half a spacing past the last
+    axis point, so this is 10% of the stellar packets per axis on a uniform
+    5-point axis from 0, as in v1slab's and v2slab's 5 columns. ifront takes
+    the same path. Only the launch cell's segment was misbooked: in the face
+    layer the direct field was x1.5 in column 2 and x0.5 in the last,
+    per axis. v1slab, v2slab and ifront have not been rerun since (L-11).
+    Their next runs will differ there from the archived ones.
+  - **The `2D` keyword's cell mapping** (`setMotherGrid`, `resetGrid`). The
+    radius of the cell at x = 0, y = y(ny) equals x(nx) in most grids, and
+    so do Pythagorean cells (nx = 21 at (13, 17)). The outermost-radius cell
+    was mapped onto cell 2. No fixture uses `2D`.
+  - **A star at a coordinate of 1.0** (`setStarPosition`). The scaled
+    coordinate equals the axis end, and the star was put in cell 2. Every
+    fixture's star is at the origin.
+One corner case got worse, `getTmin` (L-96). No caller relies on ns = n
+meaning "out of range" at the top entry itself.
 
 **L-92. Hydrogen's balance left out the charge transfer of ions above 1+**
 (D-449). `ionBalance` applies Kingdon & Ferland's X^(i+) + H -> X^((i-1)+) + H+

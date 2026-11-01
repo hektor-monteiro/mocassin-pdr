@@ -69,6 +69,25 @@ The Cloudy models are the {devlog}`D-396` runs of Cloudy c25.00. The committed i
 match the physics commands of those runs exactly; `reduce.py --check-cloudy` verifies
 this.
 
+(sec:bench-since)=
+### Since the release
+
+Two fixes made after `pdr-coupling-v2.0.2` change what these models compute: the collisional
+excitation of H I is emitted as well as cooled ({devlog}`D-447`), and a Q file's largest grain and
+the charge transfer of the heavy elements' higher stages are handled correctly ({devlog}`D-450`).
+The pages still show the release runs. {devlog}`D-451` reran both models on the code with these
+fixes, with the same seed, packets, iterations and ranks:
+
+- **`hiipdr`** is unchanged within the Monte Carlo noise: H$\beta$ ×0.999, the line ratios
+  within 0.5%, and the H/H₂ and C⁺/C transitions where they were.
+- **`pn150k`** changes. H$\beta$ goes from 0.968 to 0.950 of Cloudy's, and the Case B
+  recombinations from 0.974 to 0.957 of the star's hydrogen-ionising photons (Cloudy: 0.982).
+  The graphite now absorbs as its Q file says, so the far-ultraviolet reaches deeper:
+  - the H/H₂ transition moves from $A_V$ 0.393 to 0.419 (Cloudy: 0.368);
+  - the gas at $A_V$ 0.20, 0.30 and 0.65 is 13%, 4% and 3% warmer;
+  - H₂ 1-0 S(1)/H$\beta$ rises by 10%;
+  - [C I] 609 μm and CO 2-1 fall to 0.81 and 0.71 of the values shown.
+
 ## How the pages are made
 
 The figures and tables are built in two stages, so that Read the Docs, which cannot run
