@@ -143,8 +143,6 @@ aesthetics. Resolved items are in section 4.
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
 | L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421 |
-| L-91 | A Q-file species' largest grain takes cross sections extrapolated from the two smallest | High | D-449 |
-| L-92 | Hydrogen's balance leaves out the charge transfer of ions above 1+ | High | D-449 |
 | L-4 | The diffuse field's formal solution recovers 52-130% of the Monte Carlo's, unexplained | Medium | D-348 |
 | L-47 | `ionBalance` trails the chemistry by one iteration before the last | Medium | D-402, D-403, D-404 |
 | L-48 | Charge transfer with H: helium below 6,000 K, steps where the data sets join, hiipdr's Mg I | Medium | D-402, D-403 |
@@ -166,6 +164,8 @@ aesthetics. Resolved items are in section 4.
 | L-79 | Resonance-line dust heating is shared between species by number abundance | Medium | D-444 |
 | L-80 | A viewpoint at phi = 0 collects its whole theta band | Medium | D-444 |
 | L-88 | The resonance lines' escape probability samples only the eight body diagonals | Medium | D-444 |
+| L-93 | A plain build's hydrogen takes no charge transfer from the neutral/first-ion pairs | Medium | D-449, D-450 |
+| L-94 | He I re-emits its 19.8 eV line for every recombination and has no 584 A line | Medium | D-449 |
 | L-11 | The 1D slabs and `ifront` have not been rerun (out of scope) | Low | D-338 |
 | L-12 | `thermBudget.out`'s cooling columns are bookkeeping, and its PDR heating lags an iteration | Low | D-304, D-421 |
 | L-15 | `getQs` caps the Mie size parameter at 100 | Low | D-305 |
@@ -456,37 +456,6 @@ predates D-420. It matters for the H2 rotational lines of dense models: in
 D-421's K1a dust10 pair, 0-0 S(2) moved x13.5 and S(1) x2.44 through one cell
 at 955 K. The per-iteration record that would decide it is not built. Treat the
 H2 rotational lines of such models as unconverged.
-
-**L-91. A Q-file species' largest grain takes cross sections extrapolated
-from the two smallest** (D-449). `interpolation_mod`'s `locate` returns 1 when
-its argument equals the table's last entry, a "legacy compatibility intercept"
-that bc45d02 kept from upstream's `minloc` form. `makeDustXsec` locates each
-model radius among a Q file's radii, and `tools/mkqfile.py` writes the model's
-own radii, so the largest radius lands on the last entry. Its Qabs, Qsca and g
-are then a linear extrapolation from the first two radii: for pn150k's
-grph-avg.cat, from 0.005 and 0.0056 um to 0.25 um. Rebuilt with the intercept,
-the absorption per H matches the code's absOpac/n_H to 1.0000 in every bin from
-1 to 30 Ryd; rebuilt as the file means, 0.74-0.96 of it. With pn150k's MRN
-sizes, the size-weighted cross sections as run, over the file as meant:
-  - absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 over 0.09-0.2 um;
-  - V-band extinction x0.988; absorption at 2-10 um x0.91-0.95;
-  - the scattering-weighted g reaches 1.29 at 4 Ryd.
-pn150k's grains absorb 0.129 Q(H) of the ionizing photons, against 0.109 with
-the file as meant (Cloudy 0.112). Any other `locate` call whose argument can
-equal the last table entry gets the same index; those calls are not audited.
-The nk path computes Mie at each radius and is unaffected (hiipdr, the slabs).
-Recorded, not changed: it waits for a plan.
-
-**L-92. Hydrogen's balance leaves out the charge transfer of ions above 1+**
-(D-449). `ionBalance` applies Kingdon & Ferland's X^(i+) + H -> X^((i-1)+) + H+
-to each heavy element's recombination, times n(H0). Hydrogen's own balance
-takes only He+ + H and the network's net of the linked neutral/first-ion pairs
-(D-402, D-403), so the H+ that ions above 1+ make is never counted. On
-pn150k's grid these reactions ionize 0.038 Q(H) of hydrogen (O2+ 0.024, O3+
-0.005, C3+ 0.004, N 0.003, Ne 0.001). Cloudy's hydrogen balance carries 0.031
-Q(H) of ionization that is not 1s photoionization, collisions or secondaries,
-spread in radius as MOCASSIN's estimate is. A run without `pdr` gives hydrogen
-no charge transfer at all. Recorded, not changed: it waits for a plan.
 
 ### Medium
 
@@ -896,6 +865,29 @@ escape probability of every resonance line, and through it the dust heating by
 destroyed line photons (`resLineHeating`, L-79), rests on that sample in every
 dust+gas run. Effect not measured. Inherited. Recorded, not changed.
 
+**L-93. A plain build's hydrogen takes no charge transfer from the
+neutral/first-ion pairs** (D-449, D-450). Since D-450 hydrogen takes the
+charge transfer of the stages above 1+ in every build (L-92). The
+neutral/first-ion pairs (O+ + H <-> O + H+, N+ + H, He+ + H) reach it only
+in a PDR run, through the network (D-402, D-403). In a plain build or a run
+without `pdr` the metals' balances apply them and hydrogen's does not. On
+test_Problem's grid they net +0.033 Q(H) of hydrogen ionization (Kingdon &
+Ferland's rates; runs/_d449/chex.py). Carrying both directions of the H-O
+pair with the metals' previous densities made updateCell cycle at D-402, so
+the fix is a design question, not a line. Recorded, not changed.
+
+**L-94. He I re-emits its 19.8 eV line for every recombination and has no
+584 A line** (D-449). setDiffusePDF adds the 2^3S -> 1^1S line at
+alpha2tS = 2.72e-13 T4^-0.678 cm^3 s^-1, the total He I recombination
+coefficient, where about three quarters of the recombinations are triplets.
+The singlets' 2^1P -> 1^1S line at 584 A is absent, and the 2^1S two-photon
+continuum is added on top. Counted from the coefficients, a He I case-B
+recombination gives 1.07-1.26 H-ionizing photons against case B's
+0.92-0.98; He II gives 1.32-1.38 per case-A recombination against 1.27. On
+pn150k's grid helium returns about 0.03 Q(H) more than case B would. The
+re-emission is energy-weighted, so the line's share also moves the rest of
+the spectrum. Recorded, not changed.
+
 ### Low - bookkeeping, tools and build
 
 **L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
@@ -1223,6 +1215,8 @@ but still listed as open until this page's audit.
 | L-61 | Levels listed out of energy order broke the collision rates | 2026-10-17 | D-418 |
 | L-62 | The mean dust temperature averaged empty size bins at T = 0 | 2026-10-16 | D-414 |
 | L-90 | The gas cooled by collisional excitation of H I and emitted none of it | 2026-10-31 | D-446, D-447 |
+| L-91 | A Q-file species' largest grain took cross sections extrapolated from the two smallest | 2026-11-01 | D-449, D-450 |
+| L-92 | Hydrogen's balance left out the charge transfer of ions above 1+ | 2026-11-01 | D-449, D-450 |
 
 **L-1. Line transport was discarding energy, and every result predating
 D-307 was computed that way.** Diffuse line photons were deleted rather than
@@ -2078,10 +2072,59 @@ The section 2 numbers are the v2.0 release runs, which predate this.
       line), and the Monte Carlo re-emits 1.101 Q(H) against the 1.057 its
       coefficients imply. That excess is unexplained;
     - what Cloudy's metals give back above 13.6 eV is not measured;
+    D-450 fixed L-91 and L-92: the dust absorbs 0.112 Q(H) (Cloudy 0.112),
+    and case-B recombinations are 0.957 Q(H) against Cloudy's 0.982 (Hbeta
+    0.950 of Cloudy's). What remains is in the gas's net return, +0.070
+    against +0.094. The re-emission diagnostic (output/reemission.out) puts
+    the Monte Carlo at 1.004 times the code's own emission;
   - the pure-hydrogen residual (D-446: 3.22 Q(H) with the fix);
   - whether L-65's 1-Ryd premise holds;
   - the 2s share of the n=2 term is emitted as Lya, not as two-photon
     continuum.
+
+**L-91. A Q-file species' largest grain took cross sections extrapolated
+from the two smallest** (D-449). `interpolation_mod`'s `locate` returns 1 when
+its argument equals the table's last entry, a "legacy compatibility intercept"
+that bc45d02 kept from upstream's `minloc` form. `makeDustXsec` locates each
+model radius among a Q file's radii, and `tools/mkqfile.py` writes the model's
+own radii, so the largest radius lands on the last entry. Its Qabs, Qsca and g
+are then a linear extrapolation from the first two radii: for pn150k's
+grph-avg.cat, from 0.005 and 0.0056 um to 0.25 um. Rebuilt with the intercept,
+the absorption per H matches the code's absOpac/n_H to 1.0000 in every bin from
+1 to 30 Ryd; rebuilt as the file means, 0.74-0.96 of it. With pn150k's MRN
+sizes, the size-weighted cross sections as run, over the file as meant:
+  - absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 over 0.09-0.2 um;
+  - V-band extinction x0.988; absorption at 2-10 um x0.91-0.95;
+  - the scattering-weighted g reaches 1.29 at 4 Ryd.
+pn150k's grains absorb 0.129 Q(H) of the ionizing photons, against 0.109 with
+the file as meant (Cloudy 0.112). Any other `locate` call whose argument can
+equal the last table entry gets the same index; those calls are not audited.
+The nk path computes Mie at each radius and is unaffected (hiipdr, the slabs).
+Recorded at D-449.
+**CLOSED 2026-11-01 (D-450).** `locate` returns n-1 at x == xa(n), the
+binary search's own bracket; the intercept is deleted (2755de4). pn150k:
+absOpac/n_H equals the Q file as meant to 1.00000; the grains absorb 0.112
+Q(H) of the ionizing photons, from 0.129 (Cloudy 0.112); case-B
+recombinations 0.910 -> 0.929 Q(H), Hbeta x1.020, H2 lines x1.09-1.13,
+[C II] 158 x1.07, T_dust +1.1% (ionized) and +1.7% (PDR). hiipdr is
+byte-identical (no other `locate` caller lands on a last entry there).
+
+**L-92. Hydrogen's balance left out the charge transfer of ions above 1+**
+(D-449). `ionBalance` applies Kingdon & Ferland's X^(i+) + H -> X^((i-1)+) + H+
+to each heavy element's recombination, times n(H0). Hydrogen's own balance
+takes only He+ + H and the network's net of the linked neutral/first-ion pairs
+(D-402, D-403), so the H+ that ions above 1+ make is never counted. On
+pn150k's grid these reactions ionize 0.038 Q(H) of hydrogen (O2+ 0.024, O3+
+0.005, C3+ 0.004, N 0.003, Ne 0.001). Cloudy's hydrogen balance carries 0.031
+Q(H) of ionization that is not 1s photoionization, collisions or secondaries,
+spread in radius as MOCASSIN's estimate is. A run without `pdr` gives hydrogen
+no charge transfer at all. Recorded at D-449.
+**CLOSED 2026-11-01 (D-450).** ionBalance adds the sum over i >= 2 of
+k_ct n(X^(i+)) to hydrogen's upward rate and to the H -> H+ rate handed to
+the chemistry (a95f9c7). pn150k: case-B recombinations 0.929 -> 0.957 Q(H),
+Hbeta x1.031 (0.950 of Cloudy's), H2 lines -3.5%, [C II] and [O I] 63 within
+0.6%; hiipdr unchanged (x1.0002); test_Problem +0.009 Q(H). What a plain
+build still lacks, the neutral/first-ion pairs, is L-93.
 
 ### Checks done since they were listed in section 5
 
