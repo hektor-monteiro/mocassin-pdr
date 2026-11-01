@@ -451,6 +451,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
 | D-450 | **The code runs D-449 calls for: `locate` at a table's last entry (L-91), charge transfer above 1+ in hydrogen's balance (L-92), and a re-emission diagnostic (the user: "Then proceed to the needed code runs."; plan approved).** Plan ~/.claude/plans/iridescent-stirring-pie.md, executed by code-executor in three commits, each built in four flavours: A, pdfSrc to 13 columns (line total; photons >= 13.6 eV of H I, metals, He I with 2^3S, He II with Lyman, 2^3S and Lyman alone) written with the gas-absorbed power to output/reemission.out under frontLines; B, `locate` returns n-1 at x == xa(n) (the intercept deleted); C, sum_{i>=2} chex n(X^(i+)) added to hydrogen's upward rate and to the H -> H+ rate handed to the chemistry, the chex fits evaluated before the stage loop. Runs (14 ranks, one queue): tp-L, hii-L, pn-L with binary L, then tp-LC, hii-LC, pn-LC. Results: hiipdr byte-identical with A+B; pn150k's dust 0.129 -> 0.112 Q(H) (Cloudy 0.112), case-B recombinations 0.910 -> 0.929 (locate) -> 0.957 (charge transfer; Cloudy 0.982), Hbeta 0.904 -> 0.950 of Cloudy's; hiipdr unchanged by charge transfer, test_Problem +0.009 Q(H); the diagnostic closes the ionizing budget to 0.997 and puts the Monte Carlo at 1.004-1.012 of the code's emission. test_Problem is clock-seeded, so its byte-identity prediction was void. L-91, L-92 closed; L-93, L-94 opened. | Done | 2026-11-01 |
 | D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. |
+| D-452 | **pn150k's escaped SED, MOCASSIN against Cloudy (the user: "I want to see a comparison of cloudy and mocassin for the escaped sed for the pn150kk models"); 150 kK PN Against Cloudy v32 adds it as "The escaped spectrum".** runs/_d450/pn-LC's SED.out against runs/d396-cloudy-pn/150k.cont (total column), both nu L_nu, Cloudy rebinned onto MOCASSIN's bins by energy (runs/_d452/sed.py). MOCASSIN holds 1.000 L*, Cloudy 0.973 (0.027 L* unaccounted, not examined). Nothing above 13.6 eV escapes either. Agree: 1-5 um 1.01, 60-300 um 0.98 (dust continuum 0.97); 0.21-1 um 0.92 ([O III] 5007 0.97, Halpha 0.98, C III] 1909 0.68). Differ: Lya leaves Cloudy at 0.082 L* (its own emergent line list: 0.022; D-291's continuum-attenuated outward lines) and MOCASSIN at 0.004 (it makes 0.244, D-376 destroys it in the grains); 5-60 um MOCASSIN 1.50x (dust continuum 1.67x), +0.149 L* = Cloudy's extra UV-optical 0.116 (0.079 Lya) + its missing 0.027 within 0.006 - the budget reading (Lya heating MOCASSIN's grains instead) is untested. Found on the way: MOCASSIN's SED bin j holds nu_j <= nu < nu_j+1 while widFlx is centred; v31's two doubled percent signs corrected. |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -45560,5 +45561,124 @@ plots with the new version of the code".
     term by term.
   - pn150k's remaining 0.025 Q(H) of recombinations (L-90, L-94; pn150k
     Photon Gap).
+
+Nothing is pushed or installed.
+
+## D-452 - pn150k's escaped SED, MOCASSIN against Cloudy (2026-11-01)
+
+The user (2026-11-01): "I want to see a comparison of cloudy and mocassin
+for the escaped sed for the pn150kk models".
+
+### What was compared, and how
+
+  - **MOCASSIN:** `runs/_d450/pn-LC/output/SED.out` (production, the PN
+    page's model since D-451). F(nu) D^2 [Jy pc^2] summed over all
+    directions, 600 bins from 0.0304 um to 9.1 mm (nuMin 1.001e-5 to
+    nuMax 30 Ryd; the first row, 1.3e-6 Ryd, is below nuMin and empty).
+    nu L_nu = 4 pi pc^2 1e-23 F nu, with the bin energy F widFlx.
+    widFlx is centred (grid_mod.f90:337). It sums to 3.8275e36 erg/s
+    against the file's own 3.8282e36 and L* 3.8282e36.
+  - **Cloudy:** `runs/d396-cloudy-pn/150k.cont` (`save last continuum`).
+    The columns are read from save_do.cpp: incident, trans (attenuated
+    incident), DiffOut (outward diffuse continuum plus outward lines), net
+    trans, reflc, total, reflin, outlin. All are nu L_nu [erg/s] for this
+    luminosity case; the incident column integrates to 3.8283e36 = L*. The
+    escaped spectrum is `total`; a closed sphere has reflc = 0.
+  - **Rebinning.** Cloudy's cells are summed into MOCASSIN's bins by
+    energy (cell energy nu L_nu dln nu, assigned by cell centre). Found
+    while checking the line bins: **MOCASSIN's bin j holds nu_j <= nu <
+    nu_j+1** (locate), not a bin centred on nu_j. C III] 1909 (0.19087 um)
+    sits in the bin labelled 0.19800 um, and Lya in the one labelled
+    0.12394 um. Rebinned with centred edges, every line was one bin off and
+    the line comparison failed (C III] came out at zero). The figures put
+    both codes on a uniform 0.02-dex grid by overlap.
+  - **Lines** are the holding bin less the median of E/dln over six bins
+    either side, times its dln. A first version subtracted the two
+    neighbours' mean, which MOCASSIN's narrow bins next to Lya (0.11963 -
+    0.11972 um) broke: the Lya value came out negative.
+  - **Dust continuum** is a running median over 0.22 dex on the 0.02-dex
+    grid. An argmax "dust peak" was tried and dropped. Unfiltered, a line
+    set it (25.5 um in every run). Filtered, it is 42 against 64 um on a
+    top too flat to mean anything.
+  - **Script and outputs:** `runs/_d452/sed.py OUTDIR MOC_RUN CLOUDY_CONT
+    [LABEL=RUN]`, run with "before D-450=_d447/pn41". Outputs are in
+    `runs/_d452/pn/` (sed.json, sed.log, sed_{whole,bands,uv,ir}.{svg,png}).
+
+### Results (fractions of L*)
+
+    band               MOCASSIN   Cloudy   Cloudy's lines   ratio   dust continuum ratio
+    EUV, >13.6 eV      0          1.5e-7   -                -
+    FUV, 6-13.6 eV     0.067      0.163    0.108            0.41
+    0.21-1 um          0.236      0.256    0.197            0.92
+    1-5 um             0.023      0.023    0.010            1.01    1.01
+    5-25 um            0.071      0.047    0.027            1.51    1.87
+    25-60 um           0.375      0.249    0.048            1.50    1.65
+    60-300 um          0.226      0.232    0.008            0.98    0.97
+    >300 um            0.0018     0.0022   0                0.82    0.89
+    all                1.000      0.973    0.399            1.03
+
+  - **Escaped lines (net):**
+    - Lya: 0.0036 against 0.0814 (Cloudy's own line column 0.0824);
+    - [O III] 5007: 0.0884 against 0.0910 (0.97);
+    - Halpha: 0.0254 against 0.0258 (0.98);
+    - C III] 1909: 0.0041 against 0.0061 (0.68).
+  - **Cloudy's escaped spectrum holds 0.973 L*.** 0.027 L* of the star's
+    luminosity is not in it. MOCASSIN's holds 1.000, as a Monte Carlo
+    following every packet to escape must. Where Cloudy loses it was not
+    examined.
+  - **Lya.**
+    - Cloudy's continuum carries 0.082 L*. Its own emergent line list
+      gives 8.4468 x its emergent Hbeta (log -10.075 at 1 kpc) = 0.022 L*,
+      a quarter of that. Its intrinsic Lya is 21.51 Hbeta = 0.156 L*, and
+      its grain heating by Lya (GraL) 8.71 Hbeta = 0.063 L*.
+    - The continuum's outward lines are attenuated by continuum opacity
+      only (D-291, D-298). That is why its Lya crosses the PDR's H0.
+    - MOCASSIN makes 35.42 Hbeta = 0.244 L* of Lya (with D-447's
+      collisional part) and lets 0.004 out (D-376's destruction in the
+      grains).
+    - Without Lya, the FUV is 0.063 against 0.081 (0.78).
+  - **The warm dust.** 5-60 um is 0.446 against 0.296 (1.50x), and its
+    dust continuum 0.404 against 0.241 (1.67x). The cold dust and the
+    near infrared agree.
+  - **The budget.** MOCASSIN's +0.149 L* at 5-60 um equals Cloudy's extra
+    FUV and 0.21-1 um (0.116, of which Lya 0.079) plus Cloudy's missing
+    0.027, within 0.006 (the cold dust's difference). The reading the
+    numbers suggest: the Lya Cloudy lets out, MOCASSIN's grains absorb and
+    re-emit warm. **Untested:** no run has removed that difference alone
+    (and Cloudy's 0.027 is unexplained).
+  - **D-450 in the escaped light.** Before it (`_d447/pn41`), FUV was
+    0.060 (now 0.067) and 25-300 um 0.614 (now 0.601).
+  - **Beyond 1 mm** MOCASSIN is 0.4-0.5 of Cloudy in the 0.1-dex ratio:
+    3.2e-5 against 5.6e-5 L*, few packets. Whether it is more than noise
+    has not been tested.
+
+### The page
+
+  - **150 kK PN Against Cloudy, version 32** (artifact version 32,
+    https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV#sed):
+    - a current-state section "The escaped spectrum" before "What agrees",
+      holding the band and line tables and the four figures;
+    - a header note;
+    - the section added to the list of current-state parts.
+
+    It is not a history section, so no ordinal moves.
+  - **Builder:** `d450pages/build_pn32.py`, starting from version 31 as
+    built.
+  - **Corrected on the way:** version 31 (D-451) printed "4%%" twice, in
+    the dust-temperature bullet, a literal string written as a format
+    string in build_pn31.py. Both builders now assert that no "%%" is
+    left. The hiipdr page had none: its rebuild is byte-identical to what
+    was published.
+  - The scratchpad was copied again to `runs/_scratchpad_backup_2026-11-01`.
+
+### Not known
+
+  - Where Cloudy's 0.027 L* goes.
+  - Whether MOCASSIN's warm-dust excess is the Lya its grains absorb (the
+    budget's reading) or something else, such as a grain temperature
+    difference in the ionized gas. The page's matched-A_V dust temperatures
+    are 1.01 and 1.05 of Cloudy's at A_V 0.05 and 0.10.
+  - Why C III] 1909 escapes at 0.68 of Cloudy's. Its intrinsic ratio has
+    not been compared for this entry.
 
 Nothing is pushed or installed.
