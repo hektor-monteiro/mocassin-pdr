@@ -447,7 +447,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
 | D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
 | D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
-| D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H) | Open | 2026-10-31 |
+| D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44697,3 +44697,121 @@ The measurement uses the codes' own diagnostic output, not new code.
     - "The 7% is in MOCASSIN's gas, not its dust": its premise is gone. It
       is now a question of which of the two, MOCASSIN's dust or helium's
       return, differs from Cloudy, and by how much. pn41f decides.
+
+### Results: MOCASSIN (runs/_d448/pn41f) and the comparison
+
+  - **Health and reproduction:**
+    - rc 0, 18 iterations, 2:10:11, no NaN, Singular, insane or CVODE;
+    - lineFlux.out, SED.out, grid0-3.out, dustGrid.out, pdrGrid.out, the H2
+      and molecular line files, temperature.out, ionratio.out and h2Cells.out
+      are byte-identical to runs/_d447/pn41's;
+    - the only new files are frontField.out and lineFluxFront.out;
+    - the 6 flagged cells are the same.
+  - **Normalisation:**
+    - H0 photoionizations from frontField's J over the case-A recombinations
+      (Draine's fit) are 1.011;
+    - the cell mapping is checked: (opacity - absOpac) over n(H0) sigma_H at
+      the edge has median 1.000 over the 2122 cells with x(H0) > 0.01;
+    - absOpac/n_H is the same in every cell (max/min 1.000).
+  - **MOCASSIN's ionizing absorptions [Q(H)]:**
+    - dust 0.129, H0 1.532, He0 0.109, He+ 0.261;
+    - the sum is 2.031. The star gives 1; the rest is the diffuse field,
+      H's own Lyman continuum among it;
+    - opacity x N not in these four is 0.169: dust scattering and the metals
+      together. MOCASSIN writes no scattering opacity, so the two are not
+      separated.
+    - Half the dust absorption lies within 1.69e17 cm and 90% within 2.85e17
+      cm, as in Cloudy (1.69e17, 2.87e17).
+  - **The graphite's absorption per H [cm^2], MOCASSIN against Cloudy:**
+
+        Ryd      1         1.2       1.5       1.8       2.5       3         4         6         10        20
+        MOCASSIN 1.030e-21 1.159e-21 6.69e-22  4.61e-22  3.71e-22  3.15e-22  2.38e-22  1.46e-22  6.25e-23  4.57e-23
+        Cloudy   7.61e-22  8.49e-22  5.15e-22  3.61e-22  2.69e-22  2.39e-22  1.99e-22  1.17e-22  5.55e-23  1.29e-23
+        ratio    1.35      1.37      1.30      1.28      1.38      1.32      1.20      1.25      1.13      3.5
+
+    The mass ratios are 2.483e-3 and 2.454e-3, so 1% of this is the ratio
+    and the rest is the material or grain model: MOCASSIN uses
+    grph-avg.cat optical constants, Cloudy its ISM graphite. Cloudy's
+    scattering per H over its absorption is 0.62, 1.00 and 1.22 at 1, 1.8 and
+    4 Ryd.
+  - **The budget:**
+
+        Q(H) = case-B H recombinations + dust - net gas return     (no ionizing escape in either)
+
+                           MOCASSIN   Cloudy    difference
+        case-B H rec       0.910      0.982     -0.072
+        dust               0.129      0.112     +0.017   (Cloudy 0.109-0.116)
+        net gas return     +0.040     +0.094    -0.055
+        He++ case-B rec    0.176      0.177
+        He+ case-B rec     0.059      0.064
+
+    The helium recombinations use the same fits in both codes: He+ ->
+    He0 2.72e-13 t^-0.789, He++ -> He+ 2 alpha_B(H, T/4) (runs/_d448/
+    he_rec.py). He/H is 0.0851 in both.
+  - **What it means:**
+    - A quarter of the gap (0.017 Q(H)) is MOCASSIN's dust absorbing more.
+      Its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd, with the same
+      size range and mass ratio. That is a property of the two codes' dust,
+      reported, not tuned.
+    - Three quarters (0.055 Q(H)) is the gas. Helium recombines at the same
+      rate in both codes, but MOCASSIN gets back fewer H-ionizing photons
+      from it, or the metals keep more of the ionizing photons and return
+      less.
+    - Expected per case-B recombination (counted by hand, not measured in
+      either code):
+      - He II: 2/3 Lya, each giving one H or He0 ionization; 1/3 two-photon,
+        ~1.4-1.6 H-ionizing photons per decay; and ~0.4 Balmer continuum
+        photons above 13.6 eV. About 1.57 in all.
+      - He I: ~0.96.
+      - This gives ~0.33 Q(H) back for 0.235 absorbed, +0.098, which is
+        Cloudy's +0.094.
+    - MOCASSIN's +0.040 is ~1.17 per helium recombination, or the same
+      return with ~0.06 Q(H) more kept by the metals. The data here cannot
+      tell which.
+  - **Not separated, and why:**
+    - The metals' share: MOCASSIN's 0.169 residual includes the scattering.
+    - Cloudy's own total absorption: opacity_abs x flxcor summed over the
+      zones gives 3.96 Q(H). That cannot be reconciled with its H, He and dust
+      counts (1.41) without knowing how its OTS fields enter, so it is not
+      used.
+    - A floor estimate of MOCASSIN's scattering (the residual's 5th
+      percentile over cells) fails: at 1-1.8 Ryd the post-update n(H0) makes
+      the residual noisy around zero, and at 4 Ryd the metals absorb in every
+      cell.
+  - **Prediction scores:**
+    - pn41f byte-identical: held.
+    - Cloudy reproduction: held.
+    - H0 photoionizations within 5% of case A: held (1.011).
+    - Cloudy's own case B within 3%: held (+1.3%).
+    - flxcor local: held (at r + dr).
+    - Cloudy's dust 0.5-3%: missed (11.2%).
+    - MOCASSIN's dust within x0.7-1.5 of Cloudy's: held (x1.155).
+    - The graphite per H at 1-4 Ryd within x0.7-1.4: held (x1.20-1.38).
+    - "The 7% is in MOCASSIN's gas, not its dust": three quarters held, but
+      on a premise that was wrong (the 1.8% bound), and a quarter is the
+      dust.
+    - The absorptions sum to 1.6-2.2 Q(H): held (2.03 without the metals).
+    - The shares: H0 50-70% missed (75.4%); He 25-45% missed (18.3%); dust
+      1-4% missed (6.4%).
+    - Health: held.
+  - **Recorded in doc/pdr-status.md:** L-90's open bullet now gives the
+    split, in place of "presumably absorbed by dust". The docs build (-W),
+    fortref check (only fortref.unpushed) and pytest (109 passed) pass.
+
+### Status
+
+Done (2026-11-01). No code changed.
+Not done:
+  - **MOCASSIN's ionizing return per helium recombination.** Which of the
+    He II and He I diffuse components (two-photon, Balmer and recombination
+    continua, the He II Lyman lines, 2^3S) gives fewer H-ionizing photons
+    than case B's count. This needs the diffuse field's photons by component
+    per absorbed photon: a diagnostic output (code, so planned) or an offline
+    recomputation from emission_mod's coefficients.
+  - **The metals' share of the ionizing absorption** in both codes, which
+    needs MOCASSIN's scattering opacity and Cloudy's per-element rates (save
+    ionization rates for C, N, O, Ne, S, Ar).
+  - **The graphite's x1.2-1.4.** Comparing the optical constants and the grain
+    models would say which is right; neither is tuned to the other.
+  - The items D-447 left open.
+Nothing is pushed or installed.

@@ -2020,8 +2020,18 @@ lines add the same energy: the n=2 term and 27/32 of the n=3 term as Lya,
     +3.7%, and [C II] 158, [O I] 63 and H2 x0.98-0.995 (absolute).
 The section 2 numbers are the v2.0 release runs, which predate this.
 **Open:**
-  - pn150k's 9% of Q(H) that neither recombines on H nor escapes. It is
-    presumably absorbed by dust, while Cloudy recombines ~100%; not measured;
+  - pn150k's case-B recombinations, 0.910 Q(H) against Cloudy's 0.982 (D-446's
+    alpha_B fit on both). D-448 measured the split:
+    - the dust absorbs 0.129 Q(H) against Cloudy's 0.112. MOCASSIN's
+      graphite absorbs x1.20-1.37 more per H at 1-4 Ryd. That is a quarter of
+      the gap.
+    - the gas gives back a net +0.040 Q(H) of H-ionizing photons against
+      Cloudy's +0.094. That is helium's recombination photons less what the
+      metals keep, and it is the other three quarters. Helium recombines at
+      the same rate in both codes (He++ 0.176 and 0.177 Q(H)).
+    The 9% earlier read as "presumably dust" treated helium as a sink.
+    Still to separate: helium's return per recombination and the metals'
+    absorption;
   - the pure-hydrogen residual (D-446: 3.22 Q(H) with the fix);
   - whether L-65's 1-Ryd premise holds;
   - the 2s share of the n=2 term is emitted as Lya, not as two-photon
