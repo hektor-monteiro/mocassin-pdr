@@ -448,6 +448,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
 | D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
 | D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
+| D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44814,4 +44815,241 @@ Not done:
   - **The graphite's x1.2-1.4.** Comparing the optical constants and the grain
     models would say which is right; neither is tuned to the other.
   - The items D-447 left open.
+Nothing is pushed or installed.
+
+## D-449 - pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (2026-11-01)
+
+The user (2026-11-01), after D-448's report ("I'd start with the helium
+step"): "start on the steps that do not need code reruns first and report
+results with plots whenever possible. Then proceed to the needed code runs."
+
+No code changed. Everything below is computed from D-448's two runs
+(runs/_d448/pn41f, runs/_d448/cloudy) by the scripts in runs/_d449:
+graphite.py, metals.py, he_return.py, chex.py and plots.py, with their logs
+and figures (graphite.png, intercept.png, metals.png, he_yield.png, gas.png,
+budget.png). Cloudy's per-zone ion fractions were already saved (.ele_X, last
+iteration), so the metals need no Cloudy rerun.
+
+### 1. The graphite
+
+  - **MOCASSIN's dust opacity, rebuilt from its own Q file.** grph-avg.cat
+    (35 radii, the model's own, x 900 wavelengths) with makeDustXsec's
+    weights (w da, normalised) and N_dust/n_H from dustGrid.out
+    (1.8119e-10). Mapped linearly in nu, as linearMap does, it gives
+    0.911 of frontField's absOpac/n_H (range 0.736-0.958 over 237 bins).
+  - **The cause: `locate`'s legacy intercept.** interpolation_mod's
+    `locate` returns 1 when x equals the table's last entry. bc45d02 (the
+    binary-search refactor, before f37a67e) kept it deliberately, as
+    upstream's `minloc` form gave 1 there too. makeDustXsec's Q branch
+    locates each grainRadius among the file's radii, and mkqfile.py writes
+    the model's radii exactly, so the largest radius always lands on the
+    last entry. Its Qabs, Qsca and g are then
+    Q(a1) + (a35 - a1)(Q(a2) - Q(a1))/(a2 - a1), a 400-fold extrapolation.
+    With that applied, the rebuild matches absOpac/n_H to 1.00000 (range
+    1.00000-1.00015). The defect is confirmed, not inferred.
+  - **The largest grain as run, over the file as meant:**
+    - Qabs x60 at 1 Ryd, x79 at 1.2, x20 at 1.8, x6.7 at 4, x2.3 at 10;
+    - Qsca x5.5 at 1 Ryd;
+    - g of that grain 15.6 at 4 Ryd.
+    In the Rayleigh limit Q is linear in a, so the extrapolation is nearly
+    exact in the IR.
+  - **Size-weighted, as run over as meant (intercept.png):**
+    - absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 over 0.09-0.2 um;
+    - extinction x0.988 at V;
+    - absorption x0.91-0.95 at 2-10 um, within 1% beyond 20 um;
+    - the scattering-weighted g is 1.29 at 0.0226 um (4 Ryd), 0.71 at 2
+      Ryd, against 0.47 and 0.38 as meant.
+  - **The dust's share of Q(H)** on D-448's field: 0.1293 as run, 0.1086
+    with the file as meant. Cloudy's is 0.112 (0.109-0.116).
+  - **The material.** My Mie (tools/d305_mie, mkqfile's routine; axes
+    averaged after Mie, n and k linear in lambda):
+    - on MOCASSIN's constants reproduces grph-avg.cat within 0.98-1.04 at
+      1-10 Ryd. The perpendicular axis is grph2-dl.nk, whose label is
+      gr2_dl_hgk; gr2-dl-hgk.nk is a different, 105-point table;
+    - on Cloudy's (graphite.rfi, Martin & Rouleau 1991, the same 1/3-2/3
+      axes) times Cloudy's grain volume per H (2.4569e-27 cm^3) reproduces
+      Cloudy's .gopc within 0.96-1.03.
+    The file over Cloudy per H, at 1-4 Ryd, is 1.03-1.21. That splits into:
+    - the grain volume per H, x1.040: MdMg 2.4827e-3 against 2.454e-3, and
+      density 2.2 against 2.26 g/cm^3;
+    - the material per unit volume, x0.99-1.18, largest at 2.5-3 Ryd.
+    The two codes' k nearly coincide (graphite.png). Above 20 Ryd (the C
+    K edge) the file is not reproduced; few photons are there.
+  - **Scattering per H**, the file as meant over Cloudy's: 0.97-1.10 at 1-10
+    Ryd.
+  - **Which fixtures:**
+    - pn150k uses the Q file (affected);
+    - hiipdr, the slabs and ifront use nk files, with Mie at each radius
+      (unaffected);
+    - test_Problem's PAHneu_30.cat is a Q file; whether its size range ends
+      on a tabulated radius is not checked.
+    Recorded as L-91.
+
+### 2. The metals' share
+
+  - **Method.** Verner et al. 1996 / Verner & Yakovlev 1995, every shell,
+    ported from ph_mod's phFitEl with MOCASSIN's ph1.dat and ph2.dat (in
+    phInit's reading order). The same cross sections serve both codes:
+    - MOCASSIN: ion densities from grid1/grid2 (stages 0-6), field from
+      frontField;
+    - Cloudy: hden x abundance x the .ele fraction, field flxcor, bracketed
+      as in D-448. CONI writes only the cells with flux, so each zone's rows
+      are placed by their cell index.
+  - **The check on MOCASSIN's own opacity:**
+    - opacity x N summed: 2.2004 Q(H), against absorptions 2.1010 plus the
+      dust scattering rebuilt with the intercept, 0.1000: 2.2010;
+    - in the six cells with x(H0) < 3e-4, the residual over the rebuilt
+      scattering is 0.997-1.001 at 1-15 Ryd, where the metals are 0-71% of
+      the non-dust opacity. At 20.3 Ryd it is 2.5 (not explained; few
+      photons there);
+    - elsewhere, the post-update n(H0) makes the per-cell residual noisy at
+      1-3 Ryd (D-448).
+  - **Absorbed above 13.6 eV [Q(H)]:**
+
+        element   C       N       O       Ne      S       Ar      sum
+        MOCASSIN  0.0140  0.0058  0.0456  0.0036  0.0005  0.0001  0.0696
+        Cloudy    0.0116  0.0059  0.0404  0.0031  0.0008  0.0002  0.0619 (0.0594-0.0644)
+
+    The abundances are the same. D-448's 0.169 "dust scattering + metals" is
+    0.100 + 0.070.
+
+### 3. Helium's return, from MOCASSIN's own coefficients
+
+  - **What is computed.** he_return.py evaluates emission_mod's formulas per
+    ion and electron on fine frequency grids: fb_ff's Milne ground continua,
+    the gamma tables, hydro2phot, HeI2photSub, setDiffusePDF's 2^3S term and
+    the He II Lyman lines.
+  - **Checks:**
+    - H Lyman continuum (Milne, Verner sigma) over Draine's alpha_A -
+      alpha_B: 0.984-1.002 at 6000-30000 K;
+    - the two-photon continua's energy over the stated coefficient: 1.000
+      (H), 0.9995 (He II), 0.997 (He I).
+  - **He II, per case-A recombination** (2 alpha_A(H, T/4)): 1.32-1.38
+    H-ionizing photons. Of these:
+    - ground continuum 0.28-0.37;
+    - captures to n >= 2 (1-4 Ryd) 0.15-0.18;
+    - 2s two-photon 0.26-0.29;
+    - Lyman lines 0.54-0.64.
+    The case-B expectation is 1.27 per case-A recombination. It is
+    hydrogenic at T/4: a 2s share alpha_eff(2s)/alpha_B, 1.425 H-ionizing
+    photons per 2s decay, and direct captures to n=2 at 0.26-0.32 of
+    alpha_B (Osterbrock & Ferland Table 2.1).
+  - **He I, per case-B recombination** (2.72e-13 t^-0.789): 1.07-1.26,
+    against a case-B expectation of 0.92-0.98:
+    - setDiffusePDF's 2^3S term, alpha2tS = 27.2 T4^-0.678 x 1e-14, is
+      every recombination (1.00 at 1e4 K), where about 3/4 are triplets;
+    - the 2^1S two-photon adds 0.12-0.13;
+    - there is no 584 A line.
+  - **Summed over pn41f's grid [Q(H)]:**
+    - H Lyc 0.603 (case A - case B: 0.605);
+    - He I: ground 0.037, 2^3S 0.060, two-photon 0.008;
+    - He II: ground 0.082, 1-4 Ryd 0.042, two-photon 0.071, Lyman 0.151
+      (Lya 0.122);
+    - metals' ground continua 0.003;
+    - total 1.057.
+    The Monte Carlo re-emitted 1.101: the ionizing absorptions, 2.101, less
+    Q(H). **The Monte Carlo is 1.042 times its coefficients. That is not
+    explained.** A re-emission spectrum whose total is below the absorbed
+    power would do it, but this entry cannot test it offline.
+  - **Helium recombination counts:** He II case A 0.258 (He+
+    photoionizations 0.261), case B 0.176; He I case B 0.059.
+  - **What it means.** MOCASSIN's helium does not give back too few
+    photons. Its coefficients give about 0.030 Q(H) more than case B would
+    on this grid, mostly through He I's 2^3S.
+
+### 4. The photoelectric dilution of the gas re-emission
+
+  - **Mechanism.** A gas absorption is re-emitted with the shape of the gas
+    emission. In a balanced cell the total of that shape is P_ion + PE -
+    gas-dust (+ PDR terms). The Monte Carlo re-emits only the gas-absorbed
+    power, P_ion, so every component, the ionizing ones included, is scaled
+    by f = P_ion/(P_ion + PE - gas-dust). The energy the photoelectrons
+    carry is not moved from the dust's re-emission to the gas's.
+  - **From thermBudget.out** (one row per grid point; its Te matches
+    grid1's exactly), with P_ion from frontField (the gas opacity the
+    packets saw, times Jste). Units check: offline photoheating over
+    thermBudget's phot is 0.959.
+  - **Power-weighted [fraction of P_ion]:** PE 0.0145, gas-dust 0.0056, PDR
+    terms 0.00002; f = 0.991. By radius:
+    - within 1e17 cm, f 0.926 (PE 11% of P_ion);
+    - 1-2e17 cm, 0.976;
+    - 2-3e17 cm, 0.992;
+    - beyond 3e17 cm, about 1.
+  - **Estimated ionizing deficit:** 0.0098 Q(H), with the re-emission per
+    cell taken in proportion to P_ion. It is a property of the Monte Carlo
+    design (L-51), not of the coefficients.
+
+### 5. Charge transfer with hydrogen
+
+  - **What the code does.** ionBalance applies Kingdon & Ferland's chex
+    (X^(i+) + H -> X^((i-1)+) + H+) to each heavy element's recombination,
+    times n(H0), and its reverse to N0 and O0. Hydrogen's balance takes:
+    - He+ + H (D-403);
+    - the network's net for the linked neutral/first-ion pairs, handed over
+      by pdrStep (D-402).
+    It does not take the stages above 1+, so the H+ they make is never
+    counted. A run without `pdr` gives hydrogen none at all.
+  - **On pn41f's grid** (chex.py, the code's coefficients and evaluation),
+    X^(>=2+) + H ionizes 0.0382 Q(H) of hydrogen: O2+ 0.0243, O3+ 0.0048,
+    C3+ 0.0038, N2+ 0.0022, N3+ 0.0012, Ne3+ 0.0012, the rest under 0.0005.
+    The neutral/first-ion pairs net -0.013 with Kingdon & Ferland's rates,
+    but those reach hydrogen through the network already.
+  - **Cloudy's hydrogen balance** (the HYDi save):
+    - total recombinations, RecTot x n(H+): 1.0356 Q(H);
+    - 1s photoionization 1.0016, collisional 0.0016, secondary 0.0020;
+    - so +0.0305 Q(H) of hydrogen ionization comes from other sources,
+      charge transfer the evident one.
+    Its cumulative profile in radius follows MOCASSIN's estimate (gas.png).
+    Recorded as L-92.
+
+### What it means: the 0.072 Q(H)
+
+These are first-order estimates from different scripts. They are not
+additive, as the field responds (budget.png).
+  - **Lowering MOCASSIN against Cloudy:**
+    - L-91, the dust, -0.021;
+    - L-92, charge transfer, -0.038;
+    - the metals' absorption, -0.008;
+    - the photoelectric dilution, -0.010;
+    - the dust as meant against Cloudy's, +0.003.
+  - **Raising MOCASSIN's return against case B:**
+    - its helium coefficients, about +0.030;
+    - the Monte Carlo above its coefficients, +0.044, unexplained.
+  - **Not measured:** what Cloudy's metals give back above 13.6 eV
+    (MOCASSIN's: 0.003 Q(H), ground continua only; it carries no EUV metal
+    lines).
+  - **Measurement scatter:** D-446's alpha_B fit against Cloudy's own
+    coefficient, 1.3%; MOCASSIN's H photoionizations over Draine's case A,
+    1.1%.
+  - **Corrections to D-448:**
+    - "MOCASSIN's graphite absorbs x1.20-1.38 more per H" is mostly L-91;
+      the material and volume give x1.03-1.21;
+    - "fewer photons back per helium recombination, or the metals keep
+      more" is not what the coefficients show. The identified gas terms are
+      charge transfer, the metals' absorption and the photoelectric
+      dilution, against helium coefficients and a Monte Carlo that both
+      return more.
+
+### Not known
+
+  - Why the Monte Carlo re-emits 4.2% more ionizing photons than its
+    coefficients.
+  - Cloudy's metals' return above 13.6 eV.
+  - Which other `locate` calls can take their table's last entry.
+  - How much of the gap the two defects close when fixed. Each needs its
+    own run (an attribution needs its own test).
+
+### Status
+
+Done (2026-11-01). Recorded in doc/pdr-status.md: L-91 and L-92 open (High),
+and L-90's open bullet carries this split. The two new table rows moved L-37's
+body by two lines, so its fortref golden (docs/_ext/fortref/tests/test_golden.py)
+is now 365-403, checked against the file. The docs build (-W), fortref check
+(only fortref.unpushed) and pytest (109 passed) pass. Next, to be planned:
+  - `locate` at the last entry, with its callers audited;
+  - charge transfer above 1+ in hydrogen's balance;
+  - a diagnostic of the gas re-emission per cell (its total against the
+    absorbed power, and its ionizing photons by component) for the 1.042;
+  - then pn150k (and hiipdr as the regression) rerun, with predictions on
+    record.
 Nothing is pushed or installed.

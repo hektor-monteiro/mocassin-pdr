@@ -143,6 +143,8 @@ aesthetics. Resolved items are in section 4.
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
 | L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421 |
+| L-91 | A Q-file species' largest grain takes cross sections extrapolated from the two smallest | High | D-449 |
+| L-92 | Hydrogen's balance leaves out the charge transfer of ions above 1+ | High | D-449 |
 | L-4 | The diffuse field's formal solution recovers 52-130% of the Monte Carlo's, unexplained | Medium | D-348 |
 | L-47 | `ionBalance` trails the chemistry by one iteration before the last | Medium | D-402, D-403, D-404 |
 | L-48 | Charge transfer with H: helium below 6,000 K, steps where the data sets join, hiipdr's Mg I | Medium | D-402, D-403 |
@@ -454,6 +456,37 @@ predates D-420. It matters for the H2 rotational lines of dense models: in
 D-421's K1a dust10 pair, 0-0 S(2) moved x13.5 and S(1) x2.44 through one cell
 at 955 K. The per-iteration record that would decide it is not built. Treat the
 H2 rotational lines of such models as unconverged.
+
+**L-91. A Q-file species' largest grain takes cross sections extrapolated
+from the two smallest** (D-449). `interpolation_mod`'s `locate` returns 1 when
+its argument equals the table's last entry, a "legacy compatibility intercept"
+that bc45d02 kept from upstream's `minloc` form. `makeDustXsec` locates each
+model radius among a Q file's radii, and `tools/mkqfile.py` writes the model's
+own radii, so the largest radius lands on the last entry. Its Qabs, Qsca and g
+are then a linear extrapolation from the first two radii: for pn150k's
+grph-avg.cat, from 0.005 and 0.0056 um to 0.25 um. Rebuilt with the intercept,
+the absorption per H matches the code's absOpac/n_H to 1.0000 in every bin from
+1 to 30 Ryd; rebuilt as the file means, 0.74-0.96 of it. With pn150k's MRN
+sizes, the size-weighted cross sections as run, over the file as meant:
+  - absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 over 0.09-0.2 um;
+  - V-band extinction x0.988; absorption at 2-10 um x0.91-0.95;
+  - the scattering-weighted g reaches 1.29 at 4 Ryd.
+pn150k's grains absorb 0.129 Q(H) of the ionizing photons, against 0.109 with
+the file as meant (Cloudy 0.112). Any other `locate` call whose argument can
+equal the last table entry gets the same index; those calls are not audited.
+The nk path computes Mie at each radius and is unaffected (hiipdr, the slabs).
+Recorded, not changed: it waits for a plan.
+
+**L-92. Hydrogen's balance leaves out the charge transfer of ions above 1+**
+(D-449). `ionBalance` applies Kingdon & Ferland's X^(i+) + H -> X^((i-1)+) + H+
+to each heavy element's recombination, times n(H0). Hydrogen's own balance
+takes only He+ + H and the network's net of the linked neutral/first-ion pairs
+(D-402, D-403), so the H+ that ions above 1+ make is never counted. On
+pn150k's grid these reactions ionize 0.038 Q(H) of hydrogen (O2+ 0.024, O3+
+0.005, C3+ 0.004, N 0.003, Ne 0.001). Cloudy's hydrogen balance carries 0.031
+Q(H) of ionization that is not 1s photoionization, collisions or secondaries,
+spread in radius as MOCASSIN's estimate is. A run without `pdr` gives hydrogen
+no charge transfer at all. Recorded, not changed: it waits for a plan.
 
 ### Medium
 
@@ -2030,8 +2063,21 @@ The section 2 numbers are the v2.0 release runs, which predate this.
       metals keep, and it is the other three quarters. Helium recombines at
       the same rate in both codes (He++ 0.176 and 0.177 Q(H)).
     The 9% earlier read as "presumably dust" treated helium as a sink.
-    Still to separate: helium's return per recombination and the metals'
-    absorption;
+    D-449 measured the parts offline (not additive, the field responds):
+    - most of the graphite's excess is L-91. With the Q file as meant the
+      dust absorbs 0.109 Q(H). Per H, the material differs by x0.99-1.18
+      and the grain volume per H by x1.04;
+    - the metals absorb 0.070 Q(H) against Cloudy's 0.062 (same cross
+      sections);
+    - charge transfer above 1+ makes 0.038 Q(H) of H ionizations that
+      hydrogen's balance leaves out (L-92);
+    - the photoelectric heat dilutes the gas re-emission by ~0.010 Q(H)
+      (L-51);
+    - in the other direction, helium's coefficients give more H-ionizing
+      photons than case B (He I's 2^3S line for every recombination, no 584 A
+      line), and the Monte Carlo re-emits 1.101 Q(H) against the 1.057 its
+      coefficients imply. That excess is unexplained;
+    - what Cloudy's metals give back above 13.6 eV is not measured;
   - the pure-hydrogen residual (D-446: 3.22 Q(H) with the fix);
   - whether L-65's 1-Ryd premise holds;
   - the 2s share of the n=2 term is emitted as Lya, not as two-photon
