@@ -1189,6 +1189,7 @@ but still listed as open until this page's audit.
 | L-49 | The damping across iterations, now off by default | 2026-10-14 | D-405, D-406 |
 | L-61 | Levels listed out of energy order broke the collision rates | 2026-10-17 | D-418 |
 | L-62 | The mean dust temperature averaged empty size bins at T = 0 | 2026-10-16 | D-414 |
+| L-90 | The gas cooled by collisional excitation of H I and emitted none of it | 2026-10-31 | D-446, D-447 |
 
 **L-1. Line transport was discarding energy, and every result predating
 D-307 was computed that way.** Diffuse line photons were deleted rather than
@@ -1995,6 +1996,36 @@ convergence test and `pdrRad.out`. It is exact where a species fills the grid,
 as in both fixtures (21 of 22 outputs byte-identical, `summary.out` different
 only in clock times). What one temperature for both materials still does is
 L-54.
+
+**L-90. The gas cooled by collisional excitation of H I and emitted none of
+it** (D-446). updateCell's thermal balance includes Mathis's Lya + Lyb
+collisional cooling (coolColl). The re-emission spectrum, the grains' Lya
+heating and the reported lines had recombination Lya only. A gas absorption
+re-emits its whole energy in the shape of the spectrum it has, so the missing
+channel's energy left partly as Lyman continuum that ionized again:
+test_Problem recombined 1.163 Q(H) in case-B hydrogen (Hbeta 0.483 E36), and
+the same model in pure hydrogen 4.61 Q(H). Upstream has the same defect. Its
+forced skip (removed at D-147) deleted the extra Lyman continuum in thick
+cells, together with the true on-the-spot field, which is why the original
+recombined only 0.52 Q(H).
+**CLOSED 2026-10-31 (D-447).** emission_mod's hICollExc owns the fit.
+coolColl reads it unchanged; the spectrum, resLineHeating and the reported
+lines add the same energy: the n=2 term and 27/32 of the n=3 term as Lya,
+5/32 of the n=3 term as Halpha (case B). Effects:
+  - test_Problem: 0.989 Q(H), Hbeta 0.410 (x0.850), Lya x2.26, Halpha/Hbeta
+    x1.075, ionized T_dust +2.1%;
+  - hiipdr: unchanged within noise (Hbeta x0.9989);
+  - pn150k: Hbeta x0.934, which is 0.904 of Cloudy's (from 0.964). Its
+    case-B recombinations go 0.974 -> 0.910 Q(H), Lya x1.58, ionized T_dust
+    +3.7%, and [C II] 158, [O I] 63 and H2 x0.98-0.995 (absolute).
+The section 2 numbers are the v2.0 release runs, which predate this.
+**Open:**
+  - pn150k's 9% of Q(H) that neither recombines on H nor escapes. It is
+    presumably absorbed by dust, while Cloudy recombines ~100%; not measured;
+  - the pure-hydrogen residual (D-446: 3.22 Q(H) with the fix);
+  - whether L-65's 1-Ryd premise holds;
+  - the 2s share of the n=2 term is emitted as Lya, not as two-photon
+    continuum.
 
 ### Checks done since they were listed in section 5
 

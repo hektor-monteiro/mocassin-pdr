@@ -446,7 +446,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
 | D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
 | D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
-| D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). Predictions on record for test_Problem (plain), hiipdr and pn150k (3D) | Open | 2026-10-31 |
+| D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -44453,3 +44453,72 @@ B-tp (test B):
     0.010/0.024/0.055/0.152/0.026 by A_V band, against
     0.010/0.025/0.057/0.150/0.026 in the base, so the noise is unchanged.
     A 1-5 K move at 10-50 K is inside it.
+
+### Results: pn150k (2026-10-31 20:10-22:30)
+
+**pn150k** (runs/_d447/pn41, 3D build), against rel-pn41:
+
+    quantity                     base          new           new/base   predicted
+    Hbeta [E36]                  0.026909      0.025126      0.9338     0.95-0.995       missed
+    case-B rec / Q(H)            0.9737        0.9102        0.9347     0.5-5% below     missed (6.5%)
+    Lya row/Hbeta                23.385        36.905        1.5782     1.35-1.55        missed (just above)
+    Halpha/Hbeta                 2.8186        2.9705        1.0539     1.02-1.06        held
+    ionized T_e median (x>0.5)   12304         12415         1.0090     within 1%        held
+    ionized T_dust median        71.74         74.40         1.0370     up 0-5%          held
+    [O I] 6300/Hbeta             0.4365        0.4791        1.0977     0.90-1.02        missed (abs. x1.025)
+    [C II] 158                   -             -             abs. 0.984, /Hbeta 1.054   within 5%   held (absolute)
+    [O I] 63                     -             -             abs. 0.995, /Hbeta 1.065   within 5%   held (absolute)
+    H2 1-0 S(1) .. 0-0 S(0)      -             -             abs. 0.98-0.99, /Hbeta 1.05-1.06   held (absolute)
+    [D376] drawn, iteration 18   1.216e6       1.619e6       1.33       rise             held
+
+  - **Health:**
+    - rc 0, 18 iterations, 2:19:28; no NaN, Singular, CVODE or
+      insane_eta;
+    - the integrated test's last window: 0.63% (He+), against the base's
+      1.55% (T(H0)).
+    - **Flagged cells 3 -> 6**, predicted "no new": missed. Five of the six
+      sit at the front (r 0.147-0.152 pc, T_e 5200-6500 K, x(H+)
+      0.012-0.022), against one front cell in the base. They hold 0.001% of
+      the grid's Hbeta. Which balance flagged them is not recorded: both
+      report 0% of cells failed, which is six cells rounded.
+  - **Noise:** D-408 measured Hbeta x1.0000 between 6e6 and 2.4e7 packets
+    on pn150k, and d365_noise's per-cell T_gas and chi scatter is unchanged.
+    So -6.6% is the change, not noise.
+  - **Lines.** The heavy-element lines over Hbeta rise 0.3-6% because
+    Hbeta falls. In absolute terms: [O III] 5007 x0.966, [N II] 6584 x0.937,
+    He II 4686 x0.989.
+  - **The divergence from Cloudy grows.** D-408 had pn150k's Hbeta at 0.964
+    of Cloudy's (2.778e34 erg/s); it is now 0.904.
+    - Cloudy's Hbeta/Q(H) = 4.83e-13 erg is the case-B value at pn150k's
+      ~12 kK (4.81e-13), so Cloudy recombines ~100% of Q(H).
+    - Our code now recombines 91.0%, and no ionizing light escapes (SED.out
+      above 1 Ryd: 0).
+    - So 9% of Q(H) is absorbed by something other than hydrogen and not
+      returned. Presumably that is the dust, but it is not measured.
+    - The old 0.964 was partly the missing channel's excess Lyman continuum
+      offsetting that loss. Reported, not tuned (CLAUDE.md).
+  - **Prediction scoring** for the whole entry:
+    - test_Problem: 7 of its 8 tabulated predictions held (the Lya row,
+      x2.26 against 1.8-2.2, missed), and the [D376] "rise" missed.
+      ea353d3's message said "9 of 10".
+    - hiipdr: all held.
+    - pn150k: 5 of 10 held (its eight table rows, the flagged cells and
+      [D376]). Hbeta, the recombinations, Lya and [O I] 6300 moved further
+      than predicted, and the flagged count rose.
+
+### Status
+
+Done (2026-10-31). The fix is 8d82a56. L-90 is recorded closed in
+doc/pdr-status.md.
+Not done:
+  - pn150k's 9% of Q(H) neither recombined nor escaping (against Cloudy's
+    ~100%): measure the dust's share of the ionizing absorption in both
+    codes;
+  - the five flagged front cells in pn150k;
+  - the pure-hydrogen residual (D-446);
+  - L-65's premise;
+  - the dead `Te4` in thermBalance;
+  - bench/data, the tutorial's numbers and the Cloudy pages, which are
+    release-run numbers that predate this;
+  - the merge into h2-model.
+Nothing is pushed or installed.
