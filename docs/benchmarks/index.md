@@ -18,7 +18,11 @@ explains why). The rest of this page describes the two PDR models; {doc}`lexingt
 Both models are uniform spheres around one source, computed in one octant
 (`symmetricXYZ`). Cloudy solves the same sphere in one dimension, with matched
 abundances, grains and cosmic-ray ionisation. Its inputs are in the repository
-(`benchmarks/pdr/hiipdr/cloudy/` and `benchmarks/pdr/pn150k/cloudy/`). MOCASSIN's cells
+(`benchmarks/pdr/hiipdr/cloudy/` and `benchmarks/pdr/pn150k/cloudy/`).
+Since {devlog}`D-458` they make the sphere static (`sphere static`), as MOCASSIN's nebula,
+which has no velocity field. Cloudy's default sphere assumes expansion, which lets lines leave
+through the central hole ({devlog}`D-457`). The Cloudy numbers on these pages still come from
+the expanding runs of {devlog}`D-396` until the pages are regenerated. MOCASSIN's cells
 are compared with Cloudy's zones at the same visual extinction from the star, $A_V$.
 At each $A_V$ the figures show:
 - **MOCASSIN-PDR:** the median of the cells in log-spaced $A_V$ bins, finer through the

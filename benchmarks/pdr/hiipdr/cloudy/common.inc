@@ -4,7 +4,9 @@ Q(H) 49.629
 # ---- geometry: Rin 3e18 cm (MOCASSIN "Rin 30.e17"; 3e17 before D-277), Rout 6e19 cm,
 #      closed sphere (MOCASSIN symmetricXYZ octant)
 radius 18.4771 19.7782
-sphere
+# D-458: static, as MOCASSIN's nebula, which has no velocity field. Cloudy's default sphere is expanding: line
+#      photons leaving the illuminated face escape the far side, which let pn150k's Lya out through the hole (D-457).
+sphere static
 # ---- gas: Hdensity 100, abunV1.in (H He C N O Ne Mg S only)
 hden 2
 element abundance helium -1.0
