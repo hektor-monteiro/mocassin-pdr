@@ -142,7 +142,6 @@ aesthetics. Resolved items are in section 4.
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
 | L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421 |
-| L-19 | The two codes' local fields differ in their band shares (measured against Cloudy's expanding sphere); against its static sphere the PDR's grains agree | Medium | D-307, D-353, D-376, D-458 |
 | L-4 | The diffuse field's formal solution recovers 52-130% of the Monte Carlo's, unexplained | Medium | D-348 |
 | L-47 | `ionBalance` trails the chemistry by one iteration before the last | Medium | D-402, D-403, D-404 |
 | L-48 | Charge transfer with H: helium below 6,000 K, steps where the data sets join, hiipdr's Mg I | Medium | D-402, D-403 |
@@ -166,6 +165,7 @@ aesthetics. Resolved items are in section 4.
 | L-88 | The resonance lines' escape probability samples only the eight body diagonals | Medium | D-444 |
 | L-93 | A plain build's hydrogen takes no charge transfer from the neutral/first-ion pairs | Medium | D-449, D-450 |
 | L-94 | He I re-emits its 19.8 eV line for every recombination and has no 584 A line | Medium | D-449 |
+| L-19 | MOCASSIN's field in the PDR is 1.14-1.28x Cloudy's, in the optical and the dust infrared; against Cloudy's static sphere the FUV and the grains agree | Low | D-307, D-353, D-376, D-458, D-460 |
 | L-11 | The 1D slabs and `ifront` have not been rerun (out of scope) | Low | D-338 |
 | L-12 | `thermBudget.out`'s cooling columns are bookkeeping, and its PDR heating lags an iteration | Low | D-304, D-421 |
 | L-15 | `getQs` caps the Mie size parameter at 100 | Low | D-305 |
@@ -381,6 +381,40 @@ Cloudy's geometry. The band shares of the local field (the FUV's 0.094 against
 0.255 at A_V 0.30) have not been re-measured against the static sphere: that
 needs a Cloudy run saving the local continuum in every zone, for
 `tools/d307_fieldcmp.py`. Lowered from High to Medium (D-459).
+**The band split against the static sphere (D-460).** Two Cloudy field runs
+of pn150k were made on the committed input with D-306's every-zone continuum
+save (runs/_d460): static, and an expanding control. They were compared with
+pn-LC.
+  - **The control** reproduces D-306's split within 1.3%: the turbulence added
+    at D-396 does not move it.
+  - **Cloudy as a static sphere:**
+    - its FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's
+      (0.67 at 0.15);
+    - its FUV share at A_V 0.30 is 0.127 (0.255);
+    - the energy reappears beyond 9.1 um (<0.01 Ryd), at 1.19-1.59 times the
+      expanding sphere's: the dust emission of the Lya its grains now
+      destroy;
+    - 0.21-9.1 um (0.01-0.44 Ryd) is unchanged (0.99), and Fbol/thin moves
+      by 1.01-1.07.
+  - **MOCASSIN over Cloudy's static sphere,** absolute, at A_V
+    0.15/0.20/0.30/0.50/0.65:
+    - FUV 0.84/1.03/1.00/0.96/0.91 (0.46-0.56 against the expanding sphere);
+    - 0.21-9.1 um 1.31/1.18/1.13/1.10/1.06;
+    - beyond 9.1 um 1.44/1.39/1.37/1.31/1.21 (1.43-2.29);
+    - Fbol 1.28/1.26/1.24/1.21/1.14.
+
+    The shares at A_V 0.30 are 0.103/0.323/0.575 in MOCASSIN against
+    0.127/0.354/0.519 in Cloudy. rel-pn41 gives the FUV within 0.06 and
+    Fbol within 0.011 of these, with 0.21-9.1 um 0.08-0.11 higher and beyond
+    9.1 um 0.02-0.10 lower.
+
+So the FUV difference was Cloudy's expanding sphere. What remains is the
+bolometric excess D-307 found, 1.14-1.28x. It is now in the optical and the
+dust infrared, where the grains absorb less per unit energy than in the FUV,
+and the PDR's grains agree (1.00 and 0.99). Its cause is not known. One
+candidate, untested: Cloudy transfers the diffuse continuum outward only,
+whereas MOCASSIN's mean intensity takes it from every direction. Lowered to
+Low (D-460).
 
 **L-37. Unresolved ionization-front cells dominate the [O I] lines**
 (D-362). 92% (hiipdr) and 74% (pn150k) of [O I] 63 um comes from cells with
