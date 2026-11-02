@@ -453,6 +453,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. | Done | 2026-11-01 |
 | D-452 | **pn150k's escaped SED, MOCASSIN against Cloudy (the user: "I want to see a comparison of cloudy and mocassin for the escaped sed for the pn150kk models"); 150 kK PN Against Cloudy v32 adds it as "The escaped spectrum".** runs/_d450/pn-LC's SED.out against runs/d396-cloudy-pn/150k.cont (total column), both nu L_nu, Cloudy rebinned onto MOCASSIN's bins by energy (runs/_d452/sed.py). MOCASSIN holds 1.000 L*, Cloudy 0.973 (0.027 L* unaccounted, not examined). Nothing above 13.6 eV escapes either. Agree: 1-5 um 1.01, 60-300 um 0.98 (dust continuum 0.97); 0.21-1 um 0.92 ([O III] 5007 0.97, Halpha 0.98, C III] 1909 0.68). Differ: Lya leaves Cloudy at 0.082 L* (its own emergent line list: 0.022; D-291's continuum-attenuated outward lines) and MOCASSIN at 0.004 (it makes 0.244, D-376 destroys it in the grains); 5-60 um MOCASSIN 1.50x (dust continuum 1.67x), +0.149 L* = Cloudy's extra UV-optical 0.116 (0.079 Lya) + its missing 0.027 within 0.006 - the budget reading (Lya heating MOCASSIN's grains instead) is untested. Found on the way: MOCASSIN's SED bin j holds nu_j <= nu < nu_j+1 while widFlx is centred; v31's two doubled percent signs corrected. |
 | D-453 | **Audit of D-445..D-451, and the documentation brought up to date (the user: "Analyse te changes, audit them and update the documentation as needed.").** The code of D-447 and D-450 read against the DEVLOG: hICollExc, the diagnostic's columns, `locate` and charge transfer above 1+ are as described, with no double count in the chemistry. `locate`'s 112 callers audited: besides L-91, the fix also corrects the plane-parallel launch (10% of the slabs' packets per axis started in column 2), the `2D` mapping and a star at coordinate 1.0, and turns getTmin's all-zero-row corner case from 1 K to 2999 K (L-96, Low). One gap: `lineFlux.out`'s resonance-line table still counts recombination Lya only (L-95, Low; pn-LC 23.4 against the row's 35.4 Hbeta). Stale source comments added to L-77. Records fixed: D-451's index row (missing cells, so absent from the devlog index), L-65 (emitted since D-447; its premise in doubt), D-449 cited for D-450's changes, L-92 linked for L-93, and the tutorial's claim that later code computes its model as v2.0.1. Lexington rerun on the current plain build: HII40/HII20/PN75 within 0.7% (HII40 [O I] +1.9%), PN150 Hbeta +0.4% and lines -2.4 to -4.1%, no in-range change. Docs: core chapters, photorates, outputs, benchmark pages (D-451's pn150k shifts), tutorial note. | Done | 2026-11-01 |
+| D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -45961,3 +45962,104 @@ Not done:
   - **The merge into h2-model**, which brings D-447 and D-450 there and so
     needs the builds.
 Nothing is pushed or installed.
+
+## D-454 - SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (2026-11-01)
+
+The user (2026-11-01, after D-452): "I would like to have the escaped
+SEDs outputed by writeSED to be just continuum as it was previously."
+Asked where the line energy should then go (stay recorded in a separate
+file, a trailer total only, or nowhere), they chose "Separate file". The
+plan was approved as written (~/.claude/plans/iridescent-stirring-pie.md).
+
+### What "previously" was (read in photon_mod.f90)
+
+  - **Before D-292** newPhotonPacket gave a line packet nuP = 0 and lgLine,
+    and energyPacketRun never traced one. Its energy reached no output, so
+    SED.out was the continuum (and its total fell short of L* by the
+    lines).
+  - **Since D-292** (the default since D-307, the only behaviour since
+    D-352), a line with a frequency bin is made by
+    initPhotonPacket(nuP, ..., lgLine = .false., ...). pathSegment
+    transports it like continuum, and on escape it is added to
+    escapedPackets.
+  - So SED.out carries the lines in the bins that hold them. By the
+    running-median excess of runs/_d450/*-LC that is 0.29 of pn150k's
+    SED.out energy and 0.041 of hiipdr's.
+  - At escape a transported line cannot be told from continuum: its lgLine
+    is false.
+
+### Design (the plan)
+
+  - **Line transport stays.** It is physics (D-291, D-292): the lines heat
+    the dust and carry the PDR's FUV field. Only the escape bookkeeping
+    changes, and no keyword is added.
+  - **A packet flag, lgLineTr:**
+    - false in initPhotonPacket;
+    - true in newPhotonPacket for a line drawn with a bin (nuP > 0) that
+      the dust did not destroy. A resonance line D-376 destroys leaves as
+      dust emission, which is continuum.
+    - Carried across the one in-flight rebuild, the dust scattering's
+      initPhotonPacket at photon_mod.f90:2154. Absorption ends a packet,
+      and re-emission makes a new one.
+  - **The seven escape blocks** of photon_mod are each
+    `if (nAngleBins>0) then ... else ... end if` followed by return, with
+    the same increment deltaE(iStar)*weight: one in energyPacketRun's
+    dust-free shortcut and six in pathSegment. Each is wrapped so that a
+    flagged packet adds to escapedLines(nuP) instead.
+  - **escapedLines** is in common_mod: double precision (0:nbins), raw
+    energy in escapedPackets' units [1e36 erg/s], all directions.
+    - It is zeroed in iterateMC where escapedPackets is, and summed over
+      ranks after D-376's counters.
+    - Raw is the right normalisation: escapedPackets' /8 in iterateMC and
+      writeSED's x8 under symmetricXYZ cancel, and pn150k's raw SED total
+      is L*.
+  - **writeSED:**
+    - SED.out's rows and first trailer line are unchanged in format (so
+      mocread.read_sed still reads it);
+    - two trailer lines follow: the line total and continuum + lines;
+    - output/SEDlines.out (unit 76) holds nu, lambda and F_nu D^2 per bin,
+      over all directions, then its total.
+  - **Every other reader of escapedPackets already treats it as
+    continuum:** writeContCube (a continuum cube), totalEscaped (printed),
+    totEscapedPackets (never written).
+  - **Out of scope:** fluorescence_mod is not in the Makefile.
+  - **Rule served:** one reality per quantity. escapedPackets is the
+    escaping continuum, and the line energy is booked once, in its own
+    array.
+
+### Predictions (on record before the runs)
+
+Runs: hiipdr with the new 3D binary on runs/_d450/hii-LC's input
+(`runs/_d454/hii-S`; no source has changed since D-450's LC binaries,
+so hii-LC is an exact baseline), and HII40 (benchmarks/gas, no dust,
+randomSeed 1001 added) with the old and new plain binaries (hii40-A,
+hii40-B).
+
+  - **Byte identity:**
+    - hii-S equals hii-LC in every output file but SED.out: lineFlux*,
+      grid0-3, dustGrid, pdrGrid, convergence, thermBudget, h2Cells,
+      reemission, frontField, resLineEsc, photoSource, tauNu, temperature,
+      ionratio, summary;
+    - hii40-B equals hii40-A the same way.
+
+    The flag draws no random number and changes no packet's path.
+  - **SED.out keeps its rows** (nu, lambda identical). F(new) <= F(old) in
+    every bin, and they are equal wherever SEDlines.out is 0.
+  - **Per-bin closure:** |F_old - (F_new + F_lines)| <= 1e-5 F_old + 1e-30.
+  - **Trailer closure:** continuum + lines equals the old total within
+    1e-5 relative (hiipdr's old total 3076.665e36 erg/s).
+  - **Line share:**
+    - hiipdr: 0.035-0.08 of the old total (0.041 by the running-median
+      excess, a lower bound where lines blend);
+    - HII40: 0.22-0.38. Every line below 13.6 eV escapes at
+      energyPacketRun's shortcut; 41% of a 40 kK blackbody's energy is
+      ionizing, and the gas re-emits most of what it absorbs in lines.
+  - **Health:** rc 0 for all three; hii40-A and hii40-B run the same number
+    of iterations, and hii-S runs 15 as hii-LC did.
+  - **What would change the reading:**
+    - any non-SED file differs: the flag changed a packet's history, so it
+      is back to planning;
+    - the per-bin closure fails in line bins: a block was missed or the
+      flag was lost;
+    - SEDlines.out is 0 for HII40: the shortcut block was not wrapped, or
+      the flag was not set.
