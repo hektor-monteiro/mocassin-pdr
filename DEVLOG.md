@@ -47038,3 +47038,100 @@ in the continuum), so the PDR's field moves.
 **What would change the reading:** if pn150k's PDR field does not fall, the
 field's Lya was not the expanding-sphere artifact D-291 described, and
 `static` would be a choice of geometry alone, with no bearing on the PDR.
+
+### Results: the static spheres (runs/_d458, 13:21-13:31)
+
+The runs:
+  - **cl-pn:** 654 zones, 2 iterations, 243 s (the expanding run took 498 s
+    for 640 zones).
+  - **cl-hii:** 713 zones, 4 iterations, 598 s (iteration 3 was not
+    converged on He-like subordinate lines; the expanding run took 857 s,
+    697 zones and 3 iterations).
+  - **Both stopped at the outer radius.** The committed inputs were changed
+    after the runs were set up, by comments only.
+
+**Corrected on the way.** `runs/_d456/ana/cloudy_out.py` and budget.py read
+the FIRST intrinsic and emergent blocks of a listing. hiipdr's listing has no
+`print last` and holds every iteration, so the hiipdr numbers quoted in the
+predictions (Lya 0.0095, GraL 0.064) were iteration 1's. Both readers now
+take the last block. The last iteration gives 0.0096 and 0.0642, and every
+other listing read in D-456 to D-458 holds one block, so nothing else moves.
+
+    pn150k                              Cloudy expanding   Cloudy static   MOCASSIN (pn-LC)
+    Lya intrinsic / GraL / continuum    .156/.063/.082     .0015/.205/.0035  made .244, escaped .004
+    GraT [L*]                           0.443              0.537
+    G0 at A_V 0.20/0.30/0.50/0.65       169/68.3/20.1/10.0 84.5/34.4/10.1/5.0
+    T_gas at A_V 0.20/0.30/0.50/0.65    172/60.8/45.3/36.0 131/48.9/33.2/28.0 179/48.4/32/26
+    MOCASSIN/Cloudy T_gas, same depths  1.04/.80/.70/.71   1.36/.985/.955/.916
+    T_dust ratio A_V .05/.10/.20/.65    1.01/1.05/.95/.94  .95/.98/1.00/.99
+    H/H2 crossing [A_V]                 0.368              0.362             0.419
+    Hbeta (MOCASSIN/Cloudy)             0.950              0.942
+    case-B H recombinations [Q(H)]      0.982              0.991             0.957
+    [C II] 158 / [O I] 63 (M/C)         0.625 / 1.52       1.047 / 1.82
+    [C I] 609 / CO 2-1 / [O III] 5007   0.53 / 0.45 / 1.05 0.48 / 0.59 / 1.10
+    H2 1-0 S(1) (M/C)                   1.23               1.64
+    escaped total [L*]                  0.973              0.985             1.000
+    escaped FUV / 5-25 / 25-60 / 60-300 um (M/C)   .41/1.51/1.50/.98      .80/1.10/1.08/1.08
+    escaped Lya [L*]                    0.082              0.003             0.004
+
+    hiipdr                              Cloudy expanding   Cloudy static   MOCASSIN (hii-LC)
+    Lya intrinsic / GraL                0.0096 / 0.0642    9e-5 / 0.0735
+    G0 at A_V 0.70/1.00/2.00/2.90       74.8/23.8/1.94/0.404  72.5/23.2/1.92/0.402
+    T_gas at A_V 0.70/1.00              45.6/43.5          48.0/45.2       50.5/45.9
+    H/H2 crossing / C+ = C [A_V]        1.280 / 2.93       1.278 / 2.93    1.393 / 2.28
+    ionized T_gas 1/2/3 pc (M/C)        .924/1.018/1.044   .920/1.013/1.038
+    Hbeta (M/C)                         0.927              0.920
+    [C II] 158 / [O I] 63 (M/C)         1.29 / 7.47        1.66 / 7.46
+    H2 1-0 S(1) (M/C)                   0.75               0.75
+
+**pn150k.**
+  - **What moved.** As a static sphere Cloudy's Lya is destroyed where it is
+    made, as MOCASSIN's is. Its PDR field halves at every depth, and its PDR
+    gas cools by 10-28%.
+  - **The PDR temperature.** It agrees with MOCASSIN's past A_V 0.3 (0.92-0.99
+    where it was 0.70-0.80). At A_V 0.20, just behind the front, MOCASSIN is
+    now 1.36x.
+  - **The dust and the escaped spectrum.** The grains agree within 1% in the
+    PDR and 5% in the ionized gas. The escaped spectrum agrees within 10% from
+    1 um to 300 um, and Lya leaves both at 0.003-0.004 L*.
+  - **The lines.** [C II] 158 goes from 0.63x to 1.05x. [O I] 63 (1.52 ->
+    1.82) and H2 1-0 S(1) (1.23 -> 1.64) move apart, since both fall in
+    Cloudy with the colder PDR gas (by 16% and 25%).
+  - **Further apart:** the crossing gap (0.052 -> 0.057 mag) and the case-B
+    recombinations (0.025 -> 0.034 Q(H)). Cloudy's grains took the same
+    share of Q(H) as MOCASSIN's against the expanding sphere (D-450); this
+    has not been re-measured for the static one.
+
+**hiipdr.**
+  - Cloudy already destroyed its Lya locally, so the field, the
+    temperatures, the transitions and Hbeta move by 0.2-5%.
+  - The exception is [C II] 158, which falls 22% in Cloudy: MOCASSIN/Cloudy
+    goes from 1.29 to 1.66, while [O I] 63 and H2 do not move. The reading
+    (not tested) is the line's optical depth: a static sphere doubles every
+    line's total optical depth, and [C II] 158 is thick in this PDR.
+
+**Scored:**
+  - **hiipdr:**
+    - HH1 holds (9e-5; 0.0735).
+    - HH2 holds (field -2 to -3%, T_gas within 5%, crossing 0.2%, C+ = C
+      unchanged).
+    - HH3 holds for Hbeta (+0.7% in Cloudy), the ionized T_gas (0.6%),
+      [O I] 63 (0.3%) and S(1) (0.3%). It **fails for [C II] 158**
+      (-22%, predicted within 5%).
+  - **pn150k:**
+    - PP1 holds.
+    - PP2 holds at its upper end (-50%).
+    - PP3 holds for MOCASSIN/Cloudy (0.92-0.99). It fails for Cloudy's own
+      fall at A_V 0.50-0.65 (27-28%, predicted 5-25%).
+    - PP4 holds (-1.4%).
+    - PP5 holds for the far UV (0.80) and 60-300 um (1.08). It **misses
+      5-60 um low** (1.08-1.10, predicted 1.10-1.35): it agrees better than
+      predicted.
+    - PP6 holds (0.985).
+    - **PP7 fails for every line but Hbeta:** [O III] 5007 -4.3% (predicted
+      within 2%), and Cloudy's [C II] 158 -40%, [O I] 63 -16% and S(1)
+      -25% (predicted 0-15%).
+    - PP8 holds (+7% and +7%; 0.95 and 0.98).
+  - **The reading that would have changed** (the field not falling) did not
+    happen. Lya in the expanding sphere's PDR was the artifact D-291
+    described, and it set Cloudy's PDR temperature and fine-structure lines.
