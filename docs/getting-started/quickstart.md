@@ -62,7 +62,8 @@ message out of the log.
 `output/` now holds the model: the grid with each cell's temperature, density and ionisation
 (`grid0.out` to `grid2.out`) and the model's parameters (`grid3.out`), the line luminosities (`lineFlux.out`), the mean temperatures and
 ionisation fractions (`temperature.out`, `ionratio.out`) and the spectrum that leaves the nebula
-(`SED.out`). {doc}`../user-guide/outputs` describes every file.
+(`SED.out`; in code after release `pdr-coupling-v2.0.2`, the continuum, with the lines in
+`SEDlines.out`, {devlog}`D-454`). {doc}`../user-guide/outputs` describes every file.
 
 **A first look.** `tools/mocread.py`, in your checkout, reads these files with numpy
 ({doc}`../user-guide/python`). Run as a script, it summarises a model:

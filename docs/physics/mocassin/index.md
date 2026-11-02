@@ -13,8 +13,8 @@ From the converged model it computes the line and continuum emission and the spe
 the nebula.
 
 These pages describe MOCASSIN as it is in this repository at the commit shown at the foot of every
-page: release `pdr-coupling-v2.0.2` and the fixes made since ({devlog}`D-447`, {devlog}`D-450`). They
-give:
+page: release `pdr-coupling-v2.0.2` and the changes made since ({devlog}`D-447`, {devlog}`D-450`,
+{devlog}`D-454`). They give:
 - what each part computes, with a link to the code that does it;
 - what this project changed, cited by its DEVLOG entry (D-nnn);
 - what is known to be wrong, cited by its item on the {doc}`limitations page <../limitations>`

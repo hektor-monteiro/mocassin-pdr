@@ -692,6 +692,8 @@
   description: |
     Writes `contCube.out`, a 3D cube of the escaping continuum between the
     two wavelengths, in the `inclination` direction or over all directions.
+    Until D-454 it also held the transported lines that fall in the band.
+  devlog: [D-454]
 
 - name: getEquivalentTau
   group: output
@@ -712,7 +714,9 @@
   description: |
     Light-echo geometry: `SED.out` is integrated only over cells between the
     ellipsoids of light-travel times t1 and t2 (light days), opening along
-    z; use with `inclination 1 0.0 -1`. Writes `echo.out`.
+    z; use with `inclination 1 0.0 -1`. Writes `echo.out`. `SEDlines.out`,
+    the escaping lines since D-454, is not restricted this way.
+  devlog: [D-454]
 
 - name: NoSourceSED
   group: output
@@ -724,6 +728,8 @@
     `SED.out` includes only the radiation escaping from cells that do not
     hold a source, i.e. the reprocessed emission without the direct
     starlight. Stored in the grid files, so `mocassinOutput` keeps it.
+    `SEDlines.out`, the escaping lines since D-454, keeps every cell's lines.
+  devlog: [D-454]
   see_also: ['output_mod.f90::writeSED@"if (lgNosource) then"..@"end if"']
 
 - name: frontLines
