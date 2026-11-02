@@ -453,7 +453,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. | Done | 2026-11-01 |
 | D-452 | **pn150k's escaped SED, MOCASSIN against Cloudy (the user: "I want to see a comparison of cloudy and mocassin for the escaped sed for the pn150kk models"); 150 kK PN Against Cloudy v32 adds it as "The escaped spectrum".** runs/_d450/pn-LC's SED.out against runs/d396-cloudy-pn/150k.cont (total column), both nu L_nu, Cloudy rebinned onto MOCASSIN's bins by energy (runs/_d452/sed.py). MOCASSIN holds 1.000 L*, Cloudy 0.973 (0.027 L* unaccounted, not examined). Nothing above 13.6 eV escapes either. Agree: 1-5 um 1.01, 60-300 um 0.98 (dust continuum 0.97); 0.21-1 um 0.92 ([O III] 5007 0.97, Halpha 0.98, C III] 1909 0.68). Differ: Lya leaves Cloudy at 0.082 L* (its own emergent line list: 0.022; D-291's continuum-attenuated outward lines) and MOCASSIN at 0.004 (it makes 0.244, D-376 destroys it in the grains); 5-60 um MOCASSIN 1.50x (dust continuum 1.67x), +0.149 L* = Cloudy's extra UV-optical 0.116 (0.079 Lya) + its missing 0.027 within 0.006 - the budget reading (Lya heating MOCASSIN's grains instead) is untested. Found on the way: MOCASSIN's SED bin j holds nu_j <= nu < nu_j+1 while widFlx is centred; v31's two doubled percent signs corrected. | Done | 2026-11-01 |
 | D-453 | **Audit of D-445..D-451, and the documentation brought up to date (the user: "Analyse te changes, audit them and update the documentation as needed.").** The code of D-447 and D-450 read against the DEVLOG: hICollExc, the diagnostic's columns, `locate` and charge transfer above 1+ are as described, with no double count in the chemistry. `locate`'s 112 callers audited: besides L-91, the fix also corrects the plane-parallel launch (10% of the slabs' packets per axis started in column 2), the `2D` mapping and a star at coordinate 1.0, and turns getTmin's all-zero-row corner case from 1 K to 2999 K (L-96, Low). One gap: `lineFlux.out`'s resonance-line table still counts recombination Lya only (L-95, Low; pn-LC 23.4 against the row's 35.4 Hbeta). Stale source comments added to L-77. Records fixed: D-451's index row (missing cells, so absent from the devlog index), L-65 (emitted since D-447; its premise in doubt), D-449 cited for D-450's changes, L-92 linked for L-93, and the tutorial's claim that later code computes its model as v2.0.1. Lexington rerun on the current plain build: HII40/HII20/PN75 within 0.7% (HII40 [O I] +1.9%), PN150 Hbeta +0.4% and lines -2.4 to -4.1%, no in-range change. Docs: core chapters, photorates, outputs, benchmark pages (D-451's pn150k shifts), tutorial note. | Done | 2026-11-01 |
-| D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. | Open | 2026-11-01 |
+| D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. | **Results (340b9f6; runs/_d454):** hiipdr against runs/_d450/hii-LC and a seeded HII40 pair are byte-identical in every output but SED.out (summary.out apart from its wall-clock times); continuum-only bins identical; continuum + lines = the old total within 1.6e-7 (hiipdr) and 1.2e-7 (HII40); line share 0.043 (hiipdr) and 0.275 (HII40, 56% of it Lya), as predicted; per-bin closure within 8.1e-6 (HII40) but up to 8.1e-5 in 15 hiipdr line bins, single-precision summation over 15k cells (both signs, line bins only, scaling with cell count), not a lost line. | Done | 2026-11-01 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -46088,3 +46088,76 @@ hii40-B).
       1057/1059.
   - **Noted:** a flagged line packet skips energyPacketRun's two origin
     sanity stops, which escapedLines does not need.
+
+### Results (2026-11-02)
+
+The runs:
+  - **Code:** 340b9f6, on top of the DEVLOG fixes 494c14e. All four
+    flavours and h2Test/h2Slab built (runs/_d454/build-S.log, 23:27-23:28).
+    pytest passed 109; the fortref check showed only fortref.unpushed;
+    `sphinx-build -W` was clean.
+  - **Runs:** one systemd unit (d454-runs), 14 ranks, launched 2026-11-01
+    23:28:59, all rc 0:
+    - hii40-A (old plain binary runs/_d450/bin/mocassin.plain.LC): 25 s;
+    - hii40-B (new): 29 s, both 18 iterations;
+    - hii-S (new 3D binary on hii-LC's input): 15 iterations as hii-LC,
+      34:13, ended 2026-11-02 00:04.
+  - **Comparison script:** runs/_d454/check.py OLD NEW.
+
+  - **Byte identity: held.**
+    - hii-S matches hii-LC in all 27 other outputs: convergence, dustGrid,
+      frontField, grid0-3, h2Cells, h2Pop.bin, ionratio, lineFlux,
+      lineFluxFront, lineFluxH2, lineFluxMol, pdrCoolSp, pdrFUV,
+      pdrFUVspec, pdrGrid, pdrLineEm, pdrRad, pdrReacRates, photoSource,
+      reemission, resLineEsc, tauNu, temperature, thermBudget.
+    - hii40-B matches hii40-A in all 10.
+    - summary.out differs in both pairs, but only in the wall-clock time
+      each iteration finished. The prediction should have excluded those
+      lines; with them stripped the files are identical.
+  - **SED.out keeps its rows: held.** nu and lambda are identical.
+    F(new) <= F(old) everywhere, with equality in every bin without lines
+    (500 of 600 for hiipdr, 483 for HII40).
+  - **Trailer closure: held.**
+    - hiipdr: 2943.2427 + 133.4221 = 3076.6648 against 3076.6653
+      (-1.6e-7).
+    - HII40: 2231.5408 + 845.3934 = 3076.9342 against 3076.9346
+      (-1.2e-7).
+  - **Line share: held.**
+    - hiipdr 0.0434 (predicted 0.035-0.08). The largest bins are Halpha's
+      (0.165 of the line energy), [O III] 5007's, [O III] 88 um's, 52 um's
+      and [O II] 3727's.
+    - HII40 0.2748 (predicted 0.22-0.38). Lya's bin holds 0.56 of it,
+      because without dust nothing destroys Lya.
+  - **Per-bin closure: missed for hiipdr.**
+    - HII40 is within 8.1e-6 everywhere.
+    - hiipdr exceeds 1e-5 F_old in 15 of its 100 line bins, at up to
+      8.1e-5.
+    - The residuals take both signs, occur only in line bins, and are
+      ~1e-4 of each bin's line share; a lost line would leave its whole
+      share (0.04-0.96 of the bin).
+    - They grow with the number of cells summed in single precision in
+      writeSED: 1200 active cells give 8.1e-6, 15,204 give 8.1e-5. The old
+      SED summed continuum + lines per cell in real; the new continuum is
+      summed the same way and the lines come from a double array.
+    - The tolerance was set without that, so this is rounding, not a
+      defect.
+
+What it means:
+  - SED.out is the escaping continuum again, as before D-292. The line
+    transport is untouched: every other output is the same to the byte.
+  - SED.out + SEDlines.out reproduce the old SED.out.
+  - Consequences for analyses:
+    - D-452's comparison used runs/_d450/pn-LC's SED.out, which held the
+      lines. Its numbers stand for that run. A rerun's equivalent is
+      SED.out + SEDlines.out.
+    - runs/_d452/sed.py reads SED.out only. For a run made after this entry
+      it must add SEDlines.out to compare with Cloudy's escaped spectrum
+      (Cloudy's `total` includes the lines).
+  - Noted, not changed: a flagged line packet skips energyPacketRun's two
+    origin sanity stops in the escape branch; escapedLines does not use
+    origin.
+
+Not yet done: the 150 kK PN page's escaped-spectrum section still
+describes MOCASSIN's SED.out as holding the lines, which is true of the
+run it shows. A note there is the user's call. Nothing is pushed or
+installed.
