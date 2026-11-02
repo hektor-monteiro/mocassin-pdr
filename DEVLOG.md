@@ -457,7 +457,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-455 | **Audit of D-454, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** D-454's code (340b9f6) read against its plan: all 84 escapedPackets lines of photon_mod sit inside the seven D-454 branches; newPhotonPacket's diffuse case is the only maker of line packets and the dust scattering's rebuild the only in-flight reconstruction, so lgLineTr is set and kept where the plan says; escapedLines is zeroed, summed over ranks on every rank and written raw, and mocassinWarm calls writeSED only after its iterations. D-454's numbers reproduced from runs/_d454 (closures -1.6e-7 and -1.2e-7, shares 0.0434 and 0.2748, 15 hiipdr bins above 1e-5 at up to 8.1e-5, byte identity but summary.out). mocread.read_sed and accessories' read_sed parse the new trailer; L_e36 is now the continuum. Consequences documented: contCube.out and the viewpoints' far-infrared normalisation are continuum only; echo and NoSourceSED do not apply to SEDlines.out; no benchmark page reads a gas model's SED.out. Records: D-454's index row had five cells (its results fell in the Status column), merged; L-77 gains the stale D-292 comments (transport off by default; no Lyman series or Lya) and iterateMC's printed "total Escaped Packets", divided by 8 at every cell (inherited). Docs: transfer, iteration, emission and the chapter index; outputs and keywords; the Python guide, quickstart, tutorial note and benchmarks index. | Done | 2026-11-02 |
 | D-456 | **A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (the user: "Run a uniform spherical gas plus dust model using both codes and compare the results. Investigate energy conservation aspects in both runs. Does the difference in SED that appeared in the models with PDR show up here as well?").** pn150k's star, gas and graphite cut at the H+ front (R_out 4.5198e17 cm), no PDR; MOCASSIN plain flavour (runs/_d456/moc-dust, 15 iterations) against Cloudy, dusty (ds150) and dust-free (gs150). **Yes, the PDR model's SED difference appears without a PDR, larger:** 5-25/25-60/60-300 um at 1.62/1.85/1.50x Cloudy's (continuum 2.39/2.15/1.58x; beyond 5 um 0.387 against 0.190 L*), far UV 0.48x; structure agrees (H+ front 0.1275/0.1279 pc, He2+ 0.0883/0.0880, T_e 2-5%, Hbeta 0.944). It follows Lya: both make ~0.22-0.24 L*; MOCASSIN's grains take ~0.218 (D-376's local destruction, ~0.022 escapes), Cloudy's ~0.052 with 0.168 escaping in its continuum (its line list: 0.075); the ledger closes to ~0.03 L* (C IV, made 2.5x Cloudy's, and the field). MOCASSIN's grains 5-29% warmer, its dust temperature solution consistent with its packets (Lya 0.206 against 0.218 L*). **Energy:** MOCASSIN 1.00001 L*, gas re-emission 0.994 of the absorbed power. Cloudy 0.977 (dusty), 0.944 (dust-free), 0.973 (pn150k): a transferred line's outward beam is diluted three times inside the zone that emits it (tmn's zone-centre dilution, BeamOutOut, the zone's own dilution; ~4 dr/r per zone, dr/r up to 0.04), which predicts every isolated line's continuum/list ratio within 0.002 (0.906-0.976 at default zoning; pn150k's IR lines within 0.004); dr/r <= 0.01 and 0.0025 bring the dust-free total to 0.967 and 0.988. Cloudy's own sphere energy check is compiled out. Compare Cloudy's lines through its line list, not its saved continuum. Predictions: P1, P2, P5, P8, P9 held; P3 (Cloudy >= 0.99), P4 (Lya numbers), P7 (T_dust within 5%) failed; Q1 held, Q2/Q3 lines held and totals fell 0.003 and 0.002 short, Q4 failed narrowly (the line list rises 1-2% with zoning). Page: Dusty Sphere Against Cloudy, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV. | Done | 2026-11-02 |
 | D-457 | **What Cloudy's documentation says about Lya escape, and the test it suggests (the user: "is there anything in Cloudy documentation that comments on this Lya escape?", then "run it").** Hazy 1 pp. 141-142 and Hazy 2 p. 128: `sphere` defaults to expanding, so lines "freely escape after crossing the central hole"; `sphere static` traps them on the far side and "the line is destroyed when dust is present". Hazy 2 p. 70: Hummer & Kunasz (1980) escape probabilities (fits differ by up to 2x), destruction X_c F(X_c); p. 40: intrinsic intensities are net of local grain destruction; QuickStart p. 33: in the Orion blister dust cuts Lya/Hbeta from ~34 to ~2. **Test (runs/_d457):** D-456's dusty sphere with `sphere static` against an identical expanding control (98% of Lya leaves inward). Static: GraL 0.040 -> 0.159 L*, Lya in the saved continuum 0.168 -> 0.052, Cloudy's dust continuum beyond 5 um 0.190 -> 0.326, closure 0.977 -> 0.991; against MOCASSIN the dust excess falls 2.03x -> 1.19x (bands 1.13-1.19x), the far UV 0.48 -> 0.77, ionized-zone T_dust within 1-4% (was 5-29%); fronts, T_e (2.2%) and Hbeta (1.2%) hold, [O III] 5007 -4%. So most of Cloudy's escaping Lya in D-452/D-456 is its default expanding geometry, not MOCASSIN's dust. Remaining: ~0.06 L* more Lya into MOCASSIN's grains, its front cell 16-30% warmer. pn150k as a static sphere not run. | Done | 2026-11-02 |
-| D-458 | **Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (the user: "We should adopt the static sphere as the standard for any Cloudy comparisons to mocassin. Register this and rerun the hiipdr and pn150kk pdr models redoing the comparisons").** MOCASSIN has no velocity field; Cloudy's default sphere assumes expansion (D-457). Registered in the benchmark Cloudy inputs, CLAUDE.md, docs/benchmarks/index.md and memory. Reruns in runs/_d458 (cl-hii, cl-pn) with predictions on record: hiipdr moves little (its Lya is already destroyed locally), pn150k's PDR field falls 25-55% and its warm-dust excess shrinks. | Open | 2026-11-02 |
+| D-458 | **Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (the user: "We should adopt the static sphere as the standard for any Cloudy comparisons to mocassin. Register this and rerun the hiipdr and pn150kk pdr models redoing the comparisons").** MOCASSIN has no velocity field; Cloudy's default sphere assumes expansion (D-457). Registered in the benchmark Cloudy inputs, CLAUDE.md, docs/benchmarks/index.md and memory. Reruns in runs/_d458 (cl-hii, cl-pn) with predictions on record: hiipdr moves little (its Lya is already destroyed locally), pn150k's PDR field falls 25-55% and its warm-dust excess shrinks. Results: pn150k's PDR field halves and its PDR temperature agrees past A_V 0.3 (0.92-0.99, was 0.70-0.80), the escaped dust within 10% at 1-300 um, [C II] 158 1.05x while [O I] 63 (1.82x) and H2 1-0 S(1) (1.64x) move apart; hiipdr moves 0.2-5% except Cloudy's [C II] 158 (-22%, untested). Both Cloudy pages republished as version 33. | Done | 2026-11-02 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -47159,28 +47159,90 @@ other listing read in D-456 to D-458 holds one block, so nothing else moves.
   - Both local version-32 copies were checked equal to the live pages
     (versions 1793571595-4c27 and 1793573370-9bcc).
 
-**Left: the version-33 builders (not written).** Starting from the published
-version 32 copies, each would:
-  - **Splice in the regenerated current-state sections:** the KPIs, "The
-    whole model", "Selected depths", the line table (pn) and "What agrees".
-  - **Patch, on pn:**
-    - the PDR bullet (temperature now 0.92-0.99 past A_V 0.3; the
-      photoelectric heating 0.65-0.84 of static Cloudy's);
-    - the grains-share sentence (measured against the expanding sphere,
-      D-450);
-    - the whole-model caption's dashed-line text;
-    - the "What was matched" geometry row and the Cloudy-input note;
-    - a rail on "The photoelectric term, measured".
-  - **Rewrite** the escaped-spectrum section against static (bands within
-    10% at 1-300 um, Lya 0.003 against 0.004).
-  - **Header:** a version-33 note, the eyebrow, and the meta line's Cloudy
-    run.
-  - **Shift every ordinal** before inserting new text (cross-page "H2 Lines
-    in MOCASSIN, first section" restored). The current-state sentence becomes
-    "the first two sections".
-  - **Version 32's first section** gets a rail: its Cloudy column is the
-    expanding sphere.
-  - **A new first section** (id static) with the geometry table (geom_*.json)
-    and the five geom figures.
+**Left at that point:** the version-33 builders, then the republish. Both
+were done the same afternoon (below).
 
-Then republish both pages to their URLs and record them here.
+### The pages, version 33 (2026-11-02, 16:27)
+
+Both comparison pages now compare with Cloudy as a static sphere:
+  - **150 kK PN Against Cloudy**, version 33
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV, version id
+    1793647651-1a87);
+  - **hiipdr Against Cloudy**, version 33
+    (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx, the artifact's 34th
+    publish, version id 1793647659-a113).
+
+The builders are in runs/_d458/pages_wip (build_pn33.py, build_hii33.py,
+sedfigs.py, with geomnums.py and geomfigs.py), and so are the two pages
+(*.v33.html).
+
+**How they were built.** Each starts from version 32 as published.
+  - **Spliced in:** the current-state parts (the KPIs, "The whole model",
+    "Selected depths", the PN's line table, "What agrees"), from version 32's
+    builders rerun against the static runs.
+  - **A new first section** (id `static`) sets the static sphere beside the
+    expanding one: a table from geom_*.json and five figures (MOCASSIN
+    solid, static dashed, expanding dotted).
+  - **Version 32's first section** has a rail: its Cloudy column is the
+    expanding sphere.
+  - **Ordinals:**
+    - every section reference moved down by one (42 on the PN page, 52 on
+      hiipdr);
+    - hiipdr's one sentence of bare ordinals ("the charge-exchange data of
+      the sixth, ...") was shifted by hand;
+    - the cross-page "H2 Lines in MOCASSIN, first section" was restored.
+  - **Labels:** the captions, "What was matched" and the meta line name the
+    static run, and say what the expanding sphere gave.
+
+**PN, rewritten:**
+  - **The PDR bullet of "What agrees".** It had read the 0.70-0.80
+    temperature gap as the photoelectric heating (0.33-0.49 of Cloudy's).
+    Against the static sphere the gas is 0.92-0.99 of Cloudy's past A_V 0.3
+    and 1.36 at 0.20. The heating is 0.65-0.84 of Cloudy's, and has not been
+    compared term by term.
+  - **The grains' share of Q(H)** (0.112, D-450) is stated as measured
+    against the expanding sphere. The static run's extra 0.009 Q(H) of
+    recombinations has not been decomposed.
+  - **"The escaped spectrum"** is now against the static .cont
+    (runs/_d458/pn-sed), with three-way figures (sedfigs.py) and the
+    expanding sphere's ratios kept in a column:
+    - the bands from 1 to 300 um are within 10% (1.00-1.10), and the FUV is
+      0.80;
+    - Lya leaves at 0.0036 L* in MOCASSIN and 0.0039 in Cloudy (its line
+      column; 0.0029 net of the continuum);
+    - Cloudy's escaped total is 0.985.
+  - **The warm-dust reading is settled.** Version 32 read the warm-dust
+    excess (1.50x) as Cloudy's escaping Lya heating MOCASSIN's grains
+    instead, untested. The static sphere is that test: 1.08x.
+  - **The section notes D-454:** pn-LC predates it, so its SED.out is
+    today's SED.out + SEDlines.out.
+  - **A rail** on "The photoelectric term, measured": its part 2 is against
+    the expanding sphere.
+
+**hiipdr:**
+  - **New:** a header note, and a first section titled "little moves here,
+    except Cloudy's [C II] 158 um".
+  - **Patched:** the KPI temperature note, the history list in "Selected
+    depths", and "What agrees". Cloudy's side moved again at version 33:
+    +5% and +4% at A_V 0.70 and 1.00, within 2% past 1.5.
+  - **The [C II] 158 reading** (`static` doubles the total line optical
+    depths, Hazy 1 as quoted in D-457) is on the page as untested.
+
+**Where the pages differ from the results table above:**
+  - **The PN temperature ratios** use both codes' selected-depth medians, as
+    the KPIs do, not save pdr's. Cloudy is then 131.4/49.1/33.2/28.0 K and
+    the ratios 1.36/0.99/0.95/0.92. Cloudy's cooling is 19-27% at A_V
+    0.20-0.65 on that basis.
+  - **The Hbeta ratios** use Cloudy's intrinsic listing (2.779 and
+    2.805e34 erg/s), as the line table does.
+
+**Checks:** no `%%` and no placeholder is left, the HTML parses with every
+tag closed, every ordinal reference was listed and read, and each new part
+was read as rendered text before publishing.
+
+**Open:**
+  - the docs benchmark pages (docs/benchmarks/, docs/bench/data/) still
+    hold D-396's expanding-sphere numbers, as noted there;
+  - why hiipdr's [C II] 158 falls 22% in Cloudy (untested);
+  - pn150k's static-sphere recombination gap (0.034 Q(H)), not taken
+    apart.
