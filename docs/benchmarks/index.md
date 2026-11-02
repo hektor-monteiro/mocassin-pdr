@@ -19,10 +19,11 @@ Both models are uniform spheres around one source, computed in one octant
 (`symmetricXYZ`). Cloudy solves the same sphere in one dimension, with matched
 abundances, grains and cosmic-ray ionisation. Its inputs are in the repository
 (`benchmarks/pdr/hiipdr/cloudy/` and `benchmarks/pdr/pn150k/cloudy/`).
-Since {devlog}`D-458` they make the sphere static (`sphere static`), as MOCASSIN's nebula,
-which has no velocity field. Cloudy's default sphere assumes expansion, which lets lines leave
-through the central hole ({devlog}`D-457`). The Cloudy numbers on these pages still come from
-the expanding runs of {devlog}`D-396` until the pages are regenerated. MOCASSIN's cells
+The sphere is static (`sphere static`, {devlog}`D-458`), as MOCASSIN's nebula is: it has no
+velocity field. Cloudy's default sphere assumes expansion, which lets lines leave through the
+central hole ({devlog}`D-457`). In `pn150k` that sent the nebula's Ly$\alpha$ into the PDR and
+doubled Cloudy's far-ultraviolet field there. These pages compared with the expanding runs
+of {devlog}`D-396` until {devlog}`D-459`; {devlog}`D-458` sets the two geometries side by side. MOCASSIN's cells
 are compared with Cloudy's zones at the same visual extinction from the star, $A_V$.
 At each $A_V$ the figures show:
 - **MOCASSIN-PDR:** the median of the cells in log-spaced $A_V$ bins, finer through the
@@ -69,9 +70,9 @@ pages do not use:
     would not yet have stopped;
   - 1.55% in `pn150k` (the H⁰-weighted temperature), within it.
 
-The Cloudy models are the {devlog}`D-396` runs of Cloudy c25.00. The committed inputs
-match the physics commands of those runs exactly; `reduce.py --check-cloudy` verifies
-this.
+The Cloudy models are the {devlog}`D-458` runs of Cloudy c25.00: the inputs of {devlog}`D-396`
+with `sphere static`. The committed inputs match the physics commands of those runs exactly;
+`reduce.py --check-cloudy` verifies this.
 
 (sec:bench-since)=
 ### Since the release
@@ -84,10 +85,10 @@ fixes, with the same seed, packets, iterations and ranks:
 
 - **`hiipdr`** is unchanged within the Monte Carlo noise: H$\beta$ ×0.999, the line ratios
   within 0.5%, and the H/H₂ and C⁺/C transitions where they were.
-- **`pn150k`** changes. H$\beta$ goes from 0.968 to 0.950 of Cloudy's, and the Case B
-  recombinations from 0.974 to 0.957 of the star's hydrogen-ionising photons (Cloudy: 0.982).
+- **`pn150k`** changes. H$\beta$ goes from 0.959 to 0.942 of Cloudy's, and the Case B
+  recombinations from 0.974 to 0.957 of the star's hydrogen-ionising photons (Cloudy: 0.991).
   The graphite now absorbs as its Q file says, so the far-ultraviolet reaches deeper:
-  - the H/H₂ transition moves from $A_V$ 0.393 to 0.419 (Cloudy: 0.368);
+  - the H/H₂ transition moves from $A_V$ 0.393 to 0.419 (Cloudy: 0.362);
   - the gas at $A_V$ 0.20, 0.30 and 0.65 is 13%, 4% and 3% warmer;
   - H₂ 1-0 S(1)/H$\beta$ rises by 10%;
   - [C I] 609 μm and CO 2-1 fall to 0.81 and 0.71 of the values shown.
