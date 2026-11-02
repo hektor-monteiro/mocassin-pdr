@@ -46517,6 +46517,38 @@ saves per-zone emissivities of 18 lines:
   - **Q4:** the model itself does not move. Intrinsic Hbeta and the line
     list's [O III] 5007 and O IV stay within 1% across the three.
 
+### The zone-limit runs, first pass (2026-11-02, 11:55-11:58)
+
+  - **cl-free-e** (259 zones, dr/r up to 0.040): escaped 0.9439, as gs150.
+    Q1 holds. The zone factors predict every isolated line's
+    continuum/list ratio within 0.002:
+    - He II 1640: 0.912 measured, 0.913 predicted;
+    - [O III] 5007: 0.946 and 0.946;
+    - S IV 10.5 um: 0.917 and 0.917;
+    - O IV 25.9 um: 0.906 and 0.904;
+    - [O III] 88 um: 0.947 and 0.948.
+
+    Lya's cell also holds He II 1215, and [S III] 9531's holds other lines;
+    both are left out.
+  - **cl-free-d1** (489 zones, dr/r up to 0.010): escaped 0.9666, against
+    Q2's 0.970-0.985. O IV is at 0.963, against 0.96 +- 0.01. Every
+    isolated line again matches its zone factors within 0.002 ([O III] 5007
+    0.964/0.964). The line list moves 0.6-1.1% (Hbeta +0.9%, [O III] +1.1%),
+    at Q4's limit.
+  - **cl-free-d025 did not reach the outer radius.** It stopped at Cloudy's
+    default 1400 zones, at 0.1067 pc with x(H+) = 0.98, matter-bounded
+    (Hbeta 0.0045 L* against 0.0080). It is no test of the total.
+    - Its lines are at 0.989-0.992 of the list, against 0.990 from the zone
+      factors.
+    - This truncated model lets out 1.024 L*: 0.34 L* of ionizing star, and
+      0.129 L* of ionizing diffuse emission (0.053 continuum, 0.076 lines).
+      An excess over L* in a matter-bounded Cloudy sphere is consistent
+      with the diffuse ionizing emission being counted both on the spot and
+      in the escaping beam. This is not tested.
+  - **Rerun:** cl-free-d025 with `set nend 4000` added. Q3 stands as
+    written (escaped >= 0.99 L*, O IV >= 0.985). The first pass's files are
+    kept as `cl-free-d025/trunc1400/`.
+
 ### Status
 
 Open: the runs are queued.
