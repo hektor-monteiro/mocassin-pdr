@@ -1139,9 +1139,12 @@ Small numerical inconsistencies, not measured. Inherited. Recorded, not changed.
     values are equal.
   - The He I recombination-line comments still cite Benjamin et al. (1999); the
     coefficients are fits to Porter et al. (2012, 2013).
+  - The "total Escaped Packets" that `iterateMC` prints is not a total: under
+    `symmetricXYZ` the running sum is divided by 8 at every cell (D-455).
+    Nothing reads it. Since D-454 it also leaves out the lines.
 
 Inherited, apart from `ionTrim`. Recorded, not changed. Left by this
-project's changes since (D-453):
+project's changes since (D-453, D-455):
   - `ionBalance`'s D-402 comment says hydrogen does not take the metals'
     charge transfer. Since D-450 that holds only for the neutral/first-ion
     pairs (L-93), and it sits beside the term for the stages above 1+.
@@ -1155,6 +1158,13 @@ project's changes since (D-453):
   - D-450's three commits tag their source comments and variables D-449 (the
     entry that found the defects), and `reemission.out`'s header says
     "reemission v1 (D-449)"; the change is D-450's.
+  - The D-292 comments on line transport are out of date:
+    - `common_mod`'s says the transport is off by default; it has been on
+      since D-307, and the only behaviour since D-352;
+    - `common_mod`'s says the Lyman series is not transported, and
+      `newPhotonPacket`'s says `linePDF` excludes Lya. Since D-376 Lya has a
+      slot of its own, and it is 0.56 of the line energy leaving HII40
+      (D-454).
 Each is a source edit, so each waits for the next planned change.
 
 **L-81. `getDustT`'s 1 K floor applies only with `talk`** (D-444). When a grain

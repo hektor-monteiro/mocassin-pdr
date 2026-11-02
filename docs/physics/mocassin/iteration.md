@@ -102,7 +102,7 @@ The main program runs the routines of {numref}`tab:moc-startup` once, in that or
 * - 5
   - zero the estimators
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"grid(iG)%Jste(0:grid(iG)%nCells, 1:nbins) = 0.">`
-  - $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$, `escapedPackets`
+  - $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$, `escapedPackets`, and the escaped lines, `escapedLines` ({devlog}`D-454`)
 * - 6
   - transfer
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call energyPacketDriver(iStar,load, grid(1:nGrids))"+2#1>`, {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call energyPacketDriver(iStar=0,n=load, grid=grid(1:nGrids), &"+4#1>`
@@ -110,11 +110,11 @@ The main program runs the routines of {numref}`tab:moc-startup` once, in that or
 * - 7
   - estimators
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:) * 1.e-9">`
-  - `escapedPackets`, $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$ summed over ranks; $\times10^{-9}$ to erg s$^{-1}$ cm$^{-2}$, $/8$ under `symmetricXYZ`, the 2D division
+  - `escapedPackets`, $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$ summed over ranks; $\times10^{-9}$ to erg s$^{-1}$ cm$^{-2}$, $/8$ under `symmetricXYZ`, the 2D division; `escapedLines` is summed over ranks just after the transfer, with no octant division
 * - 8
   - SED
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if (taskid==0) call writeSED(grid)">`
-  - `output/SED.out` ({ref}`sec:moc-sed`)
+  - `output/SED.out`, the continuum, and `output/SEDlines.out`, the lines ({ref}`sec:moc-sed`)
 * - 9
   - snapshot
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"! D-155: the state this MC iteration starts from. The convergence"..@"& grid(iG)%Te(0:grid(iG)%nCells)">`

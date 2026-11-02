@@ -88,6 +88,11 @@ fixes, with the same seed, packets, iterations and ranks:
   - H₂ 1-0 S(1)/H$\beta$ rises by 10%;
   - [C I] 609 μm and CO 2-1 fall to 0.81 and 0.71 of the values shown.
 
+A third change moves the escaping lines out of `SED.out` into `SEDlines.out` ({devlog}`D-454`).
+It changes no other output: `hiipdr` rerun with it matches the {devlog}`D-451` run byte for byte
+in every file but `SED.out`. No page here reads a gas model's `SED.out`, and the dust shells of
+{doc}`dust-1d` emit no lines.
+
 ## How the pages are made
 
 The figures and tables are built in two stages, so that Read the Docs, which cannot run

@@ -20,7 +20,8 @@ the largest grain of a Q file correctly, which this model's graphite file needed
 {lim}`L-91`). This model has not been rerun with them. On the test problem without a PDR,
 {devlog}`D-447` lowered H$\beta$ by 15%. On `pn150k`, whose graphite is the same file, the graphite
 fix moved the H/H₂ transition deeper and cut CO 2-1 by about a third ({ref}`sec:bench-since`).
-Expect the numbers below to differ.
+Expect the numbers below to differ. Its `SED.out` is also the continuum only: the lines that escape
+are written to `SEDlines.out` ({devlog}`D-454`).
 :::
 
 ## 1. The model

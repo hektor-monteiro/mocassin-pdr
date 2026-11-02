@@ -410,7 +410,8 @@
     Per grid point (iG, ix, iy, iz): the escaping energy in the
     `continuumCube` band carried by packets last emitted in that cell, in 10³⁶
     erg s⁻¹ per unit solid angle, over all directions (÷4π) and at each
-    `inclination`. No symmetricXYZ factor.
+    `inclination`. No symmetricXYZ factor. The continuum only since
+    {devlog}`D-454`; before, the transported lines in the band were in it.
 
 - name: tauNu.out
   group: results
