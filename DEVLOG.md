@@ -456,6 +456,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. **Results (340b9f6; runs/_d454):** hiipdr against runs/_d450/hii-LC and a seeded HII40 pair are byte-identical in every output but SED.out (summary.out apart from its wall-clock times); continuum-only bins identical; continuum + lines = the old total within 1.6e-7 (hiipdr) and 1.2e-7 (HII40); line share 0.043 (hiipdr) and 0.275 (HII40, 56% of it Lya), as predicted; per-bin closure within 8.1e-6 (HII40) but up to 8.1e-5 in 15 hiipdr line bins, single-precision summation over 15k cells (both signs, line bins only, scaling with cell count), not a lost line. | Done | 2026-11-01 |
 | D-455 | **Audit of D-454, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** D-454's code (340b9f6) read against its plan: all 84 escapedPackets lines of photon_mod sit inside the seven D-454 branches; newPhotonPacket's diffuse case is the only maker of line packets and the dust scattering's rebuild the only in-flight reconstruction, so lgLineTr is set and kept where the plan says; escapedLines is zeroed, summed over ranks on every rank and written raw, and mocassinWarm calls writeSED only after its iterations. D-454's numbers reproduced from runs/_d454 (closures -1.6e-7 and -1.2e-7, shares 0.0434 and 0.2748, 15 hiipdr bins above 1e-5 at up to 8.1e-5, byte identity but summary.out). mocread.read_sed and accessories' read_sed parse the new trailer; L_e36 is now the continuum. Consequences documented: contCube.out and the viewpoints' far-infrared normalisation are continuum only; echo and NoSourceSED do not apply to SEDlines.out; no benchmark page reads a gas model's SED.out. Records: D-454's index row had five cells (its results fell in the Status column), merged; L-77 gains the stale D-292 comments (transport off by default; no Lyman series or Lya) and iterateMC's printed "total Escaped Packets", divided by 8 at every cell (inherited). Docs: transfer, iteration, emission and the chapter index; outputs and keywords; the Python guide, quickstart, tutorial note and benchmarks index. | Done | 2026-11-02 |
 | D-456 | **A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (the user: "Run a uniform spherical gas plus dust model using both codes and compare the results. Investigate energy conservation aspects in both runs. Does the difference in SED that appeared in the models with PDR show up here as well?").** pn150k's star, gas and graphite cut at the H+ front (R_out 4.5198e17 cm), no PDR; MOCASSIN plain flavour (runs/_d456/moc-dust, 15 iterations) against Cloudy, dusty (ds150) and dust-free (gs150). **Yes, the PDR model's SED difference appears without a PDR, larger:** 5-25/25-60/60-300 um at 1.62/1.85/1.50x Cloudy's (continuum 2.39/2.15/1.58x; beyond 5 um 0.387 against 0.190 L*), far UV 0.48x; structure agrees (H+ front 0.1275/0.1279 pc, He2+ 0.0883/0.0880, T_e 2-5%, Hbeta 0.944). It follows Lya: both make ~0.22-0.24 L*; MOCASSIN's grains take ~0.218 (D-376's local destruction, ~0.022 escapes), Cloudy's ~0.052 with 0.168 escaping in its continuum (its line list: 0.075); the ledger closes to ~0.03 L* (C IV, made 2.5x Cloudy's, and the field). MOCASSIN's grains 5-29% warmer, its dust temperature solution consistent with its packets (Lya 0.206 against 0.218 L*). **Energy:** MOCASSIN 1.00001 L*, gas re-emission 0.994 of the absorbed power. Cloudy 0.977 (dusty), 0.944 (dust-free), 0.973 (pn150k): a transferred line's outward beam is diluted three times inside the zone that emits it (tmn's zone-centre dilution, BeamOutOut, the zone's own dilution; ~4 dr/r per zone, dr/r up to 0.04), which predicts every isolated line's continuum/list ratio within 0.002 (0.906-0.976 at default zoning; pn150k's IR lines within 0.004); dr/r <= 0.01 and 0.0025 bring the dust-free total to 0.967 and 0.988. Cloudy's own sphere energy check is compiled out. Compare Cloudy's lines through its line list, not its saved continuum. Predictions: P1, P2, P5, P8, P9 held; P3 (Cloudy >= 0.99), P4 (Lya numbers), P7 (T_dust within 5%) failed; Q1 held, Q2/Q3 lines held and totals fell 0.003 and 0.002 short, Q4 failed narrowly (the line list rises 1-2% with zoning). Page: Dusty Sphere Against Cloudy, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV. | Done | 2026-11-02 |
+| D-457 | **What Cloudy's documentation says about Lya escape (the user: "is there anything in Cloudy documentation that comments on this Lya escape?").** Hazy 1 pp. 141-142 and Hazy 2 p. 128: `sphere` defaults to expanding, so lines "freely escape after crossing the central hole"; `sphere static` traps them on the far side (Lya inward tau 1e5 at start, total line tau doubled) and "the line is destroyed when dust is present". Hazy 2 p. 70: Hummer & Kunasz (1980) escape probabilities for Lya and C IV (published fits differ by up to 2x), destruction X_c F(X_c) by continuous opacity. Hazy 2 p. 40: intrinsic intensities are net of local destruction by grains. QuickStart p. 33: in the Orion blister, dust cuts Lya/Hbeta from ~34 to ~2. Not documented: the continuum/line-list Lya mismatch and the line-beam dilution (D-456). All our Cloudy runs (D-452, D-456) are expanding spheres while MOCASSIN is static; the hypothesis that Cloudy's escaped Lya is the inward-emitted line crossing the hole is untested (test: ds150 with `sphere static`). | Open | 2026-11-02 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -46717,3 +46718,93 @@ Done. Not known:
   - **Whether the line beam is all of pn150k's missing 0.027 L*.**
 
 The page: **Dusty Sphere Against Cloudy**, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV (version 1). Its builder is in runs/_d456/page (build.py, shell.py), with the shell taken from 150 kK PN Against Cloudy v32. The analysis scripts are in runs/_d456/ana, and their outputs and logs in runs/_d456/ana/out.
+
+## D-457 - What Cloudy's documentation says about Lya escape (2026-11-02)
+
+The user (2026-11-02), after D-456: "is there anything in Cloudy
+documentation that comments on this Lya escape?"
+
+Read in Cloudy c25.00's documentation (`~/software/cloudy-c25.00/docs`, the
+PDFs and their LaTeX sources; PDF page numbers).
+
+### What it says
+
+  - **The sphere is expanding unless told otherwise** (Hazy 1, "Sphere
+    expanding or static", pp. 141-142).
+    - With `sphere`, the default `expanding` assumes that line photons
+      escaping from the illuminated face are Doppler-shifted away from the
+      absorbing material on the far side of the shell, "if the expansion
+      velocity exceeds the Doppler width by large amounts".
+    - With `static`, line photons "interact on both sides so that even line
+      photons produced at the illuminated face of the cloud will be strongly
+      trapped by material on the far side".
+    - With `static`, Lya's inward optical depth starts at 1e5 (otherwise
+      1e-20), and the total line optical depths are twice the computed ones.
+  - **The same, on Lya specifically** (Hazy 2, Problems, "Convergence
+    problems with dust-free static sphere", p. 128): "The default geometry
+    when the sphere command is entered is for lines to freely escape after
+    crossing the central hole due to some level of expansion. In a static
+    spherical geometry ... the total Lya optical depth at the illuminated
+    face of the shell will be very large ... The line is destroyed when dust
+    is present."
+  - **How the escape and destruction are computed** (Hazy 2, line transfer,
+    p. 70 on).
+    - Escape probabilities P = 1/(1 + b(tau) tau) with Hummer & Kunasz
+      (1980) incomplete redistribution, for the Lya lines of H I, He I and
+      He II and for C IV 1549. The text notes that the published b(tau)
+      disagree "sometimes by more than a factor of 2".
+    - The destruction probability is X_c F(X_c), where X_c is the ratio of
+      continuous (dust) to total opacity at line centre (Hummer 1968).
+    - The inward fraction is P(tau)/[P(tau) + P(T - tau)].
+  - **What each line list holds** (Hazy 2, "Line intensities in a dusty
+    cloud", p. 40, and the output chapter).
+    - The intrinsic intensities include "destruction by local background
+      opacities such as grains". Cloudy's intrinsic Lya (0.180 L* in
+      ds150) is therefore already net of GraL, as D-456 read it.
+    - The emergent intensities add absorption and scattering away from where
+      the line forms.
+    - GraL is "grain heating due to destruction of Lya" (p. 112).
+  - **An example where dust destroys most Lya** (QuickStart, p. 33). In the
+    Orion blister example, Lya/Hbeta "would be about 34" without dust;
+    "actually Lya is predicted to be only about twice as strong as Hbeta
+    because Lya is efficiently absorbed by dust". That is an open geometry
+    with the molecular cloud behind the H+ layer.
+  - **Continuum transfer** (Hazy 2, pp. 51-52).
+    - Absorption attenuates the continuum as exp(-dtau_abs) in both
+      geometries.
+    - The default outward-only approximation sends the escaping diffuse
+      radiation outward (all of it for a sphere).
+    - "Great care is taken to ensure that each absorption mechanism is
+      balanced by a reemission process".
+
+### What it does not say
+
+  - Nothing on the escaped Lya in `save continuum` differing from the
+    emergent line list (D-456's 0.168 against 0.075 L*).
+  - Nothing on the in-zone dilution of the outward line beam (D-456), or on
+    the sphere energy check being compiled out.
+
+### What it means for D-452 and D-456
+
+  - **Our Cloudy runs use the default expanding sphere**: pn150k (D-452),
+    ds150 and gs150 (D-456). MOCASSIN's nebula has no velocity field, so the
+    matching Cloudy geometry is `sphere static`.
+  - **The reading this suggests (a hypothesis, not measured):**
+    - Lya's line-centre optical depth across ds150 is 7.5e6, mostly in the
+      H0 front (pn150k: 5.9e8 with its PDR). Seen from the ionized gas, the
+      outward direction is thick and the inward one thin.
+    - So most Lya would leave inward. Under `expanding` it crosses the
+      central hole untrapped and joins the outward beam (outline_base_bin's
+      "inward beam that goes out since sphere set"), attenuated by
+      continuum opacity only.
+    - That would make Cloudy's 0.168 L* largely a consequence of the
+      expanding assumption. Under `static` the far side traps it, and
+      Hazy's own statement is that it is then destroyed by the dust.
+  - **The test:** ds150 with `sphere static` (about 1 minute), reading
+    GraL, the intrinsic, emergent and continuum Lya, the dust continuum
+    and the closure. The Lya inward fraction can be printed with
+    `print line inward`. Not run: the user asked a question.
+  - The documentation does not settle which escape is physical. It confirms
+    that Cloudy's answer depends on a geometry assumption that MOCASSIN does
+    not make. Hazy notes the escape-probability fits themselves disagree by
+    up to 2x.
