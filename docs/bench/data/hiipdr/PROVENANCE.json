@@ -1,7 +1,7 @@
 {
  "product": "hiipdr",
- "generated_utc": "2026-10-21T22:12:50Z",
- "docs_git_sha": "6d8007c31451b1e15f0e93464b9b127fa29cb8cd",
+ "generated_utc": "2026-11-02T19:53:05Z",
+ "docs_git_sha": "8602c7d1485257f80c9ad11930415d8ea098ba94",
  "docs_bench_dirty": true,
  "script": {
   "reduce.py": "d9896ac2110e397699f0c2551ca5b787f3350f99f539191e93449adbde5d1636",
@@ -9,16 +9,24 @@
  },
  "manifest": {
   "path": "repo:docs/bench/manifest.toml",
-  "sha256": "81c488f555096d0a1362990cce136668080141de7bab83dc2910493bda425ddd"
+  "sha256": "8f0a3057a06dd7b3276cf60b79581012e8f3f4dc2bbeeb07c899fb9725903eb4"
  },
- "python": "3.11.15",
- "numpy": "2.4.6",
+ "python": "3.13.13",
+ "numpy": "2.3.5",
  "runs_root": "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs",
  "files_read": {
   "repo:docs/bench/inputs/rel-hii31/abunV1.in": "e08a0426a326c20e214050acc800ca7c06874d6e1921d29786a22af9b045da16",
   "repo:docs/bench/inputs/rel-hii31/dust_sizes.dat": "f502c2a0657e298d779ab3804ade70a0b23e521502241bc56dade554f9e83526",
   "repo:docs/bench/inputs/rel-hii31/dust_species.dat": "97b772134a228e3506172348578a3e3caf30ae94f0a3b6c2fa1689504a2a4a20",
   "repo:docs/bench/inputs/rel-hii31/input.in": "d92a22dde46304965e160b7f87edec79e00896d861cc2813f6884a3504ea31bf",
+  "runs:_d458/cl-hii/hiipdr.H2de": "972680a07ac5e97fa3022abfd37cf8e61b53397bb5fa79e421e142485e10d7d0",
+  "runs:_d458/cl-hii/hiipdr.H2sde": "f7661886ef31c26dcd9ce1aee09312acfec02095da91c74c66a8ee321114b4e5",
+  "runs:_d458/cl-hii/hiipdr.dens": "a213ce55bb4df8f73af70747d05734e6cc375e431b3c5b5f8c87ed8a0e1303a5",
+  "runs:_d458/cl-hii/hiipdr.dens389": "852d167c29e2b05c6a99fac3d91ab5d7918b7cde03b6121aa24e55e28af64ff8",
+  "runs:_d458/cl-hii/hiipdr.gtemp": "cf4020ebf8c9f726978ed615784097d80154fb9e4665069d0d512bb9780950bf",
+  "runs:_d458/cl-hii/hiipdr.linesint": "48dbe7ef51f318405e46d95fd9c0333fac654837847180418fe9afb8b61faffb",
+  "runs:_d458/cl-hii/hiipdr.out": "1156388effe7486f26e8f5fc6fd1238e32461098ec1adfc90280f38f3f9fb6c1",
+  "runs:_d458/cl-hii/hiipdr.ovr": "3a446040da037a65adaf358a9cd2b238c7f14c2fd6bd45cda6a4684b4f3861c7",
   "runs:_release_v2/build.log": "c8c2f02b5d5a8f27c404ede22e3f84fea835c9ac5a6cca9143f8805d0265caec",
   "runs:_release_v2/rel-hii31/input/abunV1.in": "e08a0426a326c20e214050acc800ca7c06874d6e1921d29786a22af9b045da16",
   "runs:_release_v2/rel-hii31/input/dust_sizes.dat": "f502c2a0657e298d779ab3804ade70a0b23e521502241bc56dade554f9e83526",
@@ -35,15 +43,7 @@
   "runs:_release_v2/rel-hii31/output/pdrGrid.out": "03593a8883ad210a6f0e76cd73ddf9bbf07d3f324eef5744122c72c6dd27b215",
   "runs:_release_v2/rel-hii31/output/pdrRad.out": "9ef40fdf08c0b534d3fa1daa598bb3fd75d69922407faa99b76c58647615ff1f",
   "runs:_release_v2/rel-hii31/output/summary.out": "06338f0749d8869507ebe8b7d19c16fb78b7223cf5de15a5a39880155bc40210",
-  "runs:_release_v2/rel-hii31/run.log": "d3a6888fbcf5b8ddf7419562169d01c3fdc6c61be70850494f77fb91b7e995e1",
-  "runs:d396-cloudy-hii/hiipdr.H2de": "054627a239ad0397d3f237873fae3342061de14e72f352e6742d283390baaa2e",
-  "runs:d396-cloudy-hii/hiipdr.H2sde": "f5b51efc0fe43d3f00e6186fe12500dc6c69951e8862aee376045376e1ab645b",
-  "runs:d396-cloudy-hii/hiipdr.dens": "ddc642d45fa25a9b2c169fa285e8a5774318a290657de788895cb9921a49e892",
-  "runs:d396-cloudy-hii/hiipdr.dens389": "794ed625eb2a0f1583a123e8452b643be73e6e2039ca167eb087f7b774adc90d",
-  "runs:d396-cloudy-hii/hiipdr.gtemp": "ddd92630ee42713c93c3d84368ce80c2e7bb7df79dc1c9b98471fe93701c6273",
-  "runs:d396-cloudy-hii/hiipdr.linesint": "eebc14ea9abba5b36509df9f24418dc803d85ec1409bba52c7216c1fae688cfd",
-  "runs:d396-cloudy-hii/hiipdr.out": "16a36eeb91bbe18f6581802fbaf74c3fe5ff5ba944afeddfee817858b1a0d8c7",
-  "runs:d396-cloudy-hii/hiipdr.ovr": "986a84b7f782f4eb64dc6c0212e54900bf415a711f93b9a60d351d3d3d0d7824"
+  "runs:_release_v2/rel-hii31/run.log": "d3a6888fbcf5b8ddf7419562169d01c3fdc6c61be70850494f77fb91b7e995e1"
  },
  "definitions": {
   "A_V": "pdrRad.out column 1, A_V,eff from the star; Cloudy AV(point) of save overview",

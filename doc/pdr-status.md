@@ -138,11 +138,11 @@ aesthetics. Resolved items are in section 4.
 |---|---|---|---|
 | L-3 | The deep carbon turn is shallow at the production packet count, and CO is not converged | High | D-333, D-408 |
 | L-26 | The deep chemistry is Monte Carlo noise-limited per cell; past A_V 2 carbon is drawn in one of two states | High | D-351, D-365, D-405, D-408, D-411 |
-| L-19 | The two codes put reprocessed energy at different frequencies; the PDR's grains are 7-8% cooler than Cloudy's | High | D-307, D-353, D-376 |
 | L-37 | Unresolved ionization-front cells dominate the [O I] lines | High | D-362, D-365, D-379, D-381, D-382 |
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
 | L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421 |
+| L-19 | The two codes' local fields differ in their band shares (measured against Cloudy's expanding sphere); against its static sphere the PDR's grains agree | Medium | D-307, D-353, D-376, D-458 |
 | L-4 | The diffuse field's formal solution recovers 52-130% of the Monte Carlo's, unexplained | Medium | D-348 |
 | L-47 | `ionBalance` trails the chemistry by one iteration before the last | Medium | D-402, D-403, D-404 |
 | L-48 | Charge transfer with H: helium below 6,000 K, steps where the data sets join, hiipdr's Mg I | Medium | D-402, D-403 |
@@ -199,6 +199,7 @@ aesthetics. Resolved items are in section 4.
 | L-89 | Species abundances are used as given: mixture means are right only when they sum to one | Low | D-444 |
 | L-95 | `lineFlux.out`'s resonance-line table counts recombination Ly alpha only | Low | D-453 |
 | L-96 | `getTmin`'s absorption integral is always zero, and it reads the emission table with the component's species index | Low | D-453 |
+| L-97 | A transported line is placed at the grid point at or below its frequency, while the bins are centred | Low | D-452, D-459 |
 
 ### High - affects results now
 
@@ -363,6 +364,23 @@ gasDustColl_d), and which of them supplies the fall is not decomposed.
   - The FUV share is untouched (0.094 against 0.255).
   - The PDR's grains are 0.5-2% cooler than before, so 0.92-0.93 of Cloudy on
     pn150k.
+**Against Cloudy as a static sphere (D-458).** Every measurement above is
+against Cloudy's default `sphere`, which is expanding. There the nebula's Lya
+leaves its zones inward, crosses the central hole and reaches the PDR, doubling
+Cloudy's 6-13.6 eV field there (D-457, D-458). Against `sphere static`, the
+standard since D-458, on pn-LC (the D-450 code):
+  - The PDR's grains are 1.00 and 0.99 of Cloudy at A_V 0.20 and 0.65 (0.95
+    and 0.94 against the expanding sphere, same run). The ionized gas's are
+    0.95 and 0.98 at A_V 0.05 and 0.10 (1.01 and 1.05).
+  - The escaped spectrum is within 10% from 1 to 300 um: 5-25, 25-60 and
+    60-300 um at 1.10, 1.08 and 1.08x (1.51, 1.50 and 0.98x against the
+    expanding sphere). The escaped FUV is 0.80 (0.41).
+
+So the PDR grains' deficit, the consequence that made this item High, was
+Cloudy's geometry. The band shares of the local field (the FUV's 0.094 against
+0.255 at A_V 0.30) have not been re-measured against the static sphere: that
+needs a Cloudy run saving the local continuum in every zone, for
+`tools/d307_fieldcmp.py`. Lowered from High to Medium (D-459).
 
 **L-37. Unresolved ionization-front cells dominate the [O I] lines**
 (D-362). 92% (hiipdr) and 74% (pn150k) of [O I] 63 um comes from cells with
@@ -403,6 +421,10 @@ Nothing enters the run yet. The reported lines and the cooling are unchanged.
 lineFluxFront.out after convergence. It holds [O I] 6300/6363/5577,
 uncorrected and through the sub-cell profile, with MOCASSIN's own O I atom
 at each depth. It is an estimate beside lineFlux.out, not in it.
+**Against Cloudy's static sphere (D-458):** hiipdr's [O I] lines do not move
+(63 um 7.42x on rel-hii31). pn150k's [O I] 63 um goes from 1.49x to 1.78x on
+rel-pn41 (1.52x to 1.82x on pn-LC): Cloudy's colder PDR makes its own line 16%
+weaker. 6300 moves 2%.
 
 **L-43. Transition-zone H2 is 100-1000x Cloudy's** (D-387, D-389). In the
 partially ionized layer of pn150k, 2n(H2)/n_H is 2.9e-8 to 7.9e-7 in ours against
@@ -714,6 +736,12 @@ fall 3.2-fold and its ortho lines 2.2-fold (H-008, H-024), and hiipdr's H/H2
 crossing moves from A_V 1.40 to 1.19, past Cloudy's 1.28 (H-026). Cloudy's
 closure, which rescales every population by one factor, raises its lines by
 about 1.2 (H-004, H-009). The model keeps its width.
+**Against Cloudy's static sphere (D-458):** hiipdr's Cloudy H2 lines move by
+less than 3%. pn150k's are different: as a static sphere, with its cooler PDR,
+Cloudy's ortho lines are 0.70-0.89 of the expanding sphere's and its para lines
+0.93-1.07. Its 40 strongest are then ortho 1.01-1.62 and para 1.79-2.67 of
+Cloudy's on rel-pn41 (from 0.89-1.16 and 1.65-2.69). H-024's and H-026's
+figures above are against the expanding sphere.
 
 **L-57. The test problem's face-on H2 maps are fainter on the y side**
 (DEVLOG-H2 H-037). With its own astrosilicate + PAH dust, test_Problem's
@@ -1253,6 +1281,20 @@ those same bins, so the integral is 0. It then locates 0 in
 Stochastic heating needs `quantumHeatGrain` and is in practice off (L-8),
 and no fixture has more than one dust component. Inherited, apart from the
 2999 K. Recorded, not changed.
+
+**L-97. A transported line is placed at the grid point at or below its
+frequency, while the bins are centred** (D-452, D-459). `setOneLineNuP` takes
+a line's bin from `locate`: the point j with nu_j <= nu < nu_j+1. The grid's
+bins, however, are centred on their points, with widths `widFlx` from central
+differences (`initCartesianGrid`). The consequences:
+  - a line is carried, and absorbed, at a frequency up to one bin below its
+    own, half a bin on average;
+  - `SEDlines.out` (and `SED.out` before D-454) puts the line in the bin
+    labelled with that lower frequency. In pn150k's SED.out, C III] 1909 A sits
+    in the bin labelled 1980 A and Lya in the one labelled 1239 A (D-452).
+
+The energy is conserved: only the frequency changes. The
+mapping is this project's (D-292). Recorded, not changed.
 
 ---
 

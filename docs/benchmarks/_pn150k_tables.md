@@ -9,7 +9,7 @@
 :width: 100%
 
 Gas and dust temperatures against $A_V$ from the star. Solid: MOCASSIN-PDR, the median of the cells in
-each $A_V$ bin, with the band between the 16th and 84th percentiles; dashed: Cloudy c25.00, its zones.
+each $A_V$ bin, with the band between the 16th and 84th percentiles; dashed: Cloudy c25.00 as a static sphere, its zones.
 The dotted line is the ionization front, the smallest $A_V$ of the cells with $x(\mathrm{H^+}) < 0.3$;
 the upper axis is the radius at which the cells have that median $A_V$. The three cells MOCASSIN
 flagged are left out of every statistic.
@@ -56,7 +56,7 @@ the median of the collisional term is negative, $\mathrm{H_2}$ cools the gas; th
 its size. Dash-dotted: the fraction of Cloudy's heating from $\mathrm{H_2}$ photodissociation.
 ```
 
-```{csv-table} Line intensities, MOCASSIN-PDR against Cloudy c25.00. H$\beta$ is a luminosity in $10^{34}$ erg/s; every other line is over its own code's H$\beta$; ratio is MOCASSIN over Cloudy. Cloudy's lines are the last iteration's intrinsic block of its listing.
+```{csv-table} Line intensities, MOCASSIN-PDR against Cloudy c25.00 as a static sphere. H$\beta$ is a luminosity in $10^{34}$ erg/s; every other line is over its own code's H$\beta$; ratio is MOCASSIN over Cloudy. Cloudy's lines are the last iteration's intrinsic block of its listing.
 :file: /bench/data/pn150k/lines.csv
 :header-rows: 1
 :name: tab-pn150k-lines

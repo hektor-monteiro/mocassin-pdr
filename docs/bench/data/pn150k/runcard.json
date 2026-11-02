@@ -183,15 +183,15 @@
  "built_from": "c1ea374",
  "built_from_check": "git diff --quiet c1ea374 53c17eb -- source Makefile dataPDR: rc 0",
  "cloudy": {
-  "code": "Cloudy c25.00",
-  "prefix": "d396-cloudy-pn/150k",
-  "run_input": "d396-cloudy-pn/150k.in",
+  "code": "Cloudy c25.00, static sphere",
+  "prefix": "_d458/cl-pn/150k",
+  "run_input": "_d458/cl-pn/150k.in",
   "input": "benchmarks/pdr/pn150k/cloudy/150k_PDR.in",
   "rin_cm": 1e+16,
-  "devlog": "D-396",
-  "zones": 640,
+  "devlog": "D-458",
+  "zones": 654,
   "name": "cloudy-pn"
  },
  "model_label": "MOCASSIN-PDR pdr-coupling-v2.0",
- "cloudy_label": "Cloudy c25.00"
+ "cloudy_label": "Cloudy c25.00, static sphere"
 }

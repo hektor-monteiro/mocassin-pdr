@@ -387,8 +387,10 @@
     nebula, kept out of `SED.out` since {devlog}`D-454`. Per bin of the same
     grid: ν (Ryd), λ (µm), F_ν D² (Jy pc²) over all directions; no viewpoint
     or source columns, and neither lgEcho nor lgNosource applies. A line is
-    in the bin that holds its frequency. Ends with the total, in 10³⁶ erg/s,
-    which `SED.out`'s trailer repeats beside the continuum's.
+    in the bin of the grid point at or below its frequency, so its λ is up
+    to one bin longer than the line's own ({lim}`L-97`). Ends with the
+    total, in 10³⁶ erg/s, which `SED.out`'s trailer repeats beside the
+    continuum's.
 
 - name: equivalentTau.out
   group: results

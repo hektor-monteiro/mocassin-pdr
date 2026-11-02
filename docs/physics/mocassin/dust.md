@@ -250,9 +250,9 @@ converged when its $T_d$ changes by at most `convLimit` between iterations
 ({src}`update_mod.f90::updateCell@"deltaXHI = (grid%Tdust(0,0,cellP) - XOldHI) / XOldHI"`), and
 the run stops when the share of converged cells reaches the second number of `maxIterateMC`
 ({src}`iteration_mod.f90::MCIterationDriver/cvTotalsUpdate@"lgCvTotals = (totPercent >= minConvergence)"`;
-{devlog}`D-441`). `pn150k`'s PDR grains are at 0.92–0.93 of Cloudy's temperature; {lim}`L-19`
-explains the sign of that deficit, not its size, by the two codes putting their reprocessed energy at
-different frequencies.
+{devlog}`D-441`). `pn150k`'s PDR grains are at 0.99–1.00 of the temperature of Cloudy's static
+sphere, and its ionised-gas grains at 0.95–0.98 ({devlog}`D-458`). Against Cloudy's default expanding
+sphere, whose PDR the nebula's Ly$\alpha$ reaches, the PDR grains were at 0.92–0.95 ({lim}`L-19`).
 
 ### Resonance-line heating
 
@@ -277,7 +277,8 @@ species by $C^{\mathrm{abs}}$, but between species by number abundance, since ea
 normalised by its own $\bar C^{\mathrm{abs}}_s$: the mixture absorbs $\sum_s X_s$ times the
 destroyed power, all of it only when the abundances sum to one ({lim}`L-79`). Adding Ly$\alpha$ raised
 `pn150k`'s grains in the ionised gas from 0.94 and 0.81 of Cloudy's temperature to 1.01 and 0.98
-({lim}`L-19`).
+({lim}`L-19`), against Cloudy's expanding sphere; against its static sphere they are at 0.95 and 0.98
+({devlog}`D-458`).
 
 ### Fixed temperature
 

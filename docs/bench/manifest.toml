@@ -64,25 +64,26 @@ date = "2026-10-21"
 
 # ---------------------------------------------------------------------------------------- references
 # Cloudy c25.00 (~/software/cloudy-c25.00), DEVLOG D-396: MOCASSIN's 1 km/s turbulence and Cloudy's
-# large H2 model. `prefix` is the save-file prefix of the run; `input` the committed input, which
+# large H2 model; since D-458 a static sphere (`sphere static`), the runs of runs/_d458. The expanding
+# runs these pages used before (d396-cloudy-hii/hiipdr, d396-cloudy-pn/150k) stay in the runs root. `prefix` is the save-file prefix of the run; `input` the committed input, which
 # `reduce.py --check-cloudy` compares with the run's own (`run_input`). rin_cm is the inner radius of
 # the Cloudy input (its `radius` command), from which the radius of a zone is rin_cm + depth.
 
 [ref.cloudy-hii]
-code = "Cloudy c25.00"
-prefix = "d396-cloudy-hii/hiipdr"
-run_input = "d396-cloudy-hii/hiipdr.in"
+code = "Cloudy c25.00, static sphere"
+prefix = "_d458/cl-hii/hiipdr"
+run_input = "_d458/cl-hii/hiipdr.in"
 input = "benchmarks/pdr/hiipdr/cloudy/hiipdr.in"
 rin_cm = 3.0e18                                  # radius 18.4771 (log cm); MOCASSIN Rin 30.e17
-devlog = "D-396"
+devlog = "D-458"
 
 [ref.cloudy-pn]
-code = "Cloudy c25.00"
-prefix = "d396-cloudy-pn/150k"
-run_input = "d396-cloudy-pn/150k.in"
+code = "Cloudy c25.00, static sphere"
+prefix = "_d458/cl-pn/150k"
+run_input = "_d458/cl-pn/150k.in"
 input = "benchmarks/pdr/pn150k/cloudy/150k_PDR.in"
 rin_cm = 1.0e16                                  # radius = 16.000 (log cm); MOCASSIN Rin 1.0e16
-devlog = "D-396"
+devlog = "D-458"
 
 # The standalone 3D-PDR model of Bisbas et al. (2015) section 5.4, for the hiipdr overlay. A 3D-PDR
 # slab starts at A_V = 0 at its own lit face; it is drawn at A_V = A_front + A_V,ref

@@ -1,7 +1,7 @@
 {
  "product": "pn150k",
- "generated_utc": "2026-10-21T22:12:51Z",
- "docs_git_sha": "6d8007c31451b1e15f0e93464b9b127fa29cb8cd",
+ "generated_utc": "2026-11-02T19:53:06Z",
+ "docs_git_sha": "8602c7d1485257f80c9ad11930415d8ea098ba94",
  "docs_bench_dirty": true,
  "script": {
   "reduce.py": "d9896ac2110e397699f0c2551ca5b787f3350f99f539191e93449adbde5d1636",
@@ -9,10 +9,10 @@
  },
  "manifest": {
   "path": "repo:docs/bench/manifest.toml",
-  "sha256": "81c488f555096d0a1362990cce136668080141de7bab83dc2910493bda425ddd"
+  "sha256": "8f0a3057a06dd7b3276cf60b79581012e8f3f4dc2bbeeb07c899fb9725903eb4"
  },
- "python": "3.11.15",
- "numpy": "2.4.6",
+ "python": "3.13.13",
+ "numpy": "2.3.5",
  "runs_root": "/home/hmonteiro/software/mocassin_HM_2026_3DPDR/runs",
  "files_read": {
   "repo:docs/bench/inputs/rel-pn41/abunGASS_pn150k.in": "53529a0eb29d641e7cb2222d1c9673814eed933affc8d72d3bdfdcbe36f6e933",
@@ -20,6 +20,15 @@
   "repo:docs/bench/inputs/rel-pn41/dust_sizes.dat": "6ca7d387a242b1b9cad0ab40e3317ac8d8964ff6bd603b1379c83269114c2756",
   "repo:docs/bench/inputs/rel-pn41/dust_species.dat": "c5188d97dd053519e15393c7c6c49c6369125d8fde88fc6a6b4b7b875b4db2e1",
   "repo:docs/bench/inputs/rel-pn41/input.in": "f9f72df7b1699734a93392096375b9f08c44a9c189dc7cbd78389c647e9ee153",
+  "runs:_d458/cl-pn/150k.H2de": "97f2a34fbfb804e7dbbb07cacf5fb9b896543adb346b0541a809447419ed5ef6",
+  "runs:_d458/cl-pn/150k.H2sde": "8e65ccc365612e351158d2bbffefb5c539c4ed176d8099c59b5a30967e878513",
+  "runs:_d458/cl-pn/150k.dens": "cbdf48d92c0edfe07b134ed313e9c66cdecc3d61c0c9ace1edc8a9d7d5877c4b",
+  "runs:_d458/cl-pn/150k.dens389": "226a6219786d5428323873c0dedbda5a9c02f5f55939e46eb04233959758ac6c",
+  "runs:_d458/cl-pn/150k.gtemp": "e21037ea8acd3d290aeef1366689225fc13d74a9910dad295679232ef24bca15",
+  "runs:_d458/cl-pn/150k.heat": "5cb15e64929deb65568f34aee862b765dedaf1ebd796cbfd7cd96b1294a0946b",
+  "runs:_d458/cl-pn/150k.linesint": "d7972e7e542d8e126b85beed670276e0a3d503afb3304afffd978f0b146b7221",
+  "runs:_d458/cl-pn/150k.out": "32d127a7181814f62d49d35af522775c0976630f317979e84d06e6bc3da4d7be",
+  "runs:_d458/cl-pn/150k.ovr": "c979b3282137acd85cafd009920e218d522a2e4a2c4f95d385f0d07a7a7454f9",
   "runs:_release_v2/build.log": "c8c2f02b5d5a8f27c404ede22e3f84fea835c9ac5a6cca9143f8805d0265caec",
   "runs:_release_v2/rel-pn41/input/abunGASS_pn150k.in": "53529a0eb29d641e7cb2222d1c9673814eed933affc8d72d3bdfdcbe36f6e933",
   "runs:_release_v2/rel-pn41/input/abunGASS_pn150k_trim.in": "3c14564353f027aaf9737531b0e4b2257dbdd6a7fd7fac3ed94a4bb24ce06767",
@@ -37,16 +46,7 @@
   "runs:_release_v2/rel-pn41/output/pdrGrid.out": "2c57740e7044c29c21e35b97bbfd9dea58e0119ababa47a2963d9031d3a16ef3",
   "runs:_release_v2/rel-pn41/output/pdrRad.out": "705ece4642087453149b420b543958802248cff8e59217866c1a67390715dc59",
   "runs:_release_v2/rel-pn41/output/summary.out": "c38d4f15e694ac991d5d8bf737d7bbfc2bdb58d9db69bd4d33d04a0fb11ddaeb",
-  "runs:_release_v2/rel-pn41/run.log": "ad69329b84cff5f3da9886f95c94fa463fab28854960068635fbb38a308f7ccc",
-  "runs:d396-cloudy-pn/150k.H2de": "b95bab864d89723591488b892e1c2ccb8fb639578c629f63d4d509c0f9878d68",
-  "runs:d396-cloudy-pn/150k.H2sde": "2a422e7f5f23525880e5583438e007d7acc10ca45ed5e374279fe66c21ff3cfd",
-  "runs:d396-cloudy-pn/150k.dens": "214121804acfd987b93c83ad7d376ca411cbe9223e0401e7c2cb8348d92857cb",
-  "runs:d396-cloudy-pn/150k.dens389": "1ceedbd626f98eb1972f994ae2006cba44e8971f235e7db48c486fc4bf789a0b",
-  "runs:d396-cloudy-pn/150k.gtemp": "51db19f8dc042834bff3835d8f8a6a79aae8498295e4225382c7c67d2e3b192b",
-  "runs:d396-cloudy-pn/150k.heat": "a53c9c3bba5a506a0443000ae8643ac8beb480e3795bcf48b18d52b16225bb39",
-  "runs:d396-cloudy-pn/150k.linesint": "b0c41cc45896d92298d0306a0b9ca99b6baea4d3abb17d61735f923be92c4452",
-  "runs:d396-cloudy-pn/150k.out": "a33eefaccbc018019d0dc35e843eeccd1047cdfff04d5b14d423d768ccac04e9",
-  "runs:d396-cloudy-pn/150k.ovr": "c8d6d8a5fc8f6aa0b3b2cdaa073002eee27006fa70ad5acb3200e9274fde7bb5"
+  "runs:_release_v2/rel-pn41/run.log": "ad69329b84cff5f3da9886f95c94fa463fab28854960068635fbb38a308f7ccc"
  },
  "definitions": {
   "A_V": "pdrRad.out column 1, A_V,eff from the star; Cloudy AV(point) of save overview",
