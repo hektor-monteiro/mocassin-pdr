@@ -46916,3 +46916,36 @@ cautions). Both stopped at the outer radius.
     excess presumably shrinks the same way, but that is untested (~10 min
     of Cloudy).
   - The D-456 page does not yet show this result.
+
+### The page (the user: "update the Dusty Sphere page with these results")
+
+**Dusty Sphere Against Cloudy, version 2**
+(https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV), built by
+runs/_d456/page/build.py (version 1's builder kept as build_v1.py). It
+reads `runs/_d457/out/static.json` and the figures from
+`runs/_d457/figs.py`.
+  - **Summary and KPIs** now give Cloudy static beside its default sphere:
+    - escaped light 1.00001 / 0.991 L* (expanding 0.977);
+    - dust continuum 0.387 / 0.326 (expanding 0.190);
+    - escaped Lya ~0.022 / 0.052 (expanding 0.168).
+  - **A new section, "Most of the gap is Cloudy's default expanding
+    sphere"** (D-457):
+    - Hazy's statements, with page numbers;
+    - the single-change test and its control, with the inward fraction
+      97.7% against 43%;
+    - a table across both geometries and MOCASSIN;
+    - the remaining ~0.06 L*;
+    - figures (h) bands, (i) ultraviolet, (j) dust and (k) grain
+      temperatures, each with MOCASSIN, Cloudy static and Cloudy expanding.
+  - **The energy section's figure** moves from (h) to (l). Its closure table
+    gains the static sphere's row (0.0331 star, 0.5027 diffuse continuum,
+    0.4552 lines, 0.9910).
+  - **The SED and Lya sections** say that they compare Cloudy's default
+    sphere, and point to the new section. The Lya section's claim that the
+    escape fraction is "not settled here" is replaced by the pointer.
+  - **"What this does not settle"** now lists:
+    - the escape fractions in both geometries;
+    - the remaining ~0.06 L* and the front cell;
+    - the MOCASSIN side of the attribution (a code change);
+    - pn150k as a static sphere (not run);
+    - [O III] 5007's -4%.
