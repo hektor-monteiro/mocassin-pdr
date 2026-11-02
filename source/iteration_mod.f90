@@ -593,6 +593,16 @@ module iteration_mod
               grid(iG)%escapedPackets(0:grid(iG)%nCells, 0:nbins,0:nAngleBins) = 0.
            end do
 
+           ! D-454: the transported lines' escapes, booked apart from the continuum
+           if (.not.allocated(escapedLines)) then
+              allocate(escapedLines(0:nbins), stat = err)
+              if (err /= 0) then
+                 print*, "! iterateMC: can't allocate escapedLines"
+                 stop
+              end if
+           end if
+           escapedLines = 0.d0
+
            do iStar = 1, nStars
               if(taskid==0) print*, 'iterateMC: Starting transfer for ionising source ', iStar
 
@@ -682,6 +692,10 @@ module iteration_mod
                    & ": resonance-line packets drawn ", nResDrawn, ", destroyed by dust ", &
                    & nResDust, ", fraction ", real(nResDust)/real(max(nResDrawn,1_8))
            end if
+
+           ! D-454: the transported lines' escapes, summed over ranks
+           call mpi_allreduce(MPI_IN_PLACE, escapedLines, nbins+1, mpi_double_precision, &
+                & mpi_sum, mpi_comm_world, ierr)
 
 
            if (lgPlaneIonization) then

@@ -385,6 +385,12 @@ module photon_mod
                   stop
                end if
 
+               ! D-454: a transported line escapes into escapedLines, apart from the
+               ! continuum, so that SED.out is the continuum, as before D-292
+               if (enPacket%lgLineTr) then
+                  escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                       & dble(deltaE(iStar)*enPacket%weight)
+               else
                if (nAngleBins>0) then
                   if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -434,6 +440,7 @@ module photon_mod
                        & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
                end if
+               end if   ! D-454
 
                return
             end if
@@ -513,6 +520,7 @@ module photon_mod
             initPhotonPacket%nuP      = nuP
 
             initPhotonPacket%lgStellar = lgStellar
+            initPhotonPacket%lgLineTr = .false.   ! D-454: newPhotonPacket sets it for a transported line
 
 
 
@@ -981,6 +989,9 @@ module photon_mod
                    if (nuP > 0) then
                       newPhotonPacket = initPhotonPacket(nuP, position, &
                            & nullUnitVector, .false., .false., xP, yP, zP, gP, .false., 1.0)
+                      ! D-454: a line, unless the dust destroyed it above (lgResDust:
+                      ! then it leaves as dust emission, which is continuum)
+                      if (.not.lgResDust) newPhotonPacket%lgLineTr = .true.
                    else
                       newPhotonPacket = initPhotonPacket(lineP, position, &
                            & nullUnitVector, .true., .false., xP, yP, zP, gP, .false., 1.0)
@@ -1288,6 +1299,7 @@ module photon_mod
           character(len=7)                :: packetType ! stellar, diffuse, dustEmitted?
 
           logical                         :: lgScattered=.False. ! is the packet scattering with dust?
+          logical                         :: lgLineTrSca ! D-454: lgLineTr across the rebuild at a scattering
           ! D-224: transport consistency trace (diagnostic, behind pdrSplitField)
           real                            :: lo224(3), hi224(3), r224(3), v224(3)
           real                            :: chord224, tol224, kW224, dW224, cJ224
@@ -1980,6 +1992,12 @@ module photon_mod
 !print*, idirT, viewPointPTheta(idirT), viewPointTheta(viewPointPTheta(idirT))
 !print*, idirP, viewPointPPhi(idirP), viewPointPhi(viewPointPPhi(idirP)), viewPointPhi(viewPointPtheta(idirT))
 
+                   ! D-454: a transported line escapes into escapedLines, apart from the
+                   ! continuum, so that SED.out is the continuum, as before D-292
+                   if (enPacket%lgLineTr) then
+                      escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                           & dble(deltaE(iStar)*enPacket%weight)
+                   else
                    if (nAngleBins>0) then
                       if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
                          grid(enPacket%origin(1))%escapedPackets(enPacket%origin(2), enPacket%nuP,viewPointPtheta(idirT)) = &
@@ -2014,6 +2032,7 @@ module photon_mod
                            & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
                    end if
+                   end if   ! D-454
 
                    return
                 end if
@@ -2151,8 +2170,10 @@ module photon_mod
                          stop
                       end if
 
+                      lgLineTrSca = enPacket%lgLineTr
                       enPacket = initPhotonPacket(enPacket%nuP, rVec, enPacket%direction, .false., .false., enPacket%xP(1:2), &
                            & enPacket%yP(1:2), enPacket%zP(1:2), gP, .true., enPacket%weight)
+                      enPacket%lgLineTr = lgLineTrSca   ! D-454: a scattered line stays a line
 
                       if (.not.lgIsotropic .and. .not.enPacket%lgStellar) then
                          do ihg = 1,10
@@ -2607,6 +2628,12 @@ module photon_mod
 !print*, idirT, viewPointPTheta(idirT), viewPointTheta(viewPointPTheta(idirT))
 !print*, idirP, viewPointPPhi(idirP), viewPointPhi(viewPointPPhi(idirP)), viewPointPhi(viewPointPtheta(idirT))
 
+                      ! D-454: a transported line escapes into escapedLines, apart from the
+                      ! continuum, so that SED.out is the continuum, as before D-292
+                      if (enPacket%lgLineTr) then
+                         escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                              & dble(deltaE(iStar)*enPacket%weight)
+                      else
                       if (nAngleBins>0) then
                          if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -2645,6 +2672,7 @@ module photon_mod
                               & grid(enPacket%origin(1))%escapedPackets(enPacket%origin(2), &
                               & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
                       end if
+                      end if   ! D-454
 
                       return
                    end if
@@ -2832,6 +2860,12 @@ module photon_mod
 !print*, idirT, viewPointPTheta(idirT), viewPointTheta(viewPointPTheta(idirT))
 !print*, idirP, viewPointPPhi(idirP), viewPointPhi(viewPointPPhi(idirP)), viewPointPhi(viewPointPtheta(idirT))
 
+                      ! D-454: a transported line escapes into escapedLines, apart from the
+                      ! continuum, so that SED.out is the continuum, as before D-292
+                      if (enPacket%lgLineTr) then
+                         escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                              & dble(deltaE(iStar)*enPacket%weight)
+                      else
                       if (nAngleBins>0) then
                          if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -2870,6 +2904,7 @@ module photon_mod
                               & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
                       end if
+                      end if   ! D-454
 
                       return
                    end if
@@ -2958,6 +2993,12 @@ module photon_mod
 !print*, idirP, viewPointPPhi(idirP), viewPointPhi(viewPointPPhi(idirP)), viewPointPhi(viewPointPtheta(idirT))
 
 
+                     ! D-454: a transported line escapes into escapedLines, apart from the
+                     ! continuum, so that SED.out is the continuum, as before D-292
+                     if (enPacket%lgLineTr) then
+                        escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                             & dble(deltaE(iStar)*enPacket%weight)
+                     else
                      if (nAngleBins>0) then
                         if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -2998,6 +3039,7 @@ module photon_mod
                              & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
                      end if
+                     end if   ! D-454
 
                      !b2.005
                      return
@@ -3085,6 +3127,12 @@ module photon_mod
                            stop
                         end if
 
+                        ! D-454: a transported line escapes into escapedLines, apart from the
+                        ! continuum, so that SED.out is the continuum, as before D-292
+                        if (enPacket%lgLineTr) then
+                           escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                                & dble(deltaE(iStar)*enPacket%weight)
+                        else
                         if (nAngleBins>0) then
                            if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -3121,6 +3169,7 @@ module photon_mod
                                 & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
                         end if
+                        end if   ! D-454
 
                         !b2.005
                         return
@@ -3258,6 +3307,12 @@ module photon_mod
 !print*, idirT, viewPointPTheta(idirT), viewPointTheta(viewPointPTheta(idirT))
 !print*, idirP, viewPointPPhi(idirP), viewPointPhi(viewPointPPhi(idirP)), viewPointPhi(viewPointPtheta(idirT))
 
+            ! D-454: a transported line escapes into escapedLines, apart from the
+            ! continuum, so that SED.out is the continuum, as before D-292
+            if (enPacket%lgLineTr) then
+               escapedLines(enPacket%nuP) = escapedLines(enPacket%nuP) + &
+                    & dble(deltaE(iStar)*enPacket%weight)
+            else
             if (nAngleBins>0) then
                if (viewPointPtheta(idirT) > 0 .and. viewPointPhi(viewPointPtheta(idirT)) < 0) then
 
@@ -3294,6 +3349,7 @@ module photon_mod
                     & enPacket%nuP,0) +  deltaE(iStar) *(enPacket%weight)
 
             end if
+            end if   ! D-454
 
             !b2.005
             return

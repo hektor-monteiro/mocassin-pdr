@@ -34,7 +34,7 @@ GOLDEN = {
     'update_mod.f90::thermbalance':
         ('source/update_mod.f90', 1796, 2507, 'update_mod/updateCell/thermBalance'),
     'iteration_mod.f90::iterateMC':
-        ('source/iteration_mod.f90', 56, 3358, 'iteration_mod/MCIterationDriver/iterateMC'),
+        ('source/iteration_mod.f90', 56, 3372, 'iteration_mod/MCIterationDriver/iterateMC'),
     # forLines in three modules: the path decides, the scope suffix must fit
     'emission_mod.f90::forLines':
         ('source/emission_mod.f90', 597, 648, 'emission_mod/emissionDriver/forLines'),
@@ -55,7 +55,7 @@ GOLDEN = {
     'set_input_mod.f90::readInput@"case (\\"convTotals\\")"+1':
         ('source/set_input_mod.f90', 469, 470, 'set_input_mod/readInput'),
     'iteration_mod.f90::iterateMC@"call h2LevelModel(grid(1:nGrids), 1)"':
-        ('source/iteration_mod.f90', 1043, 1045, 'iteration_mod/MCIterationDriver/iterateMC'),
+        ('source/iteration_mod.f90', 1057, 1059, 'iteration_mod/MCIterationDriver/iterateMC'),
     'update_mod.f90::thermBalance@"do i = 1, 12"#1':
         ('source/update_mod.f90', 1880, 1882, 'update_mod/updateCell/thermBalance'),
     'pdr_mod.f90::h2LevelModel@"subroutine h2PopResume"#1':
@@ -121,7 +121,7 @@ def test_scope_suggestion_and_other_profile():
 
 def test_text_suggestion():
     _, w = repo.resolve('iteration_mod.f90::iterateMC@"call h2LevelModel(grid, 1)"')
-    assert 'closest: L1043' in w[0][1]
+    assert 'closest: L1057' in w[0][1]
 
 
 def test_not_compiled_flag():

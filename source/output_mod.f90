@@ -3288,6 +3288,8 @@ endif
       real :: theta1, theta2, phi1, phi2        ! Angle calculation variables
       real :: lambda                            ! Wavelength [cm]
       real :: totalE                            ! Total energy radiated out [erg/sec]
+      real :: totalLinesE                       ! D-454: energy radiated out in the transported lines [1e36 erg/s]
+      real :: SEDl                              ! D-454: their F(nu)*D^2 in a bin [Jy * pc^2]
       real :: SEDratio                          ! Ratio for normalizing angle-dependent SED
       logical :: isStarCell                     ! Flag to identify if a cell contains a star
   
@@ -3479,6 +3481,35 @@ endif
       write(16,*) ' '
       write(16,*) 'Total energy radiated out of the nebula [e36 erg/s]:', totalE
       print*, 'Total energy radiated out of the nebula [e36 erg/s]:', totalE, Lstar, nphotons
+
+      ! D-454: the transported lines (D-292) escape into escapedLines and not
+      ! escapedPackets, so the SED above is the continuum, as it was before
+      ! D-292. SEDlines.out holds them on the same grid and in the same units,
+      ! over all directions (raw sums: escapedPackets' /8 and x8 under
+      ! symmetricXYZ cancel); their total is given here so the two add up.
+      totalLinesE = 0.
+      if (allocated(escapedLines)) then
+         close(76)
+         open(unit=76, file='output/SEDlines.out', status='unknown', position='rewind', iostat=ios, action="write")
+         if (ios /= 0) then
+            print*, "! writeSED: Cannot open output/SEDlines.out for writing"
+            stop
+         end if
+         write(76,*) 'Escaped energy of the transported lines (D-292), not in SED.out (D-454): '
+         write(76,*) '  nu [Ryd]         lambda [um]        F(nu)*D^2 [Jy * pc^2] over all directions'
+         do freq = 1, nbins
+            totalLinesE = totalLinesE + real(escapedLines(freq))
+            SEDl = real(escapedLines(freq))/(4.*Pi*3.086*3.086)
+            SEDl = 1.e23*SEDl/(3.2898e15*widflx(freq))
+            write(76,*) nuArray(freq), c/(nuArray(freq)*fr1Ryd)*1.e4, SEDl
+         end do
+         write(76,*) ' '
+         write(76,*) 'Total energy radiated out in the transported lines [e36 erg/s]:', totalLinesE
+         close(76)
+      end if
+      write(16,*) 'Energy radiated out in the transported lines, in SEDlines.out [e36 erg/s]:', totalLinesE
+      write(16,*) 'Continuum and lines [e36 erg/s]:', totalE + totalLinesE
+      print*, 'Energy radiated out in the transported lines [e36 erg/s]:', totalLinesE
   
       write(16,*) ' '
       write(16,*) 'Diagnostic Parameters:'

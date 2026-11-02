@@ -364,7 +364,7 @@
     The SED of the escaping radiation. Per bin: ν (Ryd), λ (µm), then F_ν D²
     (Jy pc²) over all directions and at each `inclination`, then the same for
     the packets last emitted in the source cells. symmetricXYZ factors
-    applied. Ends with the total energy radiated, in 10³⁶ erg/s.
+    applied. Ends with the energy radiated in the continuum, in 10³⁶ erg/s, then that in the transported lines and the sum of the two.
 
     A source in an inactive cell (a central cavity) books the packets that
     leave without interacting to that cell. They count in the source columns,
@@ -373,6 +373,22 @@
     cavity lost its directly escaping starlight (only 40% of the luminosity
     reached the file in the quickstart HII40), and the last line was
     mis-scaled by 10⁻³⁶.
+
+    The file is the continuum: a transported line ({devlog}`D-292`) escapes into `SEDlines.out` ({devlog}`D-454`). From D-292 to D-454 the lines were in this file, in the bins that hold them, as 0.29 of pn150k's escaped energy and 0.04 of hiipdr's.
+
+- name: SEDlines.out
+  group: results
+  writer: 'output_mod.f90::writeSED@"file=''output/SEDlines.out''"'
+  when: with SED.out
+  build: all
+  read_by: nothing in the code
+  description: |
+    The energy the transported lines ({devlog}`D-292`) carry out of the
+    nebula, kept out of `SED.out` since {devlog}`D-454`. Per bin of the same
+    grid: ν (Ryd), λ (µm), F_ν D² (Jy pc²) over all directions; no viewpoint
+    or source columns, and neither lgEcho nor lgNosource applies. A line is
+    in the bin that holds its frequency. Ends with the total, in 10³⁶ erg/s,
+    which `SED.out`'s trailer repeats beside the continuum's.
 
 - name: equivalentTau.out
   group: results

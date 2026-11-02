@@ -136,6 +136,11 @@ module common_mod
     ! drawn, and of those destroyed by the dust. Reset and reported per
     ! iteration by iterateMC.
     integer(kind=8) :: nResDrawn = 0, nResDust = 0
+    ! D-454: the energy the transported line packets (D-292) carry out of the
+    ! nebula, by frequency bin, all directions, raw [1e36 erg/s, the units of
+    ! escapedPackets]. Zeroed and summed over ranks by iterateMC; writeSED
+    ! writes it to output/SEDlines.out, so that SED.out is the continuum.
+    double precision, allocatable :: escapedLines(:)
     ! D-292. Transport the optically thin diffuse lines. MOCASSIN created them
     ! as packets and discarded them, which removed ~17% of the local FUV field
     ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is
@@ -647,6 +652,7 @@ module common_mod
         
         logical       :: lgStellar
         logical       :: lgLine
+        logical       :: lgLineTr  ! D-454: a transported line (D-292); its escape is kept out of the SED
 
         type(vector)  :: position
         type(vector)  :: direction
