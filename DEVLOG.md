@@ -455,7 +455,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-453 | **Audit of D-445..D-451, and the documentation brought up to date (the user: "Analyse te changes, audit them and update the documentation as needed.").** The code of D-447 and D-450 read against the DEVLOG: hICollExc, the diagnostic's columns, `locate` and charge transfer above 1+ are as described, with no double count in the chemistry. `locate`'s 112 callers audited: besides L-91, the fix also corrects the plane-parallel launch (10% of the slabs' packets per axis started in column 2), the `2D` mapping and a star at coordinate 1.0, and turns getTmin's all-zero-row corner case from 1 K to 2999 K (L-96, Low). One gap: `lineFlux.out`'s resonance-line table still counts recombination Lya only (L-95, Low; pn-LC 23.4 against the row's 35.4 Hbeta). Stale source comments added to L-77. Records fixed: D-451's index row (missing cells, so absent from the devlog index), L-65 (emitted since D-447; its premise in doubt), D-449 cited for D-450's changes, L-92 linked for L-93, and the tutorial's claim that later code computes its model as v2.0.1. Lexington rerun on the current plain build: HII40/HII20/PN75 within 0.7% (HII40 [O I] +1.9%), PN150 Hbeta +0.4% and lines -2.4 to -4.1%, no in-range change. Docs: core chapters, photorates, outputs, benchmark pages (D-451's pn150k shifts), tutorial note. | Done | 2026-11-01 |
 | D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. **Results (340b9f6; runs/_d454):** hiipdr against runs/_d450/hii-LC and a seeded HII40 pair are byte-identical in every output but SED.out (summary.out apart from its wall-clock times); continuum-only bins identical; continuum + lines = the old total within 1.6e-7 (hiipdr) and 1.2e-7 (HII40); line share 0.043 (hiipdr) and 0.275 (HII40, 56% of it Lya), as predicted; per-bin closure within 8.1e-6 (HII40) but up to 8.1e-5 in 15 hiipdr line bins, single-precision summation over 15k cells (both signs, line bins only, scaling with cell count), not a lost line. | Done | 2026-11-01 |
 | D-455 | **Audit of D-454, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** D-454's code (340b9f6) read against its plan: all 84 escapedPackets lines of photon_mod sit inside the seven D-454 branches; newPhotonPacket's diffuse case is the only maker of line packets and the dust scattering's rebuild the only in-flight reconstruction, so lgLineTr is set and kept where the plan says; escapedLines is zeroed, summed over ranks on every rank and written raw, and mocassinWarm calls writeSED only after its iterations. D-454's numbers reproduced from runs/_d454 (closures -1.6e-7 and -1.2e-7, shares 0.0434 and 0.2748, 15 hiipdr bins above 1e-5 at up to 8.1e-5, byte identity but summary.out). mocread.read_sed and accessories' read_sed parse the new trailer; L_e36 is now the continuum. Consequences documented: contCube.out and the viewpoints' far-infrared normalisation are continuum only; echo and NoSourceSED do not apply to SEDlines.out; no benchmark page reads a gas model's SED.out. Records: D-454's index row had five cells (its results fell in the Status column), merged; L-77 gains the stale D-292 comments (transport off by default; no Lyman series or Lya) and iterateMC's printed "total Escaped Packets", divided by 8 at every cell (inherited). Docs: transfer, iteration, emission and the chapter index; outputs and keywords; the Python guide, quickstart, tutorial note and benchmarks index. | Done | 2026-11-02 |
-| D-456 | **A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (the user: "Run a uniform spherical gas plus dust model using both codes and compare the results. Investigate energy conservation aspects in both runs. Does the difference in SED that appeared in the models with PDR show up here as well?").** pn150k's star, gas and graphite as a uniform sphere cut at the H+ front (R_out 4.5198e17 cm, where pn150k's Cloudy model falls below 4000 K), no PDR: Cloudy dusty (ds150) and dust-free (gs150), MOCASSIN plain flavour (runs/_d456). Energy diagnostics named for both codes (Cloudy's own sphere check is compiled out). Predictions on record before the runs: MOCASSIN closes to 1e-4; Cloudy >= 0.99 (low confidence); the Lya and 5-60 um differences persist (+0.08 to +0.20 L* of dust continuum). | Open | 2026-11-02 |
+| D-456 | **A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (the user: "Run a uniform spherical gas plus dust model using both codes and compare the results. Investigate energy conservation aspects in both runs. Does the difference in SED that appeared in the models with PDR show up here as well?").** pn150k's star, gas and graphite cut at the H+ front (R_out 4.5198e17 cm), no PDR; MOCASSIN plain flavour (runs/_d456/moc-dust, 15 iterations) against Cloudy, dusty (ds150) and dust-free (gs150). **Yes, the PDR model's SED difference appears without a PDR, larger:** 5-25/25-60/60-300 um at 1.62/1.85/1.50x Cloudy's (continuum 2.39/2.15/1.58x; beyond 5 um 0.387 against 0.190 L*), far UV 0.48x; structure agrees (H+ front 0.1275/0.1279 pc, He2+ 0.0883/0.0880, T_e 2-5%, Hbeta 0.944). It follows Lya: both make ~0.22-0.24 L*; MOCASSIN's grains take ~0.218 (D-376's local destruction, ~0.022 escapes), Cloudy's ~0.052 with 0.168 escaping in its continuum (its line list: 0.075); the ledger closes to ~0.03 L* (C IV, made 2.5x Cloudy's, and the field). MOCASSIN's grains 5-29% warmer, its dust temperature solution consistent with its packets (Lya 0.206 against 0.218 L*). **Energy:** MOCASSIN 1.00001 L*, gas re-emission 0.994 of the absorbed power. Cloudy 0.977 (dusty), 0.944 (dust-free), 0.973 (pn150k): a transferred line's outward beam is diluted three times inside the zone that emits it (tmn's zone-centre dilution, BeamOutOut, the zone's own dilution; ~4 dr/r per zone, dr/r up to 0.04), which predicts every isolated line's continuum/list ratio within 0.002 (0.906-0.976 at default zoning; pn150k's IR lines within 0.004); dr/r <= 0.01 and 0.0025 bring the dust-free total to 0.967 and 0.988. Cloudy's own sphere energy check is compiled out. Compare Cloudy's lines through its line list, not its saved continuum. Predictions: P1, P2, P5, P8, P9 held; P3 (Cloudy >= 0.99), P4 (Lya numbers), P7 (T_dust within 5%) failed; Q1 held, Q2/Q3 lines held and totals fell 0.003 and 0.002 short, Q4 failed narrowly (the line list rises 1-2% with zoning). Page: Dusty Sphere Against Cloudy, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV. | Done | 2026-11-02 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -46549,6 +46549,171 @@ saves per-zone emissivities of 18 lines:
     written (escaped >= 0.99 L*, O IV >= 0.985). The first pass's files are
     kept as `cl-free-d025/trunc1400/`.
 
+### Results: MOCASSIN's sphere (runs/_d456/moc-dust, 11:30-11:55)
+
+  - **The run.** It converged on the integrated test at iteration 15 (1.8%,
+    Ar+), in 23:19 per rank at 14 ranks. 3 cells are flagged black, and
+    "balance not reached" appears 30 times in the log.
+  - **Structure (`ana/profiles.py`):**
+    - the H+ front at 0.1275 pc against Cloudy's 0.1279, the He2+ front at
+      0.0883 against 0.0880 (P8 holds);
+    - T_e within 2-5% at every radius;
+    - Hbeta 0.944 of Cloudy's intrinsic.
+  - **Escaped SED (`ana/sed.py`, D-452's script plus SEDlines.out; L*):**
+
+        band          MOCASSIN  Cloudy   ratio   own continuum: MOC  Cloudy  ratio
+        FUV 6-13.6 eV 0.151     0.314    0.48
+        0.21-1 um     0.349     0.366    0.95
+        1-5 um        0.025     0.024    1.02
+        5-25 um       0.073     0.045    1.62    0.042  0.018  2.39
+        25-60 um      0.323     0.175    1.85    0.273  0.127  2.15
+        60-300 um     0.077     0.051    1.50    0.072  0.046  1.58
+        all           1.000     0.977
+
+    (MOCASSIN's bins placed by their centre, as runs/_d452/sed.py does;
+    SED.out's lambda column is the bin's long-wavelength edge, and placing
+    by it moves one bin, ~0.008 L*, across 25 um)
+
+    - Since D-454 both codes give their continuum apart from their lines, so
+      the dust columns are each code's own continuum. Beyond 5 um:
+      MOCASSIN 0.387, Cloudy 0.190 (2.03x).
+    - Both dust spectra peak at 42 um in nu L_nu.
+    - Lines: [O III] 4959+5007 escape at 0.129 against Cloudy's 0.124 in
+      its continuum (0.129 in its line list); Halpha 0.98, C III] 0.91.
+    - Beyond 1 mm MOCASSIN's free-free tail is 0.3-0.5x Cloudy's, as in
+      pn150k (D-452). It carries ~1e-4 L* and was not examined.
+  - **Lya (`ana/budget.py`):**
+    - MOCASSIN makes 0.240 L* (recombination 0.160 + collisional 0.081).
+      About 0.022 escapes: SEDlines.out's 1197-1239 A bin holds 0.0274 of
+      lines, less He II 1215 and O V] 1214/1218 at their lineFlux.out
+      strength (0.0058; `ana/sed.py`). The rest, about 0.218, goes into the
+      grains.
+    - [D376]: 0.871 of all resonance-line packets destroyed in the last
+      iteration (pn-LC 0.956). The recombination-Lya row of the resonance
+      table goes 23.38 -> 1.56 Hbeta.
+    - Cloudy makes 0.220:
+      - 0.180 leaves its zones, and GraL 0.040 is destroyed in them;
+      - its continuum carries 0.168 out, so 0.012 is lost to dust on the
+        way;
+      - its own emergent line list gives 0.075;
+      - its dust-free twin makes 0.244, all escaping.
+    - **The ledger:**
+      - Lya into grains: MOCASSIN ~0.218, Cloudy ~0.052, a difference of
+        ~0.17 L*;
+      - dust continuum difference: +0.197;
+      - far-UV difference: -0.163;
+      - the remaining ~0.03 of dust: C IV 1549 and the radiation field.
+        MOCASSIN makes C IV at 3.09 Hbeta, against Cloudy's ~1.2 (not
+        examined), and destroys 62% of it.
+  - **The grains:**
+    - MOCASSIN's are warmer at matched sizes (6, 29, 206 nm): 5-12% within
+      0.08 pc, and 16-29% at 0.11-0.127 pc, where the Lya heating peaks in
+      the partly neutral gas. **P7 fails.**
+    - Its temperature solution (summary.out's dust budget) gives Lya 0.540
+      of the grain heating, C IV 0.035 and the field 0.422. On ~0.382 L* of
+      dust emission that is ~0.206 L* of Lya, against ~0.218 that the
+      packets put in. They agree within 6%, and C IV within a few percent.
+      Since D-233 the dust re-emits exactly the packets it absorbed, so this
+      checks the dust spectrum's shape, not its energy.
+    - The idea that the dust/gas split counts Lya twice is ruled out by
+      reading the code: D-233 samples dustPDF for dust absorptions and
+      recPDF for gas absorptions.
+  - **Energy:**
+    - SED.out + SEDlines.out = 0.56026 + 0.43973 = 1.00001 L* (P1 holds);
+    - the gas re-emits 0.994 of the power the packets gave it (1.49 L*),
+      i.e. the Monte Carlo is at 1.006 of the emission, as at D-450 (P2
+      holds).
+
+### Predictions scored
+
+  - P1 holds (1e-5).
+  - P2 holds (0.994).
+  - **P3 fails:** 0.977 and 0.944. Cloudy's loss is in its outward line
+    beam (below), not beyond the front.
+  - **P4 fails in both numbers:** MOCASSIN lets out ~0.022 (predicted
+    <= 0.01) and Cloudy 0.168 (predicted 0.05-0.12). Its consequence holds:
+    the far UV at 0.48 (<= 0.6).
+  - P5 holds at its upper edge: +0.197 L* (+0.08 to +0.20) at 2.03x
+    (1.3-2.2). MOCASSIN's dust plus far UV is 0.538 against Cloudy's 0.504,
+    within the 0.03 (0.011 counting Cloudy's missing 0.023).
+  - P6 holds for Halpha (0.98), 0.21-1 um (0.95) and Hbeta (0.944).
+    [O III] is 1.04 against Cloudy's continuum (predicted 0.93-1.03), and
+    1.00 against its line list.
+  - **P7 fails** (5-29% warmer).
+  - P8 holds (0.3%).
+  - P9 holds (1.02).
+
+**Answer to the question:** yes. The PDR model's SED difference appears
+without a PDR, and it is larger:
+  - 5-60 um is 1.6-1.85x Cloudy's (continuum 2.2-2.4x), against pn150k's
+    1.50x (1.67x);
+  - 60-300 um now also differs (1.5x), because every grain here sits in
+    the ionized gas;
+  - the far UV is at 0.48x.
+
+It follows Lya. The attribution is consistency within the ledger; the run
+that tests it removes D-376's destruction alone, which is a code change.
+
+### Results: Cloudy's line beam at three zone limits (`ana/cloudy_zones.py`)
+
+    dust-free sphere      zones  max dr/r  escaped  lines in continuum  isolated lines, continuum/list (zone factors)
+    gs150e                259    0.040     0.9439   0.6943              0.906-0.976 (0.904-0.976)
+    gs150d1               489    0.010     0.9666   0.7153              0.961-0.977 (0.961-0.977)
+    gs150d025 (nend 4000) 1584   0.0025    0.9884   0.7360              0.989-0.992 (0.990)
+
+  - **The deficit follows the zones:** 0.056 -> 0.033 -> 0.012 L*. At the
+    finest zoning, the lines' remaining ~1% (~0.007 L*) is most of what is
+    left.
+  - **Each isolated line's continuum/list ratio** matches its own run's
+    zone factors within 0.002 at every limit. The figure is
+    `ana/out/cloudy_zones.svg`.
+  - **The same factors explain pn150k's (D-452) infrared lines** within
+    0.004. Measured against predicted:
+    - O IV 25.9 um: 0.905 and 0.906;
+    - S IV: 0.915 and 0.918;
+    - [O III] 51.8 um: 0.946 and 0.948;
+    - [O III] 88 um: 0.948 and 0.949;
+    - [Ne III] 15.6 um: 0.955 and 0.959;
+    - [N III] 57 um: 0.945 and 0.947;
+    - [Ne V] 24.3 um: 0.891 and 0.895.
+  - **Q1 holds.** Q2 holds for O IV (0.963), while its total 0.967 is just
+    under 0.970. Q3 holds for O IV (0.992), while its total 0.988 is just
+    under 0.99.
+  - **Q4 fails narrowly.** Across the three limits Hbeta rises 1.5%,
+    [O III] 5007 1.8% and O IV 1.0%. Cloudy's gas heating TotH rises 1.3%
+    too: the outward line beam is also the field the outer zones absorb, so
+    it heats and ionizes them more as its loss shrinks.
+
+**So Cloudy's escaped spectrum falls short in a sphere because of its line
+bookkeeping, not a physical absorber.**
+  - **The mechanism:** a transferred line's outward beam is diluted three
+    times within the zone that emits it. About 4 dr/r of the zone's line
+    emission is lost there, with Cloudy's default zones reaching dr/r = 0.04.
+  - **The consequences:**
+    - its saved continuum understates its lines by 2-11%, more for lines
+      made further in, against its own line list;
+    - its outward line field is too weak by the same factors;
+    - D-452's line and band ratios against Cloudy's continuum carry this
+      bias;
+    - pn150k's missing 0.027 L* is consistent with it, though that total
+      was not tested by itself.
+  - **Advice for comparisons:** compare lines against Cloudy's line list,
+    not against its saved continuum. Or run Cloudy with
+    `set drmax 0.0025 relative linear` and `set nend 4000`, which brings
+    the continuum within 1%.
+
 ### Status
 
-Open: the runs are queued.
+Done. Not known:
+  - **Lya's physical escape fraction** from a dusty ionized nebula with a
+    neutral edge. MOCASSIN gives ~0.09; Cloudy gives 0.76 in its continuum
+    and 0.34 in its line list. Neither transfers Lya resonantly. The run
+    that tests the attribution of the dust excess removes D-376's
+    destruction alone, which is a code change.
+  - **Two other gaps:**
+    - C IV 1549: MOCASSIN makes it at 3.09 Hbeta, Cloudy at ~1.2;
+    - MOCASSIN's radio free-free tail is 0.3-0.5x Cloudy's.
+  - **The matter-bounded excess of the truncated run** (1.024 L*).
+  - **Whether the line beam is all of pn150k's missing 0.027 L*.**
+
+The page: **Dusty Sphere Against Cloudy**, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV (version 1). Its builder is in runs/_d456/page (build.py, shell.py), with the shell taken from 150 kK PN Against Cloudy v32. The analysis scripts are in runs/_d456/ana, and their outputs and logs in runs/_d456/ana/out.
