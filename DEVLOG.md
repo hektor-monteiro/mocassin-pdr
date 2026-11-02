@@ -46808,3 +46808,37 @@ PDFs and their LaTeX sources; PDF page numbers).
     that Cloudy's answer depends on a geometry assumption that MOCASSIN does
     not make. Hazy notes the escape-probability fits themselves disagree by
     up to 2x.
+
+### The test (the user: "run it"), predictions on record before the runs
+
+Two Cloudy runs in `runs/_d457`, side by side (2 processes):
+  - **cl-static/ds150s:** ds150 with `sphere static`;
+  - **cl-expand/ds150e:** ds150 unchanged, as a control.
+
+Both add `print line inward`, which only prints. The control should
+reproduce ds150 and gives the Lya inward fraction under `expanding`.
+
+  - **S1, the control:** ds150e reproduces ds150's escaped total (0.9770)
+    and Lya numbers to 1e-4. Its Lya inward fraction is >= 0.8.
+  - **S2, Lya under `static` is destroyed far more:**
+    - GraL rises from 0.040 to >= 0.12 L*;
+    - the continuum's Lya falls from 0.168 to <= 0.05 L*;
+    - the intrinsic (zone-escaping) Lya falls from 0.180 to <= 0.08;
+    - the emergent line list's falls from 0.075 to <= 0.03.
+  - **S3, the dust:** Cloudy's own continuum beyond 5 um rises from 0.190
+    to 0.28-0.36 L*. MOCASSIN's 0.387 is then 1.05-1.4x it, against 2.03x
+    for ds150. The 6-13.6 eV band rises to 0.6-1.0 of Cloudy's (0.48 for
+    ds150).
+  - **S4, the structure does not move:**
+    - the H+ and He2+ fronts within 1%;
+    - T_e within 2% at the radii D-456 tabulated;
+    - Hbeta and [O III] 5007 intrinsic within 2%.
+
+    The trapped Lya raises n=2 of H, but with dust its density stays
+    limited.
+  - **S5, closure:** the escaped total is 0.975-0.995 L*. Lya energy moves
+    into the dust continuum, which Cloudy dilutes correctly, so the line
+    beam's loss (D-456) shrinks a little.
+
+**What would change the reading:** if the continuum's Lya stays >= 0.12
+under `static`, the expanding assumption is not what lets Cloudy's Lya out.
