@@ -46434,6 +46434,89 @@ belongs to the ionized gas and its dust.
     The run that tests it removes MOCASSIN's D-376 destruction alone. That
     is a code change, and it is not part of this entry.
 
+### First results: Cloudy's closure (11:31-11:48)
+
+Both Cloudy spheres stopped at the outer radius after 3 iterations (ds150
+73 s, gs150 56 s).
+
+    escaped / L*        trans   diffuse (DiffOut)   lines (outlin)   total
+    ds150 (dusty)       0.0331  0.9439              0.5766           0.9770
+    gs150 (dust-free)   0.0411  0.9027              0.6943           0.9439
+    pn150k (D-452)      0.0159  0.9569              0.3987           0.9728
+
+**P3 fails.** Cloudy's deficit is not beyond the front: it is 2.3% with
+grains, 5.6% without them and 2.7% with the PDR. The coincidence P3 rested
+on (0.024 L* of the non-ionizing incident absorbed beyond the front) meant
+nothing.
+
+**The lines in Cloudy's saved continuum fall short of its own line list.**
+In gs150 nothing absorbs them: each line's emergent and intrinsic values
+agree to 1e-4 L*. Against the line list, the continuum holds, for the lines
+that sit alone in their cells:
+  - O IV 25.9 um: 0.906;
+  - S IV 10.5 um: 0.917;
+  - [O III] 51.8 um: 0.946;
+  - He II 1640: 0.911;
+  - [N II] 6583: 0.975;
+  - Lya: 0.974.
+
+A window of +-10 cells recovers nothing. The shortfall grows the further in
+the line is made, and nothing absorbs at 26 um. So it is bookkeeping.
+
+**The mechanism, read in the source (c25.00).** The zone loop is ZoneStart,
+RT_diffuse, RT_continuum, ZoneEnd (cloudy.cpp:231-262).
+  - **ZoneStart** sets Radius to the zone's outer edge r_o.
+    - It puts the zone-centre dilution (r_i/r_m)^2 into `opac.tmn`
+      (zone_startend.cpp:207).
+    - It sets BeamOutOut = r_o dr/(r_o + 2 dr) (zone_startend.cpp:528).
+  - **RT_diffuse** adds a transferred line's photons to `outlin` with
+    BeamOutOut x tmn (lines_service.cpp:567-572).
+  - **RT_continuum** multiplies `outlin` by ExpZone (r_i/r_o)^2
+    (rt_continuum.cpp:228).
+  - **ZoneEnd** divides only the incident beam by tmn.
+  - **The result:** a zone's line emission reaches its outer edge as
+    dr r_o/(r_o+2dr) (r_i/r_m)^2 (r_i/r_o)^2 of its emissivity, where the
+    shell gives (r_o^3 - r_i^3)/(3 r_o^2). That is a loss of about 4 dr/r per
+    zone, against its own emission only. The diffuse continuum is added
+    after the dilution with tmn alone and is right to second order.
+  - **Cloudy's zones** in the inner nebula are near its sphericity cap,
+    dr = 0.04 r (radius_next.cpp:972). The median dr/r is 0.035 within
+    0.03 pc, 0.021 at 0.06-0.09 pc and 0.001 near the front.
+  - **The zone factors, weighted by pn150k's per-zone emissivities**
+    (150k.emis; the same ionized structure; `ana/cloudy_dilution.py`),
+    give the measured shortfalls:
+    - O IV 25.9 um 0.906 (measured 0.906);
+    - S IV 0.918 (0.917);
+    - [O III] 51.8 um 0.948 (0.946);
+    - He II 4686 0.916 (He II 1640 0.911);
+    - [N II] 6583 0.976 (0.975).
+  - **Cloudy's own check** of the radiated total against the luminosity for
+    a sphere is compiled out (energy.cpp:341, `if( 0 && ...`).
+  - The same beam is the outward line field that ionizes and heats the
+    zones further out (cont_gammas.cpp), so absorbed line energy is
+    under-counted too.
+
+This is consistency, not yet a test.
+
+### Test queued: Cloudy's dust-free sphere at three zone limits (predictions before the runs)
+
+Three runs in `queue2.sh`, after MOCASSIN's run (the 14-process limit). Each
+saves per-zone emissivities of 18 lines:
+  - **cl-free-e:** gs150 again;
+  - **cl-free-d1:** `set drmax 0.01 relative linear`;
+  - **cl-free-d025:** `set drmax 0.0025 relative linear`.
+
+  - **Q1:** gs150e reproduces gs150's escaped total within 5e-4. Its own
+    zone factors predict each isolated line's continuum/list ratio within
+    0.01.
+  - **Q2, dr <= 0.01 r:** O IV 25.9 um at 0.96 +- 0.01 of the list, and the
+    escaped total at 0.970-0.985 L*.
+  - **Q3, dr <= 0.0025 r:** O IV >= 0.985, and the escaped total >= 0.99.
+    If the lines recover and the total does not, the rest of the deficit
+    has another cause.
+  - **Q4:** the model itself does not move. Intrinsic Hbeta and the line
+    list's [O III] 5007 and O IV stay within 1% across the three.
+
 ### Status
 
 Open: the runs are queued.
