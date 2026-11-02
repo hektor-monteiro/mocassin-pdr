@@ -46434,7 +46434,7 @@ belongs to the ionized gas and its dust.
     The run that tests it removes MOCASSIN's D-376 destruction alone. That
     is a code change, and it is not part of this entry.
 
-### First results: Cloudy's closure (11:31-11:48)
+### First results: Cloudy's closure (2026-11-02, 11:31-11:41)
 
 Both Cloudy spheres stopped at the outer radius after 3 iterations (ds150
 73 s, gs150 56 s).
@@ -46468,7 +46468,7 @@ RT_diffuse, RT_continuum, ZoneEnd (cloudy.cpp:231-262).
   - **ZoneStart** sets Radius to the zone's outer edge r_o.
     - It puts the zone-centre dilution (r_i/r_m)^2 into `opac.tmn`
       (zone_startend.cpp:207).
-    - It sets BeamOutOut = r_o dr/(r_o + 2 dr) (zone_startend.cpp:528).
+    - It sets BeamOutOut = r_o dr/(r_o + 2 dr) (zone_startend.cpp:529).
   - **RT_diffuse** adds a transferred line's photons to `outlin` with
     BeamOutOut x tmn (lines_service.cpp:567-572).
   - **RT_continuum** multiplies `outlin` by ExpZone (r_i/r_o)^2
