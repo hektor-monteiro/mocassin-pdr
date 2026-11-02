@@ -459,7 +459,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-457 | **What Cloudy's documentation says about Lya escape, and the test it suggests (the user: "is there anything in Cloudy documentation that comments on this Lya escape?", then "run it").** Hazy 1 pp. 141-142 and Hazy 2 p. 128: `sphere` defaults to expanding, so lines "freely escape after crossing the central hole"; `sphere static` traps them on the far side and "the line is destroyed when dust is present". Hazy 2 p. 70: Hummer & Kunasz (1980) escape probabilities (fits differ by up to 2x), destruction X_c F(X_c); p. 40: intrinsic intensities are net of local grain destruction; QuickStart p. 33: in the Orion blister dust cuts Lya/Hbeta from ~34 to ~2. **Test (runs/_d457):** D-456's dusty sphere with `sphere static` against an identical expanding control (98% of Lya leaves inward). Static: GraL 0.040 -> 0.159 L*, Lya in the saved continuum 0.168 -> 0.052, Cloudy's dust continuum beyond 5 um 0.190 -> 0.326, closure 0.977 -> 0.991; against MOCASSIN the dust excess falls 2.03x -> 1.19x (bands 1.13-1.19x), the far UV 0.48 -> 0.77, ionized-zone T_dust within 1-4% (was 5-29%); fronts, T_e (2.2%) and Hbeta (1.2%) hold, [O III] 5007 -4%. So most of Cloudy's escaping Lya in D-452/D-456 is its default expanding geometry, not MOCASSIN's dust. Remaining: ~0.06 L* more Lya into MOCASSIN's grains, its front cell 16-30% warmer. pn150k as a static sphere not run. | Done | 2026-11-02 |
 | D-458 | **Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (the user: "We should adopt the static sphere as the standard for any Cloudy comparisons to mocassin. Register this and rerun the hiipdr and pn150kk pdr models redoing the comparisons").** MOCASSIN has no velocity field; Cloudy's default sphere assumes expansion (D-457). Registered in the benchmark Cloudy inputs, CLAUDE.md, docs/benchmarks/index.md and memory. Reruns in runs/_d458 (cl-hii, cl-pn) with predictions on record: hiipdr moves little (its Lya is already destroyed locally), pn150k's PDR field falls 25-55% and its warm-dust excess shrinks. Results: pn150k's PDR field halves and its PDR temperature agrees past A_V 0.3 (0.92-0.99, was 0.70-0.80), the escaped dust within 10% at 1-300 um, [C II] 158 1.05x while [O I] 63 (1.82x) and H2 1-0 S(1) (1.64x) move apart; hiipdr moves 0.2-5% except Cloudy's [C II] 158 (-22%, untested). Both Cloudy pages republished as version 33. | Done | 2026-11-02 |
 | D-459 | **Audit of D-456..D-458, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** No source, Makefile or tools change since D-455. D-456 and D-457 are analyses; D-458 registers Cloudy's `sphere static` as the standard for comparisons (the benchmark Cloudy inputs, the hiipdr README, CLAUDE.md, a docs note). Checked: the three inputs change only by `sphere static` and comments; `reduce.py --check-cloudy` matches the committed inputs to runs/_d458's command for command; Cloudy's A_V(r) moves by under 0.5%. The docs benchmark pages, D-458's open item, now compare with the static runs. The manifest points at runs/_d458; regenerating the data changes only the Cloudy-side files; every Cloudy-dependent number of the two pages, their captions and the index was recomputed by a script that reproduces the old numbers from the old data. pn150k: Hbeta 0.96 of Cloudy's, crossing 0.362 (0.031 mag), [C II] 158 0.58 -> 0.98, CO 2-1 0.63 -> 0.82, PDR T 0.67-0.77 -> 0.86-0.97, [O I] 63 1.49 -> 1.78. hiipdr: Hbeta 0.92, [C II] 158 1.29 -> 1.66, atomic PDR T 1.05-1.11 -> 1.02-1.05. Records: L-19 re-measured against the static sphere (PDR grains 1.00 and 0.99 of Cloudy's, escaped spectrum within 10%; band shares not re-measured), lowered from High to Medium; L-37 and L-56 note the static sphere; L-97 opened (D-452's finding: a transported line takes the grid point at or below its frequency, while the bins are centred; Low). Dust chapter, transfer page and outputs reference updated. | Done | 2026-11-02 |
-| D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with `save last ionizing continuum ".ioncont" 1e-5 0.0 every` (D-306's command): cf-static (`sphere static`) and an expanding control cf-expand (`sphere`), side by side in runs/_d460; `tools/d307_fieldcmp.py` against MOCASSIN's pn-LC (D-450 code) and rel-pn41. Predictions on record before the runs. | Open | 2026-11-02 |
+| D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -47521,3 +47521,128 @@ fall, D-458's G0 (from `save pdr`) and this continuum disagree, and the
 FUV-share part of L-19 stands. If Fbol/thin falls well below 0.90, the
 static sphere removes Lya's energy from the PDR's field rather than moving
 it in frequency.
+
+### Results (runs/_d460, 17:18-17:23)
+
+  - **The runs.** Both exited OK. cf-static had 654 zones, 2 iterations and
+    21 cautions, 247 s; cf-expand 640 zones, 2 iterations and 19 cautions,
+    242 s. Each .ioncont holds 655 or 641 zone dumps (266-272 MB).
+  - **Comparison:** scratchpad d460/cmp.py runs the tool for pn-LC and
+    rel-pn41 against D-306's run, cf-expand and cf-static, and forms the
+    absolute band fields (Fbol/thin x share). Its log is runs/_d460/cmp.log.
+
+  **A correction to the opening.** It labelled 0.01-0.44 Ryd as 2-91 um.
+  0.44 Ryd is 2072 A and 0.01 Ryd is 9.11 um, so the band is 0.21-9.1 um:
+  the near UV, the optical and the near infrared. All thermal dust emission
+  is in <0.01 Ryd, beyond 9.1 um. C4 was worded on the wrong edges.
+
+    pn-LC against Cloudy static (shares >1/FUV/.01-.44/<.01; static Cloudy)
+       A_V   MOC Fbol/thin  Cld   MOC shares               Cloudy
+       0.15  1.330          1.040 0.001 0.121 0.375 0.503  0.003 0.185 0.365 0.447
+       0.20  1.227          0.973 0.000 0.116 0.351 0.533  0.000 0.142 0.374 0.484
+       0.30  1.188          0.962 0.000 0.103 0.323 0.575  0.000 0.127 0.354 0.519
+       0.50  1.153          0.953 0.000 0.081 0.284 0.635  0.000 0.102 0.313 0.586
+       0.65  1.093          0.960 0.000 0.069 0.264 0.667  0.000 0.086 0.284 0.630
+
+    Cloudy static over expanding, absolute (Fbol; FUV, 0.21-9.1 um, >9.1 um)
+       A_V 0.15  1.074; 0.667 0.988 1.590
+       A_V 0.20  1.017; 0.508 0.990 1.487
+       A_V 0.30  1.011; 0.503 0.991 1.366
+       A_V 0.50  1.005; 0.505 0.989 1.230
+       A_V 0.65  1.012; 0.506 0.987 1.189
+
+    MOCASSIN over Cloudy, absolute: Fbol / FUV / 0.21-9.1 um / >9.1 um
+                     expanding (cf-expand)          static (cf-static)
+       pn-LC  0.15   1.374 0.558 1.298 2.288        1.279 0.836 1.314 1.439
+              0.20   1.282 0.524 1.172 2.065        1.261 1.030 1.183 1.389
+              0.30   1.248 0.504 1.117 1.869        1.235 1.002 1.127 1.368
+              0.50   1.216 0.485 1.086 1.612        1.210 0.961 1.098 1.311
+              0.65   1.152 0.462 1.045 1.433        1.139 0.913 1.058 1.205
+       rel-pn41 0.15 1.371 0.566 1.409 2.124        1.276 0.848 1.426 1.336
+              0.20   1.292 0.523 1.281 1.967        1.270 1.029 1.294 1.323
+              0.30   1.259 0.489 1.211 1.817        1.246 0.972 1.222 1.330
+              0.50   1.224 0.458 1.170 1.584        1.217 0.907 1.182 1.288
+              0.65   1.154 0.436 1.126 1.401        1.141 0.862 1.141 1.179
+
+**Scored:**
+  - **C1 holds.** cf-static's .ovr and .pdr are byte-identical to
+    runs/_d458/cl-pn's, and cf-expand's to runs/d396-cloudy-pn's.
+  - **C2 holds.** cf-expand's shares are within 1.3% of D-306's run
+    (0.987-1.008), and its Fbol/thin within 0.5%. The turbulence D-396
+    added does not move the field.
+  - **C3 holds:**
+    - Cloudy's FUV at A_V 0.20-0.65 is 0.503-0.508 of the expanding sphere's;
+    - the share at 0.30 is 0.127 (predicted 0.11-0.15);
+    - MOCASSIN/Cloudy absolute FUV at 0.30 is 1.002 (0.85-1.15).
+  - **C4 fails as worded,** on the band edges above.
+    - 0.01-0.44 Ryd stays at 0.354 (predicted 0.40-0.50), absolute 0.99.
+    - <0.01 Ryd rises to 0.519 (predicted 0.35-0.45), absolute x1.37.
+    - Fbol/thin is 0.962 at 0.30 (predicted 0.90-1.00). It is 1.040 at
+      0.15.
+
+    With the right edges, what C4 described is what happened. Lya's energy
+    leaves the FUV and comes back as dust emission, and the total barely
+    moves.
+  - **C5:**
+    - the Fbol ratio, 1.14-1.28, holds at A_V 0.15-0.50 and is 1.139 at
+      0.65 (predicted 1.15-1.35);
+    - the <0.01 Ryd share difference fails: 0.04-0.06, against 0.10-0.25
+      predicted. It is the same band error: Cloudy's dust emission rose in
+      that band.
+  - **The reading that would have changed it did not happen.** Cloudy's FUV
+    fell by half, as D-458's G0 from `save pdr` did, and the energy moved
+    in frequency.
+
+### What it means
+
+  - **The FUV half of L-19 was Cloudy's expanding sphere.** Against the
+    static sphere the two codes' FUV fields agree in the PDR: 0.91-1.03 at
+    A_V 0.20-0.65 on pn-LC, 0.86-1.03 on rel-pn41. At A_V 0.15, just behind
+    the front (MOCASSIN's is 0.008 mag shallower), it is 0.84.
+  - **What remains is D-307's bolometric excess,** 1.14-1.28x on pn-LC:
+    - 0.21-9.1 um: 1.06-1.31;
+    - beyond 9.1 um: 1.21-1.44.
+
+    The grains absorb less per unit energy there than in the FUV, and the
+    PDR's grains agree (1.00 and 0.99, D-458).
+  - **Cause not known.** One candidate, untested: Cloudy transfers the
+    diffuse continuum outward only, while MOCASSIN's mean intensity takes
+    it from every direction, including the infrared of the shell outside
+    the point.
+  - **L-19:**
+    - retitled "MOCASSIN's field in the PDR is 1.14-1.28x Cloudy's, in the
+      optical and the dust infrared; against Cloudy's static sphere the FUV
+      and the grains agree";
+    - lowered to Low, since no measured consequence remains;
+    - its body gains this measurement.
+
+### Docs and records changed
+
+  - **doc/pdr-status.md:** L-19's index row (retitled, moved to Low) and
+    body.
+  - **benchmarks/pn150k.md:**
+    - the FUV fields agree against the static sphere, 0.86-1.03 at A_V
+      0.20-0.65 on rel-pn41;
+    - the total is 1.14-1.27x Cloudy's.
+  - **physics/pdr/dust.md:** pn150k's PDR grains are 0.97-1.00 of the static
+    sphere's temperature on the v2.0 run (0.92-0.95 of the expanding one's),
+    from the regenerated benchmark data.
+  - **Golden test:** L-37's extent moves to 419-461.
+
+### Checks
+
+  - pytest: 125 passed;
+  - fortref check: only unpushed;
+  - `sphinx-build -E -W --keep-going`, with fortref.unpushed suppressed.
+
+All pass: 125 passed, fortref 1867 references with only unpushed, Sphinx
+rc 0.
+
+### Status
+
+Done.
+  - **The runs** stay in runs/_d460, about 540 MB with the two .ioncont
+    files.
+  - **Not tested:** the cause of the bolometric excess, including the
+    outward-only candidate. Testing it would need Cloudy's inward diffuse
+    field, or a MOCASSIN tally of J by direction.
