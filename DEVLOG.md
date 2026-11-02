@@ -47135,3 +47135,52 @@ other listing read in D-456 to D-458 holds one block, so nothing else moves.
   - **The reading that would have changed** (the field not falling) did not
     happen. Lya in the expanding sphere's PDR was the artifact D-291
     described, and it set Cloudy's PDR temperature and fine-structure lines.
+
+### Status at the session's limit (2026-11-02, 13:55)
+
+**Done:**
+  - the registration (7f209ff);
+  - the two static runs, their numbers and scoring (60ddbf5);
+  - every input the pages need, in runs/_d458/pages_wip (a copy of the
+    scratchpad's d458pages):
+    - nums_hii23.json and nums_pn23.json (nums23.py with NEW static and
+      OLD expanding);
+    - nums_d404_*.json;
+    - geom_hii.json and geom_pn.json (geomnums.py);
+    - the figures: fig/geom_* for the new first sections (geomfigs.py:
+      MOCASSIN solid, static dashed, expanding dotted) and
+      fig/whole_*31/41 against the static runs;
+    - the PN escaped-SED comparison against static: runs/_d458/pn-sed.
+  - Version 32's builders were rerun on these numbers. Their copies use
+    kpi_old for what is said of earlier versions, so history keeps its
+    expanding-sphere numbers. The outputs are hiipdr-against-cloudy.html and
+    150kk-pn-against-cloudy.html, with only current values changed, checked
+    by word diffs.
+  - Both local version-32 copies were checked equal to the live pages
+    (versions 1793571595-4c27 and 1793573370-9bcc).
+
+**Left: the version-33 builders (not written).** Starting from the published
+version 32 copies, each would:
+  - **Splice in the regenerated current-state sections:** the KPIs, "The
+    whole model", "Selected depths", the line table (pn) and "What agrees".
+  - **Patch, on pn:**
+    - the PDR bullet (temperature now 0.92-0.99 past A_V 0.3; the
+      photoelectric heating 0.65-0.84 of static Cloudy's);
+    - the grains-share sentence (measured against the expanding sphere,
+      D-450);
+    - the whole-model caption's dashed-line text;
+    - the "What was matched" geometry row and the Cloudy-input note;
+    - a rail on "The photoelectric term, measured".
+  - **Rewrite** the escaped-spectrum section against static (bands within
+    10% at 1-300 um, Lya 0.003 against 0.004).
+  - **Header:** a version-33 note, the eyebrow, and the meta line's Cloudy
+    run.
+  - **Shift every ordinal** before inserting new text (cross-page "H2 Lines
+    in MOCASSIN, first section" restored). The current-state sentence becomes
+    "the first two sections".
+  - **Version 32's first section** gets a rail: its Cloudy column is the
+    expanding sphere.
+  - **A new first section** (id static) with the geometry table (geom_*.json)
+    and the five geom figures.
+
+Then republish both pages to their URLs and record them here.
