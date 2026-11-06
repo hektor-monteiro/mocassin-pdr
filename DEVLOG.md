@@ -460,7 +460,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-458 | **Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (the user: "We should adopt the static sphere as the standard for any Cloudy comparisons to mocassin. Register this and rerun the hiipdr and pn150kk pdr models redoing the comparisons").** MOCASSIN has no velocity field; Cloudy's default sphere assumes expansion (D-457). Registered in the benchmark Cloudy inputs, CLAUDE.md, docs/benchmarks/index.md and memory. Reruns in runs/_d458 (cl-hii, cl-pn) with predictions on record: hiipdr moves little (its Lya is already destroyed locally), pn150k's PDR field falls 25-55% and its warm-dust excess shrinks. Results: pn150k's PDR field halves and its PDR temperature agrees past A_V 0.3 (0.92-0.99, was 0.70-0.80), the escaped dust within 10% at 1-300 um, [C II] 158 1.05x while [O I] 63 (1.82x) and H2 1-0 S(1) (1.64x) move apart; hiipdr moves 0.2-5% except Cloudy's [C II] 158 (-22%, untested). Both Cloudy pages republished as version 33. | Done | 2026-11-02 |
 | D-459 | **Audit of D-456..D-458, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** No source, Makefile or tools change since D-455. D-456 and D-457 are analyses; D-458 registers Cloudy's `sphere static` as the standard for comparisons (the benchmark Cloudy inputs, the hiipdr README, CLAUDE.md, a docs note). Checked: the three inputs change only by `sphere static` and comments; `reduce.py --check-cloudy` matches the committed inputs to runs/_d458's command for command; Cloudy's A_V(r) moves by under 0.5%. The docs benchmark pages, D-458's open item, now compare with the static runs. The manifest points at runs/_d458; regenerating the data changes only the Cloudy-side files; every Cloudy-dependent number of the two pages, their captions and the index was recomputed by a script that reproduces the old numbers from the old data. pn150k: Hbeta 0.96 of Cloudy's, crossing 0.362 (0.031 mag), [C II] 158 0.58 -> 0.98, CO 2-1 0.63 -> 0.82, PDR T 0.67-0.77 -> 0.86-0.97, [O I] 63 1.49 -> 1.78. hiipdr: Hbeta 0.92, [C II] 158 1.29 -> 1.66, atomic PDR T 1.05-1.11 -> 1.02-1.05. Records: L-19 re-measured against the static sphere (PDR grains 1.00 and 0.99 of Cloudy's, escaped spectrum within 10%; band shares not re-measured), lowered from High to Medium; L-37 and L-56 note the static sphere; L-97 opened (D-452's finding: a transported line takes the grid point at or below its frequency, while the bins are centred; Low). Dust chapter, transfer page and outputs reference updated. | Done | 2026-11-02 |
 | D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
-| D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record) | Open | 2026-11-06 |
+| D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record). **Result:** all builds and the install rc 0; ~/.local/bin reports pdr-coupling-v2.0.2-64-g7de18ff (the opening commit, source as 20e4bbc); the data still identical; HII40 with the installed binary 18 iterations, byte-identical to the reference in every output file but summary.out, which differs only in its wall-clock times, and to D-454's plain build apart from those times and the PDR builds' own lgPDR line and pdrFUV files | Done | 2026-11-06 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -47736,3 +47736,61 @@ the other, under one systemd unit:
     source on the same input. If they are not, the plain and 3D builds
     differ on a gas-only model. That is recorded, and is not a defect of
     the install.
+
+### Results (2026-11-06, 10:48)
+
+**Build and install** (runs/_d461/install.log, 10:44:42-10:46:44):
+  - The four flavours, h2Test and h2Slab: rc 0, 0 errors each.
+  - The install: rc 0, 0 errors. The binaries are time-stamped 10:46:44 and
+    md5 mocassin 26aeb660, mocassinWarm 442d41a0, mocassinOutput ccd729f8,
+    mocassinPlot 21211931. All four carry the ~/.local/share/mocassin data
+    path.
+  - Version string: pdr-coupling-v2.0.2-64-g7de18ff, not -63-g20e4bbc as P1
+    said. The opening commit 7de18ff moved HEAD before the build, and it
+    changes only DEVLOG.md, so the source is 20e4bbc's and 340b9f6's. P1
+    held otherwise.
+  - `make clean` afterwards leaves no objects and none of the four
+    binaries. h2Test and h2Slab stay in the tree (ignored by git), because
+    `make clean` does not remove them.
+
+**P2 held.** `diff -rq` after the install lists only the install-only files
+named in the opening: data's two Badnell files, dustData's six extra files,
+and benchmarks/test_Problem's two *_before.out files. dataPDR/ and
+examples/ show no difference.
+
+**The check pair** (14 ranks, unit d461-check):
+  - qs-inst ran 10:47:02-10:47:30, 27 s per processor. qs-ref finished at
+    10:47:59, 29 s per processor. Both rc 0 with a clean exit.
+  - Both stop at 18 iterations, at 98.83% converged.
+  - **P3: 14 of the 15 output files are byte-identical** (cmp): SED.out,
+    SEDlines.out, lineFlux.out, grid0-3, convergence, ionratio, photoSource,
+    tauNu, temperature, pdrFUV and pdrFUVspec. summary.out differs only in
+    its 18 "finished at hh:mm:ss" lines; with them removed it is identical.
+    P3 did not allow for these wall-clock times. A byte-for-byte test must
+    leave them out.
+  - **P4 held.** qs-inst against D-454's hii40-B (the plain build) is the
+    same except for three things:
+    - summary.out's times;
+    - one line, ` F  lgPDR`, that the PDR builds add to grid3.out;
+    - pdrFUV.out and pdrFUVspec.out, written only by the PDR builds.
+    On a gas-only model, the 3D and plain builds compute the same thing.
+
+**What this means.** ~/.local now runs D-454's code: the source of D-441,
+D-447, D-450 A-C and D-454 that v2.0.1 lacked. A run with it differs from
+v2.0.1's where those entries say it does:
+  - SED.out is the continuum, and the lines are in SEDlines.out;
+  - H I collisional excitation is emitted;
+  - hydrogen's balance takes the charge transfer of the stages above 1+;
+  - dust-only models run.
+The data every run reads did not change.
+
+**Kept:** the v2.0.1 binaries and the seven overwritten benchmark files are
+in runs/_localprefix_backup_2026-11-06_v2.0.1/. The check runs are in
+runs/_d461.
+
+**Not done:** ~/.local/mocassin_h2 (h2-model's prefix) is not reinstalled. It
+is built in the h2 worktree, which this session does not modify.
+
+### Status
+
+Done (2026-11-06).
