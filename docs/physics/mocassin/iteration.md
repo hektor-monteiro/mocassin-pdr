@@ -102,7 +102,7 @@ The main program runs the routines of {numref}`tab:moc-startup` once, in that or
 * - 5
   - zero the estimators
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"grid(iG)%Jste(0:grid(iG)%nCells, 1:nbins) = 0.">`
-  - $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$, `escapedPackets`
+  - $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$, `escapedPackets`, and the escaped lines, `escapedLines` ({devlog}`D-454`)
 * - 6
   - transfer
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call energyPacketDriver(iStar,load, grid(1:nGrids))"+2#1>`, {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"call energyPacketDriver(iStar=0,n=load, grid=grid(1:nGrids), &"+4#1>`
@@ -110,11 +110,11 @@ The main program runs the routines of {numref}`tab:moc-startup` once, in that or
 * - 7
   - estimators
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"grid(iG)%Jste(i,:) = grid(iG)%Jste(i,:) * 1.e-9">`
-  - `escapedPackets`, $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$ summed over ranks; $\times10^{-9}$ to erg s$^{-1}$ cm$^{-2}$, $/8$ under `symmetricXYZ`, the 2D division
+  - `escapedPackets`, $J^{\mathrm{ste}}$, $J^{\mathrm{dif}}$ summed over ranks; $\times10^{-9}$ to erg s$^{-1}$ cm$^{-2}$, $/8$ under `symmetricXYZ`, the 2D division; `escapedLines` is summed over ranks just after the transfer, with no octant division
 * - 8
   - SED
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if (taskid==0) call writeSED(grid)">`
-  - `output/SED.out` ({ref}`sec:moc-sed`)
+  - `output/SED.out`, the continuum, and `output/SEDlines.out`, the lines ({ref}`sec:moc-sed`)
 * - 9
   - snapshot
   - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"! D-155: the state this MC iteration starts from. The convergence"..@"& grid(iG)%Te(0:grid(iG)%nCells)">`
@@ -180,7 +180,7 @@ over the quantities significant at both ends of the three-iteration window (`cvT
 ## End of the run and the output
 {bdg-success}`used`
 
-When the run stops, rank 0 writes the grid files with `writeGrid` ({src}`grid_mod.f90::writeGrid`: `grid0.out`–`grid3.out`, `dustGrid.out`, `photoSource.out`, `resLineEsc.out` with dust and gas, `frontField.out` and, in a PDR run, the PDR state, `pdrCoolSp.out`, `pdrRad.out` and `thermBudget.out`), `writeFUVField` in a PDR build, and with gas the line, temperature and ionisation tables of `outputGas` ({src}`output_mod.f90::outputGas`; {doc}`emission`); a PDR run first keeps the last second ionisation solve and sweeps the H$_2$ level model to convergence ({ref}`sec:convergence`). Before the end, `SED.out`, `summary.out` and (with gas) `convergence.out` are written at every iteration; the grid files whenever the converged share reaches `writeGrid`, whose default 0 means every iteration ({src}`set_input_mod.f90::readInput@"convWriteGrid = 0."`); and with `output` the tables of `outputGas` as well ({src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if (lgOutput .and. taskid == 0 ) then">`). {doc}`../../user-guide/outputs` describes each file.
+When the run stops, rank 0 writes the grid files with `writeGrid` ({src}`grid_mod.f90::writeGrid`: `grid0.out`–`grid3.out`, `dustGrid.out`, `photoSource.out`, `resLineEsc.out` with dust and gas, `frontField.out`, `reemission.out` and, in a PDR run, the PDR state, `pdrCoolSp.out`, `pdrRad.out` and `thermBudget.out`), `writeFUVField` in a PDR build, and with gas the line, temperature and ionisation tables of `outputGas` ({src}`output_mod.f90::outputGas`; {doc}`emission`); a PDR run first keeps the last second ionisation solve and sweeps the H$_2$ level model to convergence ({ref}`sec:convergence`). Before the end, `SED.out`, `summary.out` and (with gas) `convergence.out` are written at every iteration; the grid files whenever the converged share reaches `writeGrid`, whose default 0 means every iteration ({src}`set_input_mod.f90::readInput@"convWriteGrid = 0."`); and with `output` the tables of `outputGas` as well ({src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if (lgOutput .and. taskid == 0 ) then">`). {doc}`../../user-guide/outputs` describes each file.
 
 (sec:moc-warm)=
 ## The warm start

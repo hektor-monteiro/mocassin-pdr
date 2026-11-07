@@ -158,15 +158,15 @@
  "built_from": "c1ea374",
  "built_from_check": "git diff --quiet c1ea374 53c17eb -- source Makefile dataPDR: rc 0",
  "cloudy": {
-  "code": "Cloudy c25.00",
-  "prefix": "d396-cloudy-hii/hiipdr",
-  "run_input": "d396-cloudy-hii/hiipdr.in",
+  "code": "Cloudy c25.00, static sphere",
+  "prefix": "_d458/cl-hii/hiipdr",
+  "run_input": "_d458/cl-hii/hiipdr.in",
   "input": "benchmarks/pdr/hiipdr/cloudy/hiipdr.in",
   "rin_cm": 3e+18,
-  "devlog": "D-396",
-  "zones": 697,
+  "devlog": "D-458",
+  "zones": 713,
   "name": "cloudy-hii"
  },
  "model_label": "MOCASSIN-PDR pdr-coupling-v2.0",
- "cloudy_label": "Cloudy c25.00"
+ "cloudy_label": "Cloudy c25.00, static sphere"
 }

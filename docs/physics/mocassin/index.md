@@ -12,8 +12,9 @@ MOCASSIN is a three-dimensional Monte Carlo code for photoionised gas and dust
 From the converged model it computes the line and continuum emission and the spectrum that leaves
 the nebula.
 
-These pages describe MOCASSIN as it is in this repository, at release `pdr-coupling-v2.0.2` and the
-commit shown at the foot of every page:
+These pages describe MOCASSIN as it is in this repository at the commit shown at the foot of every
+page: release `pdr-coupling-v2.0.2` and the changes made since ({devlog}`D-447`, {devlog}`D-450`,
+{devlog}`D-454`). They give:
 - what each part computes, with a link to the code that does it;
 - what this project changed, cited by its DEVLOG entry (D-nnn);
 - what is known to be wrong, cited by its item on the {doc}`limitations page <../limitations>`
@@ -196,6 +197,29 @@ own plan, and the ones that change results need the benchmarks rerun.
   - Species abundances are used as given: mixture means are right only when they sum to one
   - Low
 :::
+
+Seven more have been found since, by {devlog}`D-446` to {devlog}`D-450` and {devlog}`D-453`. Four
+were fixed:
+
+- {lim}`L-90`, closed by {devlog}`D-447`: the collisional excitation of H I cooled the gas, but none
+  of that energy was emitted ({doc}`thermal`);
+- {lim}`L-91`, closed by {devlog}`D-450`: a Q file's largest grain took cross sections extrapolated
+  from its two smallest ({doc}`dust`);
+- {lim}`L-92`, closed by {devlog}`D-450`: hydrogen's balance left out the charge transfer of the
+  heavy elements' stages above 1+ ({doc}`ionisation`);
+- {lim}`L-96`, closed by {devlog}`D-462`: `getTmin`, which gave stochastic heating its lowest
+  temperature, integrated over bins it had zeroed; it is gone, with the scheme it served ({doc}`dust`).
+
+Three are open:
+
+- {lim}`L-93` (Medium): in a run without `pdr`, hydrogen takes no charge transfer from the
+  neutral/first-ion pairs;
+- {lim}`L-94` (Medium): He I emits its 19.8 eV line at every recombination and has no 584 Å line
+  ({doc}`emission`);
+- {lim}`L-95` (Low): the resonance-line table of `lineFlux.out` counts recombination Ly$\alpha$ only.
+
+{devlog}`D-462` found one more, {lim}`L-98` (Low): stochastic heating's default level grid overestimates a
+grain's far Wien tail ({doc}`dust`).
 
 ## Notation and units
 

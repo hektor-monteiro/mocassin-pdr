@@ -47,9 +47,12 @@ module interpolation_mod
     ! ns = 0 or ns=n is returned to indicate that x is out
     ! of range.
 
-    ! =================================================================
-    ! Optimized Subroutine (Strict Legacy Compatibility)
-    ! =================================================================
+    ! D-449: binary search. x == xa(n) returns n-1, so x is bracketed by
+    ! xa(n-1) and xa(n) and an interpolation takes xa(n)'s value. It
+    ! returned 1 there, keeping upstream's minloc result, and every caller
+    ! whose argument could land on a table's last entry got the first
+    ! interval instead: makeDustXsec extrapolated a Q file's largest grain
+    ! from its two smallest (L-91).
     subroutine locate(xa,x,ns)
         implicit none
         integer, intent(out) :: ns
@@ -68,14 +71,6 @@ module interpolation_mod
             ns = 0
             return
         end if
-
-        ! --- LEGACY COMPATIBILITY INTERCEPT ---
-        ! Forcing the replication of the original minloc boundary error.
-        if ( x == xa(n) ) then
-            ns = 1
-            return
-        end if
-        ! --------------------------------------
 
         ! Binary Search 
         jl = 1

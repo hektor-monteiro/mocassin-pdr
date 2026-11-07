@@ -10,6 +10,7 @@ module emission_mod
     use grid_mod
     use xSec_mod
     use elements_mod
+    use qheat_mod
 
     type(resLine_type), allocatable         :: resLine(:)  ! resonant lines
 
@@ -20,6 +21,7 @@ module emission_mod
     real                                :: BjumpTemp=0   !
     real                                :: HbetaProb   ! probability of Hbeta
     real                                :: LyaEmis=0.  ! D-376: this cell's Lya, in HIRecLines' units
+    real, parameter                     :: fHaColl = 5./32. ! D-447: Halpha's share of an n=3 collisional excitation (case B, 1.89 of 12.09 eV)
     real                                :: log10Ne     ! log10(Ne) at this cell
     real                                :: log10Te     ! log10(Te) at this cell
     real                                :: sqrTeUsed   ! sqr(Te) at this cell
@@ -41,6 +43,10 @@ module emission_mod
         ! local variables
         integer :: i                         ! counters
         real    :: dV                        ! volume element
+        ! D-462: the cell's stochastic grains: which (species, size) setDustPDF
+        ! solved, and their summed emission, for setDiffusePDF
+        real    :: qhCellSpec(nbins)
+        logical :: lgQhGrain(nSpeciesMax, nSizes), lgQhCell
 
         double precision :: gammaHI(nbins)          ! HI fb+ff emission coefficient [e-40 erg*cm^3/s/Hz]
         double precision :: gammaHeI(nbins)         ! HeI fb+ff emission coefficient [e-40erg*cm^3/s/Hz]
@@ -490,6 +496,7 @@ module emission_mod
         implicit none
         integer                    :: i, denint, ilow, iup
         real                       :: Hbeta, HeII4686, Lalpha, T4, x1, x2, coeff
+        real                       :: q12H, q13H, collH ! D-447: hICollExc's terms, and their factor
         real, dimension(34) :: HeIRecLines_raw 
         logical, parameter :: DEBUG_THIS_CELL = .true. 
         real, parameter :: MIN_SAFE_TEMP = 5000.0 
@@ -515,6 +522,15 @@ module emission_mod
         ! of pn150k's (D-372).
         Lalpha = 10**(-0.897*log10Te + 5.05)
         LyaEmis = grids(iG)%elemAbun(abFileUsed,1)*ionDenUsed(elementXref(1),2)* NeUsed*Lalpha
+        ! D-447: the collisional excitation of H I that the thermal balance
+        ! cools by (hICollExc) leaves as lines - the n=2 term and 27/32 of
+        ! the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B) - and
+        ! no longer in the shape of the rest of the gas emission (D-446).
+        ! coolColl is erg/s per H; HIRecLines and LyaEmis are 1e-25 of that.
+        call hICollExc(TeUsed, q12H, q13H)
+        collH = hcRyd*ionDenUsed(elementXref(1),1)*NeUsed*1.e25
+        LyaEmis = LyaEmis + collH*(q12H + (1.-fHaColl)*q13H)
+        HIRecLines(3,2) = HIRecLines(3,2) + collH*fHaColl*q13H
 
         HeIIRecLines = HeIIRecLinedata
 
@@ -640,8 +656,6 @@ module emission_mod
 
     subroutine setDiffusePDF()
         implicit none
-        real (kind=8)     :: tg
-        real(kind=8),dimension(nTbins) :: Tspike,Pspike
         real              :: alpha2tS, bb, const, correction, normalize, normDust
         real              :: normFor, normHI, normHeI, normHeII, normRec, treal, T4
         real              :: diffuse_scale ! Hoisted invariant
@@ -659,6 +673,7 @@ module emission_mod
         real              :: ionTot243, gasTot243     ! D-243
         real              :: ionHI243, ionHeI243, ionHeII243   ! D-244
         real              :: lineAcc                   ! D-296: running line PDF sum
+        real              :: phLy449, phHeav449   ! D-449: He II Lyman, heavy-element photons >= 13.6 eV
 
         cShapeLoc = 'blackbody'
         call locate(nuArray, 1.45673, j2TsP)
@@ -701,10 +716,12 @@ module emission_mod
             HeIILyman(i) = HeIILyman(i)*HeIILyman(4)
         end do
 
+        phLy449 = 0.
         do i = 1, NHeIILyman
             call locate(NuArray, HeIILymanNu(i), NuP)
             sumDiffuseHeII(NuP) = sumDiffuseHeII(NuP) + HeIILyman(i)
             normHeII = normHeII + HeIILyman(i)
+            phLy449 = phLy449 + HeIILyman(i)/(hcRyd*nuArray(NuP))   ! D-449
         end do
 
         if (lgDust) then
@@ -715,35 +732,9 @@ module emission_mod
               do nS = 1, nSpeciesPart(nspE)
                  if (grainRadius(ai) >= componentMinRadius(nspE, nS) .and. grainRadius(ai) <= componentMaxRadius(nspE, nS)) then
                     if (grids(iG)%Tdust(nS,ai,cellPUsed)<TdustSublime(dcp-1+nS)) then
-                       if (lgQHeat .and. grainRadius(ai)<minaQHeat .and. convPercent>minConvQheat .and. nIterateMC>1) then
-                          tg =  grids(iG)%Tdust(nS,ai,cellPused)
-                          Tspike=0.
-                          Pspike=0.
-                          call qHeat(nS, ai,tg,Tspike,Pspike)
-
-                          if (lgWritePss .and. taskid==0) then
-                             write(89, *) '              ix iy iz cellp nSpecies aRadius Teq'
-                             write(89, *)  ix, iy, iz, cellpUsed, ns, grainRadius(ai), tg
-                             write(89, *) '              i Tspike(i) Pspike(i)'
-                             do iT = 1, nTbins
-                                write(89, *) it, Tspike(it), Pspike(it)
-                             end do
-                             write(89, *) 'Tmean: ', tg
-                             write(89, *) ' '
-                          end if
-
-                          do freq = 1, nbins
-                             do iT=1,nTbins
-                                treal = real(Tspike(iT))
-                                bb = getFlux(nuArray(freq), treal, cShapeLoc)
-                                sumDiffuseDust(freq) = sumDiffuseDust(freq) + &
-                                     &  real(xSecArray(dustAbsXsecP(dcp-1+nS,ai)+freq-1)*bb*widFlx(freq)*&
-                                     & grainWeight(ai)*grainAbun(nspE, nS)*Pspike(iT))
-                                normDust = normDust+real(xSecArray(dustAbsXsecP(dcp+nS-1,ai)+freq-1)*bb*widFlx(freq)*&
-                                     & grainWeight(ai)*grainAbun(nspE, nS)*Pspike(iT))
-                             end do
-                          end do
-                       else
+                       ! D-462: a stochastic grain's emission is in qhCellSpec
+                       ! (setDustPDF), added once below
+                       if (.not.lgQhGrain(nS,ai)) then
                           do freq = 1, nbins
                              bb = getFlux(nuArray(freq), grids(iG)%Tdust(nS,ai,cellPUsed), cShapeLoc)
                              sumDiffuseDust(freq) = sumDiffuseDust(freq) + &
@@ -757,6 +748,14 @@ module emission_mod
                  endif 
               end do
            end do
+
+           ! D-462: the stochastic grains, as setDustPDF summed them
+           if (lgQhCell) then
+              do freq = 1, nbins
+                 sumDiffuseDust(freq) = sumDiffuseDust(freq) + qhCellSpec(freq)
+                 normDust = normDust + qhCellSpec(freq)
+              end do
+           end if
 
            const = hPlanck*4.*Pi*1.e25*cRyd
            sumDiffuseDust = sumDiffuseDust*const*grids(iG)%Ndust(cellPUsed)/grids(iG)%Hden(cellPUsed)
@@ -781,6 +780,21 @@ module emission_mod
                    & + sum(sumDiffuseHeII(HlevNuP(1):nbins))
               if (lgDust) grids(iG)%pdfSrc(cellPUsed,4) = &
                    & sum(sumDiffuseDust(HlevNuP(1):nbins))
+              ! D-449: the photons above 13.6 eV, by emitter (units: common_mod)
+              phHeav449 = 0.
+              do i = HlevNuP(1), nbins
+                 phHeav449 = phHeav449 + real(diffuse_scale*widFlx(i)*gammaHeavies(i)*NeUsed) &
+                      & /(hcRyd*nuArray(i))
+              end do
+              grids(iG)%pdfSrc(cellPUsed,9) = phHeav449
+              grids(iG)%pdfSrc(cellPUsed,8) = sum(sumDiffuseHI(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins))) - phHeav449
+              grids(iG)%pdfSrc(cellPUsed,10) = sum(sumDiffuseHeI(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins)))
+              grids(iG)%pdfSrc(cellPUsed,11) = sum(sumDiffuseHeII(HlevNuP(1):nbins) &
+                   & /(hcRyd*nuArray(HlevNuP(1):nbins)))
+              grids(iG)%pdfSrc(cellPUsed,12) = correction/(hcRyd*nuArray(j2TsP))
+              grids(iG)%pdfSrc(cellPUsed,13) = phLy449
            end if
            if (HeIlevNuP(1) > 0) then
               grids(iG)%pdfSrc(cellPUsed,5) = &
@@ -897,6 +911,7 @@ module emission_mod
         end do
 
         grids(iG)%totalLines(cellPUsed) = normRec + normFor
+        if (allocated(grids(iG)%pdfSrc)) grids(iG)%pdfSrc(cellPUsed,7) = normRec + normFor   ! D-449
 
         ! D-233: gas terms only, with or without dust - the dust's own emission
         ! is sampled from dustPDF by the packets the dust actually absorbed.
@@ -1032,15 +1047,17 @@ module emission_mod
     subroutine setDustPDF()
       implicit none
       real :: bb,treal
-      real (kind=8) :: tg
-      real(kind=8),dimension(nTbins) :: Tspike,Pspike
+      double precision :: qhSpec(nbins), qhP(nTbins), qhTm   ! D-462
+      real    :: qhAdd                                       ! D-462
+      logical :: lgQhOK                                      ! D-462
       integer :: i, n, ai, iT, dcp
       character(len=50) :: cShapeLoc
 
-      Tspike=0.
-      Pspike=0.
       cShapeLoc = 'blackbody'
       dcp = dustComPoint(nspE)
+      qhCellSpec = 0.
+      lgQhGrain = .false.
+      lgQhCell = .false.
 
       grids(iG)%dustPDF(cellPUsed,:)=0.
       do n = 1, nSpeciesPart(nspE)
@@ -1048,23 +1065,31 @@ module emission_mod
             if (grainRadius(ai) >= componentMinRadius(nspE, n) .and. grainRadius(ai) <= componentMaxRadius(nspE, n)) then
                if (grids(iG)%Tdust(n,ai,cellPUsed) >0. .and. &
                     & grids(iG)%Tdust(n,ai,cellPused)<TdustSublime(dcp-1+n)) then
+                  ! D-462: stochastic heating from the second iteration, once
+                  ! getDustT has stored the grain's heating (lgQhReady)
+                  lgQhOK = .false.
                   if (lgQHeat .and. grainRadius(ai)<minaQHeat .and. &
-                       & convPercent>minConvQheat.and. nIterateMC>1) then
-                     tg =  grids(iG)%Tdust(n,ai,cellPused)
-                     Tspike=0.
-                     Pspike=0.
-                     call qHeat(n, ai,tg,Tspike,Pspike)
-                     do i = 1, nbins
+                       & convPercent>=minConvQheat .and. lgQhReady) &
+                       & call qHeatGrain(n, ai, qhSpec, qhP, qhTm, lgQhOK)
+                  if (lgQhOK) then
+                     lgQhGrain(n,ai) = .true.
+                     lgQhCell = .true.
+                     if (lgWritePss .and. taskid==0) then
+                        write(89, *) '              ix iy iz cellp nSpecies aRadius Teq'
+                        write(89, *)  ix, iy, iz, cellpUsed, n, grainRadius(ai), grids(iG)%Tdust(n,ai,cellPused)
+                        write(89, *) '              i Tspike(i) Pspike(i)'
                         do iT = 1, nTbins
-                           treal = real(Tspike(iT))
-                           bb = getFlux(nuArray(i), treal, cShapeLoc)
-                           grids(iG)%dustPDF(cellPUsed, i) = grids(iG)%dustPDF(cellPUsed, i)+ &
-                                & real(xSecArray(dustAbsXsecP(dcp-1+n,ai)+i-1)*bb*widFlx(i)*&
-                                & grainWeight(ai)*&
-                                & grainAbun(nspE, n)*Pspike(iT))
+                           write(89, *) iT, qhT(iT), qhP(iT)
                         end do
+                        write(89, *) 'Tmean: ', qhTm
+                        write(89, *) ' '
+                     end if
+                     do i = 1, nbins
+                        qhAdd = real(qhSpec(i)*dble(grainWeight(ai))*dble(grainAbun(nspE, n)))
+                        grids(iG)%dustPDF(cellPUsed, i) = grids(iG)%dustPDF(cellPUsed, i) + qhAdd
+                        qhCellSpec(i) = qhCellSpec(i) + qhAdd
                      end do
-                   else
+                  else
                      do i = 1, nbins
                         treal = grids(iG)%Tdust(n,ai,cellPused)
                         bb = getFlux(nuArray(i), treal, cShapeLoc)
@@ -1095,401 +1120,83 @@ module emission_mod
 
     end subroutine setDustPDF
 
-    subroutine qHeat(ns,na,tg,temp,pss)
+    ! D-462: one grain's stochastic temperature distribution and emission
+    ! (qheat_mod qhSolve), on the grain's whole heating as getDustT has it
+    ! (update_mod): the field, Jste (+ Jdif under debug, as getDustT), which
+    ! carries the diffuse continuum and the transported lines; the resonance-
+    ! line power the dust destroys on the spot (D-376), at each line's bin with
+    ! the share resLineGrainHeat gives this grain; and getDustT's gas-grain
+    ! minus photoelectric term. Both last terms are getDustT's, stored per cell
+    ! (qhResD, qhCont); getDustT's units times Pi are qhSolve's. spec is the
+    ! equilibrium branch's xSec*getFlux*widFlx, summed over P. ok = .false.
+    ! leaves the grain to the equilibrium branch.
+    subroutine qHeatGrain(nS, ai, spec, P, Tmean, ok)
       implicit none
-      real ::  tbase
-      integer, intent(in) :: ns, na
-      integer             :: i,j,ii,if, dcp
-      integer             :: wlp,wllp,wlsp,natom
-      character(len=1)    :: sorc
-      real(kind=8), dimension(nTbins,nTbins) :: A, B
-      real(kind=8), intent(inout) :: tg
-      real(kind=8), intent(inout) :: temp(nTbins),pss(nTbins)
-      real(kind=8)                :: lambda(nbins), sQabs(nbins), temp1(nbins),temp2(nbins)
-      real(kind=8)                :: U(nTbins),dU(nTbins)
-      real(kind=8)                :: mgrain,mdUdt,ch
-      real(kind=8)                :: const1, radField(nbins),hc,wlim
-      real(kind=8)                :: qHeatTemp,X(nTbins)
-      real(kind=8)                :: UiTrun,sumX, sumBx
-      real(kind=8)                :: wl,wll,wls
-      real(kind=8)                :: qint,qint1,qint2,delwav
-      integer :: ifreq
+      integer, intent(in)           :: nS, ai
+      double precision, intent(out) :: spec(nbins), P(nTbins), Tmean
+      logical, intent(out)          :: ok
+      double precision :: field(nbins), cab(nbins), cont, Nat, vg, ratio, ptop
+      real             :: heatR
+      integer          :: gS, iL, nuL, i
 
-      dcp = dustComPoint(nspE)
-
-      if (lgDebug) then
-         radField = grids(iG)%Jste(cellPUsed,:) + grids(iG)%Jdif(cellPUsed,:)
-      else
-         radField = grids(iG)%Jste(cellPUsed,:)
-      end if
-
-      do ifreq = 1, nbins
-         radField(ifreq) = radField(ifreq)/(widflx(ifreq)*fr1ryd)
-         temp1(ifreq) = (radField(ifreq)* (nuArray(ifreq)*fr1Ryd)**2)/(c)
-         temp2(ifreq) = xSecArray(dustAbsXSecP(ns+dcp-1,na)+ifreq-1)
-      end do
-      do ifreq=1, nbins
-         radField(ifreq) = temp1(nbins-ifreq+1)
-         lambda(ifreq) = c/(nuArray(nbins-ifreq+1)*fr1Ryd)
-         sQabs(ifreq) = temp2(nbins-ifreq+1)
-      end do
-
-      const1 = (hPlanck*fr1Ryd)
-      hc = hPlanck*c
-
-      if (grainRadius(na) > minaQHeat) then
-         temp(1)=tg
-         pss(1) = 1.
-         do i = 2, nTbins
-            temp(i)=0.
-            pss(i) = 0.
-         end do
+      ok = .false.
+      spec = 0.d0
+      P = 0.d0
+      Tmean = 0.d0
+      gS = dustComPoint(nspE) + nS - 1
+      if (rho(gS) <= 0. .or. MsurfAtom(gS) <= 0.) then
+         qhNfail = qhNfail + 1
          return
       end if
+      if (qhNT == 0) call qhInit(nbins, nuArray, widFlx, nTbins, 1.d0, dble(Tmax))
 
-      temp = 0.
-      pss  = 0.
-      sorc = grainLabel(ns)(1:1)
-
-      select case(sorc)
-      case ('S') 
-         natom = nint(0.44*1.e12*grainRadius(na)**3)
-         if (natom<=0) print*, '! qHeat: invalid value for natom', sorc, na,natom, grainRadius(na)
-         mgrain = (4.*Pi/3.0)*(grainRadius(na)**3)*rho(dcp-1+ns)*1.e-12
-      case ('C')  
-         natom = nint(0.454*3.*1.e12*grainRadius(na)**3)
-         if (natom<=0) print*, '! qHeat: invalid value for natom', sorc, na,natom, grainRadius(na)
-         mgrain = (4.*Pi/3.0)*(grainRadius(na)**3)*rho(dcp-1+ns)*1.e-12
-      case default
-         qheatTemp = tg
-         return
-      end select
-
-      call getTmin(ns,na,temp(1))
-      tbase=real(tg)
-      U(1) = enthalpy(temp(1),natom,na,sorc)
-
-      do i=2,10
-         temp(i)= temp(1) + real(i-1)/real(9)*(tbase-temp(1))
-         U(i)=enthalpy(temp(i),natom,na,sorc)
+      do i = 1, nbins
+         cab(i) = dble(xSecArray(dustAbsXSecP(gS,ai)+i-1))
+         field(i) = dble(grids(iG)%Jste(cellPUsed,i))
+         if (lgDebug) field(i) = field(i) + dble(grids(iG)%Jdif(cellPUsed,i))
       end do
-
-      do i = 11, nTbins
-         temp(i) = tbase + real(i-10)/real(nTbins-10)*(tmax-tbase)
-         U(i) = enthalpy(temp(i), natom, na, sorc)
-      end do
-
-      dU(1) = 0.5*(U(2)-U(1))
-      do i = 2, nTbins-1
-         dU(i) = 0.5*(U(i+1)-U(i-1))
-      end do
-      dU(nTbins) = 0.5*(U(nTbins)-U(nTbins-1))
-
-      do ii = 1, nTbins-1
-         do if = ii+1, nTbins
-            wl = hc/ (U(if)-U(ii))
-            do wlp = nbins, 1, -1
-               if (lambda(wlp)<wl) exit
-            end do
-            wlp = wlp+1
-
-            if ( (dU(if) >= (0.1* (U(if)-U(ii)))) .and. (if < nTbins) ) then
-               wls = hc/( (U(if)+U(if+1))/2.0 - U(ii)) 
-               wll = hc/( (U(if)+U(if-1))/2.0 - U(ii)) 
-
-               if ( wl>= 0.1 .or. wl < lambda(1)) then
-                  A(if,ii) = 0.
-               else
-                  if (wll>0.1) wll =.1
-                  if (wls<lambda(1)) wls = lambda(1)
-
-                  do wllp = nbins, 1, -1
-                     if (lambda(wllp)<wll) exit
-                  end do
-                  wllp = wllp+1
-                  do wlsp = nbins, 1, -1
-                     if (lambda(wlsp)<wls) exit
-                  end do
-                  wlsp = wlsp+1
-
-                  A(if,ii) = 0.5*(sQabs(wlsP)*radField(wlsP)*wls**3+sQabs(wlP)*radField(wlP)*wl**3)*(U(if+1)-U(if))/2.
-                  A(if,ii) = A(if,ii)+0.5*(sQabs(wlP)*radField(wlP)*wl**3+sQabs(wllP)*radField(wllP)*wll**3)*(U(if)-U(if-1))/2.
-                  A(if,ii) = A(if,ii) /(hc**2)
-               end if
-            else
-               if ( (wl>=0.1) .or. (wl<lambda(1))) then
-                  A(if,ii) = 0.
-               else
-                  A(if,ii) = sQabs(wlP)* radField(wlP)*dU(if)*wl**3/(hc**2)
-               end if
+      if (allocated(grids(iG)%qhResD)) then
+         do iL = 1, nResLines
+            nuL = resLine(iL)%nuP
+            if (grids(iG)%qhResD(cellPUsed,iL) > 0. .and. cab(nuL) > 0.d0 .and. &
+                 & grids(iG)%Ndust(cellPUsed) > 0.) then
+               heatR = resLineGrainHeat(grids(iG)%qhResD(cellPUsed,iL), ai, gS, nuL, &
+                    & grids(iG)%Ndust(cellPUsed))
+               field(nuL) = field(nuL) + dble(Pi)*dble(heatR)/cab(nuL)
             end if
          end do
+      end if
+      cont = 0.d0
+      if (allocated(grids(iG)%qhCont)) cont = dble(Pi)*dble(grids(iG)%qhCont(nS,ai,cellPUsed))
+      vg  = 4.18879d-12*dble(grainRadius(ai))**3          ! [cm^3], a in um
+      Nat = vg*dble(rho(gS))/(dble(MsurfAtom(gS))*dble(amu))
 
-         UiTrun = U(nTbins)+dU(nTbins)/2.0 - U(ii)
-         wlim = hc/UiTrun
-         qint = 0.
-         do j = 1,nbins-1
-            qint1 = lambda(j)*sQabs(j)*radField(j)
-            qint2 = lambda(j+1)*sQabs(j+1)*radField(j+1)
-            delwav = lambda(j+1) - lambda(j)
-
-            if (lambda(j+1)<wlim) then
-               qint = qint + 0.5*(qint1+qint2)*delwav
-            else if (lambda(j) < wlim) then
-               qint = qint+(wlim-lambda(j))*(qint1+0.5*(wlim-lambda(j))* (qint2-qint1)/delwav)
-            end if
-         end do
-
-         qint = qint/hc
-         A(nTbins,ii) = A(nTbins,ii)+qint
-      end do
-
-      do if = 1, nTbins-1
-         call clrate(temp(if+1), lambda,radField,sQabs,mdUdt)
-         call cheat(if+1,nTbins,lambda,radField,sQabs,U(1:nTbins),ch)
-
-         A(if,if+1) = mdUdt/dU(if+1)
-
-         if (mdUdt <= ch) then
-            A(if,if+1) = A(if,if+1)*1.d-20
-            A(if+2,if+1) = A(if+2,if+1) + (ch-mdUdt)/dU(if+1)
-         else
-            A(if,if+1)=A(if,if+1) - ch/dU(if+1)
-         end if
-      end do
-
-      if (A(2,1) == 0.) A(2,1) = 2.*A(1,2)
-
-      B=0.
-      do ii = 1, nTbins
-         B(nTbins,ii) = A(nTbins,ii)
-         do if = nTbins-1, ii+1,-1
-            B(if,ii) = B(if+1,ii)+A(if,ii)
-         end do
-      end do
-      sumX = 0.
-      x(1) = 1.d-100
-      do if = 2, nTbins
-         sumBx = 0.
-         do j = 1, if-1
-            sumBx = sumBx + B(if,j)*x(j)
-         end do
-         x(if) = sumBx/A(if-1,if) 
-
-         if (x(if) > 1.d250) then
-            do i = 1, if
-               if (x(i)< 1.) then
-                  x(i) = 0.
-               else
-                  x(i) = x(i)*1.d-250
-               end if
-            end do
-         end if
-      end do
-
-      do j=1,nTbins
-         sumx = sumx+x(j)
-      end do
-
-      do i = 1, nTbins-1
-         if (x(i) > 0.) then
-            if (dlog10(x(i))-dlog10(sumx) <= -250.) x(i) = 0.
-         end if
-         Pss(i) = x(i)/sumx
-      end do
-
-      qHeatTemp = 0.
-      do i = 1, nTbins
-         qHeatTemp = qHeatTemp+Pss(i)*temp(i)
-      end do
-
-      tg=qHeatTemp
-
-    end  subroutine qHeat
-
-    subroutine getTmin(ns, ai, tmin)
-      implicit none
-      real(kind=8), intent(out)      :: tmin 
-      real                   :: dustAbsIntegral
-      real                   :: cutoff            
-      real, dimension(nbins) :: radField          
-      integer, intent(in) :: ns, ai 
-      integer :: iT,ifreq 
-      integer :: cutoffP 
-      integer :: dcp
-
-      dcp = dustComPoint(nspE)
-      cutoff = 9.11e-5
-
-      if (cutoff<nuArray(1)) then
-         print*, "! getTmin: [warning] nuMin larger than cutoff for continuous heating"
-         cutoff = nuArray(1)
-         cutoffP = 1
-      else if (cutoff>=nuArray(nbins)) then
-         print*, "! getTmin: nuMax smaller than cutoff for continuous heating"
-         stop
+      call qhSolve(field, cab, cont, grainCarb(gS), Nat, vg, P, spec, Tmean, ratio, ptop, ok)
+      if (ok) then
+         qhNsolved = qhNsolved + 1
+         qhRatioMin = min(qhRatioMin, ratio)
+         qhRatioMax = max(qhRatioMax, ratio)
+         if (ptop > 1.d-6) qhNtop = qhNtop + 1
       else
-         call locate(nuArray, cutoff, cutoffP)
+         qhNfail = qhNfail + 1
       end if
-
-      if (lgDebug) then
-         radField = grids(iG)%Jste(cellPUsed,:) + grids(iG)%Jdif(cellPUsed,:)
-      else
-         radField = grids(iG)%Jste(cellPUsed,:)
-      end if
-
-      do ifreq = 1, cutoffP
-         radField(ifreq)=0.
-      end do
-
-      tmin = 0.
-      dustAbsIntegral = 0.
-      do i = 1, cutoffP
-         dustAbsIntegral =  dustAbsIntegral + xSecArray(dustAbsXsecP(dcp-1+nS,ai)+i-1)*radField(i)/Pi
-      end do
-
-      call locate(dustEmIntegral(nS,ai,:), dustAbsIntegral, iT)
-      if (iT<=0) iT=1
-
-      tmin = real(iT)
-    end subroutine getTmin
-
-    function enthalpy(tg,natom,na,sorc)
-      implicit none
-      real(kind=8) :: enthalpy
-      real(kind=8), intent(in) :: tg
-      real(kind=8) :: enth1,  enth2,  enth3,  enth4, enth1_50,  enth2_150, enth3_500, vg
-      integer, intent(in) :: natom, na
-      character (len=1), intent(in) :: sorc
-
-      enth1  = (1.4e3/3.) * tg**3
-      enth1_50 = (1.4e3/3.) * 50.**3
-      enth2 = (2.1647e4/2.3) * (tg**2.3 - 50.**2.3)
-      enth2_150 = (2.1647e4/2.3) * (150.**2.3 - 50.**2.3)
-      enth3 = (4.8375e5/1.68) * (tg**1.68 - 150.**1.68)
-      enth3_500 = (4.8375e5/1.68) * (500.**1.68 - 150.**1.68)
-      enth4 = 3.3107e7*(tg-500.)
-      vg = (4.18878*1.e-12*grainRadius(na)**3)
-
-      select case (sorc)
-      case ('S')
-         if (tg<=50.) then
-            enthalpy = enth1
-         else if (tg <= 150.) then
-            enthalpy = enth1_50 + enth2
-         else if (tg <= 500.) then
-            enthalpy = enth1_50 + enth2_150 + enth3
-         else
-            enthalpy = enth1_50 + enth2_150 + enth3_500 + enth4
-         end if
-         enthalpy = (1.-(2./real(natom))) * vg *enthalpy
-      case('C')
-         enthalpy = real(natom)*(4.15e-22*tg**3.3)
-         enthalpy = enthalpy/(1.+6.51e-3*tg + 1.5e-6*tg**2 + 8.3e-7*tg**2.3)
-         enthalpy = (1.-(2./real(natom))) * enthalpy
-      case default
-         print*, '! enthalpy: calculations only available for C & S identifiers'
-      end select
-    end function enthalpy
-
-    function bbody(lam,tIn)
-      real(kind=8)            :: bbody
-      real(kind=8), intent(in):: lam, tIn
-      real(kind=8), parameter :: C1=3.74185e-5
-      real(kind=8), parameter :: C2=1.43883
-      real(kind=8)            :: exptest
-
-      exptest=C2/(lam*tIn)
-
-      if(exptest > 400.) then
-         bbody=0.
-      else
-         bbody = C1*(1./lam**5)/(exp(exptest)-1.)
-      end if
-    end function bbody
-
-    subroutine clrate(tem,lam,fl,sQa,mdudt)
-      implicit none
-      real(kind=8), intent(out) :: mdudt
-      real(kind=8), intent(in) :: tem,lam(nbins),fl(nbins),sQa(nbins)
-      real(kind=8) :: cutoff, eout(nbins), engin, engout,eomid, delwav
-      integer :: k,cutoffP
-
-      cutoff = .1 
-      engin = 0.
-      engout = 0.
-
-      do k = 1, nbins
-         eout(k) = sQa(k)*bbody(lam(k),tem)
-         if (lam(k)<cutoff) cutoffP=k
-         if (k>=2) then
-            eomid=(eout(k)+eout(k-1))/2.
-            delwav = lam(k)-lam(k-1)
-            engout = engout+4.*eomid*delwav
-         end if
-      end do
-
-      engin  = 0.25*fl(cutoffP)*sQa(cutoffP)*cutoff
-      if (engin<0.) print*, "! clrate [warning]: engin < 0."
-      mdUdt = engout-engin
-    end subroutine clrate
-
-    subroutine cheat(it,nTbins,lam,fl,sQa,U,ch)
-      implicit none
-      real(kind=8), intent(out)   :: ch
-      real(kind=8), intent(in)    :: U(*),lam(nbins),fl(nbins),sQa(nbins)
-      real(kind=8) :: einmax,shwav,cutoff, ein(nbins),engin, eimid,hc,delwav
-      integer, intent(in) :: it,nTbins
-      integer :: nshort,nlong,k
-
-      if (it>nTbins) then
-         ch=0.
-         return
-      end if
-
-      hc = hPlanck*c
-      engin=0.
-      nshort=0
-      nlong=0
-      cutoff = .1
-
-      if (it>=nTbins) then
-         ch = 0.
-         return
-      end if
-
-      einmax = 0.5*(U(it+1)-(U(it)))
-      shwav=hc/einmax
-
-      if(shwav>=cutoff) then
-         ch=0.
-         return
-      end if
-
-      do k = 1, nbins
-         if (lam(k)<shwav) nshort = k
-         if (lam(k)<cutoff) nlong = k
-         ein(k) = sQa(k)*fl(k)
-      end do
-
-      nshort = nshort+1
-      if (nshort>=nlong) then
-         ch = 0.
-         return
-      end if
-
-      do k = nshort,nlong
-         if (k>=2) then
-            eimid = (ein(k)+ein(k-1))/2.
-            delwav = lam(k)-lam(k-1)
-            engin=engin+eimid*delwav
-         end if
-      end do
-      ch = engin
-
-    end subroutine cheat
+    end subroutine qHeatGrain
 
   end subroutine emissionDriver
+
+    ! D-462: a grain's share of the resonance-line power the dust destroys in a
+    ! cell (Harrington, Monk & Clegg 1988, sec 3.2; D-376): dLine is
+    ! resLineHeating's Gline*Hden*(1-fEscape), in getDustT's units, shared by
+    ! the grain's cross section over its species' (L-79). One formula for
+    ! getDustT (update_mod resLineHeating) and for qHeatGrain.
+    real function resLineGrainHeat(dLine, sizeP, speciesP, nuP, Ndust)
+      implicit none
+      real, intent(in)    :: dLine, Ndust
+      integer, intent(in) :: sizeP, speciesP, nuP
+
+      resLineGrainHeat = dLine*xSecArray(dustAbsXSecP(speciesP,sizeP)+nuP-1)/&
+           & (Ndust*absOpacSpecies(speciesP,nuP))
+    end function resLineGrainHeat
 
   ! D-296: hoisted out of emissionDriver to module level so mocassin.f90
   ! can settle nLinesPDF before the line arrays are sized. Neither routine
@@ -2212,6 +1919,25 @@ module emission_mod
          grid(iGrid)%fEscapeResPhotons(0:grid(iGrid)%nCells,1:nResLines) = 0.
 
       end do
+
+      ! D-462: qHeat's copy of what getDustT adds to the grains' heating
+      ! outside Jste (common_mod grid_type), filled by getDustT
+      if (lgQheat) then
+         do iGrid = 1, nGrids
+            allocate(grid(iGrid)%qhResD(0:grid(iGrid)%nCells, 1:nResLines), stat = err)
+            if (err /= 0) then
+               print*, "! initResLines: can't allocate array memory, qhResD"
+               stop
+            end if
+            grid(iGrid)%qhResD = 0.
+            allocate(grid(iGrid)%qhCont(0:nSpeciesMax, 0:nSizes, 0:grid(iGrid)%nCells), stat = err)
+            if (err /= 0) then
+               print*, "! initResLines: can't allocate array memory, qhCont"
+               stop
+            end if
+            grid(iGrid)%qhCont = 0.
+         end do
+      end if
 
       allocate(dustHeatingBudget(0:nAbComponents, 0:nResLines), stat=err)
       if (err /= 0) then
@@ -3088,6 +2814,32 @@ module emission_mod
       line_xSec = 1.681e-4*line%fik/width
 
     end subroutine meanLineOpacity
+
+    ! D-447: the collisional excitation of H I from the ground state, owned
+    ! here and read by updateCell's thermal balance (coolColl), the
+    ! re-emission spectrum (RecLinesEmission, LyaEmis and Halpha), the
+    ! grains' Lya heating (resLineHeating) and the reported lines (output_mod,
+    ! mocassinPlot), so that the energy the gas cools by is the energy it
+    ! emits (D-446: before, it was re-emitted with the shape of the other
+    ! gas emission, part of it Lyman continuum that ionized again).
+    ! Mathis's fit, as upstream's coolColl: the 1s -> n=2 and 1s -> n=3
+    ! terms; times hcRyd n(H0)/n_H n_e they are erg/s per H. Zero below
+    ! 5000 K, as upstream.
+    subroutine hICollExc(Te, q12, q13)
+      implicit none
+      real, intent(in)  :: Te
+      real, intent(out) :: q12, q13
+      real              :: Te4
+
+      if (Te > 5000.) then
+         Te4 = Te/1.e4
+         q12 = 2.47e-8*exp(-118338./Te)*Te4**(-0.228)
+         q13 = 1.32e-8*exp(-140252./Te)*Te4**(-0.460)
+      else
+         q12 = 0.
+         q13 = 0.
+      end if
+    end subroutine hICollExc
 
   end module emission_mod
 

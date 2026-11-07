@@ -156,3 +156,14 @@ Reverted work is tagged rather than deleted (e.g. `d193-d195-reverted`).
 
 Comparisons against 3D-PDR are published as Röllig et al. (2007)-style plots so
 the profiles can be inspected rather than summarised.
+
+## Cloudy comparisons
+
+  - **Cloudy runs as a static sphere** (`sphere static`, D-458). MOCASSIN's
+    nebula has no velocity field. Cloudy's default `sphere` assumes
+    expansion, so line photons leaving the illuminated face escape the far
+    side untrapped. In D-457 that let 98% of Cloudy's Lya out inward through
+    the central hole.
+  - **Compare lines through Cloudy's line list,** not its `save continuum`.
+    The saved continuum understates each line by about 4 dr/r of the zones
+    that make it, 2-11% at Cloudy's default zoning (D-456).

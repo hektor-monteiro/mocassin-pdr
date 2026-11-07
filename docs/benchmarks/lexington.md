@@ -89,6 +89,17 @@ differ by more than 5% (33 rows, among them three misprints: PN150 C III] 0.174 
   by 12.7%, O³⁺ by 35.8% and He²⁺ by 5.4%); PN150's lines differed by up to 0.12 dex from the
   converged run, and HII40's [O I] 6300+6363 by 0.16 dex. The cap is now 60 iterations
   ({devlog}`D-437`).
+- **Since the release.** {devlog}`D-447` emits the collisional excitation of H I that the gas cools
+  by, and {devlog}`D-450` gives hydrogen the charge transfer of the heavy elements' stages above
+  1+. {devlog}`D-453` reran the four models with both, the same inputs, seed and ranks. Each
+  stopped at the same iteration.
+  - HII20 and PN75 moved by 0.7% or less in every compared value.
+  - HII40 moved by under 0.4%, apart from [O I] 6300+6363 (+1.9%).
+  - PN150 moved most. H$\beta$ rose by 0.4%, Ly$\alpha$/H$\beta$ by 14% and
+    $\langle T[N_pN_e]\rangle$ fell by 0.3%. Most lines fell by 2.4–4.1% relative to H$\beta$,
+    most of all [O II] 3726+3729, [N II], C II 1335, [Ne II], Si II], N III] and C III].
+
+  No value crossed into or out of the codes' range, so the tables below stand to that accuracy.
 - **What the test does not cover.** It tests an ion only where it carries at least 1% of its element's
   emission measure, and the neutral hydrogen only where it is at least 1% of the hydrogen. At the end
   of these runs it skipped O³⁺ and the neutral gas in HII40, O²⁺, N²⁺ and S³⁺ in HII20, and S⁺ and the

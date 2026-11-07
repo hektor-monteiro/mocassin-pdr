@@ -19,4 +19,12 @@ N(H2) = 1e15-1e17 (H-005's slab, h2-model branch). The pn150k
 reference has used the large model since D-302. Line ratios are read from the
 last iteration's block of the listing (the first is unconverged).
 
+
+D-458: `sphere static` (in common.inc), the standard for every Cloudy model
+compared with MOCASSIN. MOCASSIN's nebula has no velocity field, while
+Cloudy's default `sphere` assumes expansion: line photons leaving the
+illuminated face escape the far side of the shell untrapped (Hazy 1
+pp. 141-142; Hazy 2 p. 128). On D-456's dusty sphere that let 98% of
+Cloudy's Lya out inward through the central hole (D-457).
+
 Figures: `tools/d260_roellig.py --cloudy <mocassin-run> <dir>/hiipdr <out-dir>`.

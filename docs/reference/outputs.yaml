@@ -102,6 +102,22 @@
     absorption part, from the Lyman edge up, in every cell with x(H⁺) > 10⁻⁴,
     plus the H⁰, He⁰ and He⁺ cross sections, for the sub-cell [O I] estimate.
 
+- name: reemission.out
+  group: grid
+  writer: 'grid_mod.f90::writeGrid@"file=\"output/reemission.out\""..@"end if"'
+  when: "with the grid files, with `frontLines`"
+  build: all
+  read_by: nothing in the code (runs/_d450 analysis)
+  description: |
+    Per active cell, the power the gas absorbed from this iteration's packets
+    beside the spectrum it re-emitted it with: its continuum and line totals and
+    its photons above 13.6 eV by emitter (H I, the heavy elements, He I with 2³S,
+    He II with its Lyman lines) ({devlog}`D-450`). Columns: grid, i, j, k, cell,
+    n_H [cm⁻³], T_e [K], the gas-absorbed power [erg cm⁻³ s⁻¹], then `pdfSrc`'s
+    13 columns, in 10⁻²⁵ erg s⁻¹ per H (1-7) and 10⁻²⁵ photons s⁻¹ per H (8-13),
+    listed in the file's header and at `common_mod`'s `pdfSrc`. The header calls
+    the format "reemission v1 (D-449)", the entry that called for it.
+
 - name: echo.out
   group: grid
   writer: 'grid_mod.f90::setMotherGrid@"file=''output/echo.out''"'
@@ -348,7 +364,7 @@
     The SED of the escaping radiation. Per bin: ν (Ryd), λ (µm), then F_ν D²
     (Jy pc²) over all directions and at each `inclination`, then the same for
     the packets last emitted in the source cells. symmetricXYZ factors
-    applied. Ends with the total energy radiated, in 10³⁶ erg/s.
+    applied. Ends with the energy radiated in the continuum, in 10³⁶ erg/s, then that in the transported lines and the sum of the two.
 
     A source in an inactive cell (a central cavity) books the packets that
     leave without interacting to that cell. They count in the source columns,
@@ -357,6 +373,24 @@
     cavity lost its directly escaping starlight (only 40% of the luminosity
     reached the file in the quickstart HII40), and the last line was
     mis-scaled by 10⁻³⁶.
+
+    The file is the continuum: a transported line ({devlog}`D-292`) escapes into `SEDlines.out` ({devlog}`D-454`). From D-292 to D-454 the lines were in this file, in the bins that hold them, as 0.29 of pn150k's escaped energy and 0.04 of hiipdr's.
+
+- name: SEDlines.out
+  group: results
+  writer: 'output_mod.f90::writeSED@"file=''output/SEDlines.out''"'
+  when: with SED.out
+  build: all
+  read_by: nothing in the code
+  description: |
+    The energy the transported lines ({devlog}`D-292`) carry out of the
+    nebula, kept out of `SED.out` since {devlog}`D-454`. Per bin of the same
+    grid: ν (Ryd), λ (µm), F_ν D² (Jy pc²) over all directions; no viewpoint
+    or source columns, and neither lgEcho nor lgNosource applies. A line is
+    in the bin of the grid point at or below its frequency, so its λ is up
+    to one bin longer than the line's own ({lim}`L-97`). Ends with the
+    total, in 10³⁶ erg/s, which `SED.out`'s trailer repeats beside the
+    continuum's.
 
 - name: equivalentTau.out
   group: results
@@ -378,7 +412,8 @@
     Per grid point (iG, ix, iy, iz): the escaping energy in the
     `continuumCube` band carried by packets last emitted in that cell, in 10³⁶
     erg s⁻¹ per unit solid angle, over all directions (÷4π) and at each
-    `inclination`. No symmetricXYZ factor.
+    `inclination`. No symmetricXYZ factor. The continuum only since
+    {devlog}`D-454`; before, the transported lines in the band were in it.
 
 - name: tauNu.out
   group: results
@@ -420,13 +455,15 @@
 - name: qHeatPss.out
   group: iteration
   writer: 'iteration_mod.f90::iterateMC@"file=''output/qHeatPss.out''"'
-  when: every iteration from the second (rewritten), with `quantumHeatGrain` and `quantumHeatGrainParameters ... .true.`, once the converged-cell percentage exceeds the `quantumHeatGrain` threshold
+  when: every iteration from the second (rewritten), with `quantumHeatGrain` and `quantumHeatGrainParameters ... .true.`, while the converged-cell percentage is at least the `quantumHeatGrain` threshold
   build: all
   description: |
-    The temperature distributions (T, P(T) over nTbins) and the mean
-    temperature of the stochastically heated grains smaller than the
-    `quantumHeatGrain` radius, for the cells rank 0 handles only (one cell in
-    every numtasks). Very large.
+    The temperature distributions (T, P(T) on the nTbins temperatures) and
+    the mean temperature of the stochastically heated grains smaller than
+    the `quantumHeatGrain` radius, beside each grain's equilibrium
+    temperature (`Teq`), for the cells rank 0 handles only (one cell in
+    every numtasks). Written from `setDustPDF` since {devlog}`D-462`, so
+    dust-only runs write it too. Very large.
 
 - name: planeIonDistribution.out
   group: iteration

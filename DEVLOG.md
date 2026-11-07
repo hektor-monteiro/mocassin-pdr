@@ -444,6 +444,25 @@ reasoning that led to the wrong turn is part of the history.
 | D-442 | **Documentation site, increment 4a opened: the 1D dust benchmark (the user: "1D now, 2D later"; reference "Ercolano's figure only").** The benchmarks/dust/1D shells are Ivezic et al. 1997's problem as set up by Ercolano et al. 2005 (Draine & Lee silicate 0.16 um, not Ivezic's idealised opacities); the reference is Ercolano 2005 Fig. 1 (dustybench.ps, arXiv astro-ph/0507050: MOCASSIN 2005 and DUSTY 2.01, lambda F_lambda / int F_lambda dlambda, tau(1um) = 1, 10, 100), a vector-PostScript panel whose 10 paths are read exactly. Pascucci et al. 2004's data files are offline (figures only): the 2D discs are run only as checks of D-441 and their page waits. Runs with isotropicScattering (DUSTY's assumption) and with the default HG; fixture notes for 4b recorded. Done: isotropic runs within a median 0.003/0.010/0.029 dex of DUSTY 2.01 (MOCASSIN 2005 as published 0.036/0.033/0.026, renormalised 0.010/0.013/0.018), HG's forward scattering brightens the escaping starlight by up to 0.4-0.6 dex and dims the tau = 1 dust emission by up to 0.06 dex, L(SED)/LStar 0.9997-0.9998, tau 10 and 100 at the 30-iteration cap with only outer cells unconverged; plan revisions 2-5 and the referee's 13 findings recorded; page docs/benchmarks/dust-1d | Done | 2026-10-24 |
 | D-443 | **Release `pdr-coupling-v2.0.2` (the user: "make the release tag and proceed to increment 5").** A fix release of v2.0.1: dust-only models run and stop on the converged-cell share, and SED.out counts the light escaping from an inactive source cell (D-441); with the tutorial and examples/tutorial (D-440), the 1D dust benchmark page and mocread's read_dust/read_sed (D-442). Apart from SED.out for a source in a cavity, a gas or pdr run is byte-identical to v2.0.1's. Checked from a fresh clone of 4135ebb: four flavours, h2Test and h2Slab rc 0 with no tracked file changed; p0tau10 on its 3D build and HII40 on its plain build byte-identical to D-441's T3 and T4-post runs apart from summary.out's clock lines. Release notes in the body. Not installed | Done | 2026-10-24 |
 | D-444 | **Documentation site, increment 5 opened: the MOCASSIN core physics chapters (the user: "make the release tag and proceed to increment 5"; on defects found: "Document and record"; on coverage: "All, flagged by status").** Eight pages planned in docs/physics/mocassin/ (index, grid, transfer, iteration, ionisation, thermal, emission, dust), linking the PDR pages that already describe parts of the core. Three surveys mapped the code and found defects inherited from upstream: line cooling sums levels 1-10 only and skips Fe II (emitted but never cooling); free-free opacity computed only in frequency bin 1; the dust+gas frequency grid uses almost none of nuDustRyd.dat; about fifteen smaller items to verify. Each verified defect becomes an L-item (L-64 on); no code changes Done: eight pages (19,000 words with anchors) describe the grid, transfer, iteration, ionisation, thermal balance, emission and dust as the code implements them; 26 verified defects recorded as L-64..L-89 (six Medium: inner-shell and top-stage absorption without ionisation or heat, H collisional cooling at 1 Ryd, oxygen's dielectronic rates for missing stages, resonance-line heating shared by abundance, the phi = 0 viewpoint, resonance-line escape along eight diagonals), none fixed; two referees (35 findings + 11 on iteration.md) corrected L-64, L-66 and L-78's overstated impact; 25 references added | Done | 2026-10-25 |
+| D-445 | **The original MOCASSIN (f37a67e, the last commit before any PDR work) against the current code (53eab97, plain flavour) on benchmarks/test_Problem, a gas+dust model: the escaped SED (the user: "Run the benchmark test_problem with both code versions and compare the escaped SED in both").** Each version built in its own clone with its own data; 14 ranks, the benchmark's input unchanged. Known before the runs: the original drops every line photon, re-injects resonance-line energy at 1/8 under symmetricXYZ, and its SED.out misses the cavity's unscattered starlight (D-441). Result: the original's escaped SED holds 0.213 LStar against 0.9998: it drops 0.52 LStar of intrinsic lines (0.42 LStar escape as lines in the current code, the rest heats the dust, MIR+FIR x3.1), and it ionizes the dense ring's skin less (Hbeta x0.42, emission measure x0.47 on identical densities; cause not tested) | Done | 2026-10-31 |
+| D-446 | **Audit of test_Problem's Hbeta, the original (f37a67e) x0.42 of the current code (53eab97) (the user: "it is very suspicious that  Hβ is 2.4 times lower on the new version. Audit this."; the lower one is the original).** Measured from D-445's runs: each code's Hbeta matches its own grid (code over a case-B recomputation from n_e, n(H+), T_e and the cell volumes: 0.957 original, 1.006 current), and the original's 83 lgBlack cells hold 0.036% of it, so the line sums are not the cause. The emission measure is x2.13 (1.70e60 against 3.61e60 cm^-3, whole sphere; D-445's figures were octant sums), and 99% of the difference is in the n_H 8e4 ring, whose ionized skin is unresolved (no ring cell above x(H+) 0.5 in either run). Photon budget: the star emits Q(H) 8.46e47 s^-1; the case-B H recombinations are 4.36e47 (0.52 Q(H)) in the original and 9.83e47 (1.16 Q(H)) in the current code. Half the original's ionizing photons are not recombined by the gas and do not escape (ionizing SED 2.95e35 erg/s); the current code is at or slightly past the budget. A bisection of the 538 first-parent commits between them, each built plain with its own data, finds the commit(s) that move it. **Results:** Hbeta is not monotonic along the history (0.20 to line 88, 3.5 at 109, 1.69 at 135, 0.385 at 163, 0.455 from D-233, 0.483 after D-371). Neither code conserves photons without dust (gas only: original 0.545, current 1.174 Q(H); pure H: 1.78 and 4.61). Attributed by one-change runs: the original lost its on-the-spot Lyman continuum to the forced skip D-147 removed (test A: gas-only 0.545 -> 1.212 Q(H)), and the current code is ~18% high because collisional H I cooling (Mathis Lya+Lyb, updateCell) is in the thermal balance but not in the re-emission spectrum, an upstream defect open in production (test B: test_Problem 1.163 -> 0.989 Q(H), Hbeta 0.483 -> 0.410). Pure hydrogen keeps a second, unidentified excess (3.22 Q(H) with B). noPhotoelectric changes nothing | Done (fix of B not done) | 2026-10-31 |
+| D-447 | **Collisional excitation of H I emitted as well as cooled (the production fix of D-446's test B; the user: "proceed").** emission_mod's new hICollExc owns Mathis's Lya+Lyb fit; coolColl reads it unchanged to the bit, and the re-emission spectrum (LyaEmis, Halpha), the grains' Lya heating (resLineHeating) and the reported lines (output_mod, mocassinPlot) add the same energy: the n=2 term and 27/32 of the n=3 term as Lya, 5/32 of the n=3 term as Halpha (case B). **Results (8d82a56):** test_Problem conserves photons as test B did (0.989 Q(H), Hbeta 0.410 E36, x0.850; Lya x2.26, Halpha/Hbeta x1.075, grains warmer); hiipdr unchanged within noise (Hbeta x0.9989); pn150k Hbeta x0.934 (0.904 of Cloudy, from 0.964), recombinations 0.974 -> 0.910 Q(H), Lya x1.58, T_dust +3.7%. pn150k's 9% of Q(H) neither recombined nor escaping is the open divergence from Cloudy. L-90 recorded closed | Done | 2026-10-31 |
+| D-448 | **pn150k's ionizing-photon budget, MOCASSIN against Cloudy: the dust's share of the ionizing absorption (D-447's open divergence; the user: "proceed").** With D-446's alpha_B fit on Cloudy's own zones, Cloudy recombines 0.982 Q(H) (case B), against MOCASSIN's 0.910 since D-447: 7% of Q(H) is lost in MOCASSIN and not in Cloudy. Both codes rerun with diagnostic output only: MOCASSIN with frontLines (per-cell 4 pi J, opacity and dust absorption above 1 Ryd, frontField.out), Cloudy with the ionizing continuum, grain opacity and H, He ionization rates in every zone. The dust's absorbed ionizing photons are summed over the volume in each code and set against Q(H). **Results:** Cloudy's grains absorb 0.112 Q(H), MOCASSIN's 0.129 (its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd): a quarter of the gap. Helium is a net source of H-ionizing photons, not a sink: Cloudy's gas gives back +0.094 Q(H), MOCASSIN's +0.040, with helium recombining at the same rate in both (He++ 0.176, 0.177 Q(H)), so three quarters of the gap is MOCASSIN's return per helium recombination or the metals' absorption, not yet separated. D-447's "presumably the dust" is corrected in pdr-status.md. pn41f byte-identical to D-447's pn41; no code changed | Done | 2026-11-01 |
+| D-449 | **pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (D-448's open items; the user: "start on the steps that do not need code reruns first and report results with plots whenever possible. Then proceed to the needed code runs.").** No code changed; scripts in runs/_d449 on D-448's two runs. (1) MOCASSIN's dust opacity reproduces to 1.0000 only with `locate`'s legacy intercept (x == last entry -> index 1): the Q file's largest radius (0.25 um) gets Qabs, Qsca and g extrapolated from the two smallest radii, absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 in the FUV, V x0.988, g 1.29 at 4 Ryd; the dust's share 0.129 -> 0.109 Q(H) with the file as meant (Cloudy 0.112): L-91. The rest of D-448's graphite excess: grain volume per H x1.040, material (DL against MR91, Mie on both reproducing each code within 4%) x0.99-1.18. (2) Metals, same Verner cross sections: MOCASSIN 0.070, Cloudy 0.062 Q(H); with the rebuilt scattering (0.100) they close MOCASSIN's opacity x field to 0.03%. (3) MOCASSIN's helium coefficients give MORE H-ionizing photons than case B (He II 1.32-1.38 per case-A recombination against 1.27; He I 1.07-1.26 against 0.92-0.98: 2^3S for every recombination, no 584 A); the Monte Carlo re-emits 1.101 Q(H) against 1.057 from its coefficients (unexplained). (4) The photoelectric heat dilutes the gas re-emission by ~0.010 Q(H) (f 0.93 within 1e17 cm). (5) Hydrogen's balance leaves out charge transfer of X^(>=2+) + H, 0.038 Q(H) of H ionizations on MOCASSIN's grid; Cloudy's H balance carries 0.031 of non-photon ionization: L-92. Code changes and reruns to be planned. | Done | 2026-11-01 |
+| D-450 | **The code runs D-449 calls for: `locate` at a table's last entry (L-91), charge transfer above 1+ in hydrogen's balance (L-92), and a re-emission diagnostic (the user: "Then proceed to the needed code runs."; plan approved).** Plan ~/.claude/plans/iridescent-stirring-pie.md, executed by code-executor in three commits, each built in four flavours: A, pdfSrc to 13 columns (line total; photons >= 13.6 eV of H I, metals, He I with 2^3S, He II with Lyman, 2^3S and Lyman alone) written with the gas-absorbed power to output/reemission.out under frontLines; B, `locate` returns n-1 at x == xa(n) (the intercept deleted); C, sum_{i>=2} chex n(X^(i+)) added to hydrogen's upward rate and to the H -> H+ rate handed to the chemistry, the chex fits evaluated before the stage loop. Runs (14 ranks, one queue): tp-L, hii-L, pn-L with binary L, then tp-LC, hii-LC, pn-LC. Results: hiipdr byte-identical with A+B; pn150k's dust 0.129 -> 0.112 Q(H) (Cloudy 0.112), case-B recombinations 0.910 -> 0.929 (locate) -> 0.957 (charge transfer; Cloudy 0.982), Hbeta 0.904 -> 0.950 of Cloudy's; hiipdr unchanged by charge transfer, test_Problem +0.009 Q(H); the diagnostic closes the ionizing budget to 0.997 and puts the Monte Carlo at 1.004-1.012 of the code's emission. test_Problem is clock-seeded, so its byte-identity prediction was void. L-91, L-92 closed; L-93, L-94 opened. | Done | 2026-11-01 |
+| D-451 | **The two Cloudy comparison pages rebuilt on the production code (the user: "we should update the hiipdr and pn150kk artifacts with the new results redoing the comparison plots with the new version of the code").** hiipdr Against Cloudy version 32 on runs/_d450/hii-LC, 150 kK PN Against Cloudy version 31 on runs/_d450/pn-LC (pdr-coupling-v2.0.2-32-g5ab5e8d). Each gets a new first section with one column per change since its last version (the h2-model run of 2026-10-13, v2.0, D-447, D-450) and six figures of the last version, now and Cloudy; the current-state parts are rebuilt on the new run and every section reference moves down one. hiipdr: v2.0's gas-grain correction (D-420, D-421) is what moves - the ionized gas 8.2% cooler at 1 pc, 5.5% at 2 pc, 2.8% at 3 pc (median 8800 -> 8470 K), Hbeta +2.0% (0.927 of Cloudy's), [O I] 6300 -9% and C II] 2326 -13% absolute; the PDR within 0.6% in T, the crossing and C+ = C unmoved; D-447 and D-450 within noise. The ionized gas is now 7.6% below Cloudy at 1 pc (+0.7% at version 31) and 2-5% above further out. pn150k: Hbeta 0.964 -> 0.950 of Cloudy's (0.904 after D-447), case-B recombinations 0.969 -> 0.957 Q(H) (Cloudy 0.982), the crossing 0.393 -> 0.419 (Cloudy 0.368: 0.052 mag past it, from 0.026), the PDR 4-15% warmer, H2 1-0 S(1) 1.10x, [C I] 609 0.80x, CO 2-1 0.70x version 30's. Builders backed up in runs/_scratchpad_backup_2026-11-01. | Done | 2026-11-01 |
+| D-452 | **pn150k's escaped SED, MOCASSIN against Cloudy (the user: "I want to see a comparison of cloudy and mocassin for the escaped sed for the pn150kk models"); 150 kK PN Against Cloudy v32 adds it as "The escaped spectrum".** runs/_d450/pn-LC's SED.out against runs/d396-cloudy-pn/150k.cont (total column), both nu L_nu, Cloudy rebinned onto MOCASSIN's bins by energy (runs/_d452/sed.py). MOCASSIN holds 1.000 L*, Cloudy 0.973 (0.027 L* unaccounted, not examined). Nothing above 13.6 eV escapes either. Agree: 1-5 um 1.01, 60-300 um 0.98 (dust continuum 0.97); 0.21-1 um 0.92 ([O III] 5007 0.97, Halpha 0.98, C III] 1909 0.68). Differ: Lya leaves Cloudy at 0.082 L* (its own emergent line list: 0.022; D-291's continuum-attenuated outward lines) and MOCASSIN at 0.004 (it makes 0.244, D-376 destroys it in the grains); 5-60 um MOCASSIN 1.50x (dust continuum 1.67x), +0.149 L* = Cloudy's extra UV-optical 0.116 (0.079 Lya) + its missing 0.027 within 0.006 - the budget reading (Lya heating MOCASSIN's grains instead) is untested. Found on the way: MOCASSIN's SED bin j holds nu_j <= nu < nu_j+1 while widFlx is centred; v31's two doubled percent signs corrected. | Done | 2026-11-01 |
+| D-453 | **Audit of D-445..D-451, and the documentation brought up to date (the user: "Analyse te changes, audit them and update the documentation as needed.").** The code of D-447 and D-450 read against the DEVLOG: hICollExc, the diagnostic's columns, `locate` and charge transfer above 1+ are as described, with no double count in the chemistry. `locate`'s 112 callers audited: besides L-91, the fix also corrects the plane-parallel launch (10% of the slabs' packets per axis started in column 2), the `2D` mapping and a star at coordinate 1.0, and turns getTmin's all-zero-row corner case from 1 K to 2999 K (L-96, Low). One gap: `lineFlux.out`'s resonance-line table still counts recombination Lya only (L-95, Low; pn-LC 23.4 against the row's 35.4 Hbeta). Stale source comments added to L-77. Records fixed: D-451's index row (missing cells, so absent from the devlog index), L-65 (emitted since D-447; its premise in doubt), D-449 cited for D-450's changes, L-92 linked for L-93, and the tutorial's claim that later code computes its model as v2.0.1. Lexington rerun on the current plain build: HII40/HII20/PN75 within 0.7% (HII40 [O I] +1.9%), PN150 Hbeta +0.4% and lines -2.4 to -4.1%, no in-range change. Docs: core chapters, photorates, outputs, benchmark pages (D-451's pn150k shifts), tutorial note. | Done | 2026-11-01 |
+| D-454 | **SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (the user: "I would like to have the escaped SEDs outputed by writeSED to be just continuum as it was previously"; asked where the line energy should go: "Separate file").** Before D-292 a line packet got nuP = 0 and was never traced, so SED.out was continuum; since D-292 a line with a bin is transported as continuum and lands in escapedPackets (0.29 of pn150k's SED.out energy, 0.04 of hiipdr's). Plan: a packet flag lgLineTr (set in newPhotonPacket for a line with a bin that the dust did not destroy, carried across the scattering rebuild), the seven escape blocks of photon_mod send flagged packets to escapedLines (common_mod, double, by bin), writeSED writes it to output/SEDlines.out and its total to SED.out's trailer. Line transport, the physics, is unchanged. Predictions on record before the runs. **Results (340b9f6; runs/_d454):** hiipdr against runs/_d450/hii-LC and a seeded HII40 pair are byte-identical in every output but SED.out (summary.out apart from its wall-clock times); continuum-only bins identical; continuum + lines = the old total within 1.6e-7 (hiipdr) and 1.2e-7 (HII40); line share 0.043 (hiipdr) and 0.275 (HII40, 56% of it Lya), as predicted; per-bin closure within 8.1e-6 (HII40) but up to 8.1e-5 in 15 hiipdr line bins, single-precision summation over 15k cells (both signs, line bins only, scaling with cell count), not a lost line. | Done | 2026-11-01 |
+| D-455 | **Audit of D-454, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** D-454's code (340b9f6) read against its plan: all 84 escapedPackets lines of photon_mod sit inside the seven D-454 branches; newPhotonPacket's diffuse case is the only maker of line packets and the dust scattering's rebuild the only in-flight reconstruction, so lgLineTr is set and kept where the plan says; escapedLines is zeroed, summed over ranks on every rank and written raw, and mocassinWarm calls writeSED only after its iterations. D-454's numbers reproduced from runs/_d454 (closures -1.6e-7 and -1.2e-7, shares 0.0434 and 0.2748, 15 hiipdr bins above 1e-5 at up to 8.1e-5, byte identity but summary.out). mocread.read_sed and accessories' read_sed parse the new trailer; L_e36 is now the continuum. Consequences documented: contCube.out and the viewpoints' far-infrared normalisation are continuum only; echo and NoSourceSED do not apply to SEDlines.out; no benchmark page reads a gas model's SED.out. Records: D-454's index row had five cells (its results fell in the Status column), merged; L-77 gains the stale D-292 comments (transport off by default; no Lyman series or Lya) and iterateMC's printed "total Escaped Packets", divided by 8 at every cell (inherited). Docs: transfer, iteration, emission and the chapter index; outputs and keywords; the Python guide, quickstart, tutorial note and benchmarks index. | Done | 2026-11-02 |
+| D-456 | **A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (the user: "Run a uniform spherical gas plus dust model using both codes and compare the results. Investigate energy conservation aspects in both runs. Does the difference in SED that appeared in the models with PDR show up here as well?").** pn150k's star, gas and graphite cut at the H+ front (R_out 4.5198e17 cm), no PDR; MOCASSIN plain flavour (runs/_d456/moc-dust, 15 iterations) against Cloudy, dusty (ds150) and dust-free (gs150). **Yes, the PDR model's SED difference appears without a PDR, larger:** 5-25/25-60/60-300 um at 1.62/1.85/1.50x Cloudy's (continuum 2.39/2.15/1.58x; beyond 5 um 0.387 against 0.190 L*), far UV 0.48x; structure agrees (H+ front 0.1275/0.1279 pc, He2+ 0.0883/0.0880, T_e 2-5%, Hbeta 0.944). It follows Lya: both make ~0.22-0.24 L*; MOCASSIN's grains take ~0.218 (D-376's local destruction, ~0.022 escapes), Cloudy's ~0.052 with 0.168 escaping in its continuum (its line list: 0.075); the ledger closes to ~0.03 L* (C IV, made 2.5x Cloudy's, and the field). MOCASSIN's grains 5-29% warmer, its dust temperature solution consistent with its packets (Lya 0.206 against 0.218 L*). **Energy:** MOCASSIN 1.00001 L*, gas re-emission 0.994 of the absorbed power. Cloudy 0.977 (dusty), 0.944 (dust-free), 0.973 (pn150k): a transferred line's outward beam is diluted three times inside the zone that emits it (tmn's zone-centre dilution, BeamOutOut, the zone's own dilution; ~4 dr/r per zone, dr/r up to 0.04), which predicts every isolated line's continuum/list ratio within 0.002 (0.906-0.976 at default zoning; pn150k's IR lines within 0.004); dr/r <= 0.01 and 0.0025 bring the dust-free total to 0.967 and 0.988. Cloudy's own sphere energy check is compiled out. Compare Cloudy's lines through its line list, not its saved continuum. Predictions: P1, P2, P5, P8, P9 held; P3 (Cloudy >= 0.99), P4 (Lya numbers), P7 (T_dust within 5%) failed; Q1 held, Q2/Q3 lines held and totals fell 0.003 and 0.002 short, Q4 failed narrowly (the line list rises 1-2% with zoning). Page: Dusty Sphere Against Cloudy, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV. | Done | 2026-11-02 |
+| D-457 | **What Cloudy's documentation says about Lya escape, and the test it suggests (the user: "is there anything in Cloudy documentation that comments on this Lya escape?", then "run it").** Hazy 1 pp. 141-142 and Hazy 2 p. 128: `sphere` defaults to expanding, so lines "freely escape after crossing the central hole"; `sphere static` traps them on the far side and "the line is destroyed when dust is present". Hazy 2 p. 70: Hummer & Kunasz (1980) escape probabilities (fits differ by up to 2x), destruction X_c F(X_c); p. 40: intrinsic intensities are net of local grain destruction; QuickStart p. 33: in the Orion blister dust cuts Lya/Hbeta from ~34 to ~2. **Test (runs/_d457):** D-456's dusty sphere with `sphere static` against an identical expanding control (98% of Lya leaves inward). Static: GraL 0.040 -> 0.159 L*, Lya in the saved continuum 0.168 -> 0.052, Cloudy's dust continuum beyond 5 um 0.190 -> 0.326, closure 0.977 -> 0.991; against MOCASSIN the dust excess falls 2.03x -> 1.19x (bands 1.13-1.19x), the far UV 0.48 -> 0.77, ionized-zone T_dust within 1-4% (was 5-29%); fronts, T_e (2.2%) and Hbeta (1.2%) hold, [O III] 5007 -4%. So most of Cloudy's escaping Lya in D-452/D-456 is its default expanding geometry, not MOCASSIN's dust. Remaining: ~0.06 L* more Lya into MOCASSIN's grains, its front cell 16-30% warmer. pn150k as a static sphere not run. | Done | 2026-11-02 |
+| D-458 | **Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (the user: "We should adopt the static sphere as the standard for any Cloudy comparisons to mocassin. Register this and rerun the hiipdr and pn150kk pdr models redoing the comparisons").** MOCASSIN has no velocity field; Cloudy's default sphere assumes expansion (D-457). Registered in the benchmark Cloudy inputs, CLAUDE.md, docs/benchmarks/index.md and memory. Reruns in runs/_d458 (cl-hii, cl-pn) with predictions on record: hiipdr moves little (its Lya is already destroyed locally), pn150k's PDR field falls 25-55% and its warm-dust excess shrinks. Results: pn150k's PDR field halves and its PDR temperature agrees past A_V 0.3 (0.92-0.99, was 0.70-0.80), the escaped dust within 10% at 1-300 um, [C II] 158 1.05x while [O I] 63 (1.82x) and H2 1-0 S(1) (1.64x) move apart; hiipdr moves 0.2-5% except Cloudy's [C II] 158 (-22%, untested). Both Cloudy pages republished as version 33. | Done | 2026-11-02 |
+| D-459 | **Audit of D-456..D-458, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** No source, Makefile or tools change since D-455. D-456 and D-457 are analyses; D-458 registers Cloudy's `sphere static` as the standard for comparisons (the benchmark Cloudy inputs, the hiipdr README, CLAUDE.md, a docs note). Checked: the three inputs change only by `sphere static` and comments; `reduce.py --check-cloudy` matches the committed inputs to runs/_d458's command for command; Cloudy's A_V(r) moves by under 0.5%. The docs benchmark pages, D-458's open item, now compare with the static runs. The manifest points at runs/_d458; regenerating the data changes only the Cloudy-side files; every Cloudy-dependent number of the two pages, their captions and the index was recomputed by a script that reproduces the old numbers from the old data. pn150k: Hbeta 0.96 of Cloudy's, crossing 0.362 (0.031 mag), [C II] 158 0.58 -> 0.98, CO 2-1 0.63 -> 0.82, PDR T 0.67-0.77 -> 0.86-0.97, [O I] 63 1.49 -> 1.78. hiipdr: Hbeta 0.92, [C II] 158 1.29 -> 1.66, atomic PDR T 1.05-1.11 -> 1.02-1.05. Records: L-19 re-measured against the static sphere (PDR grains 1.00 and 0.99 of Cloudy's, escaped spectrum within 10%; band shares not re-measured), lowered from High to Medium; L-37 and L-56 note the static sphere; L-97 opened (D-452's finding: a transported line takes the grid point at or below its frequency, while the bins are centred; Low). Dust chapter, transfer page and outputs reference updated. | Done | 2026-11-02 |
+| D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
+| D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record). **Result:** all builds and the install rc 0; ~/.local/bin reports pdr-coupling-v2.0.2-64-g7de18ff (the opening commit, source as 20e4bbc); the data still identical; HII40 with the installed binary 18 iterations, byte-identical to the reference in every output file but summary.out, which differs only in its wall-clock times, and to D-454's plain build apart from those times and the PDR builds' own lgPDR line and pdrFUV files | Done | 2026-11-06 |
+| D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. Plan approved (the user: heating with the gas-grain and photoelectric terms, gate default 0, hiipdr full + pn150k 3 iterations, no run beside another model): a standalone qheat_mod (DL01 thermal-continuous, GD89 heat capacities, one geometric T grid) fed Jste + the destroyed lines + getDustT's net gas-grain term, stored per cell; material from grainCarb, N from rho and MsurfAtom; one solve per grain; qhTest and tools/d462_qheat_check.py; predictions on record. **Result:** qhTest 11/11 (= numpy to 1e-15, Monte Carlo -1.5% to -0.6%); no keyword: byte-identical (hiipdr; p0tau10 once seeded - the planned pair was clock-seeded); every run's distributions conserve energy to 3e-14; hiipdr: 106 428 grains solved per iteration, 0 fallbacks, 5-25 um escaped x1.027, Tdust/lines within 0.3%, run +7%; pn150k's 5-9 nm graphite now emits (247 688 solved); qHeat cost per iteration 550 s -> 19 s (x29); the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um) | Done | 2026-11-07 |
+| D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival | Open | 2026-11-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -43502,3 +43521,4882 @@ limits and resumed with their context; nothing was lost.
 ### Status
 
 Done (2026-10-25).
+
+---
+
+## D-445 - The original MOCASSIN against the current code on test_Problem: the escaped SED (2026-10-31)
+
+The user (2026-10-31): "now I want to compare the behaviour of the original
+mocassin code before any pdr implementation to the current version on a gas
+plus dust only model. Run the benchmark test_problem with both code versions
+and compare the escaped SED in both".
+
+### Design
+
+  - **The original:** f37a67e (2026-08-28 13:54), the last commit before any
+    PDR work. It is main/tag 1.1.1 (0d57a7c) plus that morning's four dev
+    fixes: carbon dielectronic recombination, the exposed CDE option, the zP
+    cell-advance test, and a missing declaration. The next commit, 76058fb,
+    starts DEVLOG.md, and 5c16814 starts the PDR build.
+  - **The current version:** 53eab97 (v2.0.2 plus documentation), plain
+    flavour (`make mocassin`), the natural build for a model without `pdr`.
+  - **Clones of this repository**, in runs/_d445tp/{src-orig,src-cur}. Each
+    is built with `make PREFIX=<its own prefix> mocassin`, and that prefix's
+    share/mocassin/{data,dustData} are symlinks to the clone's own data. So
+    each version reads its own atomic and dust data.
+    - The data differ: the 148 data/dustData files changed since f37a67e
+      include PAHneu_30.cat (D-415) and the CHIANTI-era atomic data.
+    - Nothing is installed, and production's checkout and binaries are not
+      touched.
+  - **The model:** benchmarks/test_Problem/input, unchanged since f37a67e,
+    copied as it is. It is already gas+dust, with no `pdr`:
+    - 21^3 symmetricXYZ, a 200 kK star, LStar 70e36 erg/s;
+    - astrosilicate plus PAH;
+    - autoPackets from 1e7;
+    - maxIterateMC 15 90, resLinesTransfer 50.
+    The original stops at 90% converged cells; the current code on its
+    integrated test (convTotals 0.02); both are capped at 15 iterations.
+  - **No seed.** The original has no randomSeed keyword, and the inputs stay
+    identical.
+  - **The runs:** 14 ranks each, one after the other.
+  - **The comparison:** runs/_d445tp/sed_compare.py on SED.out's
+    angle-averaged column:
+    - the total against LStar;
+    - band luminosities (ionizing, FUV, NUV, optical, NIR, MIR, FIR);
+    - line spikes, i.e. bins above twice the median of their neighbours;
+    - plus Hbeta and the iteration counts.
+
+**What is known before the runs.**
+  - **The original drops every line photon.** Lines, Lya included, never
+    reach SED.out. The current code traces the thin lines (D-292, D-307) and
+    destroys the resonance lines on the local dust (D-376).
+  - **The original's resLinesTransfer 50** heats the grains and re-injects
+    the destroyed fraction as packets. Under symmetricXYZ they carry 1/8 of
+    it (counted with the whole sphere's packet energy).
+  - **The original's writeSED** loses the light that escapes a source in an
+    inactive cell without interacting (D-441, fixed in v2.0.2). test_Problem's
+    star sits in its cavity.
+  - **A preview from existing outputs**, neither of which is this pair:
+    - the committed legacy benchmarks/test_Problem/output (a pre-PDR run of
+      2026-03-22) puts 0.41 LStar in SED.out;
+    - tutorial-a (v2.0.1, the same model with `pdr` and without autoPackets
+      or resLinesTransfer) puts 0.97 LStar, of which 0.41 is line spikes.
+
+### Predictions (on record before the runs)
+
+  - **Both builds** succeed: rc 0 for the plain flavour of each.
+  - **Totals.** Total escaped over LStar:
+    - original 0.35-0.50: its lines are dropped, and its cavity starlight is
+      missing from SED.out;
+    - current 0.999-1.001 (D-441's accounting).
+  - **Line spikes:**
+    - original: no line spikes beyond the recombination-continuum edges, at
+      most 0.03 LStar;
+    - current: spikes summing to 0.3-0.5 LStar.
+  - **Bands, current over original:**
+    - optical x5-20 (the forbidden lines);
+    - MIR x2-6 (the fine-structure lines, and the dust heated by traced lines
+      and destroyed Lya);
+    - FIR x1.05-1.5;
+    - ionizing x0.3-3 (uncertain).
+  - **Hbeta:** current over original within 10%. The ionization and atomic
+    data changes since (D-402..D-404, D-418) move it.
+
+### Results (2026-10-31)
+
+**The runs.** Both builds gave rc 0 for the plain flavour, with PREFIX
+~/.d445/{o,c}, symlinks to each clone's data (a short path, for D-416's
+128-character limit). runs/_d445tp/{orig,cur}-tp, 14 ranks, the benchmark's
+input byte-identical:
+  - **original:** 13 iterations, stopped at 92.2% converged cells, 6:17.
+    resLinesTransfer 50 was on from iteration 5 (60.0% after iteration 4).
+    83 lgBlack cells.
+  - **current:** 15 iterations (the cap). NOT converged on the integrated
+    test (O3+ 4.65% against 2%); 79.6% converged cells; 18:19. 3 lgBlack
+    cells. autoPackets grew the packets x1.5 per iteration in both.
+  - No NaN, "Singular matrix" or "insane" line in either run.
+
+**The escaped SED** (`sed_compare.py`; figure runs/_d445tp/sed_orig_vs_cur.png):
+
+    [erg/s]                 original      current     current/original
+    total                   1.491e37      6.999e37      4.69
+    total / LStar           0.213         0.9998
+    ionizing <912 A         2.95e35       1.84e36       6.24
+    FUV 6-13.6 eV           1.38e36       5.53e36       4.00
+    NUV 0.21-0.4 um         1.47e36       8.31e36       5.65
+    optical 0.4-1 um        6.45e35       1.74e37      26.9
+    NIR 1-5 um              4.03e35       3.78e36       9.39
+    MIR 5-25 um             3.31e36       1.19e37       3.60
+    FIR 25-1000 um          7.40e36       2.12e37       2.87
+    line spikes / LStar     0.011         0.416
+
+**What makes the difference** (measured unless marked):
+  - **The original drops every line photon.**
+    - Its lineFlux.out gives 0.52 LStar of intrinsic lines, Lya in the H I
+      15->8 row among them, and none of it reaches SED.out. Its spikes are
+      recombination-continuum edges only, 0.011 LStar.
+    - In the current code 0.42 LStar escapes as lines. The rest, Lya's
+      0.16 LStar among it, is absorbed by dust and comes out in the infrared.
+    - Its escaped total is 0.213 LStar. Together with the cavity starlight
+      its writeSED misses (D-441), the drop removes ~0.79 of the luminosity
+      (*inference*: the Monte Carlo drops lines in proportion to each
+      re-emission's line share, so it can drop more than the analytic 0.52).
+  - **The original ionizes less gas.**
+    - Hbeta: 2.028e35 against 4.828e35 erg/s, x0.42. The emission measure
+      sum of n_e n(H+) V is x0.47 (2.12e59 against 4.51e59) on identical
+      densities, cell for cell.
+    - Nearly all of the gap is in the ionized skin of the dense ring (n_H
+      ~8e4, 384 cells): 1.63e59 against 4.00e59. The diffuse 1e3 gas is close
+      (4.86e58 against 5.15e58). The ionized cells' median x(H+) (0.995) and
+      T_e (13,360 and 13,390 K) agree.
+    - So the original's nebular continuum is 2-3x lower at every wavelength,
+      matching Hbeta. Its lines are similar in absolute terms where the gas
+      is neutral or weakly ionized: Mg II 2796 4.2e36 against 5.3e36, [O I]
+      6300 3.4e36 against 4.0e36 erg/s.
+    - **Not known: why.** Candidates, none tested:
+      - D-233: the original's "diffuse" re-emission mixes dust emission into
+        the gas's PDF, so in dense dusty cells gas-absorbed energy can leave
+        as infrared instead of ionizing recombination continuum;
+      - D-290's grain charging;
+      - D-402..D-404's ionization balance;
+      - the atomic and dust data changed since (D-330, D-418, D-415).
+      Each needs its own run to attribute.
+  - **The dust.** The infrared peak sits near 30 um in both, so the grain
+    temperatures are similar. The original's dust radiates a third as much
+    (MIR+FIR 1.07e37 against 3.31e37 erg/s): it never sees the lines.
+
+**Predictions, scored:**
+  - builds: held;
+  - current total 0.999-1.001: held (0.9998);
+  - original total 0.35-0.50: missed (0.213). The line loss is larger, and
+    the original also ionizes less;
+  - line spikes, original <= 0.03 and current 0.3-0.5: held (0.011, 0.416);
+  - bands: MIR x2-6 held (3.60). Optical x5-20 missed (26.9), FIR
+    x1.05-1.5 missed (2.87) and ionizing x0.3-3 missed (6.24), all by the
+    same lower ionization and larger energy loss;
+  - Hbeta within 10%: missed (x2.38).
+
+### Status
+
+Done (2026-10-31). Not done: an attribution of the original's lower Hbeta;
+runs/_d445tp (the clones, runs and figure) and ~/.d445 (symlinks) are kept.
+
+## D-446 - test_Problem's Hbeta, original against current: the audit (2026-10-31)
+
+The user (2026-10-31), on D-445's Hbeta: "it is very suspicious that  Hβ is
+2.4 times lower on the new version. Audit this." The lower Hbeta is the
+original's (f37a67e, 0.2028 E36 erg/s); the current code (53eab97) gives
+0.4828.
+
+### Measured from D-445's runs (runs/_d445tp/hb_audit.py)
+
+  - **The line sums are not the cause.**
+    - Each code's lineFlux.out Hbeta was set against a recomputation from its
+      own grid: the case-B Hbeta of every active cell (the Storey & Hummer fit,
+      the same formula for both), eps(T_e) n_e n(H+) dV, with the octant's
+      half-width plane cells and x8 for symmetricXYZ.
+    - Code over recomputed: 0.957 (original) and 1.006 (current). The two
+      codes turn their grids into Hbeta the same way, within 5%.
+    - The original's 83 lgBlack cells, which its outputGas leaves out of the
+      lines, are all in the n_H 1e3 gas (T_e median 329 K, flagged on the T_e
+      or ion balance). They hold 0.036% of its Hbeta.
+  - **The grids differ.** The emission measure, sum of n_e n(H+) dV:
+    - whole sphere: 1.696e60 (original) against 3.612e60 cm^-3 (current),
+      x2.13. D-445's 2.12e59 and 4.51e59 were octant sums (x8 gives these);
+      its ratio stands;
+    - by density class:
+
+          n_H [cm^-3]  cells   EM original    EM current
+          1e3          2758    3.89e59        4.12e59
+          1e4          1519    2.3e55         1.4e51
+          8e4 (ring)    384    1.307e60       3.200e60
+
+      So 99% of the difference is in the ring. No ring cell has x(H+) above 0.5
+      in either run: the ionized skin is unresolved in the first ring cells
+      (4e16 cm; tau_912 of a neutral ring cell is ~2e4). The 1e3 gas differs
+      by 6%. Of its cells, 202 have x(H+) higher by more than 0.1 in the
+      current run, and none lower.
+  - **The photon budget.**
+    - The star: Q(H) = 8.46e47 s^-1 (200 kK blackbody, 70e36 erg/s);
+      Q(>24.6 eV) 6.97e47, Q(>54.4 eV) 3.08e47.
+    - The case-B H recombinations, sum of alpha_B(T_e) n_e n(H+) dV (Draine
+      2011 eq. 14.6), whole sphere:
+      - original 4.36e47 s^-1, 0.52 Q(H);
+      - current 9.83e47 s^-1, 1.16 Q(H).
+    - He+ recombinations: 1.29e47 and 1.76e47. He2+: 7.2e46 and 7.4e46.
+    - **The original's deficit.** Its gas recombines half of the star's
+      H-ionizing photons. Its ionizing SED is 2.95e35 erg/s, ~1e46 photons
+      s^-1 at ~20 eV, so they do not escape either. The other half is
+      absorbed by something other than hydrogen, or leaves the ionizing band
+      on re-emission. Not known which.
+    - **The current code's excess.** It is 16% above Q(H). He II's
+      recombination cascade can give more than one H-ionizing photon per He2+
+      recombination, but not 1.4e47 from 7.4e46 recombinations. Two caveats:
+      - this alpha_B is a fit, not the code's coefficients;
+      - in unresolved skin cells the cell-mean x(H+) and n_e make the sum
+        approximate.
+      So the current code is at, or slightly past, the photon budget. Not
+      known whether the excess is real.
+  - **Ruled out by reading the code:** He II's Lyman lines are not dropped
+    with the original's line photons. setDiffusePDF puts them in the He II
+    diffuse continuum in both codes (emission_mod.f90, HeIILyman).
+  - **The dust data** test_Problem reads are the same in both clones:
+    - astroSilD2003_base.nk is byte-identical;
+    - PAHneu_30.cat only gains D-415's Im(m) column, with the efficiencies
+      verbatim.
+
+### The bisection (design)
+
+  - **runs/_d445tp/bisect/:**
+    - src/, a clone of this repository;
+    - commits.txt, f37a67e then the first-parent chain to 53eab97 (539
+      lines);
+    - bisect.sh, runs/NNN-<hash>/ and results.tsv.
+  - **Each step:**
+    - checks out the commit, runs `make clean`, and builds the plain flavour
+      with PREFIX ~/.d445/b. That prefix's data and dustData are symlinks to
+      src/'s, so each run reads its own commit's data;
+    - runs the benchmark's input unchanged on 14 ranks, under `timeout 3600`;
+    - classes the commit "new" if its Hbeta is above 0.313 E36 (the geometric
+      mean of the two ends);
+    - when a commit does not build or run, tries its neighbours instead.
+  - **Scope.** The test finds the commit where Hbeta crosses the midpoint.
+    If Hbeta moves in several steps, results.tsv shows the plateaus, and a
+    range with an intermediate value is bisected next.
+  - **The run.** systemd-run --user, MemoryMax 24G. About 10 steps, each a
+    12 s build and a 6-20 min run.
+
+### Predictions (on record before the bisection)
+
+  - **The crossing is D-233** (1042e02, line 164 of commits.txt): dust
+    absorptions re-emit from dustPDF, and gas absorptions from a recPDF
+    without the dust term.
+    - The commit before it gives an Hbeta within 15% of the original's
+      0.203 E36; D-233 itself gives above 0.40.
+    - The reasoning: before D-233, part of the gas-absorbed ionizing energy
+      in the ring's dusty skin is re-emitted as dust infrared, from the
+      pooled PDF. That cuts the diffuse Lyman continuum that re-ionizes on
+      the spot, and fits half of Q(H) never recombining in the gas.
+    - Confidence is moderate. D-233's own fixture showed its H II region
+      cooling 0.2-2.6% "and the front does not move".
+  - **If the crossing is elsewhere,** the next candidates are:
+    - D-102 (the ion stages normalised to one);
+    - D-116 (negative dielectronic rates clamped);
+    - the data changes (D-330's CHIANTI set).
+  - **After the crossing,** every bisected commit's Hbeta is within 10% of
+    the current 0.483.
+
+### Bisection, phase 1 (2026-10-31 15:28-16:40)
+
+**Hbeta is not monotonic along the history** (runs/_d445tp/bisect/results.tsv):
+
+    line  commit   date        entry   Hbeta [E36]  iterations
+    1     f37a67e  2026-08-28  orig.   0.2028       13
+    68    cd3ad42  2026-09-02  D-102   0.2028       13
+    88    ef98517  2026-09-04  D-122   0.2038       13
+    109   4002ae0  2026-09-06  D-156   3.497        15
+    135   9bae9e4  2026-09-09  D-207   1.690        15
+    270   93bc85e  2026-09-22  D-305   0.4579       15
+    539   53eab97  2026-10-30  curr.   0.4828       15
+
+  - **A blocker in the design.** Lines 89-107 cannot be measured with the
+    benchmark's input. From D-123 (line 89, pdrCoupleIter's default 1 -> 5)
+    each MC iteration runs updateCell five times, and the converged-cell test
+    compared the last pass with the one before it (D-155's finding, fixed at
+    line 108). Every cell reads converged, and the run stops after iteration
+    1 on the input's 90%.
+    - The first launch classed line 101 "new" on that one-iteration Hbeta
+      (153 E36, the starting guess's). It was stopped. Steps now count only
+      with at least 10 iterations, and a broken commit is skipped for a
+      neighbour within +-8 lines.
+    - Lines 95, 97-103 and 107 stop after one iteration; 104 and 105 do not
+      build in the plain flavour.
+    - The input cannot hold the runs open: every version rejects a
+      minConvergence above 100, and pdrCoupleIter is parsed only under
+      `#ifdef PDR` in that era. So the plain build keeps 5 passes.
+  - **The first rise is in lines 89-108,** all inside the broken range (line
+    109 changed only the DEVLOG, so it has line 108's code). Not yet
+    attributed within it.
+  - **The rise is not photon-conserving.** Line 109's case-B H recombinations
+    are 7.51e48 s^-1, 8.9 Q(H), and line 135's are 3.61e48, 4.3 Q(H). The
+    ring's EM is 2.57e61 and 8.74e60, against 1.31e60 in the original. The
+    code over its recomputed Hbeta stays at 0.95-0.96. This is the era of
+    D-232's leak: the pooled re-emission PDF returning dust-absorbed energy
+    as ionizing photons.
+  - **D-232's numbers explain why the original's same pooling gave a
+    deficit and not an excess.** The original already pooled gas and dust
+    re-emission in one PDF, with both leaks:
+    - dust-absorbed energy came back ionizing, about 3.8% of it;
+    - gas-absorbed ionizing energy left as infrared.
+    In the original the second dominates: its case-A recombinations are
+    0.84 Q(H), as if the on-the-spot Lyman continuum were lost. Something in
+    lines 89-108 tipped that balance.
+  - **The scored phase-1 prediction:** "the crossing is D-233": wrong as
+    stated. Hbeta first rises 30 lines before D-233, in the broken range, and
+    by far more than the current code's. Whether D-233 is where it comes
+    back down is phase 2.
+
+### Phase 2 (design and predictions, before the runs)
+
+  - **The descent mapped, not bisected:** runs/_d445tp/bisect/map.sh with
+    bisect.sh's step, lines 163, 164, 200, 235 and 405, in that order. Each
+    has 10-25 min per run.
+    - 163/164 is D-233's pair: 00d1f18 (D-230..D-232) and 1042e02 (D-233).
+    - 200 and 235 lie between D-233 and line 270.
+    - 405 is midway from line 270 to the current code.
+  - **Predictions:**
+    - line 163: Hbeta above 1.5 E36, still in the leak era;
+    - line 164 (D-233): it falls to below 0.6, since D-233 closes the pooled
+      PDF in both directions;
+    - lines 200 and 235: within 0.35-0.6;
+    - line 405: within 10% of the current 0.483;
+    - if 163/164 does not hold the fall, it lies in 109-163 (D-155..D-232)
+      and is mapped next.
+
+### Phase 2, results so far (2026-10-31 16:35-16:50)
+
+    line  commit   entry           Hbeta [E36]  case-B H rec. / Q(H)  code/recomputed Hbeta
+    1     f37a67e  original        0.2028       0.52                  0.957
+    68    cd3ad42  D-102           0.2028       0.52                  0.957
+    88    ef98517  D-122           0.2038       0.52                  0.961
+    109   4002ae0  D-156           3.497        8.88                  0.956
+    135   9bae9e4  D-207           1.690        4.27                  0.951
+    163   00d1f18  D-230..D-232    0.3850       0.98                  0.954
+    164   1042e02  D-233           0.4551       1.16                  0.953
+    270   93bc85e  D-305           0.4579       1.16                  0.953
+    539   53eab97  current         0.4828       1.16                  1.006
+
+  - **The current grid is D-233's.**
+    - Ring EM: 3.19e60 at line 164, 3.20e60 now.
+    - Case-B recombinations: 9.79e47 at line 164, 9.83e47 now.
+    - Line 270 is the same.
+  - **The last 6% is D-371** (Hbeta from Storey & Hummer's table in place
+    of the 2530/T^0.833 power law, which runs 4.6-5.2% low; D-370). It is the
+    step in code/recomputed from 0.953 to 1.006 on an unchanged grid, and it
+    is a correct fix.
+  - **The fall from the leak era** (1.69 at line 135) to a photon-conserving
+    grid happens in lines 136-163, before D-233. Candidates (not
+    attributed):
+    - D-216, line 140;
+    - D-222/D-223, lines 155 and 159;
+    - D-224..D-227, line 161 (He I's continuum starting below its
+      threshold).
+  - **D-233 raises the grid's ionization.** It splits the re-emission: dust
+    absorptions go to dustPDF, gas absorptions to a gas-only recPDF. The
+    case-B recombinations go from 0.98 to 1.16 Q(H), and Hbeta x1.18.
+  - **Phase-2 predictions scored:**
+    - 163 above 1.5: wrong (0.385);
+    - 164 below 0.6: held (0.455), but the fall was already there at 163,
+      and D-233 itself moves Hbeta up, not down.
+  - **A code-independent ceiling.** For an ionization-bounded nebula with no
+    dust absorption, case B gives L(Hbeta) = Q(H) h nu(Hbeta)
+    alpha_eff(Hbeta)/alpha_B = 8.46e47 x 4.89e-13 erg = 4.13e35 erg/s
+    (the Storey & Hummer fit over Draine's alpha_B at 9000 K, the ring's
+    EM-weighted T_e; 4.13-4.14e35 for 8860-9140 K). Escape lowers it
+    by 0.6% (original) to 3.1% (current); any dust absorption of ionizing
+    photons lowers it further. Against it:
+    - the original: 0.49;
+    - line 163: 0.93;
+    - line 164 (D-233): 1.10;
+    - the current code: 1.17 (D-371's table adds the last 6%).
+    So the current code makes ~17% more Hbeta than the star's photons allow.
+    The grid's excess enters at D-233. (The commit message of this step
+    quoted 4.08e35 and 0.50/1.18, from a rounded ratio; these are the
+    figures.)
+  - **Lines 200, 235 and 405 add little** now that the grid is known to be
+    D-233's from 164 to the end. The map is stopped after line 200.
+
+### Gas-only test (design and predictions, before the runs)
+
+  - **Design:** runs/_d445tp/gas-{orig,cur}, D-445's binaries with their own
+    data, test_Problem's input without the dustFile and Ndust lines (the
+    original resets resLinesTransfer to 101 without dust; the current code
+    ignores it). 14 ranks, one after the other, gasq.sh.
+  - **The question:** are the original's deficit and the current code's
+    excess both in the dust coupling, or is either in the gas physics?
+  - **Predictions:**
+    - Both codes conserve photons without dust: case-B H recombinations
+      0.93-1.02 Q(H).
+    - Hbeta: current 3.8-4.1e35 erg/s; original 3.6-3.9e35 (the power law
+      ~5% low).
+    - So the original's deficit and the current's excess are both dust
+      couplings: the pooled PDF's gas-to-infrared loss in the original, and
+      something D-233's split exposes in the current code.
+  - **What would change the reading:** a current gas-only result near 1.16
+    Q(H) puts the excess in the gas physics (the diffuse field, on-the-spot
+    emission, or the recombination coefficients), not in the dust.
+
+### The noPhotoelectric test (design and prediction, before the run)
+
+  - **A hypothesis for the current excess** (from reading the code, not
+    measured). Every gas absorption is re-emitted from the gas emissivity:
+    lines totalLines against continuum normHI+normHeI+normHeII, the continuum
+    from recPDF (emission_mod setDiffusePDF). The packet carries the energy
+    the gas absorbed, E_abs. The Lyman-continuum photons re-emitted per cell
+    are then E_abs (j_Lyc/j_tot)/h nu, which is the physical alpha_1 n_e n_p V
+    only when E_abs = j_tot.
+    - The thermal balance also holds two non-radiative terms when
+      lgPhotoelectric is on (the default in both codes): grain photoelectric
+      heating, which raises j_tot, and gas-grain collisional cooling, which
+      lowers it. Then E_abs - j_tot = Lambda_gd - Gamma_PE.
+    - Net cooling to the grains therefore re-emits too much Lyman continuum.
+    - Since D-421 the current code's gas-grain term is 4 pi larger than the
+      original's.
+    - Before D-233 the pooled PDF sent part of that surplus to the dust's
+      infrared, which would explain why the excess appears at D-233.
+  - **Design:** runs/_d445tp/nope-cur, the current binary on test_Problem
+    with dust and `noPhotoelectric` (both terms off, update_mod.f90
+    `if (lgDust .and. lgPhotoelectric)`). 14 ranks, after the gas-only pair
+    (noq.sh).
+  - **Prediction:**
+    - if the hypothesis holds, the case-B H recombinations fall from 1.16 to
+      0.97-1.03 Q(H), and Hbeta to 0.40-0.42 E36;
+    - if it does not, they stay within 2% of 1.16.
+
+### Gas-only results (2026-10-31 16:54-17:02)
+
+    run                       Hbeta [E36]  case-B H rec./Q(H)  escaping ionizing/Q(H)  iterations
+    original, gas only        0.2141       0.545               0.007                   13 (91.7%)
+    current, gas only         0.4875       1.174               0.033                   15 (O3+ 4.8%, not converged)
+    (with dust, for reference:
+    original                  0.2028       0.516               0.006
+    current                   0.4828       1.163               0.031)
+
+  - **Both predictions failed.** Neither code conserves photons without
+    dust.
+    - The original's deficit and the current code's excess are both in the
+      gas physics: removing the dust moves either by 5% or less.
+    - The pooled PDF of the original and D-233's split are not the cause of
+      either.
+  - **Why line 163 (pre-D-233) looked photon-conserving.** It cannot have
+    been because its gas physics was right. With dust, the pooled PDF sent
+    part of the gas re-emission into the dust's infrared, and that cancelled
+    an excess like the current one. D-233 removed the cancellation, so its
+    1.16 is the gas excess exposed. (Inference: line 163 gas-only is not yet
+    run.)
+  - **The data are not the cause.** No hydrogen data file changed between
+    the clones; the changes are the CHIANTI ion-level files and
+    HeIrecLines.dat.
+  - **The H I Lyman-continuum emissivity is the same code in both**
+    (fb_ff; D-226/D-227 changed only He I and He II).
+  - **A one-parameter reading.** Let f be the Lyman-continuum photons
+    re-emitted per recombination to the ground state, alpha_1 n_e n_p V
+    (f = 1 physical, f = 0 pure case A). Then
+    alpha_B EM/Q = alpha_B/(alpha_A - f alpha_1).
+    - The current code's 1.17 needs f ~ 1.25.
+    - The original's 0.545 is below even f = 0 (0.62 at 9000 K). So the
+      original behaves as case A with ~12% of Q(H) lost as well.
+    - Inference: the mechanism, not identified.
+  - **noPhotoelectric:** without dust there are no photoelectric or
+    gas-grain terms, so the excess cannot come from them. The run
+    (nope-cur) is expected to stay within 2% of 1.16.
+
+### Gas-only map (design and predictions, before the runs)
+
+  - **Design:** bisect/gmap.sh, bisect.sh's step on the gas-only input, at
+    lines 88, 109, 135, 163, 164 and 270 (rows in results-gas.tsv, runs
+    NNN-<hash>-gas). 2-6 min each, after nope-cur.
+  - **Predictions (case-B H recombinations / Q(H)):**
+    - line 88: 0.545 ± 0.02 (the original's);
+    - lines 109 and 135: well below the dusty runs' 8.9 and 4.3, since
+      D-232's leak needs dust; near 1.17 if the gas excess is already
+      there;
+    - lines 163, 164 and 270: 1.17 ± 0.03 (D-233 does nothing without
+      dust).
+    - The change from 0.545 lies in lines 89-108, the range that cannot be
+      measured.
+
+### noPhotoelectric result, gas-only map so far, and the forced skip (2026-10-31 17:14-17:30)
+
+  - **noPhotoelectric** (nope-cur, current code with dust): Hbeta 0.4826
+    E36, case-B H recombinations 9.830e47 = 1.162 Q(H). The run with the
+    terms on gave 1.163. The prediction "within 2% of 1.16" held, and the
+    gas-grain hypothesis is discarded.
+  - **The gas-only map:**
+    - line 88 (D-122): Hbeta 0.2142, the original's 0.2141;
+    - line 109 (D-156): Hbeta 0.4861, the current code's 0.4875.
+    So the whole gas-only change is in lines 89-108, the range that cannot be
+    measured, and it has held since. The dusty runs' 3.5 at line 109 is that
+    change plus D-232's leak.
+  - **The leading candidate: D-147** (line 107, f64a5e0), the forced skip
+    removed. Upstream's photon_mod carried a variance reduction:
+
+        if ( i == 1 .and. tauCell > 20.0) then
+           passProb = tauCell+1.0e-6
+           enPacket%weight = enPacket%weight / weightFactor * exp(-passProb)
+        endif
+
+    - A packet that starts a path in a cell thick at its frequency (tau >
+      20) was pushed through it with weight exp(-tau). That weight is zero in
+      single precision above tau ~ 87 (D-146).
+    - A re-emitted packet starts in the cell that absorbed. In the ring's
+      partially ionized skin, tau_912 per cell is ~1e3-1e4, so every
+      Lyman-continuum photon re-emitted there was deleted instead of being
+      absorbed on the spot. The helium continua above 13.6 eV were deleted
+      the same way.
+    - That is case A: alpha_B/alpha_A = 0.62 at 9000 K. With the helium
+      photons also lost, it gives the measured 0.545.
+    - It also accounts for the dusty history. The pooled PDF's ionizing leak
+      (D-232) was born in thick dusty cells and deleted there by the same
+      skip, until D-147 let it through: 8.9 Q(H) at line 109, closed by
+      D-233.
+    - **Status: hypothesis.** Lines 89-108 also hold D-123 (pdrCoupleIter's
+      default 1 -> 5, so five updateCell passes per iteration in the plain
+      build too) and D-127 (IPerg read uninitialised for istage 1). None of
+      them can be run on the benchmark's input. Attribution needs a run that
+      changes only the skip: the original with the block removed, or the
+      current code with it restored. That is a code patch to a clone, so it
+      waits for the user's word.
+  - **The current code's excess is not explained.** It is 1.17 Q(H) without
+    dust, before line transport existed (line 109; D-292 is line 252 and
+    D-307, the default-on, line 273), with the hydrogen recombination fit
+    radRecFit unchanged, Lya counted in totalLines in both versions, and the
+    same H I Lyman-continuum code.
+    - He II's recombination cascade can return ~0.3-0.7 extra H-ionizing
+      photons per He2+ recombination (Balmer continuum >= 13.6 eV, Lya
+      40.8 eV, two-photon). On 7.5e46 recombinations that is 0.03-0.06
+      Q(H).
+    - So the physical ceiling is ~1.03-1.06 Q(H) of H ionizations, less the
+      3.3% that escapes, and the current code is 11-17% above it.
+
+### Pure-hydrogen test (design and predictions, before the runs)
+
+  - **Design:** runs/_d445tp/h-{orig,cur}, the gas-only input with
+    abunH.in for both components:
+    - H 1, He 1e-5 (kept nonzero so the He code paths keep their stages),
+      no metals, no dust;
+    - D-445's binaries, 14 ranks, after the gas-only map (hq.sh).
+    With no helium and no metals, every H-ionizing photon is the star's or
+    H's own Lyman continuum, so case B must close: alpha_B EM = Q(H) minus
+    the escape.
+  - **Predictions (case-B H recombinations / Q(H)):**
+    - current: 0.95-1.00. If it comes out at 1.10 or more, the excess is in
+      the transport or the re-emission itself, not in helium or the metals;
+    - original: 0.55-0.65, case A from the forced skip. The H-only gas is
+      hot (no metal cooling): T_e >= 30 kK cells are lgBlack in the
+      original and drop out of its lineFlux.out, but not out of this sum.
+
+### Gas-only map and pure-hydrogen results (2026-10-31 17:14-17:42)
+
+**The gas-only map** (results-gas.tsv; case-B H recombinations / Q(H)):
+
+    line  entry      Hbeta [E36]  rec/Q(H)
+    1     original   0.2141       0.545
+    88    D-122      0.2142       (= original)
+    109   D-156      0.4861       1.227
+    135   D-207      0.7036       1.780
+    163   D-230..232 0.4557       1.159
+    164   D-233      0.4557       1.159
+    270   D-305      0.4589       1.167
+    539   current    0.4875       1.174
+
+  - **Predictions scored:**
+    - 163/164/270 at 1.17 ± 0.03: held;
+    - 109 and 135 "well below the dusty 8.9 and 4.3": held. But 135 is
+      itself 1.78: a further gas-only excess between lines 110 and 135, gone
+      by line 163. Not investigated, since it is history.
+  - **The current pure-gas physics has been in place since line 163.** The
+    last step, 0.456 -> 0.488, is D-371's Hbeta table (the grid's
+    recombinations move 1.16 -> 1.17).
+
+**Pure hydrogen** (h-orig, h-cur; He 1e-5, no metals, no dust):
+
+    run        Hbeta [E36]  case-B rec/Q(H)  case-A  escaping/Q(H)  EM-weighted T_e  lgBlack
+    original   0.6953       1.775            2.89    0.002          10,491 K         145
+    current    1.9092       4.612            7.46    0.075           9,705 K          48
+
+  - **Both predictions failed, and the result is the strongest of the
+    audit.**
+    - In pure hydrogen the case-B balance must close at Q(H) minus the
+      escape. Both codes exceed it, the current code by x4.6.
+    - So the excess is in the transport or the re-emission itself, not in
+      helium or the metals.
+  - **The mechanism, found by reading the code (not yet attributed by a
+    run):**
+    - updateCell's thermal balance cools by collisional excitation of H I:
+      `coolColl` starts with Mathis's Lya + Lyb fit (ch12/ch13,
+      update_mod.f90:1971-1990, identical upstream at f37a67e:1289).
+    - The re-emission spectrum has no such term. setDiffusePDF's lines
+      (totalLines = normRec + normFor) carry Lya from the recombination fit
+      only (Lalpha = 10^(-0.897 log T + 5.05), LyaEmis), and no collisional
+      H I line exists anywhere in emission_mod.
+    - The Monte Carlo re-emits every gas absorption's whole energy with the
+      shape of that spectrum. So the energy the thermal balance radiates in
+      collisional Lya is re-emitted in the other channels, in proportion: the
+      Lyman continuum gains a factor E_abs/j_tot. Each extra Lyman-continuum
+      photon ionizes again.
+    - The magnitude fits:
+      - in the ring's partially ionized skin (x(H+) ~ 0.25, T_e ~ 9000 K),
+        collisional Lya is 1.1e-24 n(H0) n_e erg cm^3 s^-1, about 3e-24
+        n_e n_p, against ~1.1e-23 n_e n_p of recombination emission. That
+        is a boost of ~1.2-1.3, and the current code's 1.17 needs f ~ 1.25;
+      - in pure hydrogen, with no metal coolants, it is the main coolant of
+        hot gas, hence x4.6;
+      - it is where the current excess sits: 99% of the emission-measure
+        difference from the original is in the ring's skin.
+  - **Why the original did not show it in test_Problem:** the forced skip
+    (D-147's hypothesis above) deleted the boosted Lyman continuum where it
+    is born, in the thick skin cells. In pure hydrogen the excess outgrows
+    the deletion: 1.78.
+  - **Reading of the whole audit (hypotheses, each needing its own
+    patched run):**
+    1. **The original's low Hbeta:** the forced skip deleted every packet
+       re-emitted in a cell thick at its frequency. The Lyman continuum was
+       lost on the spot, giving case A and more (0.545 Q(H) without dust).
+       D-147 removed it.
+    2. **The current code's Hbeta is ~15% high** for test_Problem (1.17
+       Q(H); a photon-conserving grid would give Hbeta ~ 0.41-0.43 E36).
+       Collisional H I cooling is in the thermal balance and not in the
+       re-emission spectrum. This is an upstream defect that the forced skip
+       had hidden.
+    3. Between the two, D-232's pooled-PDF leak (dust energy re-emitted
+       ionizing) ran free from line 107 to D-233.
+  - **Likely wider reach, not measured:** every model with warm partially
+    ionized or warm neutral gas, i.e. ionization fronts and the PDR's warm
+    atomic layer. There, collisional Lya re-emitted as Lyman continuum is
+    spurious ionizing light, the kind D-232 measured in cold cells.
+  - **Attribution tests proposed (each a code patch, so each needs a plan
+    and the user's word):**
+    - A: f37a67e with only the forced-skip block removed, on test_Problem,
+      gas-only and pure H;
+    - B: the current code with collisional Lya/Lyb added to the gas
+      re-emission spectrum (LyaEmis, D-376's 1216 A slot), on the same
+      three inputs.
+
+### Attribution tests A and B (design and predictions, before the runs)
+
+The user (2026-10-31), on the two hypotheses: "lets check both". Plan
+~/.claude/plans/iridescent-stirring-pie.md.
+
+  - **The patches.** Each changes one thing, in a git-ignored clone, for
+    diagnosis only. Production is not touched.
+    - **A** (runs/_d445tp/src-origA, branch d446-testA, on f37a67e):
+      photon_mod pathSegment's forced-skip block removed, exactly D-147's
+      change (f64a5e0).
+    - **B** (runs/_d445tp/src-curB, branch d446-testB, on 53eab97):
+      RecLinesEmission adds the collisional excitation of H I to LyaEmis, the
+      re-emission spectrum's Lya slot. It uses Mathis's Lya + Lyb fit with
+      coolColl's constants and its T_e > 5000 K condition, n(H0) n_e q hcRyd,
+      x 1e25 to HIRecLines' units. Lyb's energy goes into the same slot, the
+      test's simplification of case B. resLineHeating, output_mod's Lya row
+      and the thermal balance are unchanged.
+  - **Builds and runs.**
+    - Plain flavour only, each against D-445's data prefix of the same
+      commit.
+    - Inputs byte-identical to D-446's unpatched runs: test_Problem, gas
+      only, pure H.
+    - A-gas, A-h, A-tp, B-gas, B-h, B-tp, 14 ranks, testq.sh.
+    - Scored with runs/_d445tp/budget.py, which reproduces this entry's
+      tables on the six unpatched runs.
+  - **Predictions** (case-B H recombinations / Q(H); Hbeta in E36):
+
+        run     recB/Q        Hbeta        unpatched twin
+        A-gas   1.15-1.25     0.44-0.50    0.545, 0.214
+        A-h     4.0-5.0       -            1.775
+        A-tp    > 2           > 0.8        0.516, 0.203 (D-232's leak no longer deleted)
+        B-h     0.95-1.10     -            4.612
+        B-gas   0.97-1.05     0.41-0.44    1.174, 0.4875
+        B-tp    0.95-1.04     0.40-0.44    1.163, 0.4828
+
+  - **What would refute each hypothesis:**
+    - A: A-gas staying near 0.545 means D-147 is not the cause.
+    - B: B-h staying well above 1.1 means another cooling channel is missing
+      from the spectrum, or the excess is a transport defect.
+
+### Tests A and B, results (2026-10-31 17:56-18:48)
+
+Part 1 by the code-executor:
+  - **Clones and commits:** src-origA 3f4da03 (photon_mod.f90, 3+/6-, CRLF
+    kept); src-curB faeac21 (emission_mod.f90, 13+).
+  - **Builds:** plain flavour, rc 0, PREFIX ~/.d445/o and ~/.d445/c.
+  - **Inputs:** byte-identical to the unpatched runs'.
+  - **One note:** f37a67e tracks its binaries, so src-origA shows them
+    modified or deleted after the build. Only the source was committed.
+  - **Health:** all six runs rc 0, no NaN, "Singular" or "insane" lines.
+
+**Budgets** (budget.py; case-B H recombinations / Q(H)):
+
+    run       Hbeta [E36]  recB/Q  esc/Q   ring EM     predicted (recB/Q; Hbeta)
+    orig-tp   0.2028       0.516   0.006   1.31e60
+    A-tp      4.3140      10.960   0.007   3.21e61     > 2; > 0.8          held
+    cur-tp    0.4828       1.163   0.031   3.20e60
+    B-tp      0.4101       0.989   0.030   2.69e60     0.95-1.04; 0.40-0.44  held
+    gas-orig  0.2141       0.545   0.007   1.38e60
+    A-gas     0.4803       1.212   0.007   3.19e60     1.15-1.25; 0.44-0.50  held
+    gas-cur   0.4875       1.174   0.033   3.23e60
+    B-gas     0.4139       0.998   0.032   2.72e60     0.97-1.05; 0.41-0.44  held
+    h-orig    0.6953       1.775   0.002   4.84e60
+    A-h       1.9194       4.892   0.002   1.45e61     4.0-5.0              held
+    h-cur     1.9092       4.612   0.075   1.35e61
+    B-h       1.3296       3.217   0.062   9.38e60     0.95-1.10            MISSED
+
+  - **A is attributed.** Removing only the forced skip moves the original:
+    - gas only: from 0.545 to 1.212 Q(H) and Hbeta 0.480, which is the
+      current code's gas-only grid (ring EM 3.19e60 against 3.23e60);
+    - pure H: to 4.89, the current code's 4.61;
+    - dusty: to 10.96, the D-232 leak era of line 109 (8.88).
+    So the original's low Hbeta is the forced skip deleting every packet
+    re-emitted in a cell thick at its frequency.
+    - The skip also hid two defects: the pooled PDF's ionizing leak (closed
+      by D-233) and B.
+    - The original's converged-cell count falls to 29% at 15 iterations
+      without it (92% gas-only with it). Not investigated; one guess is
+      that the deleted packets had been holding the skin cells still.
+  - **B is attributed for gas with metals.** With collisional H I excitation
+    in the re-emission spectrum, test_Problem conserves photons, with and
+    without dust: 0.989 and 0.998 Q(H) recombined plus 3% escaping. That is
+    1.02-1.03, inside the 1.03-1.06 that helium's recombination photons
+    allow.
+    - Hbeta falls 0.4828 -> 0.4101 (x0.849), and the ring's EM x0.84.
+    - **SED** (sed_compare B-tp against cur-tp): total unchanged (0.9998
+      LStar); ionizing x0.96, NUV x0.82, optical x0.83, NIR x0.81 (the
+      nebular continuum and recombination lines); MIR x1.13 and FIR x1.15
+      (the collisional Lya destroyed on dust); line spikes 0.416 -> 0.368
+      LStar.
+  - **B does not close pure hydrogen.** B-h is 3.22 Q(H), against 4.61
+    unpatched. Collisional Lya is part of that case, and a second defect
+    remains. What it is not:
+    - the T_e cap: the 30 kK cells are the diffuse gas's, holding 0.2% of
+      Q(H);
+    - the flagged cells: the same capped cells;
+    - the H recombination coefficient: radRecFit(1,1) is Verner & Ferland's
+      case A, within 1.5% of Draine at 5-20 kK.
+    Where it is: pure hydrogen lets the hard photons through the whole ring,
+    so ~280 of its 384 cells are warm (8-10 kK) and partly ionized (x 0.01-
+    0.3), an X-ray-dominated-region-like layer that the metal-bearing runs
+    do not have (36 such cells; the rest sit at 26 K). Not identified.
+  - **What test_Problem's Hbeta should be** (photon-conserving, from B-tp):
+    0.41 E36. The original's 0.203 is x0.49 of it, and the current code's
+    0.483 is x1.18.
+
+### Status
+
+The audit is complete. Both causes are attributed by runs that change only
+them:
+  - the original's low Hbeta: the forced skip (fixed upstream of here by
+    D-147);
+  - the current code's high Hbeta: collisional H I cooling missing from the
+    re-emission spectrum, which is an open defect in production.
+Not done:
+  - the production fix of B. It needs its own plan:
+    - Lyb's proper case-B fate (Halpha + Lya) in place of the test's
+      everything-into-Lya;
+    - the same collisional Lya in resLineHeating and in output_mod's Lya
+      row, one reality for Lya;
+    - the four builds;
+    - hiipdr, pn150k and test_Problem re-run;
+    - the docs and D-445's SED numbers revisited;
+  - the pure-hydrogen residual;
+  - the gas-only excess of lines 110-135 (history only).
+The clones src-origA/src-curB and the twelve run directories are kept in
+runs/_d445tp.
+
+## D-447 - Collisional excitation of H I emitted as well as cooled (2026-10-31)
+
+The user (2026-10-31), on D-446's proposal to fix test B's defect in
+production: "proceed". Plan ~/.claude/plans/iridescent-stirring-pie.md.
+
+### The defect (D-446)
+
+updateCell's thermal balance cools the gas by collisional excitation of H I:
+coolColl starts with Mathis's Lya + Lyb fit (update_mod.f90:1971-1990).
+Nothing emits it. The re-emission spectrum (emission_mod RecLinesEmission and
+setDiffusePDF), the grains' Lya heating (resLineHeating) and the reported lines
+(output_mod, mocassinPlot) all have recombination Lya only. A gas absorption
+re-emits its whole energy in the shape of what the spectrum contains, so the
+missing channel's energy came out partly as Lyman continuum, which ionized
+again. Test B attributed it: test_Problem's case-B recombinations went from
+1.163 to 0.989 Q(H), and Hbeta from 0.483 to 0.410 E36.
+
+**Collisional over recombination Lya**, estimated offline from the existing
+grids:
+
+| run | collisional / recombination Lya |
+|---|---|
+| hiipdr (rel-hii31) | 0.010 |
+| pn150k (rel-pn41) | 0.48 |
+| test_Problem (cur-tp) | 1.03 |
+
+### Design
+
+  - **One routine owns the fit.** `hICollExc(Te, q12, q13)` in emission_mod
+    returns Mathis's two terms as coolColl writes them: zero below 5000 K,
+    and to be multiplied by hcRyd n(H0)/n_H n_e. coolColl calls it with the
+    same operations in the same order, so the cooling is unchanged to the
+    bit.
+  - **The same energy is emitted, absorbed and reported:**
+    - the re-emission spectrum: LyaEmis, D-376's 1216 A slot and normRec,
+      and HIRecLines(3,2);
+    - resLineHeating's Lya;
+    - output_mod's Lya row and Halpha;
+    - mocassinPlot's Halpha.
+  - **The split, case B:**
+    - the n=2 term goes to Lya;
+    - an n=3 excitation decays through n=2, so 5/32 of its energy (1.89 of
+      12.09 eV) goes to Halpha and 27/32 to Lya;
+    - the 2s share, which would leave as two-photon continuum, is not
+      separated, because the fit gives only the n=2 total.
+  - **Not changed:** the cooling's energy per excitation. L-65 says the fit
+    charges each excitation 1 Ryd, 4/3 too much for Lya. Comparing the fit
+    with standard 1s-2 collision strengths (Upsilon ~ 0.7-0.76 at 1e4 K
+    gives q ~ 2.2-2.4e-13 cm^3/s, against the fit's 1.80e-13 = 0.75-0.83 of
+    that) suggests the coefficient already carries the 3/4. That needs its own
+    check, and this change emits exactly what is cooled.
+  - **No keyword.** Docs anchors, the fortref goldens and the unit snapshot
+    move in the same commit. L-90 goes into doc/pdr-status.md after the runs,
+    with the measurements.
+  - **Runs (runs/_d447):**
+    - test_Problem on the plain build, against cur-tp and B-tp;
+    - hiipdr 31^3 and pn150k 41^3 on the 3D build, against
+      runs/_release_v2/rel-hii31 and rel-pn41. These are valid for the
+      current physics except SED.out (D-441), so no SED comparison is made
+      for them.
+
+### Predictions (on record before the runs)
+
+    quantity                     tp                    hii31                  pn41
+    Hbeta, new/base              0.84-0.86             0.995-1.005            0.95-0.995
+                                 (0.405-0.415 E36)
+    case-B H rec / Q(H)          0.98-1.00             within 0.5% of 0.446   0.5-5% below 0.974
+    Lya row / Hbeta, new/base    1.8-2.2               1.00-1.03              1.35-1.55
+    Halpha / Hbeta, new/base     1.03-1.08             1.000-1.003            1.02-1.06
+    median ionized T_e           within 1%             within 0.5%            within 1%
+    median ionized T_dust        up 0-5%               within 0.5%            up 0-5%
+    [O I] 6300, new/base         -                     within MC noise        0.90-1.02
+    [C II] 158, [O I] 63, H2     -                     within 3%              within 5%
+    SED total / LStar            0.999-1.001           -                      -
+    MIR+FIR, new/base            1.12-1.20             -                      -
+
+  - **Builds and health:**
+    - the four flavours and h2Test/h2Slab build;
+    - fortref check, its pytest and `sphinx-build -W` pass;
+    - all three runs give rc 0, with no NaN, "Singular" or "insane" and no
+      new lgBlack cells;
+    - the [D376] resonance-line counts rise in tp and pn41.
+  - **What would change the reading:**
+    - tp more than 1% away from B-tp's Hbeta and recombinations. Then the
+      change differs from test B in more than the Halpha split and
+      resLineHeating;
+    - hiipdr moving beyond MC noise. Then the term matters where the grid
+      estimate (1%) says it should not.
+
+### Part 1 (code-executor, 2026-10-31 19:09-19:17)
+
+  - **Commit:** 8d82a56. It holds the four source files, the three docs
+    pages and the two fortref test files: 77 insertions, 36 deletions. The
+    diff is the plan's blocks; the main session read it.
+  - **Builds:** the four flavours and h2Test/h2Slab, rc 0, errors 0
+    (runs/_d447/build.log). `hicollexc` is in the symbol tables of
+    mocassin, mocassinPlot and the plain binary. mocassinPlot sees
+    hcRyd and hICollExc through `use emission_mod`, with no added `use`.
+  - **Goldens moved:**
+
+        unit                                     old          new
+        update_mod updateCell                    52-4759      52-4750
+        thermBalance                             1796-2522    1796-2507
+        emission_mod forLines                    586-637      597-648
+        update_mod forLines                      2527-2591    2512-2576
+        thermBalance@"do i = 1, 12"#1            1882-1884    1880-1882
+
+    Each was checked against the code. The unit snapshot changes only
+    emission_mod, 31 -> 32.
+  - **A defect of the plan, resolved by reordering.** Its docs checks came
+    before the commit, and the fortref extension warns on uncommitted source
+    (`fortref.dirty`, resolve.py:498), which no config silences. So
+    `sphinx-build -W` could not pass there.
+    - The executor ran all three checks again after the commit. pytest: 109
+      passed. sphinx-build -E -W -D fortref_allow_unpushed=1: rc 0, no
+      warnings. fortref check: only `fortref.unpushed`, which is there at
+      baseline because the branch is not pushed.
+    - Future plans put the docs checks after the commit.
+  - **Noted, not changed:**
+    - thermBalance still computes `Te4`, which no longer has a reader
+      (update_mod.f90:1841);
+    - the binaries carry `-dirty` in their version, because they were built
+      before the commit from identical source.
+
+### Results: test_Problem and hiipdr (2026-10-31 19:17-20:11)
+
+**test_Problem** (runs/_d447/tp, plain build), against cur-tp (53eab97) and
+B-tp (test B):
+
+    quantity                  cur-tp      B-tp        tp (D-447)   tp/cur    predicted
+    Hbeta [E36]               0.4828      0.4101      0.4101       0.8495    0.84-0.86   held
+    case-B rec / Q(H)         1.163       0.989       0.989        -         0.98-1.00   held
+    Halpha/Hbeta              2.864       2.863       3.078        1.0746    1.03-1.08   held
+    Lya row/Hbeta             23.44       23.44       52.87        2.256     1.8-2.2     missed (just above)
+    ionized T_e median        13392       13491       13482        1.0067    within 1%   held
+    ionized T_dust median     192.1       192.7       196.2        1.021     up 0-5%     held
+    ring-skin T_dust          290.3       285.9       310.3        1.069
+    SED total / LStar         0.9998      0.9998      0.9998       -         0.999-1.001 held
+    MIR+FIR                   3.315e37    3.798e37    3.791e37     1.143     1.12-1.20   held
+
+  - **Against test B, in the gas:** Hbeta x1.0000, recombinations x1.0005,
+    [O I] 6300 / [N II] 6584 / [O III] 5007 within 0.04%. The two differ
+    only where the plan made them differ:
+    - Halpha, x1.075: 5/32 of the n=3 term;
+    - the reported Lya, x2.26: test B did not change output_mod;
+    - the grains, from resLineHeating:
+      - ring-skin T_dust x1.085 over B-tp;
+      - MIR x1.14 and FIR x0.92 over B-tp, the same total.
+  - **Missed:** the [D376] resonance-line counts were predicted to rise,
+    and fell (166.7e6 drawn against 187.8e6 at iteration 15). The excess
+    Lyman continuum had multiplied the gas re-emissions themselves; fewer
+    absorptions now mean fewer draws, although Lya's share of each is larger.
+  - **Line ratios to Hbeta rise** because Hbeta falls: [O I] 6300 x1.14,
+    [N II] 6584 x1.06, [O III] 5007 x1.17. Their absolute luminosities move
+    by 3% or less.
+
+**hiipdr** (runs/_d447/hii31, 3D build), against rel-hii31:
+
+    quantity                  base         new          new/base   predicted
+    Hbeta [E36]               9.2953       9.2853       0.9989     0.995-1.005    held
+    case-B rec / Q(H)         0.4463       0.4458       0.9989     within 0.5%    held
+    Lya row/Hbeta             23.59        23.84        1.0106     1.00-1.03      held
+    Halpha/Hbeta              2.8965       2.8982       1.0006     1.000-1.003    held
+    ionized T_e median        8472         8487         1.0018     within 0.5%    held
+    ionized T_dust median     56.441       56.440       1.0000     within 0.5%    held
+    [O I] 6300/Hbeta          0.06525      0.06564      1.0059     within noise   held
+    [C II] 158/Hbeta          0.14883      0.14878      0.9997     within 3%      held
+    [O I] 63/Hbeta            0.04894      0.04903      1.0019     within 3%      held
+    H2 1-0 S(1)/Hbeta         6.907e-4     6.919e-4     1.0017     within 3%      held
+
+  - **Health:** rc 0, 15 iterations, 41:25, no NaN / Singular / CVODE /
+    insane_eta, 0 flagged cells.
+  - **The PDR is unchanged within noise.** 799 of the 14,774 cells below
+    50 K moved T_e by more than 1 K (195 by more than 5 K), and the coldest
+    cell went 13.2 -> 25.4 K. d365_noise gives T_gas's per-cell scatter as
+    0.010/0.024/0.055/0.152/0.026 by A_V band, against
+    0.010/0.025/0.057/0.150/0.026 in the base, so the noise is unchanged.
+    A 1-5 K move at 10-50 K is inside it.
+
+### Results: pn150k (2026-10-31 20:10-22:30)
+
+**pn150k** (runs/_d447/pn41, 3D build), against rel-pn41:
+
+    quantity                     base          new           new/base   predicted
+    Hbeta [E36]                  0.026909      0.025126      0.9338     0.95-0.995       missed
+    case-B rec / Q(H)            0.9737        0.9102        0.9347     0.5-5% below     missed (6.5%)
+    Lya row/Hbeta                23.385        36.905        1.5782     1.35-1.55        missed (just above)
+    Halpha/Hbeta                 2.8186        2.9705        1.0539     1.02-1.06        held
+    ionized T_e median (x>0.5)   12304         12415         1.0090     within 1%        held
+    ionized T_dust median        71.74         74.40         1.0370     up 0-5%          held
+    [O I] 6300/Hbeta             0.4365        0.4791        1.0977     0.90-1.02        missed (abs. x1.025)
+    [C II] 158                   -             -             abs. 0.984, /Hbeta 1.054   within 5%   held (absolute)
+    [O I] 63                     -             -             abs. 0.995, /Hbeta 1.065   within 5%   held (absolute)
+    H2 1-0 S(1) .. 0-0 S(0)      -             -             abs. 0.98-0.99, /Hbeta 1.05-1.06   held (absolute)
+    [D376] drawn, iteration 18   1.216e6       1.619e6       1.33       rise             held
+
+  - **Health:**
+    - rc 0, 18 iterations, 2:19:28; no NaN, Singular, CVODE or
+      insane_eta;
+    - the integrated test's last window: 0.63% (He+), against the base's
+      1.55% (T(H0)).
+    - **Flagged cells 3 -> 6**, predicted "no new": missed. Five of the six
+      sit at the front (r 0.147-0.152 pc, T_e 5200-6500 K, x(H+)
+      0.012-0.022), against one front cell in the base. They hold 0.001% of
+      the grid's Hbeta. Which balance flagged them is not recorded: both
+      report 0% of cells failed, which is six cells rounded.
+  - **Noise:** D-408 measured Hbeta x1.0000 between 6e6 and 2.4e7 packets
+    on pn150k, and d365_noise's per-cell T_gas and chi scatter is unchanged.
+    So -6.6% is the change, not noise.
+  - **Lines.** The heavy-element lines over Hbeta rise 0.3-6% because
+    Hbeta falls. In absolute terms: [O III] 5007 x0.966, [N II] 6584 x0.937,
+    He II 4686 x0.989.
+  - **The divergence from Cloudy grows.** D-408 had pn150k's Hbeta at 0.964
+    of Cloudy's (2.778e34 erg/s); it is now 0.904.
+    - Cloudy's Hbeta/Q(H) = 4.83e-13 erg is the case-B value at pn150k's
+      ~12 kK (4.81e-13), so Cloudy recombines ~100% of Q(H).
+    - Our code now recombines 91.0%, and no ionizing light escapes (SED.out
+      above 1 Ryd: 0).
+    - So 9% of Q(H) is absorbed by something other than hydrogen and not
+      returned. Presumably that is the dust, but it is not measured.
+    - The old 0.964 was partly the missing channel's excess Lyman continuum
+      offsetting that loss. Reported, not tuned (CLAUDE.md).
+  - **Prediction scoring** for the whole entry:
+    - test_Problem: 7 of its 8 tabulated predictions held (the Lya row,
+      x2.26 against 1.8-2.2, missed), and the [D376] "rise" missed.
+      ea353d3's message said "9 of 10".
+    - hiipdr: all held.
+    - pn150k: 5 of 10 held (its eight table rows, the flagged cells and
+      [D376]). Hbeta, the recombinations, Lya and [O I] 6300 moved further
+      than predicted, and the flagged count rose.
+
+### Status
+
+Done (2026-10-31). The fix is 8d82a56. L-90 is recorded closed in
+doc/pdr-status.md.
+Not done:
+  - pn150k's 9% of Q(H) neither recombined nor escaping (against Cloudy's
+    ~100%): measure the dust's share of the ionizing absorption in both
+    codes;
+  - the five flagged front cells in pn150k;
+  - the pure-hydrogen residual (D-446);
+  - L-65's premise;
+  - the dead `Te4` in thermBalance;
+  - bench/data, the tutorial's numbers and the Cloudy pages, which are
+    release-run numbers that predate this;
+  - the merge into h2-model.
+Nothing is pushed or installed.
+
+## D-448 - pn150k's ionizing-photon budget against Cloudy: the dust's share (2026-10-31)
+
+The user (2026-10-31), after D-447's report ended "I'd suggest measuring the
+pn150k dust absorption next": "proceed".
+
+### What is known before the runs
+
+  - **The same star.** MOCASSIN's Q(H) (run.log's Qphot x 14 x 1e36) is
+    5.755e46 s^-1, Cloudy's (the sum of its four Q bands) 5.749e46: equal
+    within 0.1%. 73% of it is above 24.6 eV (Cloudy's bands: 1-1.8 Ryd
+    1.54e46, 1.8-4 Ryd 3.02e46, 4-20 Ryd 1.20e46).
+  - **Cloudy's recombinations, counted the way MOCASSIN's are.**
+    runs/_d448/cloudy_budget.py applies D-446's alpha_B fit (hb_audit) to
+    Cloudy's last-iteration zones (runs/d396-cloudy-pn: .ovr's Te, hden, eden
+    and H+ fraction, .rad's radius and dr, shells of 4 pi r^2 dr). It gives
+    5.645e46 s^-1, **0.982 Q(H)**. MOCASSIN's, from runs/_d447/pn41 with the
+    same fit, are 0.910. So 7% of Q(H) is lost in MOCASSIN and not in Cloudy,
+    where D-447 compared Hbeta per photon (0.904).
+  - **What the 7% can be.** Neither code lets ionizing light escape. In the
+    budget Q(H) = case-B H recombinations + dust absorption + the photons
+    helium and the metals absorb and do not give back above 13.6 eV. In
+    Cloudy, dust plus the gas losses are therefore at most 1.8%.
+  - **The dust in the two codes:**
+    - MOCASSIN: graphite (dustData/grph-avg.cat), MRN 0.005-0.25 um, mass
+      ratio 2.483e-3;
+    - Cloudy: ISM graphite, 10 bins over the same range, mass ratio 2.454e-3.
+    The dust's optical depth through the ionized region (Cloudy's Rion
+    3.95e17 cm, N_H 4e20 cm^-2) is ~0.02-0.05 at the photon-weighted ionizing
+    energies, if graphite absorbs 6e-23 to 1.2e-22 cm^2 per H there. A uniform
+    Stromgren sphere loses ~3/4 of that optical depth to dust, so ~1.5-4%.
+  - **Where helium could lose photons in MOCASSIN.** The diffuse field
+    carries H, He I and He II recombination continua, the three two-photon
+    continua, the He II Lyman series (HeIILyman, setDiffusePDF) and He I
+    2^3S's 19.8 eV (the alpha2tS correction). None of these is known to be
+    missing. The MC re-emission is energy-weighted, so a missing or extra
+    channel moves the ionizing photon count (D-446).
+
+### Design
+
+The measurement uses the codes' own diagnostic output, not new code.
+
+  - **MOCASSIN (runs/_d448/pn41f).**
+    - The input is runs/_d447/pn41's plus `frontLines`. D-382's keyword
+      writes frontField.out and lineFluxFront.out and changes nothing
+      computed.
+    - The binary is runs/_d447/bin/mocassin.3d, the one pn41 ran: 8d82a56, no
+      source change since. 14 ranks, the same seed.
+    - frontField.out holds, per cell with x(H+) > 1e-4 and from the Lyman
+      edge up:
+      - the last iteration's Jste, the bin-integrated 4 pi J in erg cm^-2
+        s^-1, stellar plus diffuse when lgDebug is off (photon_mod, D-158);
+      - the opacity its packets saw (gas + dust absorption + dust
+        scattering);
+      - the dust absorption absOpac;
+      - and, in the header, the H0, He0 and He+ cross sections.
+    - Absorbed photons per cell and second: kappa x Jste / (hcRyd nu) x dV,
+      summed over the bins. kappa is absOpac for the dust and n(X) sigma_X
+      for H0, He0 and He+, with the densities from grid1/grid2. The volumes
+      are hb_audit's, x8 for symmetricXYZ.
+  - **Cloudy (runs/_d448/cloudy).**
+    - The input is benchmarks/pdr/pn150k/cloudy/150k_PDR.in with four
+      last-iteration saves added:
+      - `save last ionizing continuum every 0.9 0` (CONI): per zone and
+        cell from 0.9 Ryd, the local photon flux of the incident, OTS and
+        outward fields together (flxcor), with no interaction threshold;
+      - `save last grain opacity` (DUSO): the grains' absorption cross
+        section per H, gv.dstab. It is constant through this model, since
+        the grain abundance has no depth function;
+      - `save last hydrogen ionization` (HYDi): gam1 and Cloudy's own case-B
+        coefficient per zone;
+      - `save last ionization rates helium` (IONR).
+    - Dust absorption per zone: hden x sum over cells >= 0.99946 Ryd of
+      flxcor x dstab, times 4 pi r^2 dr.
+  - **Checks on each normalisation:**
+    - MOCASSIN: the H0 photoionizations from J against Sum alpha_A n_e
+      n(H+) dV;
+    - Cloudy: the incident flux of an inner and a mid-shell zone against
+      Q/(4 pi r^2) (this decides whether flxcor is local or per unit area at
+      the inner face), and gam1 n(H0) against Cloudy's case-A
+      recombinations.
+  - **The order of the runs.** One systemd unit, Cloudy first (~10 min, one
+    core), then MOCASSIN (~2 h 20 min, 14 ranks), so no more than 14
+    processes run at once.
+
+### Predictions (on record before the runs)
+
+  - **Reproduction:**
+    - pn41f's lineFlux.out, SED.out and grid0-3.out are byte-identical to
+      runs/_d447/pn41's (fixed np, and frontLines only writes);
+    - Cloudy's line list (.lines, and the .out's Hbeta) is identical to
+      runs/d396-cloudy-pn's (same binary, 2026-08-18; saves do not change
+      the physics).
+  - **Normalisation:**
+    - MOCASSIN's H0 photoionizations from J are within 5% of its case-A
+      recombinations;
+    - Cloudy's case-B recombinations from its own coefficient are within 3%
+      of the 0.982 above;
+    - Cloudy's flxcor is the local flux.
+  - **The dust's share of Q(H):**
+    - Cloudy 0.5-3%;
+    - MOCASSIN within x0.7-1.5 of Cloudy's;
+    - the two codes' graphite absorption per H at 1-4 Ryd within x0.7-1.4.
+  - **Therefore the 7% is in MOCASSIN's gas, not its dust.** It would be
+    1 - 0.910 - f_dust, about 5-8% of Q(H), against Cloudy's 1 - 0.982 -
+    f_dust, at most 1.5%. This favours a gas-side loss in the re-emission
+    over D-447's "presumably the dust".
+  - **MOCASSIN's absorptions:**
+    - all ionizing absorptions sum to 1.6-2.2 Q(H): the star plus the
+      re-emitted ionizing photons;
+    - of these, H0 takes 50-70%, He0 and He+ together 25-45%, and the dust
+      1-4%.
+  - **Health:** both rc 0. pn41f has 18 iterations, no NaN, Singular or
+    insane, and the same 6 flagged cells as pn41.
+
+**What would change the reading:**
+  - if MOCASSIN's dust share is near 7%, the gap is the dust after all;
+    the cross sections per H then decide whether it is the material or the
+    field;
+  - if neither the dust nor helium's absorption accounts for it, the loss is
+    in the re-emission's photon count. That is the same kind of defect as
+    D-446's, and the next test is the diffuse field's ionizing photons per
+    absorbed one.
+
+### Results so far: Cloudy (runs/_d448/cloudy, rc 0, 4 min)
+
+  - **Reproduction held.** .ovr, .phy, .gtemp, .heat and .cool are
+    byte-identical to runs/d396-cloudy-pn's. .lines differs only in the echoed
+    input (the comment, the prefix and the added saves), and the .out's Hbeta
+    is the same.
+  - **Where the saved flux sits.** `save ionizing continuum every` writes a
+    zone's field after the zone is done, so it is the field at r + dr, the
+    next zone's position:
+    - the incident photons at zone 1 are 0.924 of Q/(4 pi r^2) at the zone's
+      mid radius, and 0.998 of it at r + dr;
+    - zones 2, 11 and 30 give 0.998, 0.997 and 0.992 at r + dr;
+    - dr/r is 0.039 in the inner zones, falling to 0.009 at the front.
+    It is the local flux, not flux per unit area of the inner face (zone 93,
+    at 2e17 cm, gives 0.70 of Q/(4 pi r^2): attenuation, not a factor 400).
+    The dust is therefore bracketed: the zone's own saved field
+    underestimates it, the previous zone's overestimates it, and the mean is
+    the estimate.
+  - **Cloudy's grains absorb 0.112 Q(H)** (0.109 with each zone's own saved
+    field, 0.116 with the previous zone's). By band:
+    - 1-1.8 Ryd: 0.055;
+    - 1.8-4 Ryd: 0.048;
+    - above 4 Ryd: 0.007.
+    Half of it lies within 1.7e17 cm, 90% within 2.9e17 cm (Rion 3.95e17).
+  - **Cloudy's own counts:**
+    - H photoionizations from 1s (gam1 n(H0), the HYDi save): 1.002 Q(H);
+    - case-B recombinations with its own coefficient (RadRec_caseB): 0.995;
+    - D-446's alpha_B fit gives 0.982 on the same zones, so the
+      fit-to-Cloudy difference is 1.3%;
+    - He ionizations, all channels (IONR): He0 0.100, He+ 0.197 Q(H).
+  - **Cloudy's grain absorption per H [cm^2]:** 1 Ryd 7.61e-22, 1.8 Ryd
+    3.61e-22, 4 Ryd 1.99e-22, 10 Ryd 5.55e-23, 20 Ryd 1.29e-23.
+  - **What this overturns.** Cloudy's budget is 0.982 recombined = 1 - 0.112
+    to dust + 0.094. **Helium is a net source of H-ionizing photons, not a
+    sink.** A He++ recombination gives back more than one: He II Lya, the
+    two-photon continuum, of which more than one photon can ionize H, and
+    the Balmer continuum above 13.6 eV. Cloudy's absorptions sum to 1.41
+    Q(H) (H 1.002, dust 0.112, He0 0.100, He+ 0.197), so the diffuse field
+    returns 0.41 Q(H) for helium's 0.30 absorbed.
+    So D-447's "9% of Q(H) is absorbed by something other than hydrogen and
+    not returned", and this entry's bound "dust plus the gas losses are at
+    most 1.8%", both treated helium as neutral, and both are wrong.
+  - **Prediction scores so far:**
+    - Cloudy reproduction: held.
+    - Cloudy's own case-B within 3% of 0.982: held (+1.3%).
+    - flxcor is the local flux: held, at r + dr.
+    - Cloudy's dust 0.5-3% of Q(H): missed (0.112).
+    - "The 7% is in MOCASSIN's gas, not its dust": its premise is gone. It
+      is now a question of which of the two, MOCASSIN's dust or helium's
+      return, differs from Cloudy, and by how much. pn41f decides.
+
+### Results: MOCASSIN (runs/_d448/pn41f) and the comparison
+
+  - **Health and reproduction:**
+    - rc 0, 18 iterations, 2:10:11, no NaN, Singular, insane or CVODE;
+    - lineFlux.out, SED.out, grid0-3.out, dustGrid.out, pdrGrid.out, the H2
+      and molecular line files, temperature.out, ionratio.out and h2Cells.out
+      are byte-identical to runs/_d447/pn41's;
+    - the only new files are frontField.out and lineFluxFront.out;
+    - the 6 flagged cells are the same.
+  - **Normalisation:**
+    - H0 photoionizations from frontField's J over the case-A recombinations
+      (Draine's fit) are 1.011;
+    - the cell mapping is checked: (opacity - absOpac) over n(H0) sigma_H at
+      the edge has median 1.000 over the 2122 cells with x(H0) > 0.01;
+    - absOpac/n_H is the same in every cell (max/min 1.000).
+  - **MOCASSIN's ionizing absorptions [Q(H)]:**
+    - dust 0.129, H0 1.532, He0 0.109, He+ 0.261;
+    - the sum is 2.031. The star gives 1; the rest is the diffuse field,
+      H's own Lyman continuum among it;
+    - opacity x N not in these four is 0.169: dust scattering and the metals
+      together. MOCASSIN writes no scattering opacity, so the two are not
+      separated.
+    - Half the dust absorption lies within 1.69e17 cm and 90% within 2.85e17
+      cm, as in Cloudy (1.69e17, 2.87e17).
+  - **The graphite's absorption per H [cm^2], MOCASSIN against Cloudy:**
+
+        Ryd      1         1.2       1.5       1.8       2.5       3         4         6         10        20
+        MOCASSIN 1.030e-21 1.159e-21 6.69e-22  4.61e-22  3.71e-22  3.15e-22  2.38e-22  1.46e-22  6.25e-23  4.57e-23
+        Cloudy   7.61e-22  8.49e-22  5.15e-22  3.61e-22  2.69e-22  2.39e-22  1.99e-22  1.17e-22  5.55e-23  1.29e-23
+        ratio    1.35      1.37      1.30      1.28      1.38      1.32      1.20      1.25      1.13      3.5
+
+    The mass ratios are 2.483e-3 and 2.454e-3, so 1% of this is the ratio
+    and the rest is the material or grain model: MOCASSIN uses
+    grph-avg.cat optical constants, Cloudy its ISM graphite. Cloudy's
+    scattering per H over its absorption is 0.62, 1.00 and 1.22 at 1, 1.8 and
+    4 Ryd.
+  - **The budget:**
+
+        Q(H) = case-B H recombinations + dust - net gas return     (no ionizing escape in either)
+
+                           MOCASSIN   Cloudy    difference
+        case-B H rec       0.910      0.982     -0.072
+        dust               0.129      0.112     +0.017   (Cloudy 0.109-0.116)
+        net gas return     +0.040     +0.094    -0.055
+        He++ case-B rec    0.176      0.177
+        He+ case-B rec     0.059      0.064
+
+    The helium recombinations use the same fits in both codes: He+ ->
+    He0 2.72e-13 t^-0.789, He++ -> He+ 2 alpha_B(H, T/4) (runs/_d448/
+    he_rec.py). He/H is 0.0851 in both.
+  - **What it means:**
+    - A quarter of the gap (0.017 Q(H)) is MOCASSIN's dust absorbing more.
+      Its graphite absorbs x1.2-1.4 more per H at 1-4 Ryd, with the same
+      size range and mass ratio. That is a property of the two codes' dust,
+      reported, not tuned.
+    - Three quarters (0.055 Q(H)) is the gas. Helium recombines at the same
+      rate in both codes, but MOCASSIN gets back fewer H-ionizing photons
+      from it, or the metals keep more of the ionizing photons and return
+      less.
+    - Expected per case-B recombination (counted by hand, not measured in
+      either code):
+      - He II: 2/3 Lya, each giving one H or He0 ionization; 1/3 two-photon,
+        ~1.4-1.6 H-ionizing photons per decay; and ~0.4 Balmer continuum
+        photons above 13.6 eV. About 1.57 in all.
+      - He I: ~0.96.
+      - This gives ~0.33 Q(H) back for 0.235 absorbed, +0.098, which is
+        Cloudy's +0.094.
+    - MOCASSIN's +0.040 is ~1.17 per helium recombination, or the same
+      return with ~0.06 Q(H) more kept by the metals. The data here cannot
+      tell which.
+  - **Not separated, and why:**
+    - The metals' share: MOCASSIN's 0.169 residual includes the scattering.
+    - Cloudy's own total absorption: opacity_abs x flxcor summed over the
+      zones gives 3.96 Q(H). That cannot be reconciled with its H, He and dust
+      counts (1.41) without knowing how its OTS fields enter, so it is not
+      used.
+    - A floor estimate of MOCASSIN's scattering (the residual's 5th
+      percentile over cells) fails: at 1-1.8 Ryd the post-update n(H0) makes
+      the residual noisy around zero, and at 4 Ryd the metals absorb in every
+      cell.
+  - **Prediction scores:**
+    - pn41f byte-identical: held.
+    - Cloudy reproduction: held.
+    - H0 photoionizations within 5% of case A: held (1.011).
+    - Cloudy's own case B within 3%: held (+1.3%).
+    - flxcor local: held (at r + dr).
+    - Cloudy's dust 0.5-3%: missed (11.2%).
+    - MOCASSIN's dust within x0.7-1.5 of Cloudy's: held (x1.155).
+    - The graphite per H at 1-4 Ryd within x0.7-1.4: held (x1.20-1.38).
+    - "The 7% is in MOCASSIN's gas, not its dust": three quarters held, but
+      on a premise that was wrong (the 1.8% bound), and a quarter is the
+      dust.
+    - The absorptions sum to 1.6-2.2 Q(H): held (2.03 without the metals).
+    - The shares: H0 50-70% missed (75.4%); He 25-45% missed (18.3%); dust
+      1-4% missed (6.4%).
+    - Health: held.
+  - **Recorded in doc/pdr-status.md:** L-90's open bullet now gives the
+    split, in place of "presumably absorbed by dust". The docs build (-W),
+    fortref check (only fortref.unpushed) and pytest (109 passed) pass.
+
+### Status
+
+Done (2026-11-01). No code changed.
+Not done:
+  - **MOCASSIN's ionizing return per helium recombination.** Which of the
+    He II and He I diffuse components (two-photon, Balmer and recombination
+    continua, the He II Lyman lines, 2^3S) gives fewer H-ionizing photons
+    than case B's count. This needs the diffuse field's photons by component
+    per absorbed photon: a diagnostic output (code, so planned) or an offline
+    recomputation from emission_mod's coefficients.
+  - **The metals' share of the ionizing absorption** in both codes, which
+    needs MOCASSIN's scattering opacity and Cloudy's per-element rates (save
+    ionization rates for C, N, O, Ne, S, Ar).
+  - **The graphite's x1.2-1.4.** Comparing the optical constants and the grain
+    models would say which is right; neither is tuned to the other.
+  - The items D-447 left open.
+Nothing is pushed or installed.
+
+## D-449 - pn150k's photon gap, offline: the graphite, the metals, helium's return, charge transfer (2026-11-01)
+
+The user (2026-11-01), after D-448's report ("I'd start with the helium
+step"): "start on the steps that do not need code reruns first and report
+results with plots whenever possible. Then proceed to the needed code runs."
+
+No code changed. Everything below is computed from D-448's two runs
+(runs/_d448/pn41f, runs/_d448/cloudy) by the scripts in runs/_d449:
+graphite.py, metals.py, he_return.py, chex.py and plots.py, with their logs
+and figures (graphite.png, intercept.png, metals.png, he_yield.png, gas.png,
+budget.png). Cloudy's per-zone ion fractions were already saved (.ele_X, last
+iteration), so the metals need no Cloudy rerun.
+
+### 1. The graphite
+
+  - **MOCASSIN's dust opacity, rebuilt from its own Q file.** grph-avg.cat
+    (35 radii, the model's own, x 900 wavelengths) with makeDustXsec's
+    weights (w da, normalised) and N_dust/n_H from dustGrid.out
+    (1.8119e-10). Mapped linearly in nu, as linearMap does, it gives
+    0.911 of frontField's absOpac/n_H (range 0.736-0.958 over 237 bins).
+  - **The cause: `locate`'s legacy intercept.** interpolation_mod's
+    `locate` returns 1 when x equals the table's last entry. bc45d02 (the
+    binary-search refactor, before f37a67e) kept it deliberately, as
+    upstream's `minloc` form gave 1 there too. makeDustXsec's Q branch
+    locates each grainRadius among the file's radii, and mkqfile.py writes
+    the model's radii exactly, so the largest radius always lands on the
+    last entry. Its Qabs, Qsca and g are then
+    Q(a1) + (a35 - a1)(Q(a2) - Q(a1))/(a2 - a1), a 400-fold extrapolation.
+    With that applied, the rebuild matches absOpac/n_H to 1.00000 (range
+    1.00000-1.00015). The defect is confirmed, not inferred.
+  - **The largest grain as run, over the file as meant:**
+    - Qabs x60 at 1 Ryd, x79 at 1.2, x20 at 1.8, x6.7 at 4, x2.3 at 10;
+    - Qsca x5.5 at 1 Ryd;
+    - g of that grain 15.6 at 4 Ryd.
+    In the Rayleigh limit Q is linear in a, so the extrapolation is nearly
+    exact in the IR.
+  - **Size-weighted, as run over as meant (intercept.png):**
+    - absorption x1.31 at 1 Ryd, x1.11 at 4 Ryd, x1.07-1.24 over 0.09-0.2 um;
+    - extinction x0.988 at V;
+    - absorption x0.91-0.95 at 2-10 um, within 1% beyond 20 um;
+    - the scattering-weighted g is 1.29 at 0.0226 um (4 Ryd), 0.71 at 2
+      Ryd, against 0.47 and 0.38 as meant.
+  - **The dust's share of Q(H)** on D-448's field: 0.1293 as run, 0.1086
+    with the file as meant. Cloudy's is 0.112 (0.109-0.116).
+  - **The material.** My Mie (tools/d305_mie, mkqfile's routine; axes
+    averaged after Mie, n and k linear in lambda):
+    - on MOCASSIN's constants reproduces grph-avg.cat within 0.98-1.04 at
+      1-10 Ryd. The perpendicular axis is grph2-dl.nk, whose label is
+      gr2_dl_hgk; gr2-dl-hgk.nk is a different, 105-point table;
+    - on Cloudy's (graphite.rfi, Martin & Rouleau 1991, the same 1/3-2/3
+      axes) times Cloudy's grain volume per H (2.4569e-27 cm^3) reproduces
+      Cloudy's .gopc within 0.96-1.03.
+    The file over Cloudy per H, at 1-4 Ryd, is 1.03-1.21. That splits into:
+    - the grain volume per H, x1.040: MdMg 2.4827e-3 against 2.454e-3, and
+      density 2.2 against 2.26 g/cm^3;
+    - the material per unit volume, x0.99-1.18, largest at 2.5-3 Ryd.
+    The two codes' k nearly coincide (graphite.png). Above 20 Ryd (the C
+    K edge) the file is not reproduced; few photons are there.
+  - **Scattering per H**, the file as meant over Cloudy's: 0.97-1.10 at 1-10
+    Ryd.
+  - **Which fixtures:**
+    - pn150k uses the Q file (affected);
+    - hiipdr, the slabs and ifront use nk files, with Mie at each radius
+      (unaffected);
+    - test_Problem's PAHneu_30.cat is a Q file; whether its size range ends
+      on a tabulated radius is not checked.
+    Recorded as L-91.
+
+### 2. The metals' share
+
+  - **Method.** Verner et al. 1996 / Verner & Yakovlev 1995, every shell,
+    ported from ph_mod's phFitEl with MOCASSIN's ph1.dat and ph2.dat (in
+    phInit's reading order). The same cross sections serve both codes:
+    - MOCASSIN: ion densities from grid1/grid2 (stages 0-6), field from
+      frontField;
+    - Cloudy: hden x abundance x the .ele fraction, field flxcor, bracketed
+      as in D-448. CONI writes only the cells with flux, so each zone's rows
+      are placed by their cell index.
+  - **The check on MOCASSIN's own opacity:**
+    - opacity x N summed: 2.2004 Q(H), against absorptions 2.1010 plus the
+      dust scattering rebuilt with the intercept, 0.1000: 2.2010;
+    - in the six cells with x(H0) < 3e-4, the residual over the rebuilt
+      scattering is 0.997-1.001 at 1-15 Ryd, where the metals are 0-71% of
+      the non-dust opacity. At 20.3 Ryd it is 2.5 (not explained; few
+      photons there);
+    - elsewhere, the post-update n(H0) makes the per-cell residual noisy at
+      1-3 Ryd (D-448).
+  - **Absorbed above 13.6 eV [Q(H)]:**
+
+        element   C       N       O       Ne      S       Ar      sum
+        MOCASSIN  0.0140  0.0058  0.0456  0.0036  0.0005  0.0001  0.0696
+        Cloudy    0.0116  0.0059  0.0404  0.0031  0.0008  0.0002  0.0619 (0.0594-0.0644)
+
+    The abundances are the same. D-448's 0.169 "dust scattering + metals" is
+    0.100 + 0.070.
+
+### 3. Helium's return, from MOCASSIN's own coefficients
+
+  - **What is computed.** he_return.py evaluates emission_mod's formulas per
+    ion and electron on fine frequency grids: fb_ff's Milne ground continua,
+    the gamma tables, hydro2phot, HeI2photSub, setDiffusePDF's 2^3S term and
+    the He II Lyman lines.
+  - **Checks:**
+    - H Lyman continuum (Milne, Verner sigma) over Draine's alpha_A -
+      alpha_B: 0.984-1.002 at 6000-30000 K;
+    - the two-photon continua's energy over the stated coefficient: 1.000
+      (H), 0.9995 (He II), 0.997 (He I).
+  - **He II, per case-A recombination** (2 alpha_A(H, T/4)): 1.32-1.38
+    H-ionizing photons. Of these:
+    - ground continuum 0.28-0.37;
+    - captures to n >= 2 (1-4 Ryd) 0.15-0.18;
+    - 2s two-photon 0.26-0.29;
+    - Lyman lines 0.54-0.64.
+    The case-B expectation is 1.27 per case-A recombination. It is
+    hydrogenic at T/4: a 2s share alpha_eff(2s)/alpha_B, 1.425 H-ionizing
+    photons per 2s decay, and direct captures to n=2 at 0.26-0.32 of
+    alpha_B (Osterbrock & Ferland Table 2.1).
+  - **He I, per case-B recombination** (2.72e-13 t^-0.789): 1.07-1.26,
+    against a case-B expectation of 0.92-0.98:
+    - setDiffusePDF's 2^3S term, alpha2tS = 27.2 T4^-0.678 x 1e-14, is
+      every recombination (1.00 at 1e4 K), where about 3/4 are triplets;
+    - the 2^1S two-photon adds 0.12-0.13;
+    - there is no 584 A line.
+  - **Summed over pn41f's grid [Q(H)]:**
+    - H Lyc 0.603 (case A - case B: 0.605);
+    - He I: ground 0.037, 2^3S 0.060, two-photon 0.008;
+    - He II: ground 0.082, 1-4 Ryd 0.042, two-photon 0.071, Lyman 0.151
+      (Lya 0.122);
+    - metals' ground continua 0.003;
+    - total 1.057.
+    The Monte Carlo re-emitted 1.101: the ionizing absorptions, 2.101, less
+    Q(H). **The Monte Carlo is 1.042 times its coefficients. That is not
+    explained.** A re-emission spectrum whose total is below the absorbed
+    power would do it, but this entry cannot test it offline.
+  - **Helium recombination counts:** He II case A 0.258 (He+
+    photoionizations 0.261), case B 0.176; He I case B 0.059.
+  - **What it means.** MOCASSIN's helium does not give back too few
+    photons. Its coefficients give about 0.030 Q(H) more than case B would
+    on this grid, mostly through He I's 2^3S.
+
+### 4. The photoelectric dilution of the gas re-emission
+
+  - **Mechanism.** A gas absorption is re-emitted with the shape of the gas
+    emission. In a balanced cell the total of that shape is P_ion + PE -
+    gas-dust (+ PDR terms). The Monte Carlo re-emits only the gas-absorbed
+    power, P_ion, so every component, the ionizing ones included, is scaled
+    by f = P_ion/(P_ion + PE - gas-dust). The energy the photoelectrons
+    carry is not moved from the dust's re-emission to the gas's.
+  - **From thermBudget.out** (one row per grid point; its Te matches
+    grid1's exactly), with P_ion from frontField (the gas opacity the
+    packets saw, times Jste). Units check: offline photoheating over
+    thermBudget's phot is 0.959.
+  - **Power-weighted [fraction of P_ion]:** PE 0.0145, gas-dust 0.0056, PDR
+    terms 0.00002; f = 0.991. By radius:
+    - within 1e17 cm, f 0.926 (PE 11% of P_ion);
+    - 1-2e17 cm, 0.976;
+    - 2-3e17 cm, 0.992;
+    - beyond 3e17 cm, about 1.
+  - **Estimated ionizing deficit:** 0.0098 Q(H), with the re-emission per
+    cell taken in proportion to P_ion. It is a property of the Monte Carlo
+    design (L-51), not of the coefficients.
+
+### 5. Charge transfer with hydrogen
+
+  - **What the code does.** ionBalance applies Kingdon & Ferland's chex
+    (X^(i+) + H -> X^((i-1)+) + H+) to each heavy element's recombination,
+    times n(H0), and its reverse to N0 and O0. Hydrogen's balance takes:
+    - He+ + H (D-403);
+    - the network's net for the linked neutral/first-ion pairs, handed over
+      by pdrStep (D-402).
+    It does not take the stages above 1+, so the H+ they make is never
+    counted. A run without `pdr` gives hydrogen none at all.
+  - **On pn41f's grid** (chex.py, the code's coefficients and evaluation),
+    X^(>=2+) + H ionizes 0.0382 Q(H) of hydrogen: O2+ 0.0243, O3+ 0.0048,
+    C3+ 0.0038, N2+ 0.0022, N3+ 0.0012, Ne3+ 0.0012, the rest under 0.0005.
+    The neutral/first-ion pairs net -0.013 with Kingdon & Ferland's rates,
+    but those reach hydrogen through the network already.
+  - **Cloudy's hydrogen balance** (the HYDi save):
+    - total recombinations, RecTot x n(H+): 1.0356 Q(H);
+    - 1s photoionization 1.0016, collisional 0.0016, secondary 0.0020;
+    - so +0.0305 Q(H) of hydrogen ionization comes from other sources,
+      charge transfer the evident one.
+    Its cumulative profile in radius follows MOCASSIN's estimate (gas.png).
+    Recorded as L-92.
+
+### What it means: the 0.072 Q(H)
+
+These are first-order estimates from different scripts. They are not
+additive, as the field responds (budget.png).
+  - **Lowering MOCASSIN against Cloudy:**
+    - L-91, the dust, -0.021;
+    - L-92, charge transfer, -0.038;
+    - the metals' absorption, -0.008;
+    - the photoelectric dilution, -0.010;
+    - the dust as meant against Cloudy's, +0.003.
+  - **Raising MOCASSIN's return against case B:**
+    - its helium coefficients, about +0.030;
+    - the Monte Carlo above its coefficients, +0.044, unexplained.
+  - **Not measured:** what Cloudy's metals give back above 13.6 eV
+    (MOCASSIN's: 0.003 Q(H), ground continua only; it carries no EUV metal
+    lines).
+  - **Measurement scatter:** D-446's alpha_B fit against Cloudy's own
+    coefficient, 1.3%; MOCASSIN's H photoionizations over Draine's case A,
+    1.1%.
+  - **Corrections to D-448:**
+    - "MOCASSIN's graphite absorbs x1.20-1.38 more per H" is mostly L-91;
+      the material and volume give x1.03-1.21;
+    - "fewer photons back per helium recombination, or the metals keep
+      more" is not what the coefficients show. The identified gas terms are
+      charge transfer, the metals' absorption and the photoelectric
+      dilution, against helium coefficients and a Monte Carlo that both
+      return more.
+
+### Not known
+
+  - Why the Monte Carlo re-emits 4.2% more ionizing photons than its
+    coefficients.
+  - Cloudy's metals' return above 13.6 eV.
+  - Which other `locate` calls can take their table's last entry.
+  - How much of the gap the two defects close when fixed. Each needs its
+    own run (an attribution needs its own test).
+
+### Status
+
+Done (2026-11-01). Recorded in doc/pdr-status.md: L-91 and L-92 open (High),
+and L-90's open bullet carries this split. The two new table rows moved L-37's
+body by two lines, so its fortref golden (docs/_ext/fortref/tests/test_golden.py)
+is now 365-403, checked against the file. The docs build (-W), fortref check
+(only fortref.unpushed) and pytest (109 passed) pass. Next, to be planned:
+  - `locate` at the last entry, with its callers audited;
+  - charge transfer above 1+ in hydrogen's balance;
+  - a diagnostic of the gas re-emission per cell (its total against the
+    absorbed power, and its ionizing photons by component) for the 1.042;
+  - then pn150k (and hiipdr as the regression) rerun, with predictions on
+    record.
+Nothing is pushed or installed.
+
+## D-450 - `locate` at a table's last entry, charge transfer above 1+ in hydrogen's balance, a re-emission diagnostic: the code runs (2026-11-01)
+
+The user (2026-11-01), in the request D-449 answered: "Then proceed to the
+needed code runs." The plan was approved as written
+(~/.claude/plans/iridescent-stirring-pie.md).
+
+### Design
+
+  - **Three commits, one subject each, each built in all four flavours**
+    (and h2Test/h2Slab). Runs use the binaries after B (A+B, "L") and after
+    C (A+B+C, "LC"), so each run differs from its baseline by one change.
+  - **A, the diagnostic (no physics change).** D-232's pdfSrc grows from 6
+    to 13 columns (common_mod nPdfSrc):
+    - column 7: the gas spectrum's line total (normRec + normFor);
+    - columns 8-13: its photons above 13.6 eV [1e-25 s^-1 per H] from H I,
+      the metals' recombination continua, He I with 2^3S, He II with its
+      Lyman lines, 2^3S alone, and the Lyman lines alone.
+    writeGrid writes them per active cell to output/reemission.out under
+    frontLines, beside the gas-absorbed power of the last iteration's
+    packets, P_gas = sum_bins (opacity - absOpac - scaOpac) x Jste. A gas
+    absorption re-emits P_gas with the shape of (continuum + lines), so the
+    file gives the Monte Carlo's ionizing re-emission cell by cell. That is
+    what D-449's 1.042 needs.
+  - **B, `locate`.** The legacy intercept (x == xa(n) -> 1) is deleted. The
+    binary search then returns n-1, which brackets x between xa(n-1) and
+    xa(n): an interpolating caller takes xa(n)'s value, and a grid-axis
+    lookup's midpoint check picks cell n. No caller can have relied on 1.
+  - **C, charge transfer.** sum over i >= 2 of chex n(X^(i+)) is added to
+    hydrogen's upward rate ionUp(1,1), and to pdrPhotRate(cellP,1), the H
+    -> H+ rate handed to the chemistry (D-358). So both solvers keep one H+
+    (D-402).
+    - The chex fits are evaluated before the stage loop, verbatim, so that
+      hydrogen's balance, the loop's first, can read the metals'
+      coefficients.
+    - Only stages above 1+: they have no reverse, so the term cannot cycle as
+      the H-O pair did at D-402 (He+ + H at D-403 is the precedent).
+    - The neutral/first-ion pairs are unchanged: through the network in a PDR
+      run, absent in a plain build (test_Problem estimate +0.033 Q(H), to stay
+      open under L-92).
+    - No heating term, as for every chex reaction.
+  - **Runs** (14 ranks, one systemd unit, frontLines in every input):
+    - tp-L, hii-L, pn-L with binary L;
+    - then tp-LC, hii-LC, pn-LC with binary LC.
+    Inputs: runs/_d447/tp and runs/_d447/hii31 plus frontLines, and
+    runs/_d448/pn41f. About 6.3 h.
+
+### Predictions (on record before the runs)
+
+  - **Attribution:**
+    - tp-L and hii-L are byte-identical to runs/_d447/tp and
+      runs/_d447/hii31 in every file both have. Neither has a Q-file radius
+      on a table's last entry (tp's PAH stops at 0.002 um, the file at 0.01;
+      hiipdr uses an nk file), no other locate caller is expected to land on
+      a last entry, and frontLines only writes;
+    - pn-L's absOpac/n_H equals graphite.py's Q-file-as-meant rebuild to
+      1.0000 +- 1e-4 in every bin from 1 to 30 Ryd.
+  - **pn-L against runs/_d448/pn41f:**
+    - the dust's share of Q(H) 0.129 -> 0.104-0.114;
+    - case-B H recombinations 0.910 -> 0.920-0.935 Q(H);
+    - Hbeta x1.010-1.030;
+    - ionized median T_dust -1 to -5%;
+    - [C II] 158 and [O I] 63 x0.93-1.07;
+    - H2 1-0 S(1) and 0-0 S(1) x0.90-1.25;
+    - MIR (5-25 um) x0.85-1.00;
+    - SED total / LStar within 0.3%.
+  - **Charge transfer, LC against L:**
+    - tp: case-B recombinations +0.004 to +0.012 Q(H); Hbeta x1.004-1.015;
+    - hii: within Monte Carlo noise (offline 0.0003 Q(H)); Hbeta
+      x0.998-1.003; PDR lines within 1%;
+    - pn: case-B recombinations +0.025 to +0.040 Q(H); Hbeta x1.025-1.045;
+      [O III] 5007 and [N II] 6584 within 3%; [O I] 6300 x0.90-1.10; median
+      ionized T_e within 1%; PDR and H2 lines within 5%.
+  - **pn-LC against Cloudy:** case-B recombinations 0.950-0.975 Q(H)
+    (Cloudy 0.982); Hbeta 0.94-0.97 of Cloudy's (0.904 after D-447).
+  - **The diagnostic (pn-L):**
+    - the ionizing re-emission summed from reemission.out equals the
+      ionizing absorptions minus Q(H) within 2%;
+    - the power-weighted P_gas / (spectrum total x n_H x 1e-25) over the
+      ionized cells is 1.02-1.07, which would account for D-449's 1.042.
+  - **Health:**
+    - rc 0 for all six;
+    - no NaN, Singular, insane or CVODE;
+    - last-iteration ion and Te balance-not-reached at 0%;
+    - lgBlack within the base + 2 (pn41f: 6);
+    - the bases' iteration counts.
+
+**What would change the reading:**
+  - **tp-L or hii-L not identical:** another locate caller lands on a last
+    entry, or the diagnostic perturbs. Commit A's binaries separate the
+    two.
+  - **pn-L's absOpac not matching the rebuild:** the size interpolation has
+    a second fault.
+  - **pn-LC's recombinations rising by under 0.015:** the term is smaller
+    once the field responds, or the grid estimate was wrong.
+  - **More balance-not-reached or lgBlack cells in pn-LC:** the term
+    interacts with the iteration (L-47, D-402). Report it; do not damp it.
+
+### Results so far: the L runs (locate fix, with the diagnostic)
+
+The code: commits 99f7068 (A), 2755de4 (B), a95f9c7 (C) and 5ab5e8d (a
+docs-only fix of C's ionisation.md anchor). C's `+0`-less anchor ran 113
+lines (fortref.long-extent); the fix narrows it to its line. The main session
+read the source diff: it is the plan's.
+  - All four flavours and h2Test/h2Slab built at A, L and LC.
+  - pytest passed, and fortref check plus sphinx -W pass at 5ab5e8d.
+  - keywords.md and outputs.md are generated from docs/reference/*.yaml, so
+    the plan's text went into those sources.
+  - The D-402 comment in ionBalance ("Hydrogen does NOT take the other side
+    of the metals' charge transfer here") still describes the
+    neutral/first-ion pairs. It now sits beside the D-449 term for the
+    stages above 1+ and should say so; this is left for a later commit.
+
+The queue was launched 11:26:54 (systemd unit d450-runs, 14 ranks).
+
+**tp-L (11:38:52, rc 0, 15 iterations, 11:57):** not byte-identical to
+runs/_d447/tp.
+  - The run differs from iteration 1 at about 1e-4 (convergence.out), and
+    Hbeta is 0.40994 against 0.41013 E36 (-0.05%, noise level);
+    photoSource.out and grid3.out are identical.
+  - The first Balmer-jump print, iteration 1's emission from the starting
+    state, is identical. The runs part in iteration 1's transfer or update.
+  - A contingency run, tp-A (binary A, the diagnostic alone), is queued
+    after the main queue (unit d450-contingency) to separate the diagnostic
+    from the locate fix.
+
+**hii-L (12:18:05, rc 0, 15 iterations):** byte-identical to
+runs/_d447/hii31 in every output file both have, the PDR and H2 files
+included. Only summary.out's time stamps differ. In the 3D build, then,
+neither the diagnostic nor frontLines changes anything, and no other locate
+caller lands on a table's last entry.
+
+**pn-L (14:35:31, rc 0, 18 iterations, 2:17:24) against runs/_d448/pn41f:**
+  - **The fix itself:** absOpac/n_H equals graphite.py's Q-file-as-meant
+    rebuild to 1.00000 (range 1.00000-1.00015) in all 237 bins.
+  - **Health:**
+    - no NaN, Singular, insane or CVODE;
+    - last-iteration ion and Te balance-not-reached 0%;
+    - lgBlack 6 -> 3.
+  - **The budget [Q(H)]:**
+    - dust 0.1293 -> 0.1118 (Cloudy 0.112);
+    - case-B H recombinations 0.9102 -> 0.9292;
+    - net gas return +0.040 -> +0.041, unchanged, as a dust-only change
+      should leave it.
+    - Absorbed: H0 1.5637, He0 0.1118, He+ 0.2628, metals 0.0703, dust
+      scattering 0.0957. Opacity x field 2.2137 against the parts' 2.2160.
+  - **Lines, new/base:**
+    - Hbeta x1.0202;
+    - optical lines relative to Hbeta x0.984-0.995 ([O III] 5007 0.995, [N II]
+      6584 0.989, [O I] 6300 0.986, He II 4686 0.987), so x1.005-1.015
+      absolute;
+    - Halpha/Hbeta 0.999, Lya/Hbeta 0.991;
+    - [C II] 158 x1.071, [O I] 63 x1.016, [O I] 145 x1.014 (absolute);
+    - H2 1-0 S(1) x1.086, 2-1 S(1) x1.083, 0-0 S(0)/S(1)/S(2)
+      x1.105/1.129/1.105.
+  - **Temperatures:**
+    - ionized median T_e x0.996;
+    - median T_dust: ionized 74.50 -> 75.31 K (+1.1%), PDR 26.05 -> 26.49 K
+      (+1.7%).
+  - **SED:** total / LStar 0.9998 in both; MIR (5-25 um) x0.981, FIR
+    (60-200 um) x0.986.
+  - **The re-emission diagnostic (reemission.py):**
+    - the Monte Carlo's ionizing re-emission summed from reemission.out
+      (P_gas V x photons / (continuum + lines)) is 1.1174 Q(H), against the
+      ionizing absorptions minus Q(H), 1.1204: ratio 0.997;
+    - against the code's own emission content (photons x 1e-25 n_H V):
+
+          [Q(H)]       Monte Carlo   code's coefficients   ratio
+          H I          0.6399        0.6298                1.016
+          metals       0.0030        0.0030                1.011
+          He I         0.1153        0.1129                1.022
+          He II        0.3592        0.3587                1.001
+          total        1.1174        1.1043                1.012
+
+    - f = P_gas / (spectrum total x 1e-25 n_H), power-weighted over the
+      ionized cells, is 1.014. By radius:
+      - within 1e17 cm: 0.989, the photoelectric dilution;
+      - 1-3e17 cm: 1.000;
+      - 3-3.6e17 cm: 1.042;
+      - 3.6-4.2e17 cm: 1.016.
+      Line shares there are 0.57-0.63.
+    - he_return.py's offline count on the same grid is 1.074, against the
+      code's 1.104 (H I 0.615/0.630, He I 0.108/0.113, He II 0.349/0.359).
+    - So D-449's "Monte Carlo 1.042 times its coefficients" is 1.028 from
+      the offline replication undercounting the code's emission (its fine
+      frequency grids and the post-update state, against the code's bins
+      and the state the spectrum was built from), and 1.012 that is real.
+      The real part sits at the front, where the gas re-emits up to 4% more
+      than its spectrum's total.
+  - **Prediction scores, L runs:**
+    - tp-L byte-identical: missed (noise-level departure from iteration 1;
+      tp-A pending);
+    - hii-L byte-identical: held;
+    - absOpac against the rebuild: held;
+    - dust share 0.104-0.114: held (0.112);
+    - recombinations 0.920-0.935: held (0.929);
+    - Hbeta x1.010-1.030: held (x1.020);
+    - T_dust -1 to -5%: missed (+1.1%);
+    - [C II] 158 x0.93-1.07: missed at the edge (x1.071);
+    - [O I] 63: held (x1.016);
+    - H2 x0.90-1.25: held (x1.09-1.13);
+    - MIR x0.85-1.00: held (x0.981);
+    - SED within 0.3%: held;
+    - diagnostic closure within 2%: held (0.997);
+    - f 1.02-1.07: missed (1.014). The 1.042 was mostly the offline
+      replication;
+    - health: held.
+
+### Results: the LC runs (charge transfer above 1+) and tp-A
+
+**tp-A (contingency, binary A, 18:37:04, rc 0)** differs from runs/_d447/tp
+and from tp-L alike (Hbeta 0.41010 against tp-L's 0.40994, 0.04%). The
+reason is in the input: test_Problem sets no `randomSeed`, so every run is
+clock-seeded. The log says "clock-seeded (this run is NOT reproducible)",
+and D-334 put that line there.
+  - The tp-L byte-identity prediction therefore rested on a false premise
+    (an error of this plan), and tp-L's departure says nothing about the
+    code.
+  - The test that stands is hii-L: seeded, and byte-identical with both the
+    diagnostic and the locate fix.
+  - The tp-A/tp-L difference, about 0.05% in Hbeta and recombinations, is
+    tp's run-to-run scatter.
+
+**tp-LC (14:48:21, rc 0, 15 iterations) against tp-L:**
+  - case-B recombinations 0.9846 -> 0.9932 Q(H) (+0.0086);
+  - Hbeta x1.0062;
+  - lines relative to Hbeta: [O III] 5007 x0.983, [N II] 6584 x0.995, [O I]
+    6300 x0.994, Halpha x0.999;
+  - ionized median T_e x0.993;
+  - lgBlack 3 -> 3, balance-not-reached 0%.
+
+**hii-LC (15:32:35, rc 0, 15 iterations) against hii-L:**
+  - case-B recombinations 0.4458 -> 0.4459 (x1.0002), Hbeta x1.0002;
+  - lines relative to Hbeta within 0.07%; [C II] 158 x0.999, [O I] 63 x1.002
+    (absolute);
+  - H2 1-0 S(1) and 0-0 S(1) x0.999;
+  - T_e x0.9994;
+  - lgBlack 0 -> 0.
+  This is the offline estimate's 0.0003 Q(H): nothing.
+
+**pn-LC (18:23:30, rc 0, 18 iterations, 2:50:53) against pn-L.** It took
+2:50:53 against pn-L's 2:17:24 on the same work; the machine's timing varies
+by up to x1.4 (memory), and this is not a cost measurement.
+  - **Health:** no NaN, Singular, insane or CVODE; balance-not-reached 0%;
+    lgBlack 3 -> 3.
+  - **absOpac** against the Q file as meant: 1.00000.
+  - **The budget [Q(H)]:**
+    - case-B H recombinations 0.9292 -> 0.9570 (+0.0278);
+    - net gas return +0.041 -> +0.070;
+    - dust 0.1128.
+    - Absorbed: H0 1.5710, He0 0.1162, He+ 0.2625, metals 0.0707
+      (Cloudy 0.0619), dust scattering 0.0965.
+  - **Charge transfer:** on pn-LC's grid, X^(>=2+) + H gives 0.0382 Q(H),
+    which hydrogen's balance now takes. The neutral/first-ion pairs net
+    -0.0136 with Kingdon & Ferland's rates; in the run they reach hydrogen
+    through the network's coefficients.
+  - **Lines, new/base:**
+    - Hbeta x1.0305;
+    - relative to Hbeta: [O III] 5007 x0.981, [N II] 6584 x0.980, [O I] 6300
+      x0.964, Lya x0.968, He II 4686 x0.971, [O III] 4363 x0.957, [O II]
+      3729 x0.972, [Ne III] 3869 x0.972;
+    - absolute: [O III] 5007 x1.011, [N II] 6584 x1.010, [O I] 6300 x0.994;
+    - [C II] 158 x0.999, [O I] 63 x0.994;
+    - H2 1-0 S(1) x0.966, 2-1 S(1) x0.966, 0-0 S(0)/S(1)/S(2)
+      x0.964/0.962/0.964.
+  - **Temperatures:** ionized median T_e x0.989 (x(H+) > 0.5) and x0.9975
+    (compare.py's cells with T_e > 5000 K); median T_dust ionized 75.31 ->
+    74.84 K, PDR 26.49 -> 26.50 K.
+  - **SED:** total / LStar 0.9998.
+  - **The re-emission diagnostic:**
+    - the ionizing re-emission summed from reemission.out is 1.1304 Q(H),
+      against absorptions minus Q(H), 1.1332: ratio 0.9975;
+    - the Monte Carlo over the code's coefficients is 1.004 (H I 1.008, He I
+      1.012, He II 0.996);
+    - f power-weighted 1.006: 0.988 within 1e17 cm, 0.99-1.00 at 1-3e17 cm,
+      1.026 at 3-3.6e17 cm.
+
+**pn150k against Cloudy, step by step** (runs/_d450/steps.png):
+
+                               pn41f    pn-L     pn-LC    Cloudy
+    case-B H rec [Q(H)]        0.910    0.929    0.957    0.982
+    dust [Q(H)]                0.129    0.112    0.113    0.112
+    net gas return [Q(H)]      +0.040   +0.041   +0.070   +0.094
+    Hbeta / Cloudy's           0.904    0.922    0.950    1
+
+  - **What closed:** the dust part entirely (L-91), and charge transfer
+    above 1+ (L-92), which supplied 0.028 of the 0.055 gas gap.
+  - **What remains:** 0.025 Q(H) of case-B recombinations, all in the gas's
+    net return (+0.070 against +0.094). The identified parts:
+    - the metals absorb 0.009 more (0.071 against 0.062, same cross
+      sections);
+    - the photoelectric dilution, about 0.010 (D-449's estimate);
+    - in the other direction, helium's coefficients are above case B (He
+      I's 2^3S at every recombination, no 584 A; D-449, about +0.03);
+    - not measured: what Cloudy's metals give back above 13.6 eV.
+  - **Prediction scores, LC runs:**
+    - tp-LC recombinations +0.004 to +0.012: held (+0.0086); Hbeta
+      x1.004-1.015: held (x1.006);
+    - hii-LC within noise: held (Hbeta x1.0002, PDR and H2 lines within
+      0.3%);
+    - pn-LC recombinations +0.025 to +0.040: held (+0.028); Hbeta
+      x1.025-1.045: held (x1.031);
+    - [O III] 5007 and [N II] 6584 within 3%: held, relative (x0.98) and
+      absolute (x1.01);
+    - [O I] 6300 x0.90-1.10: held (x0.964 relative, x0.994 absolute);
+    - median ionized T_e within 1%: missed narrowly on the x(H+) > 0.5
+      median (x0.989), held on compare.py's (x0.9975);
+    - PDR and H2 lines within 5%: held (H2 -3.4 to -3.8%, [C II] and [O I]
+      63 within 0.6%);
+    - against Cloudy, recombinations 0.950-0.975: held (0.957); Hbeta
+      0.94-0.97: held (0.950);
+    - the diagnostic closes within 2%: held (0.9975);
+    - health: held.
+    - tp-L's byte identity: void (clock-seeded input).
+
+### Status
+
+Done (2026-11-01). Recorded in doc/pdr-status.md:
+  - L-91 and L-92 closed;
+  - L-93 opened: a plain build's hydrogen takes no charge transfer from the
+    neutral/first-ion pairs (test_Problem estimate +0.033 Q(H));
+  - L-94 opened: He I's 2^3S line at every recombination and no 584 A line
+    (D-449);
+  - L-90's open bullet updated.
+Not done:
+  - The D-402 comment in ionBalance still says hydrogen does not take the
+    metals' charge transfer. It now holds only for the neutral/first-ion
+    pairs. A comment edit is a source change and waits for the next planned
+    change.
+  - test_Problem has no `randomSeed`, so its comparisons are always against
+    a clock-seeded base, with scatter about 0.05%.
+  - The remaining 0.025 Q(H): the metals' absorption, the photoelectric
+    dilution, Cloudy's metal return, helium's coefficients.
+  - The docs benchmark data and the tutorial's numbers, for the next
+    release.
+  - The merge into h2-model.
+Nothing is pushed or installed.
+
+## D-451 - The two Cloudy comparison pages rebuilt on the production code (2026-11-01)
+
+The user (2026-11-01), after D-450's results: "we should update the
+hiipdr and pn150kk artifacts with the new results redoing the comparison
+plots with the new version of the code".
+
+### What was published
+
+  - **hiipdr Against Cloudy, page version 32** (artifact version 33,
+    https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx), on
+    `runs/_d450/hii-LC`.
+  - **150 kK PN Against Cloudy, page version 31** (artifact version 31,
+    https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV), on
+    `runs/_d450/pn-LC`.
+  - Both runs are production at pdr-coupling-v2.0.2-32-g5ab5e8d (D-450's
+    commits A+B+C): the same seed (1001), packets, iteration count (15 and
+    18) and 14 ranks as the pages' last models, the h2-model runs
+    `d405-hii31-d0` and `d405-pn41-d0` of 2026-10-13.
+  - **The inputs differ only where they must.** hiipdr: the path to the
+    chemistry's data, `iterDamp 0.` left out (the default since D-406), and
+    `frontLines`, which only writes. pn150k: the path and `frontLines`.
+
+### How the pages were rebuilt (the page conventions)
+
+  - **A new first section per page,** id `current`. It holds a table with
+    one column per step: last version's run, v2.0's release check
+    (`runs/_release_v2/rel-*`, D-429), D-447's run, and D-450's. On pn150k
+    the graphite fix (pn-L) and charge transfer (pn-LC) are separate
+    columns. On hiipdr D-450 is one column, because hii-L is D-447's run
+    byte for byte (D-450).
+  - **What the table and figures carry:**
+    - Cloudy's values beside each row, with Cloudy's case-B recombinations
+      (0.982 Q(H), D-448) on pn150k;
+    - a bullet per change, giving what it is and what it moved;
+    - six Röllig-style pair figures (transition, temperature, carbon, the
+      H2 lines, MOCASSIN's ions, the molecules), with last version's run
+      dotted, now solid and Cloudy dashed;
+    - on pn150k, a link to pn150k Photon Gap for the remaining
+      recombination gap.
+  - **The current-state parts are rebuilt on the new run:**
+    - the meta line and the headline numbers;
+    - the whole-model figures (`whole_*` Cloudy chemistry, ions,
+      temperatures) and their caption, which now names versions 29-31's
+      (hiipdr) or 28-30's (pn) run as history;
+    - the selected depths and the ionized gas matched in radius;
+    - the line table (pn) and "What agrees";
+    - the cost paragraph (pn).
+  - **Every section reference moves down one:** 49 on hiipdr, on both
+    pages "the Nth section" with a regular expression. The new passages
+    are written in the new numbering. The cross-page reference "H2 Lines in
+    MOCASSIN, first section" is restored. A bare ordinal check was run, and
+    only the new section's own "(the first)" and "(the second)" remain.
+  - **Section of record.** The last version's first section (the packet
+    count) keeps its text and gets a rail: its model "was the page's until"
+    the new version.
+  - **The header** gets an "Updated 2026-11-01" note.
+  - **Builders:**
+    - `d450pages/build_hii32.py` and `build_pn31.py`, both starting from
+      `d410pages/`'s published copies;
+    - numbers from `nums23.py` and `nums_d404.py` on the five runs per
+      fixture, plus `recb.json`;
+    - figures from `figs.py pair|whole` and `d402figs.py`.
+
+    All of it is in `runs/_scratchpad_backup_2026-11-01/`, a whole copy of
+    the scratchpad, 809 MB.
+
+### hiipdr: what the production code moves
+
+    quantity                        v31 (h2)   v2.0      +D-447    +D-450 (now)  Cloudy
+    Hbeta [1e36 erg/s]              9.116      9.295     9.285     9.287         10.023
+    case-B H rec [Q(H)]             0.438      0.446     0.446     0.446
+    median T_e, x(H+) > 1/2 [K]     8800       8470      8490      8480
+    T_gas 1 / 2 / 3 pc [K]          9290/8670/8790  8530/8200/8520  ..  8530/8200/8540  9220/8060/8180
+    H/H2 crossing [A_V]             1.395      1.393     1.393     1.393         1.280
+    C+ = C [A_V]                    2.29       2.29      2.29      2.28          2.93
+    1-0 S(1)/Hbeta [1e-4]           7.11       6.91      6.92      6.91          9.24
+    [C II] 158, [O I] 63 / Hbeta    .1540,.0524  .1488,.0489  .1488,.0490  .1487,.0491  .1151,.0066
+    [O I] 6300, C II] 2326 / Hbeta  .0727,.236   .0653,.201   .0656,.201   .0656,.201   .0104,.173
+    largest change, last three it.  1.83%      2.04%     2.01%     1.94%
+    flagged cells                   0          0         0         0
+
+  - **v2.0's gas-grain correction is what moves** (D-420: H2 a collider;
+    D-421: the 4 pi):
+    - the grains cool the ionized gas, most near the star: by 8.2% at
+      1 pc, 5.5% at 2 pc and 2.8% at 3 pc;
+    - the median falls by 3.7% (H-042 measured 3.4% on the same change);
+    - Hbeta rises by 2.0%;
+    - [O I] 6300 falls by 9% and C II] 2326 by 13% (absolute);
+    - [C II] 158 by 1.5% and [O I] 63 by 4.7%;
+    - the H2 lines by 0.7-1.1%;
+    - the PDR gas temperature changes by under 0.6% at every selected depth
+      from A_V 0.70 to 2.90, and the crossing and C+ = C stay where they
+      were.
+  - **D-447 and D-450 are noise here.** Collisional over recombination
+    Lyman alpha is 0.010 (D-447), the silicate comes from an nk file (so the
+    locate fix does not reach it), and charge transfer above 1+ was 3e-4
+    Q(H) in D-449's offline count. Hbeta moves by -0.11% and +0.02%.
+  - **A new divergence, reported:** the ionized gas, which version 31 had
+    0.7% above Cloudy at 1 pc and 6.7-7.7% above at 2-3.3 pc, is now 7.6%
+    below at 1 pc and 1.8-4.7% above further out. Whether Cloudy's own
+    gas-grain exchange at 1 pc matches this has not been measured.
+
+### pn150k: what the production code moves
+
+    quantity                   v30 (h2)  v2.0    +D-447  +D-450 graphite  +charge transfer (now)  Cloudy
+    case-B H rec [Q(H)]        0.969     0.974   0.910   0.929            0.957                   0.982
+    Hbeta / Cloudy's           0.964     0.968   0.904   0.922            0.950                   1
+    H/H2 crossing [A_V]        0.393     0.393   0.391   0.420            0.419                   0.368
+    T_gas A_V 0.20/0.30/0.65   161/46.5/24.7  159/46.6/24.8  154/46.2/24.7  176/48.3/25.6  179/48.4/25.6  172/60.8/36.1
+    1-0 S(1)/Hbeta [1e-4]      9.44      9.42    9.91    10.76            10.39                   8.47
+    [C II] 158, [O I] 63       .197,.263 .196,.261 .207,.278 .217,.277    .211,.267               .337,.175
+    [C I] 609 / Hbeta [1e-4]   1.67      1.65    1.82    1.38             1.34                    2.55
+    CO 2-1 / Hbeta [1e-8]      17.82     17.59   20.09   12.84            12.53                   27.86
+    flagged cells              2         3       6       3                3
+
+  - **v2.0 moves little here:** Hbeta +0.5%, the ionized gas's forbidden
+    lines -0.3 to -2.2%, the PDR not at all.
+  - **D-447** takes 6.6% off Hbeta (the collisional energy was re-emitted
+    partly as Lyman continuum).
+  - **D-450's graphite fix:**
+    - the grains take 0.112 Q(H) (Cloudy 0.112) where they took 0.129;
+    - Hbeta +2.0%;
+    - the FUV reaches deeper: the crossing moves from 0.391 to 0.420 and
+      the gas at A_V 0.20-0.65 is 4-15% warmer;
+    - the H2 lines rise by 9-13% and [C II] 158 by 7%;
+    - [C I] 609 falls by 23% and CO 2-1 by 35%, further from Cloudy.
+  - **D-450's charge transfer:** recombinations 0.929 -> 0.957, Hbeta
+    +3.0%, the H2 lines -3.4 to -3.8%.
+  - **Against Cloudy:**
+    - Hbeta 0.950, which is below version 30's 0.964, because version 30's
+      Hbeta held D-447's Lyman continuum;
+    - the crossing 0.052 mag past Cloudy's, where it was 0.026;
+    - the PDR 0.70-0.80 of Cloudy's temperature at A_V 0.30-0.65;
+    - 1-0 S(1) 1.23x Cloudy's, [O I] 63 1.52x, [C II] 158 0.63x.
+
+    The movement away from Cloudy in the crossing and in [C I] and CO
+    follows the dust's FUV absorption becoming the file's. It is reported,
+    not tuned (CLAUDE.md).
+
+### Corrections made while checking the pages
+
+  - The hiipdr builder's byte-identity assert compared the final run with
+    D-447's. The final run includes charge transfer, so that assert was
+    wrong; it now compares hii-L.
+  - "Four changes since then" became "with corrections of its own, and two
+    fixes have followed (D-447, D-450)": v2.0 is a release, not one change.
+  - The hiipdr input difference was first given as the path and
+    `frontLines` alone. Diffing the inputs showed `iterDamp 0.` too.
+  - The 0.010 collisional/recombination Lyman alpha was cited to D-446. It
+    is D-447's table.
+  - "Where the 40 kK star makes few O2+" was withdrawn as a reason for the
+    small charge transfer on hiipdr: O2+ carries most of the oxygen at
+    1-2 pc. The page now quotes D-449's offline count only.
+  - Cloudy's 0.031 Q(H) is now described as D-449 measured it: hydrogen
+    ionization beyond its photo-, collisional and secondary terms, charge
+    transfer the evident one. It is not a charge-transfer term read from
+    Cloudy.
+  - The "PDR temperature moves under 0.5%" claim was 0.56% at A_V 2.50.
+    The page now prints the computed maximum.
+
+### Not known
+
+  - Why hiipdr's ionized gas at 1 pc now sits 7.6% below Cloudy's (see
+    above): Cloudy's gas-grain heat exchange there has not been compared
+    term by term.
+  - pn150k's remaining 0.025 Q(H) of recombinations (L-90, L-94; pn150k
+    Photon Gap).
+
+Nothing is pushed or installed.
+
+## D-452 - pn150k's escaped SED, MOCASSIN against Cloudy (2026-11-01)
+
+The user (2026-11-01): "I want to see a comparison of cloudy and mocassin
+for the escaped sed for the pn150kk models".
+
+### What was compared, and how
+
+  - **MOCASSIN:** `runs/_d450/pn-LC/output/SED.out` (production, the PN
+    page's model since D-451). F(nu) D^2 [Jy pc^2] summed over all
+    directions, 600 bins from 0.0304 um to 9.1 mm (nuMin 1.001e-5 to
+    nuMax 30 Ryd; the first row, 1.3e-6 Ryd, is below nuMin and empty).
+    nu L_nu = 4 pi pc^2 1e-23 F nu, with the bin energy F widFlx.
+    widFlx is centred (grid_mod.f90:337). It sums to 3.8275e36 erg/s
+    against the file's own 3.8282e36 and L* 3.8282e36.
+  - **Cloudy:** `runs/d396-cloudy-pn/150k.cont` (`save last continuum`).
+    The columns are read from save_do.cpp: incident, trans (attenuated
+    incident), DiffOut (outward diffuse continuum plus outward lines), net
+    trans, reflc, total, reflin, outlin. All are nu L_nu [erg/s] for this
+    luminosity case; the incident column integrates to 3.8283e36 = L*. The
+    escaped spectrum is `total`; a closed sphere has reflc = 0.
+  - **Rebinning.** Cloudy's cells are summed into MOCASSIN's bins by
+    energy (cell energy nu L_nu dln nu, assigned by cell centre). Found
+    while checking the line bins: **MOCASSIN's bin j holds nu_j <= nu <
+    nu_j+1** (locate), not a bin centred on nu_j. C III] 1909 (0.19087 um)
+    sits in the bin labelled 0.19800 um, and Lya in the one labelled
+    0.12394 um. Rebinned with centred edges, every line was one bin off and
+    the line comparison failed (C III] came out at zero). The figures put
+    both codes on a uniform 0.02-dex grid by overlap.
+  - **Lines** are the holding bin less the median of E/dln over six bins
+    either side, times its dln. A first version subtracted the two
+    neighbours' mean, which MOCASSIN's narrow bins next to Lya (0.11963 -
+    0.11972 um) broke: the Lya value came out negative.
+  - **Dust continuum** is a running median over 0.22 dex on the 0.02-dex
+    grid. An argmax "dust peak" was tried and dropped. Unfiltered, a line
+    set it (25.5 um in every run). Filtered, it is 42 against 64 um on a
+    top too flat to mean anything.
+  - **Script and outputs:** `runs/_d452/sed.py OUTDIR MOC_RUN CLOUDY_CONT
+    [LABEL=RUN]`, run with "before D-450=_d447/pn41". Outputs are in
+    `runs/_d452/pn/` (sed.json, sed.log, sed_{whole,bands,uv,ir}.{svg,png}).
+
+### Results (fractions of L*)
+
+    band               MOCASSIN   Cloudy   Cloudy's lines   ratio   dust continuum ratio
+    EUV, >13.6 eV      0          1.5e-7   -                -
+    FUV, 6-13.6 eV     0.067      0.163    0.108            0.41
+    0.21-1 um          0.236      0.256    0.197            0.92
+    1-5 um             0.023      0.023    0.010            1.01    1.01
+    5-25 um            0.071      0.047    0.027            1.51    1.87
+    25-60 um           0.375      0.249    0.048            1.50    1.65
+    60-300 um          0.226      0.232    0.008            0.98    0.97
+    >300 um            0.0018     0.0022   0                0.82    0.89
+    all                1.000      0.973    0.399            1.03
+
+  - **Escaped lines (net):**
+    - Lya: 0.0036 against 0.0814 (Cloudy's own line column 0.0824);
+    - [O III] 5007: 0.0884 against 0.0910 (0.97);
+    - Halpha: 0.0254 against 0.0258 (0.98);
+    - C III] 1909: 0.0041 against 0.0061 (0.68).
+  - **Cloudy's escaped spectrum holds 0.973 L*.** 0.027 L* of the star's
+    luminosity is not in it. MOCASSIN's holds 1.000, as a Monte Carlo
+    following every packet to escape must. Where Cloudy loses it was not
+    examined.
+  - **Lya.**
+    - Cloudy's continuum carries 0.082 L*. Its own emergent line list
+      gives 8.4468 x its emergent Hbeta (log -10.075 at 1 kpc) = 0.022 L*,
+      a quarter of that. Its intrinsic Lya is 21.51 Hbeta = 0.156 L*, and
+      its grain heating by Lya (GraL) 8.71 Hbeta = 0.063 L*.
+    - The continuum's outward lines are attenuated by continuum opacity
+      only (D-291, D-298). That is why its Lya crosses the PDR's H0.
+    - MOCASSIN makes 35.42 Hbeta = 0.244 L* of Lya (with D-447's
+      collisional part) and lets 0.004 out (D-376's destruction in the
+      grains).
+    - Without Lya, the FUV is 0.063 against 0.081 (0.78).
+  - **The warm dust.** 5-60 um is 0.446 against 0.296 (1.50x), and its
+    dust continuum 0.404 against 0.241 (1.67x). The cold dust and the
+    near infrared agree.
+  - **The budget.** MOCASSIN's +0.149 L* at 5-60 um equals Cloudy's extra
+    FUV and 0.21-1 um (0.116, of which Lya 0.079) plus Cloudy's missing
+    0.027, within 0.006 (the cold dust's difference). The reading the
+    numbers suggest: the Lya Cloudy lets out, MOCASSIN's grains absorb and
+    re-emit warm. **Untested:** no run has removed that difference alone
+    (and Cloudy's 0.027 is unexplained).
+  - **D-450 in the escaped light.** Before it (`_d447/pn41`), FUV was
+    0.060 (now 0.067) and 25-300 um 0.614 (now 0.601).
+  - **Beyond 1 mm** MOCASSIN is 0.4-0.5 of Cloudy in the 0.1-dex ratio:
+    3.2e-5 against 5.6e-5 L*, few packets. Whether it is more than noise
+    has not been tested.
+
+### The page
+
+  - **150 kK PN Against Cloudy, version 32** (artifact version 32,
+    https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV#sed):
+    - a current-state section "The escaped spectrum" before "What agrees",
+      holding the band and line tables and the four figures;
+    - a header note;
+    - the section added to the list of current-state parts.
+
+    It is not a history section, so no ordinal moves.
+  - **Builder:** `d450pages/build_pn32.py`, starting from version 31 as
+    built.
+  - **Corrected on the way:** version 31 (D-451) printed "4%%" twice, in
+    the dust-temperature bullet, a literal string written as a format
+    string in build_pn31.py. Both builders now assert that no "%%" is
+    left. The hiipdr page had none: its rebuild is byte-identical to what
+    was published.
+  - The scratchpad was copied again to `runs/_scratchpad_backup_2026-11-01`.
+
+### Not known
+
+  - Where Cloudy's 0.027 L* goes.
+  - Whether MOCASSIN's warm-dust excess is the Lya its grains absorb (the
+    budget's reading) or something else, such as a grain temperature
+    difference in the ionized gas. The page's matched-A_V dust temperatures
+    are 1.01 and 1.05 of Cloudy's at A_V 0.05 and 0.10.
+  - Why C III] 1909 escapes at 0.68 of Cloudy's. Its intrinsic ratio has
+    not been compared for this entry.
+
+## D-453 - Audit of D-445..D-451, and the documentation brought up to date (2026-11-01)
+
+The user (2026-11-01): "I have made some changes to the code in the last days.
+Analyse te changes, audit them and update the documentation as needed."
+
+### What was audited
+
+Production's 29 commits since documentation increment 5 (53eab97..9319ff7,
+D-445 to D-451):
+  - **The code:** D-447's 8d82a56 and D-450's 99f7068 (A), 2755de4 (B),
+    a95f9c7 (C) and 5ab5e8d. They touch eight files: common_mod,
+    emission_mod, grid_mod, interpolation_mod, iteration_mod, mocassinPlot,
+    output_mod and update_mod.
+  - **The records:** DEVLOG D-445 to D-451, doc/pdr-status.md (L-90 to L-94)
+    and the docs pages these commits edited.
+  - **Spot checks of their numbers** against the run directories.
+
+### The code, as read
+
+  - **D-447, `hICollExc`.**
+    - The routine evaluates coolColl's old expression with the same
+      constants and the same order of operations, so the cooling cannot
+      move.
+    - The emitted terms are in the units of their slot: HIRecLines is
+      already scaled to absolute emissivity at the insertion point, in
+      1e-25 erg s^-1 per H. This holds in emission_mod, output_mod and
+      mocassinPlot.
+    - 5/32 = (1/4 - 1/9)/(1 - 1/9) exactly.
+    - Every other copy of the Lya fit was searched for (`0.897`). One is
+      not covered: outputGas's resonance-line table (`resLinesVol`,
+      `resLinesVolCorr`) still sums recombination Lya alone. In one
+      `lineFlux.out` the table and the Lya row then disagree: pn-LC 23.38
+      against 35.42 Hbeta, tp-LC 23.44 against 52.57, hii-LC 23.59 against
+      23.84. Only the report is affected. Recorded as **L-95** (Low).
+  - **D-450 A, the diagnostic.**
+    - Columns 8-13 are photons per H, in 1e-25 s^-1 units: the emissivity
+      sums divided by hcRyd nu.
+    - Column 8's subtraction is right: emissionHI includes gammaHeavies
+      times n_e, and phHeav449 is that sum.
+    - Column 10 includes the 2^3S `correction`, which setDiffusePDF adds
+      to sumDiffuseHeI before the columns are filled.
+    - Column 7 is filled later in the same routine, after the per-cell
+      zeroing, so the zeroing does not lose it.
+    - pdfSrc is zeroed each iteration on every rank and reassembled by the
+      allreduce, whose count follows nPdfSrc. iterateMC's D-232 budget
+      still reads columns 1-6 explicitly.
+  - **D-450 B, `locate`.** The binary search returns n-1 at x == xa(n), and
+    0 and n outside the table, as before. Its callers were audited (below);
+    D-450's design said that "no caller can have relied on 1", and one did.
+  - **D-450 C, charge transfer.**
+    - chex(elem,ion) is the recombination of stage ion+1 (X^(ion)+ + H),
+      so the term reads ionDen(...,ion+1) for ion >= 2, as it should; the
+      units are s^-1 per H0.
+    - Moving the evaluation loop ahead of the balances changes nothing else:
+      no other read of chex precedes it.
+    - The heavy elements' densities are the previous solve's (ionDen is
+      written after the loop over elements). It runs one way, so it cannot
+      cycle (D-402).
+    - In a PDR run the term also enters the chemistry's H -> H+ CRP slot.
+      pdrStep marks every CRP reaction as MOCASSIN's (rxMoc402), so the net
+      it hands back to ionBalance does not count it again.
+  - **Stale comments left by these changes** (each a source edit, so each
+    waits for a planned change; added to L-77):
+    - ionBalance's D-402 comment ("Hydrogen does NOT take the other side of
+      the metals' charge transfer"), which D-450 noted;
+    - the D-358 comment beside it ("Charge exchange ... left out") and
+      common_mod's pdrPhotRate comment, which now miss hydrogen's charge
+      transfer;
+    - thermBalance's unread `Te4` (D-447 noted it);
+    - common_mod's D-232 comment that dust absorptions sample the pooled
+      spectrum (they have not since D-233);
+    - D-450's source comments and variables are tagged D-449, and
+      reemission.out's header says "reemission v1 (D-449)".
+
+### `locate`'s callers (D-449's open question)
+
+A read-only agent went through every compiled `call locate` (and
+linearMap's callers). The main session checked the four calls that can land
+on a table's last entry by reading the code itself. How each table's last
+entry is built matters:
+  - a gas run's nuArray(nbins) is computed (the top of a stepped log mesh, or
+    an edge plus 0.0003);
+  - a dust-only run's is a nuDustRyd.dat value that no constant passed as x
+    equals;
+  - the axes end at exactly 1.0 Rout, or at the density file's value.
+
+Besides L-91, three callers can land on the last entry, each a defect that
+D-450 B fixed, and one corner case got worse:
+  - **The plane-parallel launch** (photon_mod, `initPhotonPacket`, the x and
+    z lookups):
+    - a launch past the last axis point is clamped onto it, so the lookup
+      returned 1 and the midpoint test then gave column 2. The launch range
+      runs half a spacing past the last point, so on a uniform 5-point axis
+      from 0 that is 10% of the stellar packets per axis;
+    - in the face layer this gave column 2 x1.5 and the last column x0.5 of
+      its direct field, per axis;
+    - v1slab, v2slab and ifront use it (planeIonization, nx = nz = 5) and
+      have not been rerun since L-11's runs, so their next runs differ there;
+    - checked here: the clamp, the midpoint step, the fixtures' inputs.
+  - **The `2D` keyword's mapping** (setMotherGrid and resetGrid):
+    - yAxis = xAxis, so the radius of (x(1) = 0, y(ny)) reproduces x(nx) in
+      most grids. The agent's float32 test found 89% of values, and
+      Pythagorean cells such as (13, 17) on 21 points also hit;
+    - the outermost-radius point was mapped onto cell 2. Not in any fixture.
+  - **A star at a coordinate of 1.0** (setStarPosition): the product
+    1.0 x xA(n) is xA(n), and the star went into cell 2. The fixtures' stars
+    are at the origin.
+  - **`getTmin`, worse** (recorded as **L-96**):
+    - its absorption integral is identically zero: it zeroes radField over
+      bins 1..cutoffP and sums over the same bins;
+    - it reads dustEmIntegral with the species index within its component,
+      where the table (dust_mod) and getDustT use the global one;
+    - a row above zero gives Tmin = 1 K whatever the field. A row that is
+      all zero gave 1 K under the intercept and gives 2999 K now. That is
+      possible only with `quantumHeatGrain` and two or more dust
+      components; neither is in any fixture, and L-8 has stochastic heating
+      effectively off.
+  - **Pre-existing, recorded under L-74:**
+    - the Q-file branch converts wavelength to frequency without reversing,
+      so a Q file must list wavelengths in descending order;
+    - mocassinPlot reverses band files unconditionally;
+    - dustData/dustData_POwen/dustData/zb2mod.nk is not monotonic.
+    All three were checked in the code or the file.
+  - **No caller relies on ns == n** at the top entry itself.
+  - **Fixtures:** none apart from pn150k is reached, which fits hii-L being
+    byte-identical and the Lexington rerun below. tp-L's departure was the
+    clock seed (D-450), not locate.
+  - **A slip in the agent's own report:** it gave the launch fraction as
+    hn/(X + h1 + hn). The range beyond the last point is hn/2 of
+    X + (h1 + hn)/2, which gives the 10% it also quoted.
+
+### The records
+
+  - **D-451's index row lacked its status and date cells.** fortref's
+    devlog index skips a row with fewer than three cells, so D-451 was
+    missing from the generated index and a {devlog}`D-451` link would have
+    failed. Completed ("Done | 2026-11-01").
+    The concurrent D-452 (pn150k's escaped SED) has the same two-cell row.
+    It is left to the session that writes it, which may still have it
+    open.
+  - **L-65** still said "No collisionally excited H I line is emitted".
+    Since D-447 the energy is emitted. D-447 also found the fit's
+    coefficients 0.75-0.83 of the 1s-2 rate from standard collision
+    strengths at 1e4 K, which puts L-65's premise in doubt (L-90 lists it
+    as open). The body now says both.
+  - **L-51** gains D-449's second consequence of the re-emission design:
+    the photoelectric dilution, about 0.010 Q(H) on pn150k, and D-450's
+    f = 0.988 within 1e17 cm.
+  - **The pages D-447 and D-450 edited:**
+    - dust.md cited D-449 for the locate fix and ionisation.md cited it
+      for the charge-transfer change. D-449 found both defects; D-450 made
+      both changes.
+    - ionisation.md linked L-92 (closed) where it meant L-93.
+  - **The tutorial** said that v2.0.2 "or later" computes its model as
+    v2.0.1 did. The later code does not. Its graphite is the same Q file
+    as pn150k's (35 radii, the same dust_sizes.dat), and its largest
+    radius sits on the file's last entry, so L-91 applied to it, and D-447
+    applies to any gas model.
+  - **Numbers checked against the runs:**
+    - Hbeta of rel-pn41, pn41, pn-L and pn-LC give x0.9338, x1.0202 and
+      x1.0305 step by step, and 0.951 of Cloudy's 2.778e34 erg/s.
+    - hiipdr's three runs give x0.9989 and x1.0002.
+    - hii-L is byte-identical to runs/_d447/hii31 in its 25 shared output
+      files, apart from summary.out.
+    - pn41f's grid1.out is identical to pn41's.
+
+### The Lexington models on the current code (design and predictions)
+
+The benchmark page shows plain-build runs of pdr-coupling-v2.0-26-gb9c0fb6.
+D-447 and D-450 C reach every gas model. The models take 14-41 s each, so
+they were rerun rather than estimated.
+  - **Binary:** the plain build of 9319ff7, in runs/d453/bin. Its version
+    reads -dirty from uncommitted docs edits only.
+  - **Inputs:** docs/bench/inputs/lex-*, seed 1001, 14 ranks, one after the
+    other (runs/d453/lexq.sh). data/ is unchanged since b9c0fb6.
+  - **Reduction:** docs/bench/lexington.py --run ... --out runs/d453/lexdata.
+    The committed docs/bench/data are not touched.
+
+Predictions, on record in runs/d453/predictions.txt (19:45) before the runs:
+  - HII40, HII20: Hbeta x0.99-1.01, <T[NpNe]> within 1%;
+  - PN150: Hbeta x0.95-0.99 (D-447 -3 to -7%, D-450 C +2 to +3%), <T>
+    within 1.5%, [O III] 5007 within 3%;
+  - PN75: Hbeta x0.97-1.01;
+  - all: rc 0, no NaN, iteration counts within 3 of 18/19/20/13.
+
+(The directory and the file were made as runs/d452 and "D-452". A concurrent
+entry, pn150k's escaped SED, took D-452 at 19:50, so this one became D-453
+and the directory was renamed.)
+
+### Results (2026-11-01 19:45-19:50)
+
+  - **Health:** all rc 0, no NaN, and the same iterations as the base
+    (18/19/20/13).
+  - **HII40:** Hbeta x1.0000, <T> x0.9999; every compared value within 0.4%,
+    apart from [O I] 6300+6363 (x1.019).
+  - **HII20:** within 0.12% everywhere.
+  - **PN75:** within 0.72% everywhere; Hbeta x1.0005.
+  - **PN150:**
+    - Hbeta x1.0036;
+    - <T[NpNe]> x0.9967 and <He+>/<H+> x1.0019;
+    - Lya/Hbeta 23.36 -> 26.74, the collisional part;
+    - lines relative to Hbeta x0.959-0.976: [O II] 3727 0.959, C II 1335
+      0.964, [N II] 0.964, [Ne II] 12.8 um 0.965, Si II] 0.965, N III]
+      0.965, C III] 0.967;
+    - median |dex| from the codes' median 0.059 -> 0.068.
+  - **No row changes its in-range status** in any model.
+  - **Predictions scored:**
+    - HII40, HII20 and PN75: held;
+    - PN150's Hbeta x0.95-0.99: missed (x1.004);
+    - PN150's <T> within 1.5%: held;
+    - [O III] 5007 within 3%: held;
+    - health and iterations: held.
+    D-447's fall and D-450 C's rise are not separated here: no binary with
+    D-447 alone was built.
+  - **Reading.** On pn150k D-447 took 6.6% off Hbeta, but on PN150 the net of
+    the two changes is +0.4%. The two models differ in grid (41^3 against
+    13^3), dust and the PDR behind the front. Which of these accounts for
+    the difference was not examined.
+
+### The documentation changed
+
+  - doc/pdr-status.md:
+    - L-95 added;
+    - L-65 and L-51 extended;
+    - L-77 extended with the stale comments.
+  - doc/dust.md: Q-file radii in builds before D-450.
+  - physics/mocassin:
+    - index: the page scope now names D-447 and D-450, and a list of the
+      defects found since D-444 (L-90 to L-95);
+    - thermal: L-65's premise and L-90;
+    - emission: L-94 at the 2^3S line, the pdfSrc diagnostic and
+      reemission.out, L-95 at the resonance lines;
+    - ionisation: D-450 and L-93, with the pn150k numbers;
+    - dust: D-450, and the effect of the locate fix.
+  - physics/pdr/photorates: hydrogen's rate for the chemistry, and the
+    charge-transfer section (sec:ct).
+  - reference/outputs.yaml: reemission.out cites D-450, and its columns and
+    units.
+  - benchmarks:
+    - index: a section "Since the release" with D-451's numbers;
+    - hiipdr and pn150k: a pointer to it;
+    - lexington: this entry's rerun.
+  - tutorials/dust-gas-pdr: a note that the later code changes the model.
+  - DEVLOG: D-451's index row.
+  - doc/pdr-status.md, after the caller audit: L-91's closure lists the
+    three other callers, L-96 added, L-74 extended (wavelength order);
+    physics/mocassin/grid (the 2D mapping and the plane-parallel launch) and
+    dust (getTmin) link them.
+  - docs/_ext/fortref/tests/test_golden.py: L-37's extent 365-403 ->
+    367-405, moved by the two new index rows above it, L-95 and L-96 (the
+    body byte-identical).
+
+### Checks
+
+  - The strict build (sphinx-build -E -W, docs venv) is clean, apart from
+    fortref.unpushed, which is allowed: the branch is not pushed.
+  - fortref check: only fortref.unpushed.
+  - pytest (fortref, _ext, tools): 125 passed.
+  - The devlog index now lists D-451 and D-453.
+
+### Status
+
+Done (2026-11-01). No source changed; the Lexington runs used a build of
+production's HEAD.
+Not done:
+  - **Source edits**, each waiting for a planned change:
+    - L-95's resonance-line table;
+    - L-96's getTmin;
+    - the stale comments listed under L-77.
+  - **The benchmark data and the tutorial's numbers** regenerated on the
+    current code (D-450 left them for the next release). The pages now say
+    what changed: D-451's numbers, and this entry's Lexington rerun, which
+    is not committed as data.
+  - **The slabs' rerun** (L-11), which would now also differ by the launch
+    fix.
+  - **Separating D-447's and D-450 C's effects on PN150.**
+  - **The merge into h2-model**, which brings D-447 and D-450 there and so
+    needs the builds.
+Nothing is pushed or installed.
+
+## D-454 - SED.out holds only the continuum again; the escaping transported lines go to SEDlines.out (2026-11-01)
+
+The user (2026-11-01, after D-452): "I would like to have the escaped
+SEDs outputed by writeSED to be just continuum as it was previously."
+Asked where the line energy should then go (stay recorded in a separate
+file, a trailer total only, or nowhere), they chose "Separate file". The
+plan was approved as written (~/.claude/plans/iridescent-stirring-pie.md).
+
+### What "previously" was (read in photon_mod.f90)
+
+  - **Before D-292** newPhotonPacket gave a line packet nuP = 0 and lgLine,
+    and energyPacketRun never traced one. Its energy reached no output, so
+    SED.out was the continuum (and its total fell short of L* by the
+    lines).
+  - **Since D-292** (the default since D-307, the only behaviour since
+    D-352), a line with a frequency bin is made by
+    initPhotonPacket(nuP, ..., lgLine = .false., ...). pathSegment
+    transports it like continuum, and on escape it is added to
+    escapedPackets.
+  - So SED.out carries the lines in the bins that hold them. By the
+    running-median excess of runs/_d450/*-LC that is 0.29 of pn150k's
+    SED.out energy and 0.041 of hiipdr's.
+  - At escape a transported line cannot be told from continuum: its lgLine
+    is false.
+
+### Design (the plan)
+
+  - **Line transport stays.** It is physics (D-291, D-292): the lines heat
+    the dust and carry the PDR's FUV field. Only the escape bookkeeping
+    changes, and no keyword is added.
+  - **A packet flag, lgLineTr:**
+    - false in initPhotonPacket;
+    - true in newPhotonPacket for a line drawn with a bin (nuP > 0) that
+      the dust did not destroy. A resonance line D-376 destroys leaves as
+      dust emission, which is continuum.
+    - Carried across the one in-flight rebuild, the dust scattering's
+      initPhotonPacket at photon_mod.f90:2154. Absorption ends a packet,
+      and re-emission makes a new one.
+  - **The seven escape blocks** of photon_mod are each
+    `if (nAngleBins>0) then ... else ... end if` followed by return, with
+    the same increment deltaE(iStar)*weight: one in energyPacketRun's
+    dust-free shortcut and six in pathSegment. Each is wrapped so that a
+    flagged packet adds to escapedLines(nuP) instead.
+  - **escapedLines** is in common_mod: double precision (0:nbins), raw
+    energy in escapedPackets' units [1e36 erg/s], all directions.
+    - It is zeroed in iterateMC where escapedPackets is, and summed over
+      ranks after D-376's counters.
+    - Raw is the right normalisation: escapedPackets' /8 in iterateMC and
+      writeSED's x8 under symmetricXYZ cancel, and pn150k's raw SED total
+      is L*.
+  - **writeSED:**
+    - SED.out's rows and first trailer line are unchanged in format (so
+      mocread.read_sed still reads it);
+    - two trailer lines follow: the line total and continuum + lines;
+    - output/SEDlines.out (unit 76) holds nu, lambda and F_nu D^2 per bin,
+      over all directions, then its total.
+  - **Every other reader of escapedPackets already treats it as
+    continuum:** writeContCube (a continuum cube), totalEscaped (printed),
+    totEscapedPackets (never written).
+  - **Out of scope:** fluorescence_mod is not in the Makefile.
+  - **Rule served:** one reality per quantity. escapedPackets is the
+    escaping continuum, and the line energy is booked once, in its own
+    array.
+
+### Predictions (on record before the runs)
+
+Runs: hiipdr with the new 3D binary on runs/_d450/hii-LC's input
+(`runs/_d454/hii-S`; no source has changed since D-450's LC binaries,
+so hii-LC is an exact baseline), and HII40 (benchmarks/gas, no dust,
+randomSeed 1001 added) with the old and new plain binaries (hii40-A,
+hii40-B).
+
+  - **Byte identity:**
+    - hii-S equals hii-LC in every output file but SED.out: lineFlux*,
+      grid0-3, dustGrid, pdrGrid, convergence, thermBudget, h2Cells,
+      reemission, frontField, resLineEsc, photoSource, tauNu, temperature,
+      ionratio, summary;
+    - hii40-B equals hii40-A the same way.
+
+    The flag draws no random number and changes no packet's path.
+  - **SED.out keeps its rows** (nu, lambda identical). F(new) <= F(old) in
+    every bin, and they are equal wherever SEDlines.out is 0.
+  - **Per-bin closure:** |F_old - (F_new + F_lines)| <= 1e-5 F_old + 1e-30.
+  - **Trailer closure:** continuum + lines equals the old total within
+    1e-5 relative (hiipdr's old total 3076.665e36 erg/s).
+  - **Line share:**
+    - hiipdr: 0.035-0.08 of the old total (0.041 by the running-median
+      excess, a lower bound where lines blend);
+    - HII40: 0.22-0.38. Every line below 13.6 eV escapes at
+      energyPacketRun's shortcut; 41% of a 40 kK blackbody's energy is
+      ionizing, and the gas re-emits most of what it absorbs in lines.
+  - **Health:** rc 0 for all three; hii40-A and hii40-B run the same number
+    of iterations, and hii-S runs 15 as hii-LC did.
+  - **What would change the reading:**
+    - any non-SED file differs: the flag changed a packet's history, so it
+      is back to planning;
+    - the per-bin closure fails in line bins: a block was missed or the
+      flag was lost;
+    - SEDlines.out is 0 for HII40: the shortcut block was not wrapped, or
+      the flag was not set.
+
+### Blocker at the docs checks, and its resolution (2026-11-01)
+
+  - The executor committed the change as 340b9f6: seven escape blocks
+    wrapped (its scan shows all 84 escapedPackets lines inside a D-454
+    else-branch), and the 3D build compiled.
+  - The post-commit fortref check and `sphinx-build -W` then failed on
+    {devlog} D-454: unknown DEVLOG ID, in transfer.md and outputs.yaml.
+  - **Cause:** the D-454 index row written in Part 0 had two cells, not
+    four (no Status, no Entry). fortref's index reader skips rows of fewer
+    than three cells. Its dated-heading fallback expects
+    `## <date> - D-nnn: title`, which is not this file's heading form.
+  - D-452's row had the same defect. It was harmless only because no page
+    cites D-452.
+  - **Resolved** by completing both rows (D-452 Done, D-454 Open), in a
+    DEVLOG-only commit. The plan is unchanged: the executor resumes at
+    `build.sh S` and the runs.
+  - **The executor's adaptations, accepted:**
+    - photon_mod's eleven edits were applied in descending line order;
+    - one more golden moved with the h2LevelModel anchor:
+      test_text_suggestion's 'closest: L1043' became L1057;
+    - iterateMC's end went 3358 -> 3372 and the anchor 1043/1045 ->
+      1057/1059.
+  - **Noted:** a flagged line packet skips energyPacketRun's two origin
+    sanity stops, which escapedLines does not need.
+
+### Results (2026-11-02)
+
+The runs:
+  - **Code:** 340b9f6, on top of the DEVLOG fixes 494c14e. All four
+    flavours and h2Test/h2Slab built (runs/_d454/build-S.log, 23:27-23:28).
+    pytest passed 109; the fortref check showed only fortref.unpushed;
+    `sphinx-build -W` was clean.
+  - **Runs:** one systemd unit (d454-runs), 14 ranks, launched 2026-11-01
+    23:28:59, all rc 0:
+    - hii40-A (old plain binary runs/_d450/bin/mocassin.plain.LC): 25 s;
+    - hii40-B (new): 29 s, both 18 iterations;
+    - hii-S (new 3D binary on hii-LC's input): 15 iterations as hii-LC,
+      34:13, ended 2026-11-02 00:04.
+  - **Comparison script:** runs/_d454/check.py OLD NEW.
+
+  - **Byte identity: held.**
+    - hii-S matches hii-LC in all 27 other outputs: convergence, dustGrid,
+      frontField, grid0-3, h2Cells, h2Pop.bin, ionratio, lineFlux,
+      lineFluxFront, lineFluxH2, lineFluxMol, pdrCoolSp, pdrFUV,
+      pdrFUVspec, pdrGrid, pdrLineEm, pdrRad, pdrReacRates, photoSource,
+      reemission, resLineEsc, tauNu, temperature, thermBudget.
+    - hii40-B matches hii40-A in all 10.
+    - summary.out differs in both pairs, but only in the wall-clock time
+      each iteration finished. The prediction should have excluded those
+      lines; with them stripped the files are identical.
+  - **SED.out keeps its rows: held.** nu and lambda are identical.
+    F(new) <= F(old) everywhere, with equality in every bin without lines
+    (500 of 600 for hiipdr, 483 for HII40).
+  - **Trailer closure: held.**
+    - hiipdr: 2943.2427 + 133.4221 = 3076.6648 against 3076.6653
+      (-1.6e-7).
+    - HII40: 2231.5408 + 845.3934 = 3076.9342 against 3076.9346
+      (-1.2e-7).
+  - **Line share: held.**
+    - hiipdr 0.0434 (predicted 0.035-0.08). The largest bins are Halpha's
+      (0.165 of the line energy), [O III] 5007's, [O III] 88 um's, 52 um's
+      and [O II] 3727's.
+    - HII40 0.2748 (predicted 0.22-0.38). Lya's bin holds 0.56 of it,
+      because without dust nothing destroys Lya.
+  - **Per-bin closure: missed for hiipdr.**
+    - HII40 is within 8.1e-6 everywhere.
+    - hiipdr exceeds 1e-5 F_old in 15 of its 100 line bins, at up to
+      8.1e-5.
+    - The residuals take both signs, occur only in line bins, and are
+      ~1e-4 of each bin's line share; a lost line would leave its whole
+      share (0.04-0.96 of the bin).
+    - They grow with the number of cells summed in single precision in
+      writeSED: 1200 active cells give 8.1e-6, 15,204 give 8.1e-5. The old
+      SED summed continuum + lines per cell in real; the new continuum is
+      summed the same way and the lines come from a double array.
+    - The tolerance was set without that, so this is rounding, not a
+      defect.
+
+What it means:
+  - SED.out is the escaping continuum again, as before D-292. The line
+    transport is untouched: every other output is the same to the byte.
+  - SED.out + SEDlines.out reproduce the old SED.out.
+  - Consequences for analyses:
+    - D-452's comparison used runs/_d450/pn-LC's SED.out, which held the
+      lines. Its numbers stand for that run. A rerun's equivalent is
+      SED.out + SEDlines.out.
+    - runs/_d452/sed.py reads SED.out only. For a run made after this entry
+      it must add SEDlines.out to compare with Cloudy's escaped spectrum
+      (Cloudy's `total` includes the lines).
+  - Noted, not changed: a flagged line packet skips energyPacketRun's two
+    origin sanity stops in the escape branch; escapedLines does not use
+    origin.
+
+Not yet done: the 150 kK PN page's escaped-spectrum section still
+describes MOCASSIN's SED.out as holding the lines, which is true of the
+run it shows. A note there is the user's call. Nothing is pushed or
+installed.
+
+## D-455 - Audit of D-454, and the documentation brought up to date (2026-11-02)
+
+The user (2026-11-02): "I have made some new changes to the code. Analyse
+te changes, audit them and update the documentation as needed." Since
+D-453 production had gained D-454 (b784b1b, 340b9f6, 494c14e, abf2e1f),
+made in another session: SED.out holds only the continuum again, and the
+escaping transported lines go to output/SEDlines.out. No other code
+changed. h2-model is unchanged at 193cf0b.
+
+### The code, as read (340b9f6)
+
+  - **Every escape is covered.** All 84 lines of photon_mod that touch
+    escapedPackets sit inside one of the seven `if (enPacket%lgLineTr)
+    ... else ... end if ! D-454` blocks (an awk scan of the file): one in
+    energyPacketRun's dust-free shortcut, six in pathSegment.
+    fluorescence_mod also books escapes, but it is not compiled.
+  - **The flag is set where the plan says.**
+    - initPhotonPacket is the only constructor and sets lgLineTr false.
+    - Of newPhotonPacket's packet types, only "diffuse" makes line packets.
+      There the flag is set when the line has a bin (nuP > 0) and the D-376
+      draw did not destroy it. A destroyed resonance line takes a nuP from
+      dustPDF and stays unflagged, as dust emission should.
+    - A line without a bin keeps lgLine = .true. and is never traced, as
+      before.
+  - **The flag is kept where it must be.** The dust scattering's
+    initPhotonPacket (photon_mod.f90:2174) is the only in-flight rebuild,
+    and the flag is carried across it. hg changes only the direction. An
+    absorption ends the packet, and the re-emission is a new packet from
+    newPhotonPacket. The frequency never changes in flight, so
+    escapedLines(nuP) is the line's own bin.
+  - **escapedLines:**
+    - it is zeroed with escapedPackets;
+    - it is summed over ranks after the D-376 counters, outside every
+      taskid test, so on every rank;
+    - it is not divided by 8. writeSED does not multiply it by 8, and the
+      two factors cancel for escapedPackets.
+    - mocassinWarm calls writeSED only after MCIterationDriver, so the
+      array is allocated there. writeSED's allocated() guard covers any
+      other caller.
+    - Unit 76 is used nowhere else.
+  - **What else now sees only the continuum** (read, not run):
+    - writeContCube (contCube.out);
+    - equivalentTau.out's SED;
+    - the viewpoints' far-infrared normalisation r_v. Luminosity sums
+      escapedPackets over the bins at lambda >= 150 um, so [C II] 158 um and
+      the other far-infrared lines no longer enter it. Viewpoints are not
+      exercised by the PDR fixtures.
+    - iterateMC's printed totalEscaped;
+    - outputGas's debug-only totEscapedPackets.
+  - **Writers that leave the lines in:** SEDlines.out ignores echo and
+    NoSourceSED (outputs.yaml says so) and has no viewpoint columns.
+  - **Found on the way (inherited, not D-454's).** Under symmetricXYZ,
+    iterateMC divides its running totalEscaped by 8 inside the loop over
+    cells, so the printed "total Escaped Packets" is not a total. The
+    upstream iteration_mod.f90:719 has the same line, and nothing reads the
+    value. Added to L-77.
+  - **Stale comments next to D-454's code** (D-292's; not D-454's):
+    - common_mod's D-292 block says the transport is "DEFAULT OFF" and that
+      the Lyman series is not in the channel;
+    - newPhotonPacket's says linePDF "starts at ilow = 2, so ... Lya is
+      excluded".
+
+    Since D-376, Lya has a slot of its own, and D-454 measured it at 0.56
+    of the line energy leaving HII40. Added to L-77.
+
+### The numbers, reproduced
+
+The check was rerun from runs/_d454 and runs/_d450/hii-LC, with a fresh
+script.
+  - **hiipdr** (hii-S against hii-LC):
+    - rows identical (600 bins);
+    - the 500 bins without lines identical;
+    - F(new) <= F(old) everywhere;
+    - trailer closure -1.612e-7, line share 0.04337;
+    - 15 bins above 1e-5 relative, at most 8.13e-5;
+    - every other output byte-identical but summary.out.
+  - **HII40** (hii40-B against hii40-A):
+    - 117 line bins, the other 483 identical;
+    - closure -1.193e-7, share 0.27475;
+    - largest per-bin residual 8.07e-6;
+    - the same byte identity.
+
+D-454's figures stand as written.
+
+Readers of the new SED.out:
+  - tools/mocread.read_sed reads 600 rows and takes L_e36 from the first
+    trailer line, which is now the continuum: 2943.24 for hii-S, 2231.54
+    for hii40-B.
+  - accessories/mocassin_tools.read_sed reads the same rows.
+  - No reader reads SEDlines.out.
+  - tools/d376_resonance.py and runs/_d452/sed.py read SED.out alone. On a
+    run made after D-454 against one made before, they would report the
+    lines' removal as a change of the spectrum.
+
+### Records fixed
+
+  - **D-454's index row** had five cells: its results were a separate cell
+    before Status. fortref joins the middle cells, so the devlog index was
+    right. A Markdown table of four columns, however, puts the results
+    under Status and "Done" under Entry, and drops the date. Merged into
+    the Decision cell.
+  - **L-77** gains the two items above. Its "Left by this project's
+    changes" list now cites D-453 and D-455.
+
+### Docs changed
+
+  - **physics/mocassin/transfer.md, sec:moc-sed:**
+    - D-454's paragraph is moved after the paragraph that introduces
+      writeSED;
+    - it now says a destroyed resonance line is not flagged, that the lines
+      are raw sums (no /8, no x8), that there are no viewpoint or source
+      columns, and that echo and NoSourceSED do not apply to them;
+    - it gives D-454's closures and shares;
+    - the trailer sentence names the two new lines.
+  - **iteration.md:** steps 5, 7 and 8 of the iteration table: where
+    escapedLines is zeroed and summed, and that SEDlines.out is written.
+  - **emission.md:** escaping line packets are booked in SEDlines.out.
+  - **mocassin/index.md:** the pages' scope names D-454.
+  - **outputs.yaml:** contCube.out is the continuum only since D-454.
+  - **keywords.yaml:**
+    - continuumCube: the lines were in the cube until D-454;
+    - echo and NoSourceSED: they do not restrict SEDlines.out.
+
+    All three entries gain `devlog: [D-454]`.
+  - **user-guide/python.md:** read_sed's L_e36 is the continuum since
+    D-454, and no reader reads SEDlines.out.
+  - **getting-started/quickstart.md:** SED.out is the continuum after
+    v2.0.2, with the lines in SEDlines.out.
+  - **tutorials/dust-gas-pdr.md:** the note on later code adds D-454.
+  - **benchmarks/index.md, "Since the release":**
+    - D-454 changes only SED.out;
+    - hiipdr is byte-identical otherwise;
+    - no page reads a gas model's SED.out, and the dust shells emit no
+      lines.
+  - **doc/pdr-status.md:** L-77 as above.
+
+### Checks
+
+  - fortref check: 1845 references, only fortref.unpushed.
+  - pytest (docs/_ext/fortref/tests, docs/_ext/tests, tools/tests): 125
+    passed.
+  - `sphinx-build -E -W --keep-going`, with only fortref.unpushed
+    suppressed: clean.
+  - The devlog index and the limitations page list D-455.
+  - No source, Makefile or tools file changed, so nothing was built or run
+    beyond the scripted comparison above.
+
+### Status
+
+Done. Open for the user:
+  - **150 kK PN Against Cloudy v32**, "The escaped spectrum": a note that
+    the page's SED.out predates D-454 (D-454 left this to the user).
+  - **Planned tools/ changes**, if wanted:
+    - a SEDlines.out reader in mocread;
+    - runs/_d452/sed.py and tools/d376_resonance.py adding SEDlines.out
+      for runs made after D-454.
+  - **Planned source edits** for the stale comments of L-77.
+  - **The h2-model merge**, which would bring D-447, D-450 and D-454 there.
+
+Nothing is pushed.
+
+## D-456 - A uniform dusty sphere in Cloudy and MOCASSIN: the escaped SED and the energy budgets without a PDR (2026-11-02)
+
+The user (2026-11-02): "Lets work on the differences found in the dust output
+when compring cloudy and mocassin. Run a uniform spherical gas plus dust model
+using both codes and compare the results. Investigate energy conservation
+aspects in both runs. Does the difference in SED that appeared in the models
+with PDR show up here as well?"
+
+### The question
+
+D-452 compared pn150k's escaped SED (runs/_d450/pn-LC against
+runs/d396-cloudy-pn) and found:
+  - 5-60 um MOCASSIN 1.50x Cloudy's (dust continuum 1.67x), while 1-5 um and
+    60-300 um agree;
+  - Lya escaping at 0.004 L* (MOCASSIN) against 0.082 L* (Cloudy's
+    continuum), and the 6-13.6 eV band at 0.41;
+  - Cloudy's escaped spectrum holding 0.973 L*, MOCASSIN's 1.000.
+
+Two readings were left untested: the Lya that Cloudy lets out, MOCASSIN's
+grains absorb (D-376) and re-emit warm; or something in the PDR. A sphere
+with the same star, gas and grains and no PDR separates them: what persists
+belongs to the ionized gas and its dust.
+
+### The model (runs/_d456)
+
+  - **pn150k's star, gas and grains:** 150 kK blackbody, L* = 10^36.583 erg/s,
+    R_in 1e16 cm, n_H 1e3 cm^-3, GASS with Cloudy's element set (D-303's trim
+    on both sides), graphite (Cloudy's `grains ISM graphite`, MOCASSIN's 35
+    sizes of grph-avg.cat with MdMg 2.4827e-3).
+  - **Cut at the H+ front:** R_out = 4.5198e17 cm (0.1465 pc), where pn150k's
+    Cloudy model (150k.ovr) falls below 4000 K, Cloudy's default stopping
+    temperature. There x(H+) = 0.027 and A_V(extended) = 0.137; the front
+    (x(H+) = 0.5) is at 0.1280 pc and the He2+ front at 0.0888 pc.
+  - **Cloudy, `cl-dust/ds150.in`:** 150k.in less the PDR. There is no H2
+    database, no cosmic rays and no turbulence, since MOCASSIN's plain build
+    has none of them. `stop radius 4.5198e17 linear` with
+    `stop temperature linear 3K`, so that the radius stops it, and `iterate to
+    convergence`. Saves: continuum, the grain continuum (thin), overview,
+    heating, cooling, grain temperature and heating, lines.
+  - **Cloudy's dust-free twin, `cl-free/gs150.in`:** the grains command
+    removed, the gas identical, the same radius. It isolates Cloudy's energy
+    closure from its grains. It is slightly matter-bounded, which the
+    transmitted column records.
+  - **MOCASSIN, `moc-dust`:**
+    - the plain flavour (no PDR at all), runs/_d454/bin/mocassin.plain.S (built
+      from 340b9f6; `git diff 340b9f6 HEAD -- source Makefile` is empty);
+    - pn150k's input less the pdr keywords, with R_out and edges 4.5198e17;
+    - 41^3 symmetricXYZ, 6e6 packets, nbins 600;
+    - randomSeed 1001, and frontLines for reemission.out;
+    - a cap of 30 iterations, stopping on convTotals 0.02.
+  - **Queue (`queue.sh`, one systemd unit):** the two Cloudy runs side by
+    side, then MOCASSIN at 14 ranks. No more than 14 processes run at once.
+
+### What each code can show about energy
+
+  - **MOCASSIN:**
+    - **Packets:** every packet escapes, so SED.out + SEDlines.out must be L*.
+    - **The gas:** reemission.out holds, per cell, the power the gas absorbed
+      from the packets beside the emission its temperature and ionization
+      give (D-450). Summed, that is the thermal and ionization closure.
+    - **The dust:** it re-emits what it absorbs by construction, and the
+      [D376] lines count the destroyed resonance-line packets.
+  - **Cloudy:**
+    - **The escaped spectrum:** the escaped total against L*, from the
+      `save continuum` columns (transmitted, diffuse, lines).
+    - **Its .out:** the ENERGY BUDGET line (heating against cooling), the
+      grain heating GraT, GraI, GraL, GraC and GraD, and the thin grain
+      continuum.
+    - **Its own check reports nothing on this:** the check of the radiated
+      total against the luminosity for a sphere is compiled out
+      (`if( 0 && geometry.lgSphere ...` in energy.cpp:341).
+
+### Predictions (on record before any run)
+
+  - **P1, MOCASSIN's packets:** SED.out + SEDlines.out = L* within 1e-4.
+  - **P2, MOCASSIN's gas:** the emission summed over reemission.out within
+    0.99-1.02 of the absorbed power. D-450 found the Monte Carlo at
+    1.004-1.012 of the emission.
+  - **P3, Cloudy's closure:** ds150 and gs150 both escape >= 0.99 L*. Low
+    confidence. The basis is a coincidence in pn150k: 0.024 L* of the
+    non-ionizing incident was absorbed beyond the front, against the 0.027
+    missing. If the sphere closes, the PN's loss is beyond the front. If
+    ds150 alone falls short, it belongs to the grains, and if both do, to
+    the ionized gas.
+  - **P4, Lya:** MOCASSIN lets out <= 0.01 L*, Cloudy's continuum
+    0.05-0.12 L*. The 6-13.6 eV band is therefore at MOCASSIN/Cloudy <= 0.6.
+  - **P5, the warm dust: the PN's difference persists.** The dust continuum
+    above 5 um is MOCASSIN - Cloudy = +0.08 to +0.20 L*, at a ratio of
+    1.3-2.2. MOCASSIN's dust continuum plus its escaped 6-13.6 eV is within
+    0.03 L* of Cloudy's, i.e. the Lya is rerouted.
+  - **P6, optical lines:** [O III] 5007 and Halpha escape at 0.93-1.03 of
+    Cloudy's, and 0.21-1 um at 0.88-1.00. Hbeta intrinsic is 0.93-1.00
+    (pn-LC 0.950).
+  - **P7, the dust temperature** in the ionized gas is within 5% of Cloudy's
+    at a matched radius.
+  - **P8, the fronts:** the H+ front (x = 0.5) is within 3% of Cloudy's
+    radius.
+  - **P9, the near infrared:** 1-5 um agrees within 10%.
+
+### What would change the reading
+
+  - **No 5-60 um excess here:** the PN's excess belongs to the PDR, or to
+    the neutral side of its front, and not to the Lya of the ionized gas.
+  - **An excess larger than the Lya difference:** another channel, such as a
+    grain temperature or opacity difference in the ionized gas.
+  - Matching the excess to the Lya difference is still only consistency.
+    The run that tests it removes MOCASSIN's D-376 destruction alone. That
+    is a code change, and it is not part of this entry.
+
+### First results: Cloudy's closure (2026-11-02, 11:31-11:41)
+
+Both Cloudy spheres stopped at the outer radius after 3 iterations (ds150
+73 s, gs150 56 s).
+
+    escaped / L*        trans   diffuse (DiffOut)   lines (outlin)   total
+    ds150 (dusty)       0.0331  0.9439              0.5766           0.9770
+    gs150 (dust-free)   0.0411  0.9027              0.6943           0.9439
+    pn150k (D-452)      0.0159  0.9569              0.3987           0.9728
+
+**P3 fails.** Cloudy's deficit is not beyond the front: it is 2.3% with
+grains, 5.6% without them and 2.7% with the PDR. The coincidence P3 rested
+on (0.024 L* of the non-ionizing incident absorbed beyond the front) meant
+nothing.
+
+**The lines in Cloudy's saved continuum fall short of its own line list.**
+In gs150 nothing absorbs them: each line's emergent and intrinsic values
+agree to 1e-4 L*. Against the line list, the continuum holds, for the lines
+that sit alone in their cells:
+  - O IV 25.9 um: 0.906;
+  - S IV 10.5 um: 0.917;
+  - [O III] 51.8 um: 0.946;
+  - He II 1640: 0.911;
+  - [N II] 6583: 0.975;
+  - Lya: 0.974.
+
+A window of +-10 cells recovers nothing. The shortfall grows the further in
+the line is made, and nothing absorbs at 26 um. So it is bookkeeping.
+
+**The mechanism, read in the source (c25.00).** The zone loop is ZoneStart,
+RT_diffuse, RT_continuum, ZoneEnd (cloudy.cpp:231-262).
+  - **ZoneStart** sets Radius to the zone's outer edge r_o.
+    - It puts the zone-centre dilution (r_i/r_m)^2 into `opac.tmn`
+      (zone_startend.cpp:207).
+    - It sets BeamOutOut = r_o dr/(r_o + 2 dr) (zone_startend.cpp:529).
+  - **RT_diffuse** adds a transferred line's photons to `outlin` with
+    BeamOutOut x tmn (lines_service.cpp:567-572).
+  - **RT_continuum** multiplies `outlin` by ExpZone (r_i/r_o)^2
+    (rt_continuum.cpp:228).
+  - **ZoneEnd** divides only the incident beam by tmn.
+  - **The result:** a zone's line emission reaches its outer edge as
+    dr r_o/(r_o+2dr) (r_i/r_m)^2 (r_i/r_o)^2 of its emissivity, where the
+    shell gives (r_o^3 - r_i^3)/(3 r_o^2). That is a loss of about 4 dr/r per
+    zone, against its own emission only. The diffuse continuum is added
+    after the dilution with tmn alone and is right to second order.
+  - **Cloudy's zones** in the inner nebula are near its sphericity cap,
+    dr = 0.04 r (radius_next.cpp:972). The median dr/r is 0.035 within
+    0.03 pc, 0.021 at 0.06-0.09 pc and 0.001 near the front.
+  - **The zone factors, weighted by pn150k's per-zone emissivities**
+    (150k.emis; the same ionized structure; `ana/cloudy_dilution.py`),
+    give the measured shortfalls:
+    - O IV 25.9 um 0.906 (measured 0.906);
+    - S IV 0.918 (0.917);
+    - [O III] 51.8 um 0.948 (0.946);
+    - He II 4686 0.916 (He II 1640 0.911);
+    - [N II] 6583 0.976 (0.975).
+  - **Cloudy's own check** of the radiated total against the luminosity for
+    a sphere is compiled out (energy.cpp:341, `if( 0 && ...`).
+  - The same beam is the outward line field that ionizes and heats the
+    zones further out (cont_gammas.cpp), so absorbed line energy is
+    under-counted too.
+
+This is consistency, not yet a test.
+
+### Test queued: Cloudy's dust-free sphere at three zone limits (predictions before the runs)
+
+Three runs in `queue2.sh`, after MOCASSIN's run (the 14-process limit). Each
+saves per-zone emissivities of 18 lines:
+  - **cl-free-e:** gs150 again;
+  - **cl-free-d1:** `set drmax 0.01 relative linear`;
+  - **cl-free-d025:** `set drmax 0.0025 relative linear`.
+
+  - **Q1:** gs150e reproduces gs150's escaped total within 5e-4. Its own
+    zone factors predict each isolated line's continuum/list ratio within
+    0.01.
+  - **Q2, dr <= 0.01 r:** O IV 25.9 um at 0.96 +- 0.01 of the list, and the
+    escaped total at 0.970-0.985 L*.
+  - **Q3, dr <= 0.0025 r:** O IV >= 0.985, and the escaped total >= 0.99.
+    If the lines recover and the total does not, the rest of the deficit
+    has another cause.
+  - **Q4:** the model itself does not move. Intrinsic Hbeta and the line
+    list's [O III] 5007 and O IV stay within 1% across the three.
+
+### The zone-limit runs, first pass (2026-11-02, 11:55-11:58)
+
+  - **cl-free-e** (259 zones, dr/r up to 0.040): escaped 0.9439, as gs150.
+    Q1 holds. The zone factors predict every isolated line's
+    continuum/list ratio within 0.002:
+    - He II 1640: 0.912 measured, 0.913 predicted;
+    - [O III] 5007: 0.946 and 0.946;
+    - S IV 10.5 um: 0.917 and 0.917;
+    - O IV 25.9 um: 0.906 and 0.904;
+    - [O III] 88 um: 0.947 and 0.948.
+
+    Lya's cell also holds He II 1215, and [S III] 9531's holds other lines;
+    both are left out.
+  - **cl-free-d1** (489 zones, dr/r up to 0.010): escaped 0.9666, against
+    Q2's 0.970-0.985. O IV is at 0.963, against 0.96 +- 0.01. Every
+    isolated line again matches its zone factors within 0.002 ([O III] 5007
+    0.964/0.964). The line list moves 0.6-1.1% (Hbeta +0.9%, [O III] +1.1%),
+    at Q4's limit.
+  - **cl-free-d025 did not reach the outer radius.** It stopped at Cloudy's
+    default 1400 zones, at 0.1067 pc with x(H+) = 0.98, matter-bounded
+    (Hbeta 0.0045 L* against 0.0080). It is no test of the total.
+    - Its lines are at 0.989-0.992 of the list, against 0.990 from the zone
+      factors.
+    - This truncated model lets out 1.024 L*: 0.34 L* of ionizing star, and
+      0.129 L* of ionizing diffuse emission (0.053 continuum, 0.076 lines).
+      An excess over L* in a matter-bounded Cloudy sphere is consistent
+      with the diffuse ionizing emission being counted both on the spot and
+      in the escaping beam. This is not tested.
+  - **Rerun:** cl-free-d025 with `set nend 4000` added. Q3 stands as
+    written (escaped >= 0.99 L*, O IV >= 0.985). The first pass's files are
+    kept as `cl-free-d025/trunc1400/`.
+
+### Results: MOCASSIN's sphere (runs/_d456/moc-dust, 11:30-11:55)
+
+  - **The run.** It converged on the integrated test at iteration 15 (1.8%,
+    Ar+), in 23:19 per rank at 14 ranks. 3 cells are flagged black, and
+    "balance not reached" appears 30 times in the log.
+  - **Structure (`ana/profiles.py`):**
+    - the H+ front at 0.1275 pc against Cloudy's 0.1279, the He2+ front at
+      0.0883 against 0.0880 (P8 holds);
+    - T_e within 2-5% at every radius;
+    - Hbeta 0.944 of Cloudy's intrinsic.
+  - **Escaped SED (`ana/sed.py`, D-452's script plus SEDlines.out; L*):**
+
+        band          MOCASSIN  Cloudy   ratio   own continuum: MOC  Cloudy  ratio
+        FUV 6-13.6 eV 0.151     0.314    0.48
+        0.21-1 um     0.349     0.366    0.95
+        1-5 um        0.025     0.024    1.02
+        5-25 um       0.073     0.045    1.62    0.042  0.018  2.39
+        25-60 um      0.323     0.175    1.85    0.273  0.127  2.15
+        60-300 um     0.077     0.051    1.50    0.072  0.046  1.58
+        all           1.000     0.977
+
+    (MOCASSIN's bins placed by their centre, as runs/_d452/sed.py does;
+    SED.out's lambda column is the bin's long-wavelength edge, and placing
+    by it moves one bin, ~0.008 L*, across 25 um)
+
+    - Since D-454 both codes give their continuum apart from their lines, so
+      the dust columns are each code's own continuum. Beyond 5 um:
+      MOCASSIN 0.387, Cloudy 0.190 (2.03x).
+    - Both dust spectra peak at 42 um in nu L_nu.
+    - Lines: [O III] 4959+5007 escape at 0.129 against Cloudy's 0.124 in
+      its continuum (0.129 in its line list); Halpha 0.98, C III] 0.91.
+    - Beyond 1 mm MOCASSIN's free-free tail is 0.3-0.5x Cloudy's, as in
+      pn150k (D-452). It carries ~1e-4 L* and was not examined.
+  - **Lya (`ana/budget.py`):**
+    - MOCASSIN makes 0.240 L* (recombination 0.160 + collisional 0.081).
+      About 0.022 escapes: SEDlines.out's 1197-1239 A bin holds 0.0274 of
+      lines, less He II 1215 and O V] 1214/1218 at their lineFlux.out
+      strength (0.0058; `ana/sed.py`). The rest, about 0.218, goes into the
+      grains.
+    - [D376]: 0.871 of all resonance-line packets destroyed in the last
+      iteration (pn-LC 0.956). The recombination-Lya row of the resonance
+      table goes 23.38 -> 1.56 Hbeta.
+    - Cloudy makes 0.220:
+      - 0.180 leaves its zones, and GraL 0.040 is destroyed in them;
+      - its continuum carries 0.168 out, so 0.012 is lost to dust on the
+        way;
+      - its own emergent line list gives 0.075;
+      - its dust-free twin makes 0.244, all escaping.
+    - **The ledger:**
+      - Lya into grains: MOCASSIN ~0.218, Cloudy ~0.052, a difference of
+        ~0.17 L*;
+      - dust continuum difference: +0.197;
+      - far-UV difference: -0.163;
+      - the remaining ~0.03 of dust: C IV 1549 and the radiation field.
+        MOCASSIN makes C IV at 3.09 Hbeta, against Cloudy's ~1.2 (not
+        examined), and destroys 62% of it.
+  - **The grains:**
+    - MOCASSIN's are warmer at matched sizes (6, 29, 206 nm): 5-12% within
+      0.08 pc, and 16-29% at 0.11-0.127 pc, where the Lya heating peaks in
+      the partly neutral gas. **P7 fails.**
+    - Its temperature solution (summary.out's dust budget) gives Lya 0.540
+      of the grain heating, C IV 0.035 and the field 0.422. On ~0.382 L* of
+      dust emission that is ~0.206 L* of Lya, against ~0.218 that the
+      packets put in. They agree within 6%, and C IV within a few percent.
+      Since D-233 the dust re-emits exactly the packets it absorbed, so this
+      checks the dust spectrum's shape, not its energy.
+    - The idea that the dust/gas split counts Lya twice is ruled out by
+      reading the code: D-233 samples dustPDF for dust absorptions and
+      recPDF for gas absorptions.
+  - **Energy:**
+    - SED.out + SEDlines.out = 0.56026 + 0.43973 = 1.00001 L* (P1 holds);
+    - the gas re-emits 0.994 of the power the packets gave it (1.49 L*),
+      i.e. the Monte Carlo is at 1.006 of the emission, as at D-450 (P2
+      holds).
+
+### Predictions scored
+
+  - P1 holds (1e-5).
+  - P2 holds (0.994).
+  - **P3 fails:** 0.977 and 0.944. Cloudy's loss is in its outward line
+    beam (below), not beyond the front.
+  - **P4 fails in both numbers:** MOCASSIN lets out ~0.022 (predicted
+    <= 0.01) and Cloudy 0.168 (predicted 0.05-0.12). Its consequence holds:
+    the far UV at 0.48 (<= 0.6).
+  - P5 holds at its upper edge: +0.197 L* (+0.08 to +0.20) at 2.03x
+    (1.3-2.2). MOCASSIN's dust plus far UV is 0.538 against Cloudy's 0.504,
+    within the 0.03 (0.011 counting Cloudy's missing 0.023).
+  - P6 holds for Halpha (0.98), 0.21-1 um (0.95) and Hbeta (0.944).
+    [O III] is 1.04 against Cloudy's continuum (predicted 0.93-1.03), and
+    1.00 against its line list.
+  - **P7 fails** (5-29% warmer).
+  - P8 holds (0.3%).
+  - P9 holds (1.02).
+
+**Answer to the question:** yes. The PDR model's SED difference appears
+without a PDR, and it is larger:
+  - 5-60 um is 1.6-1.85x Cloudy's (continuum 2.2-2.4x), against pn150k's
+    1.50x (1.67x);
+  - 60-300 um now also differs (1.5x), because every grain here sits in
+    the ionized gas;
+  - the far UV is at 0.48x.
+
+It follows Lya. The attribution is consistency within the ledger; the run
+that tests it removes D-376's destruction alone, which is a code change.
+
+### Results: Cloudy's line beam at three zone limits (`ana/cloudy_zones.py`)
+
+    dust-free sphere      zones  max dr/r  escaped  lines in continuum  isolated lines, continuum/list (zone factors)
+    gs150e                259    0.040     0.9439   0.6943              0.906-0.976 (0.904-0.976)
+    gs150d1               489    0.010     0.9666   0.7153              0.961-0.977 (0.961-0.977)
+    gs150d025 (nend 4000) 1584   0.0025    0.9884   0.7360              0.989-0.992 (0.990)
+
+  - **The deficit follows the zones:** 0.056 -> 0.033 -> 0.012 L*. At the
+    finest zoning, the lines' remaining ~1% (~0.007 L*) is most of what is
+    left.
+  - **Each isolated line's continuum/list ratio** matches its own run's
+    zone factors within 0.002 at every limit. The figure is
+    `ana/out/cloudy_zones.svg`.
+  - **The same factors explain pn150k's (D-452) infrared lines** within
+    0.004. Measured against predicted:
+    - O IV 25.9 um: 0.905 and 0.906;
+    - S IV: 0.915 and 0.918;
+    - [O III] 51.8 um: 0.946 and 0.948;
+    - [O III] 88 um: 0.948 and 0.949;
+    - [Ne III] 15.6 um: 0.955 and 0.959;
+    - [N III] 57 um: 0.945 and 0.947;
+    - [Ne V] 24.3 um: 0.891 and 0.895.
+  - **Q1 holds.** Q2 holds for O IV (0.963), while its total 0.967 is just
+    under 0.970. Q3 holds for O IV (0.992), while its total 0.988 is just
+    under 0.99.
+  - **Q4 fails narrowly.** Across the three limits Hbeta rises 1.5%,
+    [O III] 5007 1.8% and O IV 1.0%. Cloudy's gas heating TotH rises 1.3%
+    too: the outward line beam is also the field the outer zones absorb, so
+    it heats and ionizes them more as its loss shrinks.
+
+**So Cloudy's escaped spectrum falls short in a sphere because of its line
+bookkeeping, not a physical absorber.**
+  - **The mechanism:** a transferred line's outward beam is diluted three
+    times within the zone that emits it. About 4 dr/r of the zone's line
+    emission is lost there, with Cloudy's default zones reaching dr/r = 0.04.
+  - **The consequences:**
+    - its saved continuum understates its lines by 2-11%, more for lines
+      made further in, against its own line list;
+    - its outward line field is too weak by the same factors;
+    - D-452's line and band ratios against Cloudy's continuum carry this
+      bias;
+    - pn150k's missing 0.027 L* is consistent with it, though that total
+      was not tested by itself.
+  - **Advice for comparisons:** compare lines against Cloudy's line list,
+    not against its saved continuum. Or run Cloudy with
+    `set drmax 0.0025 relative linear` and `set nend 4000`, which brings
+    the continuum within 1%.
+
+### Status
+
+Done. Not known:
+  - **Lya's physical escape fraction** from a dusty ionized nebula with a
+    neutral edge. MOCASSIN gives ~0.09; Cloudy gives 0.76 in its continuum
+    and 0.34 in its line list. Neither transfers Lya resonantly. The run
+    that tests the attribution of the dust excess removes D-376's
+    destruction alone, which is a code change.
+  - **Two other gaps:**
+    - C IV 1549: MOCASSIN makes it at 3.09 Hbeta, Cloudy at ~1.2;
+    - MOCASSIN's radio free-free tail is 0.3-0.5x Cloudy's.
+  - **The matter-bounded excess of the truncated run** (1.024 L*).
+  - **Whether the line beam is all of pn150k's missing 0.027 L*.**
+
+The page: **Dusty Sphere Against Cloudy**, https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV (version 1). Its builder is in runs/_d456/page (build.py, shell.py), with the shell taken from 150 kK PN Against Cloudy v32. The analysis scripts are in runs/_d456/ana, and their outputs and logs in runs/_d456/ana/out.
+
+## D-457 - What Cloudy's documentation says about Lya escape (2026-11-02)
+
+The user (2026-11-02), after D-456: "is there anything in Cloudy
+documentation that comments on this Lya escape?"
+
+Read in Cloudy c25.00's documentation (`~/software/cloudy-c25.00/docs`, the
+PDFs and their LaTeX sources; PDF page numbers).
+
+### What it says
+
+  - **The sphere is expanding unless told otherwise** (Hazy 1, "Sphere
+    expanding or static", pp. 141-142).
+    - With `sphere`, the default `expanding` assumes that line photons
+      escaping from the illuminated face are Doppler-shifted away from the
+      absorbing material on the far side of the shell, "if the expansion
+      velocity exceeds the Doppler width by large amounts".
+    - With `static`, line photons "interact on both sides so that even line
+      photons produced at the illuminated face of the cloud will be strongly
+      trapped by material on the far side".
+    - With `static`, Lya's inward optical depth starts at 1e5 (otherwise
+      1e-20), and the total line optical depths are twice the computed ones.
+  - **The same, on Lya specifically** (Hazy 2, Problems, "Convergence
+    problems with dust-free static sphere", p. 128): "The default geometry
+    when the sphere command is entered is for lines to freely escape after
+    crossing the central hole due to some level of expansion. In a static
+    spherical geometry ... the total Lya optical depth at the illuminated
+    face of the shell will be very large ... The line is destroyed when dust
+    is present."
+  - **How the escape and destruction are computed** (Hazy 2, line transfer,
+    p. 70 on).
+    - Escape probabilities P = 1/(1 + b(tau) tau) with Hummer & Kunasz
+      (1980) incomplete redistribution, for the Lya lines of H I, He I and
+      He II and for C IV 1549. The text notes that the published b(tau)
+      disagree "sometimes by more than a factor of 2".
+    - The destruction probability is X_c F(X_c), where X_c is the ratio of
+      continuous (dust) to total opacity at line centre (Hummer 1968).
+    - The inward fraction is P(tau)/[P(tau) + P(T - tau)].
+  - **What each line list holds** (Hazy 2, "Line intensities in a dusty
+    cloud", p. 40, and the output chapter).
+    - The intrinsic intensities include "destruction by local background
+      opacities such as grains". Cloudy's intrinsic Lya (0.180 L* in
+      ds150) is therefore already net of GraL, as D-456 read it.
+    - The emergent intensities add absorption and scattering away from where
+      the line forms.
+    - GraL is "grain heating due to destruction of Lya" (p. 112).
+  - **An example where dust destroys most Lya** (QuickStart, p. 33). In the
+    Orion blister example, Lya/Hbeta "would be about 34" without dust;
+    "actually Lya is predicted to be only about twice as strong as Hbeta
+    because Lya is efficiently absorbed by dust". That is an open geometry
+    with the molecular cloud behind the H+ layer.
+  - **Continuum transfer** (Hazy 2, pp. 51-52).
+    - Absorption attenuates the continuum as exp(-dtau_abs) in both
+      geometries.
+    - The default outward-only approximation sends the escaping diffuse
+      radiation outward (all of it for a sphere).
+    - "Great care is taken to ensure that each absorption mechanism is
+      balanced by a reemission process".
+
+### What it does not say
+
+  - Nothing on the escaped Lya in `save continuum` differing from the
+    emergent line list (D-456's 0.168 against 0.075 L*).
+  - Nothing on the in-zone dilution of the outward line beam (D-456), or on
+    the sphere energy check being compiled out.
+
+### What it means for D-452 and D-456
+
+  - **Our Cloudy runs use the default expanding sphere**: pn150k (D-452),
+    ds150 and gs150 (D-456). MOCASSIN's nebula has no velocity field, so the
+    matching Cloudy geometry is `sphere static`.
+  - **The reading this suggests (a hypothesis, not measured):**
+    - Lya's line-centre optical depth across ds150 is 7.5e6, mostly in the
+      H0 front (pn150k: 5.9e8 with its PDR). Seen from the ionized gas, the
+      outward direction is thick and the inward one thin.
+    - So most Lya would leave inward. Under `expanding` it crosses the
+      central hole untrapped and joins the outward beam (outline_base_bin's
+      "inward beam that goes out since sphere set"), attenuated by
+      continuum opacity only.
+    - That would make Cloudy's 0.168 L* largely a consequence of the
+      expanding assumption. Under `static` the far side traps it, and
+      Hazy's own statement is that it is then destroyed by the dust.
+  - **The test:** ds150 with `sphere static` (about 1 minute), reading
+    GraL, the intrinsic, emergent and continuum Lya, the dust continuum
+    and the closure. The Lya inward fraction can be printed with
+    `print line inward`. Not run: the user asked a question.
+  - The documentation does not settle which escape is physical. It confirms
+    that Cloudy's answer depends on a geometry assumption that MOCASSIN does
+    not make. Hazy notes the escape-probability fits themselves disagree by
+    up to 2x.
+
+### The test (the user: "run it"), predictions on record before the runs
+
+Two Cloudy runs in `runs/_d457`, side by side (2 processes):
+  - **cl-static/ds150s:** ds150 with `sphere static`;
+  - **cl-expand/ds150e:** ds150 unchanged, as a control.
+
+Both add `print line inward`, which only prints. The control should
+reproduce ds150 and gives the Lya inward fraction under `expanding`.
+
+  - **S1, the control:** ds150e reproduces ds150's escaped total (0.9770)
+    and Lya numbers to 1e-4. Its Lya inward fraction is >= 0.8.
+  - **S2, Lya under `static` is destroyed far more:**
+    - GraL rises from 0.040 to >= 0.12 L*;
+    - the continuum's Lya falls from 0.168 to <= 0.05 L*;
+    - the intrinsic (zone-escaping) Lya falls from 0.180 to <= 0.08;
+    - the emergent line list's falls from 0.075 to <= 0.03.
+  - **S3, the dust:** Cloudy's own continuum beyond 5 um rises from 0.190
+    to 0.28-0.36 L*. MOCASSIN's 0.387 is then 1.05-1.4x it, against 2.03x
+    for ds150. The 6-13.6 eV band rises to 0.6-1.0 of Cloudy's (0.48 for
+    ds150).
+  - **S4, the structure does not move:**
+    - the H+ and He2+ fronts within 1%;
+    - T_e within 2% at the radii D-456 tabulated;
+    - Hbeta and [O III] 5007 intrinsic within 2%.
+
+    The trapped Lya raises n=2 of H, but with dust its density stays
+    limited.
+  - **S5, closure:** the escaped total is 0.975-0.995 L*. Lya energy moves
+    into the dust continuum, which Cloudy dilutes correctly, so the line
+    beam's loss (D-456) shrinks a little.
+
+**What would change the reading:** if the continuum's Lya stays >= 0.12
+under `static`, the expanding assumption is not what lets Cloudy's Lya out.
+
+### Results (13:02-13:04; `runs/_d457/compare.py`, `compare.log`, `out/`)
+
+ds150e finished in 73 s (3 iterations) and ds150s in 99 s (4 iterations, 2
+cautions). Both stopped at the outer radius.
+
+    L*                           ds150 / ds150e (expanding)   ds150s (static)   MOCASSIN
+    escaped total                0.9770                       0.9910            1.00001
+    lines in the saved continuum 0.5766                       0.4552
+    GraT (GraL)                  0.186 (0.040)                0.322 (0.159)
+    Lya intrinsic (zone-escaping) 0.180                       0.049
+    Lya emergent (line list)     0.075                        0.033
+    Lya in the saved continuum   0.168                        0.052             ~0.022 (bin less He II, O V])
+    Lya inward fraction          0.977                        0.432
+    dust continuum > 5 um        0.190                        0.326             0.387
+    FUV 6-13.6 eV                0.314                        0.196             0.151
+
+  - **Under `static`, Cloudy's Lya is destroyed by its grains** (GraL x4).
+    Its dust continuum rises 0.190 -> 0.326 L*.
+  - **Against MOCASSIN by band:**
+    - 5-25 um 1.62 -> 1.19, 25-60 um 1.85 -> 1.16, 60-300 um
+      1.50 -> 1.13;
+    - continuum beyond 5 um 2.03 -> 1.19x;
+    - FUV 0.48 -> 0.77;
+    - 0.21-1 um 0.97, 1-5 um 1.01.
+  - **Grain temperatures.** Cloudy's grains warm by 4-24% inside the
+    nebula; the front cell is unchanged. MOCASSIN against static Cloudy is
+    within 1-4% at 0.02-0.11 pc (6, 29 and 206 nm), against 5-29% for
+    ds150. In the front cell (0.127 pc) MOCASSIN stays 16-30% warmer, where
+    its Lya heating peaks.
+  - **Structure:**
+    - fronts within 0.04% (H+) and 0.3% (He2+) of ds150;
+    - T_e within 2.2%;
+    - Hbeta +1.2%;
+    - [O III] 5007 intrinsic -4.0% (not examined).
+  - **Closure 0.977 -> 0.991.** The line beam loses the same fractions in
+    both runs (O IV 0.909, S IV 0.920, [O III] 51.8 um 0.951). The better
+    total is consistent with ~0.12 L* of Lya moving from the line beam
+    into the dust continuum, which is diluted correctly.
+
+**Scored:**
+  - S1 holds: identical to 1e-4, inward fraction 0.977.
+  - S2 holds in direction and size: GraL 0.159 (>= 0.12) and intrinsic
+    0.049 (<= 0.08). The continuum's 0.052 misses <= 0.05 by 0.002 (about
+    0.047 net of He II 1215), and the emergent 0.033 misses <= 0.03 by
+    0.003.
+  - S3 holds: 0.326 (0.28-0.36), 1.19x (1.05-1.4), FUV 0.77 (0.6-1.0).
+  - S4 holds for the fronts and Hbeta, and fails narrowly for T_e (2.2%
+    against 2%) and for [O III] 5007 (-4.0%).
+  - S5 holds (0.991).
+
+**What it means:**
+  - **This is a single-change test.** Most of Cloudy's escaping Lya in
+    D-456 and D-452 was its default expanding-sphere assumption: under
+    `expanding`, 98% of its Lya leaves the zones inward and crosses the
+    central hole untrapped. The continuum's Lya did not stay >= 0.12, so
+    the reading stands.
+  - **With the geometry matched to MOCASSIN's static nebula**, the dust
+    excess falls from 2.03x to 1.19x and the far-UV deficit from 0.48 to
+    0.77. The ionized-zone grain temperatures agree within 4%.
+  - **What remains:**
+    - ~0.06 L* more dust emission in MOCASSIN, against ~0.06 L* more Lya
+      in its grains (~0.218 against ~0.16);
+    - MOCASSIN's Lya made, 0.240, against Cloudy's intrinsic + GraL,
+      0.208. Cloudy's other Lya destruction channels are not in that sum;
+      its dust-free twin made 0.244;
+    - escaped Lya ~0.022 against ~0.047;
+    - the front cell's grains.
+
+**Not run:**
+  - pn150k's Cloudy model as a static sphere. D-452's 1.50x warm-dust
+    excess presumably shrinks the same way, but that is untested (~10 min
+    of Cloudy).
+  - The D-456 page does not yet show this result.
+
+### The page (the user: "update the Dusty Sphere page with these results")
+
+**Dusty Sphere Against Cloudy, version 2**
+(https://claude.ai/artifact/7cwzdGVgEXcLkM2dZoUmdV), built by
+runs/_d456/page/build.py (version 1's builder kept as build_v1.py). It
+reads `runs/_d457/out/static.json` and the figures from
+`runs/_d457/figs.py`.
+  - **Summary and KPIs** now give Cloudy static beside its default sphere:
+    - escaped light 1.00001 / 0.991 L* (expanding 0.977);
+    - dust continuum 0.387 / 0.326 (expanding 0.190);
+    - escaped Lya ~0.022 / 0.052 (expanding 0.168).
+  - **A new section, "Most of the gap is Cloudy's default expanding
+    sphere"** (D-457):
+    - Hazy's statements, with page numbers;
+    - the single-change test and its control, with the inward fraction
+      97.7% against 43%;
+    - a table across both geometries and MOCASSIN;
+    - the remaining ~0.06 L*;
+    - figures (h) bands, (i) ultraviolet, (j) dust and (k) grain
+      temperatures, each with MOCASSIN, Cloudy static and Cloudy expanding.
+  - **The energy section's figure** moves from (h) to (l). Its closure table
+    gains the static sphere's row (0.0331 star, 0.5027 diffuse continuum,
+    0.4552 lines, 0.9910).
+  - **The SED and Lya sections** say that they compare Cloudy's default
+    sphere, and point to the new section. The Lya section's claim that the
+    escape fraction is "not settled here" is replaced by the pointer.
+  - **"What this does not settle"** now lists:
+    - the escape fractions in both geometries;
+    - the remaining ~0.06 L* and the front cell;
+    - the MOCASSIN side of the attribution (a code change);
+    - pn150k as a static sphere (not run);
+    - [O III] 5007's -4%.
+
+## D-458 - Cloudy as a static sphere is the standard for every comparison with MOCASSIN; hiipdr and pn150k rerun (2026-11-02)
+
+The user (2026-11-02), after D-457: "I think this is also relevant for the
+PDR comparisons. We should adopt the static sphere as the standard for any
+Cloudy comparisons to mocassin. Register this and rerun the hiipdr and
+pn150kk pdr models redoing the comparisons".
+
+### The decision
+
+**Every Cloudy model compared with MOCASSIN uses `sphere static`.**
+
+  - **Why.** MOCASSIN's nebula has no velocity field. Cloudy's default
+    `sphere` assumes expansion: line photons leaving the illuminated face
+    escape the far side of the shell Doppler-shifted (Hazy 1 pp. 141-142;
+    Hazy 2 p. 128).
+  - **What it did in D-457.** On D-456's dusty sphere, the default let
+    98% of Cloudy's Lya out inward through the central hole. `static` cut
+    MOCASSIN's dust excess from 2.03x to 1.19x.
+  - **Where it is registered:**
+    - the benchmark inputs (benchmarks/pdr/hiipdr/cloudy/common.inc,
+      benchmarks/pdr/pn150k/cloudy/150k_PDR.in and 150k_noCaFe.in) and the
+      hiipdr README;
+    - CLAUDE.md;
+    - a note in docs/benchmarks/index.md;
+    - memory.
+  - **Not yet static.** The docs benchmark pages (`docs/benchmarks/`,
+    `docs/bench/data/`) still hold numbers from the expanding runs of D-396.
+    Regenerating them is a separate step.
+
+### The reruns (runs/_d458)
+
+  - **cl-hii:** the committed hiipdr inputs (common.inc with `sphere static`,
+    hiipdr.in), with the compiled grain opacity file of runs/d396-cloudy-hii.
+  - **cl-pn:** the committed 150k_PDR.in with `sphere static`, prefix
+    "150k" as the page tools expect.
+  - Both inputs are otherwise unchanged, including the `.linesint` save.
+  - The expanding references stay: runs/d396-cloudy-hii and
+    runs/d396-cloudy-pn. Their `.out` came from the run folders' own
+    inputs, which lack only the `.linesint` save and comments; their
+    `.linesint` came from a later run.
+  - The two runs go side by side (2 processes). The expanding runs took
+    14 min (hiipdr) and 8 min (pn150k).
+
+### Predictions (on record before the runs)
+
+hiipdr: Cloudy already destroys most of its Lya where it is made (intrinsic
+Lya 0.0095 L*, GraL 0.064 L*; the PDR's Lya line-centre depth is 1.8e9), so
+little moves.
+  - **HH1, Lya:** the intrinsic Lya falls to <= 0.004 L*, and GraL rises to
+    0.066-0.075 L*.
+  - **HH2, the PDR:**
+    - the 6-13.6 eV field (A_V 0.5-3) within 15%;
+    - T_gas within 10%;
+    - the H/H2 crossing (A_V 1.280) and C+ = C (2.93) within 3%.
+  - **HH3, lines:**
+    - Hbeta and the ionized T_e within 2%;
+    - [C II] 158 and [O I] 63 within 5%;
+    - H2 1-0 S(1) within 10%.
+
+    The page's comparisons move by these amounts or less.
+
+pn150k: Lya is a quarter of the star (intrinsic 0.156 L*, GraL 0.063, 0.082
+in the continuum), so the PDR's field moves.
+  - **PP1, Lya:** intrinsic <= 0.06 L*, GraL >= 0.13, in the saved
+    continuum <= 0.03.
+  - **PP2, the field:** Cloudy's 6-13.6 eV field in the PDR (A_V 0.2-0.65)
+    falls by 25-55%. Lya was 46% of it (D-291, D-298).
+  - **PP3, the PDR gas:** Cloudy's T_gas at A_V 0.30-0.65 falls by 5-25%,
+    since the photoelectric heating loses Lya. MOCASSIN/Cloudy (0.70-0.80)
+    rises to 0.80-1.0.
+  - **PP4, the transitions:** the crossing (0.368) and C+ = C move <= 5%.
+    Lya neither dissociates H2 nor ionizes C.
+  - **PP5, the escaped SED:**
+    - 5-60 um MOCASSIN/Cloudy 1.50 -> 1.10-1.35;
+    - far UV 0.41 -> 0.6-1.0;
+    - 60-300 um 0.98 -> 0.95-1.15.
+  - **PP6, closure:** Cloudy's escaped total 0.973 -> 0.975-0.995.
+  - **PP7, lines:**
+    - Hbeta and [O III] 5007 within 2%;
+    - Cloudy's [C II] 158 and [O I] 63 fall by 0-15%;
+    - its H2 1-0 S(1) moves <= 15%.
+  - **PP8, ionized-zone grains:** Cloudy's are 4-25% warmer. The page's
+    MOCASSIN/Cloudy T_dust at A_V 0.05/0.10 (1.01/1.05) falls to 0.85-1.0.
+
+**What would change the reading:** if pn150k's PDR field does not fall, the
+field's Lya was not the expanding-sphere artifact D-291 described, and
+`static` would be a choice of geometry alone, with no bearing on the PDR.
+
+### Results: the static spheres (runs/_d458, 13:21-13:31)
+
+The runs:
+  - **cl-pn:** 654 zones, 2 iterations, 243 s (the expanding run took 498 s
+    for 640 zones).
+  - **cl-hii:** 713 zones, 4 iterations, 598 s (iteration 3 was not
+    converged on He-like subordinate lines; the expanding run took 857 s,
+    697 zones and 3 iterations).
+  - **Both stopped at the outer radius.** The committed inputs were changed
+    after the runs were set up, by comments only.
+
+**Corrected on the way.** `runs/_d456/ana/cloudy_out.py` and budget.py read
+the FIRST intrinsic and emergent blocks of a listing. hiipdr's listing has no
+`print last` and holds every iteration, so the hiipdr numbers quoted in the
+predictions (Lya 0.0095, GraL 0.064) were iteration 1's. Both readers now
+take the last block. The last iteration gives 0.0096 and 0.0642, and every
+other listing read in D-456 to D-458 holds one block, so nothing else moves.
+
+    pn150k                              Cloudy expanding   Cloudy static   MOCASSIN (pn-LC)
+    Lya intrinsic / GraL / continuum    .156/.063/.082     .0015/.205/.0035  made .244, escaped .004
+    GraT [L*]                           0.443              0.537
+    G0 at A_V 0.20/0.30/0.50/0.65       169/68.3/20.1/10.0 84.5/34.4/10.1/5.0
+    T_gas at A_V 0.20/0.30/0.50/0.65    172/60.8/45.3/36.0 131/48.9/33.2/28.0 179/48.4/32/26
+    MOCASSIN/Cloudy T_gas, same depths  1.04/.80/.70/.71   1.36/.985/.955/.916
+    T_dust ratio A_V .05/.10/.20/.65    1.01/1.05/.95/.94  .95/.98/1.00/.99
+    H/H2 crossing [A_V]                 0.368              0.362             0.419
+    Hbeta (MOCASSIN/Cloudy)             0.950              0.942
+    case-B H recombinations [Q(H)]      0.982              0.991             0.957
+    [C II] 158 / [O I] 63 (M/C)         0.625 / 1.52       1.047 / 1.82
+    [C I] 609 / CO 2-1 / [O III] 5007   0.53 / 0.45 / 1.05 0.48 / 0.59 / 1.10
+    H2 1-0 S(1) (M/C)                   1.23               1.64
+    escaped total [L*]                  0.973              0.985             1.000
+    escaped FUV / 5-25 / 25-60 / 60-300 um (M/C)   .41/1.51/1.50/.98      .80/1.10/1.08/1.08
+    escaped Lya [L*]                    0.082              0.003             0.004
+
+    hiipdr                              Cloudy expanding   Cloudy static   MOCASSIN (hii-LC)
+    Lya intrinsic / GraL                0.0096 / 0.0642    9e-5 / 0.0735
+    G0 at A_V 0.70/1.00/2.00/2.90       74.8/23.8/1.94/0.404  72.5/23.2/1.92/0.402
+    T_gas at A_V 0.70/1.00              45.6/43.5          48.0/45.2       50.5/45.9
+    H/H2 crossing / C+ = C [A_V]        1.280 / 2.93       1.278 / 2.93    1.393 / 2.28
+    ionized T_gas 1/2/3 pc (M/C)        .924/1.018/1.044   .920/1.013/1.038
+    Hbeta (M/C)                         0.927              0.920
+    [C II] 158 / [O I] 63 (M/C)         1.29 / 7.47        1.66 / 7.46
+    H2 1-0 S(1) (M/C)                   0.75               0.75
+
+**pn150k.**
+  - **What moved.** As a static sphere Cloudy's Lya is destroyed where it is
+    made, as MOCASSIN's is. Its PDR field halves at every depth, and its PDR
+    gas cools by 10-28%.
+  - **The PDR temperature.** It agrees with MOCASSIN's past A_V 0.3 (0.92-0.99
+    where it was 0.70-0.80). At A_V 0.20, just behind the front, MOCASSIN is
+    now 1.36x.
+  - **The dust and the escaped spectrum.** The grains agree within 1% in the
+    PDR and 5% in the ionized gas. The escaped spectrum agrees within 10% from
+    1 um to 300 um, and Lya leaves both at 0.003-0.004 L*.
+  - **The lines.** [C II] 158 goes from 0.63x to 1.05x. [O I] 63 (1.52 ->
+    1.82) and H2 1-0 S(1) (1.23 -> 1.64) move apart, since both fall in
+    Cloudy with the colder PDR gas (by 16% and 25%).
+  - **Further apart:** the crossing gap (0.052 -> 0.057 mag) and the case-B
+    recombinations (0.025 -> 0.034 Q(H)). Cloudy's grains took the same
+    share of Q(H) as MOCASSIN's against the expanding sphere (D-450); this
+    has not been re-measured for the static one.
+
+**hiipdr.**
+  - Cloudy already destroyed its Lya locally, so the field, the
+    temperatures, the transitions and Hbeta move by 0.2-5%.
+  - The exception is [C II] 158, which falls 22% in Cloudy: MOCASSIN/Cloudy
+    goes from 1.29 to 1.66, while [O I] 63 and H2 do not move. The reading
+    (not tested) is the line's optical depth: a static sphere doubles every
+    line's total optical depth, and [C II] 158 is thick in this PDR.
+
+**Scored:**
+  - **hiipdr:**
+    - HH1 holds (9e-5; 0.0735).
+    - HH2 holds (field -2 to -3%, T_gas within 5%, crossing 0.2%, C+ = C
+      unchanged).
+    - HH3 holds for Hbeta (+0.7% in Cloudy), the ionized T_gas (0.6%),
+      [O I] 63 (0.3%) and S(1) (0.3%). It **fails for [C II] 158**
+      (-22%, predicted within 5%).
+  - **pn150k:**
+    - PP1 holds.
+    - PP2 holds at its upper end (-50%).
+    - PP3 holds for MOCASSIN/Cloudy (0.92-0.99). It fails for Cloudy's own
+      fall at A_V 0.50-0.65 (27-28%, predicted 5-25%).
+    - PP4 holds (-1.4%).
+    - PP5 holds for the far UV (0.80) and 60-300 um (1.08). It **misses
+      5-60 um low** (1.08-1.10, predicted 1.10-1.35): it agrees better than
+      predicted.
+    - PP6 holds (0.985).
+    - **PP7 fails for every line but Hbeta:** [O III] 5007 -4.3% (predicted
+      within 2%), and Cloudy's [C II] 158 -40%, [O I] 63 -16% and S(1)
+      -25% (predicted 0-15%).
+    - PP8 holds (+7% and +7%; 0.95 and 0.98).
+  - **The reading that would have changed** (the field not falling) did not
+    happen. Lya in the expanding sphere's PDR was the artifact D-291
+    described, and it set Cloudy's PDR temperature and fine-structure lines.
+
+### Status at the session's limit (2026-11-02, 13:55)
+
+**Done:**
+  - the registration (7f209ff);
+  - the two static runs, their numbers and scoring (60ddbf5);
+  - every input the pages need, in runs/_d458/pages_wip (a copy of the
+    scratchpad's d458pages):
+    - nums_hii23.json and nums_pn23.json (nums23.py with NEW static and
+      OLD expanding);
+    - nums_d404_*.json;
+    - geom_hii.json and geom_pn.json (geomnums.py);
+    - the figures: fig/geom_* for the new first sections (geomfigs.py:
+      MOCASSIN solid, static dashed, expanding dotted) and
+      fig/whole_*31/41 against the static runs;
+    - the PN escaped-SED comparison against static: runs/_d458/pn-sed.
+  - Version 32's builders were rerun on these numbers. Their copies use
+    kpi_old for what is said of earlier versions, so history keeps its
+    expanding-sphere numbers. The outputs are hiipdr-against-cloudy.html and
+    150kk-pn-against-cloudy.html, with only current values changed, checked
+    by word diffs.
+  - Both local version-32 copies were checked equal to the live pages
+    (versions 1793571595-4c27 and 1793573370-9bcc).
+
+**Left at that point:** the version-33 builders, then the republish. Both
+were done the same afternoon (below).
+
+### The pages, version 33 (2026-11-02, 16:27)
+
+Both comparison pages now compare with Cloudy as a static sphere:
+  - **150 kK PN Against Cloudy**, version 33
+    (https://claude.ai/artifact/DofNhQwr6apCKo2BR8y1JV, version id
+    1793647651-1a87);
+  - **hiipdr Against Cloudy**, version 33
+    (https://claude.ai/artifact/PBCP2hf3SzMMn5t6PYLDtx, the artifact's 34th
+    publish, version id 1793647659-a113).
+
+The builders are in runs/_d458/pages_wip (build_pn33.py, build_hii33.py,
+sedfigs.py, with geomnums.py and geomfigs.py), and so are the two pages
+(*.v33.html).
+
+**How they were built.** Each starts from version 32 as published.
+  - **Spliced in:** the current-state parts (the KPIs, "The whole model",
+    "Selected depths", the PN's line table, "What agrees"), from version 32's
+    builders rerun against the static runs.
+  - **A new first section** (id `static`) sets the static sphere beside the
+    expanding one: a table from geom_*.json and five figures (MOCASSIN
+    solid, static dashed, expanding dotted).
+  - **Version 32's first section** has a rail: its Cloudy column is the
+    expanding sphere.
+  - **Ordinals:**
+    - every section reference moved down by one (42 on the PN page, 52 on
+      hiipdr);
+    - hiipdr's one sentence of bare ordinals ("the charge-exchange data of
+      the sixth, ...") was shifted by hand;
+    - the cross-page "H2 Lines in MOCASSIN, first section" was restored.
+  - **Labels:** the captions, "What was matched" and the meta line name the
+    static run, and say what the expanding sphere gave.
+
+**PN, rewritten:**
+  - **The PDR bullet of "What agrees".** It had read the 0.70-0.80
+    temperature gap as the photoelectric heating (0.33-0.49 of Cloudy's).
+    Against the static sphere the gas is 0.92-0.99 of Cloudy's past A_V 0.3
+    and 1.36 at 0.20. The heating is 0.65-0.84 of Cloudy's, and has not been
+    compared term by term.
+  - **The grains' share of Q(H)** (0.112, D-450) is stated as measured
+    against the expanding sphere. The static run's extra 0.009 Q(H) of
+    recombinations has not been decomposed.
+  - **"The escaped spectrum"** is now against the static .cont
+    (runs/_d458/pn-sed), with three-way figures (sedfigs.py) and the
+    expanding sphere's ratios kept in a column:
+    - the bands from 1 to 300 um are within 10% (1.00-1.10), and the FUV is
+      0.80;
+    - Lya leaves at 0.0036 L* in MOCASSIN and 0.0039 in Cloudy (its line
+      column; 0.0029 net of the continuum);
+    - Cloudy's escaped total is 0.985.
+  - **The warm-dust reading is settled.** Version 32 read the warm-dust
+    excess (1.50x) as Cloudy's escaping Lya heating MOCASSIN's grains
+    instead, untested. The static sphere is that test: 1.08x.
+  - **The section notes D-454:** pn-LC predates it, so its SED.out is
+    today's SED.out + SEDlines.out.
+  - **A rail** on "The photoelectric term, measured": its part 2 is against
+    the expanding sphere.
+
+**hiipdr:**
+  - **New:** a header note, and a first section titled "little moves here,
+    except Cloudy's [C II] 158 um".
+  - **Patched:** the KPI temperature note, the history list in "Selected
+    depths", and "What agrees". Cloudy's side moved again at version 33:
+    +5% and +4% at A_V 0.70 and 1.00, within 2% past 1.5.
+  - **The [C II] 158 reading** (`static` doubles the total line optical
+    depths, Hazy 1 as quoted in D-457) is on the page as untested.
+
+**Where the pages differ from the results table above:**
+  - **The PN temperature ratios** use both codes' selected-depth medians, as
+    the KPIs do, not save pdr's. Cloudy is then 131.4/49.1/33.2/28.0 K and
+    the ratios 1.36/0.99/0.95/0.92. Cloudy's cooling is 19-27% at A_V
+    0.20-0.65 on that basis.
+  - **The Hbeta ratios** use Cloudy's intrinsic listing (2.779 and
+    2.805e34 erg/s), as the line table does.
+
+**Checks:** no `%%` and no placeholder is left, the HTML parses with every
+tag closed, every ordinal reference was listed and read, and each new part
+was read as rendered text before publishing.
+
+**Open:**
+  - the docs benchmark pages (docs/benchmarks/, docs/bench/data/) still
+    hold D-396's expanding-sphere numbers, as noted there;
+  - why hiipdr's [C II] 158 falls 22% in Cloudy (untested);
+  - pn150k's static-sphere recombination gap (0.034 Q(H)), not taken
+    apart.
+
+## D-459 - Audit of D-456..D-458, and the documentation brought up to date (2026-11-02)
+
+The user (2026-11-02): "I have made some new changes to the code. Analyse
+te changes, audit them and update the documentation as needed." Since D-455
+(ba16163) production has gained D-456, D-457 and D-458: 14 commits. Their
+only non-DEVLOG files:
+  - CLAUDE.md;
+  - benchmarks/pdr/hiipdr/cloudy/README.md and common.inc;
+  - benchmarks/pdr/pn150k/cloudy/150k_PDR.in and 150k_noCaFe.in;
+  - docs/benchmarks/index.md.
+
+No source, Makefile or tools file changed. h2-model is unchanged at 193cf0b.
+
+### What was audited
+
+  - **The registration (7f209ff).**
+    - The three Cloudy inputs replace `sphere` by `sphere static`, with a
+      comment; nothing else changes.
+    - CLAUDE.md's "Cloudy comparisons" and the hiipdr README say the same
+      thing, citing D-457 and D-458.
+    - pn150k's Cloudy folder has no README; its inputs carry the comment.
+  - **The static runs against the committed inputs.** With the manifest
+    pointed at runs/_d458, `reduce.py --check-cloudy` finds 41 and 39 physics
+    commands identical. Its normalisation drops comments, and D-458 changed
+    the inputs after setting up the runs by comments only.
+  - **The geometry leaves the A_V scale alone.** Cloudy's A_V(r), static
+    against expanding, is within 0.9947-1.0037 (hiipdr) and 0.9984-1.0034
+    (pn150k). So the index's MOCASSIN-against-Cloudy A_V offsets at fixed
+    radius (1-4%, 3-4.5%) stand.
+  - **D-458's index rows** have four cells. Its numbers for the pages were
+    not re-derived; the docs data below are an independent reduction.
+  - **D-452's finding, not covered by an audit until now** (D-453 covered
+    D-445..D-451 and D-455 covered D-454). A transported line's bin comes
+    from `locate` in setOneLineNuP, the point j with nu_j <= nu < nu_j+1
+    (f6db989, D-292; not upstream). widFlx is a central difference, so every
+    other bin is centred on its point. Recorded as L-97 (Low).
+
+### The benchmark pages, regenerated against the static sphere
+
+  - **Before:** `reduce.py --verify` on the committed manifest reproduced
+    all committed data byte for byte, in the docs venv and in astro.
+  - **The manifest** (docs/bench/manifest.toml): ref.cloudy-hii and
+    ref.cloudy-pn now take prefix and run_input from _d458/cl-hii and
+    _d458/cl-pn, with devlog D-458 and code "Cloudy c25.00, static sphere"
+    (the figures' legend label). A comment names the expanding runs, which
+    stay in the runs root.
+  - **What `reduce.py` changed:** cloudy_profiles.csv, fronts.json (the
+    Cloudy half), lines.csv, h2lines.csv, runcard.json and PROVENANCE.json of
+    both products. MOCASSIN's profiles_av.csv and r_av.csv are identical.
+  - **The numbers in the prose** were recomputed with a script
+    (scratchpad d459/ratios.py): the median per MOCASSIN A_V bin over
+    Cloudy's zones interpolated in A_V. On the old data it reproduces the
+    page's numbers: hiipdr x(O+) 1.43-1.62, x(C+) 1.52-1.81, x(O2+)
+    0.84-0.97, PDR T 1.06-1.11 and 0.80-0.89; pn150k x(H+) 0.215-0.484, n_e
+    0.36-0.52, T 0.83 at 0.22 and 0.67-0.77 beyond. Against the static runs:
+
+        hiipdr                         expanding     static
+        Cloudy front r / crossing r    3.76 / 8.95   3.77 / 8.97 pc
+        Cloudy Hbeta [1e36]            10.02         10.09 (MOCASSIN 9.30: 0.92)
+        x(O+), x(C+), x(O2+), T_e H II 1.4-1.6, 1.5-1.8, 0.84-0.97, +-6%: unchanged
+        T, atomic PDR (A_V 0.5-1)      1.06-1.11     1.02-1.05
+        T, A_V 1.3-2.2                 0.80-0.89     0.81-0.88 (Cloudy 24-42 K)
+        [C II] 158                     1.29          1.66 (Cloudy -22%)
+        [C I] 609 / 370                1.62 / 1.27   1.69 / 1.30
+        [O I] 63 / 145 / 6300          7.44/10.8/6.29  7.42/10.7/6.30
+        H2 ortho / para                0.71-0.80 / 0.95-1.09   0.71-0.80 / 0.97-1.10
+
+        pn150k                         expanding     static
+        Cloudy front / crossing A_V    0.141 / 0.368 0.141 / 0.362
+        Hbeta (M/C)                    0.968         0.959
+        [O III] 5007 / 4363            1.044 / 1.148 1.091 / 1.233
+        [O IV] / [S IV] / [S III] / [Ar III] / [O III] 88
+                                       0.95/0.99/1.04/0.95/0.98   0.93/0.94/1.06/1.00/1.01
+        [O II] / [N II] / C II] 2326   1.13-1.18 / 1.10-1.23 / 1.32   1.15-1.21 / 1.13-1.25 / 1.36
+        He I 5876 / He II 4686 / [Ne V] 1.11 / 1.24 / 0.85   1.09 / 1.24 / 0.81
+        [Ne III] / [Ne II]             1.42-1.43 / 1.32   1.45-1.47 / 1.36
+        [S II] 6716 / 6731             0.84 / 0.76   0.87 / 0.79
+        [O I] 63 / 145 / 6300          1.49/1.60/1.49  1.78/1.76/1.52
+        [C II] 158 / [C I] 609 / 370   0.58/0.65/0.45  0.98/0.59/0.53
+        CO 2-1                         0.63          0.82
+        x(H+) / n_e, A_V 0.14-0.20     0.21-0.48 / 0.36-0.52   0.24-0.48 / 0.39-0.52
+        T_e He2+ zone (A_V < 0.05)     0.90-0.96     0.90-0.94
+        PDR T at 0.22 / 0.24-edge      0.83 / 0.67-0.77   1.10 / 0.86-0.97
+        H2 ortho / para                0.89-1.16 / 1.65-2.69   1.01-1.62 / 1.79-2.67
+
+  - **pn150k's Cloudy H2 lines** change by spin as a static sphere: the
+    ortho lines are 0.70-0.89 of the expanding sphere's and the para lines
+    0.93-1.07. hiipdr's change by 0.974-1.014.
+  - **Cloudy's own lines:**
+    - pn150k: [O III] 5007 -4.3%, 4363 -6.9%, [O I] 63 -16%, [C II] 158
+      -40%;
+    - hiipdr: [C II] 158 -22%, [O I] 63 +0.2%.
+  - **Derived statements:**
+    - [O III] 4363/5007 is 13% high (was 10%), about 5% hotter O2+ gas by
+      the 32,970 K exponent at ~13 kK (was 4%);
+    - the [S II] ratio, 0.99 against 0.89, is unchanged;
+    - D-408's 64x [C I] ratios (1.17 and 1.10, against the expanding
+      sphere) become about 1.22 and 1.12 against the static one. Cloudy's
+      lines are 4% and 2% weaker there.
+  - **H-026's figures stay labelled as against the expanding sphere:**
+    - the crossing decomposition (+0.099/-0.042/-0.031 mag, summing to the
+      expanding sphere's 0.025);
+    - the Cloudy-width line ratios. hiipdr's Cloudy H2 lines barely move;
+      pn150k's do.
+
+### Pages changed
+
+  - **benchmarks/index.md:**
+    - "What is compared": the sphere is static (D-458); the expanding
+      sphere doubled pn150k's PDR far-UV field; the pages used the D-396
+      runs until D-459;
+    - "The runs": the Cloudy models are D-458's;
+    - "Since the release": pn150k's Hbeta 0.959 -> 0.942 of Cloudy's,
+      Cloudy's case B 0.991 and crossing 0.362.
+  - **benchmarks/hiipdr.md:**
+    - the model description and the table (3.77 and 8.97 pc, 10.09e36);
+    - Hbeta 0.92;
+    - [C II] 158 1.66, with Cloudy's -22% and D-458's untested reading;
+    - [C I] 1.69 and 1.30, 64x about 1.22 and 1.12;
+    - H2 para 0.97-1.10, with H-026's lines labelled;
+    - PDR temperature 1.02-1.05 and 0.81-0.88.
+  - **benchmarks/pn150k.md:**
+    - the table and a paragraph on the geometry;
+    - the ionised nebula: the six high-ionisation lines (within 1%, 7% and
+      9% now; within 5% against the expanding sphere), the low-ionisation
+      lines, 4363/5007, He I;
+    - He II's cooler zone (6-10%), and the gas behind the front;
+    - the crossing (0.031 mag, with H-026's decomposition labelled);
+    - neon, [O I] (with the expanding sphere's 1.49 and 1.60), [S II];
+    - carbon and the PDR temperature, with the expanding sphere's numbers
+      and the reason;
+    - the H2 lines, with the spin change.
+  - **_hiipdr_tables.md and _pn150k_tables.md:** the profile figure and the
+    line table name Cloudy as a static sphere.
+  - **physics/mocassin/dust.md:**
+    - pn150k's PDR grains are 0.99-1.00 of the static sphere's (0.92-0.95
+      of the expanding one's);
+    - the ionised-gas grains, after D-376's Lya, are 0.95 and 0.98 against
+      the static sphere.
+  - **physics/mocassin/transfer.md and outputs.yaml (SEDlines.out):** a line
+    takes the bin of the grid point at or below its frequency (L-97).
+
+### Records
+
+  - **L-19** gains the static-sphere measurement (pn-LC, D-458):
+    - PDR grains 1.00 and 0.99 of Cloudy's at A_V 0.20 and 0.65 (0.95 and
+      0.94 against the expanding sphere);
+    - ionized-gas grains 0.95 and 0.98;
+    - the escaped 5-25, 25-60 and 60-300 um at 1.10, 1.08 and 1.08x
+      (1.51, 1.50 and 0.98x); the escaped FUV 0.80 (0.41).
+
+    The PDR grains' deficit, which made the item High, was the expanding
+    sphere. The band shares of the local field were not re-measured; that
+    needs a Cloudy run saving the local continuum every zone, for
+    tools/d307_fieldcmp.py. The index row is retitled and moved to Medium.
+  - **L-37:** pn150k's [O I] 63 goes from 1.49x to 1.78x (rel-pn41) against
+    the static sphere, through Cloudy's colder PDR; hiipdr's does not move.
+  - **L-56:** pn150k's H2 lines by spin against the static sphere; hiipdr's
+    within 3%.
+  - **L-97** (new, Low): the line-bin placement above.
+  - The golden test's L-37 extent moves from 367-405 to 385-427.
+
+### Checks
+
+  - `reduce.py --check-cloudy` and `--verify` on the new manifest;
+  - fortref check;
+  - pytest: 125 passed;
+  - `sphinx-build -E -W --keep-going`, with only fortref.unpushed
+    suppressed.
+
+All pass: --check-cloudy identical, --verify identical, fortref only
+unpushed, Sphinx rc 0. The pn150k temperature figure was rendered and
+read: the PDR gas now follows Cloudy's curve.
+
+### Not done
+
+  - **The MOCASSIN side of the pages** is still the release runs (D-450 left
+    regenerating it for the next release). The pages compare v2.0's model
+    with Cloudy's static sphere, and "Since the release" gives the current
+    code against it.
+  - **L-19's band shares** against the static sphere (a Cloudy field run).
+  - **D-458's open questions:**
+    - why hiipdr's [C II] 158 falls 22% in Cloudy;
+    - pn150k's static-sphere recombination gap (0.034 Q(H)).
+  - **D-456's divergences on the dusty sphere** are not made L-items: they
+    are in a model that is not a fixture, and unexamined (C IV 1549 2.5x
+    Cloudy's; the radio free-free tail 0.3-0.5x).
+
+## D-460 - L-19's band split re-measured against Cloudy as a static sphere (2026-11-02)
+
+The user (2026-11-02), after D-459: "Re-measure L-19's band split against
+the static sphere."
+
+### What L-19's band split is
+
+`tools/d307_fieldcmp.py` (D-307) compares each code's local field at the
+same A_V. Both are normalised by that code's own unattenuated stellar flux
+L/(4 pi r^2), so no internal unit enters:
+  - **MOCASSIN:** Fbol/thin from pdrFUV.out column 14, and the four band sums
+    of Jste in pdrRad.out (>1 Ryd, FUV 0.44-1, 0.01-0.44, <0.01 Ryd), as
+    medians of the cells within max(0.02, 0.06 A_V);
+  - **Cloudy:** the same four bands from `save ionizing continuum ... every`
+    (photons per bin times energy), in the zone nearest that A_V of the last
+    iteration.
+
+The last measurement (D-376, with D-306's Cloudy field run) gave, at A_V
+0.30, the FUV share as 0.094 in MOCASSIN against 0.255 in Cloudy, and the
+bolometric field as 1.195 against 0.95 of thin. D-306's run, however, is an
+expanding sphere on an input older than D-396 (no turbulence).
+
+**The tool on today's code, before any run** (runs/_d450/pn-LC against
+runs/d306-cloudy-field/150k). Its Cloudy column reproduces D-376's 0.255,
+0.362 and 0.383 at A_V 0.30.
+
+       A_V   MOC Fbol/thin  Cld   MOC shares (>1/FUV/mid/<.01)  Cloudy
+       0.15  1.330          0.973 0.001 0.121 0.375 0.503      0.003 0.297 0.394 0.306
+       0.20  1.227          0.958 0.000 0.116 0.351 0.533      0.000 0.284 0.384 0.332
+       0.30  1.188          0.951 0.000 0.103 0.323 0.575      0.000 0.255 0.362 0.383
+       0.50  1.153          0.948 0.000 0.081 0.284 0.635      0.000 0.203 0.319 0.478
+       0.65  1.093          0.946 0.000 0.069 0.264 0.667      0.000 0.172 0.292 0.536
+
+So MOCASSIN's FUV field at A_V 0.30, in absolute terms, is 0.505 of that
+expanding sphere's: 1.188 x 0.103 against 0.951 x 0.255.
+
+### Design
+
+  - **runs/_d460/cf-static:** benchmarks/pdr/pn150k/cloudy/150k_PDR.in as
+    committed (`sphere static`, D-458), with the prefix "150k" and one line
+    added at the end: `save last ionizing continuum ".ioncont" 1e-5 0.0
+    every`. That is D-306's command: the whole mesh, every zone, no
+    interaction cut.
+  - **runs/_d460/cf-expand:** the same with `sphere`. It is the control,
+    separating the geometry from what changed in the input since D-306
+    (D-396's turbulence).
+  - **The runs:** Cloudy c25.00, the two side by side (2 processes), as
+    D-458 ran them.
+  - **The comparisons:** d307_fieldcmp.py against pn-LC (today's code; D-454
+    changed only SED.out) and rel-pn41 (the benchmark pages' run).
+  - **Read-only:** no source, tools or input file of the repository changes.
+
+### Predictions (on record before the runs)
+
+  - **C1, the saves change nothing.**
+    - cf-static's .ovr and .pdr are byte-identical to runs/_d458/cl-pn's;
+    - cf-expand's are byte-identical to runs/d396-cloudy-pn's (whose input
+      differs by the .linesint save only).
+  - **C2, the control.** cf-expand's band shares at A_V 0.15-0.65 are
+    within 10% of D-306's run, and its Fbol/thin within 3%.
+  - **C3, the static sphere's FUV.** Cloudy's FUV energy at A_V 0.20-0.65
+    falls to 0.40-0.60 of cf-expand's: G0 halved in D-458.
+    - The FUV share at A_V 0.30 falls from ~0.255 to 0.11-0.15.
+    - MOCASSIN/Cloudy in absolute FUV at A_V 0.30 goes from ~0.5 to
+      0.85-1.15.
+  - **C4, where Lya's energy goes.** In the static sphere the ionized
+    gas's grains absorb Lya and re-emit it at 20-50 um.
+    - At A_V 0.30, Cloudy's 0.01-0.44 Ryd (2-91 um) share rises to
+      0.40-0.50.
+    - Its <0.01 Ryd share is 0.35-0.45.
+    - Its Fbol/thin stays 0.90-1.00: the energy changes band, not amount.
+  - **C5, what is left of L-19.**
+    - MOCASSIN's Fbol/thin over Cloudy's stays 1.15-1.35 at A_V 0.15-0.65.
+    - MOCASSIN's <0.01 Ryd share (0.575 at A_V 0.30) stays above Cloudy's
+      by 0.10-0.25.
+
+    The band difference that remains is then the far-infrared excess D-376
+    left open, not the FUV.
+
+**What would change the reading:** if Cloudy's FUV at A_V 0.30 does not
+fall, D-458's G0 (from `save pdr`) and this continuum disagree, and the
+FUV-share part of L-19 stands. If Fbol/thin falls well below 0.90, the
+static sphere removes Lya's energy from the PDR's field rather than moving
+it in frequency.
+
+### Results (runs/_d460, 17:18-17:23)
+
+  - **The runs.** Both exited OK. cf-static had 654 zones, 2 iterations and
+    21 cautions, 247 s; cf-expand 640 zones, 2 iterations and 19 cautions,
+    242 s. Each .ioncont holds 655 or 641 zone dumps (266-272 MB).
+  - **Comparison:** scratchpad d460/cmp.py runs the tool for pn-LC and
+    rel-pn41 against D-306's run, cf-expand and cf-static, and forms the
+    absolute band fields (Fbol/thin x share). Its log is runs/_d460/cmp.log.
+
+  **A correction to the opening.** It labelled 0.01-0.44 Ryd as 2-91 um.
+  0.44 Ryd is 2072 A and 0.01 Ryd is 9.11 um, so the band is 0.21-9.1 um:
+  the near UV, the optical and the near infrared. All thermal dust emission
+  is in <0.01 Ryd, beyond 9.1 um. C4 was worded on the wrong edges.
+
+    pn-LC against Cloudy static (shares >1/FUV/.01-.44/<.01; static Cloudy)
+       A_V   MOC Fbol/thin  Cld   MOC shares               Cloudy
+       0.15  1.330          1.040 0.001 0.121 0.375 0.503  0.003 0.185 0.365 0.447
+       0.20  1.227          0.973 0.000 0.116 0.351 0.533  0.000 0.142 0.374 0.484
+       0.30  1.188          0.962 0.000 0.103 0.323 0.575  0.000 0.127 0.354 0.519
+       0.50  1.153          0.953 0.000 0.081 0.284 0.635  0.000 0.102 0.313 0.586
+       0.65  1.093          0.960 0.000 0.069 0.264 0.667  0.000 0.086 0.284 0.630
+
+    Cloudy static over expanding, absolute (Fbol; FUV, 0.21-9.1 um, >9.1 um)
+       A_V 0.15  1.074; 0.667 0.988 1.590
+       A_V 0.20  1.017; 0.508 0.990 1.487
+       A_V 0.30  1.011; 0.503 0.991 1.366
+       A_V 0.50  1.005; 0.505 0.989 1.230
+       A_V 0.65  1.012; 0.506 0.987 1.189
+
+    MOCASSIN over Cloudy, absolute: Fbol / FUV / 0.21-9.1 um / >9.1 um
+                     expanding (cf-expand)          static (cf-static)
+       pn-LC  0.15   1.374 0.558 1.298 2.288        1.279 0.836 1.314 1.439
+              0.20   1.282 0.524 1.172 2.065        1.261 1.030 1.183 1.389
+              0.30   1.248 0.504 1.117 1.869        1.235 1.002 1.127 1.368
+              0.50   1.216 0.485 1.086 1.612        1.210 0.961 1.098 1.311
+              0.65   1.152 0.462 1.045 1.433        1.139 0.913 1.058 1.205
+       rel-pn41 0.15 1.371 0.566 1.409 2.124        1.276 0.848 1.426 1.336
+              0.20   1.292 0.523 1.281 1.967        1.270 1.029 1.294 1.323
+              0.30   1.259 0.489 1.211 1.817        1.246 0.972 1.222 1.330
+              0.50   1.224 0.458 1.170 1.584        1.217 0.907 1.182 1.288
+              0.65   1.154 0.436 1.126 1.401        1.141 0.862 1.141 1.179
+
+**Scored:**
+  - **C1 holds.** cf-static's .ovr and .pdr are byte-identical to
+    runs/_d458/cl-pn's, and cf-expand's to runs/d396-cloudy-pn's.
+  - **C2 holds.** cf-expand's shares are within 1.3% of D-306's run
+    (0.987-1.008), and its Fbol/thin within 0.5%. The turbulence D-396
+    added does not move the field.
+  - **C3 holds:**
+    - Cloudy's FUV at A_V 0.20-0.65 is 0.503-0.508 of the expanding sphere's;
+    - the share at 0.30 is 0.127 (predicted 0.11-0.15);
+    - MOCASSIN/Cloudy absolute FUV at 0.30 is 1.002 (0.85-1.15).
+  - **C4 fails as worded,** on the band edges above.
+    - 0.01-0.44 Ryd stays at 0.354 (predicted 0.40-0.50), absolute 0.99.
+    - <0.01 Ryd rises to 0.519 (predicted 0.35-0.45), absolute x1.37.
+    - Fbol/thin is 0.962 at 0.30 (predicted 0.90-1.00). It is 1.040 at
+      0.15.
+
+    With the right edges, what C4 described is what happened. Lya's energy
+    leaves the FUV and comes back as dust emission, and the total barely
+    moves.
+  - **C5:**
+    - the Fbol ratio, 1.14-1.28, holds at A_V 0.15-0.50 and is 1.139 at
+      0.65 (predicted 1.15-1.35);
+    - the <0.01 Ryd share difference fails: 0.04-0.06, against 0.10-0.25
+      predicted. It is the same band error: Cloudy's dust emission rose in
+      that band.
+  - **The reading that would have changed it did not happen.** Cloudy's FUV
+    fell by half, as D-458's G0 from `save pdr` did, and the energy moved
+    in frequency.
+
+### What it means
+
+  - **The FUV half of L-19 was Cloudy's expanding sphere.** Against the
+    static sphere the two codes' FUV fields agree in the PDR: 0.91-1.03 at
+    A_V 0.20-0.65 on pn-LC, 0.86-1.03 on rel-pn41. At A_V 0.15, just behind
+    the front (MOCASSIN's is 0.008 mag shallower), it is 0.84.
+  - **What remains is D-307's bolometric excess,** 1.14-1.28x on pn-LC:
+    - 0.21-9.1 um: 1.06-1.31;
+    - beyond 9.1 um: 1.21-1.44.
+
+    The grains absorb less per unit energy there than in the FUV, and the
+    PDR's grains agree (1.00 and 0.99, D-458).
+  - **Cause not known.** One candidate, untested: Cloudy transfers the
+    diffuse continuum outward only, while MOCASSIN's mean intensity takes
+    it from every direction, including the infrared of the shell outside
+    the point.
+  - **L-19:**
+    - retitled "MOCASSIN's field in the PDR is 1.14-1.28x Cloudy's, in the
+      optical and the dust infrared; against Cloudy's static sphere the FUV
+      and the grains agree";
+    - lowered to Low, since no measured consequence remains;
+    - its body gains this measurement.
+
+### Docs and records changed
+
+  - **doc/pdr-status.md:** L-19's index row (retitled, moved to Low) and
+    body.
+  - **benchmarks/pn150k.md:**
+    - the FUV fields agree against the static sphere, 0.86-1.03 at A_V
+      0.20-0.65 on rel-pn41;
+    - the total is 1.14-1.27x Cloudy's.
+  - **physics/pdr/dust.md:** pn150k's PDR grains are 0.97-1.00 of the static
+    sphere's temperature on the v2.0 run (0.92-0.95 of the expanding one's),
+    from the regenerated benchmark data.
+  - **Golden test:** L-37's extent moves to 419-461.
+
+### Checks
+
+  - pytest: 125 passed;
+  - fortref check: only unpushed;
+  - `sphinx-build -E -W --keep-going`, with fortref.unpushed suppressed.
+
+All pass: 125 passed, fortref 1867 references with only unpushed, Sphinx
+rc 0.
+
+### Status
+
+Done.
+  - **The runs** stay in runs/_d460, about 540 MB with the two .ioncont
+    files.
+  - **Not tested:** the cause of the bolometric excess, including the
+    outward-only candidate. Testing it would need Cloudy's inward diffuse
+    field, or a MOCASSIN tally of J by direction.
+
+---
+
+## D-461 - Production reinstalled into ~/.local (2026-11-06)
+
+The user (2026-11-06, 10:41): "update the local instalation". ~/.local is
+production's prefix (the Makefile's default `PREFIX=$(HOME)/.local`).
+~/.local/mocassin_h2 is h2-model's, built in the h2 worktree, and is not part
+of this.
+
+**What is there.** ~/.local/bin holds pdr-coupling-v2.0.1, installed
+2026-10-24 07:58 (D-439): md5 mocassin 1fbd1604, mocassinWarm 3eb4f822,
+mocassinOutput 81c64c9b, mocassinPlot f254f413. v2.0.2 (D-443) was tagged
+but never installed. HEAD 20e4bbc (pdr-coupling-v2.0.2-63-g20e4bbc) adds the
+source of eight commits (10 files of source/, +336/-54; the Makefile is
+unchanged):
+  - D-441 (c8af00e, bf2e058, bd68ad9): dust-only models run and stop on the
+    converged-cell share; SED.out counts the packets escaping from inactive
+    source cells, its last line in 1e36 erg/s.
+  - D-447 (8d82a56): H I collisional excitation is emitted as well as
+    cooled.
+  - D-450 A (99f7068): output/reemission.out under frontLines.
+  - D-450 B (2755de4): locate's last-entry bracket (a Q file's largest grain
+    radius).
+  - D-450 C (a95f9c7): hydrogen's balance takes the charge transfer of the
+    stages above 1+.
+  - D-454 (340b9f6): SED.out is the continuum; the transported lines go to
+    output/SEDlines.out.
+`git diff 340b9f6 HEAD -- source/ Makefile` is empty: HEAD builds D-454's
+code.
+
+**Looked at before overwriting** (10:42-10:44).
+  - No mocassin, mocassin.new, mocassinWarm, cloudy.exe or mpirun process is
+    running (`pgrep -x`).
+  - data/, dustData/, dataPDR/ against ~/.local/share/mocassin (`diff -rq`):
+    no file differs. Only in the install: data/badnell_dr.dat and
+    badnell_rr.dat (removed from the repository at D-435; no code reads
+    them), two dustData_POwen .nk~ backups, dustData_POwen.tar.gz,
+    dust_nk_Nwright.tar.gz, and new_dust_files/enstatite-avg.cat and
+    forsterite-avg.cat. `cp -R` removes nothing, so they stay. What a run
+    reads from the data does not change.
+  - benchmarks/: seven installed files are older copies of tracked ones and
+    are overwritten: dust/1D/p0tau1, p0tau10, p0tau100 input.in (D-443's
+    30 iterations), pdr/hiipdr/cloudy/common.inc and README.md, and
+    pdr/pn150k/cloudy/150k_PDR.in and 150k_noCaFe.in (D-458's
+    `sphere static`). The two install-only files
+    test_Problem/output/dustGrid_before.out and SED_before.out stay.
+  - examples/ (~/.local/share/doc/mocassin/examples): the install gains
+    tutorial/ (D-440); nothing else differs.
+  - The user's *_ori binaries in ~/.local/bin are not touched.
+  - The tree holds D-454's S build (mocassin md5 5dcc7134, the same as
+    runs/_d454/bin/mocassin.3d.S), so `make clean` loses nothing.
+
+**Backup:** runs/_localprefix_backup_2026-11-06_v2.0.1/ holds the four
+installed binaries and the seven benchmark files, at their installed paths.
+
+**Procedure** (runs/_d461/install.sh, log runs/_d461/install.log):
+  1. The four flavours at 20e4bbc, with `make clean` between them, then
+     `make h2Test h2Slab`. Each step's rc and error count are logged.
+  2. `make clean`, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`.
+     The log records rc, the version strings and the md5 sums.
+  3. `make clean` afterwards.
+  4. `diff -rq` of data/, dustData/, dataPDR/, benchmarks/ and examples/
+     against the install.
+
+**Check run** (runs/_d461): the installed quickstart HII40
+(~/.local/share/doc/mocassin/examples/quickstart/hii40, identical to
+benchmarks/gas/HII40 plus `randomSeed 1001`) at 14 ranks, twice, one after
+the other, under one systemd unit:
+  - qs-inst, with ~/.local/bin/mocassin;
+  - qs-ref, with runs/_d454/bin/mocassin.3d.S, D-454's 3D build of the same
+    source.
+
+**Predictions.**
+  - P1: the four flavours, h2Test and h2Slab build with rc 0 and 0 errors.
+    The install gives rc 0, and all four installed binaries report
+    pdr-coupling-v2.0.2-63-g20e4bbc.
+  - P2: after the install, no difference against the repository in data/,
+    dustData/, dataPDR/, benchmarks/ or examples/, beyond the install-only
+    files listed above.
+  - P3: qs-inst and qs-ref give rc 0, and every file in their output/ is
+    byte-identical. The source, flags, data path, np and seed are the same,
+    and only the version string inside the binary differs. No output file
+    of D-454's hii40-B contains the version string.
+  - P4 (less certain): both runs stop at 18 iterations and are
+    byte-identical to runs/_d454/hii40-B, the plain build of the same
+    source on the same input. If they are not, the plain and 3D builds
+    differ on a gas-only model. That is recorded, and is not a defect of
+    the install.
+
+### Results (2026-11-06, 10:48)
+
+**Build and install** (runs/_d461/install.log, 10:44:42-10:46:44):
+  - The four flavours, h2Test and h2Slab: rc 0, 0 errors each.
+  - The install: rc 0, 0 errors. The binaries are time-stamped 10:46:44 and
+    md5 mocassin 26aeb660, mocassinWarm 442d41a0, mocassinOutput ccd729f8,
+    mocassinPlot 21211931. All four carry the ~/.local/share/mocassin data
+    path.
+  - Version string: pdr-coupling-v2.0.2-64-g7de18ff, not -63-g20e4bbc as P1
+    said. The opening commit 7de18ff moved HEAD before the build, and it
+    changes only DEVLOG.md, so the source is 20e4bbc's and 340b9f6's. P1
+    held otherwise.
+  - `make clean` afterwards leaves no objects and none of the four
+    binaries. h2Test and h2Slab stay in the tree (ignored by git), because
+    `make clean` does not remove them.
+
+**P2 held.** `diff -rq` after the install lists only the install-only files
+named in the opening: data's two Badnell files, dustData's six extra files,
+and benchmarks/test_Problem's two *_before.out files. dataPDR/ and
+examples/ show no difference.
+
+**The check pair** (14 ranks, unit d461-check):
+  - qs-inst ran 10:47:02-10:47:30, 27 s per processor. qs-ref finished at
+    10:47:59, 29 s per processor. Both rc 0 with a clean exit.
+  - Both stop at 18 iterations, at 98.83% converged.
+  - **P3: 14 of the 15 output files are byte-identical** (cmp): SED.out,
+    SEDlines.out, lineFlux.out, grid0-3, convergence, ionratio, photoSource,
+    tauNu, temperature, pdrFUV and pdrFUVspec. summary.out differs only in
+    its 18 "finished at hh:mm:ss" lines; with them removed it is identical.
+    P3 did not allow for these wall-clock times. A byte-for-byte test must
+    leave them out.
+  - **P4 held.** qs-inst against D-454's hii40-B (the plain build) is the
+    same except for three things:
+    - summary.out's times;
+    - one line, ` F  lgPDR`, that the PDR builds add to grid3.out;
+    - pdrFUV.out and pdrFUVspec.out, written only by the PDR builds.
+    On a gas-only model, the 3D and plain builds compute the same thing.
+
+**What this means.** ~/.local now runs D-454's code: the source of D-441,
+D-447, D-450 A-C and D-454 that v2.0.1 lacked. A run with it differs from
+v2.0.1's where those entries say it does:
+  - SED.out is the continuum, and the lines are in SEDlines.out;
+  - H I collisional excitation is emitted;
+  - hydrogen's balance takes the charge transfer of the stages above 1+;
+  - dust-only models run.
+The data every run reads did not change.
+
+**Kept:** the v2.0.1 binaries and the seven overwritten benchmark files are
+in runs/_localprefix_backup_2026-11-06_v2.0.1/. The check runs are in
+runs/_d461.
+
+**Not done:** ~/.local/mocassin_h2 (h2-model's prefix) is not reinstalled. It
+is built in the h2 worktree, which this session does not modify.
+
+### Status
+
+Done (2026-11-06).
+
+---
+
+## D-462 - Audit of stochastic heating, `quantumHeatGrain` (2026-11-07)
+
+The user (2026-11-07): "We need to fix an issue with quantumHeatGrain. Since
+the way the radiation field treatmente has changes, separating diffuse and
+direct, the calculation for that option os no longer taking into account the
+diffuse field. Audit this option, check the implementation and data used,
+checking against literature if possible. Fix the code so it accounts for the
+diffuse field properly. During the analysis look for possibilities to make
+this part of the code faster."
+
+This entry is the audit. No code changed. The fix is a code change and goes
+through a plan.
+
+### The field qHeat reads
+
+`qHeat`, `getTmin` and `getDustT` all build the field the same way:
+- `Jste + Jdif` under `debug`;
+- `Jste` otherwise.
+
+In a non-debug run, both transfer branches of photon_mod add a diffuse packet
+to `Jste` (D-158). Since D-348 they also mirror it into `Jdif` when
+lgJdifLive is set. So `Jste` is the whole transported field in every
+production run:
+- the stellar field;
+- the diffuse continuum;
+- the dust emission;
+- the transported lines (D-292).
+
+qHeat therefore sees the diffuse continuum and the transported lines. The
+split into direct and diffuse (D-158, D-343, D-348) did not take them out.
+
+What qHeat does not see is the part of the grain heating that never enters
+`Jste`:
+  - **The resonance-line power the dust destroys on the spot.** Since D-376,
+    a resonance-line photon drawn in a cell is destroyed by the local dust
+    with probability 1 - fEscapeResPhotons, and leaves as dust emission
+    (photon_mod, newPhotonPacket). It is never transported. The grains'
+    absorption of it is booked only in getDustT, through
+    `resLineHeating(ai,ns,nspU)`, added to dustAbsIntegral. Before D-376,
+    every resonance line was carried as optically thin, so all of it was in
+    `Jste`. In the production runs' summary.out (`Dust Budgets`, last
+    iteration):
+    - pn150k (runs/_d450/pn-LC): the field 0.561 of the grain heating, Lya
+      0.407, C IV 0.029, the four other lines 0.0024.
+    - hiipdr (runs/_d450/hii-LC): the field 0.922, Lya 0.077.
+  - **The gas-grain exchange and the photoelectric loss.** getDustT adds
+    `gasDustColl_d - photoelHeat_d` per grain (D-352, D-420, D-421).
+
+So qHeat's distribution for a grain is solved on (1 - s) of the heating that
+getDustT gives the same grain, where s is the resonance-line share. Its
+emitted power, which is what weights the grain in the cell's `dustPDF`, is
+(1 - s) of the equilibrium grains' power on the same terms (prototype below:
+0.594 at s = 0.4 and 0.297 at s = 0.7). Its spectrum is also colder: for a
+5 nm grain in MMP83 x 1e4, the share of its emission below 25 um is 0.247,
+against 0.328 with the line included, at s = 0.7.
+
+### Other defects
+
+  1. **The carbon atom count is 2.9 times too large.** `natom =
+     nint(0.454*3.*1.e12*a^3)`, with a in um, gives 1.362e12 a^3. DL01 §2.1
+     gives N_C = 468 (a/10 A)^3 = 4.68e11 a^3 at rho = 2.24. The graphite
+     enthalpy (GD89; Cloudy ENTH_CAR) is per atom, times (N - 2), so
+     carbon's heat capacity is 2.9 times too large. The silicate count,
+     0.44e12 a^3, enters only through (1 - 2/N).
+     - Both counts are constants that stand in for data the model has: each
+       species file declares `rho` and `MsurfAtom` (12.004 for carbon,
+       20.077 for the silicates). With those, N = (4 pi/3) a^3 rho /
+       (MsurfAtom amu) gives 4.62e11 a^3 for rho = 2.2 carbon and 4.52e11
+       a^3 for rho = 3.6 silicate.
+  2. **The material comes from the label's first letter.** `sorc =
+     grainLabel(ns)(1:1)` picks the enthalpy from `S` or `C`. With any other
+     letter, qHeat returns P = 0 everywhere and the grain emits nothing:
+     - affected: grph-avg (pn150k's only species), gr1_dl_hgk, gr2_dl_hgk,
+       grph1-dl, and every enstatite, forsterite, olivine and quartz file;
+     - `ns` is the component's local index, while grainLabel is indexed by
+       the global species, so with multiDustChemistry a component after the
+       first reads another species' label;
+     - MOCASSIN already has one carbon/other flag: `grainCarb`, from
+       MsurfAtom (ph_mod setGrainYield), which selects WD01's yield. qHeat
+       does not read it.
+  3. **getTmin** (L-96, D-453) zeroes the bins it then sums, and reads
+     `dustEmIntegral` with the local index. The ladder therefore starts at
+     1 K, or at 2999 K for an all-zero row.
+  4. **The transition scheme does not conserve energy.** In the prototype
+     (MMP83 x 1 + CMB, grph-avg Q), a grain's emitted power over its
+     absorbed power is:
+     - 1.077 at 0.005 um;
+     - 1.099 at 0.0071 um;
+     - 1.215 at 0.010 um;
+     - 1.478 at 0.020 um;
+     - 1.000 at 0.05 um.
+
+     Against DL01 (eqs 15-28, 40-41, 53-54) the scheme differs in these
+     ways:
+     - The downward rate is (dU/dt)_u / dU(u), where dU(u) is the bin width
+       0.5 (U(u+1) - U(u-1)). DL01 eq 40-41 divide by E_u - E_(u-1).
+     - The emission is not truncated at E_u (eq 41).
+     - Only the upper bin's width is allowed for (the `0.1*(U(if)-U(ii))`
+       branch). Eq 15 carries the overlap of both bins (G_ul, eqs 17-24).
+     - P of the top bin is never set, although x(nTbins) is in the
+       normalisation.
+     - The ladder is 10 points, linear from Tmin to the equilibrium T, then
+       linear to Tmax.
+     - Fixing the atom count, Tmin, the top bin and the divisor still leaves
+       1.162 at 0.020 um.
+  5. **The convergence gate (L-8).** qHeat runs only when the previous
+     iteration's converged share exceeds `minConvQHeat`, whose default is
+     99, and only from the second iteration. Production runs stop at shares
+     of 57-78%, so with the default it never runs.
+  6. **The cost.**
+     - `setDiffusePDF` calls qHeat a second time per grain, for normDust,
+       which feeds only the pdfSrc diagnostic.
+     - Each call builds the upward rates with three linear searches of the
+       wavelength grid per level pair: 3 x nT^2/2 x ~nbins/2, about 4e7
+       comparisons at nT = 300 and nbins = 600.
+     - clrate and cheat evaluate nbins exponentials per level.
+     - Each caller evaluates `getFlux` nbins x nTbins times for the
+       emission.
+     - None of this has been timed in a run.
+  7. `qHeatPss.out` is written only from setDiffusePDF, so a dust-only run
+     writes nothing, and only rank 0's cells are written.
+
+### Literature
+
+  - **Heat capacities.** MOCASSIN uses GD89's forms, as Cloudy's ENTH_SIL
+    and ENTH_CAR do (grains_qheat.cpp `uderiv`, ">>refer Guhathakurta &
+    Draine 1989"), with the (N - 2) factor of GD89's formula 3.1. The
+    silicate coefficients are GD89's (1.40e3, 2.20e4, 4.80e5, 3.41e7 erg
+    cm^-3 K^-1, Cloudy's values) adjusted for continuity at 50, 150 and
+    500 K (2.1647e4, 4.8375e5, 3.3107e7), so they differ by 1.6, 0.8 and
+    2.9%. DL01's Debye models (eqs 9, 11) are Cloudy's alternatives
+    (ENTH_CAR2, ENTH_SIL2).
+  - **Rates and solve.** DL01 (arXiv astro-ph/0011318; text in
+    runs/_d462, not committed). The upward rates (eqs 26-27) and the
+    recursion (eqs 53-54, from GD89) are what MOCASSIN implements. The
+    thermal-continuous downward rate is eq 40-41, and the bin-overlap
+    upward rate eqs 15-24 and 28. DL01 find continuous cooling accurate
+    down to about 30 atoms.
+  - **Collisions and photoemission in the stochastic solution.** Cloudy
+    includes collisional heating, including negative net heating, and the
+    photoelectric loss per absorbed photon (grains_qheat.cpp, notes C-D,
+    `HeatingRate1/2`).
+
+### The prototype (runs/_d462)
+
+  - **What it is.** qh.py holds three things:
+    - a line-by-line transcription of the current qHeat, with a switch for
+      each defect;
+    - a DL01 reference, eqs 15-28 with numerical sub-integration;
+    - the planned algorithm, `planalg`.
+
+    The planned algorithm works as follows:
+    - a geometric T grid from 1 K to Tmax with nT levels;
+    - the field as a histogram over the photon bins;
+    - eqs 15, 16 and 28 evaluated exactly from cumulative integrals of
+      C 4piJ_E and E C 4piJ_E;
+    - eq 41 cooling up to E_u;
+    - the GD89 recursion.
+
+    It also holds a Monte Carlo of one grain's history: Poisson photon
+    arrivals, continuous cooling in between, and the time-averaged P(T).
+    The fields are the MMP83 ISRF x chi plus the CMB, optionally with a Lya
+    line carrying a share s of the absorbed power. Logs: run1-4*.log.
+  - **The current scheme against the reference** (MMP83 x 1): <T> for
+    0.005 um graphite is 14.6 K as is, 11.0 K with the atom count fixed,
+    and 11.4 K from the DL01 reference. The Monte Carlo gives 11.5 K.
+  - **The planned algorithm** (nT = 300, 1-700 K, all cases of run3/run4):
+    - emitted over absorbed is 1.000 in every case;
+    - for 0.1 um grains it gives the equilibrium limit within 0.8%;
+    - against the Monte Carlo, <T> is within -1.6% to -0.5% with and
+      without Lya, and P(T > 2 T_eq) is 0.0030 against 0.0030 and 0.0032
+      against 0.0033.
+
+    The numerical DL01 reference agrees within 0.5% in smooth fields. It
+    fails on a single-bin line and on narrow bins (large grains): its
+    sampled integrals miss the line.
+
+### Not known
+
+  - The effect on a full model: no MOCASSIN run with quantumHeatGrain has
+    been made.
+  - The time qHeat takes now.
+  - How large `gasDustColl_d - photoelHeat_d` is beside the radiative
+    heating of the small grains in these fixtures.
+  - PAHs: the graphite enthalpy has no C-H modes (Cloudy uses DL01 eq 33 or
+    Dwek et al. 1997).
+  - Ices: they would take the silicate form.
+
+### The plan (2026-11-07, 14:40)
+
+The user's choices, through three questions asked during planning:
+  - **Heating.** "Include them": qHeat gets getDustT's gas-grain and
+    photoelectric terms as well as the destroyed resonance lines. A net gain
+    goes in as continuous heating, and a net loss scales the photon rates
+    down.
+  - **Gate.** "Default 0": `minConvQHeat` defaults to 0, so qHeat runs from
+    the second iteration. A value the user gives still applies.
+  - **Runs.** "hiipdr full + pn150k 3 it": a converged hiipdr with qHeat,
+    pn150k for 3 iterations, and the old and new binaries timed on the same
+    input.
+  - **A new rule.** "do not run any models if there are other models
+    running". At the time, the user's NGC6302 model held 12 ranks of
+    ~/.local/bin/mocassin. Every launch of this entry waits until no
+    mocassin, mocassin.new, mocassinWarm or cloudy.exe process exists.
+
+**The design** (plan iridescent-stirring-pie, carried out by the
+code-executor):
+  - **`source/qheat_mod.f90`, new and standalone** (constants_mod only).
+    `qhSolve` implements DL01's thermal-continuous scheme:
+    - upward rates from eqs 15-24 (bin overlaps), 28 (the adjacent level,
+      with its intrabin term) and 16 (the top level);
+    - eq 41 cooling, to the level below, in photons below E_u;
+    - the GD89 recursion;
+    - GD89's heat capacities with (N - 2).
+
+    One geometric T grid, 1 K to Tmax with nTbins levels, serves every grain,
+    so B_nu is tabulated once (`qhInit`). The field is a histogram with edges
+    at the midpoints between bin points (widths exactly widFlx), so its
+    integrals are exact.
+  - **emission_mod `qHeatGrain`** builds the input and replaces
+    qHeat/getTmin/enthalpy/bbody/clrate/cheat:
+    - `Jste` (+ `Jdif` under debug);
+    - each destroyed resonance line at its bin, with the share from the new
+      `resLineGrainHeat`, the formula `resLineHeating` now calls with the
+      same operations in the same order;
+    - getDustT's `gasDustColl_d - photoelHeat_d`.
+
+    getDustT stores the last two per cell (`qhResD`, `qhCont`, allocated in
+    initResLines with lgQheat), and they are reduced over ranks exactly as
+    Tdust is.
+  - **Data.**
+    - The material is `grainCarb`, from MsurfAtom, the flag WD01's yield
+      already reads.
+    - N = (4 pi/3) a^3 rho / (MsurfAtom amu).
+    - A grain falls back to equilibrium emission, counted, if it has no
+      rho/MsurfAtom, no net heating or no distribution.
+  - **One solve per grain.** setDustPDF solves each grain; setDiffusePDF
+    adds their sum (`qhCellSpec`) instead of calling qHeat again.
+    `qHeatPss.out` is written from setDustPDF, so dust-only runs write it
+    too.
+  - **The gate.** `convPercent >= minConvQHeat .and. lgQhReady`, where
+    lgQhReady is set after the first Tdust reduction (it replaces
+    `nIterateMC > 1`).
+  - **A per-iteration `[qHeat]` line** gives the grains solved, the
+    fallbacks, emitted/absorbed min and max, and the count with P(top) >
+    1e-6.
+  - **`qhTest` and `tools/d462_qheat_check.py`.** The tool runs 11 cases:
+    graphite grph-avg and silicate Sil_21, 5-100 nm, MMP83 x 1 to 1e4,
+    with and without a Lya share of 0.4, and the continuous term +-.
+    qhTest is checked against:
+    - the same algorithm in numpy, to rounding;
+    - a grain-history Monte Carlo, within 2.5%, for a <= 0.02 um;
+    - T_eq, within 1.5%, for a >= 0.05 um;
+    - energy closure to 2e-3.
+  - **Docs.**
+    - the dust chapter's "Stochastic heating", keywords.yaml and
+      outputs.yaml;
+    - DraineLi2001 added to the bibliography;
+    - L-8 retitled and lowered to Low;
+    - L-96 closed.
+
+**Runs** (runs/_d462, one queue, 14 ranks each, each waiting for other models
+to finish):
+  - **p0-old, p0-new:** p0tau10, dust only, without the keyword; the
+    installed binary against the new one.
+  - **p0-qh:** p0tau10 with `quantumHeatGrain 0.2 0.` and Tmax 1500 K.
+  - **hii-B:** hiipdr, without the keyword, against runs/_d454/hii-S.
+  - **hii-qh2-old, hii-qh2-new:** hiipdr for 2 iterations with
+    `quantumHeatGrain 0.02 -1.`, for timing.
+  - **hii-qh:** hiipdr, converged, `quantumHeatGrain 0.02 0.`, Tmax 1500 K,
+    Pss written.
+  - **pn-qh3:** pn150k for 3 iterations, `quantumHeatGrain 0.01 0.`.
+
+Tmax is 1500 K for p0tau10 and hiipdr, whose grains reach 807 K and, in one
+cell, 1209 K. pn150k's reach 155 K.
+
+**Predictions.**
+  1. **Builds.** Four flavours, h2Test, h2Slab and qhTest: rc 0, 0 errors.
+  2. **The tool.** All 11 cases pass:
+     - qhTest against numpy: |dT|/T <= 1e-6, max|dP| <= 1e-8;
+     - emitted/absorbed within 1 +- 1e-4;
+     - against the Monte Carlo: -1.6% to -0.5%;
+     - against T_eq at 0.05 and 0.1 um: -1.0% to -0.3%;
+     - the continuous term: cont+ above T_eq (prototype 45.2 against
+       44.5 K), cont- below it (42.8 K).
+  3. **Byte identity without the keyword.** p0-new = p0-old and hii-B =
+     runs/_d454/hii-S in every output, apart from summary.out's times.
+  4. **p0-qh.**
+     - It runs and writes qHeatPss.out.
+     - `[qHeat]` lines from iteration 2: 0 fallbacks, emitted/absorbed
+       within 1 +- 2e-3, 0 top-level cells.
+     - Tmean/Teq within 1.5% in every written cell.
+     - SED.out bands within 3% of p0-new's.
+  5. **hii-qh** (7 sizes, 0.010-0.018 um silicate).
+     - `[qHeat]` lines in iterations 2-15: about 106 428 grains solved (15204
+       cells x 7), 0 fallbacks, ratio between 0.998 and 1.002, 0 top-level
+       cells.
+     - convergence.out row 1 identical to hii-B's.
+     - At 0.018 um, the median Tmean/Teq is 0.90-1.00, lower at 0.010 um;
+       sum P = 1 to 1e-6.
+     - SED.out against hii-B:
+       - 5-25 um higher by x1.02-3;
+       - 60-300 um within +-5%;
+       - the total escaped energy within 0.5%.
+     - Tdust median ratio (sizes >= 0.05 um) and Hbeta within +-1%.
+     - The run takes at most 15% longer than hii-B.
+  6. **Timing.** On the same night as hii-B's iteration 2:
+     - in hii-qh2-old, qHeat adds >= 5 min to iteration 2 (estimate: 15 000
+       calls per rank at about 40 ms);
+     - in hii-qh2-new it adds <= 60 s;
+     - the ratio of the two is >= 10.
+  7. **pn-qh3** (7 sizes, 5-9 nm graphite, which emitted nothing before).
+     - `[qHeat]` lines at iterations 2 and 3: about 7 x the cells solved, 0
+       fallbacks, ratio within 1 +- 2e-3.
+     - 0 top-level cells, less certain: a 5 nm grain near the star could
+       spike past 700 K.
+     - qHeat adds <= 2 min per iteration.
+
+**What would change the reading.**
+  - A FAIL against numpy, or any byte difference without the keyword, is a
+    blocker and goes back to planning.
+  - A FAIL against the Monte Carlo alone points at the scheme's
+    discretisation.
+  - Fallbacks, or a ratio outside 1 +- 2e-3, in a run while the unit test
+    passes point at a data path: qhResD, qhCont or the units.
+  - A move of more than 0.5% in hii-qh's total escaped energy means dustPDF
+    is not conserving energy.
+
+### Implementation (2026-11-07, 14:42-14:57)
+
+The code-executor carried out Part 1. Commits a15287b (the change) and
+9585e7b (docs only).
+
+**Status.**
+  - Diff: 18 files, +1079/-528.
+  - The four flavours, h2Test, h2Slab and qhTest build with rc 0 and 0
+    errors (runs/_d462/build-Q.log, version 9585e7b).
+  - The 3D binary has md5 416686b8; qhTest 37063ffa.
+
+**The tool** (`tools/d462_qheat_check.py` on bin/qhTest.Q, written to
+runs/_d462/check/summary.txt; check-pre is byte-identical). 11 of 11 cases
+pass.
+
+| check | predicted | measured |
+|---|---|---|
+| qhTest against numpy, \|dT\|/T | <= 1e-6 | <= 8.9e-16 |
+| qhTest against numpy, max\|dP\| | <= 1e-8 | <= 1.1e-15 |
+| emitted/absorbed - 1 | +-1e-4 | <= 1.1e-15 |
+| against the Monte Carlo | -1.6% to -0.5% | -1.52% to -0.60% (6 cases) |
+| against T_eq, 0.05 and 0.1 um | -1.0% to -0.3% | -0.87%, -0.86% |
+| continuous term (T_eq 44.47 K) | cont+ above, cont- below | 45.16 K, 42.76 K |
+
+Prediction 2 held in full.
+
+**Two blockers, patched by the executor instead of being returned to
+planning.** Both were errors in the plan's own text. The main session read
+both fixes and accepts them, since a revised plan would have made the same
+change:
+  - **A name clash in the plan's qheat_mod.** qhInit's local `x` hid the
+    module work array `X` (Fortran ignores case), and the build failed with
+    "Allocate-object ... is neither a data pointer nor an allocatable
+    variable". The fix renames the local to `xh`, in its declaration and
+    its three uses. The rest of qheat_mod is the plan's text exactly
+    (diffed).
+  - **The plan's tool under NumPy 2.4.6.** `{Nat!r}` printed
+    `np.float64(...)` into the case file, so qhTest failed to read it (rc 2
+    in all 11 cases). The fix writes `float(...)` before `!r`. No tolerance
+    or check changed.
+
+**Three other adaptations**, each following from the plan's own edits:
+  - **The 1.9 grep.** It prints one line, the qHeatPss.out header string
+    `'i Tspike(i) Pspike(i)'`, which the plan itself writes. No variable or
+    routine of the old scheme remains.
+  - **Moved goldens.** emission_mod's `forLines` moved 5 lines (597-648 to
+    602-653), because 1.9 (a) and (b) add lines above it, although the plan
+    said it would not. The pdr-status `**L-37.**` golden and the
+    `test_text_suggestion` line moved too. units_snapshot.json was
+    regenerated: qheat_mod (5 units) and qhTest added; emission_mod from 32
+    units to 28.
+  - **A docs anchor.** One anchor in dust.md pointed at the `heat = ...`
+    statement that 1.10 replaced. It now points at the `resLineGrainHeat`
+    call (9585e7b).
+
+**The main session's review of the diff.**
+  - common_mod, set_input_mod, grid_mod, update_mod, iteration_mod and the
+    Makefile match the plan line for line.
+  - resLineHeating keeps the operations of `heat` in their old order (dLine
+    = (Gline*Hden)*(1-fEsc); heat = (dLine*xSec)/(Ndust*absOpac)). Whether
+    the result is bitwise the same is prediction 3.
+  - Two follow-ups by the main session: docs/physics/mocassin/index.md's
+    counts ("Four were fixed", "Three are open", with an L-96 bullet), and
+    `qhTest` in .gitignore beside h2Test.
+
+**Checks.**
+  - pytest: 109 passed.
+  - fortref check: only fortref.unpushed, once a sphinx build has
+    regenerated code-map.md.
+  - sphinx-build -W: rc 0.
+
+**Runs.** The unit d462-runs was launched at 14:57. It is waiting: the
+user's NGC6302 model (12 ranks of ~/.local/bin/mocassin) is still running,
+and nothing of this entry has started.
+
+### Results (2026-11-07, 15:36-17:50)
+
+The queue waited for the user's NGC6302 model to end, started at 15:36, and
+ended at 17:49. All runs were in runs/_d462, at 14 ranks, with rc 0.
+
+**P3, byte identity without the keyword: held, after a test added for a
+planning error.**
+  - **The planned dust-only pair was invalid.** p0-old and p0-new differ in
+    dustGrid, grid0, pdrFUV and SED, and ran 25 and 30 iterations. The
+    p0tau10 fixture has no `randomSeed`, so its seed comes from the clock
+    (`randomSeed = -1`, mocassin.f90), and the two runs were two
+    realisations. The plan did not check the fixture's seed.
+  - **The seeded pair.** p0s-old and p0s-new (`randomSeed 1001`, launched
+    as a second unit, d462-seed, after the main queue) are identical in
+    every output, summary.out apart from its times, at 30 iterations each.
+  - **hiipdr.** hii-B is identical to runs/_d454/hii-S in all 30 outputs,
+    summary.out apart from its times. The run took 45:03 against hii-S's
+    34:13 on the same computation, which is the machine's timing variance.
+    hii-B is the same-night reference for the timings below.
+
+**P4, p0-qh** (dust only, one 0.16 um grain on qHeat, Tmax 1500 K). Partly
+held.
+  - **Health.** It runs and writes qHeatPss.out. The `[qHeat]` lines for
+    iterations 2-30 give emitted/absorbed within 1 +- 3.1e-14 and 0
+    top-level cells.
+  - **Fallbacks: not 0, as predicted.** They are 110, 129, 122, 109, 96, 32,
+    15, 3 and 1 in iterations 2-10, then 0. They are the cells that no
+    packet reached in the iteration before. summary.out has 4% no-hit cells
+    (about 107 of 2665) in iterations 1-4, 3% at 5, 1% at 6 and 0 from 7, as
+    autoPackets doubles the 1e5 packets. Such a cell has gamma = 0, so its
+    grain keeps its equilibrium emission, as designed. The prediction had
+    not allowed for unhit cells.
+  - **The equilibrium limit.** Tmean/Teq is 0.990-0.993 in all 189 written
+    cells (Teq 33-439 K), within 1.5%. Every sum of P is 1 to 7e-16.
+  - **SED.out against p0-new:**
+
+    | band | p0-qh/p0-new |
+    |---|---|
+    | < 1 um | 1.0054 |
+    | 1-5 um | 0.9996 |
+    | 5-25 um | 1.0298 |
+    | 25-60 um | 1.0022 |
+    | 60-300 um | 0.9830 |
+    | > 300 um | 0.9695 |
+    | total | 1.00000 |
+
+    "Within 3%" held in 5 of 6 bands and narrowly missed beyond 300 um. Two
+    realisations without the option (p0-old against p0-new) agree within
+    0.1% from 1 to 300 um.
+  - **The cause, tested** (runs/_d462/gridres.py and its log). A grain whose
+    true distribution is a delta is spread by the scheme over the levels
+    next to it, which broadens its spectrum with the total unchanged. For
+    the 0.16 um grain at Teq 47 K, the 5-25 um band against equilibrium is
+    x1.196 at nT = 300 (dlnT = 0.0245), x1.096 at 600 and x1.047 at 1200.
+    Tmean/Teq goes 0.990, 0.995, 0.9975. At Teq 154 K the band is x1.006.
+    The bias halves with the spacing; it is the grid's resolution.
+
+**The grid at the option's own sizes** (gridres.log, 300 against 1200
+levels, Lya share 0.4; silicate 0.010-0.016 um and graphite 0.005-0.009 um,
+MMP83 x 1 to 1e6).
+  - A band that carries 3% or more of a grain's emission changes by 2.5% or
+    less.
+  - The far Wien tail is overestimated at 300 levels. 5-25 um is x1.09-1.21
+    where it carries under 1% (silicate in MMP83 x 1-100), and 1-5 um is
+    x1.5-109 where it carries 1e-6 or less.
+
+That is a limit of the default `nTbins`, not an energy error.
+
+**P5, hii-qh** (7 sizes, 0.010-0.018 um silicate, Tmax 1500 K). Held.
+  - **Health.** The `[qHeat]` lines for iterations 2-15 each give 106 428
+    grains solved (15 204 cells x 7), 0 fallbacks, emitted/absorbed between
+    0.9999999999999972 and 1.0000000000000024, and 0 top-level cells.
+  - **Before qHeat acts.** convergence.out's first three lines, iteration 1
+    included, are identical to hii-B's.
+  - **qHeatPss.out** (1078 rank-0 cells per size). The median Tmean/Teq is:
+
+    | a [um] | 0.0100 | 0.0111 | 0.0122 | 0.0135 | 0.0149 | 0.0165 | 0.0182 |
+    |---|---|---|---|---|---|---|---|
+    | Tmean/Teq | 0.9466 | 0.9564 | 0.9647 | 0.9717 | 0.9772 | 0.9817 | 0.9852 |
+
+    Every sum of P is 1 to 1.2e-15.
+  - **SED.out against hii-B:**
+
+    | band | hii-qh/hii-B |
+    |---|---|
+    | < 1 um | 1.0001 |
+    | 1-5 um | 1.0013 |
+    | 5-25 um | 1.0274 |
+    | 25-60 um | 0.9992 |
+    | 60-300 um | 0.9973 |
+    | > 300 um | 0.9956 |
+    | total | 0.99998 |
+
+  - **Grains and gas, unchanged.** The median Tdust ratio is 1.0002-1.0004 at
+    every size (5-95%: 0.998-1.003). Hbeta is x1.000025. The 25 heavy-ion
+    lines above 0.05 Hbeta are 0.998-1.001. One line, N IV 4-5, is printed
+    by hii-qh only, at 1.4e-45 Hbeta.
+  - **Run time.** 48:19 against 45:03, +7.2%.
+
+**P6, timing.** Held. All three are on the same afternoon.
+  - Iteration 2 takes 727 s with the old binary (hii-qh2-old), 196 s with
+    the new (hii-qh2-new) and 177 s without the option (hii-B).
+  - Iteration 1, which none of them spends on qHeat, takes 45, 44 and 40 s,
+    which sets the noise at about 5 s.
+  - qHeat therefore adds 550 s to an iteration in the old code and 19 s in
+    the new, a factor of about 29.
+  - Per call: 7602 grains per rank and iteration. The old code called twice
+    per grain, at about 36 ms each; the new solves once, at about 2.5 ms.
+  - The new run's `[qHeat]` line equals hii-qh's for iteration 2.
+
+**P7, pn-qh3** (pn150k, 7 sizes of 5-9 nm graphite `grph-avg`, which
+emitted nothing before). Held.
+  - The `[qHeat]` lines for iterations 2 and 3 give 247 688 grains solved
+    (35 384 cells x 7), 0 fallbacks, emitted/absorbed within 1 +- 3.3e-15,
+    and 0 top-level cells.
+  - Iterations 2 and 3 take 352 s and 172 s, against 308 s and 128 s for
+    runs/_d450/pn-LC: about 44 s more per iteration. The comparison is
+    across days.
+
+**What this means.**
+  - qHeat now runs on the grain's whole heating, as getDustT has it: the
+    field, the destroyed resonance lines and the gas-grain terms. Every
+    distribution conserves energy to rounding in all four models.
+  - Models without the keyword are unchanged, bit for bit.
+  - The option now runs from the second iteration at 2-3% of an iteration's
+    cost (hiipdr 7%, pn150k about 10% at iterations 2-3). Before, it cost
+    about 9 minutes per iteration on hiipdr, and it never ran by default.
+  - On hiipdr, stochastic heating of the grains below 0.02 um moves the
+    escaped 5-25 um band by +2.7% and leaves the rest within 0.5%.
+
+**Not known.**
+  - **Converged pn150k.** Its 5-9 nm graphite is the option's main case. It
+    was not run to convergence (the user chose 3 iterations).
+  - **How much of hiipdr's 5-25 um rise is the grid's far-Wien bias.** That
+    band carries about 1% of these grains' emission, where 300 levels
+    overestimate it by 9-18% (gridres.log). A run with `nTbins 1200` would
+    separate the bias from the physics.
+  - **The default grid.** 300 geometric levels to Tmax are a resolution
+    choice. A finer default, or an adaptive grid (DL01 appendix B), is the
+    user's decision.
+  - **PAHs and ices** take the graphite and silicate enthalpies (L-8).
+
+### Status
+
+Done (2026-11-07).
+
+---
+
+## D-463 - D-462 merged to the other branches; the level-grid issue logged as L-98 (2026-11-07)
+
+The user (2026-11-07, after D-462): "merge these changes to the other
+branches in the repository. Log the nTbins issue for future implementation."
+
+**The issue, logged as L-98** (Low) in doc/pdr-status.md, with a sentence in
+the dust chapter and the MOCASSIN index.
+  - **What it is.** qHeat's default level grid, 300 geometric levels to
+    Tmax, spreads a distribution narrower than a level over its neighbours.
+    The power stays exact, but the far Wien tail comes out too high, and the
+    error halves with the spacing (D-462, gridres.log).
+  - **What a future implementation could do:**
+    - a finer default;
+    - an adaptive grid per grain (DL01 appendix B);
+    - a second solve, refined where P > 1e-12.
+  - **The cost of a finer grid**, measured now with qhTest in runs/_d462/ntime
+    (five calls each, wall time including process start, the case-file read
+    and qhInit):
+
+    | case | 300 levels | 600 | 1200 |
+    |---|---|---|---|
+    | graphite 0.005 um, MMP83 x 1e4, Lya 0.4 | 5.6 ms | 11.6 ms | 24.9 ms |
+    | silicate 0.0158 um, x 1e2, Lya 0.4 | 7.2 ms | 16.5 ms | 23.7 ms |
+    | silicate 0.158 um, x 1e3 | 7.1 ms | 8.4 ms | 21.6 ms |
+
+    1200 levels therefore cost about 4 times what 300 do. The early exit
+    keeps that below nT^2. A solve took 2.5 ms in D-462's runs at 300 levels.
+  - **The test for whichever option is chosen:** the check tool, gridres.py's
+    band ratios, and a rerun of hii-qh. The rerun also separates the grid
+    bias from hiipdr's x1.027 at 5-25 um.
+
+**Which branches.** These have their own work and take production by merge:
+  - **docs** (~/software/mocassin_docs): 8 commits behind, none of its own.
+    Fast-forwarded to production.
+  - **h2-model** (~/software/mocassin_h2): 65 behind. Its 14 commits since
+    the merge base change only DEVLOG-H2.md. Production is merged in, as at
+    H-047 to H-050. Its builds are checked in that worktree, and the record
+    is H-051.
+
+The others are left as they are. They are archival lines, not live
+development, and merging production into them would bring in 300-900
+unrelated commits:
+  - main: 802 commits behind; it is an old local branch, and GitHub's main
+    is pushed from pdr-photoionization;
+  - dev: 797 behind, 24 ahead, the upstream-style line that takes ports, not
+    merges (D-269, D-367);
+  - pdr-coupling: 720 behind;
+  - feature1: 916 behind;
+  - compBias: 857 behind;
+  - d418-level-order: 309 behind.

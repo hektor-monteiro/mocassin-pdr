@@ -9,9 +9,20 @@ CO lines, and continuing it with a warm start.
 The model is MOCASSIN's test problem (`benchmarks/test_Problem`) with a PDR. The run shown was made
 with release `pdr-coupling-v2.0.1`. The tutorial's inputs and scripts (`examples/tutorial/`, and
 the versions of `tools/mocread.py` and `tools/h034_maps.py` it uses) came after that release
-({devlog}`D-440`), so use release `pdr-coupling-v2.0.2` or later, which has them and computes this
-model as v2.0.1 did (it changes only `SED.out`, and only for a source in an inactive cell,
+({devlog}`D-440`), so use release `pdr-coupling-v2.0.2`, which has them and computes this model as
+v2.0.1 did (it changes only `SED.out`, and only for a source in an inactive cell,
 {devlog}`D-441`). The {doc}`quickstart <../getting-started/quickstart>` is a shorter first look.
+
+:::{note}
+The code after release `pdr-coupling-v2.0.2` does not compute this model as the run shown here.
+It emits the collisional excitation of H I that the gas cools by ({devlog}`D-447`), and it reads
+the largest grain of a Q file correctly, which this model's graphite file needed ({devlog}`D-450`,
+{lim}`L-91`). This model has not been rerun with them. On the test problem without a PDR,
+{devlog}`D-447` lowered H$\beta$ by 15%. On `pn150k`, whose graphite is the same file, the graphite
+fix moved the H/H₂ transition deeper and cut CO 2-1 by about a third ({ref}`sec:bench-since`).
+Expect the numbers below to differ. Its `SED.out` is also the continuum only: the lines that escape
+are written to `SEDlines.out` ({devlog}`D-454`).
+:::
 
 ## 1. The model
 

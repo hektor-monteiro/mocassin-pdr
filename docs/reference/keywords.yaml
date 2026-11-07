@@ -350,16 +350,19 @@
 - name: quantumHeatGrain
   group: dust
   syntax: "quantumHeatGrain <a_max_um> <min_convergence>"
-  default: "off (1e-3, 99 when on)"
+  default: "off (1e-3, 0 when on)"
   build: all
   status: active
   description: |
     Stochastic heating (temperature spiking) for grains smaller than
-    `a_max_um`, applied once the grid convergence exceeds `min_convergence`
-    per cent. It is applied only to the dust re-emission spectrum — the
-    temperatures used by the gas–grain exchange and H₂ formation are unchanged
-    — and only while the converged-cell percentage exceeds `min_convergence`;
-    PDR runs plateau near 65–80%, so lower it there or the option never acts.
+    `a_max_um` ({devlog}`D-462`): they emit from a temperature distribution
+    solved on their whole heating (the field, the resonance-line power the
+    dust destroys on the spot, and the gas–grain terms) instead of at the
+    equilibrium temperature. It applies only to the dust re-emission
+    spectrum; the temperatures used by the gas–grain exchange, H₂ formation
+    and sublimation are unchanged. It runs from the second iteration, while
+    the previous iteration's converged-cell percentage is at least
+    `min_convergence` (0 by default, so every iteration). Give both numbers.
 
 - name: quantumHeatGrainParameters
   group: dust
@@ -368,9 +371,9 @@
   build: all
   status: active
   description: |
-    Internal parameters of the stochastic heating: the top of the
-    temperature mesh (K), the number of temperature bins, and whether to
-    write every probability distribution to `qHeatPss.out` (very large).
+    The temperature grid of the stochastic heating: its top (K; the grid is
+    geometric from 1 K), the number of temperatures, and whether to write
+    every distribution to `qHeatPss.out` (very large).
 
 - name: CDE
   group: dust
@@ -692,6 +695,8 @@
   description: |
     Writes `contCube.out`, a 3D cube of the escaping continuum between the
     two wavelengths, in the `inclination` direction or over all directions.
+    Until D-454 it also held the transported lines that fall in the band.
+  devlog: [D-454]
 
 - name: getEquivalentTau
   group: output
@@ -712,7 +717,9 @@
   description: |
     Light-echo geometry: `SED.out` is integrated only over cells between the
     ellipsoids of light-travel times t1 and t2 (light days), opening along
-    z; use with `inclination 1 0.0 -1`. Writes `echo.out`.
+    z; use with `inclination 1 0.0 -1`. Writes `echo.out`. `SEDlines.out`,
+    the escaping lines since D-454, is not restricted this way.
+  devlog: [D-454]
 
 - name: NoSourceSED
   group: output
@@ -724,6 +731,8 @@
     `SED.out` includes only the radiation escaping from cells that do not
     hold a source, i.e. the reprocessed emission without the direct
     starlight. Stored in the grid files, so `mocassinOutput` keeps it.
+    `SEDlines.out`, the escaping lines since D-454, keeps every cell's lines.
+  devlog: [D-454]
   see_also: ['output_mod.f90::writeSED@"if (lgNosource) then"..@"end if"']
 
 - name: frontLines
@@ -735,7 +744,7 @@
   description: |
     A post-processing estimate of [O I] 6300, 6363 and 5577 Å with the
     cells an ionisation front crosses resolved by a sub-cell profile.
-    Writes `frontField.out` with the grid files and, after convergence,
+    Writes `frontField.out` and `reemission.out` with the grid files and, after convergence,
     `lineFluxFront.out`; `lineFlux.out` is not changed. Needs one source
     and a single 3D grid.
   devlog: [D-381, D-382]

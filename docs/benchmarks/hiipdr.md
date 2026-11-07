@@ -10,26 +10,28 @@ to test TORUS-3DPDR:
 
 MOCASSIN-PDR computes one octant on $31^3$ cells, 15,204 of them active. The Cloudy
 model is matched on the stellar spectrum and luminosity, the abundances, the grain
-material and size range, $A_V/N_{\mathrm H}$ and $\zeta$, with 1 km s⁻¹ turbulence.
+material and size range, $A_V/N_{\mathrm H}$ and $\zeta$, with 1 km s⁻¹ turbulence, and is a static
+sphere ({devlog}`D-458`).
 
 The fixture is `benchmarks/pdr/hiipdr`. The run shown is the release run `rel-hii31`
-({doc}`index` gives its settings and provenance).
+({doc}`index` gives its settings and provenance). The fixes made since that release leave this model
+unchanged within the Monte Carlo noise ({ref}`sec:bench-since`).
 
 ## Results at a glance
 
 | Quantity | MOCASSIN-PDR | Cloudy c25.00 |
 | :--- | :--- | :--- |
-| Ionisation front (H⁺ = H), $A_V$ / radius | 0.429 / 3.79 pc | 0.446 / 3.76 pc |
-| H/H₂ transition (H = 2H₂), $A_V$ / radius | 1.39 / 9.78 pc | 1.28 / 8.95 pc |
+| Ionisation front (H⁺ = H), $A_V$ / radius | 0.429 / 3.79 pc | 0.446 / 3.77 pc |
+| H/H₂ transition (H = 2H₂), $A_V$ / radius | 1.39 / 9.78 pc | 1.28 / 8.97 pc |
 | C⁺ = C, $A_V$ | 2.29 | 2.93 |
-| Hβ luminosity | 9.30×10³⁶ erg s⁻¹ | 10.02×10³⁶ erg s⁻¹ |
+| Hβ luminosity | 9.30×10³⁶ erg s⁻¹ | 10.09×10³⁶ erg s⁻¹ |
 
 The ionisation front and Hβ agree: the front is 0.6% farther out in radius, at the same
 $A_V$ within 0.02 mag. Through the H II region the low-ionisation stages are more
 abundant than Cloudy's ($x(\mathrm O^+)$ 1.4–1.6 times and $x(\mathrm C^+)$ 1.5–1.8 times at
 $A_V$ 0.17–0.31, where $x(\mathrm O^{2+})$ is 0.84–0.97 times; C II] 2326 Å 1.16 times),
 while $T_e$ agrees within ±6%. The line table does not yet include the H II region's
-forbidden lines. Hβ is 0.93 of Cloudy's; compared like for like, with the same
+forbidden lines. Hβ is 0.92 of Cloudy's; compared like for like, with the same
 emissivity and the H II region's own volume, it was 0.95 before the gas–grain correction of {devlog}`D-421` ({devlog}`D-371`).
 
 The PDR is where the two codes differ:
@@ -60,22 +62,29 @@ The PDR is where the two codes differ:
   volume and makes 92% of the model's [O I] 63 μm ({lim}`L-37`). The `frontLines`
   keyword estimates [O I] 6300 Å with the front resolved inside the cells.
 - **Carbon fine-structure lines.**
-  - [C II] 158 μm is 1.29 times Cloudy's.
-  - [C I] 609 μm and 370 μm are 1.62 and 1.27 times Cloudy's at this packet count. They
-    fall towards Cloudy's as the packets increase, with the C⁺/C transition: 1.17 and
-    1.10 at 64 times the packets ({devlog}`D-408`).
+  - [C II] 158 μm is 1.66 times Cloudy's. Cloudy's own line is 22% weaker as a static sphere
+    than as an expanding one, where it was 1.29 times; its [O I] 63 μm and H₂ lines move by
+    less than 3%. {devlog}`D-458` reads this, untested, as the static sphere's doubled line
+    optical depth: [C II] 158 μm is optically thick in this PDR.
+  - [C I] 609 μm and 370 μm are 1.69 and 1.30 times Cloudy's at this packet count. They
+    fall towards Cloudy's as the packets increase, with the C⁺/C transition: to about 1.22 and
+    1.12 at 64 times the packets ({devlog}`D-408`, which measured 1.17 and 1.10 against the
+    expanding sphere, whose lines are 4% and 2% stronger).
 - **H₂ lines.** Of Cloudy's 40 strongest H₂ lines:
   - the ortho lines (odd $J$) are 0.71–0.80 of Cloudy's;
-  - the para lines are 0.95–1.09.
+  - the para lines are 0.97–1.10.
 
   The split by spin is the damping width of the pumping lines: run with Cloudy's width,
   every line falls to about half of Cloudy's, ortho 0.46–0.57 and para 0.50–0.54
-  ({devlog}`H-026`, {lim}`L-56`). The rotational lines carry a further caveat: in
+  ({devlog}`H-026`, {lim}`L-56`; measured against the expanding sphere, whose H₂ lines are
+  within 3% of the static one's). The rotational lines carry a further caveat: in
   95–119 molecular cells per run the PDR heating held by the last temperature solve is
   more than 3 times what the finished model rebuilds, so treat them as unconverged
   ({lim}`L-55`).
-- **The PDR's temperature.** The gas is 1.05–1.11 times Cloudy's temperature in the atomic
-  PDR ($A_V$ 0.5–1.0) and 0.80–0.89 times it from $A_V$ 1.3 to 2.2 (20–37 K against Cloudy's 25–42 K).
+- **The PDR's temperature.** The gas is 1.02–1.05 times Cloudy's temperature in the atomic
+  PDR ($A_V$ 0.5–1.0) and 0.81–0.88 times it from $A_V$ 1.3 to 2.2 (20–37 K against Cloudy's 24–42 K).
+  As a static sphere Cloudy's atomic PDR is 4–5% warmer than as an expanding one
+  ({devlog}`D-458`).
 - **The deep gas.** Beyond $A_V\approx2$ few FUV packets reach a cell in one iteration,
   so the temperatures and abundances there carry Monte Carlo noise. The percentile bands
   widen accordingly ({lim}`L-26`).

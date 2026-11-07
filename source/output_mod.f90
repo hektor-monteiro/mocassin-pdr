@@ -2474,6 +2474,7 @@ endif
         real                       :: x1,x2, coeff
         real                       :: hb          ! emissivity of H 4->2
         real                       :: fh          ! emissivity of H
+        real                       :: q12H, q13H, collH ! D-447: hICollExc's terms, and their factor
 
 
         T4 = TeUsed / 10000.
@@ -2552,6 +2553,12 @@ endif
         ! H I 30->8 line alone
         Lalpha = 10**(-0.897*log10Te + 5.05)
         LyaCell = elemAbundanceUsed(1)*ionDenUsed(elementXref(1),2)*NeUsed*Lalpha
+        ! D-447: plus the collisionally excited H I the thermal balance cools
+        ! by (emission_mod hICollExc): Lya, and Halpha's 5/32 of n=3
+        call hICollExc(TeUsed, q12H, q13H)
+        collH = hcRyd*ionDenUsed(elementXref(1),1)*NeUsed*1.e25
+        LyaCell = LyaCell + collH*(q12H + (1.-fHaColl)*q13H)
+        HIRecLines(3,2) = HIRecLines(3,2) + collH*fHaColl*q13H
 
         ! reinitialise HeIIRecLines
         ! file used to be read in here
@@ -3281,6 +3288,8 @@ endif
       real :: theta1, theta2, phi1, phi2        ! Angle calculation variables
       real :: lambda                            ! Wavelength [cm]
       real :: totalE                            ! Total energy radiated out [erg/sec]
+      real :: totalLinesE                       ! D-454: energy radiated out in the transported lines [1e36 erg/s]
+      real :: SEDl                              ! D-454: their F(nu)*D^2 in a bin [Jy * pc^2]
       real :: SEDratio                          ! Ratio for normalizing angle-dependent SED
       logical :: isStarCell                     ! Flag to identify if a cell contains a star
   
@@ -3472,6 +3481,35 @@ endif
       write(16,*) ' '
       write(16,*) 'Total energy radiated out of the nebula [e36 erg/s]:', totalE
       print*, 'Total energy radiated out of the nebula [e36 erg/s]:', totalE, Lstar, nphotons
+
+      ! D-454: the transported lines (D-292) escape into escapedLines and not
+      ! escapedPackets, so the SED above is the continuum, as it was before
+      ! D-292. SEDlines.out holds them on the same grid and in the same units,
+      ! over all directions (raw sums: escapedPackets' /8 and x8 under
+      ! symmetricXYZ cancel); their total is given here so the two add up.
+      totalLinesE = 0.
+      if (allocated(escapedLines)) then
+         close(76)
+         open(unit=76, file='output/SEDlines.out', status='unknown', position='rewind', iostat=ios, action="write")
+         if (ios /= 0) then
+            print*, "! writeSED: Cannot open output/SEDlines.out for writing"
+            stop
+         end if
+         write(76,*) 'Escaped energy of the transported lines (D-292), not in SED.out (D-454): '
+         write(76,*) '  nu [Ryd]         lambda [um]        F(nu)*D^2 [Jy * pc^2] over all directions'
+         do freq = 1, nbins
+            totalLinesE = totalLinesE + real(escapedLines(freq))
+            SEDl = real(escapedLines(freq))/(4.*Pi*3.086*3.086)
+            SEDl = 1.e23*SEDl/(3.2898e15*widflx(freq))
+            write(76,*) nuArray(freq), c/(nuArray(freq)*fr1Ryd)*1.e4, SEDl
+         end do
+         write(76,*) ' '
+         write(76,*) 'Total energy radiated out in the transported lines [e36 erg/s]:', totalLinesE
+         close(76)
+      end if
+      write(16,*) 'Energy radiated out in the transported lines, in SEDlines.out [e36 erg/s]:', totalLinesE
+      write(16,*) 'Continuum and lines [e36 erg/s]:', totalE + totalLinesE
+      print*, 'Energy radiated out in the transported lines [e36 erg/s]:', totalLinesE
   
       write(16,*) ' '
       write(16,*) 'Diagnostic Parameters:'

@@ -182,6 +182,8 @@ module update_mod
            if (grid%echoVol(xP,yP,zP).eq.0.0) then
               grid%Tdust(:,:,cellP) = echoTemp
               TdustTemp(:,:,cellP)  = grid%Tdust(:,:,cellP)
+              if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+              if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
               return
            end if
 
@@ -195,6 +197,8 @@ module update_mod
 
             if (lgDust) then
                TdustTemp(:,:,cellP)       = grid%Tdust(:,:,cellP)
+               if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+               if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
             end if
 
             if (lgGas) then
@@ -369,6 +373,8 @@ module update_mod
 
          ! this was added to help implementing MPI comunication
          if (lgDust) TdustTemp(:,:,cellP)          = grid%Tdust(:,:,cellP)
+         if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+         if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
 
          if (lgNeInput .and. lgTalk) then
             print*, '! updateCell: [talk] cell:', xP,yP,zP, " NeInput: ", &
@@ -405,6 +411,8 @@ module update_mod
 
          ! this was added to help implementing MPI comunication
          TdustTemp(:,:,cellP)          = grid%Tdust(:,:,cellP)
+         if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+         if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
 
       end if
 
@@ -1805,9 +1813,7 @@ end subroutine iterateT
 
             real                   :: betaFF        ! energy loss coeff due to ff rad
             real                   :: betaRec       ! energy loss coeff due to recomb
-            real                   :: ch12, ch13, & ! collision excitation of
-                 & ex12, ex13,&                     ! hydrogen data
-                 & th12, th13                       ! (Mathis, Ly alpha, beta)
+            real                   :: q12H, q13H    ! D-447: H I collisional excitation (emission_mod hICollExc)
             real                   :: coolFF        ! cool due to FF radiation [erg/s/Hden]
             real                   :: heatPreP, coolPreP  ! D-207: before the PDR block
             real                   :: budL(10)             ! D-217: this call's budget
@@ -1969,25 +1975,12 @@ end subroutine iterateT
             end if
 
             ! collisional excitation of Hydrogen
-            ! Mathis, Ly alpha, beta
-            ch12 = 2.47e-8
-            ch13 = 1.32e-8
-            ex12 = -0.228
-            ex13 = -0.460
-            th12 = 118338.
-            th13 = 140252.
-
-            if (TeUsed > 5000.) then
-
-                coolColl = (ch12*exp(-th12/TeUsed)*Te4**ex12 + &
-                     & ch13*exp(-th13/TeUsed)*Te4**ex13) * &
-                     & hcRyd*grid%ionDen(cellP,elementXref(1),1)*NeUsed
-
-             else
-
-                coolColl = 0.
-
-             end if
+            ! Mathis, Ly alpha, beta. D-447: the fit is emission_mod's
+            ! hICollExc, which the re-emission spectrum, the grains' Lya heating
+            ! and the reported lines also read, so the energy cooled is emitted
+            call hICollExc(TeUsed, q12H, q13H)
+            coolColl = (q12H + q13H) * &
+                 & hcRyd*grid%ionDen(cellP,elementXref(1),1)*NeUsed
 
             if (lgTraceHeating.and.taskid==0) then
                write(57,*) 'Coll exc H: ',coolColl
@@ -2636,6 +2629,7 @@ end subroutine iterateT
             integer                :: ie402
             double precision       :: nH0402, nHp402, dnChain402
             logical                :: lgChem402(nElements)
+            double precision       :: ctH449   ! D-449: H ionized by X^(i+) + H, i >= 2 [s^-1 per H0]
 
             double precision, dimension(nELements) :: &
                  & denominator   ! denominator of final ion abundance
@@ -2784,11 +2778,12 @@ end subroutine iterateT
 #endif
             lgChem402 = .false.
 
-            ! calculate the X(i+1)/X(i) ratio
+            ! D-449: the coefficients are evaluated for every element before
+            ! the balances, because hydrogen's (the first) now takes the
+            ! ionization the metals' stages above 1+ make (below)
             do elem = 1, nElements
                 do ion = 1, min(elem, nstages-1)
                     if (.not.lgElementOn(elem)) exit
-
                     chex(elem,ion,1) = chex(elem,ion,1)*(t4**chex(elem,ion,2))*&
                          & (1.+chex(elem,ion,3)*exp(chex(elem,ion,4)*t4))
 
@@ -2799,6 +2794,32 @@ end subroutine iterateT
                     ! UMIST to 5-15% below 1000 K) and removed the only O+
                     ! source in PDR gas (D-261, D-262). The upper cut-off stays.
                     if (TeUsed > 5.e4) chex(elem,ion,1) = 0.
+                end do
+            end do
+
+            ! D-449: X^(i+) + H -> X^((i-1)+) + H+ for i >= 2 ionizes
+            ! hydrogen at sum k n(X^(i+)) per H0. The metals' balances below
+            ! apply it as a recombination; hydrogen's did not take it, so the
+            ! H+ it makes was never counted (L-92). It runs one way (no
+            ! reverse above 1+), so it cannot cycle as the H-O pair did
+            ! (D-402). The neutral/first-ion pairs reach hydrogen through the
+            ! network in a PDR run (D-402, D-403) and not at all in a plain
+            ! build.
+            ctH449 = 0.d0
+            do elem = 2, nElements
+               if (.not.lgElementOn(elem)) cycle
+               do ion = 2, min(elem, nstages-1)
+                  ctH449 = ctH449 + dble(chex(elem,ion,1)) &
+                       & *dble(grid%ionDen(cellP,elementXref(elem),ion+1)) &
+                       & *dble(grid%elemAbun(grid%abFileIndex(xP,yP,zP),elem)) &
+                       & *dble(grid%Hden(cellP))
+               end do
+            end do
+
+            ! calculate the X(i+1)/X(i) ratio
+            do elem = 1, nElements
+                do ion = 1, min(elem, nstages-1)
+                    if (.not.lgElementOn(elem)) exit
 
                     ! find the number of electron in this ion
                     nElec = elem - ion +1
@@ -2835,6 +2856,7 @@ end subroutine iterateT
                        ionUp(elem,ion) = dble(nPhotoSte(elem,ion))+&
                             & dble(collIon)+dble(revRate)
                     end if
+                    if (elem == 1 .and. ion == 1) ionUp(1,1) = ionUp(1,1) + ctH449   ! D-449
                     ionDn(elem,ion) = dble(NeUsed)*dble(alphaTot(elem,ion)) &
                          & + dble(chex(elem,ion,1))*dble(grid%Hden(grid%active(xP,yp,zP))) &
                          & * dble(grid%ionDen(cellP,elementXref(1),1))
@@ -2924,6 +2946,10 @@ end subroutine iterateT
                           else
                              grid%pdrPhotRate(cellP, iSl358) = nPhotoSte(elem,1) + collIon
                           end if
+                          ! D-449: and the charge-transfer ionization above, so that
+                          ! the chemistry's H+ has the channel ionBalance's has
+                          if (elem == 1) grid%pdrPhotRate(cellP, iSl358) = &
+                               & grid%pdrPhotRate(cellP, iSl358) + real(ctH449)
                           grid%pdrAlphaRec(cellP, iSl358) = alphaTot(elem,1)
                        end if
                        ! H2 -> H2+ on the same field, with the cross section
@@ -4466,6 +4492,14 @@ end subroutine iterateT
                         dustAbsIntegral = dustAbsIntegral+gasDustColl_d(nS,ai)-&
                              & photoelHeat_d(nS,ai)
                      end if
+                     ! D-462: the grain's heating that is not radiation, for qHeat
+                     if (allocated(grid%qhCont)) then
+                        if (lgGas .and. lgPhotoelectric) then
+                           grid%qhCont(nS,ai,cellP) = gasDustColl_d(nS,ai)-photoelHeat_d(nS,ai)
+                        else
+                           grid%qhCont(nS,ai,cellP) = 0.
+                        end if
+                     end if
 
                      if (lgTraceHeating.and.taskid==0) then
                         write(57,*) 'Dust Species: ', ns, ai
@@ -4687,6 +4721,8 @@ end subroutine iterateT
             integer             :: imul    ! multiplet counter
 
             integer               :: global_speciesP ! DECLARE GLOBAL INDEX
+            real                  :: q12R, q13R   ! D-447: H I collisional excitation
+            real                  :: dLine        ! D-462: the destroyed power, Gline*Hden*(1-fEscape)
 
             ! Calculate the correct global index for the species
             global_speciesP = dustComPoint(icompP) + speciesP - 1
@@ -4704,6 +4740,11 @@ end subroutine iterateT
                         Gline = Gline + 10**(-0.897*log10(TeUsed) + 5.05)*grid%elemAbun(grid%abFileIndex(xP,yP,zP),1)&
                              & *1.e-25*ionDenUsed(elementXref(1),2)*&
                              & NeUsed
+                        ! D-447: and the collisionally excited Lya the gas cools
+                        ! by (hICollExc, as emission_mod's LyaEmis), erg/s per H
+                        call hICollExc(TeUsed, q12R, q13R)
+                        Gline = Gline + (q12R + (1.-fHaColl)*q13R)*hcRyd* &
+                             & ionDenUsed(elementXref(1),1)*NeUsed
 
                      else
 
@@ -4735,11 +4776,13 @@ end subroutine iterateT
 
                Gline=Gline/Pi
 
-               heat = Gline*grid%Hden(cellP)* &
-                    & (1.-grid%fEscapeResPhotons(cellP, iL))*&
-                    & xSecArray(dustAbsXSecP(global_speciesP,sizeP)+resLine(iL)%nuP-1)/&
-                    & (grid%Ndust(cellP)*&
-                    & absOpacSpecies(global_speciesP,resLine(iL)%nuP))
+               ! D-462: the destroyed power, kept per cell for qHeat, and this
+               ! grain's share from the formula qHeat uses too (the same
+               ! operations in the same order as before)
+               dLine = Gline*grid%Hden(cellP)*(1.-grid%fEscapeResPhotons(cellP, iL))
+               if (allocated(grid%qhResD)) grid%qhResD(cellP, iL) = dLine
+               heat = resLineGrainHeat(dLine, sizeP, global_speciesP, resLine(iL)%nuP, &
+                    & grid%Ndust(cellP))
 
                ! Harrington Monk and Clegg 1988 (section 3.2)
                resLineHeating = resLineHeating + heat

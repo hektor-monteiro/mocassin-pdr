@@ -18,7 +18,12 @@ explains why). The rest of this page describes the two PDR models; {doc}`lexingt
 Both models are uniform spheres around one source, computed in one octant
 (`symmetricXYZ`). Cloudy solves the same sphere in one dimension, with matched
 abundances, grains and cosmic-ray ionisation. Its inputs are in the repository
-(`benchmarks/pdr/hiipdr/cloudy/` and `benchmarks/pdr/pn150k/cloudy/`). MOCASSIN's cells
+(`benchmarks/pdr/hiipdr/cloudy/` and `benchmarks/pdr/pn150k/cloudy/`).
+The sphere is static (`sphere static`, {devlog}`D-458`), as MOCASSIN's nebula is: it has no
+velocity field. Cloudy's default sphere assumes expansion, which lets lines leave through the
+central hole ({devlog}`D-457`). In `pn150k` that sent the nebula's Ly$\alpha$ into the PDR and
+doubled Cloudy's far-ultraviolet field there. These pages compared with the expanding runs
+of {devlog}`D-396` until {devlog}`D-459`; {devlog}`D-458` sets the two geometries side by side. MOCASSIN's cells
 are compared with Cloudy's zones at the same visual extinction from the star, $A_V$.
 At each $A_V$ the figures show:
 - **MOCASSIN-PDR:** the median of the cells in log-spaced $A_V$ bins, finer through the
@@ -65,9 +70,33 @@ pages do not use:
     would not yet have stopped;
   - 1.55% in `pn150k` (the H⁰-weighted temperature), within it.
 
-The Cloudy models are the {devlog}`D-396` runs of Cloudy c25.00. The committed inputs
-match the physics commands of those runs exactly; `reduce.py --check-cloudy` verifies
-this.
+The Cloudy models are the {devlog}`D-458` runs of Cloudy c25.00: the inputs of {devlog}`D-396`
+with `sphere static`. The committed inputs match the physics commands of those runs exactly;
+`reduce.py --check-cloudy` verifies this.
+
+(sec:bench-since)=
+### Since the release
+
+Two fixes made after `pdr-coupling-v2.0.2` change what these models compute: the collisional
+excitation of H I is emitted as well as cooled ({devlog}`D-447`), and a Q file's largest grain and
+the charge transfer of the heavy elements' higher stages are handled correctly ({devlog}`D-450`).
+The pages still show the release runs. {devlog}`D-451` reran both models on the code with these
+fixes, with the same seed, packets, iterations and ranks:
+
+- **`hiipdr`** is unchanged within the Monte Carlo noise: H$\beta$ ×0.999, the line ratios
+  within 0.5%, and the H/H₂ and C⁺/C transitions where they were.
+- **`pn150k`** changes. H$\beta$ goes from 0.959 to 0.942 of Cloudy's, and the Case B
+  recombinations from 0.974 to 0.957 of the star's hydrogen-ionising photons (Cloudy: 0.991).
+  The graphite now absorbs as its Q file says, so the far-ultraviolet reaches deeper:
+  - the H/H₂ transition moves from $A_V$ 0.393 to 0.419 (Cloudy: 0.362);
+  - the gas at $A_V$ 0.20, 0.30 and 0.65 is 13%, 4% and 3% warmer;
+  - H₂ 1-0 S(1)/H$\beta$ rises by 10%;
+  - [C I] 609 μm and CO 2-1 fall to 0.81 and 0.71 of the values shown.
+
+A third change moves the escaping lines out of `SED.out` into `SEDlines.out` ({devlog}`D-454`).
+It changes no other output: `hiipdr` rerun with it matches the {devlog}`D-451` run byte for byte
+in every file but `SED.out`. No page here reads a gas model's `SED.out`, and the dust shells of
+{doc}`dust-1d` emit no lines.
 
 ## How the pages are made
 

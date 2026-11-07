@@ -2,7 +2,9 @@ set punch prefix "150k_PDR"
 Blackbody 150000.000000 linear
 luminosity (total) = 36.583 log
 radius = 16.000
-sphere
+# D-458: static, as MOCASSIN's nebula, which has no velocity field. Cloudy's default sphere is expanding: line
+#      photons leaving the illuminated face escape the far side, which let pn150k's Lya out through the hole (D-457).
+sphere static
 hden = 3.000 log
 filling factor = 1.0
 # D-396: MOCASSIN's pdrVturb, 1.0 km/s (3D-PDR params.dat v_turb 1 km/s); constant density, so no pressure term

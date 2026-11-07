@@ -33,6 +33,11 @@ module common_mod
     logical         :: lgPhotoelectric = .true. ! photoelectric effect on
     logical         :: lgQheat = .false.        ! temperature spiking on?
     logical         :: lgWritePss=.false.       ! write Pss for qHeat file?
+    logical         :: lgQhReady = .false.      ! D-462: getDustT has stored this run's qHeat inputs (after the first updateCell)
+    ! D-462: the stochastic solutions of an iteration's emission, summed over
+    ! ranks and printed by iterateMC
+    integer          :: qhNsolved = 0, qhNfail = 0, qhNtop = 0
+    double precision :: qhRatioMin = 1.d300, qhRatioMax = -1.d300
     logical         :: lgTraceHeating = .false. ! trace thermal balance?
     ! D-352: Case A recombination cooling (D-286), the Weingartner & Draine
     ! (2001) photoelectric yield (D-289), the matched-unit grain charge balance
@@ -51,6 +56,8 @@ module common_mod
     real, allocatable :: gSca(:)                 ! gSca(freq)
 
     real, allocatable   :: TdustTemp(:,:,:)     ! temporary dust temperature array (species,size,cell)
+    real, allocatable   :: qhContTemp(:,:,:)    ! D-462: qhCont's MPI copy, as TdustTemp
+    real, allocatable   :: qhResDTemp(:,:)      ! D-462: qhResD's MPI copy
     real, allocatable   :: ionDenTemp(:,:,:)    ! temporary ion density array
     real, allocatable   :: NeTemp(:)            ! temporary electron density array
     real, allocatable   :: TeTemp(:)            ! temporary electron Temperature array
@@ -136,6 +143,11 @@ module common_mod
     ! drawn, and of those destroyed by the dust. Reset and reported per
     ! iteration by iterateMC.
     integer(kind=8) :: nResDrawn = 0, nResDust = 0
+    ! D-454: the energy the transported line packets (D-292) carry out of the
+    ! nebula, by frequency bin, all directions, raw [1e36 erg/s, the units of
+    ! escapedPackets]. Zeroed and summed over ranks by iterateMC; writeSED
+    ! writes it to output/SEDlines.out, so that SED.out is the continuum.
+    double precision, allocatable :: escapedLines(:)
     ! D-292. Transport the optically thin diffuse lines. MOCASSIN created them
     ! as packets and discarded them, which removed ~17% of the local FUV field
     ! in a PDR (D-291). The Lyman series is NOT in this channel - linePDF is
@@ -303,6 +315,7 @@ module common_mod
 
     ! derived types
 
+    integer, parameter :: nPdfSrc = 13   ! D-232, D-449: columns of grid%pdfSrc
     type grid_type             ! derived grid type
 
         character(len=50) :: composition            ! chemical composition
@@ -363,6 +376,13 @@ module common_mod
         real, allocatable :: scaOpac(:,:)               ! dust scattering opacity
         real, allocatable :: dustPDF(:,:)               ! dust emission PDF
         real, allocatable :: fEscapeResPhotons(:,:)     ! frac of res line photons escaping (cell,resline)
+        ! D-462: what getDustT adds to a grain's heating outside Jste, kept for
+        ! qHeat (emission_mod qHeatGrain), with lgQheat only: the resonance-line
+        ! power the dust destroys in the cell (cell, resline; resLineHeating's
+        ! Gline*Hden*(1-fEscape)), and the gas-grain minus photoelectric term
+        ! (species, size, cell), both in getDustT's units
+        real, allocatable :: qhResD(:,:)
+        real, allocatable :: qhCont(:,:,:)
                                                         ! D-376: every MC iteration, for every
                                                         ! dust+gas run
         real, allocatable :: fluorescenceCube(:,:,:)    ! escaped fluorescence packets (ncell,nFluo,nVP)
@@ -415,6 +435,15 @@ module common_mod
         ! gas part above 24.6 eV, (cell,6) the dust part above 24.6 eV. Dust
         ! absorptions currently sample the pooled spectrum (photon_mod:1914), so
         ! this says how much of the ionizing diffuse field each side supplies.
+        ! D-449: (cell,7) the line total (normRec + normFor) the gas spectrum
+        ! also holds; then photons >= 13.6 eV [1e-25 s^-1 per H, the spectrum's
+        ! units over hcRyd nu] of (cell,8) H I (recombination continuum and
+        ! two-photon), (cell,9) the heavy elements' recombination continua,
+        ! (cell,10) He I (with the 2^3S line), (cell,11) He II (with the
+        ! Lyman lines), (cell,12) the 2^3S line alone, (cell,13) the He II
+        ! Lyman lines alone. A gas absorption re-emits its power with the
+        ! shape of (cell,1) + (cell,7); grid_mod writeGrid writes them with
+        ! the gas-absorbed power to output/reemission.out (frontLines).
         real, allocatable :: pdfSrc(:,:)
 
 #ifdef PDR
@@ -637,6 +666,7 @@ module common_mod
         
         logical       :: lgStellar
         logical       :: lgLine
+        logical       :: lgLineTr  ! D-454: a transported line (D-292); its escape is kept out of the SED
 
         type(vector)  :: position
         type(vector)  :: direction

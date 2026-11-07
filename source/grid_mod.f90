@@ -1302,7 +1302,7 @@ module grid_mod
                 stop
              end if
 
-             allocate(grid%pdfSrc(0:grid%nCells, 1:6), stat = err)   ! D-232
+             allocate(grid%pdfSrc(0:grid%nCells, 1:nPdfSrc), stat = err)   ! D-232
              if (err /= 0) then
                 print*, "! setMotherGrid: can't allocate pdfSrc memory"; stop
              end if
@@ -2469,7 +2469,7 @@ module grid_mod
                     stop
                  end if
 
-                 allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:6), stat = err)   ! D-232
+                 allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:nPdfSrc), stat = err)   ! D-232
                  if (err /= 0) then
                     print*, "! resetGrid: can't allocate pdfSrc memory"; stop
                  end if
@@ -2844,6 +2844,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
               if(allocated(grid%scaOpac)) deallocate(grid%scaOpac)
               if(allocated(grid%Ndust)) deallocate(grid%Ndust)
               if(allocated(grid%Tdust)) deallocate(grid%Tdust)
+              if(allocated(grid%qhCont)) deallocate(grid%qhCont)   ! D-462
+              if(allocated(grid%qhResD)) deallocate(grid%qhResD)   ! D-462
               if (lgMultiChemistry .and. allocated(grid%dustAbunIndex)) &
                    &  deallocate(grid%dustAbunIndex)
               if (lgDust) then   ! D-233
@@ -2898,6 +2900,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            integer                     :: i,j,k,iG,ai         ! counters
            integer                     :: yTop                ! 2D index
            integer                     :: iFr, nFrOut         ! D-381 bin counter, cells written
+           integer                     :: iRe449              ! D-449 bin counter
+           double precision            :: pGas449             ! D-449 gas-absorbed power
            real, dimension(nbins)      :: sigFr               ! D-381 cross section row
 #ifdef PDR
            integer                     :: iPdrS               ! PDR species counter
@@ -3332,6 +3336,54 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
               end do
               close(43)
            end if
+        end if
+
+        ! D-449: what a gas absorption re-emits, per active cell: the
+        ! gas-absorbed power of this iteration's packets (the opacity they
+        ! saw less the dust's absorption and scattering, times Jste, all
+        ! bins) beside pdfSrc, the spectrum they were re-emitted with.
+        ! pdfSrc and the opacities are this iteration's, as frontField.out's.
+        if (lgFrontLines .and. lgGas .and. allocated(grid(1)%Jste) .and. &
+             & allocated(grid(1)%opacity) .and. allocated(grid(1)%pdfSrc)) then
+           close(44)
+           open(unit=44, file="output/reemission.out", action="write", position="rewind", &
+                & status="unknown", iostat = ios)
+           if (ios /= 0) then
+              print*, "! writeGrid: can't open file for writing - output/reemission.out"
+              stop
+           end if
+           write(44, '(a)') "# reemission v1 (D-449): per active cell iG i j k cellP, Hden [cm-3],"// &
+                & " Te [K], P_gas [erg cm-3 s-1], pdfSrc(1:13) (common_mod: 1 gas continuum,"// &
+                & " 7 lines [1e-25 erg s-1 per H]; 8-13 photons >= 13.6 eV [1e-25 s-1 per H])"
+           do iG = 1, size(grid)
+              if (iG>1 .or. (.not. lg2D)) then
+                 yTop = grid(iG)%ny
+              else
+                 yTop = 1
+              end if
+              do i = 1, grid(iG)%nx
+                 do j = 1, yTop
+                    do k = 1, grid(iG)%nz
+                       cellP = grid(iG)%active(i,j,k)
+                       if (cellP <= 0) cycle
+                       pGas449 = 0.d0
+                       do iRe449 = 1, nbins
+                          if (lgDust .and. allocated(grid(iG)%absOpac) .and. allocated(grid(iG)%scaOpac)) then
+                             pGas449 = pGas449 + dble(grid(iG)%opacity(cellP,iRe449) &
+                                  & - grid(iG)%absOpac(cellP,iRe449) - grid(iG)%scaOpac(cellP,iRe449)) &
+                                  & *dble(grid(iG)%Jste(cellP,iRe449))
+                          else
+                             pGas449 = pGas449 + dble(grid(iG)%opacity(cellP,iRe449)) &
+                                  & *dble(grid(iG)%Jste(cellP,iRe449))
+                          end if
+                       end do
+                       write(44, *) iG, i, j, k, cellP, grid(iG)%Hden(cellP), grid(iG)%Te(cellP), &
+                            & pGas449, grid(iG)%pdfSrc(cellP, 1:nPdfSrc)
+                    end do
+                 end do
+              end do
+           end do
+           close(44)
         end if
 
         print*, 'out writeGrid'
@@ -4107,7 +4159,7 @@ end function getVolume
                stop
             end if
 
-            allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:6), stat = err)   ! D-232
+            allocate(grid(iG)%pdfSrc(0:grid(iG)%nCells, 1:nPdfSrc), stat = err)   ! D-232
             if (err /= 0) then
                print*, "! resetGrid: can't allocate pdfSrc memory"
                stop
