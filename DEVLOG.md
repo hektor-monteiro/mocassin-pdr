@@ -462,7 +462,8 @@ reasoning that led to the wrong turn is part of the history.
 | D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
 | D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record). **Result:** all builds and the install rc 0; ~/.local/bin reports pdr-coupling-v2.0.2-64-g7de18ff (the opening commit, source as 20e4bbc); the data still identical; HII40 with the installed binary 18 iterations, byte-identical to the reference in every output file but summary.out, which differs only in its wall-clock times, and to D-454's plain build apart from those times and the PDR builds' own lgPDR line and pdrFUV files | Done | 2026-11-06 |
 | D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. Plan approved (the user: heating with the gas-grain and photoelectric terms, gate default 0, hiipdr full + pn150k 3 iterations, no run beside another model): a standalone qheat_mod (DL01 thermal-continuous, GD89 heat capacities, one geometric T grid) fed Jste + the destroyed lines + getDustT's net gas-grain term, stored per cell; material from grainCarb, N from rho and MsurfAtom; one solve per grain; qhTest and tools/d462_qheat_check.py; predictions on record. **Result:** qhTest 11/11 (= numpy to 1e-15, Monte Carlo -1.5% to -0.6%); no keyword: byte-identical (hiipdr; p0tau10 once seeded - the planned pair was clock-seeded); every run's distributions conserve energy to 3e-14; hiipdr: 106 428 grains solved per iteration, 0 fallbacks, 5-25 um escaped x1.027, Tdust/lines within 0.3%, run +7%; pn150k's 5-9 nm graphite now emits (247 688 solved); qHeat cost per iteration 550 s -> 19 s (x29); the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um) | Done | 2026-11-07 |
-| D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival | Open | 2026-11-07 |
+| D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival. **Done:** docs at production; h2-model merge 2d6f697 (no conflict, differs only in DEVLOG-H2.md), the four flavours, h2Test, h2Slab and qhTest building there, record H-051 | Done | 2026-11-07 |
+| D-464 | **Resonance-line transfer flagged for a future implementation, and how the original dusty MOCASSIN treated these lines (the user: "flag as a future issue to tackle, the implementation of proper Lyα and other resonance lines transfer, since that is no longer transported. I also want you to explain to me how the original dusty mocassin version handled this via resLinesTransfer keyword.").** L-99 (Medium): no resonant scattering; destruction by the emitting cell's dust at a local escape probability (D-376); the escaping part traced thin. The original (38aca36; Ercolano, Barlow & Storey 2005 sec 2.3.1) used the same escape probability, computed once when the converged share reached `resLinesTransfer` (default 101 = never), added the destroyed power to the grains' balance, and relaunched it as extra gas-emission packets on top of full-strength lines; outside that, lines escaped untraced and Lya's energy sat in the H I 15-8 slot at 8.15 um. No code changed | Done | 2026-11-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -48400,3 +48401,119 @@ unrelated commits:
   - feature1: 916 behind;
   - compBias: 857 behind;
   - d418-level-order: 309 behind.
+
+**Done (18:00-18:05).**
+  - **docs** was fast-forwarded to 46f697d in ~/software/mocassin_docs. Its
+    tree is clean.
+  - **h2-model.** Merge 2d6f697 of 46f697d, with no conflict, followed by the
+    record H-051 (941d9af, corrected in a1e2df9). `git diff
+    pdr-photoionization h2-model` lists only DEVLOG-H2.md. In that worktree
+    the four flavours and h2Test, h2Slab and qhTest build with rc 0
+    (`PREFIX=$HOME/.local/mocassin_h2`, runs/h051/build.log).
+  - **Not done there:** no H2 benchmark was rerun. D-447 and D-450 change
+    what the branch computes. ~/.local/mocassin_h2 was not reinstalled.
+  - **The commit recording this** follows 46f697d. docs is fast-forwarded to
+    it too; h2-model takes it at its next merge.
+  - Nothing is pushed.
+
+### Status
+
+Done (2026-11-07).
+
+---
+
+## D-464 - Resonance-line transfer flagged (L-99); how the original handled these lines (2026-11-07)
+
+The user (2026-11-07): "I want you to flag as a future issue to tackle, the
+implementation of proper Lyα and other resonance lines transfer, since that is
+no longer transported. I also want you to explain to me how the original dusty
+mocassin version handled this via resLinesTransfer keyword."
+
+No code changed. L-99 (Medium) records the issue in doc/pdr-status.md, with
+pointers from the emission chapter and the MOCASSIN index. What follows is the
+account of the original treatment, for the record.
+
+### The original (commit 38aca36, the 2023 version this project started from)
+
+The sources are the code at 38aca36 and Ercolano, Barlow & Storey (2005,
+MNRAS 362, 1038, sec 2.3.1; arXiv astro-ph/0507050).
+
+  - **Lines in general were not transported.** A line packet left with nuP =
+    0 and was not traced. The paper: "line packets could escape immediately
+    after they had been created", with the exception of the ionising He I
+    and He II Lyman lines.
+  - **Lya was not a line of its own.** `RecLinesEmission` added Lya's
+    emissivity (the Storey & Hummer 1995 fit) to the H I 15->8 entry,
+    `HIRecLines(15,8)`, at 8.15 um. This was harmless while lines were not
+    traced. It became L-19's 8 um excess once D-292 transported lines, and
+    D-376 gave Lya its own slot.
+  - **`resLinesTransfer <percent>`.** The default, 101, can never be reached.
+    The keyword acts only with dust and gas, and without it readInput warned
+    "The dust temperatures may be underestimated". When the converged-cell
+    share first reached the given percentage, and not in iteration 1:
+    - `initResLines` read data/resLines.dat (H I Lya, C II 1335, C IV 1549,
+      N V 1240, Mg II 2800, Si IV 1397).
+    - `setResLineEscapeProb` ran once per cell and line (`lgResLinesFirst`),
+      and never again in the run. For each line:
+      - it takes the line-centre cross section from the Doppler width at the
+        cell's Te;
+      - it integrates the line-centre optical depth tau(u) through the ion's
+        density, from the cell to the grid edge, along 125 rotations of
+        (1,1,1)/sqrt(3), in practice the 8 body diagonals (L-88);
+      - per direction, Kwan & Krolik's (1981) escape probability:
+        P = 1/(tau sqrt(pi) (1.2 + b)), with b = sqrt(ln tau)/(1 +
+        tau/1e5), for tau >= 1, and (1 - e^(-2 tau))/(2 tau) below;
+      - P averaged over the directions, with the mean frequency excursion
+        x = sqrt(ln(tau/sqrt(pi)));
+      - then f_e = 1/(1 + 2 x k_d/(k_l P)). Here k_d is the cell's dust
+        absorption at the line and k_l the line-centre opacity; this is
+        Cohen et al. (1984), eq A5 in the code comment and A8 in the paper.
+      The paper checked f_e against Hummer & Kunasz (1980) slabs: within 20%,
+      34% at worst, and noted that neglecting the damping wings overestimates
+      escape at large tau.
+  - **Every iteration after that:**
+    - **Grains.** `getDustT` added `resLineHeating`,
+      H_L = G_L (1 - f_e) Q_abs(a, lambda_L)/kappa_d(lambda_L) (the paper's
+      eq 6, after Harrington, Monk & Clegg 1988), to each grain's radiative
+      equilibrium (eq 7).
+    - **Energy.** `initResLinePackets` computed each cell's destroyed
+      luminosity, L_dest = sum_L G_L (1 - f_e) n_H dV, and turned it into
+      nint(L_dest/(L*/N_phot)) extra packets of the stellar packets' energy.
+      `energyPacketDriver` launched them from the cell after the stellar
+      packets, as "diffuse" packets, so their frequencies came from the
+      cell's gas-emission PDFs.
+    - **Lines.** lineFlux.out's "Resonance Lines Attenuated by dust
+      absorption" gave each line times f_e.
+  - **What D-376 found wrong with it:**
+    - the extra packets were gas emission, not dust emission;
+    - they came on top of lines that linePDF still carried at full strength,
+      so the destroyed energy was counted twice and re-emitted at the wrong
+      frequencies;
+    - f_e never followed the model after the iteration that computed it;
+    - in this project only test_Problem sets the keyword (50), so every
+      other run carried the resonance lines as optically thin, and no grain
+      was heated by Lya.
+  - **What D-376 kept and changed** (2026-09-27):
+    - it kept the escape probability, computed in every iteration;
+    - the line draw destroys a packet with probability 1 - f_e and re-emits
+      it from the cell's dust spectrum, which conserves energy without
+      double counting;
+    - `resLineHeating` is always on;
+    - Lya has its own slot at 1216 A;
+    - the escaping fraction is traced thin at the line's frequency, which
+      lines are since D-292;
+    - the keyword is retired.
+
+Neither version transfers the resonance photons through the gas. In the
+original the method was an escape probability and an energy relaunch; since
+D-376 it is an escape probability with a destruction at the draw. A
+resonant-scattering transfer for these lines, Lya first, is what L-99
+records.
+
+**The other branches** (the user, asked whether to bring docs and h2-model up
+to date: "yes").
+  - docs is fast-forwarded to this commit.
+  - h2-model takes it by merge, recorded as H-052.
+  - Since 46f697d, the commits reaching them (a9a87a1, 72af225 and this one)
+    change only DEVLOG.md, doc/pdr-status.md, docs/ and a fortref golden.
+    Nothing is rebuilt.

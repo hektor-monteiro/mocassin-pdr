@@ -164,6 +164,7 @@ aesthetics. Resolved items are in section 4.
 | L-88 | The resonance lines' escape probability samples only the eight body diagonals | Medium | D-444 |
 | L-93 | A plain build's hydrogen takes no charge transfer from the neutral/first-ion pairs | Medium | D-449, D-450 |
 | L-94 | He I re-emits its 19.8 eV line for every recombination and has no 584 A line | Medium | D-449 |
+| L-99 | The resonance lines (Lya among them) are not transferred: a local escape probability decides their destruction by dust, and nothing scatters them | Medium | D-376, D-457, D-462, D-464 |
 | L-19 | MOCASSIN's field in the PDR is 1.14-1.28x Cloudy's, in the optical and the dust infrared; against Cloudy's static sphere the FUV and the grains agree | Low | D-307, D-353, D-376, D-458, D-460 |
 | L-8 | Stochastic heating is opt-in, and PAHs and ices take the graphite and silicate enthalpies | Low | D-305, D-306, D-462 |
 | L-11 | The 1D slabs and `ifront` have not been rerun (out of scope) | Low | D-338 |
@@ -948,6 +949,63 @@ recombination gives 1.07-1.26 H-ionizing photons against case B's
 pn150k's grid helium returns about 0.03 Q(H) more than case B would. The
 re-emission is energy-weighted, so the line's share also moves the rest of
 the spectrum. Recorded, not changed.
+
+**L-99. The resonance lines are not transferred: a local escape probability
+decides their destruction by dust, and nothing scatters them** (D-376, D-457,
+D-462, D-464). The six lines of `resLines.dat` are drawn from `linePDF` like
+any line: H I Lya, C II 1335, C IV 1549, N V 1240, Mg II 2798 and Si IV 1397.
+  - **Destroyed.** A packet drawn on one of them is destroyed by the
+    emitting cell's own dust with probability 1 - f_esc and leaves as that
+    cell's dust emission (D-376). The grains' heating by it is
+    `resLineHeating`'s term in `getDustT`, and qHeat's since D-462.
+  - **Escaping.** The rest is traced at the line's frequency as an optically
+    thin line.
+  - **f_esc** is the escape-probability approximation of Cohen et al. (1984),
+    as Ercolano, Barlow & Storey (2005, sec 2.3.1) generalised it to 3D:
+    - Kwan & Krolik's (1981) single-flight escape probability for the
+      line-centre optical depth through the ion's gas, averaged over
+      directions (in practice the eight body diagonals, L-88);
+    - combined with the emitting cell's dust-to-line opacity ratio (Cohen et
+      al.'s eq A5 in the code, A8 in the paper).
+
+What this leaves out:
+  - **Where a trapped photon is absorbed.** The destroyed power heats the
+    grains of the cell that made the line. A Lya photon in a real nebula
+    random-walks over the H+ zone, and into the H I beyond the front, before
+    a grain takes it. That moves heat from where the line is made to the
+    cells around it.
+  - **Scattering outside the emitting cell.** The escaping fraction crosses
+    neutral hydrogen (the H I front, the PDR) as if thin, so Lya reaches the
+    PDR's grains, and leaves the nebula, without being trapped there.
+  - **The line profile and its redistribution.** No core, wings or damping.
+    Ercolano et al. (2005) note that neglecting the damping wings
+    overestimates escape at large optical depth.
+  - **Escape that changes along the path.** f_esc uses only the emitting
+    cell's dust and line opacities.
+  - **The trapped field itself.** Anything that reads `Jste` at a resonance
+    line's frequency (the chemistry's photorates, the H2 level model) sees
+    only the thin escaping fraction.
+
+Measured weight:
+  - Lya is 0.407 of pn150k's grain heating and 0.077 of hiipdr's (D-462,
+    the runs' dust budgets).
+  - f_esc for Lya is about 1e-5 (D-376).
+  - Cloudy as a static sphere traps its Lya and destroys it with dust
+    (D-457, D-458). MOCASSIN reaches the same outcome only through f_esc.
+
+A proper treatment would transfer the resonance photons as packets:
+  - they scatter on their ion (H I for Lya), with the Voigt profile and
+    partial frequency redistribution;
+  - dust absorbs them along the walk;
+  - they escape in the wings;
+  - the line core is accelerated, as Lya Monte Carlo codes do with core
+    skipping (e.g. Ahn, Lee & Lee 2002; Dijkstra, Haiman & Spaans 2006;
+    Laursen, Razoumov & Sommer-Larsen 2009).
+
+The destroyed energy would then enter `Jste` where a grain absorbs it, and
+`resLineHeating`, `qhResD` and the escape-probability machinery would no
+longer be needed. The heavy-ion lines would scatter on C+, C3+, N4+, Mg+ and
+Si3+ in the same way. Not started; recorded for a future implementation.
 
 ### Low - bookkeeping, tools and build
 
