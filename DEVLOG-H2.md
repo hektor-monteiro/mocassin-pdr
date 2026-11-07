@@ -6060,9 +6060,10 @@ pdr-photoionization h2-model` again lists only DEVLOG-H2.md.
       ~/.local reinstall;
     - D-463 logs L-98, the stochastic-heating level grid.
 
-The first three change H2 results here, as they did production's. D-447 and
+D-447 and D-450 change H2 results here, as they did production's: D-447 and
 D-450 C change the H I/H+ balance and the Lya field, through the
-chemistry's rate and the H2 level model's pumping. The H2 benchmarks of this
+chemistry's rate and the H2 level model's pumping. D-454 changes only the
+SED's bookkeeping, and D-462 acts only with the keyword. The H2 benchmarks of this
 branch have not been rerun with them.
 
 **Builds** (runs/h051/build.sh and build.log, `PREFIX=$HOME/.local/mocassin_h2`,
