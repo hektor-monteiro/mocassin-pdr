@@ -961,6 +961,19 @@ heating, with GD89's heat capacities (dust chapter). Its material is
 one. D-306 showed that stochastic heating does not explain the dust
 temperature excess of D-283 (which was L-2).
 
+Switched on (D-462), the option's distributions conserve energy to rounding
+in every run.
+  - **hiipdr, grains below 0.02 um:** the escaped 5-25 um band is x1.027,
+    and the bands from 25 to 300 um are within 0.3%. Tdust and the lines
+    are within 0.3%, and Tmean/Teq is 0.947-0.985.
+  - **pn150k:** its 5-9 nm graphite emits, where before D-462 it emitted
+    nothing. Its converged effect has not been run.
+  - **The level grid.** The default 300 levels, geometric to `Tmax`,
+    overestimate a grain's far Wien tail where that band carries under 1%
+    of its emission: x1.09-1.21 at 5-25 um, more at 1-5 um
+    (runs/_d462/gridres.log). A finer `nTbins` or an adaptive grid is not
+    yet chosen.
+
 **L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
 D-260/D-263/D-266, and not at all since this cycle's changes.
 **Demoted to low priority 2026-09-24 at the user's direction** (D-338): they
