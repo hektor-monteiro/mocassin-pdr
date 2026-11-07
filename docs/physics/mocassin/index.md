@@ -214,9 +214,7 @@ Four are open:
   neutral/first-ion pairs;
 - {lim}`L-94` (Medium): He I emits its 19.8 eV line at every recombination and has no 584 Å line
   ({doc}`emission`);
-- {lim}`L-95` (Low): the resonance-line table of `lineFlux.out` counts recombination Ly$\alpha$ only;
-- {lim}`L-96` (Low): `getTmin`'s absorption integral is always zero, and with several dust components
-  it reads another species' row ({doc}`dust`).
+- {lim}`L-95` (Low): the resonance-line table of `lineFlux.out` counts recombination Ly$\alpha$ only.
 
 ## Notation and units
 

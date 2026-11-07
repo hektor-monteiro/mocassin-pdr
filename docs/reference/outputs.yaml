@@ -455,13 +455,15 @@
 - name: qHeatPss.out
   group: iteration
   writer: 'iteration_mod.f90::iterateMC@"file=''output/qHeatPss.out''"'
-  when: every iteration from the second (rewritten), with `quantumHeatGrain` and `quantumHeatGrainParameters ... .true.`, once the converged-cell percentage exceeds the `quantumHeatGrain` threshold
+  when: every iteration from the second (rewritten), with `quantumHeatGrain` and `quantumHeatGrainParameters ... .true.`, while the converged-cell percentage is at least the `quantumHeatGrain` threshold
   build: all
   description: |
-    The temperature distributions (T, P(T) over nTbins) and the mean
-    temperature of the stochastically heated grains smaller than the
-    `quantumHeatGrain` radius, for the cells rank 0 handles only (one cell in
-    every numtasks). Very large.
+    The temperature distributions (T, P(T) on the nTbins temperatures) and
+    the mean temperature of the stochastically heated grains smaller than
+    the `quantumHeatGrain` radius, beside each grain's equilibrium
+    temperature (`Teq`), for the cells rank 0 handles only (one cell in
+    every numtasks). Written from `setDustPDF` since {devlog}`D-462`, so
+    dust-only runs write it too. Very large.
 
 - name: planeIonDistribution.out
   group: iteration

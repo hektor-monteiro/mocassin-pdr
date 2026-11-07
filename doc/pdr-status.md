@@ -154,7 +154,6 @@ aesthetics. Resolved items are in section 4.
 | L-5 | The gas phase is not depleted for what is in grains (common-mode) | Medium | D-305 |
 | L-6 | The fixtures' extinction curve is not a Milky Way curve (common-mode) | Medium | D-305 |
 | L-7 | No PAH component in the fixtures | Medium | D-305, D-415 |
-| L-8 | Stochastic heating is off | Medium | D-305, D-306 |
 | L-10 | Bulk-graphite optics on the smallest size bin | Medium | D-305 |
 | L-54 | H2 formation applies one dust temperature to both materials | Medium | D-414, D-417 |
 | L-64 | Inner-shell photoionisation absorbs but neither ionises nor heats | Medium | D-444 |
@@ -166,6 +165,7 @@ aesthetics. Resolved items are in section 4.
 | L-93 | A plain build's hydrogen takes no charge transfer from the neutral/first-ion pairs | Medium | D-449, D-450 |
 | L-94 | He I re-emits its 19.8 eV line for every recombination and has no 584 A line | Medium | D-449 |
 | L-19 | MOCASSIN's field in the PDR is 1.14-1.28x Cloudy's, in the optical and the dust infrared; against Cloudy's static sphere the FUV and the grains agree | Low | D-307, D-353, D-376, D-458, D-460 |
+| L-8 | Stochastic heating is opt-in, and PAHs and ices take the graphite and silicate enthalpies | Low | D-305, D-306, D-462 |
 | L-11 | The 1D slabs and `ifront` have not been rerun (out of scope) | Low | D-338 |
 | L-12 | `thermBudget.out`'s cooling columns are bookkeeping, and its PDR heating lags an iteration | Low | D-304, D-421 |
 | L-15 | `getQs` caps the Mie size parameter at 100 | Low | D-305 |
@@ -198,7 +198,6 @@ aesthetics. Resolved items are in section 4.
 | L-78 | Free-free emission above the H and He edges uses another cell's Gaunt factors | Low | D-444 |
 | L-89 | Species abundances are used as given: mixture means are right only when they sum to one | Low | D-444 |
 | L-95 | `lineFlux.out`'s resonance-line table counts recombination Ly alpha only | Low | D-453 |
-| L-96 | `getTmin`'s absorption integral is always zero, and it reads the emission table with the component's species index | Low | D-453 |
 | L-97 | A transported line is placed at the grid point at or below its frequency, while the bins are centred | Low | D-452, D-459 |
 
 ### High - affects results now
@@ -817,22 +816,6 @@ include them. Since D-415 the file carries Im(m), so
 a PAH species can heat the gas: test_Problem's astrosilicate + PAH mixture
 runs (DEVLOG-H2 H-036). The fixtures still have no PAH.
 
-**L-8. Stochastic heating is off by default.** It is switched on with the
-`quantumHeatGrain` keyword (`lgQheat` defaults false). For 0.005 um
-grains in a PDR the equilibrium assumption is wrong for the emitted spectrum.
-D-306 showed it cannot explain the dust-temperature excess (which was L-2),
-so this is a fidelity gap rather than a live error (D-305, D-306). **Even when switched on** (D-444), `qHeat` waits for
-the previous iteration's converged-cell share to exceed `minConvQHeat` (99 by
-default) and runs only from iteration 2. Since D-392 dust+gas and PDR runs stop on
-`convTotals` with a share near 57-72%, and dust-only runs at `minConvergence`, so
-the gate is essentially never passed. In dust+gas runs `setDiffusePDF` still
-calls `qHeat` for a dust term that feeds only the `pdfSrc` diagnostic (since
-D-233), a second call per grain. Two further faults: `qHeat` picks the enthalpy by
-the first letter of the species label (`S` or `C`), so any other label (e.g.
-`grph-avg`) returns an empty distribution and the grain emits nothing; and
-`getTmin` zeroes the field in the bins it then sums, so it always returns 1 K, and
-it indexes `dustEmIntegral` with the component's local species index.
-
 **L-10. The pn150k fixture applies bulk-graphite optics to its smallest size
 bin** (an input choice: the optical data come from the species file), where
 Draine's own table is PAH/band physics: 0.38-0.89x in the FUV and 10-32x in the far-IR.
@@ -966,6 +949,17 @@ re-emission is energy-weighted, so the line's share also moves the rest of
 the spectrum. Recorded, not changed.
 
 ### Low - bookkeeping, tools and build
+
+**L-8. Stochastic heating is opt-in, and PAHs and ices take the graphite
+and silicate enthalpies** (D-305, D-306, D-462). `quantumHeatGrain` is off
+unless given, and no fixture gives it, so every published result has its
+grains at their equilibrium temperature. Since D-462 the option solves the
+thermal-continuous scheme of Draine & Li (2001) on each grain's whole
+heating, with GD89's heat capacities (dust chapter). Its material is
+`grainCarb`, so a PAH takes the graphite enthalpy, which has no C-H modes
+(Cloudy uses DL01 eq 33 or Dwek et al. 1997), and an ice the silicate
+one. D-306 showed that stochastic heating does not explain the dust
+temperature excess of D-283 (which was L-2).
 
 **L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
 D-260/D-263/D-266, and not at all since this cycle's changes.
@@ -1297,25 +1291,6 @@ numbers of one `lineFlux.out` disagree. Against Hbeta, row and table give:
 The table's escaping column carries the same omission. Nothing computed reads
 the table. Recorded, not changed.
 
-**L-96. `getTmin`'s absorption integral is always zero, and it reads the
-emission table with the component's species index** (D-453). `getTmin`
-(`emission_mod`) gives stochastic heating its lowest temperature. It zeroes
-the field over bins 1 to `cutoffP` and then integrates the absorption over
-those same bins, so the integral is 0. It then locates 0 in
-`dustEmIntegral(nS,ai,:)`:
-  - **Index mismatch.** `nS` is the species' index within its dust
-    component. The table is indexed by the global species, as `getDustT`
-    uses it (`global_nS`). So with `multiDustChemistry`, every component
-    after the first reads another species' row.
-  - **What it returns.** A row above zero gives iT = 0, and Tmin = 1 K
-    whatever the field. A row that is all zero is possible for a grain size
-    outside that other species' range. Since D-450's `locate` fix such a
-    row gives n-1, so Tmin = 2999 K, where it gave 1 K before. So `qHeat`'s
-    temperature ladder would start above the grain's equilibrium.
-Stochastic heating needs `quantumHeatGrain` and is in practice off (L-8),
-and no fixture has more than one dust component. Inherited, apart from the
-2999 K. Recorded, not changed.
-
 **L-97. A transported line is placed at the grid point at or below its
 frequency, while the bins are centred** (D-452, D-459). `setOneLineNuP` takes
 a line's bin from `locate`: the point j with nu_j <= nu < nu_j+1. The grid's
@@ -1376,6 +1351,7 @@ but still listed as open until this page's audit.
 | L-90 | The gas cooled by collisional excitation of H I and emitted none of it | 2026-10-31 | D-446, D-447 |
 | L-91 | A Q-file species' largest grain took cross sections extrapolated from the two smallest | 2026-11-01 | D-449, D-450 |
 | L-92 | Hydrogen's balance left out the charge transfer of ions above 1+ | 2026-11-01 | D-449, D-450 |
+| L-96 | `getTmin`'s absorption integral was always zero, and it read the emission table with the component's species index | 2026-11-07 | D-453, D-462 |
 
 **L-1. Line transport was discarding energy, and every result predating
 D-307 was computed that way.** Diffuse line photons were deleted rather than
@@ -2306,6 +2282,24 @@ the chemistry (a95f9c7). pn150k: case-B recombinations 0.929 -> 0.957 Q(H),
 Hbeta x1.031 (0.950 of Cloudy's), H2 lines -3.5%, [C II] and [O I] 63 within
 0.6%; hiipdr unchanged (x1.0002); test_Problem +0.009 Q(H). What a plain
 build still lacks, the neutral/first-ion pairs, is L-93.
+
+**L-96. `getTmin`'s absorption integral was always zero, and it read the
+emission table with the component's species index** (D-453). `getTmin`
+(`emission_mod`) gives stochastic heating its lowest temperature. It zeroes
+the field over bins 1 to `cutoffP` and then integrates the absorption over
+those same bins, so the integral is 0. It then locates 0 in
+`dustEmIntegral(nS,ai,:)`:
+  - **Index mismatch.** `nS` is the species' index within its dust
+    component. The table is indexed by the global species, as `getDustT`
+    uses it (`global_nS`). So with `multiDustChemistry`, every component
+    after the first reads another species' row.
+  - **What it returns.** A row above zero gives iT = 0, and Tmin = 1 K
+    whatever the field. A row that is all zero is possible for a grain size
+    outside that other species' range. Since D-450's `locate` fix such a
+    row gives n-1, so Tmin = 2999 K, where it gave 1 K before. So `qHeat`'s
+    temperature ladder would start above the grain's equilibrium.
+Stochastic heating needs `quantumHeatGrain` and is in practice off (L-8),
+and no fixture has more than one dust component. Inherited, apart from the 2999 K. **Closed 2026-11-07 (D-462):** `getTmin` is gone. The stochastic ladder is one geometric grid from 1 K, the first temperature of `getDustT`'s table, to `Tmax`, the same for every grain, and nothing reads `dustEmIntegral` with a component index.
 
 ### Checks done since they were listed in section 5
 

@@ -88,7 +88,7 @@ module set_input_mod
         nTbins         =300
         lgWritePss     =.false.
         minaQHeat     = 1.e-3
-        minConvQHeat  = 99.
+        minConvQHeat  = 0.          ! D-462: from the second iteration (99 was never reached, L-8)
 
         fillingFactor = 1.
         contCube      = -1.

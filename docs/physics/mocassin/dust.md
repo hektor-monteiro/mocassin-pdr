@@ -314,29 +314,63 @@ or two when `nuMin` lies below 4.9 GHz ({lim}`L-70`).
 
 {bdg-warning}`not exercised`
 
-`quantumHeatGrain amin conv` (defaults $10^{-3}$ µm and 99;
-{src}`set_input_mod.f90::readInput@"case(\"quantumHeatGrain\")"`) makes grains smaller than `amin`
-emit from a temperature distribution. `qHeat` ({src}`emission_mod.f90::emissionDriver/qHeat`)
-builds it on `nTbins` temperatures up to `Tmax` (by default 300 temperatures up to 700 K; set by
-`quantumHeatGrainParameters`) from transition matrices between enthalpy levels, the method
-{cite:t}`Ercolano2005` take from {cite:t}`GuhathakurtaDraine1989`. It changes the grain's term in
-Eq. {eq}`eq:moc-dustpdf`, not the tabulated $T_d$.
+`quantumHeatGrain amin conv` (defaults $10^{-3}$ µm and 0;
+{src}`set_input_mod.f90::readInput@"case(\"quantumHeatGrain\")"`) makes grains smaller than `amin` emit from a
+temperature distribution $P(T)$ instead of at $T_d$ ({devlog}`D-462`). It changes the grain's term in
+Eq. {eq}`eq:moc-dustpdf`, not the tabulated $T_d$, which the gas–grain exchange, H₂ formation and sublimation
+keep using. It runs from the second iteration, once `getDustT` has stored the heating it needs, while the
+previous iteration's converged-cell share is at least `conv`.
 
-Switched on, it still almost never runs ({lim}`L-8`). `qHeat` waits for iteration 2 and for the previous
-iteration's share of converged cells to exceed `conv`
-({src}`emission_mod.f90::emissionDriver/setDustPDF@"if (lgQHeat .and. grainRadius(ai)<minaQHeat .and. &"`).
-Dust+gas runs stop at shares near 57–72% ({devlog}`D-392`) and dust-only runs at `minConvergence`,
-so the gate is essentially never passed. In dust+gas runs `setDiffusePDF` calls `qHeat` a second
-time per grain, for a term that feeds only the `pdfSrc` diagnostic
-({src}`emission_mod.f90::emissionDriver/setDiffusePDF@"if (lgDust) grids(iG)%pdfSrc(cellPUsed,2) = normDust"`)
-and, if asked, writes `qHeatPss.out`. Two more defects would show if the gate opened. The enthalpy is chosen
-by the first letter of the label, `S` or `C`
-({src}`emission_mod.f90::emissionDriver/qHeat@"sorc = grainLabel(ns)(1:1)"`); with any other
-(`grph-avg` among them), `qHeat` returns an empty distribution and the grain emits nothing. And
-`getTmin` ({src}`emission_mod.f90::emissionDriver/getTmin`) zeroes the field in the bins it then
-sums, so the distribution's lowest temperature is 1 K whatever the field ({lim}`L-8`); with several dust components it also reads the emission table with the component's own species index, another species' row, and since {devlog}`D-450` a row that is all zero gives 2999 K instead ({lim}`L-96`). {devlog}`D-306` asked whether
-stochastic heating explained `pn150k`'s dust running 7–25% hot against Cloudy and found it did not:
-the excess was the same at every size, and {devlog}`D-309` traced it to the graphite axes.
+`qhSolve` ({src}`qheat_mod.f90::qhSolve`) solves the thermal-continuous approximation of {cite:t}`DraineLi2001`:
+- absorption takes a grain from level $l$ up to $u$ at the rate of their Eqs. 15–24, which allow for the widths of
+  both levels, with Eq. 28 for the next level and Eq. 16 for the top one;
+- emission takes it down one level at a time, at the power it radiates at $T_u$ in photons below its energy $E_u$
+  (their Eq. 41);
+- the steady state follows from the recursion of {cite:t}`GuhathakurtaDraine1989`.
+
+The levels are `nTbins` temperatures spaced geometrically from 1 K, the first temperature of `getDustT`'s
+emission table, to `Tmax` (300 up to 700 K by default; `quantumHeatGrainParameters`). They are the same for every
+grain, so the Planck function is tabulated once. The field is a histogram over the frequency bins, each bin's
+energy spread between the midpoints to its neighbours, an interval of width `widFlx`, so the integrals the
+rates need are exact.
+
+The heating is the grain's whole heating in `getDustT` ({src}`code <emission_mod.f90::emissionDriver/qHeatGrain>`):
+- the transported field `Jste`, which carries the diffuse continuum and the lines as well as the starlight;
+- the resonance-line power the dust destroys on the spot ({devlog}`D-376`), at each line's bin, with the share
+  `resLineGrainHeat` gives the grain, the formula `getDustT` uses ({src}`code <emission_mod.f90::resLineGrainHeat>`).
+  Since D-376 this power is not in `Jste`. It is 44% of `pn150k`'s grain heating and 7.7% of `hiipdr`'s;
+- `getDustT`'s gas–grain term minus the photoelectric loss. A net gain is added as continuous heating; a net loss
+  lowers every photon's absorption rate in proportion.
+
+`getDustT` stores the last two per cell
+({src}`code <update_mod.f90::updateCell/getDustT@"grid%qhCont(nS,ai,cellP) = gasDustColl_d(nS,ai)-photoelHeat_d(nS,ai)">`).
+
+The heat capacities are those of {cite:t}`GuhathakurtaDraine1989`, as Cloudy has them for graphite and silicate:
+per atom for carbon and per volume for the others, times $N-2$. The material is `grainCarb`, the flag the
+photoelectric yield reads: carbon when the species file gives a surface-atom mass of 12. The atom count is
+$N = (4\pi/3)a^3\rho/(m\,\mathrm{amu})$, from that mass and the file's density. PAHs and ices take the graphite
+and silicate forms ({lim}`L-8`).
+
+`tools/d462_qheat_check.py` checks the solver through `qhTest` ({devlog}`D-462`):
+- against the same algorithm in numpy, to rounding;
+- against a Monte Carlo of a grain's heating history, within 2.5% in the mean temperature;
+- against the equilibrium temperature for grains of 0.05 µm and above, within 1.5%;
+- for energy, the emitted power within 0.2% of the absorbed in every case.
+
+Every iteration the log gives the solutions' emitted over absorbed power, the number that fell back to $T_d$,
+and how many have a populated top level
+({src}`code <iteration_mod.f90::iterateMC@"grains solved">`).
+
+Before {devlog}`D-462` the option had these defects:
+- it missed the destroyed resonance lines and the gas–grain terms;
+- it counted 2.9 times too many carbon atoms;
+- it chose the enthalpy by the label's first letter, so `grph-avg` emitted nothing;
+- it started its ladder at 1 K whatever the field;
+- it emitted 1.08–1.48 times what it absorbed;
+- it waited for a converged-cell share of 99%, which no production run reaches.
+
+{devlog}`D-306` asked whether stochastic heating explained `pn150k`'s dust running 7–25% hot against Cloudy and
+found it did not: the excess was the same at every size, and {devlog}`D-309` traced it to the graphite axes.
 
 (sec:moc-dust-charge)=
 ## Grain charge and the exchange with the gas

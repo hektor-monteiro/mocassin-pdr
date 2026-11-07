@@ -38,7 +38,7 @@ else
 endif
 
 MANDIR=$(DESTDIR)$(PREFIX)/share/man/man1
-SOURCES = source/constants_mod.o source/vector_mod.o source/common_mod.o source/interpolation_mod.o \
+SOURCES = source/constants_mod.o source/vector_mod.o source/common_mod.o source/qheat_mod.o source/interpolation_mod.o \
 	source/set_input_mod.o source/hydro_mod.o source/ph_mod.o source/composition_mod.o \
 	source/continuum_mod.o source/ionization_mod.o source/pathIntegration_mod.o \
 	source/grid_mod.o source/dust_mod.o source/emission_mod.o source/photon_mod.o  \
@@ -146,6 +146,8 @@ source/vector_mod.o: source/constants_mod.o
 source/pdr_mod.o source/h2Lines_mod.o: source/h2_mod.o
 source/h2Lines_mod.o: source/grid_mod.o
 source/output_mod.o: $(PDR_PRE)
+# D-462: emission_mod and qhTest use the stochastic-heating module
+source/emission_mod.o source/qhTest.o: source/qheat_mod.o
 
 # Same for the vendored tree: every 3D-PDR unit uses maincode_module, so a
 # change there must rebuild all of them. Without this, editing modules.F90
@@ -194,6 +196,11 @@ h2Test: source/h2_mod.o source/h2Test.o
 	$(LD) $(FFLAGS) -o $@ $^
 
 h2Slab: source/h2_mod.o source/h2Slab.o
+	$(LD) $(FFLAGS) -o $@ $^
+
+# D-462: stochastic heating, standalone test: qheat_mod on a field read from a
+# file, against tools/d462_qheat_check.py
+qhTest: source/constants_mod.o source/qheat_mod.o source/qhTest.o
 	$(LD) $(FFLAGS) -o $@ $^
 
 # Phase 1 chemistry smoke test (DEVLOG D-020). PDR=1 only; needs no MOCASSIN grid.

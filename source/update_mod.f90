@@ -182,6 +182,8 @@ module update_mod
            if (grid%echoVol(xP,yP,zP).eq.0.0) then
               grid%Tdust(:,:,cellP) = echoTemp
               TdustTemp(:,:,cellP)  = grid%Tdust(:,:,cellP)
+              if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+              if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
               return
            end if
 
@@ -195,6 +197,8 @@ module update_mod
 
             if (lgDust) then
                TdustTemp(:,:,cellP)       = grid%Tdust(:,:,cellP)
+               if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+               if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
             end if
 
             if (lgGas) then
@@ -369,6 +373,8 @@ module update_mod
 
          ! this was added to help implementing MPI comunication
          if (lgDust) TdustTemp(:,:,cellP)          = grid%Tdust(:,:,cellP)
+         if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+         if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
 
          if (lgNeInput .and. lgTalk) then
             print*, '! updateCell: [talk] cell:', xP,yP,zP, " NeInput: ", &
@@ -405,6 +411,8 @@ module update_mod
 
          ! this was added to help implementing MPI comunication
          TdustTemp(:,:,cellP)          = grid%Tdust(:,:,cellP)
+         if (allocated(qhContTemp)) qhContTemp(:,:,cellP) = grid%qhCont(:,:,cellP)   ! D-462
+         if (allocated(qhResDTemp)) qhResDTemp(cellP,:) = grid%qhResD(cellP,:)       ! D-462
 
       end if
 
@@ -4484,6 +4492,14 @@ end subroutine iterateT
                         dustAbsIntegral = dustAbsIntegral+gasDustColl_d(nS,ai)-&
                              & photoelHeat_d(nS,ai)
                      end if
+                     ! D-462: the grain's heating that is not radiation, for qHeat
+                     if (allocated(grid%qhCont)) then
+                        if (lgGas .and. lgPhotoelectric) then
+                           grid%qhCont(nS,ai,cellP) = gasDustColl_d(nS,ai)-photoelHeat_d(nS,ai)
+                        else
+                           grid%qhCont(nS,ai,cellP) = 0.
+                        end if
+                     end if
 
                      if (lgTraceHeating.and.taskid==0) then
                         write(57,*) 'Dust Species: ', ns, ai
@@ -4706,6 +4722,7 @@ end subroutine iterateT
 
             integer               :: global_speciesP ! DECLARE GLOBAL INDEX
             real                  :: q12R, q13R   ! D-447: H I collisional excitation
+            real                  :: dLine        ! D-462: the destroyed power, Gline*Hden*(1-fEscape)
 
             ! Calculate the correct global index for the species
             global_speciesP = dustComPoint(icompP) + speciesP - 1
@@ -4759,11 +4776,13 @@ end subroutine iterateT
 
                Gline=Gline/Pi
 
-               heat = Gline*grid%Hden(cellP)* &
-                    & (1.-grid%fEscapeResPhotons(cellP, iL))*&
-                    & xSecArray(dustAbsXSecP(global_speciesP,sizeP)+resLine(iL)%nuP-1)/&
-                    & (grid%Ndust(cellP)*&
-                    & absOpacSpecies(global_speciesP,resLine(iL)%nuP))
+               ! D-462: the destroyed power, kept per cell for qHeat, and this
+               ! grain's share from the formula qHeat uses too (the same
+               ! operations in the same order as before)
+               dLine = Gline*grid%Hden(cellP)*(1.-grid%fEscapeResPhotons(cellP, iL))
+               if (allocated(grid%qhResD)) grid%qhResD(cellP, iL) = dLine
+               heat = resLineGrainHeat(dLine, sizeP, global_speciesP, resLine(iL)%nuP, &
+                    & grid%Ndust(cellP))
 
                ! Harrington Monk and Clegg 1988 (section 3.2)
                resLineHeating = resLineHeating + heat

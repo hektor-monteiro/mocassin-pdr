@@ -350,16 +350,19 @@
 - name: quantumHeatGrain
   group: dust
   syntax: "quantumHeatGrain <a_max_um> <min_convergence>"
-  default: "off (1e-3, 99 when on)"
+  default: "off (1e-3, 0 when on)"
   build: all
   status: active
   description: |
     Stochastic heating (temperature spiking) for grains smaller than
-    `a_max_um`, applied once the grid convergence exceeds `min_convergence`
-    per cent. It is applied only to the dust re-emission spectrum — the
-    temperatures used by the gas–grain exchange and H₂ formation are unchanged
-    — and only while the converged-cell percentage exceeds `min_convergence`;
-    PDR runs plateau near 65–80%, so lower it there or the option never acts.
+    `a_max_um` ({devlog}`D-462`): they emit from a temperature distribution
+    solved on their whole heating (the field, the resonance-line power the
+    dust destroys on the spot, and the gas–grain terms) instead of at the
+    equilibrium temperature. It applies only to the dust re-emission
+    spectrum; the temperatures used by the gas–grain exchange, H₂ formation
+    and sublimation are unchanged. It runs from the second iteration, while
+    the previous iteration's converged-cell percentage is at least
+    `min_convergence` (0 by default, so every iteration). Give both numbers.
 
 - name: quantumHeatGrainParameters
   group: dust
@@ -368,9 +371,9 @@
   build: all
   status: active
   description: |
-    Internal parameters of the stochastic heating: the top of the
-    temperature mesh (K), the number of temperature bins, and whether to
-    write every probability distribution to `qHeatPss.out` (very large).
+    The temperature grid of the stochastic heating: its top (K; the grid is
+    geometric from 1 K), the number of temperatures, and whether to write
+    every distribution to `qHeatPss.out` (very large).
 
 - name: CDE
   group: dust

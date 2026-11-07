@@ -33,6 +33,11 @@ module common_mod
     logical         :: lgPhotoelectric = .true. ! photoelectric effect on
     logical         :: lgQheat = .false.        ! temperature spiking on?
     logical         :: lgWritePss=.false.       ! write Pss for qHeat file?
+    logical         :: lgQhReady = .false.      ! D-462: getDustT has stored this run's qHeat inputs (after the first updateCell)
+    ! D-462: the stochastic solutions of an iteration's emission, summed over
+    ! ranks and printed by iterateMC
+    integer          :: qhNsolved = 0, qhNfail = 0, qhNtop = 0
+    double precision :: qhRatioMin = 1.d300, qhRatioMax = -1.d300
     logical         :: lgTraceHeating = .false. ! trace thermal balance?
     ! D-352: Case A recombination cooling (D-286), the Weingartner & Draine
     ! (2001) photoelectric yield (D-289), the matched-unit grain charge balance
@@ -51,6 +56,8 @@ module common_mod
     real, allocatable :: gSca(:)                 ! gSca(freq)
 
     real, allocatable   :: TdustTemp(:,:,:)     ! temporary dust temperature array (species,size,cell)
+    real, allocatable   :: qhContTemp(:,:,:)    ! D-462: qhCont's MPI copy, as TdustTemp
+    real, allocatable   :: qhResDTemp(:,:)      ! D-462: qhResD's MPI copy
     real, allocatable   :: ionDenTemp(:,:,:)    ! temporary ion density array
     real, allocatable   :: NeTemp(:)            ! temporary electron density array
     real, allocatable   :: TeTemp(:)            ! temporary electron Temperature array
@@ -369,6 +376,13 @@ module common_mod
         real, allocatable :: scaOpac(:,:)               ! dust scattering opacity
         real, allocatable :: dustPDF(:,:)               ! dust emission PDF
         real, allocatable :: fEscapeResPhotons(:,:)     ! frac of res line photons escaping (cell,resline)
+        ! D-462: what getDustT adds to a grain's heating outside Jste, kept for
+        ! qHeat (emission_mod qHeatGrain), with lgQheat only: the resonance-line
+        ! power the dust destroys in the cell (cell, resline; resLineHeating's
+        ! Gline*Hden*(1-fEscape)), and the gas-grain minus photoelectric term
+        ! (species, size, cell), both in getDustT's units
+        real, allocatable :: qhResD(:,:)
+        real, allocatable :: qhCont(:,:,:)
                                                         ! D-376: every MC iteration, for every
                                                         ! dust+gas run
         real, allocatable :: fluorescenceCube(:,:,:)    ! escaped fluorescence packets (ncell,nFluo,nVP)

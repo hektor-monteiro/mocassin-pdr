@@ -563,6 +563,26 @@ module iteration_mod
 
            end do ! nGrids loop
 
+           ! D-462: the stochastic solutions of this iteration's emission
+           if (lgQheat) then
+              call mpi_allreduce(MPI_IN_PLACE, qhNsolved, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, qhNfail, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, qhNtop, 1, mpi_integer, mpi_sum, mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, qhRatioMin, 1, mpi_double_precision, mpi_min, &
+                   & mpi_comm_world, ierr)
+              call mpi_allreduce(MPI_IN_PLACE, qhRatioMax, 1, mpi_double_precision, mpi_max, &
+                   & mpi_comm_world, ierr)
+              if (taskid == 0 .and. qhNsolved + qhNfail > 0) &
+                   & print*, "! iterateMC: [qHeat] iteration", nIterateMC, " grains solved", qhNsolved, &
+                   & " fallbacks", qhNfail, " emitted/absorbed min", qhRatioMin, " max", qhRatioMax, &
+                   & " top level P > 1e-6", qhNtop
+              qhNsolved = 0
+              qhNfail = 0
+              qhNtop = 0
+              qhRatioMin = 1.d300
+              qhRatioMax = -1.d300
+           end if
+
 !**********************************************************************************************
 
            do iG = 1, nGrids
@@ -1149,6 +1169,23 @@ module iteration_mod
                     stop
                  end if
                  TdustTemp = 0.
+              end if
+              ! D-462: getDustT's store for qHeat, collected as Tdust is
+              if (allocated(grid(iG)%qhCont)) then
+                 allocate(qhContTemp(0:nSpeciesMax,0:nSizes,0:grid(iG)%nCells), stat = err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate array memory: qhContTemp ", iG
+                    stop
+                 end if
+                 qhContTemp = 0.
+              end if
+              if (allocated(grid(iG)%qhResD)) then
+                 allocate(qhResDTemp(0:grid(iG)%nCells, 1:nResLines), stat = err)
+                 if (err /= 0) then
+                    print*, "! iterateMC: can't allocate array memory: qhResDTemp ", iG
+                    stop
+                 end if
+                 qhResDTemp = 0.
               end if
 
 
@@ -2325,6 +2362,15 @@ module iteration_mod
                  call mpi_allreduce(TdustTemp,grid(iG)%Tdust,size, &
                       & mpi_real, mpi_sum, mpi_comm_world, ierr)
 
+                 ! D-462: and the store qHeat reads (emission_mod qHeatGrain)
+                 if (allocated(qhContTemp)) &
+                      & call mpi_allreduce(qhContTemp, grid(iG)%qhCont, size, &
+                      & mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 if (allocated(qhResDTemp)) &
+                      & call mpi_allreduce(qhResDTemp, grid(iG)%qhResD, &
+                      & (grid(iG)%nCells+1)*nResLines, mpi_real, mpi_sum, mpi_comm_world, ierr)
+                 if (lgQheat) lgQhReady = .true.
+
                  if (lgGas .and. nResLines > 0) then                     ! D-376
 
                     allocate(budgetTemp(0:nAbComponents,0:nResLines), stat=err)
@@ -2375,6 +2421,8 @@ module iteration_mod
               if (lgDust) then
                  if ( allocated(TdustTemp)) deallocate(TdustTemp)
               end if
+              if (allocated(qhContTemp)) deallocate(qhContTemp)   ! D-462
+              if (allocated(qhResDTemp)) deallocate(qhResDTemp)   ! D-462
 
            end do
 

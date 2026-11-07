@@ -2844,6 +2844,8 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
               if(allocated(grid%scaOpac)) deallocate(grid%scaOpac)
               if(allocated(grid%Ndust)) deallocate(grid%Ndust)
               if(allocated(grid%Tdust)) deallocate(grid%Tdust)
+              if(allocated(grid%qhCont)) deallocate(grid%qhCont)   ! D-462
+              if(allocated(grid%qhResD)) deallocate(grid%qhResD)   ! D-462
               if (lgMultiChemistry .and. allocated(grid%dustAbunIndex)) &
                    &  deallocate(grid%dustAbunIndex)
               if (lgDust) then   ! D-233
