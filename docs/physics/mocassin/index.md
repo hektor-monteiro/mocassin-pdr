@@ -198,7 +198,7 @@ own plan, and the ones that change results need the benchmarks rerun.
   - Low
 :::
 
-Seven more have been found since, by {devlog}`D-446` to {devlog}`D-450` and {devlog}`D-453`. Three
+Seven more have been found since, by {devlog}`D-446` to {devlog}`D-450` and {devlog}`D-453`. Four
 were fixed:
 
 - {lim}`L-90`, closed by {devlog}`D-447`: the collisional excitation of H I cooled the gas, but none
@@ -206,9 +206,11 @@ were fixed:
 - {lim}`L-91`, closed by {devlog}`D-450`: a Q file's largest grain took cross sections extrapolated
   from its two smallest ({doc}`dust`);
 - {lim}`L-92`, closed by {devlog}`D-450`: hydrogen's balance left out the charge transfer of the
-  heavy elements' stages above 1+ ({doc}`ionisation`).
+  heavy elements' stages above 1+ ({doc}`ionisation`);
+- {lim}`L-96`, closed by {devlog}`D-462`: `getTmin`, which gave stochastic heating its lowest
+  temperature, integrated over bins it had zeroed; it is gone, with the scheme it served ({doc}`dust`).
 
-Four are open:
+Three are open:
 
 - {lim}`L-93` (Medium): in a run without `pdr`, hydrogen takes no charge transfer from the
   neutral/first-ion pairs;

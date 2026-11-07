@@ -55,6 +55,7 @@ pdrSmokeTest
 runs/
 tools/__pycache__/
 h2Test
+qhTest
 h2Slab
 
 # Python byte code (tools/)

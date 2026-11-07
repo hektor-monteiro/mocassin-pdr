@@ -48125,3 +48125,78 @@ cell, 1209 K. pn150k's reach 155 K.
     passes point at a data path: qhResD, qhCont or the units.
   - A move of more than 0.5% in hii-qh's total escaped energy means dustPDF
     is not conserving energy.
+
+### Implementation (2026-11-07, 14:42-14:57)
+
+The code-executor carried out Part 1. Commits a15287b (the change) and
+9585e7b (docs only).
+
+**Status.**
+  - Diff: 18 files, +1079/-528.
+  - The four flavours, h2Test, h2Slab and qhTest build with rc 0 and 0
+    errors (runs/_d462/build-Q.log, version 9585e7b).
+  - The 3D binary has md5 416686b8; qhTest 37063ffa.
+
+**The tool** (`tools/d462_qheat_check.py` on bin/qhTest.Q, written to
+runs/_d462/check/summary.txt; check-pre is byte-identical). 11 of 11 cases
+pass.
+
+| check | predicted | measured |
+|---|---|---|
+| qhTest against numpy, \|dT\|/T | <= 1e-6 | <= 8.9e-16 |
+| qhTest against numpy, max\|dP\| | <= 1e-8 | <= 1.1e-15 |
+| emitted/absorbed - 1 | +-1e-4 | <= 1.1e-15 |
+| against the Monte Carlo | -1.6% to -0.5% | -1.52% to -0.60% (6 cases) |
+| against T_eq, 0.05 and 0.1 um | -1.0% to -0.3% | -0.87%, -0.86% |
+| continuous term (T_eq 44.47 K) | cont+ above, cont- below | 45.16 K, 42.76 K |
+
+Prediction 2 held in full.
+
+**Two blockers, patched by the executor instead of being returned to
+planning.** Both were errors in the plan's own text. The main session read
+both fixes and accepts them, since a revised plan would have made the same
+change:
+  - **A name clash in the plan's qheat_mod.** qhInit's local `x` hid the
+    module work array `X` (Fortran ignores case), and the build failed with
+    "Allocate-object ... is neither a data pointer nor an allocatable
+    variable". The fix renames the local to `xh`, in its declaration and
+    its three uses. The rest of qheat_mod is the plan's text exactly
+    (diffed).
+  - **The plan's tool under NumPy 2.4.6.** `{Nat!r}` printed
+    `np.float64(...)` into the case file, so qhTest failed to read it (rc 2
+    in all 11 cases). The fix writes `float(...)` before `!r`. No tolerance
+    or check changed.
+
+**Three other adaptations**, each following from the plan's own edits:
+  - **The 1.9 grep.** It prints one line, the qHeatPss.out header string
+    `'i Tspike(i) Pspike(i)'`, which the plan itself writes. No variable or
+    routine of the old scheme remains.
+  - **Moved goldens.** emission_mod's `forLines` moved 5 lines (597-648 to
+    602-653), because 1.9 (a) and (b) add lines above it, although the plan
+    said it would not. The pdr-status `**L-37.**` golden and the
+    `test_text_suggestion` line moved too. units_snapshot.json was
+    regenerated: qheat_mod (5 units) and qhTest added; emission_mod from 32
+    units to 28.
+  - **A docs anchor.** One anchor in dust.md pointed at the `heat = ...`
+    statement that 1.10 replaced. It now points at the `resLineGrainHeat`
+    call (9585e7b).
+
+**The main session's review of the diff.**
+  - common_mod, set_input_mod, grid_mod, update_mod, iteration_mod and the
+    Makefile match the plan line for line.
+  - resLineHeating keeps the operations of `heat` in their old order (dLine
+    = (Gline*Hden)*(1-fEsc); heat = (dLine*xSec)/(Ndust*absOpac)). Whether
+    the result is bitwise the same is prediction 3.
+  - Two follow-ups by the main session: docs/physics/mocassin/index.md's
+    counts ("Four were fixed", "Three are open", with an L-96 bullet), and
+    `qhTest` in .gitignore beside h2Test.
+
+**Checks.**
+  - pytest: 109 passed.
+  - fortref check: only fortref.unpushed, once a sphinx build has
+    regenerated code-map.md.
+  - sphinx-build -W: rc 0.
+
+**Runs.** The unit d462-runs was launched at 14:57. It is waiting: the
+user's NGC6302 model (12 ranks of ~/.local/bin/mocassin) is still running,
+and nothing of this entry has started.
