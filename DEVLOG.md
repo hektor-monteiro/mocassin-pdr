@@ -461,7 +461,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-459 | **Audit of D-456..D-458, and the documentation brought up to date (the user: "I have made some new changes to the code. Analyse te changes, audit them and update the documentation as needed.").** No source, Makefile or tools change since D-455. D-456 and D-457 are analyses; D-458 registers Cloudy's `sphere static` as the standard for comparisons (the benchmark Cloudy inputs, the hiipdr README, CLAUDE.md, a docs note). Checked: the three inputs change only by `sphere static` and comments; `reduce.py --check-cloudy` matches the committed inputs to runs/_d458's command for command; Cloudy's A_V(r) moves by under 0.5%. The docs benchmark pages, D-458's open item, now compare with the static runs. The manifest points at runs/_d458; regenerating the data changes only the Cloudy-side files; every Cloudy-dependent number of the two pages, their captions and the index was recomputed by a script that reproduces the old numbers from the old data. pn150k: Hbeta 0.96 of Cloudy's, crossing 0.362 (0.031 mag), [C II] 158 0.58 -> 0.98, CO 2-1 0.63 -> 0.82, PDR T 0.67-0.77 -> 0.86-0.97, [O I] 63 1.49 -> 1.78. hiipdr: Hbeta 0.92, [C II] 158 1.29 -> 1.66, atomic PDR T 1.05-1.11 -> 1.02-1.05. Records: L-19 re-measured against the static sphere (PDR grains 1.00 and 0.99 of Cloudy's, escaped spectrum within 10%; band shares not re-measured), lowered from High to Medium; L-37 and L-56 note the static sphere; L-97 opened (D-452's finding: a transported line takes the grid point at or below its frequency, while the bins are centred; Low). Dust chapter, transfer page and outputs reference updated. | Done | 2026-11-02 |
 | D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
 | D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record). **Result:** all builds and the install rc 0; ~/.local/bin reports pdr-coupling-v2.0.2-64-g7de18ff (the opening commit, source as 20e4bbc); the data still identical; HII40 with the installed binary 18 iterations, byte-identical to the reference in every output file but summary.out, which differs only in its wall-clock times, and to D-454's plain build apart from those times and the PDR builds' own lgPDR line and pdrFUV files | Done | 2026-11-06 |
-| D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. No code changed | Open | 2026-11-07 |
+| D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. Plan approved (the user: heating with the gas-grain and photoelectric terms, gate default 0, hiipdr full + pn150k 3 iterations, no run beside another model): a standalone qheat_mod (DL01 thermal-continuous, GD89 heat capacities, one geometric T grid) fed Jste + the destroyed lines + getDustT's net gas-grain term, stored per cell; material from grainCarb, N from rho and MsurfAtom; one solve per grain; qhTest and tools/d462_qheat_check.py; predictions on record | Open | 2026-11-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -47985,3 +47985,143 @@ against 0.328 with the line included, at s = 0.7.
   - PAHs: the graphite enthalpy has no C-H modes (Cloudy uses DL01 eq 33 or
     Dwek et al. 1997).
   - Ices: they would take the silicate form.
+
+### The plan (2026-11-07, 14:40)
+
+The user's choices, through three questions asked during planning:
+  - **Heating.** "Include them": qHeat gets getDustT's gas-grain and
+    photoelectric terms as well as the destroyed resonance lines. A net gain
+    goes in as continuous heating, and a net loss scales the photon rates
+    down.
+  - **Gate.** "Default 0": `minConvQHeat` defaults to 0, so qHeat runs from
+    the second iteration. A value the user gives still applies.
+  - **Runs.** "hiipdr full + pn150k 3 it": a converged hiipdr with qHeat,
+    pn150k for 3 iterations, and the old and new binaries timed on the same
+    input.
+  - **A new rule.** "do not run any models if there are other models
+    running". At the time, the user's NGC6302 model held 12 ranks of
+    ~/.local/bin/mocassin. Every launch of this entry waits until no
+    mocassin, mocassin.new, mocassinWarm or cloudy.exe process exists.
+
+**The design** (plan iridescent-stirring-pie, carried out by the
+code-executor):
+  - **`source/qheat_mod.f90`, new and standalone** (constants_mod only).
+    `qhSolve` implements DL01's thermal-continuous scheme:
+    - upward rates from eqs 15-24 (bin overlaps), 28 (the adjacent level,
+      with its intrabin term) and 16 (the top level);
+    - eq 41 cooling, to the level below, in photons below E_u;
+    - the GD89 recursion;
+    - GD89's heat capacities with (N - 2).
+
+    One geometric T grid, 1 K to Tmax with nTbins levels, serves every grain,
+    so B_nu is tabulated once (`qhInit`). The field is a histogram with edges
+    at the midpoints between bin points (widths exactly widFlx), so its
+    integrals are exact.
+  - **emission_mod `qHeatGrain`** builds the input and replaces
+    qHeat/getTmin/enthalpy/bbody/clrate/cheat:
+    - `Jste` (+ `Jdif` under debug);
+    - each destroyed resonance line at its bin, with the share from the new
+      `resLineGrainHeat`, the formula `resLineHeating` now calls with the
+      same operations in the same order;
+    - getDustT's `gasDustColl_d - photoelHeat_d`.
+
+    getDustT stores the last two per cell (`qhResD`, `qhCont`, allocated in
+    initResLines with lgQheat), and they are reduced over ranks exactly as
+    Tdust is.
+  - **Data.**
+    - The material is `grainCarb`, from MsurfAtom, the flag WD01's yield
+      already reads.
+    - N = (4 pi/3) a^3 rho / (MsurfAtom amu).
+    - A grain falls back to equilibrium emission, counted, if it has no
+      rho/MsurfAtom, no net heating or no distribution.
+  - **One solve per grain.** setDustPDF solves each grain; setDiffusePDF
+    adds their sum (`qhCellSpec`) instead of calling qHeat again.
+    `qHeatPss.out` is written from setDustPDF, so dust-only runs write it
+    too.
+  - **The gate.** `convPercent >= minConvQHeat .and. lgQhReady`, where
+    lgQhReady is set after the first Tdust reduction (it replaces
+    `nIterateMC > 1`).
+  - **A per-iteration `[qHeat]` line** gives the grains solved, the
+    fallbacks, emitted/absorbed min and max, and the count with P(top) >
+    1e-6.
+  - **`qhTest` and `tools/d462_qheat_check.py`.** The tool runs 11 cases:
+    graphite grph-avg and silicate Sil_21, 5-100 nm, MMP83 x 1 to 1e4,
+    with and without a Lya share of 0.4, and the continuous term +-.
+    qhTest is checked against:
+    - the same algorithm in numpy, to rounding;
+    - a grain-history Monte Carlo, within 2.5%, for a <= 0.02 um;
+    - T_eq, within 1.5%, for a >= 0.05 um;
+    - energy closure to 2e-3.
+  - **Docs.**
+    - the dust chapter's "Stochastic heating", keywords.yaml and
+      outputs.yaml;
+    - DraineLi2001 added to the bibliography;
+    - L-8 retitled and lowered to Low;
+    - L-96 closed.
+
+**Runs** (runs/_d462, one queue, 14 ranks each, each waiting for other models
+to finish):
+  - **p0-old, p0-new:** p0tau10, dust only, without the keyword; the
+    installed binary against the new one.
+  - **p0-qh:** p0tau10 with `quantumHeatGrain 0.2 0.` and Tmax 1500 K.
+  - **hii-B:** hiipdr, without the keyword, against runs/_d454/hii-S.
+  - **hii-qh2-old, hii-qh2-new:** hiipdr for 2 iterations with
+    `quantumHeatGrain 0.02 -1.`, for timing.
+  - **hii-qh:** hiipdr, converged, `quantumHeatGrain 0.02 0.`, Tmax 1500 K,
+    Pss written.
+  - **pn-qh3:** pn150k for 3 iterations, `quantumHeatGrain 0.01 0.`.
+
+Tmax is 1500 K for p0tau10 and hiipdr, whose grains reach 807 K and, in one
+cell, 1209 K. pn150k's reach 155 K.
+
+**Predictions.**
+  1. **Builds.** Four flavours, h2Test, h2Slab and qhTest: rc 0, 0 errors.
+  2. **The tool.** All 11 cases pass:
+     - qhTest against numpy: |dT|/T <= 1e-6, max|dP| <= 1e-8;
+     - emitted/absorbed within 1 +- 1e-4;
+     - against the Monte Carlo: -1.6% to -0.5%;
+     - against T_eq at 0.05 and 0.1 um: -1.0% to -0.3%;
+     - the continuous term: cont+ above T_eq (prototype 45.2 against
+       44.5 K), cont- below it (42.8 K).
+  3. **Byte identity without the keyword.** p0-new = p0-old and hii-B =
+     runs/_d454/hii-S in every output, apart from summary.out's times.
+  4. **p0-qh.**
+     - It runs and writes qHeatPss.out.
+     - `[qHeat]` lines from iteration 2: 0 fallbacks, emitted/absorbed
+       within 1 +- 2e-3, 0 top-level cells.
+     - Tmean/Teq within 1.5% in every written cell.
+     - SED.out bands within 3% of p0-new's.
+  5. **hii-qh** (7 sizes, 0.010-0.018 um silicate).
+     - `[qHeat]` lines in iterations 2-15: about 106 428 grains solved (15204
+       cells x 7), 0 fallbacks, ratio between 0.998 and 1.002, 0 top-level
+       cells.
+     - convergence.out row 1 identical to hii-B's.
+     - At 0.018 um, the median Tmean/Teq is 0.90-1.00, lower at 0.010 um;
+       sum P = 1 to 1e-6.
+     - SED.out against hii-B:
+       - 5-25 um higher by x1.02-3;
+       - 60-300 um within +-5%;
+       - the total escaped energy within 0.5%.
+     - Tdust median ratio (sizes >= 0.05 um) and Hbeta within +-1%.
+     - The run takes at most 15% longer than hii-B.
+  6. **Timing.** On the same night as hii-B's iteration 2:
+     - in hii-qh2-old, qHeat adds >= 5 min to iteration 2 (estimate: 15 000
+       calls per rank at about 40 ms);
+     - in hii-qh2-new it adds <= 60 s;
+     - the ratio of the two is >= 10.
+  7. **pn-qh3** (7 sizes, 5-9 nm graphite, which emitted nothing before).
+     - `[qHeat]` lines at iterations 2 and 3: about 7 x the cells solved, 0
+       fallbacks, ratio within 1 +- 2e-3.
+     - 0 top-level cells, less certain: a 5 nm grain near the star could
+       spike past 700 K.
+     - qHeat adds <= 2 min per iteration.
+
+**What would change the reading.**
+  - A FAIL against numpy, or any byte difference without the keyword, is a
+    blocker and goes back to planning.
+  - A FAIL against the Monte Carlo alone points at the scheme's
+    discretisation.
+  - Fallbacks, or a ratio outside 1 +- 2e-3, in a run while the unit test
+    passes point at a data path: qhResD, qhCont or the units.
+  - A move of more than 0.5% in hii-qh's total escaped energy means dustPDF
+    is not conserving energy.
