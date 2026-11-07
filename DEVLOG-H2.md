@@ -60,6 +60,7 @@ DEVLOG.md and arrives here by merge.
 | H-049 | **Production's D-441 (dust-only models run; writeSED counts the light escaping from an inactive source cell) and D-442 (the 1D dust benchmark page) merged into this branch (the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** Merge ebeeb9b of production 4135ebb, no conflict; the branch again differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); p0tau10 (fixture + randomSeed 1001) on this branch's 3D build is byte-identical to production's D-441 T3 run in every output but summary.out's clock lines. ~/.local/mocassin_h2 still holds 92a17d3's binaries, without D-441 | Done | 2026-10-24 |
 | H-050 | **Production's release `pdr-coupling-v2.0.2` (D-443) and documentation increment 5 (D-444) merged in.** Merge 5a76742 of production 53eab97, no conflict; no change in source/, Makefile, data/ or dataPDR/ since H-049, so nothing rebuilt; the branch again differs from production only in DEVLOG-H2.md. D-444 records 26 defects of the MOCASSIN core as L-64..L-89 (none fixed); they apply to this branch equally. The v2.0.2 tag is on production's a048fc7, an ancestor of this merge | Done | 2026-10-25 |
 | H-051 | **Production's D-445 to D-463 merged in (the user, D-463: "merge these changes to the other branches in the repository").** Merge 2d6f697 of production 46f697d, no conflict; the branch again differs from production only in DEVLOG-H2.md. It brings in four source changes, each a change to what a run computes: D-447 (H I collisional excitation emitted), D-450 (re-emission diagnostic, a Q file's largest radius, hydrogen's charge transfer from higher stages), D-454 (SED.out continuum only, SEDlines.out) and D-462 (stochastic heating, qheat_mod). It also brings D-458 (Cloudy comparisons as a static sphere) and L-98 (D-463). The four flavours and h2Test, h2Slab and qhTest build with rc 0 (runs/h051/build.log). Nothing rerun or installed; ~/.local/mocassin_h2 is still 92a17d3's | Done | 2026-11-07 |
+| H-052 | **Production's D-463 close and D-464 merged in (the user, asked whether to bring docs and h2-model up to date: "yes").** Merge ace30ad of production 174c628, no conflict; the branch again differs from production only in DEVLOG-H2.md. Documentation only: L-99 records that the resonance lines (Lya among them) are not transferred, only destroyed at the emitting cell's escape probability, and D-464 recounts the original `resLinesTransfer` treatment. No source change, nothing rebuilt | Done | 2026-11-07 |
 
 ---
 
@@ -6075,6 +6076,34 @@ make clean between flavours):
 
 **Not done.** ~/.local/mocassin_h2 is still 92a17d3's (H-047). No model was
 rerun. Nothing is pushed.
+
+### Status
+
+Done (2026-11-07).
+
+---
+
+## H-052 - Production's D-463 close and D-464 merged in (2026-11-07)
+
+What production did after H-051 reaches this branch by merge ace30ad
+(production 174c628), with no conflict. `git diff pdr-photoionization
+h2-model` again lists only DEVLOG-H2.md.
+
+The changes are documentation only, with nothing in source/, the Makefile,
+data/, dataPDR/ or tools/, so nothing was rebuilt:
+  - D-463's close: the merges of H-051 recorded on production;
+  - D-464: L-99 (Medium), the resonance lines are not transferred. A packet
+    drawn on one of them is destroyed by the emitting cell's dust with
+    probability 1 - f_esc; the rest is traced thin, and nothing scatters
+    it.
+  - D-464 also recounts how the original dusty MOCASSIN treated these lines
+    through `resLinesTransfer`.
+
+L-99 matters here too. The H2 level model reads `Jste`, which near 1216 A
+holds only the thin escaping Lya. A resonant-scattering transfer would change
+that field.
+
+Nothing is pushed.
 
 ### Status
 
