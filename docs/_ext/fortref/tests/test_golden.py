@@ -70,7 +70,7 @@ GOLDEN = {
     'pdr/calculate_abundances.c::check_flag': ('source/pdr/calculate_abundances.c', 604, 637, 'check_flag'),
     # other files
     'Makefile@"PDRFLAGS ="': ('Makefile', 87, 89, None),
-    'doc/pdr-status.md@"**L-37."': ('doc/pdr-status.md', 418, 460, None),
+    'doc/pdr-status.md@"**L-37."': ('doc/pdr-status.md', 419, 461, None),
     'nonexistent.f90': ('FAIL', 'file'),
     'update_mod.f90::nosuch': ('FAIL', 'scope'),
 }

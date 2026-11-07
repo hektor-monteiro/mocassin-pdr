@@ -332,7 +332,9 @@ The levels are `nTbins` temperatures spaced geometrically from 1 K, the first te
 emission table, to `Tmax` (300 up to 700 K by default; `quantumHeatGrainParameters`). They are the same for every
 grain, so the Planck function is tabulated once. The field is a histogram over the frequency bins, each bin's
 energy spread between the midpoints to its neighbours, an interval of width `widFlx`, so the integrals the
-rates need are exact.
+rates need are exact. Where a grain's distribution is narrower than a level, it is spread over the neighbouring
+levels: the power stays exact, but the far Wien tail of the grain's spectrum comes out too high, by 9–21% at
+5–25 µm where that band carries under 1% of the emission at 300 levels ({lim}`L-98`).
 
 The heating is the grain's whole heating in `getDustT` ({src}`code <emission_mod.f90::emissionDriver/qHeatGrain>`):
 - the transported field `Jste`, which carries the diffuse continuum and the lines as well as the starlight;

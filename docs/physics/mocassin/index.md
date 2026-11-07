@@ -218,6 +218,9 @@ Three are open:
   ({doc}`emission`);
 - {lim}`L-95` (Low): the resonance-line table of `lineFlux.out` counts recombination Ly$\alpha$ only.
 
+{devlog}`D-462` found one more, {lim}`L-98` (Low): stochastic heating's default level grid overestimates a
+grain's far Wien tail ({doc}`dust`).
+
 ## Notation and units
 
 The symbols are those of {numref}`tab:notation`.

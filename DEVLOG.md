@@ -462,6 +462,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-460 | **L-19's band split re-measured against Cloudy as a static sphere (the user: "Re-measure L-19's band split against the static sphere.").** Two Cloudy field runs of pn150k on the committed input with D-306's every-zone continuum save (runs/_d460): cf-static and an expanding control cf-expand; `tools/d307_fieldcmp.py` against pn-LC and rel-pn41; predictions on record before the runs. **Results:** the saves change nothing (.ovr and .pdr byte-identical to D-458's and D-396's runs); the control reproduces D-306's split within 1.3%. As a static sphere Cloudy's FUV field at A_V 0.20-0.65 is 0.50-0.51 of the expanding sphere's, its FUV share at A_V 0.30 0.127 (0.255), and the energy reappears beyond 9.1 um (x1.19-1.59), Fbol x1.01-1.07. MOCASSIN (pn-LC) over static Cloudy: FUV 0.91-1.03 at A_V 0.20-0.65 (0.46-0.52 against expanding), 0.84 at 0.15; Fbol 1.14-1.28, in 0.21-9.1 um (1.06-1.31) and beyond 9.1 um (1.21-1.44). L-19's FUV difference was the expanding sphere; the bolometric excess D-307 found remains, unexplained, with the grains agreeing; L-19 retitled and lowered to Low. C4 failed as worded: the opening put 0.01-0.44 Ryd at 2-91 um, where it is 0.21-9.1 um. pn150k page and the PDR dust page updated. | Done | 2026-11-02 |
 | D-461 | **Production reinstalled into ~/.local at 20e4bbc (the user: "update the local instalation").** ~/.local/bin held pdr-coupling-v2.0.1 (installed 2026-10-24, D-439); HEAD adds the source of D-441, D-447, D-450 A-C and D-454 (10 files, +336/-54). Looked at first: data/, dustData/ and dataPDR/ identical to the install, 7 benchmark files overwritten by their tracked versions, examples/tutorial added; old binaries and files kept in runs/_localprefix_backup_2026-11-06_v2.0.1. Four flavours, then `make PDR=1 PDRGEOM=3D PREFIX=$HOME/.local install`; check run: the installed quickstart HII40 with the installed binary against D-454's 3D build of the same source, byte for byte (predictions on record). **Result:** all builds and the install rc 0; ~/.local/bin reports pdr-coupling-v2.0.2-64-g7de18ff (the opening commit, source as 20e4bbc); the data still identical; HII40 with the installed binary 18 iterations, byte-identical to the reference in every output file but summary.out, which differs only in its wall-clock times, and to D-454's plain build apart from those times and the PDR builds' own lgPDR line and pdrFUV files | Done | 2026-11-06 |
 | D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. Plan approved (the user: heating with the gas-grain and photoelectric terms, gate default 0, hiipdr full + pn150k 3 iterations, no run beside another model): a standalone qheat_mod (DL01 thermal-continuous, GD89 heat capacities, one geometric T grid) fed Jste + the destroyed lines + getDustT's net gas-grain term, stored per cell; material from grainCarb, N from rho and MsurfAtom; one solve per grain; qhTest and tools/d462_qheat_check.py; predictions on record. **Result:** qhTest 11/11 (= numpy to 1e-15, Monte Carlo -1.5% to -0.6%); no keyword: byte-identical (hiipdr; p0tau10 once seeded - the planned pair was clock-seeded); every run's distributions conserve energy to 3e-14; hiipdr: 106 428 grains solved per iteration, 0 fallbacks, 5-25 um escaped x1.027, Tdust/lines within 0.3%, run +7%; pn150k's 5-9 nm graphite now emits (247 688 solved); qHeat cost per iteration 550 s -> 19 s (x29); the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um) | Done | 2026-11-07 |
+| D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival | Open | 2026-11-07 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -48346,3 +48347,56 @@ emitted nothing before). Held.
 ### Status
 
 Done (2026-11-07).
+
+---
+
+## D-463 - D-462 merged to the other branches; the level-grid issue logged as L-98 (2026-11-07)
+
+The user (2026-11-07, after D-462): "merge these changes to the other
+branches in the repository. Log the nTbins issue for future implementation."
+
+**The issue, logged as L-98** (Low) in doc/pdr-status.md, with a sentence in
+the dust chapter and the MOCASSIN index.
+  - **What it is.** qHeat's default level grid, 300 geometric levels to
+    Tmax, spreads a distribution narrower than a level over its neighbours.
+    The power stays exact, but the far Wien tail comes out too high, and the
+    error halves with the spacing (D-462, gridres.log).
+  - **What a future implementation could do:**
+    - a finer default;
+    - an adaptive grid per grain (DL01 appendix B);
+    - a second solve, refined where P > 1e-12.
+  - **The cost of a finer grid**, measured now with qhTest in runs/_d462/ntime
+    (five calls each, wall time including process start, the case-file read
+    and qhInit):
+
+    | case | 300 levels | 600 | 1200 |
+    |---|---|---|---|
+    | graphite 0.005 um, MMP83 x 1e4, Lya 0.4 | 5.6 ms | 11.6 ms | 24.9 ms |
+    | silicate 0.0158 um, x 1e2, Lya 0.4 | 7.2 ms | 16.5 ms | 23.7 ms |
+    | silicate 0.158 um, x 1e3 | 7.1 ms | 8.4 ms | 21.6 ms |
+
+    1200 levels therefore cost about 4 times what 300 do. The early exit
+    keeps that below nT^2. A solve took 2.5 ms in D-462's runs at 300 levels.
+  - **The test for whichever option is chosen:** the check tool, gridres.py's
+    band ratios, and a rerun of hii-qh. The rerun also separates the grid
+    bias from hiipdr's x1.027 at 5-25 um.
+
+**Which branches.** These have their own work and take production by merge:
+  - **docs** (~/software/mocassin_docs): 8 commits behind, none of its own.
+    Fast-forwarded to production.
+  - **h2-model** (~/software/mocassin_h2): 65 behind. Its 14 commits since
+    the merge base change only DEVLOG-H2.md. Production is merged in, as at
+    H-047 to H-050. Its builds are checked in that worktree, and the record
+    is H-051.
+
+The others are left as they are. They are archival lines, not live
+development, and merging production into them would bring in 300-900
+unrelated commits:
+  - main: 802 commits behind; it is an old local branch, and GitHub's main
+    is pushed from pdr-photoionization;
+  - dev: 797 behind, 24 ahead, the upstream-style line that takes ports, not
+    merges (D-269, D-367);
+  - pdr-coupling: 720 behind;
+  - feature1: 916 behind;
+  - compBias: 857 behind;
+  - d418-level-order: 309 behind.

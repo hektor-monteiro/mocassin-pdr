@@ -199,6 +199,7 @@ aesthetics. Resolved items are in section 4.
 | L-89 | Species abundances are used as given: mixture means are right only when they sum to one | Low | D-444 |
 | L-95 | `lineFlux.out`'s resonance-line table counts recombination Ly alpha only | Low | D-453 |
 | L-97 | A transported line is placed at the grid point at or below its frequency, while the bins are centred | Low | D-452, D-459 |
+| L-98 | Stochastic heating's default level grid overestimates a grain's far Wien tail | Low | D-462, D-463 |
 
 ### High - affects results now
 
@@ -971,8 +972,7 @@ in every run.
   - **The level grid.** The default 300 levels, geometric to `Tmax`,
     overestimate a grain's far Wien tail where that band carries under 1%
     of its emission: x1.09-1.21 at 5-25 um, more at 1-5 um
-    (runs/_d462/gridres.log). A finer `nTbins` or an adaptive grid is not
-    yet chosen.
+    (runs/_d462/gridres.log). This is L-98.
 
 **L-11. O-09: the V1/V2 slabs and `ifront` have not been re-run** since
 D-260/D-263/D-266, and not at all since this cycle's changes.
@@ -1317,6 +1317,44 @@ differences (`initCartesianGrid`). The consequences:
 
 The energy is conserved: only the frequency changes. The
 mapping is this project's (D-292). Recorded, not changed.
+
+**L-98. Stochastic heating's default level grid overestimates a grain's far
+Wien tail** (D-462, D-463). `qhSolve` puts every grain on one geometric grid
+of `nTbins` temperatures from 1 K to `Tmax`. By default that is 300 levels to
+700 K (dlnT = 0.022); to 1500 K it is 0.0245. Where a grain's distribution is
+narrower than a level, the scheme spreads it over the neighbouring levels, and
+the mixture of their Planck functions has the right power but a broader
+spectrum. The error halves with each halving of the spacing
+(runs/_d462/gridres.log):
+  - **A 0.16 um silicate at equilibrium** (Teq 47 K): the 5-25 um band is
+    x1.196 at 300 levels, x1.096 at 600 and x1.047 at 1200, and x1.006 at
+    Teq 154 K. Tmean/Teq is 0.990, 0.995 and 0.9975.
+  - **The option's own sizes** (0.005-0.016 um, MMP83 x 1 to 1e6, Lya share
+    0.4). A band with 3% or more of the grain's emission moves by 2.5% or
+    less between 300 and 1200 levels. But 5-25 um is x1.09-1.21 where it
+    carries under 1%, and 1-5 um x1.5-109 where it carries 1e-6 or less.
+
+The total is exact in every case. In hii-qh (D-462) the escaped 5-25 um band
+rose x1.027, but how much of that rise is this bias has not been separated.
+
+What a future implementation could do:
+  - **A finer default.** qhTest's wall time, start-up and qhInit included, is
+    5.6-7.2 ms at 300 levels, 8-17 ms at 600 and 22-25 ms at 1200
+    (runs/_d462/ntime). A solve took 2.5 ms in a run at 300 levels (D-462).
+    So 1200 levels would cost about 4 times as much: roughly 80 s per hiipdr
+    iteration and 3 minutes per pn150k one.
+  - **An adaptive grid per grain** (DL01 appendix B): about 500 bins placed
+    where P is, with the top bin at P < 1e-14. It needs B_nu per grain, or a
+    fine global table interpolated.
+  - **Two solves.** The first on the global grid; the second refined over
+    the range where P > 1e-12.
+  - **How to test it.**
+    - tools/d462_qheat_check.py, with its Monte Carlo reference;
+    - gridres.py's band ratios against a 1200-level solve;
+    - hii-qh again with the chosen grid, against D-462's run, which also
+      separates the bias from hiipdr's x1.027.
+
+No fixture uses the option. Recorded, not changed.
 
 ---
 
