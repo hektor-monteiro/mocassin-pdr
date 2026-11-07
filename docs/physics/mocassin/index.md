@@ -219,7 +219,9 @@ Three are open:
 - {lim}`L-95` (Low): the resonance-line table of `lineFlux.out` counts recombination Ly$\alpha$ only.
 
 {devlog}`D-462` found one more, {lim}`L-98` (Low): stochastic heating's default level grid overestimates a
-grain's far Wien tail ({doc}`dust`).
+grain's far Wien tail ({doc}`dust`). {devlog}`D-464` records {lim}`L-99` (Medium): the resonance lines, Ly$\alpha$ among them, are not
+transferred; a local escape probability decides their destruction by dust, and nothing scatters them
+({doc}`emission`).
 
 ## Notation and units
 
