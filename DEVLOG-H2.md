@@ -59,6 +59,7 @@ DEVLOG.md and arrives here by merge.
 | H-048 | **Production's documentation increment 3 (D-440) merged into this branch (the user: "Merge what has been done in h2-model branch").** Merge d26e8f3 of production de586ae (D-440: tutorials/dust-gas-pdr, examples/tutorial, mocread multiChemistry support, h034_maps.py's data-directory fallback), no conflict; no change in source/, Makefile, data/ or dataPDR/, so nothing rebuilt; this branch again differs from production only in DEVLOG-H2.md. ~/.local/mocassin_h2 not reinstalled: its share/doc examples lack examples/tutorial until the next install | Done | 2026-10-24 |
 | H-049 | **Production's D-441 (dust-only models run; writeSED counts the light escaping from an inactive source cell) and D-442 (the 1D dust benchmark page) merged into this branch (the user: "Merge what has been done in h2-model branch then Proceed to increment 4").** Merge ebeeb9b of production 4135ebb, no conflict; the branch again differs from production only in DEVLOG-H2.md. Four flavours, h2Test and h2Slab build rc 0 (PREFIX ~/.local/mocassin_h2, not installed); p0tau10 (fixture + randomSeed 1001) on this branch's 3D build is byte-identical to production's D-441 T3 run in every output but summary.out's clock lines. ~/.local/mocassin_h2 still holds 92a17d3's binaries, without D-441 | Done | 2026-10-24 |
 | H-050 | **Production's release `pdr-coupling-v2.0.2` (D-443) and documentation increment 5 (D-444) merged in.** Merge 5a76742 of production 53eab97, no conflict; no change in source/, Makefile, data/ or dataPDR/ since H-049, so nothing rebuilt; the branch again differs from production only in DEVLOG-H2.md. D-444 records 26 defects of the MOCASSIN core as L-64..L-89 (none fixed); they apply to this branch equally. The v2.0.2 tag is on production's a048fc7, an ancestor of this merge | Done | 2026-10-25 |
+| H-051 | **Production's D-445 to D-463 merged in (the user, D-463: "merge these changes to the other branches in the repository").** Merge 2d6f697 of production 46f697d, no conflict; the branch again differs from production only in DEVLOG-H2.md. It brings in four source changes, each a change to what a run computes: D-447 (H I collisional excitation emitted), D-450 (re-emission diagnostic, a Q file's largest radius, hydrogen's charge transfer from higher stages), D-454 (SED.out continuum only, SEDlines.out) and D-462 (stochastic heating, qheat_mod). It also brings D-458 (Cloudy comparisons as a static sphere) and L-98 (D-463). The four flavours and h2Test, h2Slab and qhTest build with rc 0 (runs/h051/build.log). Nothing rerun or installed; ~/.local/mocassin_h2 is still 92a17d3's | Done | 2026-11-07 |
 
 ---
 
@@ -6028,3 +6029,52 @@ None is fixed here either.
 ### Status
 
 Done (2026-10-25).
+
+---
+
+## H-051 - Production's D-445 to D-463 merged in (2026-11-07)
+
+The user (production D-463): "merge these changes to the other branches in
+the repository". What production did after H-050 reaches this branch by
+merge 2d6f697 (production 46f697d), with no conflict. This branch's own
+commits since H-050 change only DEVLOG-H2.md, so `git diff
+pdr-photoionization h2-model` again lists only DEVLOG-H2.md.
+
+**What it brings, by what a run computes:**
+  - **D-447:** collisional excitation of H I is emitted as well as cooled
+    (Lya and Halpha), and the grains absorb that Lya.
+  - **D-450:**
+    - pdfSrc and reemission.out record the re-emission by emitter;
+    - a Q file's largest grain radius is no longer extrapolated;
+    - hydrogen's balance takes the charge transfer of the heavy elements'
+      stages above 1+, in its own rate and in the rate handed to the
+      chemistry.
+  - **D-454:** SED.out is the continuum, and the transported lines go to
+    SEDlines.out.
+  - **D-462:** stochastic heating (`quantumHeatGrain`) on the grain's whole
+    heating, with qheat_mod, qhTest and tools/d462_qheat_check.py. Without
+    the keyword nothing changes, bit for bit.
+  - **The rest, which changes nothing a run computes:**
+    - D-458 makes Cloudy's `sphere static` the standard for comparisons;
+    - D-456/D-457 and D-459 to D-461 are analyses, documentation and the
+      ~/.local reinstall;
+    - D-463 logs L-98, the stochastic-heating level grid.
+
+The first three change H2 results here, as they did production's. D-447 and
+D-450 C change the H I/H+ balance and the Lya field, through the
+chemistry's rate and the H2 level model's pumping. The H2 benchmarks of this
+branch have not been rerun with them.
+
+**Builds** (runs/h051/build.sh and build.log, `PREFIX=$HOME/.local/mocassin_h2`,
+make clean between flavours):
+  - the four flavours: rc 0, 0 errors;
+  - h2Test, h2Slab and qhTest: rc 0;
+  - the version string is pdr-coupling-v2.0.2-87-g2d6f697;
+  - qhTest's md5 (37063ffa) is production's, since qheat_mod is standalone.
+
+**Not done.** ~/.local/mocassin_h2 is still 92a17d3's (H-047). No model was
+rerun. Nothing is pushed.
+
+### Status
+
+Done (2026-11-07).
