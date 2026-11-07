@@ -48509,3 +48509,11 @@ original the method was an escape probability and an energy relaunch; since
 D-376 it is an escape probability with a destruction at the draw. A
 resonant-scattering transfer for these lines, Lya first, is what L-99
 records.
+
+**The other branches** (the user, asked whether to bring docs and h2-model up
+to date: "yes").
+  - docs is fast-forwarded to this commit.
+  - h2-model takes it by merge, recorded as H-052.
+  - Since 46f697d, the commits reaching them (a9a87a1, 72af225 and this one)
+    change only DEVLOG.md, doc/pdr-status.md, docs/ and a fortref golden.
+    Nothing is rebuilt.
