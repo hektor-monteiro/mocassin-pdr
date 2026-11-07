@@ -261,7 +261,7 @@ sphere, whose PDR the nebula's Ly$\alpha$ reaches, the PDR grains were at 0.92â€
 Since {devlog}`D-376`, every dust+gas run heats the grains with the resonance lines the dust
 destroys; before, the heating waited for the share of converged cells to reach `resLinesTransfer`,
 which of this project's inputs only `test_Problem` sets ({doc}`emission`). Each grain takes
-({src}`update_mod.f90::updateCell/resLineHeating@"heat = Gline*grid%Hden(cellP)* &"`)
+({src}`update_mod.f90::updateCell/resLineHeating@"heat = resLineGrainHeat(dLine, sizeP, global_speciesP, resLine(iL)%nuP, &"`)
 
 ```{math}
 :label: eq:moc-resline
