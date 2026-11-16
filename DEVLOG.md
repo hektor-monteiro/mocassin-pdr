@@ -464,6 +464,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-462 | **Audit of stochastic heating (`quantumHeatGrain`, emission_mod `qHeat`) (the user: "Since the way the radiation field treatment has changes, separating diffuse and direct, the calculation for that option os no longer taking into account the diffuse field. Audit this option ... Fix the code so it accounts for the diffuse field properly. During the analysis look for possibilities to make this part of the code faster.").** Jste still carries the diffuse continuum and the transported lines in every non-debug run (photon_mod, both transfer branches; D-158), so qHeat sees them. What it misses is the resonance-line power the dust destroys on the spot (D-376), which getDustT adds through resLineHeating: 44% of pn150k's grain heating (Lya 40.7%), 7.7% of hiipdr's. It also misses the gas-grain and photoelectric terms. Further defects: carbon atom count 2.9x too large (1.362e12 a^3 against DL01's 468 (a/nm)^3); material by the label's first letter (pn150k's grph-avg and every gr*/grph* file emit nothing); local species index; getTmin (L-96); the transition scheme emits 1.08-1.48x what it absorbs (MMP83 field, prototype). Cost: called twice per grain, O(nT^2 nbins) searches, exps per level. A prototype of the DL01 thermal-continuous scheme (runs/_d462) conserves energy to 1e-3 and matches a grain-history Monte Carlo within 0.5-1.6% in <T>. Plan approved (the user: heating with the gas-grain and photoelectric terms, gate default 0, hiipdr full + pn150k 3 iterations, no run beside another model): a standalone qheat_mod (DL01 thermal-continuous, GD89 heat capacities, one geometric T grid) fed Jste + the destroyed lines + getDustT's net gas-grain term, stored per cell; material from grainCarb, N from rho and MsurfAtom; one solve per grain; qhTest and tools/d462_qheat_check.py; predictions on record. **Result:** qhTest 11/11 (= numpy to 1e-15, Monte Carlo -1.5% to -0.6%); no keyword: byte-identical (hiipdr; p0tau10 once seeded - the planned pair was clock-seeded); every run's distributions conserve energy to 3e-14; hiipdr: 106 428 grains solved per iteration, 0 fallbacks, 5-25 um escaped x1.027, Tdust/lines within 0.3%, run +7%; pn150k's 5-9 nm graphite now emits (247 688 solved); qHeat cost per iteration 550 s -> 19 s (x29); the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um) | Done | 2026-11-07 |
 | D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival. **Done:** docs at production; h2-model merge 2d6f697 (no conflict, differs only in DEVLOG-H2.md), the four flavours, h2Test, h2Slab and qhTest building there, record H-051 | Done | 2026-11-07 |
 | D-464 | **Resonance-line transfer flagged for a future implementation, and how the original dusty MOCASSIN treated these lines (the user: "flag as a future issue to tackle, the implementation of proper Lyα and other resonance lines transfer, since that is no longer transported. I also want you to explain to me how the original dusty mocassin version handled this via resLinesTransfer keyword.").** L-99 (Medium): no resonant scattering; destruction by the emitting cell's dust at a local escape probability (D-376); the escaping part traced thin. The original (38aca36; Ercolano, Barlow & Storey 2005 sec 2.3.1) used the same escape probability, computed once when the converged share reached `resLinesTransfer` (default 101 = never), added the destroyed power to the grains' balance, and relaunched it as extra gas-emission packets on top of full-strength lines; outside that, lines escaped untraced and Lya's energy sat in the H I 15-8 slot at 8.15 um. No code changed | Done | 2026-11-07 |
+| D-465 | **Which High limitation to work on next for the best 3D PDR+H2 model (the user: "of the high severity remaining Known limitations, which should we work on next to obtain the best 3D PDR+H2 model?"). A recommendation; the decision is the user's.** Recommended: L-26 with L-3, by D-409's option B (the field accumulated over iterations). It is the only High item where the model is not converged at production settings (the carbon turn needs 16-64x the packets, CO still moves at 64x, the noise biases the means one way, D-408), and the per-cell state a 3D map shows is noise-limited past A_V 2. Its design and its test against D-408's series exist (D-409's addendum). Then L-55's per-pdrStep heating record (H-043), read with and without the accumulated field; then L-46 (chlorine), the largest measured effect on PN H2 lines (Cloudy: n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x); L-43 (under 3% of the H2 lines, the largest job) and L-37 (a resolution ~15x the 14-rank memory limit) later. No code changed | Proposed | 2026-11-16 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -48517,3 +48518,86 @@ to date: "yes").
   - Since 46f697d, the commits reaching them (a9a87a1, 72af225 and this one)
     change only DEVLOG.md, doc/pdr-status.md, docs/ and a fortref golden.
     Nothing is rebuilt.
+
+## D-465 - Which High limitation next, for the best 3D PDR+H2 model (2026-11-16)
+
+The user (2026-11-16): "of the high severity remaining Known limitations,
+which should we work on next to obtain the best 3D PDR+H2 model?"
+
+A recommendation; no code changed. The decision is the user's.
+
+### The six High items, by what they cost the model
+
+| item | what it affects | measured size | ready to plan? |
+|---|---|---|---|
+| L-26 + L-3 | the deep carbon, CO, every per-cell value past A_V 2 | C+ = C 2.29/2.51/2.72/2.80 at 1x/4x/16x/64x (Cloudy 2.93); [C I] 609 1.65 -> 1.17 of Cloudy's; CO +5 to +10.5% per factor of 4 at 64x (D-408) | yes: D-409's addendum, tested against D-408's series |
+| L-55 | the H2 rotational lines of dense models | 18-23 K1a and 95-119 hiipdr cells per run; K1a's dust10 pair moved 0-0 S(2) x13.5 through one cell (D-421, H-043) | the diagnostic record only (heat(1:12) per pdrStep per cell) |
+| L-46 | H2 in a PN's shielded gas | in Cloudy, without chlorine: crossing 0.042 mag earlier, n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x (D-399) | reactions in the tree, order set (D-400, D-401) |
+| L-43 | n(H2) in the transition zone | 14-62x (hiipdr), 30-230x (pn150k) Cloudy's; the zone (> 1,000 K) gives 2.9% of 2.12 um and none of the rotational lines (H-007, H-023) | a five-step plan (H-021), step 1 not started |
+| L-37 | [O I] 63 and 6300, a third of [C II] 158 on hiipdr | [O I] 63 7.4x Cloudy's on hiipdr; one layer per cell needs ~110^3 (D-365, D-379, D-458) | stage 2 (a temperature per depth) not designed |
+
+### Recommended: L-26 with L-3, by the field accumulated over iterations
+
+  - **It is the only High item where the model is not converged at
+    production settings.** The others are a missing channel or a
+    resolution with a measured size. Here the answer itself moves with the
+    packet count, and in one direction: fewer packets give a shallower turn
+    and colder deep gas on hiipdr, more C and CO on pn150k (D-408). A
+    comparison with Cloudy or 3D-PDR of the carbon or CO is not yet a
+    measurement of the physics.
+  - **It is what makes the model 3D.** Past A_V 2 a cell's carbon is drawn
+    in one of two states at every iteration (D-405), and hiipdr's outer CO
+    scatters 0.45-0.60 in ln per cell at 16x and 64x (D-412). Bin means
+    survive; the per-cell values a map shows do not.
+  - **It is designed.** D-409's addendum has the variant (a running mean from
+    the first iteration whose stop test is under 10%, the stop held until
+    enough are averaged), its risks (lag, an early stop, +4.8 kB per active
+    cell per rank, the warm-start state) and its test.
+  - **It is cheap for what it buys** (D-409's estimates, not measured):
+    64x's field for ~55 min of hiipdr 31^3 instead of 127; 256x for ~1 h
+    40 min instead of ~6.5 h.
+
+What it does not buy: the H2 lines are converged at the default count
+(H-032), and L-53, L-37 and L-46 are not the field's noise.
+
+**What the plan has to re-read.** D-409 was written before D-445-D-462. The
+running mean has to reach every reader of the field, which now includes
+qHeatGrain (D-462). Whether the per-iteration quantities built from it
+(fEscapeResPhotons, D-376; the stores qhResD and qhCont, D-462) follow the
+mean or the iteration is a choice the plan makes. The memory cost puts
+pn150k 41^3 at ~27 of the ~31 GB at 14 ranks.
+
+**The test** is D-409's: hiipdr at 1x with the mean should land between the
+series' 4x and 16x; at 8x with it, within the 16x-64x step of 64x (C+ = C
+within 0.08 mag, [C I] within 4%, CO within 10%; Hbeta, the H II lines and
+the H2 lines within 0.3%); with the option off the code is byte-identical;
+the last iteration's own estimate against the mean shows any lag.
+
+### The order after it
+
+  1. **L-55.** H-043's decisive record (heat(1:12) per pdrStep per cell) is
+     a small diagnostic change. Read on a K1a run with and without the
+     accumulated field, it says whether the dense models' H2 rotational
+     lines can be quoted. Hypothesis, untested: part of the swing is the
+     field's per-iteration noise in warm molecular cells.
+  2. **L-46, chlorine.** For PN models it is the largest measured effect on
+     the H2 lines of any High item, in Cloudy. The job: five species in the
+     generated network (33 -> 38), chlorine through D-402's link table, and
+     the benchmarks rerun. It will move pn150k's crossing about 0.04 mag
+     deeper, away from Cloudy's, because the missing sink now offsets a line
+     width that shields our H2 less (L-56).
+  3. **L-43 later.** H-021's plan is the largest job of the six for under 3%
+     of the H2 lines. It matters for maps of n(H2) in the zone.
+  4. **L-37 later.** One layer per cell on hiipdr is ~110^3, about 690k
+     active cells, ~15x the 14-rank limit (CLAUDE.md). The sub-cell
+     temperature of stage 2 is not designed. `frontLines` gives [O I] 6300
+     meanwhile (D-382).
+
+### Not known
+
+  - Whether an accumulated field lags or biases the model; where CO
+    converges.
+  - Whether L-55's swings are the field's noise.
+  - Chlorine's effect in this model rather than in Cloudy's.
+
+Status: Proposed, for the user's decision.
