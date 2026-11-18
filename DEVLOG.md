@@ -466,7 +466,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-464 | **Resonance-line transfer flagged for a future implementation, and how the original dusty MOCASSIN treated these lines (the user: "flag as a future issue to tackle, the implementation of proper Lyα and other resonance lines transfer, since that is no longer transported. I also want you to explain to me how the original dusty mocassin version handled this via resLinesTransfer keyword.").** L-99 (Medium): no resonant scattering; destruction by the emitting cell's dust at a local escape probability (D-376); the escaping part traced thin. The original (38aca36; Ercolano, Barlow & Storey 2005 sec 2.3.1) used the same escape probability, computed once when the converged share reached `resLinesTransfer` (default 101 = never), added the destroyed power to the grains' balance, and relaunched it as extra gas-emission packets on top of full-strength lines; outside that, lines escaped untraced and Lya's energy sat in the H I 15-8 slot at 8.15 um. No code changed | Done | 2026-11-07 |
 | D-465 | **Which High limitation to work on next for the best 3D PDR+H2 model (the user: "of the high severity remaining Known limitations, which should we work on next to obtain the best 3D PDR+H2 model?"). A recommendation; the decision is the user's.** Recommended: L-26 with L-3, by D-409's option B (the field accumulated over iterations). It is the only High item where the model is not converged at production settings (the carbon turn needs 16-64x the packets, CO still moves at 64x, the noise biases the means one way, D-408), and the per-cell state a 3D map shows is noise-limited past A_V 2. Its design and its test against D-408's series exist (D-409's addendum). Then L-55's per-pdrStep heating record (H-043), read with and without the accumulated field; then L-46 (chlorine), the largest measured effect on PN H2 lines (Cloudy: n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x); L-43 (under 3% of the H2 lines, the largest job) and L-37 (a resolution ~15x the 14-rank memory limit) later. No code changed | Proposed | 2026-11-16 |
 | D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test. **Result:** the mean cuts the per-cell scatter as its packets would, but buys about half of them in the one-way bias (C+ = C 2.463 for five iterations at 1x against 2.516 at 4x; 2.734 for five at 8x against 2.792 at 64x), and holds back whatever is still moving: the ionized gas, packet-independent at 15 iterations, ends 0.6-1.4% behind (Hbeta +0.6%), and CO 8-12% under 64x; on the default test the run stops at 19 on quantities that can no longer move. Without the keyword, byte-identical to production. Not a production setting as built; the next step is the user's | Done | 2026-11-18 |
-| D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run | Planned | 2026-11-18 |
+| D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run. Done as f74455d: source identical to 6e08049, builds and docs checks clean (fortref check after the docs build, which regenerates the ignored keyword and code-map pages); the tag's message corrected (the code stays in the branch's history) | Done | 2026-11-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49111,4 +49111,51 @@ Predictions:
      fortref.unpushed.
   4. No model is run.
 
-Status: Planned.
+Status: Planned (result below).
+
+### Result (2026-11-18 15:47)
+
+code-executor, Part 1, commit **f74455d**:
+  - 12 files, +18/-263;
+  - `git diff 6e08049 HEAD -- source/ Makefile` is empty;
+  - the grep for fieldAvg, JsteAvg, JdifAvg and fieldAverage in source/,
+    the keyword entries, docs/_ext and the MOCASSIN chapters prints
+    nothing;
+  - convergence.md and pdr-status.md differ from 6e08049 by one line each.
+
+Checks:
+  - **Builds** (runs/_d466/build-R.log): four flavours, h2Test, h2Slab and
+    qhTest, rc 0, 0 errors.
+  - **pytest:** 109 passed, the goldens back at 6e08049's (iterateMC
+    56-3420).
+  - **sphinx-build:** rc 0.
+  - **fortref check.** The first run, straight after the commit, failed
+    with 3 problems, all in two pages sphinx generates and git ignores
+    (docs/developer/code-map.md, docs/user-guide/keywords.md). The 07:47
+    build had written them with fieldAverage in the tree. sphinx-build
+    rewrote them, and the check then gave 0 problems. After removing a
+    keyword or a unit, the check is meaningful only after a docs build.
+
+**The tag.** d466-fieldaverage-reverted is annotated, at 463722a. Its first
+message said the code is "not on any branch after D-467". That is not
+true: the revert is a forward commit, so ed50761 stays in
+pdr-photoionization's history. The message was rewritten on the same
+commit to say what the tag marks; it is not pushed.
+
+**A side effect, not acted on.** Because the tag is an ancestor of HEAD,
+`git describe --tags` (the Makefile's VERSION) now names it: binaries
+built from here carry `d466-fieldaverage-reverted-N-g...` instead of
+`pdr-coupling-v2.0.2-N-g...`, and build.sh's version line prints empty.
+d341-d342-perray-reverted did the same until the next release tag.
+`--match 'pdr-coupling-v*'` in the Makefile would keep release-based
+names (`pdr-coupling-v2.0.2-89-gf74455d`), a build change for the user to
+decide.
+
+The predictions:
+  1. Met.
+  2. Met.
+  3. Met, with the fortref check needing the docs build first.
+  4. Met: no model was run. The restored source is 6e08049's, whose
+     binary hii-ctl showed byte-identical to production.
+
+Status: Done.
