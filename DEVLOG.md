@@ -48913,3 +48913,15 @@ Reading:
     leaving, not because the model is converging.
   - **Hbeta.** It is within 0.04% between hii-ctl and hii-s4; hii-a1's
     +0.59% is the ionized gas's lag alone.
+
+### hii-s16 (2026-11-18 12:08, 1:05:21)
+
+Against hii-s4:
+  - C+ = C 2.516 -> 2.718; D-408's old code gave 2.722 at 16x. No cell is
+    left in the deep state before A_V 2.5 (4%).
+  - [C I] 609 um -10.1%; CO 1-0 to 5-4 +24 to +45%.
+  - Hbeta -0.06%; the crossing 1.3923 -> 1.3931.
+  - Per-cell spread 0.47-0.62 of hii-s4's before the turn.
+
+The series on the current code is following D-408's. Its run times so far
+meet prediction 5: s4 48:20, s16 1:05:21.
