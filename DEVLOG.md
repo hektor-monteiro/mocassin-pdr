@@ -48944,3 +48944,32 @@ meet prediction 5: s4 48:20, s16 1:05:21.
         CO than 16x: CO lags too.
 
 Against hii-s64, when it is in.
+
+### hii-p on the packet series
+
+At the run's last iteration, over hii-ctl's at 15. hii-p is at 19; the
+others are at 15.
+
+| | hii-ctl 1x | hii-a1 (5 averaged) | hii-s4 | hii-p (9 averaged) | hii-s16 | hii-a8 (8x, 5 averaged) |
+|---|---|---|---|---|---|---|
+| H+ EM | 1 | 1.0069 | 1.0003 | 1.0055 | 1.0004 | 1.0072 |
+| O+ EM | 1 | 1.0140 | 0.9994 | 1.0120 | 0.9993 | 1.0136 |
+| He+ EM | 1 | 1.0080 | 1.0006 | 1.0061 | 1.0008 | 1.0087 |
+| n(H0) | 1 | 1.0170 | 1.0015 | 1.0172 | 1.0006 | 1.0059 |
+| T(H2) | 1 | 1.0578 | 1.0751 | 1.0847 | 1.1268 | 1.1365 |
+| C+ = C [A_V] | 2.236 | 2.463 | 2.516 | 2.554 | 2.718 | 2.734 |
+
+  - **The ionized gas.** At 15 iterations its state does not depend on the
+    packets: 1x, 4x and 16x agree within 0.1% in every emission measure.
+    Its drift is the iteration's, not noise, and every averaged run holds
+    it back, by 0.6-1.4%.
+  - **The deep PDR.** hii-p's mean of 9 iterations at 1x lands at about 4x
+    in the carbon and the CO (C+ = C 2.554, CO lines within 6% of hii-s4's),
+    not at 9x. The mean delivers about half its nominal packets in the
+    one-way bias, because about half of what it averages comes from states
+    that were still moving.
+  - **Cost.** On hiipdr 31^3 packets are cheap up to 16x. Iterations cost
+    2.8 min at 1x and 4.4 min at 16x, because the chemistry and the level
+    model dominate. hii-s16 (65 min) reaches 2.718, while hii-p (57 min)
+    reaches 2.554. hii-a8 (53 min) matches hii-s16's turn, but with the
+    lag in the ionized gas, the front and the CO.
