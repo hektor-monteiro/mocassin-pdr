@@ -467,6 +467,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-465 | **Which High limitation to work on next for the best 3D PDR+H2 model (the user: "of the high severity remaining Known limitations, which should we work on next to obtain the best 3D PDR+H2 model?"). A recommendation; the decision is the user's.** Recommended: L-26 with L-3, by D-409's option B (the field accumulated over iterations). It is the only High item where the model is not converged at production settings (the carbon turn needs 16-64x the packets, CO still moves at 64x, the noise biases the means one way, D-408), and the per-cell state a 3D map shows is noise-limited past A_V 2. Its design and its test against D-408's series exist (D-409's addendum). Then L-55's per-pdrStep heating record (H-043), read with and without the accumulated field; then L-46 (chlorine), the largest measured effect on PN H2 lines (Cloudy: n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x); L-43 (under 3% of the H2 lines, the largest job) and L-37 (a resolution ~15x the 14-rank memory limit) later. No code changed | Proposed | 2026-11-16 |
 | D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test. **Result:** the mean cuts the per-cell scatter as its packets would, but buys about half of them in the one-way bias (C+ = C 2.463 for five iterations at 1x against 2.516 at 4x; 2.734 for five at 8x against 2.792 at 64x), and holds back whatever is still moving: the ionized gas, packet-independent at 15 iterations, ends 0.6-1.4% behind (Hbeta +0.6%), and CO 8-12% under 64x; on the default test the run stops at 19 on quantities that can no longer move. Without the keyword, byte-identical to production. Not a production setting as built; the next step is the user's | Done | 2026-11-18 |
 | D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run. Done as f74455d: source identical to 6e08049, builds and docs checks clean (fortref check after the docs build, which regenerates the ignored keyword and code-map pages); the tag's message corrected (the code stays in the branch's history) | Done | 2026-11-18 |
+| D-468 | **The next High item after D-467 (the user: "what is the next high priority item we should focus on?"), with L-55's census on D-466's hiipdr series. A recommendation; the decision is the user's.** Measured from existing output (H-043's heatcensus.py, unchanged): molecular cells whose held PDR heating is over 10x the rebuilt fall 49/16/1/0 at 1x/4x/16x/64x, and none is over 3x in the three averaged runs; so on hiipdr L-55's swinging cells are L-26's field noise (K1a's, which carry the H2 rotational lines, not tested). The noise now carries L-3, L-26 and hiipdr's L-55, and D-466 closed one of D-405's three routes. Recommended: the path biasing already in the code (`pathStretch`, D-238..D-242), scored against D-466's 64x on the current code: D-405's biased 1x run moved CO 2-1..5-4 x1.52-2.09 (64x over 1x now: x1.42-2.23) and the carbon turn two-thirds of the way to 64x's. Test: hiipdr at 1x and 4x with `pathStretch 0.5`, input lines only; splitting (O-34) planned only if the mean passes and the scatter does not. Then L-55 on K1a, then L-46 (chlorine). No code changed, no model run | Proposed | 2026-11-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49159,3 +49160,132 @@ The predictions:
      binary hii-ctl showed byte-identical to production.
 
 Status: Done.
+
+## D-468 - The next High item after D-467, and L-55's census on D-466's series (2026-11-18)
+
+The user (2026-11-18), after D-467's report: "what is the next high
+priority item we should focus on?"
+
+A recommendation, with one measurement read from existing output. No code
+changed and no model run. The decision is the user's.
+
+### First, a measurement: on hiipdr L-55 is the field's noise
+
+H-043's census (`heatcensus.py`, copied unchanged from the h2 worktree's
+runs/d420-scripts to runs/_d468; output `census_d466.txt`) on D-466's
+hiipdr runs. It counts the molecular cells (x(H2) > 0.1) whose held PDR
+heating (thermBudget column 2, iteration N-1's pdrStep, L-12) exceeds the
+heating rebuilt from the finished model's own terms.
+
+| run | packets | field the chemistry read | held/rebuilt over 1.1 | over 3 | over 10 |
+|---|---|---|---|---|---|
+| hii-ctl | 1x | each iteration's | 1,299 | 109 | 49 |
+| hii-s4 | 4x | each iteration's | 734 | 129 | 16 |
+| hii-s16 | 16x | each iteration's | 604 | 176 | 1 |
+| hii-s64 | 64x | each iteration's | 1,299 | 45 | 0 |
+| hii-a1 | 1x | mean of 11-15 | 219 | 0 | 0 |
+| hii-a8 | 8x | mean of 11-15 | 415 | 0 | 0 |
+| hii-p | 1x | mean of 11-19 | 56 | 0 | 0 |
+
+The median held/rebuilt is 1.000 in every run. The cells over 3x sit at a
+median of 20-25 K (at most 23-39 K): the A_V 2.2-2.6 cells H-043 saw swap
+between about 11 K and 35-50 K.
+
+  - **Over 10x falls with the packets:** 49, 16, 1, 0. Over 3x stays at
+    109-176 to 16x and is 45 at 64x.
+  - **With the field averaged, no cell is over 3x.** The mismatch measures
+    how far a cell moved between the last two iterations, and an averaged
+    field moves by 1/N an iteration, so this part follows by construction.
+    It shows only that the swing is in the field's per-iteration estimate,
+    not that averaging fixes anything (D-466 showed it does not).
+  - **Over 1.1x at 64x (1,299, as at 1x) is not the noise.** hii-p's 19
+    iterations leave 56. Reading, untested: the deep gas is still moving
+    at 15 iterations, as its CO is (+8-10% from 16x to 64x).
+
+So on hiipdr L-55's swinging cells are L-26's noise. **K1a's are not
+tested.** Those are the cells that carry the H2 rotational lines (dust10's
+(51,1,1) at 955 K, 0-0 S(2) x13.5; D-421), and no K1a run in this checkout
+has more packets. H-043's reading for them, iteration N-1's field in cores
+where half the cells get no FUV packet (D-421 (b)), is the same noise, and
+it is still a hypothesis.
+
+### What D-466 changed in D-465's order
+
+The field's Monte Carlo noise now carries three of the six High items:
+L-3, L-26 and, on hiipdr, L-55. D-405 named three routes for it ("Meet the
+noise where it is made"), and D-466 closed one: the accumulated field lags.
+Two are left.
+
+  - **More packets, D-409's interim.** On hiipdr the H2 lines are converged
+    at 16x (64x within 0.3% of it), the carbon turn is 2.718 at 16x and
+    2.792 at 64x, and CO still rises 6-10% from 16x to 64x. 16x costs 1.56
+    times 1x's time and 64x 3.17 times. Packets are cheap there because the
+    chemistry and the level model dominate an iteration; on K1a and pn150k
+    the cost is not measured on the current code.
+  - **Path biasing, `pathStretch`.** This is Baes et al. (2016)'s composite
+    scheme (D-238). It is in the code and off by default, and was audited
+    unbiased in energy (D-240, D-242). D-405 ran it at 1x on the code of
+    2026-10-14, before the level model reached production and before
+    D-445-D-462. Against the analog run it gave C+ = C 2.25 -> 2.61 and
+    CO 2-1/3-2/4-3/5-4 +52/+61/+85/+109%. D-466's series on the current
+    code gives, from 1x to 64x, C+ = C 2.236 -> 2.792 and CO 2-1/3-2/4-3/5-4
+    x1.42/1.80/2.23/2.08 (lineFluxMol.out). So in CO the biased 1x run moved
+    about as far as 64x does, and in the carbon about two-thirds as far.
+    D-405 could not tell which run was nearer the model's limit in CO.
+    hii-s64 is that reference now. The biasing was left off for its weight
+    tail (to 1e4) and for 25-45% more scatter among equivalent cells before
+    the turn; O-34 (splitting) is the remedy registered for both.
+
+### Recommended: test the path biasing against hii-s64
+
+It is the cheapest decisive step on the item that carries the most:
+
+  - two runs, input lines only;
+  - the reference already exists on the current code;
+  - the tools exist (nums_d466.py, heatcensus.py).
+
+The proposed test, for the user's decision:
+
+  - **Runs.** hiipdr with `pathStretch 0.5` at 1x and 4x, on the current
+    binary, with D-466's seed (1001) and 15 iterations. D-405's biased run
+    took 0.83 times the analog's time (19:09 against 23:06), so the pair
+    should take 1 h 15 min to 1 h 30 min.
+  - **What would pass.** The biased 4x run within the 16x-64x step of
+    hii-s64 in the means (D-466's measures: C+ = C within 0.08 mag,
+    [C I] within 4%, CO within 10%; Hbeta and the H2 lines within 0.3%),
+    and the per-cell scatter before the turn no larger than the analog 4x
+    run's.
+  - **What each outcome means.**
+    - If the means pass and the scatter does too, the biasing is a
+      production candidate as it is.
+    - If the means pass but the scatter does not, that is O-34's case, and
+      splitting is planned.
+    - If the means fail, the biasing is not the route; packets remain the
+      remedy, and the work moves on to L-46.
+
+### The order after it
+
+  1. **L-55 on K1a.** The same question on the model whose H2 rotational
+     lines it affects: a K1a run (quarter grid, k1a-model-work) at more
+     packets, or with the biasing if it passes, read with the census. If
+     the warm cells' swing falls, L-55 joins L-26. If not, H-043's
+     per-pdrStep record (heat(1:12), h2Heat, the T_e and the held value
+     per cell) is the code change that decides it.
+  2. **L-46, chlorine,** as D-465 had it. It is the largest physics item
+     the noise does not touch.
+  3. **L-43 and L-37 later,** as D-465 had them.
+
+An alternative the user may prefer: accept the packet count as the remedy
+(16x, or 64x for CO) and go straight to L-46. That costs nothing to decide,
+leaves CO unconverged, and on K1a and pn150k the cost is not measured.
+
+### Not known
+
+  - Whether the biasing on the current code, with the level model in the
+    loop, reaches hii-s64; D-405's numbers are from older code.
+  - Whether K1a's swinging cells are the same noise.
+  - Where CO converges.
+
+The status page's L-55 carries the hiipdr census.
+
+Status: Proposed, for the user's decision.

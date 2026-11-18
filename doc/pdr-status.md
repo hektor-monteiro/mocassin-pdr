@@ -141,7 +141,7 @@ aesthetics. Resolved items are in section 4.
 | L-37 | Unresolved ionization-front cells dominate the [O I] lines | High | D-362, D-365, D-379, D-381, D-382 |
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
-| L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421 |
+| L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421, D-468 |
 | L-4 | The diffuse field's formal solution recovers 52-130% of the Monte Carlo's, unexplained | Medium | D-348 |
 | L-47 | `ionBalance` trails the chemistry by one iteration before the last | Medium | D-402, D-403, D-404 |
 | L-48 | Charge transfer with H: helium below 6,000 K, steps where the data sets join, hiipdr's Mg I | Medium | D-402, D-403 |
@@ -514,7 +514,7 @@ those cells moved between the last two iterations, not a missing term. It
 predates D-420. It matters for the H2 rotational lines of dense models: in
 D-421's K1a dust10 pair, 0-0 S(2) moved x13.5 and S(1) x2.44 through one cell
 at 955 K. The per-iteration record that would decide it is not built. Treat the
-H2 rotational lines of such models as unconverged.
+H2 rotational lines of such models as unconverged. On hiipdr the swinging cells are the field's per-iteration noise (D-468): those over 10x fall 49, 16, 1, 0 from 1x to 64x the packets, and none is over 3x when the field is averaged over iterations. K1a's, which carry the H2 rotational lines, are not tested.
 
 ### Medium
 
