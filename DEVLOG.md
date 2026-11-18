@@ -468,7 +468,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test. **Result:** the mean cuts the per-cell scatter as its packets would, but buys about half of them in the one-way bias (C+ = C 2.463 for five iterations at 1x against 2.516 at 4x; 2.734 for five at 8x against 2.792 at 64x), and holds back whatever is still moving: the ionized gas, packet-independent at 15 iterations, ends 0.6-1.4% behind (Hbeta +0.6%), and CO 8-12% under 64x; on the default test the run stops at 19 on quantities that can no longer move. Without the keyword, byte-identical to production. Not a production setting as built; the next step is the user's | Done | 2026-11-18 |
 | D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run. Done as f74455d: source identical to 6e08049, builds and docs checks clean (fortref check after the docs build, which regenerates the ignored keyword and code-map pages); the tag's message corrected (the code stays in the branch's history) | Done | 2026-11-18 |
 | D-468 | **The next High item after D-467 (the user: "what is the next high priority item we should focus on?"), with L-55's census on D-466's hiipdr series. A recommendation; the decision is the user's.** Measured from existing output (H-043's heatcensus.py, unchanged): molecular cells whose held PDR heating is over 10x the rebuilt fall 49/16/1/0 at 1x/4x/16x/64x, and none is over 3x in the three averaged runs; so on hiipdr L-55's swinging cells are L-26's field noise (K1a's, which carry the H2 rotational lines, not tested). The noise now carries L-3, L-26 and hiipdr's L-55, and D-466 closed one of D-405's three routes. Recommended: the path biasing already in the code (`pathStretch`, D-238..D-242), scored against D-466's 64x on the current code: D-405's biased 1x run moved CO 2-1..5-4 x1.52-2.09 (64x over 1x now: x1.42-2.23) and the carbon turn two-thirds of the way to 64x's. Test: hiipdr at 1x and 4x with `pathStretch 0.5`, input lines only; splitting (O-34) planned only if the mean passes and the scatter does not. Then L-55 on K1a, then L-46 (chlorine). No code changed, no model run | Proposed | 2026-11-18 |
-| D-469 | **The path biasing (`pathStretch 0.5`, D-238) tested against D-466's 64x on the current code (D-468's recommendation; the user: "write the predictions into the DEVLOG and queue the two pathStretch runs").** hiipdr at 1x and 4x with `pathStretch 0.5`, seed 1001, 15 iterations, on the R binary of D-467 (source 6e08049's), input lines only; scored with D-466's tools against hii-ctl, hii-s4, hii-s16 and hii-s64. Passes if the 4x run is within the 16x-64x step of hii-s64 in the means (C+ = C within 0.08 mag, [C I] within 4%, CO within 10%, Hbeta and the H2 lines within 0.3%) and its scatter before the turn is no larger than hii-s4's. Predicted: the carbon and CO lines pass, the scatter before the turn and the H2 lines do not, so splitting (O-34) is planned next. Runs in runs/_d469 | Open | 2026-11-18 |
+| D-469 | **The path biasing (`pathStretch 0.5`, D-238) tested against D-466's 64x on the current code (D-468's recommendation; the user: "write the predictions into the DEVLOG and queue the two pathStretch runs").** hiipdr at 1x and 4x with `pathStretch 0.5`, seed 1001, 15 iterations, on the R binary of D-467 (source 6e08049's), input lines only; scored with D-466's tools against hii-ctl, hii-s4, hii-s16 and hii-s64. Passes if the 4x run is within the 16x-64x step of hii-s64 in the means (C+ = C within 0.08 mag, [C I] within 4%, CO within 10%, Hbeta and the H2 lines within 0.3%) and its scatter before the turn is no larger than hii-s4's. **Result: fails in the means.** At 4x, C+ = C 2.679 (0.113 short of 64x's 2.792, about 12x's) and [C I] 609 +8.3%; CO 1-0..4-3 within 10%, Hbeta +0.02%; scatter before the turn 1.26-1.60x hii-s4's. The gain falls with the count (about 7x at 1x, 3x at 4x), at 0.97 of the analog's time. The biased CO excess over 64x (1.32x at 1x, 1.13x at 4x) is the field's variance; the low-J CO is bracketed (64x within 4-7% of the limit); an H/H2 crossing shift of -0.005 mag does not fall with the packets (unexplained). The biasing is not the route; the packet count stays the remedy. Splitting not indicated (an inference). Runs in runs/_d469 | Done | 2026-11-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49428,4 +49428,182 @@ turn:
     20% from hii-s64's, the biasing's CO is a second problem, and
     splitting is not known to cure it.
 
-Status: Open (runs queued).
+Status when queued (17:54): Open.
+
+### hii-ps1 (2026-11-18 18:35, 40:37) and hii-ps4 (19:22, 47:04)
+
+Both rc 0 after 15 iterations; the queue's memory.peak was 14.2 and 14.4
+GB. Tools in runs/_d469:
+
+  - nums_d469.py (outputs nums_d469_ps1a.json, nums_d469_ps4a.json);
+  - refnums_d469.txt, census_d469.txt;
+  - coband.py (CO by band of A_V, coband_d469.txt);
+  - emsum.py (emission measures, n_e n_ion V over the ionized cells,
+    emsum_d469.txt).
+
+At iteration 1 hii-ps1's [D239] line is D-405's to the last digit: same
+seed, same starting state, same transport.
+
+**Against hii-ctl, hii-s4, hii-s16 and hii-s64:**
+
+| | hii-ps1 (1x, biased) | hii-ps4 (4x, biased) | hii-s4 | hii-s16 | hii-s64 |
+|---|---|---|---|---|---|
+| C+ = C [A_V] | 2.600 | 2.679 | 2.516 | 2.718 | 2.792 |
+| H/H2 crossing [A_V] | 1.3885 | 1.3874 | 1.3923 | 1.3931 | 1.3924 |
+| Hbeta, against hii-ctl | 0.9997 | 0.9994 | 0.9997 | 0.9990 | 0.9992 |
+| H+ / O+ EM, against hii-ctl | 0.9998 / 0.9939 | 0.9993 / 0.9965 | 1.0007 / 1.0001 | 1.0004 / 0.9991 | 1.0000 / 0.9980 |
+| [C I] 609 / 370 um | 0.834 / 0.938 | 0.774 / 0.869 | 0.802 / 0.804 | 0.721 / 0.818 | 0.714 / 0.861 |
+| [C II] 158 / [O I] 63 um | 0.971 / 0.999 | 0.971 / 1.009 | 0.988 / 1.014 | 0.976 / 1.020 | 0.972 / 1.020 |
+| H2 1-0 S(1) / 0-0 S(1) / 0-0 S(2) | 1.019 / 1.020 / 1.004 | 1.013 / 1.014 / 1.007 | 1.010 / 1.013 / 1.009 | 1.014 / 1.017 / 1.010 | 1.015 / 1.018 / 1.010 |
+| CO 1-0 / 2-1 / 3-2 / 4-3 / 5-4 | 1.55 / 1.64 / 1.90 / 2.17 / 2.00 | 1.38 / 1.49 / 1.78 / 2.08 / 1.88 | 1.01 / 1.05 / 1.20 / 1.41 / 1.39 | 1.20 / 1.31 / 1.63 / 2.04 / 1.96 | 1.29 / 1.42 / 1.80 / 2.23 / 2.08 |
+| n(CO) over neutral cells | 1.379 | 1.185 | 0.928 | 1.001 | 1.048 |
+| L-55 census, cells over 10x / 3x | 16 / 68 | 3 / 56 | 16 / 129 | 1 / 176 | 0 / 45 |
+| weights at the last iteration: max, mean, roulette share | 5.1e3, 1.29, 6.26% | 5.95e3, 1.30, 6.26% | - | - | - |
+
+**The scatter among equivalent cells**, biased over analog at the same count:
+
+| band | hii-ps1 / hii-ctl: Tgas, n_e, C | hii-ps4 / hii-s4: Tgas, n_e, C |
+|---|---|---|
+| ionized | 1.64, 1.81, 1.17 | 1.03, 1.24, 1.47 |
+| A_V 0.46-1.00 | 1.33, 1.42, 1.37 | 1.27, 1.26, 1.60 |
+| A_V 1.00-1.47 | 1.51, 1.42, 1.51 | 1.42, 1.41, 1.50 |
+| A_V 1.47-1.91 | 1.30, 1.12, 1.22 | 1.41, 1.36, 1.44 |
+| A_V 1.91-2.29 | 0.44, 0.07, 0.54 | 1.06, 1.01, 0.98 |
+| A_V 2.29-2.65 | 0.83, 2.03, 50.8 | 0.37, 0.19, 0.50 |
+
+No cell of either run is in the deep carbon state; hii-s4 has 10/29/54% at
+A_V 2.3/2.4/2.5. The 50.8 at 1x is the analog's two states set against a
+profile.
+
+**n(CO) by band of A_V** (against hii-ctl):
+
+| A_V | hii-ps1 | hii-ps4 | hii-s4 | hii-s16 | hii-s64 |
+|---|---|---|---|---|---|
+| 1.0-1.5 | 1.098 | 1.036 | 0.999 | 1.018 | 1.035 |
+| 1.5-2.0 | 0.883 | 0.661 | 0.626 | 0.587 | 0.580 |
+| 2.0-2.3 | 0.972 | 0.685 | 0.657 | 0.546 | 0.517 |
+| 2.3-2.6 | 1.470 | 1.184 | 0.945 | 0.981 | 0.908 |
+| 2.6-2.8 | 1.496 | 1.345 | 0.970 | 1.156 | 1.239 |
+| 2.8-3.2 | 1.297 | 1.148 | 0.937 | 0.972 | 1.086 |
+
+### The test: failed in the means
+
+hii-ps4 against hii-s64, by D-468's criteria:
+
+  - C+ = C 0.113 mag short (limit 0.08): **fails.**
+  - [C I] 609 um +8.3% (limit 4%): **fails.** 370 um +0.9%: passes.
+  - CO 1-0/2-1/3-2/4-3 +6.6/+4.3/-1.1/-6.7% (limit 10%): passes; 5-4 -9.3%.
+  - Hbeta +0.02%: passes. The named H2 lines -0.2 to -0.4% (limit 0.3%),
+    the largest of all 2,690 lines 1.5%: **misses, narrowly.**
+  - The scatter before the turn is 1.26-1.60 of hii-s4's: **fails.**
+
+By D-468's rule, the means fail, so **the biasing is not the route**, and
+the packet count remains the remedy for L-3 and L-26.
+
+### What the runs say
+
+  - **The biasing's gain falls with the count.** In the carbon turn, by
+    log interpolation in the analog series:
+      - hii-ps1 sits at about 7x (2.600, between 4x's 2.516 and 16x's 2.718);
+      - hii-ps4 sits at about 12x (2.679).
+    So it is worth about 7 times the packets at 1x and 3 times at 4x.
+    Each biased run takes 0.97 of the analog's time at its count (the
+    transport is a few per cent of an iteration). hii-ps4's 47 min buys
+    what about 56 min of analog 12x would (D-409's 2.64 + 0.091p min per
+    iteration), with 1.3-1.6 times the scatter before the turn.
+    Reading, from two points: the gain is the deep cells' floor (no cell
+    without the band), which the analog count also removes by 16x, so at
+    the counts carbon needs the biasing would buy less still.
+  - **Splitting (O-34) is not indicated by this result.** It would reduce
+    the weight tail and the scatter it causes, but not restore a gain
+    that falls with the count. This is an inference; splitting is not
+    tested.
+  - **The biased CO excess is the field's variance.** Over hii-s64's, the
+    biased n(CO) is 1.32x at 1x and 1.13x at 4x, so it falls with the
+    packets. At 1x it sits where the biased scatter is largest. At A_V
+    1.5-2.3, before the turn, hii-ps1 keeps 0.88-0.97 of hii-ctl's CO,
+    where packets take the band to 0.52-0.58 and hii-ps4 to 0.66-0.69.
+    Reading, untested: the mean CO responds convexly to the field's
+    noise, so a noisier estimate gives more CO. That is the one-way bias
+    of D-408 again, seen through a second estimator. It answers D-405's
+    open question: the +36% was this variance, not a different limit.
+  - **The low-J CO is bracketed.** With the packets, the analog's CO
+    lines rise and the biased run's fall:
+      - CO 1-0: 1.20 and 1.29 at 16x and 64x; 1.55 and 1.38 biased at 1x
+        and 4x;
+      - CO 2-1: 1.31 and 1.42; 1.64 and 1.49.
+    If both converge monotonically, the limit of CO 1-0 lies within
+    1.29-1.38 of hii-ctl's and that of 2-1 within 1.42-1.49. So hii-s64
+    would be within 7% and 4% of them. For 3-2 the two meet within 1%
+    (1.78 against 1.80). 4-3 and 5-4 are not bracketed: the biased run
+    is below hii-s64 and still falling, the analog still rising. There
+    the deep gas's temperature, which follows the carbon turn
+    (hii-ps4's is at about 12x), and the variance's excess act in
+    opposite directions.
+  - **A crossing shift that does not fall with the packets.** The H/H2
+    crossing is 0.0045 mag nearer the star at 1x and 0.0049 at 4x, where
+    the analog series spans 1.3923-1.3931 from 1x to 64x. With four times
+    the packets the scatter halves, so a noise effect would have fallen;
+    this one did not. n(H0) over the neutral cells is -2.1% (1x) and
+    -1.0% (4x) against hii-s64. Not explained. It is a lead for any
+    later use of the biasing (the weights' median below their mean at
+    the crossing is the reading D-469's prediction 9 gave, and it
+    predicts a shift that falls with the count).
+  - **The ionized gas is untouched,** as predicted: Hbeta and the H+
+    emission measure are within 0.07% of hii-s64's, and O+ within 0.4%.
+
+### The predictions scored
+
+ 1. rc 0 and 15 iterations: **met.** Times 0.969 and 0.974 of the
+    analog's (40:37, 47:04): **met.** memory.peak 14.2 and 14.4 GB:
+    **met.**
+ 2. The weights: minimum 4.7e-37 and 4.5e-37, maximum 5.1e3 and 6.0e3,
+    mean 1.29 and 1.30, roulette 6.26% at both counts: **met.**
+ 3. No cell in the deep carbon state: **met.**
+ 4. hii-ps1 C+ = C 2.600: **met** (the 2.60 estimate exactly). hii-ps4
+    2.679: **missed** (2.71-2.79), and the criterion fails by 0.033.
+ 5. hii-ps4 against hii-s64:
+      - [C I] 609 +8.3%: **missed** (within 4%);
+      - 370 +0.9%: **wrong**, better than predicted (within 6% but not 4%);
+      - [C II] -0.1% and [O I] 63 -1.2%: **met.**
+    hii-ps1 against hii-ctl, [C I] 609 0.834 and 370 0.938: **met.**
+ 6. CO:
+      - hii-ps1's lines x1.64-2.17: **met**;
+      - hii-ps4's 1-0 to 4-3 within 10% of hii-s64: **met**;
+      - n(CO) 1.379 and 1.185 of hii-ctl: **met.**
+    hii-ps1's is 1.32x hii-s64's, over the 20% flag. It falls to 1.13x at
+    4x, so it is variance, not a second limit.
+ 7. The scatter before the turn:
+      - 1.12-1.51 (1x) and 1.26-1.60 (4x): **met at 1x**, over the range
+        in C at 4x;
+      - fails the criterion: **met.**
+    Under 0.6 at A_V 1.91-2.29:
+      - **met** at 1x (0.07-0.54);
+      - **missed** at 4x (0.98-1.06), where the analog's two states had
+        moved past 2.29; at 2.29-2.65 it is 0.19-0.50.
+    Not predicted: the ionized cells' scatter is up 1.6-1.8 times at 1x.
+ 8. Hbeta within 0.1% of hii-s64 (+0.06%, +0.02%), and the H+ and O+
+    EMs within 0.5%: **met.**
+ 9. The crossing -0.0045 and -0.0049 mag: **met** in size. That it would
+    fall with the count, implied by the reading: **wrong.** The H2 lines
+    against hii-s64:
+      - 1x: named 0.2-0.6%, largest 1.7%; 4x: named 0.2-0.4%, largest
+        1.5%. In range: **met.**
+      - The 0.3% criterion missed: **met.**
+10. L-55's census over 10x: hii-ps1 16, **missed** (0-10); hii-ps4 3,
+    **met.** That is about a 4x packet gain in the swinging cells, as in
+    the carbon.
+11. The verdict, O-34's case (means pass, scatter fails): **missed.** The
+    means fail in the carbon turn and [C I] 609, as well as the scatter.
+
+### Next
+
+Per D-468's order, with the biasing out:
+
+  1. **L-55 on K1a,** with more packets rather than the biasing.
+  2. **L-46,** chlorine.
+
+The interim for runs that quote carbon or CO stands: 16x, or 64x; on
+hiipdr 64x's low-J CO is within 4-7% of the bracketed limit.
+
+Status: Done.
