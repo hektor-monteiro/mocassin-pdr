@@ -48735,4 +48735,48 @@ What would change the reading:
   - hii-p never holds, or stops with N < 5: the hold is wrong; back to
     planning.
 
-Status: Planned.
+Status: Planned (implementation below).
+
+### Implementation (2026-11-18)
+
+code-executor, Part 1 of the plan, no blocker. Two commits:
+  - **ed50761**, the code and its docs. 12 files, +263/-18: iteration_mod
+    +165, set_input_mod +30, common_mod +16, grid_mod +2; docs, the
+    keyword entry, the goldens.
+  - **218fdec**, docs only. The new section's reference to the stop
+    condition spanned the rest of iterateMC (113 lines, fortref's
+    long-extent warning, which sphinx-build -W fails on). `+0` narrows it
+    to the condition's line.
+
+Checks:
+  - **Builds** (runs/_d466/build-F.log): four flavours, h2Test, h2Slab and
+    qhTest, rc 0, 0 errors. The run binary is runs/_d466/bin/mocassin.3d.F
+    (md5 84bda24d). It was built from the working tree before the commit,
+    as the plan orders, so its version string reads
+    `pdr-coupling-v2.0.2-77-g6e08049-dirty`; its sources are ed50761's.
+  - **Parse checks**, plain binary at -np 1:
+      - p0tau10 with the keyword stops with "fieldAverage needs gas";
+      - hiipdr with `fieldAverage 0.10` as its last line stops with
+        "fieldAverage needs two numbers".
+
+    Prediction 1 met.
+  - **Docs:** pytest 109 passed; fortref check only `fortref.unpushed`;
+    sphinx-build rc 0.
+  - **Goldens moved:** the iterateMC extent 56-3420 -> 56-3441; the
+    h2LevelModel(grid(1:nGrids), 1) anchor 1077 -> 1086; readInput's
+    `select case` extent to 778. The convTotals and convLimit cases did not
+    move. units_snapshot.json gains only the two routines.
+
+Two adaptations, both accepted:
+  - doc/pdr-status.md's sentence was appended to the wrapped line rather
+    than wrapped, so that the L-37 golden does not move.
+  - The anchor `+0` above.
+
+Found by the executor, not acted on: with one number given, the
+list-directed read takes its second value from the next record. The
+"needs two numbers" stop fires only when that record cannot be read as an
+integer, which any keyword line or comment ensures. quantumHeatGrain reads
+the same way.
+
+The queue (unit d466-runs, MemoryMax 28G) started hii-ctl at 07:48:57,
+with no other model running.
