@@ -393,6 +393,8 @@ module common_mod
         real, allocatable :: ionDen(:,:,:)              ! fractional ion density (x,y,z,elem,stage)
         real, allocatable :: Jste(:,:)                  ! MC estimator of stellar J (cell,nu)
         real, allocatable :: Jdif(:,:)                  ! MC estimator of diffuse J (cell,nu)
+        real, allocatable :: JsteAvg(:,:)               ! D-466: fieldAverage's mean of Jste (cell,nu)
+        real, allocatable :: JdifAvg(:,:)               ! D-466: and of Jdif
         real, allocatable :: JPEots(:,:)                ! OTS line contribution to photoelectric emission
         real, allocatable :: escapedPackets(:,:,:)      ! escaped packets (cell,nu, angle)
         real, allocatable :: linePackets(:,:)           ! line packets (x,y,z,n)
@@ -853,6 +855,20 @@ module common_mod
     logical            :: lgCvTotals = .false.
     real               :: cvTotWorst = -1.        ! largest change over the window
     character(len=8)   :: cvTotWorstName = ''
+
+    ! ---------------------------------------------------------------- D-466
+    ! fieldAverage (L-26; D-409 option B): the field every part of the model
+    ! reads is the mean of the field estimates of the iterations since
+    ! fieldAvgK, weighted by their packets (iteration_mod fieldAvgUpdate).
+    ! Averaging starts with the iteration after the first whose integrated
+    ! test is below fieldAvgStart; that test does not stop the run before
+    ! fieldAvgMin iterations are in the mean.
+    logical            :: lgFieldAvg    = .false.
+    real               :: fieldAvgStart = 0.10
+    integer            :: fieldAvgMin   = 5
+    integer            :: fieldAvgK     = 0        ! the first iteration averaged; 0 = not yet
+    integer            :: fieldAvgN     = 0        ! iterations in the mean
+    real(kind=8)       :: fieldAvgW     = 0.d0     ! packets in the mean
 
     integer             :: lymanP                  ! frequency pointer to Lyman limit
 #ifdef PDR

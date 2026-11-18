@@ -1009,7 +1009,16 @@ module iteration_mod
                    & "   sum traced", sT225, "   traced/Jste", sT225/max(sJ225, 1.d-99), &
                    & "   cells with field", nC225, "   not closing to 1e-3", nMis225
            end if
+#endif
 
+           ! D-466: with fieldAverage, the field every reader sees from here on
+           ! (the cell update, the chemistry, the H2 levels, the grains, the
+           ! outputs) is the mean over the iterations since averaging started.
+           ! After the D-225 closure above, which checks this iteration's own
+           ! deposits.
+           if (lgFieldAvg) call fieldAvgUpdate()
+
+#ifdef PDR
            ! Placed AFTER the loop above, not before it. That loop applies the
            ! 1.e-9 unit conversion to Jste (and the lgSymmetricXYZ division by
            ! 8); reducing the field any earlier reads the raw estimator and
@@ -3051,6 +3060,13 @@ module iteration_mod
            ! verdict). It reports every iteration and gates the stop below.
            call cvTotalsUpdate()
 
+           ! D-466: the test passed, but the field is the mean of fewer
+           ! iterations than fieldAverage asks for, so the run goes on
+           if (lgFieldAvg .and. lgCvTotals .and. fieldAvgN < fieldAvgMin .and. taskid == 0) &
+                & print '(a,i4,a,i4,a,i4,a)', " ! iterateMC: [fieldAvg] iteration", nIterateMC, &
+                & ": integrated quantities converged; held open, the field is the mean of", &
+                & fieldAvgN, " iterations of the", fieldAvgMin, " asked for"
+
            ! -------------------------------------------------------- D-165
            ! Report what the temperature solver did this iteration, summed over
            ! ranks. The bracket-width histogram is the point: Cloudy declares Te
@@ -3305,10 +3321,13 @@ module iteration_mod
            ! He2+ zone still moving (D-391), and once its x(H2) half could fail
            ! it plateaus at ~72% in the PDR fixtures from T_e and x(H2) noise,
            ! where minConvergence 90 could never be met.
+           ! D-466: with fieldAverage the test stops the run only once the
+           ! field is the mean of fieldAvgMin iterations
 #ifdef PDR
-           if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then
+           if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) .and. &
+                & (.not.lgFieldAvg .or. fieldAvgN >= fieldAvgMin) ) then
 #else
-           if ( lgCvTotals ) then
+           if ( lgCvTotals .and. (.not.lgFieldAvg .or. fieldAvgN >= fieldAvgMin) ) then
 #endif
 
 #ifdef PDR
@@ -3333,6 +3352,7 @@ module iteration_mod
 
                  ! output results at this itearation stage (every 3 iterations)
 
+                 call fieldAvgSay()                                ! D-466
 #ifdef PDR
                  ! NOT re-running mocassinToPDR here. It already ran this
                  ! iteration, before the cell loops, on the same radiation
@@ -3379,6 +3399,7 @@ module iteration_mod
                          & "% (minConvergence", minConvergence, "%, dust only - D-441)"
                  end if
 
+                 call fieldAvgSay()                                ! D-466
 #ifdef PDR
                  ! NOT re-running mocassinToPDR here. It already ran this
                  ! iteration, before the cell loops, on the same radiation
@@ -3855,6 +3876,146 @@ module iteration_mod
            s = iq - (e-1)*nstages
            cvTotSlot = lgElementOn(e) .and. s >= 2 .and. s <= min(nstages, e+1)
          end function cvTotSlot
+
+         ! ---------------------------------------------------------- D-466
+         ! fieldAverage (L-26; D-409's option B, D-465): the field the model
+         ! reads, Jste and Jdif, becomes the mean of this iteration's estimate
+         ! and those of every iteration since averaging started (fieldAvgK),
+         ! each weighted by its packets, so that the model is solved on N
+         ! iterations' packets at one iteration's cost. Averaging starts with
+         ! the first iteration after one whose integrated test (cvTotalsUpdate)
+         ! was below fieldAvgStart and, in a PDR run, whose test window held
+         ! the chemistry throughout. Called by every rank after the estimators
+         ! are reduced and scaled, so every rank holds the same mean. Rank 0
+         ! prints, per band and for the ionized and the neutral cells, this
+         ! iteration's field over the mean the model was solved on, minus 1:
+         ! scattered about 0 when the model reproduces its own field, of one
+         ! sign when the mean lags.
+         subroutine fieldAvgUpdate()
+           implicit none
+           integer      :: iG, i, j, k, cP, yT, g, b, err, nF, nL
+           integer      :: bLo(3), bHi(3)
+           real         :: f, r(2,3)
+           real(kind=8) :: w, dV, sNew(2,3), sOld(2,3)
+           logical      :: lgGo
+
+           if (fieldAvgK == 0) then
+              lgGo = cvTotWorst >= 0. .and. cvTotWorst < fieldAvgStart
+#ifdef PDR
+              if (lgPDR) lgGo = lgGo .and. nIterateMC-1-cvTotK >= pdrStartIter
+#endif
+              if (.not.lgGo) return
+              fieldAvgK = nIterateMC
+              fieldAvgN = 0
+              fieldAvgW = 0.d0
+              do iG = 1, nGrids
+                 if (.not.allocated(grid(iG)%JsteAvg)) then
+                    allocate(grid(iG)%JsteAvg(0:grid(iG)%nCells, 1:nbins), stat = err)
+                    if (err /= 0) then
+                       print*, "! fieldAvgUpdate: can't allocate array memory: JsteAvg ", iG
+                       stop
+                    end if
+                 end if
+                 if ((lgDebug .or. lgJdifLive) .and. .not.allocated(grid(iG)%JdifAvg)) then
+                    allocate(grid(iG)%JdifAvg(0:grid(iG)%nCells, 1:nbins), stat = err)
+                    if (err /= 0) then
+                       print*, "! fieldAvgUpdate: can't allocate array memory: JdifAvg ", iG
+                       stop
+                    end if
+                 end if
+              end do
+           end if
+
+           ! the weight: this iteration's packets (autoPackets changes them)
+           w = 0.d0
+           do i = 1, nStars
+              w = w + dble(nPhotons(i))
+           end do
+           if (w <= 0.d0) w = dble(max(nPhotonsDiffuseLoc, 1))
+           fieldAvgN = fieldAvgN + 1
+           fieldAvgW = fieldAvgW + w
+           f = real(w/fieldAvgW)
+
+           ! the diagnostic's bands: below 6 eV, 6 eV to 1 Ryd, above
+           nF = count(nuArray(1:nbins) < 6./RydToeV)
+           nL = count(nuArray(1:nbins) < 1.)
+           bLo = (/ 1, nF+1, nL+1 /)
+           bHi = (/ nF, nL, nbins /)
+           sNew = 0.d0
+           sOld = 0.d0
+
+           do iG = 1, nGrids
+              if (fieldAvgN == 1) then
+                 grid(iG)%JsteAvg = grid(iG)%Jste
+                 if (allocated(grid(iG)%JdifAvg)) grid(iG)%JdifAvg = grid(iG)%Jdif
+              else
+                 if (taskid == 0) then
+                    yT = grid(iG)%ny
+                    if (iG == 1 .and. lg2D) yT = 1
+                    do i = 1, grid(iG)%nx
+                       do j = 1, yT
+                          do k = 1, grid(iG)%nz
+                             cP = grid(iG)%active(i,j,k)
+                             if (cP <= 0) cycle
+                             g = 2
+                             if (grid(iG)%ionDen(cP, elementXref(1), 2) >= 0.5) g = 1
+                             dV = dble(getVolume(grid(iG), i, j, k))
+                             do b = 1, 3
+                                if (bHi(b) < bLo(b)) cycle
+                                sNew(g,b) = sNew(g,b) + dV*dble(sum(grid(iG)%Jste(cP, bLo(b):bHi(b))))
+                                sOld(g,b) = sOld(g,b) + dV*dble(sum(grid(iG)%JsteAvg(cP, bLo(b):bHi(b))))
+                             end do
+                          end do
+                       end do
+                    end do
+                 end if
+                 grid(iG)%JsteAvg = grid(iG)%JsteAvg + f*(grid(iG)%Jste - grid(iG)%JsteAvg)
+                 if (allocated(grid(iG)%JdifAvg)) &
+                      & grid(iG)%JdifAvg = grid(iG)%JdifAvg + f*(grid(iG)%Jdif - grid(iG)%JdifAvg)
+              end if
+              grid(iG)%Jste = grid(iG)%JsteAvg
+              if (allocated(grid(iG)%JdifAvg)) grid(iG)%Jdif = grid(iG)%JdifAvg
+           end do
+
+           if (taskid == 0) then
+              if (fieldAvgN == 1) then
+                 print '(a,i4,a,f8.3,a,f7.2,a)', " ! iterateMC: [fieldAvg] iteration", nIterateMC, &
+                      & ": averaging starts; the integrated test was", 100.*cvTotWorst, &
+                      & "% at the iteration before (start below", 100.*fieldAvgStart, "%)"
+              else
+                 do g = 1, 2
+                    do b = 1, 3
+                       r(g,b) = 0.
+                       if (sOld(g,b) > 0.d0) r(g,b) = real(sNew(g,b)/sOld(g,b) - 1.d0)
+                    end do
+                 end do
+                 print '(a,i4,a,i4,a,i4,a,es10.3,a,3f10.5,a,3f10.5)', &
+                      & " ! iterateMC: [fieldAvg] iteration", nIterateMC, &
+                      & ": the field is the mean of iterations", fieldAvgK, " to", nIterateMC, ",", &
+                      & fieldAvgW, " packets; this iteration's field over the mean before it, -1,"// &
+                      & " <6 eV, 6-13.6 eV, >13.6 eV: ionized cells", (r(1,b), b = 1, 3), &
+                      & "; neutral cells", (r(2,b), b = 1, 3)
+              end if
+           end if
+         end subroutine fieldAvgUpdate
+
+         ! D-466: what the written model's field is, at the end of the run
+         ! (rank 0, from the two finishing branches of iterateMC)
+         subroutine fieldAvgSay()
+           implicit none
+           if (.not.lgFieldAvg) return
+           if (fieldAvgN > 0) then
+              print '(a,i4,a,i4,a,i4,a,es10.3,a)', &
+                   & " ! iterateMC: [fieldAvg] the written model is solved on the mean field of iterations", &
+                   & fieldAvgK, " to", nIterateMC, " (", fieldAvgN, " iterations,", fieldAvgW, " packets)"
+              if (fieldAvgN < fieldAvgMin) print '(a,i4,a,i4,a)', &
+                   & " ! iterateMC: [fieldAvg] the run ended with", fieldAvgN, &
+                   & " iterations averaged of the", fieldAvgMin, " asked for"
+           else
+              print '(a,f7.2,a)', " ! iterateMC: [fieldAvg] averaging never started: the integrated"// &
+                   & " test was not below", 100.*fieldAvgStart, "% once testable"
+           end if
+         end subroutine fieldAvgSay
 
        end subroutine MCIterationDriver
 

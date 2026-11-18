@@ -309,7 +309,7 @@ symmetry-equivalent cells is 0.33-0.41 of one iteration's, as 1/sqrt(N).
 The first remedy above (accumulate the field once it has settled) is what
 this calls for, and it is still a design decision. **Registered for future
 development by the user (2026-10-15, D-411):** the design, its risks and its
-test against D-408's series are in D-409's addendum.
+test against D-408's series are in D-409's addendum. **Implemented as the opt-in keyword `fieldAverage` (D-466)**; the item stays High until D-466's test is read.
 **D-408, the series to 64x.** hiipdr from 6e6 to 3.84e8 packets, pn150k to
 2.4e7, seed 1001, the iteration counts fixed.
 

@@ -578,6 +578,24 @@
     iteration of `maxIterateMC`.
   devlog: [D-391, D-392]
 
+- name: fieldAverage
+  group: montecarlo
+  syntax: "fieldAverage <start_tol> <n_min>"
+  default: "off"
+  build: all
+  status: active
+  description: |
+    The radiation field averaged over iterations ({devlog}`D-466`,
+    {lim}`L-26`). From the iteration after the first whose
+    model-integrated test (`convTotals`'s quantities) is below
+    `start_tol`, every part of the model reads the mean of the field
+    estimates of every iteration since, each weighted by its packets,
+    instead of the iteration's own; in a PDR run only once the test's
+    window holds the chemistry. The run then does not stop on
+    `convTotals` before the field is the mean of `n_min` iterations.
+    Needs gas. Give both numbers, e.g. `fieldAverage 0.10 5`.
+  devlog: [D-466]
+
 - name: randomSeed
   group: montecarlo
   syntax: "randomSeed <seed>"
