@@ -469,18 +469,6 @@ module set_input_mod
             case ("convTotals")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword,  convTotals
-            ! D-466: the field averaged over iterations - the integrated
-            ! test's tolerance below which averaging starts, and the fewest
-            ! iterations in the mean before that test may stop the run
-            case ("fieldAverage")
-                lgFieldAvg = .true.
-                backspace 10
-                read(unit=10, fmt=*, iostat=ios) keyword, fieldAvgStart, fieldAvgMin
-                if (ios /= 0) then
-                    print*, "! readInput: fieldAverage needs two numbers: the start &
-                         &tolerance and the fewest iterations averaged"
-                    stop
-                end if
             case ("H0Start")
                 backspace 10
                 read(unit=10, fmt=*, iostat=ios) keyword, H0Start
@@ -799,24 +787,6 @@ module set_input_mod
         if (nuMin > 1.4e-6) then
             print*, "! readInput [warning]: nuMin in model parameter input &
                  & file is too large to include 5GHz flux calculations", in_file, nuMin
-        end if
-
-        ! D-466: fieldAverage's settings, standalone like the advisory above
-        if (lgFieldAvg) then
-            if (.not.lgGas) then
-                print*, "! readInput: fieldAverage needs gas: averaging starts on the &
-                     &model-integrated test, which a model without gas does not have"
-                stop
-            end if
-            if (fieldAvgStart <= 0. .or. fieldAvgMin < 1) then
-                print*, "! readInput: invalid fieldAverage in model parameter input &
-                     &file (start tolerance > 0, iterations >= 1)", in_file, &
-                     & fieldAvgStart, fieldAvgMin
-                stop
-            end if
-            if (pdrSplitField /= 0) print*, "! readInput [warning]: with fieldAverage, &
-                 &pdrSplitField's census compares the averaged field with this &
-                 &iteration's trace"
         end if
 
 #ifdef PDR

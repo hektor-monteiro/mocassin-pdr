@@ -61,7 +61,7 @@ All of the coupling lives inside MOCASSIN’s MC iteration, the recursive subrou
   - ion stages rescaled to `elemAvail` so that $x(\mathrm{H^0})+x(\mathrm{H^+})+2x(\mathrm{H_2})=1$
 * - 13
   - stop test
-  - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) .and. &"+1>`
+  - {src}`code <iteration_mod.f90::MCIterationDriver/iterateMC@"if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then"+0>`
   - integrated-quantity test (`convTotals`, {ref}`sec:convergence`)
 * - 14
   - next iteration

@@ -282,7 +282,7 @@ Files are under `source/`; links resolve against the commit the site was built f
   - 
 * - integrated stop test
   - `cvTotalsUpdate`
-  - {src}`iteration_mod.f90::MCIterationDriver/cvTotalsUpdate`; test at {src}`iteration_mod.f90::MCIterationDriver/iterateMC@"if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) .and. &"+1`
+  - {src}`iteration_mod.f90::MCIterationDriver/cvTotalsUpdate`; test at {src}`iteration_mod.f90::MCIterationDriver/iterateMC@"if ( lgCvTotals .and. (.not.lgPDR .or. nIterateMC > pdrStartIter) ) then"+0`
 * - per-cell $x(\mathrm{H_2})$ test
   - `iterateMC`
   - {src}`iteration_mod.f90::MCIterationDriver/iterateMC@"! ------------------------------------------------------- D-391"..@"if (lgH2fail) then"`

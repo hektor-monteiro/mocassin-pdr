@@ -2871,8 +2871,6 @@ if (allocated(ionDenUsed)) deallocate (ionDenUsed)
            if (allocated(grid%opacity)) deallocate(grid%opacity)
 
            if (allocated(grid%Jste)) deallocate(grid%Jste)
-           if (allocated(grid%JsteAvg)) deallocate(grid%JsteAvg)   ! D-466
-           if (allocated(grid%JdifAvg)) deallocate(grid%JdifAvg)   ! D-466
 
            if (lgDebug) then
               if (allocated(grid%Jdif)) deallocate(grid%Jdif)
