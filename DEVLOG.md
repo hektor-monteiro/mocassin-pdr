@@ -48835,3 +48835,49 @@ iteration. The averaged run's own test is carried by T(H2) at 13-15 (3.4,
 4.7, 3.9%): the deep gas warms as the noise bias leaves. So hii-p cannot
 stop at 15. Prediction 6's held line at 13 or 14 will not appear, because
 the test does not pass there.
+
+### hii-p, the run on the default stop test (2026-11-18 10:14, 57:13)
+
+  - **The trail.** Rows 1-14 are identical to hii-a1's. Averaging starts at
+    11 as there.
+  - **The stop.** The run stops at 19 on the test, 1.757% (T(H2)), with the
+    mean of 11-19: 9 iterations, 5.4e7 packets. The test is above 2% at
+    every iteration from 12 to 18 (2.68, 3.42, 4.72, 3.94, 3.00, 2.40,
+    2.00%), so no held line appears and the hold is not exercised.
+  - **Scored.** Prediction 6's stop between 15 and 20 with N >= 5 is met.
+    Its held line at 13 or 14 is missed.
+
+**What stops it is the averaging itself.** Against hii-ctl's iteration 9,
+the ionized gas moves as follows from iteration 11, where the two runs part:
+
+| | hii-ctl, 11 -> 15 | hii-p, 11 -> 15 | hii-p, 15 -> 19 | hii-p at 19 against hii-ctl at 15 |
+|---|---|---|---|---|
+| H+ EM | -1.13% | -0.45% | -0.14% | +0.55% |
+| O+ EM | -2.30% | -0.92% | -0.20% | +1.19% |
+| N+ EM | -2.31% | -1.00% | -0.22% | +1.11% |
+| He+ EM | -1.32% | -0.53% | -0.19% | +0.61% |
+| T(em) | -0.21% | -0.07% | -0.01% | +0.13% |
+
+  - **The ionized gas.** Under the mean the ionized gas's approach to its
+    fixed point slows by about the number of iterations averaged. The field
+    it is solved on carries every iteration since 11 at equal weight, so it
+    acts as an under-relaxation whose factor falls as 1/N. Four iterations
+    after hii-ctl's 15, hii-p's ionized gas has not reached where hii-ctl
+    already was, and hii-ctl was itself still drifting (-0.18% per
+    iteration in H+ EM at 15). The test passes because these quantities can
+    no longer move freely: the warning of D-176-D-181 and CLAUDE.md, in a
+    new form.
+  - **The deep PDR.** T(H2) rises steadily, +9.2% from 11 to 19 against
+    hii-ctl's +0.0%, and is still moving by 0.5% per iteration at 19. This
+    is the direction more packets take it (D-408).
+  - **The ratios.** The ionized cells' self-consistency ratios stay within
+    0.0015 through 19 and do not show any of this.
+
+Reading:
+  - In the deep PDR the mean does what packets do.
+  - In the ionized gas, a mean started at a 10% test freezes a model that
+    has not finished converging, and the stop test then passes on it.
+  - As configured (D-409's variant A from a 10% start) it is not usable
+    for production. The choice between a later start, a per-cell restart
+    (variant C) and a window that forgets is a design decision, left for
+    when the packet series has given the carbon comparison.
