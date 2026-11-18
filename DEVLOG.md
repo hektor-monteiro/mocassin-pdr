@@ -48780,3 +48780,58 @@ the same way.
 
 The queue (unit d466-runs, MemoryMax 28G) started hii-ctl at 07:48:57,
 with no other model running.
+
+### First two runs (2026-11-18 08:31 and 09:17)
+
+**hii-ctl** (41:55): all 30 output files byte-identical to runs/_d462/hii-B,
+summary.out's times aside. Prediction 2 met: without the keyword the
+binary computes what production does.
+
+**hii-a1** (45:44):
+  - **The start.** convergence.out rows 1-11 identical to hii-ctl's.
+    Averaging starts at 11 ("the integrated test was 7.049%"); the written
+    model is the mean of 11-15, 3.0e7 packets. Met.
+  - **Cost.** Iterations 1-10 do the same work in both runs and took 24:12
+    in hii-ctl and 27:15 in hii-a1, the machine's variance (+12.6%).
+    Iterations 11-15 took 14:29 and 14:39: averaging costs nothing
+    measurable. The total, +9%, misses the 5% prediction on that variance.
+  - **Self-consistency ratios, 12-15:**
+      - ionized cells, all three bands: within 0.0013, of mixed sign;
+      - neutral cells, the two lower bands: within 0.0024;
+      - neutral cells above 13.6 eV: -0.041, -0.027, -0.014, -0.025.
+
+    The first two groups meet the prediction. The neutral ionizing band
+    misses it, and is negative throughout.
+  - **The deep PDR moves the way more packets move it.** Against hii-ctl:
+      - T(H2) +5.8%;
+      - [C I] 609 um -14.5%, 370 um -4.7%;
+      - CO 3-2 +7.9%, 4-3 +16.8%.
+
+    D-408 found the same signs from 1x to 4x.
+  - **The H2 lines.** The named ones within 0.43% (prediction 0.3%,
+    missed narrowly); none of 2,687 by 1%.
+  - **The ionized gas lags.** hii-ctl is still drifting over iterations
+    11-15: H+ EM -1.13%, O+ -2.30%, N+ -2.31%, S2+ -2.41%, He+ -1.32%,
+    T(em) -0.21%. hii-a1 holds back about half to two thirds of each drift:
+    at 15 those quantities are +0.69%, +1.40%, +1.34%, +1.50%, +0.80% and
+    +0.14% above hii-ctl's.
+      - In the lines: Hbeta +0.59% (prediction 0.3%); [S II] -2.7%,
+        [N II] 2140 +3.0%, [O IV] 25.9 um -4.0%, [C II] 1335 +3.8-4.1%.
+        This is outside the 2% that would show lag in the ionized gas.
+      - The ionized cells' ratios did not see it: the ionized gas is
+        ionization-bounded, so its volume-integrated ionizing field barely
+        moves while the stages and the temperature drift. The diagnostic
+        is too coarse for this lag; the integrated quantities of
+        convergence.out show it.
+  - **The neutral ionizing band.** The negative ratio is carried by the
+    front cells. Hypothesis, untested: selection by state, not lag. A cell
+    counted neutral at n-1 has its high opacity in this iteration's
+    transfer, so its own J_n is low, while the mean also holds iterations
+    in which it was ionized.
+
+Reading so far: the mean does what packets do in the deep PDR. It lags in
+the ionized gas, which at a 10% start is still moving by 0.3-0.6% per
+iteration. The averaged run's own test is carried by T(H2) at 13-15 (3.4,
+4.7, 3.9%): the deep gas warms as the noise bias leaves. So hii-p cannot
+stop at 15. Prediction 6's held line at 13 or 14 will not appear, because
+the test does not pass there.
