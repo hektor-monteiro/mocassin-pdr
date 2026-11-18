@@ -48881,3 +48881,35 @@ Reading:
     for production. The choice between a later start, a per-cell restart
     (variant C) and a window that forgets is a design decision, left for
     when the packet series has given the carbon comparison.
+
+### hii-s4 (2026-11-18 11:02, 48:20), and hii-a1 against it
+
+`runs/_d466/nums_d466.py hii hii-ctl hii-a1 hii-s4`, the D-408 tool
+(nums_d408.py, with only its JSON file renamed):
+
+| | hii-ctl (1x) | hii-a1 (1x, mean of 11-15) | hii-s4 (4x) |
+|---|---|---|---|
+| C+ = C, the tool's measure [A_V] | 2.236 | 2.463 | 2.516 |
+| neutral cells in the deep carbon state, A_V 2.2 / 2.3 / 2.4 / 2.5 | 47 / 70 / 85 / 94% | 5 / 14 / 41 / 68% | 2 / 10 / 29 / 54% |
+| [C I] 609 / 370 um, against hii-ctl | 1 | 0.855 / 0.953 | 0.803 / 0.804 |
+| CO 3-2 / 4-3 / 5-4, against hii-ctl | 1 | 1.079 / 1.168 / 1.072 | 1.195 / 1.405 / 1.391 |
+| Hbeta [1e36 erg/s] | 9.2874 | 9.3422 | 9.2841 |
+| H/H2 crossing [A_V] | 1.3930 | 1.3948 | 1.3923 |
+
+  - **Noise.** Among equivalent cells, hii-a1's spread is 0.37-0.51 of
+    hii-ctl's in Tgas, n_e and C from A_V 0.46 to 1.91. This meets
+    prediction 3 (0.40-0.55), with Tgas 0.37 at 1.00-1.47 just under it.
+    hii-s4's is 1.0-1.37 of hii-a1's.
+  - **Bias.** Prediction 3 put hii-a1 between hii-s4 and hii-s16 in the
+    carbon. It is missed: hii-a1 lies between hii-ctl and hii-s4, 0.053 mag
+    short of hii-s4's turn, with more cells in the deep state and less of
+    [C I]'s and CO's change. So the mean removes the per-cell scatter of
+    about 5x but less of the one-way bias than 4x does.
+  - **Reading** (an inference, not tested). The deep PDR's field depends on
+    its own state, through neutral carbon's opacity in the 11.26-13.6 eV
+    band (D-405). A mean of 11-15 carries the fields of the earlier, more
+    neutral states, so in the deep PDR, as in the ionized gas, the mean lags
+    a state that is still moving. There it moves because the noise is
+    leaving, not because the model is converging.
+  - **Hbeta.** It is within 0.04% between hii-ctl and hii-s4; hii-a1's
+    +0.59% is the ionized gas's lag alone.
