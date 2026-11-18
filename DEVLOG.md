@@ -466,6 +466,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-464 | **Resonance-line transfer flagged for a future implementation, and how the original dusty MOCASSIN treated these lines (the user: "flag as a future issue to tackle, the implementation of proper Lyα and other resonance lines transfer, since that is no longer transported. I also want you to explain to me how the original dusty mocassin version handled this via resLinesTransfer keyword.").** L-99 (Medium): no resonant scattering; destruction by the emitting cell's dust at a local escape probability (D-376); the escaping part traced thin. The original (38aca36; Ercolano, Barlow & Storey 2005 sec 2.3.1) used the same escape probability, computed once when the converged share reached `resLinesTransfer` (default 101 = never), added the destroyed power to the grains' balance, and relaunched it as extra gas-emission packets on top of full-strength lines; outside that, lines escaped untraced and Lya's energy sat in the H I 15-8 slot at 8.15 um. No code changed | Done | 2026-11-07 |
 | D-465 | **Which High limitation to work on next for the best 3D PDR+H2 model (the user: "of the high severity remaining Known limitations, which should we work on next to obtain the best 3D PDR+H2 model?"). A recommendation; the decision is the user's.** Recommended: L-26 with L-3, by D-409's option B (the field accumulated over iterations). It is the only High item where the model is not converged at production settings (the carbon turn needs 16-64x the packets, CO still moves at 64x, the noise biases the means one way, D-408), and the per-cell state a 3D map shows is noise-limited past A_V 2. Its design and its test against D-408's series exist (D-409's addendum). Then L-55's per-pdrStep heating record (H-043), read with and without the accumulated field; then L-46 (chlorine), the largest measured effect on PN H2 lines (Cloudy: n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x); L-43 (under 3% of the H2 lines, the largest job) and L-37 (a resolution ~15x the 14-rank memory limit) later. No code changed | Proposed | 2026-11-16 |
 | D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test. **Result:** the mean cuts the per-cell scatter as its packets would, but buys about half of them in the one-way bias (C+ = C 2.463 for five iterations at 1x against 2.516 at 4x; 2.734 for five at 8x against 2.792 at 64x), and holds back whatever is still moving: the ionized gas, packet-independent at 15 iterations, ends 0.6-1.4% behind (Hbeta +0.6%), and CO 8-12% under 64x; on the default test the run stops at 19 on quantities that can no longer move. Without the keyword, byte-identical to production. Not a production setting as built; the next step is the user's | Done | 2026-11-18 |
+| D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run | Planned | 2026-11-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49070,3 +49071,44 @@ user:
   - removing the option.
 
 Status: Done (the test is read); the next step is the user's.
+
+## D-467 - fieldAverage removed (2026-11-18)
+
+The user, asked what next after D-466's result ("Average below 13.6 eV only",
+"Also add a mean that forgets", "Packets instead", "Remove fieldAverage"):
+"Remove fieldAverage". The plan is ~/.claude/plans/iridescent-stirring-pie.md,
+approved 2026-11-18, executed by code-executor.
+
+  - **No retired-keyword entry.** The option never left this machine: no
+    remote branch holds ed50761, so no input elsewhere can carry the
+    keyword.
+  - **Restored from 6e08049, the D-466 plan commit and production before
+    D-466:**
+      - the four source files (common_mod, set_input_mod, grid_mod,
+        iteration_mod);
+      - the keyword entry;
+      - the fortref goldens and the unit snapshot;
+      - the MOCASSIN iteration chapter;
+      - the PDR iteration chapter and code index.
+
+    No model run is needed: hii-ctl validated that source's binary byte for
+    byte against runs/_d462/hii-B.
+  - **Kept, in the past tense:** D-466's measured result, in the status
+    page's L-26 paragraph and in the PDR convergence chapter's Monte Carlo
+    noise section. Each stays on its existing line, so no golden moves.
+    D-466 itself is unchanged.
+  - **The tag.** CLAUDE.md: "Reverted work is tagged rather than deleted."
+    The annotated tag d466-fieldaverage-reverted at 463722a (the code with
+    its results) keeps it recoverable. It is not pushed.
+
+Predictions:
+  1. The tag points at 463722a. After the commit, ed50761's code is in no
+     branch's HEAD and survives under the tag.
+  2. Every restored file equals 6e08049's. convergence.md and
+     pdr-status.md differ from 6e08049 by one line each.
+  3. The builds give rc 0; pytest 109 passed, with the goldens back at
+     6e08049's values (iterateMC 56-3420); the docs checks clean apart from
+     fortref.unpushed.
+  4. No model is run.
+
+Status: Planned.
