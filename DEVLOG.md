@@ -465,7 +465,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-463 | **D-462 merged to the other branches, and the qHeat level-grid issue logged (the user: "merge these changes to the other branches in the repository. Log the nTbins issue for future implementation.").** L-98 (Low) records it: the default 300 levels overestimate a grain's far Wien tail where it carries <1% of its emission (x1.09-1.21 at 5-25 um), first order in the spacing. Three options are listed, with qhTest timings: 300/600/1200 levels 5.6-7.2/8-17/22-25 ms. Merged: docs fast-forwarded to production (it has no commits of its own), production merged into h2-model in ~/software/mocassin_h2 (H-051). main, dev, pdr-coupling, feature1, compBias and d418-level-order left as they are: 300-916 commits behind, archival. **Done:** docs at production; h2-model merge 2d6f697 (no conflict, differs only in DEVLOG-H2.md), the four flavours, h2Test, h2Slab and qhTest building there, record H-051 | Done | 2026-11-07 |
 | D-464 | **Resonance-line transfer flagged for a future implementation, and how the original dusty MOCASSIN treated these lines (the user: "flag as a future issue to tackle, the implementation of proper Lyα and other resonance lines transfer, since that is no longer transported. I also want you to explain to me how the original dusty mocassin version handled this via resLinesTransfer keyword.").** L-99 (Medium): no resonant scattering; destruction by the emitting cell's dust at a local escape probability (D-376); the escaping part traced thin. The original (38aca36; Ercolano, Barlow & Storey 2005 sec 2.3.1) used the same escape probability, computed once when the converged share reached `resLinesTransfer` (default 101 = never), added the destroyed power to the grains' balance, and relaunched it as extra gas-emission packets on top of full-strength lines; outside that, lines escaped untraced and Lya's energy sat in the H I 15-8 slot at 8.15 um. No code changed | Done | 2026-11-07 |
 | D-465 | **Which High limitation to work on next for the best 3D PDR+H2 model (the user: "of the high severity remaining Known limitations, which should we work on next to obtain the best 3D PDR+H2 model?"). A recommendation; the decision is the user's.** Recommended: L-26 with L-3, by D-409's option B (the field accumulated over iterations). It is the only High item where the model is not converged at production settings (the carbon turn needs 16-64x the packets, CO still moves at 64x, the noise biases the means one way, D-408), and the per-cell state a 3D map shows is noise-limited past A_V 2. Its design and its test against D-408's series exist (D-409's addendum). Then L-55's per-pdrStep heating record (H-043), read with and without the accumulated field; then L-46 (chlorine), the largest measured effect on PN H2 lines (Cloudy: n(H2) 1.6x at A_V 0.30, 28.2 um 1.43x); L-43 (under 3% of the H2 lines, the largest job) and L-37 (a resolution ~15x the 14-rank memory limit) later. No code changed | Proposed | 2026-11-16 |
-| D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test | Planned | 2026-11-18 |
+| D-466 | **The field averaged over iterations, `fieldAverage` (L-26, L-3; D-409's option B, recommended in D-465; the user: "start the plan for averaging the field").** Plan approved 2026-11-18: Jste and Jdif become the packet-weighted mean of the iterations' estimates from the iteration K after the first whose integrated test is below the start tolerance (in a PDR run with the chemistry in the test's window); iteration K unchanged; the test stops the run only once n_min iterations are averaged (the user's choice; the per-band self-consistency line is reported, not tested); a warm start restarts the mean; off by default. Validation (the user's choice): hiipdr at 1x (control, against production), 4x, 16x, 64x without, 1x and 8x with `fieldAverage 0.10 5`, and one run on the default stop test. **Result:** the mean cuts the per-cell scatter as its packets would, but buys about half of them in the one-way bias (C+ = C 2.463 for five iterations at 1x against 2.516 at 4x; 2.734 for five at 8x against 2.792 at 64x), and holds back whatever is still moving: the ionized gas, packet-independent at 15 iterations, ends 0.6-1.4% behind (Hbeta +0.6%), and CO 8-12% under 64x; on the default test the run stops at 19 on quantities that can no longer move. Without the keyword, byte-identical to production. Not a production setting as built; the next step is the user's | Done | 2026-11-18 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -48973,3 +48973,100 @@ others are at 15.
     model dominate. hii-s16 (65 min) reaches 2.718, while hii-p (57 min)
     reaches 2.554. hii-a8 (53 min) matches hii-s16's turn, but with the
     lag in the ionized gas, the front and the CO.
+
+### hii-s64 (2026-11-18 15:14, 2:12:57), and the results
+
+hii-s64 against hii-s16:
+  - C+ = C 2.718 -> 2.792; D-408's old code gave 2.80.
+  - CO 1-0 to 3-2 +7.8 to +10.4%, still not converged at 64x.
+  - [C I] 370 um +5.3%; Hbeta +0.02%.
+  - Per-cell spread 0.46-0.71 of hii-s16's.
+
+hii-a8 (8x, mean of 11-15) against hii-s64:
+  - C+ = C 2.734 against 2.792;
+  - [C I] within 3.5%;
+  - CO 1-0 -7.9%, 2-1 -9.2%, 3-2 -11.6%;
+  - Hbeta +0.63%; [O I] 5577 -4.3%; [S II] -3.5%;
+  - the named H2 lines -0.45 to -0.74%;
+  - per-cell spread 1.0-1.4x hii-s64's.
+
+On the current code, the named H2 lines rise by 0.83-1.88% from 1x to 64x
+(D-408's old code: +0.8% in 1-0 S(1)).
+
+The queue's unit was collected on exit, so its memory peak was not read
+(prediction 7 not measured).
+
+#### The predictions, scored
+
+  1. **Builds and parse checks:** met.
+  2. **Byte identity without the keyword** (all 30 outputs): met.
+  3. **hii-a1:**
+       - start (K = 11, rows 1-11 identical, N = 5): met;
+       - ratios: ionized and neutral below 13.6 eV met; neutral above
+         13.6 eV missed (-0.014 to -0.041, of one sign);
+       - the recombination lines within 0.3% and the crossing within
+         0.005 mag: met;
+       - Hbeta (+0.59%) and the named H2 lines (up to +0.43%) within 0.3%:
+         missed;
+       - the low-ionization lines within 1.5%: missed (2.7-4%);
+       - the carbon between hii-s4 and hii-s16: missed (C+ = C 0.053 short
+         of hii-s4's);
+       - noise 0.40-0.55: met (0.37-0.51);
+       - run time within 5%: missed on the machine's variance (+9%;
+         +1% on the averaged iterations).
+  4. **hii-a8:**
+       - K and N: met;
+       - C+ = C within 0.08 mag of 64x (-0.058): met;
+       - [C I] within 4%: met;
+       - CO within 10%: met for 1-0 and 2-1, missed for 3-2 (-11.6%);
+       - Hbeta and the named H2 lines within 0.3%: missed (+0.63%; up to
+         -0.74%); the recombination lines: met;
+       - noise 1.0-1.5: met, except n_e at A_V 2.29-2.65 (1.53);
+       - run time (1.28x): met.
+  5. **The series:**
+       - C+ = C deeper at each step, the step shrinking; [C I] 609 falling;
+         CO rising: met;
+       - Hbeta within 1% (-0.08%): met;
+       - the H2 lines within 1%: missed (up to +1.88%);
+       - run times: s4 and s16 met; s64 2:12:57, 2 min under its range.
+  6. **hii-p:** rows 1-14 identical, and the stop between 15 and 20 with
+     N >= 5 (19, N = 9): met. The held line: missed (the test never
+     passed earlier).
+  7. **Memory:** not measured.
+
+#### What the test shows
+
+  1. **The scatter.** The mean reduces the per-cell scatter as its packets
+     would: 0.37-0.51 of 1x's for five iterations at 1x; 1.0-1.4x 64x's for
+     five at 8x.
+  2. **The bias.** It buys about half its packets in the one-way bias. Five
+     iterations at 1x land between 1x and 4x, nine (hii-p) at about 4x, and
+     five at 8x between 16x and 64x.
+  3. **The lag.** It holds back whatever is still moving, because it weighs
+     every iteration since K equally.
+       - The ionized gas's state at 15 iterations does not depend on the
+         packets (1x-16x within 0.1%). Every averaged run ends 0.6-1.4%
+         behind it in the emission measures (Hbeta +0.6%, [S II] -3%), and
+         the stop test then passes on quantities that can no longer move
+         (hii-p).
+       - The deep PDR's field depends on its own carbon state, which moves
+         as the noise leaves. CO ends below its packets' (8-12% under 64x
+         for five iterations at 8x).
+  4. **The cost.** On hiipdr 31^3 packets are cheap to 16x (1:05 against
+     0:42 at 1x), because the chemistry and the level model dominate an
+     iteration. 64x takes 2:13.
+  5. **The ratios.** The self-consistency line does not see the ionized
+     gas's lag: an ionization-bounded region's volume-integrated ionizing
+     field hardly moves. The neutral cells' ionizing band is negative
+     whatever the packets, which is the hypothesis of selection by state.
+
+As built (D-409's variant A from a 10% start), `fieldAverage` is not a
+production setting. It stays opt-in and documented with what it does,
+and L-26 stays High. The ways on from here are a design decision for the
+user:
+  - average only below 13.6 eV, where the ionized gas would be untouched;
+  - a mean that forgets;
+  - a production packet count (D-409's option A);
+  - removing the option.
+
+Status: Done (the test is read); the next step is the user's.
