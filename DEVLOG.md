@@ -48925,3 +48925,22 @@ Against hii-s4:
 
 The series on the current code is following D-408's. Its run times so far
 meet prediction 5: s4 48:20, s16 1:05:21.
+
+### hii-a8 (2026-11-18 13:01, 53:27): 8x, the mean of 11-15 (2.4e8 packets, 40x)
+
+  - **Start and cost.** K = 11 (the test 6.838% at 10), N = 5. Met.
+    Run time 1.28x hii-ctl's (prediction 1.15-1.35, met).
+  - **Ratios.** Ionized cells within 0.0006 in every band. Neutral cells
+    above 13.6 eV -0.029, -0.029, -0.021, -0.022: as large as at 1x with
+    8 times the packets. A systematic effect, then, not noise.
+  - **Against hii-s16:**
+      - C+ = C 2.718 -> 2.734; no deep-state cell before A_V 2.5.
+      - Per-cell spread 0.56-0.82 of hii-s16's before the turn
+        (1/sqrt(2.5) = 0.63 for 40x against 16x).
+      - Hbeta +0.65%; [S II] 1.03 um -3.5%; [O I] 5577 -4.2%: the ionized
+        gas's and the front's lag, as in hii-a1.
+      - CO 2-1 to 5-4 -1.1 to -8.5%, and [C I] 370 um +6.8%. CO rises with
+        packets (hii-s4 -> hii-s16 +24 to +45%), yet the 40x mean has less
+        CO than 16x: CO lags too.
+
+Against hii-s64, when it is in.
