@@ -469,6 +469,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-467 | **`fieldAverage` removed (the user, asked what next after D-466: "Remove fieldAverage").** The option never left this machine (no remote branch holds ed50761). Source, the keyword entry, goldens and the MOCASSIN and PDR iteration chapters go back to 6e08049, production before D-466, whose binary hii-ctl validated byte for byte; the PDR convergence chapter and the status page's L-26 keep D-466's measured result; the code and its runs are kept under the annotated tag d466-fieldaverage-reverted (463722a). No model run. Done as f74455d: source identical to 6e08049, builds and docs checks clean (fortref check after the docs build, which regenerates the ignored keyword and code-map pages); the tag's message corrected (the code stays in the branch's history) | Done | 2026-11-18 |
 | D-468 | **The next High item after D-467 (the user: "what is the next high priority item we should focus on?"), with L-55's census on D-466's hiipdr series. A recommendation; the decision is the user's.** Measured from existing output (H-043's heatcensus.py, unchanged): molecular cells whose held PDR heating is over 10x the rebuilt fall 49/16/1/0 at 1x/4x/16x/64x, and none is over 3x in the three averaged runs; so on hiipdr L-55's swinging cells are L-26's field noise (K1a's, which carry the H2 rotational lines, not tested). The noise now carries L-3, L-26 and hiipdr's L-55, and D-466 closed one of D-405's three routes. Recommended: the path biasing already in the code (`pathStretch`, D-238..D-242), scored against D-466's 64x on the current code: D-405's biased 1x run moved CO 2-1..5-4 x1.52-2.09 (64x over 1x now: x1.42-2.23) and the carbon turn two-thirds of the way to 64x's. Test: hiipdr at 1x and 4x with `pathStretch 0.5`, input lines only; splitting (O-34) planned only if the mean passes and the scatter does not. Then L-55 on K1a, then L-46 (chlorine). No code changed, no model run | Proposed | 2026-11-18 |
 | D-469 | **The path biasing (`pathStretch 0.5`, D-238) tested against D-466's 64x on the current code (D-468's recommendation; the user: "write the predictions into the DEVLOG and queue the two pathStretch runs").** hiipdr at 1x and 4x with `pathStretch 0.5`, seed 1001, 15 iterations, on the R binary of D-467 (source 6e08049's), input lines only; scored with D-466's tools against hii-ctl, hii-s4, hii-s16 and hii-s64. Passes if the 4x run is within the 16x-64x step of hii-s64 in the means (C+ = C within 0.08 mag, [C I] within 4%, CO within 10%, Hbeta and the H2 lines within 0.3%) and its scatter before the turn is no larger than hii-s4's. **Result: fails in the means.** At 4x, C+ = C 2.679 (0.113 short of 64x's 2.792, about 12x's) and [C I] 609 +8.3%; CO 1-0..4-3 within 10%, Hbeta +0.02%; scatter before the turn 1.26-1.60x hii-s4's. The gain falls with the count (about 7x at 1x, 3x at 4x), at 0.97 of the analog's time. The biased CO excess over 64x (1.32x at 1x, 1.13x at 4x) is the field's variance; the low-J CO is bracketed (64x within 4-7% of the limit); an H/H2 crossing shift of -0.005 mag does not fall with the packets (unexplained). The biasing is not the route; the packet count stays the remedy. Splitting not indicated (an inference). Runs in runs/_d469 | Done | 2026-11-18 |
+| D-470 | **Pushing from this session over SSH, on the user's explicit go-ahead for each push (the user: "ok, change to ssh. Also change the repository rule so that you can push when I explicitly authorize it").** Checked first, nothing pushed: `ssh -T git@github.com` authenticates as hektor-monteiro (key from the desktop SSH agent); `git ls-remote` over SSH lists main and docs at 174c628, h2-model at 0457525; a dry-run push of pdr-photoionization to main was accepted as a fast-forward 174c628..287d997. `origin` had only an HTTPS URL and no credential helper, so a plain push from the shell could not authenticate. Changed: `git remote set-url --push origin git@github.com:hektor-monteiro/mocassin-pdr.git` (fetch stays HTTPS; the setting is the repository's, so the worktrees and GitKraken push over SSH too). Rule: CLAUDE.md gains "Pushing" (a push only on an explicit go-ahead naming what goes where, covering that push only; dry-run and check fast-forward first; tags only by name, never `--tags`; no force push or remote-ref deletion unless named); the code-executor never pushes, even when a plan says to. Still not pushed: main at 174c628, behind pdr-photoionization by D-465..D-470 (19 commits with this one); eight local-only tags, d466-fieldaverage-reverted among them | Done | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49605,5 +49606,63 @@ Per D-468's order, with the biasing out:
 
 The interim for runs that quote carbon or CO stands: 16x, or 64x; on
 hiipdr 64x's low-J CO is within 4-7% of the bracketed limit.
+
+Status: Done.
+
+## D-470 - Pushing over SSH, on an explicit go-ahead (2026-11-19)
+
+The user: "I have configured ssh access to github. Check to see if you can
+push to the repository", then "ok, change to ssh. Also change the repository
+rule so that you can push when I explicitly authorize it".
+
+Until now nothing was pushed from a session: the user pushed with GitKraken,
+tags included (the "not pushed" of D-263, D-269, D-281, D-367, D-373, D-439
+and since).
+
+### What was checked (2026-11-19, before any change)
+
+  - `ssh -T git@github.com`: "Hi hektor-monteiro! You've successfully
+    authenticated" (rc 1, GitHub's normal answer). The key is served by the
+    desktop's SSH agent (`/run/user/1000/gcr/ssh`).
+  - `git ls-remote git@github.com:hektor-monteiro/mocassin-pdr.git`: main and
+    docs at 174c628, h2-model at 0457525, the six release tags
+    (pdr-coupling-v1.0 to v2.0.2).
+  - `git push --dry-run --porcelain` of pdr-photoionization to main over SSH:
+    accepted, fast-forward 174c628..287d997, rc 0. A dry run asks GitHub's
+    receive-pack, which checks write access, but sends no objects and moves
+    no ref.
+  - `origin` had one URL, HTTPS, and git has no credential helper, so a plain
+    `git push` from the shell would have asked for a password it could not
+    give. GitKraken authenticates on its own.
+
+### What changed
+
+  - `git remote set-url --push origin git@github.com:hektor-monteiro/mocassin-pdr.git`.
+    Fetch stays on HTTPS. The setting is in the repository's config, so the
+    docs and h2 worktrees and GitKraken push over SSH too. A dry run through
+    `origin` afterwards gave the same fast-forward, rc 0.
+  - **CLAUDE.md, new section "Pushing":**
+    - a push only on the user's explicit go-ahead for that push, naming or
+      plainly meaning what goes where; it covers that push only, and
+      committing never implies pushing;
+    - a dry run first, checking that every ref is a fast-forward of exactly
+      what was named; production pushes `pdr-photoionization` to `main`
+      (its upstream, with `push.default` `upstream`), `h2-model` and `docs`
+      to their own names;
+    - tags only by name, never `--tags`;
+    - no force push (`--force-with-lease` included) and no deleting a remote
+      ref unless the go-ahead names it;
+    - the repository is public, so whatever is pushed is published.
+  - **`.claude/agents/code-executor.md`:** the executor never pushes, even
+    when a plan says to. Pushing is the main session's, after it has
+    reviewed the executor's report.
+
+### Still not pushed
+
+  - main on GitHub is at 174c628, behind pdr-photoionization by D-465
+    through D-470 (19 commits, this entry's included).
+  - Eight tags exist only here: 1.0.0, 1.1.0, 1.1.1, d193-d195-reverted,
+    d341-d342-perray-reverted, d348-raycolumns-removed,
+    d352-zone-and-switches, d466-fieldaverage-reverted.
 
 Status: Done.

@@ -152,6 +152,25 @@ relative dates to absolute.
 
 Reverted work is tagged rather than deleted (e.g. `d193-d195-reverted`).
 
+## Pushing
+
+`origin` fetches over HTTPS and pushes over SSH
+(`git@github.com:hektor-monteiro/mocassin-pdr.git`, D-470). The worktrees share
+the setting.
+
+  - **Push only on the user's explicit go-ahead for that push.** It names, or
+    plainly means, what goes where: a branch, a tag. It covers that push and
+    nothing after it. Committing never implies pushing.
+  - **Dry-run first** (`git push --dry-run --porcelain origin <ref>`), check
+    that every ref is a fast-forward of exactly what was named, then push
+    those refs only. Production is `pdr-photoionization` to `main`, its
+    upstream (`push.default` is `upstream`). `h2-model` and `docs` push to
+    their own names.
+  - **Tags** go only when named (`git push origin <tag>`), never `--tags`.
+  - **No force push**, `--force-with-lease` included, and no deleting a remote
+    ref, unless the go-ahead names that force or that deletion.
+  - The repository is public: whatever is pushed is published.
+
 ## Artifacts
 
 Comparisons against 3D-PDR are published as Röllig et al. (2007)-style plots so

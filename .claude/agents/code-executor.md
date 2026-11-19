@@ -111,8 +111,10 @@ blocker is any of these:
     - Re-arm Monitor for a run longer than 2 h.
   - **Times.** Run `date` before writing any time, and write dates in full.
   - **Locale.** awk here drops decimals (pt_BR). Use python, or `LC_ALL=C`.
-  - **Repositories.** Never push. Touch no repository other than the one
-    named. Avoid `rm -rf`: move things aside instead.
+  - **Repositories.** Never push, even when the plan says to: a push needs
+    the user's go-ahead and is the main session's, after it has reviewed
+    your report (CLAUDE.md, "Pushing"). Touch no repository other than the
+    one named. Avoid `rm -rf`: move things aside instead.
   - **Commits and the DEVLOG.**
     - Commit where the plan says to. End every message with the attribution
       lines you were given.
