@@ -472,6 +472,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-470 | **Pushing from this session over SSH, on the user's explicit go-ahead for each push (the user: "ok, change to ssh. Also change the repository rule so that you can push when I explicitly authorize it").** Checked first, nothing pushed: `ssh -T git@github.com` authenticates as hektor-monteiro (key from the desktop SSH agent); `git ls-remote` over SSH lists main and docs at 174c628, h2-model at 0457525; a dry-run push of pdr-photoionization to main was accepted as a fast-forward 174c628..287d997. `origin` had only an HTTPS URL and no credential helper, so a plain push from the shell could not authenticate. Changed: `git remote set-url --push origin git@github.com:hektor-monteiro/mocassin-pdr.git` (fetch stays HTTPS; the setting is the repository's, so the worktrees and GitKraken push over SSH too). Rule: CLAUDE.md gains "Pushing" (a push only on an explicit go-ahead naming what goes where, covering that push only; dry-run and check fast-forward first; tags only by name, never `--tags`; no force push or remote-ref deletion unless named); the code-executor never pushes, even when a plan says to. Still not pushed: main at 174c628, behind pdr-photoionization by D-465..D-470 (19 commits with this one); eight local-only tags, d466-fieldaverage-reverted among them | Done | 2026-11-19 |
 | D-471 | **GitHub's main, docs and h2-model updated (the user: "update GitHub's main", then "update docs and h2-model"), the first pushes under D-470's rule.** main: pdr-photoionization pushed, 174c628..48bfdd5. docs: fast-forwarded in ~/software/mocassin_docs to 48bfdd5 and pushed, 174c628..48bfdd5. h2-model: production 48bfdd5 merged in (374f6f3, no conflict, documentation only, nothing rebuilt), recorded as H-053 (7262f67) and pushed, 0457525..7262f67. Each push dry-run first, all fast-forwards; no tag pushed. This entry's commit is not pushed | Done | 2026-11-19 |
 | D-472 | **Audit of the changes since D-460 (20e4bbc..f55519c, D-461 to D-471), and the documentation they needed (the user: "we have done some changes to the repository. Audit the changes and check what needs to be updated in the documentation").** The only code change left is D-462's stochastic heating (D-466 is fully reverted: `git diff 6e08049 HEAD` over source/, the Makefile and tools/ is empty). Read against its record: qheat_mod, qHeatGrain, the getDustT store and its MPI reduction, the gate and the defaults; the units (Jste/pi in getDustT, times pi in qHeatGrain), the component-local species index of qhCont and the resonance-line share agree with getDustT. No defect found. The pages D-462 to D-469 touched were already current; five gaps fixed: `qhTest` missing from the generated build page (mocdocs TARGETS), README's executables and the install page; D-469's pathStretch result missing from the transfer chapter, the PDR convergence chapter and the keyword entry (which still said "until validated"); an ambiguous default in the dust chapter ("300 up to 700 K"). pytest 125 passed, fortref check 0 problems, sphinx-build -W rc 0 | Done | 2026-11-19 |
+| D-473 | **Can Cloudy run on MOCASSIN's radial spacing? (the user: "Is it possible to run cloudy with the same grid radial distance of mocassin? I would like to compare hiipdr and pn150kk models to cloudy models with the same radial grid cell distance.")** Yes: c25's `set dr <log cm>` sets drmin = drmax, and radius_next applies drmin after every other zoning criterion (the thermal-front logic included), so every zone has that thickness. MOCASSIN's axes are uniform (grid_mod: edge x (i-1)/(nx-1)): hiipdr dx = 2.0e18 cm (log 18.30103), pn150k 4.6795e16 cm (log 16.67020). D-458's static runs use 713 and 654 zones, a median 200 and 51 zones per MOCASSIN cell, and 400 and 120 zones within one cell of the H+ front (5.8 and 8.4 cells from the centre); fixed at dx they would have about 28 and 40. Equal spacing is not equal discretization: Cloudy solves one point per zone and attenuates through it, MOCASSIN solves each cell from its volume-averaged J, and a Cartesian cell spans radii over up to sqrt(3) dx. What the pair measures is Cloudy's own sensitivity to MOCASSIN's spacing. Proposed: the two committed inputs plus `set dr`, against D-458's runs; predictions before running. Nothing run | Proposed | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49788,3 +49789,78 @@ user's call.
     The generated build page lists `make qhTest`.
 
 Status: Done.
+
+## D-473 - Cloudy on MOCASSIN's radial spacing: feasibility (2026-11-19)
+
+The user: "Is it possible to run cloudy with the same grid radial distance
+of mocassin? I would like to compare hiipdr and pn150kk models to cloudy
+models with the same radial grid cell distance."
+
+### Cloudy can fix its zone thickness
+
+Read in c25.00's source (read only):
+  - `set dr <log cm>` (parse_set.cpp, the " DR " branch) sets sdrmax and
+    sdrmin to the same value and `radius.lgFixed`. `linear` takes cm.
+  - conv_init_solution.cpp starts the first zone at that thickness when the
+    two are equal.
+  - radius_next.cpp collects its candidate thicknesses (the thermal-front
+    logic among them), then replaces the smallest by sdrmin if it is
+    thinner. With sdrmin = sdrmax every zone is the set thickness. The
+    "dr too small" abort is never reached, since dr cannot fall.
+  - `set drmax` alone would only cap Cloudy's zones at MOCASSIN's cell.
+    Cloudy's zones are already far thinner, so that would change nothing.
+
+### MOCASSIN's spacing
+
+grid_mod sets uniform axes, edge x (i-1)/(nx-1):
+
+| Model | nx | edge (cm) | dx (cm) | log dx | Rin (cm) | cells Rin to Rout |
+|---|---|---|---|---|---|---|
+| hiipdr | 31 | 6.0e19 | 2.0e18 | 18.30103 | 3.0e18 | 28.5 |
+| pn150k | 41 | 1.8718e18 | 4.6795e16 | 16.67020 | 1.0e16 | 39.8 |
+
+### Cloudy's zoning now (D-458's static runs, runs/_d458)
+
+| Model | zones | dr min / median / max (cm) | zones per dx | H+ front (HII = 0.5) | zones within one dx of it |
+|---|---|---|---|---|---|
+| hiipdr | 713 | 5.4e13 / 1.0e16 / 7.9e17 | 200 | r = 1.16e19, 5.8 dx | 400 |
+| pn150k | 654 | 1.9e14 / 9.2e14 / 2.3e16 | 51 | r = 3.95e17, 8.4 dx | 120 |
+
+At dx the two would have about 28 and 40 zones, and the H+ front would sit
+inside one zone. In hiipdr's neutral gas one zone is about 1e3 optical
+depths at 13.6 eV (100 cm^-3 x 6.3e-18 cm^2 x 2e18 cm).
+
+### What equal spacing does and does not make equal
+
+  - **Not the discretization.** Cloudy solves each zone at one point and
+    attenuates the field through it. MOCASSIN solves each cell from its
+    volume-averaged J (the path-length estimator), so a cell across the
+    front holds one mixed state. Neither is the other's error.
+  - **Not the radial sampling.** A Cartesian cell spans radii over up to
+    sqrt(3) dx, and MOCASSIN's cell centres fall at all radii, not on
+    shells.
+  - **What it does measure:** how far Cloudy's own answer moves when its
+    zones are MOCASSIN's size. That bounds the part of a MOCASSIN-Cloudy
+    difference that the spacing alone can make. It does not measure
+    MOCASSIN's own resolution error, which only a finer MOCASSIN grid
+    would.
+  - Cloudy is built for zones much thinner than the structure. A fixed-dr
+    run may stop on, or print, its own convergence cautions, which are then
+    part of the result.
+  - D-456's continuum-save loss (about 4 dr/r per zone) would be of order
+    0.7 at hiipdr's front, so the comparison goes through the line list
+    (D-456's rule) and the zone profiles.
+
+### Proposed (not run)
+
+  - Two Cloudy runs, `sphere static`: the committed
+    benchmarks/pdr/hiipdr/cloudy/hiipdr.in and
+    benchmarks/pdr/pn150k/cloudy/150k_PDR.in with `set dr 18.30103` and
+    `set dr 16.67020` added, nothing else changed.
+  - Scored against D-458's static runs (Cloudy's own zoning) and the
+    current MOCASSIN references, in lines and Röllig-style profiles.
+  - Predictions on record before the runs. The D-458 runs took about 4 min
+    (pn150k, 654 zones) and longer for hiipdr; fixed zones should be
+    faster.
+
+Status: Proposed.
