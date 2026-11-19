@@ -470,6 +470,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-468 | **The next High item after D-467 (the user: "what is the next high priority item we should focus on?"), with L-55's census on D-466's hiipdr series. A recommendation; the decision is the user's.** Measured from existing output (H-043's heatcensus.py, unchanged): molecular cells whose held PDR heating is over 10x the rebuilt fall 49/16/1/0 at 1x/4x/16x/64x, and none is over 3x in the three averaged runs; so on hiipdr L-55's swinging cells are L-26's field noise (K1a's, which carry the H2 rotational lines, not tested). The noise now carries L-3, L-26 and hiipdr's L-55, and D-466 closed one of D-405's three routes. Recommended: the path biasing already in the code (`pathStretch`, D-238..D-242), scored against D-466's 64x on the current code: D-405's biased 1x run moved CO 2-1..5-4 x1.52-2.09 (64x over 1x now: x1.42-2.23) and the carbon turn two-thirds of the way to 64x's. Test: hiipdr at 1x and 4x with `pathStretch 0.5`, input lines only; splitting (O-34) planned only if the mean passes and the scatter does not. Then L-55 on K1a, then L-46 (chlorine). No code changed, no model run | Proposed | 2026-11-18 |
 | D-469 | **The path biasing (`pathStretch 0.5`, D-238) tested against D-466's 64x on the current code (D-468's recommendation; the user: "write the predictions into the DEVLOG and queue the two pathStretch runs").** hiipdr at 1x and 4x with `pathStretch 0.5`, seed 1001, 15 iterations, on the R binary of D-467 (source 6e08049's), input lines only; scored with D-466's tools against hii-ctl, hii-s4, hii-s16 and hii-s64. Passes if the 4x run is within the 16x-64x step of hii-s64 in the means (C+ = C within 0.08 mag, [C I] within 4%, CO within 10%, Hbeta and the H2 lines within 0.3%) and its scatter before the turn is no larger than hii-s4's. **Result: fails in the means.** At 4x, C+ = C 2.679 (0.113 short of 64x's 2.792, about 12x's) and [C I] 609 +8.3%; CO 1-0..4-3 within 10%, Hbeta +0.02%; scatter before the turn 1.26-1.60x hii-s4's. The gain falls with the count (about 7x at 1x, 3x at 4x), at 0.97 of the analog's time. The biased CO excess over 64x (1.32x at 1x, 1.13x at 4x) is the field's variance; the low-J CO is bracketed (64x within 4-7% of the limit); an H/H2 crossing shift of -0.005 mag does not fall with the packets (unexplained). The biasing is not the route; the packet count stays the remedy. Splitting not indicated (an inference). Runs in runs/_d469 | Done | 2026-11-18 |
 | D-470 | **Pushing from this session over SSH, on the user's explicit go-ahead for each push (the user: "ok, change to ssh. Also change the repository rule so that you can push when I explicitly authorize it").** Checked first, nothing pushed: `ssh -T git@github.com` authenticates as hektor-monteiro (key from the desktop SSH agent); `git ls-remote` over SSH lists main and docs at 174c628, h2-model at 0457525; a dry-run push of pdr-photoionization to main was accepted as a fast-forward 174c628..287d997. `origin` had only an HTTPS URL and no credential helper, so a plain push from the shell could not authenticate. Changed: `git remote set-url --push origin git@github.com:hektor-monteiro/mocassin-pdr.git` (fetch stays HTTPS; the setting is the repository's, so the worktrees and GitKraken push over SSH too). Rule: CLAUDE.md gains "Pushing" (a push only on an explicit go-ahead naming what goes where, covering that push only; dry-run and check fast-forward first; tags only by name, never `--tags`; no force push or remote-ref deletion unless named); the code-executor never pushes, even when a plan says to. Still not pushed: main at 174c628, behind pdr-photoionization by D-465..D-470 (19 commits with this one); eight local-only tags, d466-fieldaverage-reverted among them | Done | 2026-11-19 |
+| D-471 | **GitHub's main, docs and h2-model updated (the user: "update GitHub's main", then "update docs and h2-model"), the first pushes under D-470's rule.** main: pdr-photoionization pushed, 174c628..48bfdd5. docs: fast-forwarded in ~/software/mocassin_docs to 48bfdd5 and pushed, 174c628..48bfdd5. h2-model: production 48bfdd5 merged in (374f6f3, no conflict, documentation only, nothing rebuilt), recorded as H-053 (7262f67) and pushed, 0457525..7262f67. Each push dry-run first, all fast-forwards; no tag pushed. This entry's commit is not pushed | Done | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49664,5 +49665,33 @@ and since).
   - Eight tags exist only here: 1.0.0, 1.1.0, 1.1.1, d193-d195-reverted,
     d341-d342-perray-reverted, d348-raycolumns-removed,
     d352-zone-and-switches, d466-fieldaverage-reverted.
+
+Status: Done.
+
+## D-471 - GitHub's main, docs and h2-model updated (2026-11-19)
+
+The user: "update GitHub's main", then "update docs and h2-model". These are
+the first pushes made under D-470's rule. Each was dry-run first, and each
+was a fast-forward of exactly the branch named.
+
+  - **main.** `git push origin pdr-photoionization:main`, 174c628..48bfdd5
+    (D-465 to D-470, 19 commits).
+  - **docs.** Fast-forwarded in ~/software/mocassin_docs from 174c628 to
+    48bfdd5 (`git merge --ff-only pdr-photoionization`), then pushed,
+    174c628..48bfdd5.
+  - **h2-model.** Production 48bfdd5 merged into h2-model in
+    ~/software/mocassin_h2 (merge 374f6f3, no conflict). Production's
+    changes since 174c628 are documentation only: `git diff --stat 174c628
+    48bfdd5` over source/, the Makefile, data/, dataPDR/, tools/,
+    benchmarks/ and examples/ is empty, since D-467 restored D-466's source.
+    Nothing was rebuilt. The branch again differs from production only in
+    DEVLOG-H2.md. Recorded as H-053 (7262f67) and pushed, 0457525..7262f67.
+
+`git ls-remote --heads origin` afterwards: main and docs at 48bfdd5,
+h2-model at 7262f67. No tag was pushed. The eight local-only tags of D-470
+stay local.
+
+This entry's commit is not pushed, so main and docs are one commit behind
+production until the next push.
 
 Status: Done.
