@@ -473,7 +473,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-471 | **GitHub's main, docs and h2-model updated (the user: "update GitHub's main", then "update docs and h2-model"), the first pushes under D-470's rule.** main: pdr-photoionization pushed, 174c628..48bfdd5. docs: fast-forwarded in ~/software/mocassin_docs to 48bfdd5 and pushed, 174c628..48bfdd5. h2-model: production 48bfdd5 merged in (374f6f3, no conflict, documentation only, nothing rebuilt), recorded as H-053 (7262f67) and pushed, 0457525..7262f67. Each push dry-run first, all fast-forwards; no tag pushed. This entry's commit is not pushed | Done | 2026-11-19 |
 | D-472 | **Audit of the changes since D-460 (20e4bbc..f55519c, D-461 to D-471), and the documentation they needed (the user: "we have done some changes to the repository. Audit the changes and check what needs to be updated in the documentation").** The only code change left is D-462's stochastic heating (D-466 is fully reverted: `git diff 6e08049 HEAD` over source/, the Makefile and tools/ is empty). Read against its record: qheat_mod, qHeatGrain, the getDustT store and its MPI reduction, the gate and the defaults; the units (Jste/pi in getDustT, times pi in qHeatGrain), the component-local species index of qhCont and the resonance-line share agree with getDustT. No defect found. The pages D-462 to D-469 touched were already current; five gaps fixed: `qhTest` missing from the generated build page (mocdocs TARGETS), README's executables and the install page; D-469's pathStretch result missing from the transfer chapter, the PDR convergence chapter and the keyword entry (which still said "until validated"); an ambiguous default in the dust chapter ("300 up to 700 K"). pytest 125 passed, fortref check 0 problems, sphinx-build -W rc 0 | Done | 2026-11-19 |
 | D-473 | **Can Cloudy run on MOCASSIN's radial spacing? (the user: "Is it possible to run cloudy with the same grid radial distance of mocassin? I would like to compare hiipdr and pn150kk models to cloudy models with the same radial grid cell distance.")** Yes: c25's `set dr <log cm>` sets drmin = drmax, and radius_next applies drmin after every other zoning criterion (the thermal-front logic included), so every zone has that thickness. MOCASSIN's axes are uniform (grid_mod: edge x (i-1)/(nx-1)): hiipdr dx = 2.0e18 cm (log 18.30103), pn150k 4.6795e16 cm (log 16.67020). D-458's static runs use 713 and 654 zones, a median 200 and 51 zones per MOCASSIN cell, and 400 and 120 zones within one cell of the H+ front (5.8 and 8.4 cells from the centre); fixed at dx they would have about 28 and 40. Equal spacing is not equal discretization: Cloudy solves one point per zone and attenuates through it, MOCASSIN solves each cell from its volume-averaged J, and a Cartesian cell spans radii over up to sqrt(3) dx. What the pair measures is Cloudy's own sensitivity to MOCASSIN's spacing. Proposed: the two committed inputs plus `set dr`, against D-458's runs; predictions before running. Nothing run | Proposed | 2026-11-19 |
-| D-474 | **Cloudy at MOCASSIN's spacing: hiipdr and pn150k with `set dr` (D-473; the user: "write the predictions into the DEVLOG and queue the two runs. When they are done record the finding in a separate artifact with the usual cloudy mocassin comparisons").** The committed Cloudy inputs as D-458 ran them, plus `set dr 18.30103` (hiipdr, 2.0e18 cm) and `set dr 16.67020` (pn150k, 4.6795e16 cm); runs/_d474; scored against D-458's static runs and the pages' MOCASSIN runs (runs/_d450 hii-LC, pn-LC). Predicted from c25's ZoneStart, which dims a zone's field by (1-e^-tau)/tau with tau from the previous zone's opacity: the zone holding the H+ front is solved with too strong a field and ends nearly ionized, so Cloudy's Hbeta rises (hiipdr +25-50%, pn150k +5-35%) and its case-B recombinations exceed Q(H); the PDR transitions move by less than a zone's A_V; no MOCASSIN-Cloudy gap closes. Page: a new artifact | Open | 2026-11-19 |
+| D-474 | **Cloudy at MOCASSIN's spacing: hiipdr and pn150k with `set dr` (D-473; the user: "write the predictions into the DEVLOG and queue the two runs. When they are done record the finding in a separate artifact with the usual cloudy mocassin comparisons").** The committed Cloudy inputs as D-458 ran them, plus `set dr 18.30103` (hiipdr, 2.0e18 cm) and `set dr 16.67020` (pn150k, 4.6795e16 cm); runs/_d474; scored against D-458's static runs and the pages' MOCASSIN runs (runs/_d450 hii-LC, pn-LC). Predicted from c25's ZoneStart, which dims a zone's field by (1-e^-tau)/tau with tau from the previous zone's opacity: the zone holding the H+ front is solved with too strong a field and ends nearly ionized, so Cloudy's Hbeta rises (hiipdr +25-50%, pn150k +5-35%) and its case-B recombinations exceed Q(H); the PDR transitions move by less than a zone's A_V; no MOCASSIN-Cloudy gap closes. **Result:** both ran (29 and 40 zones, 77 s and 40 s); the front zone over-ionizes as predicted: Hbeta +54.9% (hiipdr, above the range) and +34.9% (pn150k), pn150k's case-B recombinations 1.328 Q(H), the hiipdr front 0.75 pc further out. Cloudy's AV(point) is a zone's outer edge, so at 29 zones every A_V-located quantity sat half a zone (0.05 mag) deep; at zone middles the field agrees within 5% and T_gas within 5% beyond the front. The spacing makes the front layer's lines: hiipdr's [O I] 63/145/6300 x9.2/x14.2/x11.4 (MOCASSIN's own 7.5x/10.7x/6.3x Cloudy's), pn150k's [O I] 6300 x1.49, [N II], [S II], [O II] x1.24-1.36: L-37 seen from Cloudy's side. hiipdr's crossing moves +0.164 mag (past MOCASSIN's 1.393), C+ = C does not move. No Hbeta, field or temperature gap is the spacing. Page: https://claude.ai/artifact/Wx3y1eF2Cn8SULnvB7jWS9 | Done | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49957,4 +49957,139 @@ its own zoning's, c25 conserves photons across thick zones and the tmn
 reading is wrong. The fixed-dr runs would then be fair coarse models, and
 their gaps to MOCASSIN would measure the spacing.
 
-Status when queued: Open.
+Status when queued (19:30): Open.
+
+### Results (runs/_d474, 19:30-19:32)
+
+Both runs ended rc 0: hiipdr 29 zones, 4 iterations, 77 s, 32 cautions
+(D-458: 713, 4, 598 s, 24); pn150k 40 zones, 2 iterations, 40 s, 30
+cautions (654, 2, 243 s, 21). Cloudy flagged the front itself. On hiipdr:
+"An ionization jump occurred, elem H 1, by 5537% from 1.62e-03 (zone 4) to
+9.84e-03 (zone 5) to 5.45e-01 (zone 6)", and a temperature discontinuity
+from 8,660 K (zone 6) to 72 K (zone 7). On pn150k: a temperature
+discontinuity from 9,700 K (zone 10) to 548 K (zone 11).
+
+Numbers: runs/_d474/ana/nums474.py (nums474.json). Figures:
+runs/_d474/ana/figs474.py (D-458's geomfigs.py with the fixed run dotted,
+a dot per zone, and a radial panel across the front).
+
+**Found on the way: Cloudy's A_V is a zone's outer edge.** AV(point) in
+.ovr and .pdr is the extinction to the zone's outer edge, while the zone's
+state is its middle's. The fixed runs' AV(point) equals the own-zoning
+run's A_V at the fixed zone's outer edge (hiipdr zone 1: 0.1040, against
+0.1084 at the edge and 0.0542 at the middle; pn150k zone 1: 0.0171 against
+0.0174 and 0.0087). At 713 zones this is invisible. At 29 it put every
+A_V-located quantity half a zone (0.05 mag) deep, and made hiipdr's G0 look
+7-23% high at A_V 0.70-2.90. Every A_V below is the mean of a zone's two
+edges, for both Cloudy runs. The own-zoning run moves too: hiipdr's
+crossing reads 1.273 rather than D-458's 1.278.
+
+    hiipdr                         MOCASSIN   Cloudy own   Cloudy fixed   fixed/own
+    Hbeta [1e36 erg/s]             9.287      10.09        15.63          +54.9%
+    case-B recombinations / Q(H)   -          0.469        0.725          +54.4%
+    H+ front r [pc] / A_V          3.814/.429 3.766/.446   4.513/.566
+    EM-weighted T_e [K]            -          8635         8791
+    H/H2 crossing A_V              1.393      1.273        1.436          +0.164
+    C+ = C A_V                     2.285      2.921        2.917          -0.004
+    G0 A_V 0.70/1.00/2.90          -          70.1/23.2/.397  70.7/23.9/.405
+    T_gas A_V 0.70/1.00/1.50       50.5/45.9/34.0  48.0/45.1/39.4  65.2/44.9/37.8
+    lines/Hbeta: [O I] 63          0.0491     0.00659      0.0608         x9.23
+                 [O I] 145         0.00458    0.000428     0.00605        x14.2
+                 [O I] 6300        0.0656     0.0104       0.117          x11.4
+                 [C II] 158        0.149      0.0897       0.0857         0.955
+                 [C I] 609         0.00407    0.00241      0.00156        0.649
+                 H2 1-0 S(1)       6.91e-4    9.27e-4      6.12e-4        0.66
+
+    pn150k                         MOCASSIN   Cloudy own   Cloudy fixed   fixed/own
+    Hbeta [1e34 erg/s]             2.642      2.805        3.784          +34.9%
+    case-B recombinations / Q(H)   -          0.991        1.328          +34.0%
+    H+ front r [pc]                0.1273     0.1280       0.1419         +0.92 dx
+    He2+ front r [pc]              0.0875     0.0882       0.0917
+    H/H2 crossing A_V              0.419      0.360        0.376          +0.016
+    G0 A_V 0.20/0.30/0.65          -          84.0/34.1/4.97  84.8/33.1/4.73
+    T_gas A_V 0.20/0.30/0.65       179/48.4/25.6   130/48.7/27.9   155/46.4/27.2
+    lines/Hbeta: [O III] 5007      13.9       12.6         11.2           0.891
+                 [O I] 6300        0.455      0.287        0.427          x1.49
+                 [N II] 6584       1.58       1.44         1.82           x1.26
+                 [S II] 6716+6731  -          -            -              x1.30
+                 [O II] 3726+3729  -          -            -              x1.24
+                 [C II] 158        0.211      0.201        0.141          0.698
+                 [O I] 63          0.267      0.147        0.128          0.871
+                 H2 1-0 S(1)       1.04e-3    6.34e-4      5.30e-4        0.836
+
+The fixed zones at the front (zone, r in pc, x(H+), T_e, share of
+n_e n(H+) V):
+  - hiipdr: 4 (2.92-3.57) 0.998, 8313 K, 0.25; 5 (3.57-4.21) 0.990,
+    9601 K, 0.36; 6 (4.21-4.86) 0.455, 8656 K, 0.094; 7 0.0006, 71 K.
+    At its own zoning, zone 5's span holds the front at 0.31 of its depth
+    and 14% of the recombinations.
+  - pn150k: 8 (0.109-0.125) 0.968, 0.225; 9 (0.125-0.140) 0.848, 0.222;
+    10 (0.140-0.155) 0.278, 9700 K, 0.033; 11 0.009, 548 K.
+
+**What it means:**
+  - **The coarse Cloudy is not a model of MOCASSIN's cells.** It breaks
+    its own photon budget at the front (pn150k: a third more recombinations
+    than ionizing photons). MOCASSIN at the same spacing keeps Hbeta at
+    0.92 and 0.94 of Cloudy at its own zoning. No Hbeta, field or
+    temperature gap between the codes is the spacing.
+  - **Beyond the front the spacing does not matter in Cloudy:** G0 within
+    1-3% (hiipdr, A_V 0.70-2.90) and 1-5% (pn150k, 0.20-0.65), T_gas
+    within 5% from A_V 1.0 (hiipdr) and 0.30 (pn150k). C+ = C does not move,
+    so hiipdr's 0.63 mag carbon-turn gap to MOCASSIN is not the spacing.
+  - **The spacing makes the front layer's lines.** One coarse front zone
+    gives Cloudy's own [O I] 63/145/6300 x9.2/x14.2/x11.4 on hiipdr.
+    MOCASSIN's are 7.5x/10.7x/6.3x Cloudy's own-zoning values. This is L-37
+    seen from Cloudy's side. D-381/D-382's sub-cell front profile already
+    takes MOCASSIN's 6300 to 1.07x Cloudy (lineFluxFront.out on hii-LC,
+    0.0111 of Hbeta against 0.0104). The coarse Cloudy shows the same
+    effect for 63 and 145 um, which that profile does not correct. On
+    pn150k the low-ionization lines rise 24-49% ([O I] 6300 x1.49 against
+    MOCASSIN's 1.59x).
+  - **hiipdr's H/H2 crossing gap (0.120 mag) is within the spacing's reach
+    in Cloudy,** which moves 0.164 mag deeper, past MOCASSIN. Whether
+    MOCASSIN's crossing moves with its cell size is not measured (D-365's
+    61^3 run did not report it).
+
+**Not known:**
+  - why the coarse Cloudy moves hiipdr's crossing 1.5 zones. One reading,
+    not tested: H2 self-shielding taken from the column up to the zone's
+    face, so each 0.11 mag zone is unshielded by its own H2;
+  - whether MOCASSIN's crossing depends on its cell size;
+  - [O I] 63/145 from MOCASSIN's front cells need L-37's stage 2 (a
+    temperature per depth inside the cell), not built.
+
+**Scored:**
+  1. Both finish, 29 and 40 zones, under a fifth of the time: **met**
+     (0.13 and 0.16).
+  2. Hbeta +25-50% (hiipdr), +5-35% (pn150k): **partly.** hiipdr +54.9%
+     is above the range; pn150k +34.9%.
+  3. pn150k's recombinations 1.05-1.35 Q(H): **met** (1.328).
+  4. The front moves out, hiipdr to 9.5e18-1.05e19 cm (A_V 0.49-0.54),
+     pn150k by 0.2-1 dx: **partly.** hiipdr reached 1.09e19 cm (A_V
+     0.566): zone 6 stayed 46% ionized, which the reading did not foresee.
+     pn150k moved 0.92 dx.
+  5. Transitions within one zone's A_V: **partly.** hiipdr's crossing
+     +0.164 (missed; +0.209 as Cloudy reports A_V), C+ = C -0.004, pn150k
+     +0.016.
+  6. G0 within 10%: **met at zone middles.** As Cloudy reports A_V, hiipdr
+     was 7-23% high, from the half-zone offset the prediction did not
+     foresee.
+  7. T_gas: **partly.** hiipdr at A_V 0.70 +36% (missed; it is next to
+     the half-ionized zone), at 1.00 -0.6%; pn150k +20% at 0.20 and -2.5
+     to -4.8% at 0.30-0.65.
+  8. Lines: **partly.** [O III] 5007 -10.9%. [C II] 158 -4.5% (hiipdr) and
+     -30.2% (pn150k, missed). [O I] 63 x9.2 on hiipdr (missed) and -12.9%
+     on pn150k. S(1) -34% and -16%.
+  9. Against MOCASSIN no gap closes: **missed.** The Hbeta ratios are
+     0.594 and 0.698, just below both ranges; the crossing gap 0.120 ->
+     -0.044 and C+ = C unchanged are within the predicted bounds; but the
+     [O I] gaps close (63 um 7.46x -> 0.81x, 6300 6.34x -> 0.56x), which
+     the prediction excluded. That is the run's main finding.
+  - The reading that would have changed (Hbeta within 5%) did not happen.
+
+**The page:** "Cloudy at MOCASSIN's Spacing",
+https://claude.ai/artifact/Wx3y1eF2Cn8SULnvB7jWS9 (version 1795128129-6aba),
+built by runs/_d474/page/build474.py with the comparison pages' styles. The
+two comparison pages are not changed.
+
+Status: Done.

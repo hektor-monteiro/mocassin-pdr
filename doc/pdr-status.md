@@ -138,7 +138,7 @@ aesthetics. Resolved items are in section 4.
 |---|---|---|---|
 | L-3 | The deep carbon turn is shallow at the production packet count, and CO is not converged | High | D-333, D-408 |
 | L-26 | The deep chemistry is Monte Carlo noise-limited per cell; past A_V 2 carbon is drawn in one of two states | High | D-351, D-365, D-405, D-408, D-411, D-469 |
-| L-37 | Unresolved ionization-front cells dominate the [O I] lines | High | D-362, D-365, D-379, D-381, D-382 |
+| L-37 | Unresolved ionization-front cells dominate the [O I] lines | High | D-362, D-365, D-379, D-381, D-382, D-474 |
 | L-43 | Transition-zone H2 is 14-230 times Cloudy's | High | D-387, D-389, D-395, H-002, H-021, H-023 |
 | L-46 | The network has no chlorine, 25-50% of Cloudy's H2 sink in pn150k's shielded gas | High | D-399, D-400, D-401 |
 | L-55 | Molecular cells whose held PDR heating swings; their H2 rotational lines are not converged | High | H-043, D-421, D-468 |
@@ -459,7 +459,7 @@ at each depth. It is an estimate beside lineFlux.out, not in it.
 **Against Cloudy's static sphere (D-458):** hiipdr's [O I] lines do not move
 (63 um 7.42x on rel-hii31). pn150k's [O I] 63 um goes from 1.49x to 1.78x on
 rel-pn41 (1.52x to 1.82x on pn-LC): Cloudy's colder PDR makes its own line 16%
-weaker. 6300 moves 2%.
+weaker. 6300 moves 2%. **Cloudy at the same spacing (D-474):** with every zone one MOCASSIN cell thick (`set dr`), Cloudy's own front zone over-ionizes and its hiipdr [O I] 63/145/6300 rise x9.2/x14.2/x11.4, against MOCASSIN's 7.5x/10.7x/6.3x Cloudy's own-zoning values; pn150k's [O I] 6300 rises x1.49 (MOCASSIN 1.59x). The front layer's lines follow the spacing in either code, 63 and 145 um included, which D-382's profile does not correct.
 
 **L-43. Transition-zone H2 is 100-1000x Cloudy's** (D-387, D-389). In the
 partially ionized layer of pn150k, 2n(H2)/n_H is 2.9e-8 to 7.9e-7 in ours against
