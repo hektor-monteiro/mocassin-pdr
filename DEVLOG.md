@@ -473,6 +473,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-471 | **GitHub's main, docs and h2-model updated (the user: "update GitHub's main", then "update docs and h2-model"), the first pushes under D-470's rule.** main: pdr-photoionization pushed, 174c628..48bfdd5. docs: fast-forwarded in ~/software/mocassin_docs to 48bfdd5 and pushed, 174c628..48bfdd5. h2-model: production 48bfdd5 merged in (374f6f3, no conflict, documentation only, nothing rebuilt), recorded as H-053 (7262f67) and pushed, 0457525..7262f67. Each push dry-run first, all fast-forwards; no tag pushed. This entry's commit is not pushed | Done | 2026-11-19 |
 | D-472 | **Audit of the changes since D-460 (20e4bbc..f55519c, D-461 to D-471), and the documentation they needed (the user: "we have done some changes to the repository. Audit the changes and check what needs to be updated in the documentation").** The only code change left is D-462's stochastic heating (D-466 is fully reverted: `git diff 6e08049 HEAD` over source/, the Makefile and tools/ is empty). Read against its record: qheat_mod, qHeatGrain, the getDustT store and its MPI reduction, the gate and the defaults; the units (Jste/pi in getDustT, times pi in qHeatGrain), the component-local species index of qhCont and the resonance-line share agree with getDustT. No defect found. The pages D-462 to D-469 touched were already current; five gaps fixed: `qhTest` missing from the generated build page (mocdocs TARGETS), README's executables and the install page; D-469's pathStretch result missing from the transfer chapter, the PDR convergence chapter and the keyword entry (which still said "until validated"); an ambiguous default in the dust chapter ("300 up to 700 K"). pytest 125 passed, fortref check 0 problems, sphinx-build -W rc 0 | Done | 2026-11-19 |
 | D-473 | **Can Cloudy run on MOCASSIN's radial spacing? (the user: "Is it possible to run cloudy with the same grid radial distance of mocassin? I would like to compare hiipdr and pn150kk models to cloudy models with the same radial grid cell distance.")** Yes: c25's `set dr <log cm>` sets drmin = drmax, and radius_next applies drmin after every other zoning criterion (the thermal-front logic included), so every zone has that thickness. MOCASSIN's axes are uniform (grid_mod: edge x (i-1)/(nx-1)): hiipdr dx = 2.0e18 cm (log 18.30103), pn150k 4.6795e16 cm (log 16.67020). D-458's static runs use 713 and 654 zones, a median 200 and 51 zones per MOCASSIN cell, and 400 and 120 zones within one cell of the H+ front (5.8 and 8.4 cells from the centre); fixed at dx they would have about 28 and 40. Equal spacing is not equal discretization: Cloudy solves one point per zone and attenuates through it, MOCASSIN solves each cell from its volume-averaged J, and a Cartesian cell spans radii over up to sqrt(3) dx. What the pair measures is Cloudy's own sensitivity to MOCASSIN's spacing. Proposed: the two committed inputs plus `set dr`, against D-458's runs; predictions before running. Nothing run | Proposed | 2026-11-19 |
+| D-474 | **Cloudy at MOCASSIN's spacing: hiipdr and pn150k with `set dr` (D-473; the user: "write the predictions into the DEVLOG and queue the two runs. When they are done record the finding in a separate artifact with the usual cloudy mocassin comparisons").** The committed Cloudy inputs as D-458 ran them, plus `set dr 18.30103` (hiipdr, 2.0e18 cm) and `set dr 16.67020` (pn150k, 4.6795e16 cm); runs/_d474; scored against D-458's static runs and the pages' MOCASSIN runs (runs/_d450 hii-LC, pn-LC). Predicted from c25's ZoneStart, which dims a zone's field by (1-e^-tau)/tau with tau from the previous zone's opacity: the zone holding the H+ front is solved with too strong a field and ends nearly ionized, so Cloudy's Hbeta rises (hiipdr +25-50%, pn150k +5-35%) and its case-B recombinations exceed Q(H); the PDR transitions move by less than a zone's A_V; no MOCASSIN-Cloudy gap closes. Page: a new artifact | Open | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49864,3 +49865,96 @@ depths at 13.6 eV (100 cm^-3 x 6.3e-18 cm^2 x 2e18 cm).
     faster.
 
 Status: Proposed.
+
+## D-474 - Cloudy at MOCASSIN's spacing: plan and predictions (2026-11-19)
+
+The user, after D-473: "write the predictions into the DEVLOG and queue the
+two runs. When they are done record the finding in a separate artifact with
+the usual cloudy mocassin comparisons".
+
+### The runs (runs/_d474)
+
+  - **cl-hii-dr:** D-458's cl-hii inputs (the committed hiipdr.in and
+    common.inc, `sphere static`, the compiled grain opacity file
+    sdraine03_hiipdr_10.opc), plus `set dr 18.30103` (2.0e18 cm).
+  - **cl-pn-dr:** D-458's cl-pn input (the committed 150k_PDR.in with the
+    prefix "150k"), plus `set dr 16.67020` (4.6795e16 cm).
+  - Nothing else changes. Cloudy c25.00 (`cloudy.exe -r`), the two side by
+    side, queued behind the usual wait for mocassin, mocassin.new,
+    mocassinWarm and cloudy.exe.
+
+### What they are scored against
+
+  - **Cloudy at its own zoning:** D-458's static runs, runs/_d458/cl-hii
+    (713 zones) and cl-pn (654 zones).
+  - **MOCASSIN:** the runs the comparison pages use, runs/_d450/hii-LC and
+    pn-LC.
+  - **What is compared:** the comparison pages' quantities. These are the
+    H+ front, the H/H2 crossing and C+ = C, G0 and T_gas at fixed A_V,
+    Hbeta and the pages' lines from Cloudy's last-iteration intrinsic
+    block, and pn150k's case-B recombination budget
+    (runs/_d448/cloudy_budget.py). The profiles are drawn Röllig-style,
+    MOCASSIN against both Cloudy runs.
+  - **The page:** a new artifact. The two comparison pages are not changed.
+
+### The mechanism the predictions rest on
+
+c25's ZoneStart (zone_startend.cpp) dims the field inside a zone by
+tmn = (1 - e^-tau)/tau, with tau = opacity x dr x 1.35. The opacity is the
+one the previous zone left; the zone's own converged opacity attenuates the
+field only for the next zone (rt_continuum.cpp). Cloudy's own zoning keeps
+tau per zone small, and with tau small the scheme conserves photons. At
+fixed dr, the zone that holds the H+ front sits behind an ionized zone with
+a much smaller tau. It is solved with too strong a field, so it ends more
+ionized than the photons reaching it can keep ionized. Read from D-458's
+profiles, cut into zones of dx:
+  - **hiipdr.** The front is 0.045 dx wide (HII 0.9 to 0.1). Zone 4
+    (depth 6-8e18 cm) has tau912 3.1 and 39% of the recombinations. Zone 5
+    (8-10e18 cm, r 1.1-1.3e19) holds the front at 0.31 of its depth and
+    14% of the recombinations; fully ionized it would hold about 52%.
+  - **pn150k.** The front is 0.94 dx wide. Zones 6-8 have tau912 1.3, 4.4
+    and 26 and 18%, 24% and 27% of the recombinations, with mean HII 0.995,
+    0.985 and 0.913. Zone 9 holds the front at 0.23 of its depth and 5%.
+
+### Predictions (on record before the runs)
+
+  1. **Both finish.** hiipdr has 29 zones and pn150k 40. The last zone
+     passes Rout by up to one zone, since sdrmin overrides the depth still
+     to go. Each run takes under a fifth of D-458's time (598 s and 243 s).
+  2. **Hbeta (Cloudy at dx over Cloudy at its own zoning):** hiipdr
+     +25 to +50%, pn150k +5 to +35%.
+  3. **Photon conservation fails:** pn150k's case-B H recombinations go
+     from 0.991 Q(H) to 1.05-1.35 Q(H).
+  4. **The H+ front (HII = 0.5) moves out.** hiipdr goes from depth 8.6e18
+     cm (A_V 0.446) to 9.5e18-1.05e19 cm (A_V 0.49-0.54); pn150k moves out
+     by 0.2-1 dx.
+  5. **The PDR transitions move by less than one zone's A_V** (0.11 mag in
+     hiipdr, 0.017 in pn150k):
+     - hiipdr's crossing (1.278) within 0.12 mag, and its C+ = C (2.93,
+       inside the last zone) within 0.15;
+     - pn150k's crossing (0.362) within 0.03.
+  6. **G0 at fixed A_V** within 10% in both models. A zone's dust tau in the
+     FUV is about 0.3 in hiipdr and 0.05 in pn150k.
+  7. **T_gas:**
+     - hiipdr at A_V 0.70 and 1.00 (48.0 and 45.2 K) within 15%;
+     - pn150k at A_V 0.20 (131 K, just behind the front) within 40%, and
+       at 0.30-0.65 within 15%.
+  8. **Lines, Cloudy at dx over Cloudy at its own zoning:**
+     - [O III] 5007 within 15%;
+     - [C II] 158 within 25%;
+     - [O I] 63 and H2 1-0 S(1) within 50%, since both come from the warm
+       layer behind the front, now one or two zones.
+  9. **Against MOCASSIN, no gap closes.**
+     - MOCASSIN/Cloudy Hbeta goes from 0.920 to 0.61-0.74 (hiipdr), and
+       from 0.942 to 0.70-0.90 (pn150k).
+     - hiipdr's crossing gap (MOCASSIN 1.393) closes by at most 0.12 mag,
+       and its C+ = C gap (MOCASSIN 2.28) by at most 0.15.
+     - MOCASSIN, whose packets conserve photons by construction, is not a
+       coarse Cloudy.
+
+**What would change the reading:** if Cloudy's Hbeta stays within 5% of
+its own zoning's, c25 conserves photons across thick zones and the tmn
+reading is wrong. The fixed-dr runs would then be fair coarse models, and
+their gaps to MOCASSIN would measure the spacing.
+
+Status when queued: Open.
