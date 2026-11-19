@@ -61,6 +61,7 @@ DEVLOG.md and arrives here by merge.
 | H-050 | **Production's release `pdr-coupling-v2.0.2` (D-443) and documentation increment 5 (D-444) merged in.** Merge 5a76742 of production 53eab97, no conflict; no change in source/, Makefile, data/ or dataPDR/ since H-049, so nothing rebuilt; the branch again differs from production only in DEVLOG-H2.md. D-444 records 26 defects of the MOCASSIN core as L-64..L-89 (none fixed); they apply to this branch equally. The v2.0.2 tag is on production's a048fc7, an ancestor of this merge | Done | 2026-10-25 |
 | H-051 | **Production's D-445 to D-463 merged in (the user, D-463: "merge these changes to the other branches in the repository").** Merge 2d6f697 of production 46f697d, no conflict; the branch again differs from production only in DEVLOG-H2.md. It brings in four source changes, each a change to what a run computes: D-447 (H I collisional excitation emitted), D-450 (re-emission diagnostic, a Q file's largest radius, hydrogen's charge transfer from higher stages), D-454 (SED.out continuum only, SEDlines.out) and D-462 (stochastic heating, qheat_mod). It also brings D-458 (Cloudy comparisons as a static sphere) and L-98 (D-463). The four flavours and h2Test, h2Slab and qhTest build with rc 0 (runs/h051/build.log). Nothing rerun or installed; ~/.local/mocassin_h2 is still 92a17d3's | Done | 2026-11-07 |
 | H-052 | **Production's D-463 close and D-464 merged in (the user, asked whether to bring docs and h2-model up to date: "yes").** Merge ace30ad of production 174c628, no conflict; the branch again differs from production only in DEVLOG-H2.md. Documentation only: L-99 records that the resonance lines (Lya among them) are not transferred, only destroyed at the emitting cell's escape probability, and D-464 recounts the original `resLinesTransfer` treatment. No source change, nothing rebuilt | Done | 2026-11-07 |
+| H-053 | **Production's D-465 to D-470 merged in (the user, after GitHub's main was updated: "update docs and h2-model").** Merge 374f6f3 of production 48bfdd5, no conflict; the branch again differs from production only in DEVLOG-H2.md. Documentation only, nothing rebuilt: source/, the Makefile, data/, dataPDR/ and tools/ are unchanged from 174c628 (D-466's fieldAverage was removed by D-467, which restored the source). It brings D-465 (the High limitations ranked), D-466/D-467 (fieldAverage built, tested and removed, tag d466-fieldaverage-reverted), D-468/D-469 (L-55 on hiipdr is L-26's field noise; pathStretch does not replace the packets) and D-470 (origin pushes over SSH; CLAUDE.md's "Pushing"). h2-model pushed to GitHub on the user's go-ahead, with docs (fast-forwarded to 48bfdd5) | Done | 2026-11-19 |
 
 ---
 
@@ -6108,3 +6109,43 @@ Nothing is pushed.
 ### Status
 
 Done (2026-11-07).
+
+## H-053 - Production's D-465 to D-470 merged in (2026-11-19)
+
+The user, after GitHub's main was updated to production's 48bfdd5:
+"update docs and h2-model".
+
+What production did after H-052 reaches this branch by merge 374f6f3
+(production 48bfdd5), with no conflict. `git diff pdr-photoionization
+h2-model` again lists only DEVLOG-H2.md.
+
+The changes are documentation only. `git diff --stat 174c628 48bfdd5`
+over source/, the Makefile, data/, dataPDR/, tools/, benchmarks/ and
+examples/ is empty, so nothing was rebuilt. D-466 had added the
+`fieldAverage` code; D-467 removed it by restoring the source to 6e08049,
+whose source is 174c628's. What arrives:
+  - D-465: the High limitations ranked for the 3D PDR+H2 model.
+  - D-466 and D-467: the field averaged over iterations (`fieldAverage`)
+    built, tested on hiipdr and removed; the code is kept under the tag
+    `d466-fieldaverage-reverted`, which is local only.
+  - D-468: H-043's heating census on D-466's hiipdr series. The cells whose
+    held PDR heating swings over 10x fall 49/16/1/0 at 1x/4x/16x/64x the
+    packets, so on hiipdr L-55 is L-26's field noise. K1a's warm cells,
+    which carry the H2 rotational lines, are not tested.
+  - D-469: the path biasing (`pathStretch 0.5`) does not replace the
+    packets; the named H2 lines at 4x were 0.2-0.4% off 64x's.
+  - D-470: `origin` pushes over SSH, and CLAUDE.md's new "Pushing" section
+    allows a push only on the user's explicit go-ahead for it. The merge
+    brings that CLAUDE.md here, so the rule holds in this worktree too.
+
+### Pushed
+
+On the user's go-ahead, after a dry run showing both as fast-forwards:
+  - `docs`, fast-forwarded in ~/software/mocassin_docs from 174c628 to
+    48bfdd5, to GitHub's docs;
+  - `h2-model`, with this entry, to GitHub's h2-model.
+No tag is pushed.
+
+### Status
+
+Done (2026-11-19).
