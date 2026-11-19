@@ -161,6 +161,10 @@ line's natural width is its upper level's total decay rate (H-008).
   (H-003). `h2Slab` marches the pumping and shielding through a slab (H-005, H-006). Both are compared
   with Cloudy by the `tools/h00*` scripts. The H2 line maps are made by `tools/h034_maps.py` from a
   finished run (H-034).
+- `qhTest`: standalone test of the stochastic grain heating (`source/qheat_mod.f90`), built with
+  `make qhTest` in any flavour. It solves one grain's temperature distribution for a field read from a
+  file; `tools/d462_qheat_check.py` builds the cases and checks it against numpy, a Monte Carlo of the
+  grain's heating history and the equilibrium temperature (D-462).
 
 ## Building and installation
 

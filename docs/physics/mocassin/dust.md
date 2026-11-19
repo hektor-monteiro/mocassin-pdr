@@ -329,7 +329,7 @@ previous iteration's converged-cell share is at least `conv`.
 - the steady state follows from the recursion of {cite:t}`GuhathakurtaDraine1989`.
 
 The levels are `nTbins` temperatures spaced geometrically from 1 K, the first temperature of `getDustT`'s
-emission table, to `Tmax` (300 up to 700 K by default; `quantumHeatGrainParameters`). They are the same for every
+emission table, to `Tmax` (300 levels to 700 K by default; `quantumHeatGrainParameters`). They are the same for every
 grain, so the Planck function is tabulated once. The field is a histogram over the frequency bins, each bin's
 energy spread between the midpoints to its neighbours, an interval of width `widFlx`, so the integrals the
 rates need are exact. Where a grain's distribution is narrower than a level, it is spread over the neighbouring

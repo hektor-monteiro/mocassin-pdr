@@ -471,6 +471,7 @@ reasoning that led to the wrong turn is part of the history.
 | D-469 | **The path biasing (`pathStretch 0.5`, D-238) tested against D-466's 64x on the current code (D-468's recommendation; the user: "write the predictions into the DEVLOG and queue the two pathStretch runs").** hiipdr at 1x and 4x with `pathStretch 0.5`, seed 1001, 15 iterations, on the R binary of D-467 (source 6e08049's), input lines only; scored with D-466's tools against hii-ctl, hii-s4, hii-s16 and hii-s64. Passes if the 4x run is within the 16x-64x step of hii-s64 in the means (C+ = C within 0.08 mag, [C I] within 4%, CO within 10%, Hbeta and the H2 lines within 0.3%) and its scatter before the turn is no larger than hii-s4's. **Result: fails in the means.** At 4x, C+ = C 2.679 (0.113 short of 64x's 2.792, about 12x's) and [C I] 609 +8.3%; CO 1-0..4-3 within 10%, Hbeta +0.02%; scatter before the turn 1.26-1.60x hii-s4's. The gain falls with the count (about 7x at 1x, 3x at 4x), at 0.97 of the analog's time. The biased CO excess over 64x (1.32x at 1x, 1.13x at 4x) is the field's variance; the low-J CO is bracketed (64x within 4-7% of the limit); an H/H2 crossing shift of -0.005 mag does not fall with the packets (unexplained). The biasing is not the route; the packet count stays the remedy. Splitting not indicated (an inference). Runs in runs/_d469 | Done | 2026-11-18 |
 | D-470 | **Pushing from this session over SSH, on the user's explicit go-ahead for each push (the user: "ok, change to ssh. Also change the repository rule so that you can push when I explicitly authorize it").** Checked first, nothing pushed: `ssh -T git@github.com` authenticates as hektor-monteiro (key from the desktop SSH agent); `git ls-remote` over SSH lists main and docs at 174c628, h2-model at 0457525; a dry-run push of pdr-photoionization to main was accepted as a fast-forward 174c628..287d997. `origin` had only an HTTPS URL and no credential helper, so a plain push from the shell could not authenticate. Changed: `git remote set-url --push origin git@github.com:hektor-monteiro/mocassin-pdr.git` (fetch stays HTTPS; the setting is the repository's, so the worktrees and GitKraken push over SSH too). Rule: CLAUDE.md gains "Pushing" (a push only on an explicit go-ahead naming what goes where, covering that push only; dry-run and check fast-forward first; tags only by name, never `--tags`; no force push or remote-ref deletion unless named); the code-executor never pushes, even when a plan says to. Still not pushed: main at 174c628, behind pdr-photoionization by D-465..D-470 (19 commits with this one); eight local-only tags, d466-fieldaverage-reverted among them | Done | 2026-11-19 |
 | D-471 | **GitHub's main, docs and h2-model updated (the user: "update GitHub's main", then "update docs and h2-model"), the first pushes under D-470's rule.** main: pdr-photoionization pushed, 174c628..48bfdd5. docs: fast-forwarded in ~/software/mocassin_docs to 48bfdd5 and pushed, 174c628..48bfdd5. h2-model: production 48bfdd5 merged in (374f6f3, no conflict, documentation only, nothing rebuilt), recorded as H-053 (7262f67) and pushed, 0457525..7262f67. Each push dry-run first, all fast-forwards; no tag pushed. This entry's commit is not pushed | Done | 2026-11-19 |
+| D-472 | **Audit of the changes since D-460 (20e4bbc..f55519c, D-461 to D-471), and the documentation they needed (the user: "we have done some changes to the repository. Audit the changes and check what needs to be updated in the documentation").** The only code change left is D-462's stochastic heating (D-466 is fully reverted: `git diff 6e08049 HEAD` over source/, the Makefile and tools/ is empty). Read against its record: qheat_mod, qHeatGrain, the getDustT store and its MPI reduction, the gate and the defaults; the units (Jste/pi in getDustT, times pi in qHeatGrain), the component-local species index of qhCont and the resonance-line share agree with getDustT. No defect found. The pages D-462 to D-469 touched were already current; five gaps fixed: `qhTest` missing from the generated build page (mocdocs TARGETS), README's executables and the install page; D-469's pathStretch result missing from the transfer chapter, the PDR convergence chapter and the keyword entry (which still said "until validated"); an ambiguous default in the dust chapter ("300 up to 700 K"). pytest 125 passed, fortref check 0 problems, sphinx-build -W rc 0 | Done | 2026-11-19 |
 | D-110 | Zeroing molecules outside the PDR zone: implemented, then rejected as imposing the answer | Rejected | 2026-09-03 |
 | D-111 | Cloudy couples ionization and chemistry by per-stage source/sink, not by network photoionization | Accepted | 2026-09-03 |
 | D-112 | H2 self-shielding is bistable; the seed is a model input, not a numerical artifact | Accepted | 2026-09-03 |
@@ -49693,5 +49694,97 @@ stay local.
 
 This entry's commit is not pushed, so main and docs are one commit behind
 production until the next push.
+
+Status: Done.
+
+---
+
+## D-472 - Audit of D-461 to D-471, and the documentation they needed (2026-11-19)
+
+The user: "we have done some changes to the repository. Audit the changes
+and check what needs to be updated in the documentation". The audit covers
+production from D-460's merge, 20e4bbc, to f55519c (D-461 to D-471). The
+docs worktree was fast-forwarded to f55519c first.
+
+### What changed in the code
+
+  - **D-462 is the only code change left.** D-466's `fieldAverage` was
+    removed by D-467: `git diff 6e08049 HEAD` over source/, the Makefile
+    and tools/ is empty. The net diff from 20e4bbc is D-462's: qheat_mod
+    and qhTest (new), emission_mod (qHeat, getTmin, enthalpy, clrate and
+    cheat replaced by qHeatGrain and resLineGrainHeat), common_mod,
+    update_mod, iteration_mod, grid_mod, set_input_mod (minConvQHeat 0),
+    the Makefile (qheat_mod in SOURCES, the qhTest rule) and
+    tools/d462_qheat_check.py.
+  - The other entries change no code: D-461 (the reinstall), D-463 and
+    D-464 (L-98, L-99), D-465 and D-468 (recommendations), D-469 (runs),
+    D-470 and D-471 (pushing).
+
+### D-462 read against its record
+
+  - **Units.** getDustT's radField is Jste/pi (update_mod), and its
+    resonance-line and gas-grain terms are in the same units. qHeatGrain
+    takes Jste as it is and multiplies the two stored terms by pi, so
+    qhSolve's absorbed power is pi times getDustT's for the same grain, as
+    the routine's comment says.
+  - **The store.** getDustT writes qhCont under the same condition
+    (lgGas and lgPhotoelectric) that adds the term to dustAbsIntegral, and
+    0 otherwise. qhResD is resLineHeating's Gline*Hden*(1-fEscape), and
+    resLineGrainHeat keeps the old operations in their old order. Both are
+    copied to their MPI arrays at the four places updateCell copies Tdust
+    (the echo return included) and reduced with it, so each cell comes from
+    the one rank that updated it.
+  - **Indices.** qhCont is indexed by the component's local species index
+    in getDustT and in qHeatGrain, as gasDustColl_d is; the cross section,
+    rho, MsurfAtom and grainCarb are read with the global index
+    dustComPoint + nS - 1.
+  - **The gate.** lgQhReady is set at the first Tdust reduction. A run
+    therefore uses the equilibrium emission in its first iteration, and a
+    warm start again in its first, since the store is not saved. This is
+    as designed.
+  - **qhSolve.** Eq 28's intrabin term, eq 16's top level and eq 41's
+    truncated cooling have the forms D-462 records for DL01 (not re-read
+    against the paper here). The emission per bin and the
+    cooling power sum the same levels' Planck terms below each level's
+    energy, so the emitted/absorbed ratio of 1 to rounding in D-462's runs
+    follows from the construction.
+  - **No defect found.** qHeatPss.out still holds only rank 0's cells, as
+    outputs.yaml says.
+
+### The documentation
+
+D-462 to D-469 had updated the pages they touched: the dust chapter's
+"Stochastic heating", keywords.yaml and outputs.yaml for the option,
+the MOCASSIN index's counts, L-8, L-96 (closed), L-98, L-99 and L-26. The
+stale text found by grep (`qHeat`, `getTmin`, the 99% gate) is only in
+generated pages of the worktree that predate the last build, and the build
+rewrites them. Five gaps, fixed on docs:
+  - **qhTest.** The generated build page lists the targets in mocdocs'
+    TARGETS, which did not have qhTest. Added there and to test_tree's list
+    of programs (source/qhTest.f90 is in the compiled set). README's
+    "Executables" and the install page now say what qhTest is and that
+    tools/d462_qheat_check.py runs it.
+  - **D-469 in the transfer chapter.** The pathStretch section ended with
+    D-238..D-280's tests. It now gives D-469's: about 7 times the packets
+    in hiipdr's carbon turn at 1x and 3 times at 4x, at 0.97 of the analog
+    run's time; at 4x 0.11 mag short of 64x's turn, [C I] 609 um +8%, and
+    1.3-1.6 times the scatter before the turn.
+  - **D-469 in the PDR convergence chapter,** after D-466's sentence.
+  - **The pathStretch keyword** said "off by default until validated on
+    the fixtures". It now gives D-469's result; devlog [D-238, D-469].
+  - **The dust chapter's grid default** read "300 up to 700 K"; now "300
+    levels to 700 K".
+
+Not changed: CLAUDE.md's build rule names h2Test and h2Slab and not qhTest.
+D-462 built qhTest with the flavours; whether it joins that rule is the
+user's call.
+
+### Checks
+
+  - pytest (docs/_ext/fortref/tests, docs/_ext/tests, tools/tests): 125
+    passed.
+  - fortref check: 1881 references, 0 problems.
+  - sphinx-build -E -W --keep-going, fortref.unpushed suppressed: rc 0.
+    The generated build page lists `make qhTest`.
 
 Status: Done.

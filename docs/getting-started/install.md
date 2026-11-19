@@ -54,7 +54,8 @@ object tree.
 `all` builds the four programs `mocassin`, `mocassinWarm`, `mocassinOutput` and
 `mocassinPlot`. After a 3D build, `make PDR=1 PDRGEOM=3D h2Test h2Slab` builds the
 H₂ model's standalone tests (repeat the flags, or the next build recompiles every
-object).
+object). `make qhTest` builds the stochastic grain heating's standalone test in any
+flavour; `tools/d462_qheat_check.py` runs it ({devlog}`D-462`).
 
 The programs read their data from `PREFIX/share/mocassin/` (below), so a build is
 runnable only after `make install` with the same `PREFIX`. A stale installed copy
