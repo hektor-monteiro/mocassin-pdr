@@ -599,8 +599,11 @@
     Composite biasing of the interaction depth (Baes et al. 2016): a
     fraction `xi` (0 < xi ≤ 1) of packets is drawn from the analog
     exponential and the rest from a stretched one, with weights bounded by
-    1/xi. Numerics only; off by default until validated on the fixtures.
-  devlog: [D-238]
+    1/xi. Numerics only, and off by default: on hiipdr it is worth about
+    seven times the packets in the carbon turn at the default count and
+    three times at four times the count, with more scatter, so it does not
+    replace the packets ({devlog}`D-469`).
+  devlog: [D-238, D-469]
 
 - name: TeStart
   group: montecarlo

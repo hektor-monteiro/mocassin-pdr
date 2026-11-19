@@ -70,7 +70,7 @@ BUILDS = [
     ('make PDR=1 all', 'the coupled code, with 1D slab columns and no H₂ level model'),
     ('make all', 'MOCASSIN without PDR'),
 ]
-TARGETS = ('all', 'new', 'clean', 'install', 'uninstall', 'h2Test', 'h2Slab', 'pdrSmokeTest')
+TARGETS = ('all', 'new', 'clean', 'install', 'uninstall', 'h2Test', 'h2Slab', 'qhTest', 'pdrSmokeTest')
 _ITERATION_OPTIONS = ('3D-PDR iteration and temperature-search options '
                       '(routines not called by the coupling)')
 FLAG_MEANINGS = {
